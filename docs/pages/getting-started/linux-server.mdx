@@ -7,13 +7,7 @@ videoBanner: KCk7wYgUn3A
 This tutorial will guide you through the steps needed to install and run
 Teleport (=teleport.version=) on Linux machines.
 
-<Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">
-This guide deploys the Teleport Auth Service and Proxy Service, which are fully managed in Teleport Cloud. If you are a Teleport Cloud customer, we recommend following our guides for deploying specific services on your Teleport Nodes. Here are some examples:
-
-- [Application Access](../application-access/getting-started.mdx)
-- [Database Access](../database-access/getting-started.mdx)
-- [Server Access](../server-access/getting-started.mdx)
-</Details>
+(!docs/pages/includes/cloud/cloudmanagedadvisory.mdx!)
 
 ## Prerequisites
 
@@ -228,30 +222,30 @@ Bootstrap a new Node:
     ```ini
     #cloud-config
 
-    package_upgrade: true
+    package_update: true
 
     write_files:
     - path: /etc/teleport.yaml
-        content: |
-            teleport:
-                auth_token: ""
-                auth_servers:
-                    - "https://teleport.example.com:443"
-            auth_service:
-                enabled: false
-            proxy_service:
-                enabled: false
-            ssh_service:
-                enabled: true
-                labels:
-                    env: demo
+      content: |
+        teleport:
+          auth_token: ""
+          auth_servers:
+          - "https://teleport.example.com:443"
+        auth_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: true
+          labels:
+            env: demo
 
     runcmd:
-    - 'mkdir -p /tmp/teleport'
-    - 'cd /tmp/teleport && curl -O https://get.gravitational.com/teleport_(=teleport.version=)_amd64.deb'
-    - 'dpkg -i /tmp/teleport/teleport_(=teleport.version=)_amd64.deb'
-    - 'systemctl enable teleport.service'
-    - 'systemctl start teleport.service'
+      - 'mkdir -p /tmp/teleport'
+      - 'cd /tmp/teleport && curl -O https://get.gravitational.com/teleport_(=teleport.version=)_amd64.deb'
+      - 'dpkg -i /tmp/teleport/teleport_(=teleport.version=)_amd64.deb'
+      - 'systemctl enable teleport.service'
+      - 'systemctl start teleport.service'
     ```
   </TabItem>
 </Tabs>

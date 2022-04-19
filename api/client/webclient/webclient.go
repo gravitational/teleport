@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -57,6 +58,8 @@ type Config struct {
 	// ExtraHeaders is a map of extra HTTP headers to be included in
 	// requests.
 	ExtraHeaders map[string]string
+	// IgnoreHTTPProxy disables support for HTTP proxying when true.
+	IgnoreHTTPProxy bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -82,9 +85,11 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,
 		},
-		Proxy: func(req *http.Request) (*url.URL, error) {
+	}
+	if !cfg.IgnoreHTTPProxy {
+		transport.Proxy = func(req *http.Request) (*url.URL, error) {
 			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-		},
+		}
 	}
 	return &http.Client{
 		Transport: proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
@@ -187,8 +192,14 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusBadRequest {
+		per := &PingErrorResponse{}
+		if err := json.NewDecoder(resp.Body).Decode(per); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, errors.New(per.Error.Message)
+	}
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err)
@@ -265,6 +276,17 @@ type PingResponse struct {
 	MinClientVersion string `json:"min_client_version"`
 }
 
+// PingErrorResponse contains the error message if the requested connector
+// does not match one that has been registered.
+type PingErrorResponse struct {
+	Error PingError `json:"error"`
+}
+
+// PingError contains the string message from the PingErrorResponse
+type PingError struct {
+	Message string `json:"message"`
+}
+
 // ProxySettings contains basic information about proxy settings
 type ProxySettings struct {
 	// Kube is a kubernetes specific proxy section
@@ -336,6 +358,10 @@ type AuthenticationSettings struct {
 	// when various options are available.
 	// It is empty if there is nothing to suggest.
 	PreferredLocalMFA constants.SecondFactorType `json:"preferred_local_mfa,omitempty"`
+	// AllowPasswordless is true if passwordless logins are allowed.
+	AllowPasswordless bool `json:"allow_passwordless,omitempty"`
+	// Local contains settings for local authentication.
+	Local *LocalSettings `json:"local,omitempty"`
 	// Webauthn contains MFA settings for Web Authentication.
 	Webauthn *Webauthn `json:"webauthn,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.
@@ -351,6 +377,12 @@ type AuthenticationSettings struct {
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
+}
+
+// LocalSettings holds settings for local authentication.
+type LocalSettings struct {
+	// Name is the name of the local connector.
+	Name string `json:"name"`
 }
 
 // Webauthn holds MFA settings for Web Authentication.

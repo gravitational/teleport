@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ui
+package webclient
 
 import "github.com/gravitational/teleport/api/constants"
 
@@ -35,7 +35,7 @@ const (
 	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?redirect_url=:redirect&connector_id=:providerName"
 )
 
-// WebConfig is web application configuration
+// WebConfig is web application configuration served by the backend to be used in frontend apps.
 type WebConfig struct {
 	// Auth contains Teleport auth. preferences
 	Auth WebConfigAuthSettings `json:"auth,omitempty"`

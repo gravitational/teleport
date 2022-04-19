@@ -34,7 +34,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -42,6 +41,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
@@ -228,6 +229,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		clock:           clockwork.NewRealClock(),
 		ClusterFeatures: cfg.ClusterFeatures,
 	}
+
+	// for properly handling url-encoded parameter values.
+	h.UseRawPath = true
 
 	for _, o := range opts {
 		if err := o(h); err != nil {
@@ -624,6 +628,13 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		Type:              constants.Local,
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		AllowPasswordless: cap.GetAllowPasswordless(),
+		Local:             &webclient.LocalSettings{},
+	}
+
+	// Only copy the connector name if it's truly local and not a local fallback.
+	if cap.GetType() == constants.Local {
+		as.Local.Name = cap.GetConnectorName()
 	}
 
 	// U2F settings.
@@ -654,8 +665,9 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
-		// if you falling back to local accounts
-		SecondFactor: cap.GetSecondFactor(),
+		// Local fallback / MFA.
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 }
 
@@ -666,8 +678,9 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
-		// if you are falling back to local accounts
-		SecondFactor: cap.GetSecondFactor(),
+		// Local fallback / MFA.
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 }
 
@@ -678,11 +691,13 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
-		SecondFactor: cap.GetSecondFactor(),
+		// Local fallback / MFA.
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 }
 
-func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
+func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
 	cap, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
@@ -762,7 +777,7 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
-	defaultSettings, err := defaultAuthenticationSettings(r.Context(), h.cfg.ProxyClient)
+	authSettings, err := getAuthSettings(r.Context(), h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -773,7 +788,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	return webclient.PingResponse{
-		Auth:             defaultSettings,
+		Auth:             authSettings,
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
@@ -811,47 +826,70 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
-	if connectorName == constants.Local {
+	if apiutils.SliceContainsStr(constants.SystemConnectors, connectorName) {
 		response.Auth, err = localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+		response.Auth.Local.Name = connectorName // echo connector queried by caller
 		return response, nil
 	}
 
+	// collectorNames stores a list of the registered collector names so that
+	// in the event that no connector has matched, the list can be returned.
+	var collectorNames []string
+
 	// first look for a oidc connector with that name
-	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
+	oidcConnectors, err := authClient.GetOIDCConnectors(r.Context(), false)
 	if err == nil {
-		response.Auth = oidcSettings(oidcConnector, cap)
-		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
-		return response, nil
+		for index, value := range oidcConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
+			if value.GetMetadata().Name == connectorName {
+				response.Auth = oidcSettings(oidcConnectors[index], cap)
+				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				return response, nil
+			}
+		}
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
+	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
 	if err == nil {
-		response.Auth = samlSettings(samlConnector, cap)
-		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
-		return response, nil
+		for index, value := range samlConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
+			if value.GetMetadata().Name == connectorName {
+				response.Auth = samlSettings(samlConnectors[index], cap)
+				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				return response, nil
+			}
+		}
 	}
 
 	// look for github connector
-	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
+	githubConnectors, err := authClient.GetGithubConnectors(r.Context(), false)
 	if err == nil {
-		response.Auth = githubSettings(githubConnector, cap)
-		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
-		return response, nil
+		for index, value := range githubConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
+			if value.GetMetadata().Name == connectorName {
+				response.Auth = githubSettings(githubConnectors[index], cap)
+				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				return response, nil
+			}
+		}
 	}
 
-	return nil, trace.BadParameter("invalid connector name %v", connectorName)
+	return nil,
+		trace.BadParameter(
+			"invalid connector name: %v; valid options: %s",
+			connectorName, strings.Join(collectorNames, ", "))
 }
 
 // getWebConfig returns configuration for the web application.
 func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetWebConfigHeaders(w.Header())
 
-	authProviders := []ui.WebConfigAuthProvider{}
+	authProviders := []webclient.WebConfigAuthProvider{}
 
 	// get all OIDC connectors
 	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
@@ -859,9 +897,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve OIDC connectors.")
 	}
 	for _, item := range oidcConnectors {
-		authProviders = append(authProviders, ui.WebConfigAuthProvider{
-			Type:        ui.WebConfigAuthProviderOIDCType,
-			WebAPIURL:   ui.WebConfigAuthProviderOIDCURL,
+		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
+			Type:        webclient.WebConfigAuthProviderOIDCType,
+			WebAPIURL:   webclient.WebConfigAuthProviderOIDCURL,
 			Name:        item.GetName(),
 			DisplayName: item.GetDisplay(),
 		})
@@ -873,9 +911,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
 	for _, item := range samlConnectors {
-		authProviders = append(authProviders, ui.WebConfigAuthProvider{
-			Type:        ui.WebConfigAuthProviderSAMLType,
-			WebAPIURL:   ui.WebConfigAuthProviderSAMLURL,
+		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
+			Type:        webclient.WebConfigAuthProviderSAMLType,
+			WebAPIURL:   webclient.WebConfigAuthProviderSAMLURL,
 			Name:        item.GetName(),
 			DisplayName: item.GetDisplay(),
 		})
@@ -887,26 +925,26 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve Github connectors.")
 	}
 	for _, item := range githubConnectors {
-		authProviders = append(authProviders, ui.WebConfigAuthProvider{
-			Type:        ui.WebConfigAuthProviderGitHubType,
-			WebAPIURL:   ui.WebConfigAuthProviderGitHubURL,
+		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
+			Type:        webclient.WebConfigAuthProviderGitHubType,
+			WebAPIURL:   webclient.WebConfigAuthProviderGitHubURL,
 			Name:        item.GetName(),
 			DisplayName: item.GetDisplay(),
 		})
 	}
 
 	// get auth type & second factor type
-	var authSettings ui.WebConfigAuthSettings
+	var authSettings webclient.WebConfigAuthSettings
 	if cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context()); err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
-		authSettings = ui.WebConfigAuthSettings{
+		authSettings = webclient.WebConfigAuthSettings{
 			Providers:        authProviders,
 			SecondFactor:     constants.SecondFactorOff,
 			LocalAuthEnabled: true,
 			AuthType:         constants.Local,
 		}
 	} else {
-		authSettings = ui.WebConfigAuthSettings{
+		authSettings = webclient.WebConfigAuthSettings{
 			Providers:         authProviders,
 			SecondFactor:      cap.GetSecondFactor(),
 			LocalAuthEnabled:  cap.GetAllowLocalAuth(),
@@ -935,7 +973,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
 	}
 
-	webCfg := ui.WebConfig{
+	webCfg := webclient.WebConfig{
 		Auth:                authSettings,
 		CanJoinSessions:     canJoinSessions,
 		IsCloud:             h.ClusterFeatures.GetCloud(),

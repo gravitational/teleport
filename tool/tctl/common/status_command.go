@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/api/constants"
@@ -67,23 +66,13 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 
 	var authorities []types.CertAuthority
 
-	hostCAs, err := client.GetCertAuthorities(ctx, types.HostCA, false)
-	if err != nil {
-		return trace.Wrap(err)
+	for _, caType := range types.CertAuthTypes {
+		ca, err := client.GetCertAuthorities(ctx, caType, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authorities = append(authorities, ca...)
 	}
-	authorities = append(authorities, hostCAs...)
-
-	userCAs, err := client.GetCertAuthorities(ctx, types.UserCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authorities = append(authorities, userCAs...)
-
-	jwtKeys, err := client.GetCertAuthorities(ctx, types.JWTSigner, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authorities = append(authorities, jwtKeys...)
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
@@ -104,7 +93,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 			if ca.GetClusterName() != clusterName {
 				continue
 			}
-			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
+			info := fmt.Sprintf("%v CA ", string(ca.GetType()))
 			rotation := ca.GetRotation()
 			standbyPhase := rotation.Phase == types.RotationPhaseStandby || rotation.Phase == ""
 			if standbyPhase && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
@@ -143,7 +132,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 				if ca.GetClusterName() == clusterName {
 					continue
 				}
-				info := fmt.Sprintf("Remote %v CA %q", strings.Title(string(ca.GetType())), ca.GetClusterName())
+				info := fmt.Sprintf("Remote %v CA %q", string(ca.GetType()), ca.GetClusterName())
 				rotation := ca.GetRotation()
 				table.AddRow([]string{info, rotation.String()})
 			}
