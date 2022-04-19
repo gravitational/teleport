@@ -229,6 +229,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
 		ClusterFeatures: cfg.ClusterFeatures,
 	}
 
+	// for properly handling url-encoded parameter values.
+	h.UseRawPath = true
+
 	for _, o := range opts {
 		if err := o(h); err != nil {
 			return nil, trace.Wrap(err)
