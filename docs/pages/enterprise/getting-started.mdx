@@ -138,11 +138,8 @@ Jwt CA   never updated
 CA pin   sha256:58b1c5cb8885d84ce08f3e3a47acb33d49841f12dd7648c0c1dd31bd501628
 ```
 
-Save the following configuration file as `/etc/teleport.yaml` on the *node.example.com*:
-
-!!! note "Note"
-
-Make sure to replace the ca_pin with the above `tctl status` output and the right auth server address.
+Copy the CA pin from the output of `tctl status`. On `node.example.com` save the following configuration file as `/etc/teleport.yaml`
+and use the CA pin you copied as the value of `ca_pin`.
 
 ```yaml
 teleport:
