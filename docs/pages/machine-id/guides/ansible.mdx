@@ -10,7 +10,8 @@ with a configuration file that is automatically managed by Machine ID.
 
 You will need the following tools to use Teleport with Ansible.
 
-- [Teleport Enterprise](../../enterprise/introduction.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= 9.0.0
+- The Teleport Auth Service and Proxy Service version >= 9.0.0, deployed on your own infrastructure or managed via Teleport Cloud.
+- The `tsh` client tool version >= (=teleport.version=).
 - `ssh` OpenSSH tool
 - `ansible` >= (=ansible.min_version=)
 - Optional tool `jq` to process `JSON` output
