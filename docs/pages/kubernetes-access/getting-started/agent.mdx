@@ -5,11 +5,7 @@ description: Connecting Kubernetes cluster to Teleport
 
 ## Prerequisites
 
-<Tabs>
-<TabItem scope={["oss"]} label="Open Source">
-
-- A running Teleport cluster. For details on how to set this up, see one of our
-  [Getting Started](../../getting-started.mdx) guides. 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
   The following configuration options must be set in `/etc/teleport.yaml` on
   your Proxy Service host:
@@ -22,71 +18,6 @@ description: Connecting Kubernetes cluster to Teleport
   ```
 
 - The `jq` tool to process `JSON` output. This is available via common package managers.
-
-- The `tctl` admin tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](../../installation.mdx) for details.
-
-  (!docs/pages/includes/tctl.mdx!)
-
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on how to set this up, see one of our
-  [Getting Started](../../getting-started.mdx) guides.
-
-  The following configuration options must be set in `/etc/teleport.yaml` on
-  your Proxy Service host:
-
-  ```yaml
-  proxy_service:
-    # ...
-    public_addr: proxy.example.com:3080
-    kube_listen_addr: 0.0.0.0:3026 
-  ```
-
-- The `jq` tool to process `JSON` output. This is available via common package managers.
-
-- The `tctl` admin tool version >= (=teleport.version=), which you can download
-  by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  (!docs/pages/includes/tctl.mdx!)
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- The `jq` tool to process `JSON` output. This is available via common package
-  managers.
-
-- The `tctl` admin tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](../../installation.mdx) for details.
-
-  (!docs/pages/includes/tctl.mdx!)
-
-</TabItem>
-</Tabs>
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
