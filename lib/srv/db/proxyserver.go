@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -646,7 +647,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 
 	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
 	// with UserCA where Teleport 10+ uses DatabaseCA.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), "10.0.0")
+	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), constants.DatabaseCAMinVersion)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
 	}

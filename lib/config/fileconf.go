@@ -692,6 +692,12 @@ type AuthenticationConfig struct {
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
+
+	// Passwordless enables/disables passwordless support.
+	// Requires Webauthn to work.
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	Passwordless *types.BoolOption `yaml:"passwordless"`
 }
 
 // Parse returns a types.AuthPreference (type, second factor, U2F).
@@ -723,6 +729,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		RequireSessionMFA: a.RequireSessionMFA,
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
+		AllowPasswordless: a.Passwordless,
 	})
 }
 
