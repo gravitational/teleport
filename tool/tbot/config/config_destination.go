@@ -39,6 +39,9 @@ func (dc *DatabaseConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("database `service` field must specify a database service name")
 	}
 
+	// Note: tsh has special checks for MongoDB and Redis. We don't know the
+	// protocol at this point so we'll need to defer those checks.
+
 	return nil
 }
 

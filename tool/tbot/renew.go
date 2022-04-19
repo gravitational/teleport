@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -304,11 +305,21 @@ func getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
 
+	username := dbCfg.Username
+	if db.GetProtocol() == libdefaults.ProtocolMongoDB && username == "" {
+		// This isn't strictly a runtime error so killing the process seems
+		// wrong. We'll just loudly warn about it.
+		log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", dbCfg.Service)
+	} else if db.GetProtocol() == libdefaults.ProtocolRedis && username == "" {
+		// Per tsh's lead, fall back to the default username.
+		username = libdefaults.DefaultRedisUsername
+	}
+
 	return proto.RouteToDatabase{
 		ServiceName: dbCfg.Service,
 		Protocol:    db.GetProtocol(),
 		Database:    dbCfg.Database,
-		Username:    dbCfg.Username,
+		Username:    username,
 	}, nil
 }
 
