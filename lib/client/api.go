@@ -369,11 +369,6 @@ type Config struct {
 	// ExtraProxyHeaders is a collection of http headers to be included in requests to the WebProxy.
 	ExtraProxyHeaders map[string]string
 
-	// Passwordless enables passwordless authentication for TeleportClient.
-	// Affects the TeleportClient.Login and, indirectly, RetryWithRelogin
-	// functions.
-	Passwordless bool
-
 	// UseStrongestAuth instructs TeleportClient to use the strongest
 	// authentication method supported by the cluster in Login attempts.
 	// Apart from the obvious benefits, UseStrongestAuth also avoids stdin
@@ -2531,8 +2526,6 @@ func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*webclient.WebConfi
 // Alternatively, if tc.UseStrongestAuth is set, then no stdin hijacking
 // happens.
 //
-// If tc.Passwordless is set, then the passwordless authentication flow is used.
-//
 // The returned Key should typically be passed to ActivateKey in order to
 // update local agent state.
 func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
@@ -2553,14 +2546,10 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	var response *auth.SSHLoginResponse
 
 	switch authType := pr.Auth.Type; {
-	case tc.Passwordless: // Takes precedence over other methods if set.
-		// Do a few sanity checks before obeying.
-		switch {
-		case authType != constants.Local:
-			return nil, trace.BadParameter("Passwordless is only available for local authentication")
-		case pr.Auth.Webauthn == nil:
-			return nil, trace.BadParameter(
-				"Webauthn is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/webauthn/")
+	case authType == constants.Local && pr.Auth.Local.Name == constants.PasswordlessConnector:
+		// Sanity check settings.
+		if !pr.Auth.AllowPasswordless {
+			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
 		}
 		response, err = tc.pwdlessLogin(ctx, key.Pub)
 		if err != nil {

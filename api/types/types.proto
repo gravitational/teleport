@@ -1035,6 +1035,16 @@ message AuthPreferenceSpecV2 {
 
     // Webauthn are the settings for server-side Web Authentication support.
     Webauthn Webauthn = 10 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
+
+    // AllowPasswordless enables/disables passwordless support.
+    // Passwordless requires Webauthn to work.
+    // Defaults to true if the Webauthn is configured, defaults to false
+    // otherwise.
+    BoolValue AllowPasswordless = 11 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "allow_passwordless,omitempty",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 // U2F defines settings for U2F device.
