@@ -22,7 +22,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.16.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.7.0
 	github.com/beevik/etree v1.1.0
-	github.com/coreos/go-oidc v0.0.4
+	github.com/coreos/go-oidc v0.0.0
 	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/duo-labs/webauthn v0.0.0-20210727191636-9f1b88ef44cc
