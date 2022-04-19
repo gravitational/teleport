@@ -165,12 +165,7 @@ async function getWorkingDirectory(pid: number): Promise<string> {
       // -p: PID
       // -d: only include the file descriptor, cwd
       // -F: fields to output (the n character outputs 3 things, the last one is cwd)
-      const { stdout, stderr } = await asyncExec(
-        `lsof -a -p ${pid} -d cwd -F n`
-      );
-      if (stderr) {
-        throw new Error(stderr);
-      }
+      const { stdout } = await asyncExec(`lsof -a -p ${pid} -d cwd -F n`);
       return stdout.split('\n').filter(Boolean).reverse()[0].substring(1);
     case 'linux':
       const asyncReadlink = promisify(readlink);
