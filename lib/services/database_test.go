@@ -303,7 +303,8 @@ func TestRDSTagsToLabels(t *testing.T) {
 		},
 	}
 	labels := rdsTagsToLabels(rdsTags)
-	require.Equal(t, map[string]string{"Name": "test", "Env": "dev"}, labels)
+	require.Equal(t, map[string]string{"Name": "test", "Env": "dev",
+		"aws:cloudformation:stack-id": "some-id"}, labels)
 }
 
 func TestAuroraMySQLVersion(t *testing.T) {

@@ -278,7 +278,9 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_ExistingMFAChallenge", resp.Response)
 		}
-		authResp, err := client.PromptMFAChallenge(ctx, tc.Config.WebProxyAddr, authChallenge, "*registered* ")
+		authResp, err := client.PromptMFAChallenge(ctx, authChallenge, tc.Config.WebProxyAddr, &client.PromptMFAChallengeOpts{
+			PromptDevicePrefix: "*registered*",
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -498,7 +500,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_MFAChallenge", resp.Response)
 		}
-		authResp, err := client.PromptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, authChallenge, "")
+		authResp, err := client.PromptMFAChallenge(cf.Context, authChallenge, tc.Config.WebProxyAddr, nil /* opts */)
 		if err != nil {
 			return trace.Wrap(err)
 		}

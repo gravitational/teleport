@@ -45,8 +45,6 @@ const (
 	// AlternativeName is another name of this backend.
 	AlternativeName = "dir"
 
-	// SyncOff disables file system sync after writing.
-	SyncOff = "OFF"
 	// SyncFull fsyncs the database file on disk after every write.
 	SyncFull = "FULL"
 
@@ -66,7 +64,7 @@ const (
 	slowTransactionThreshold = time.Second
 
 	// defaultSync is the default value for Sync
-	defaultSync = SyncOff
+	defaultSync = SyncFull
 
 	// defaultBusyTimeout is the default value for BusyTimeout, in ms
 	defaultBusyTimeout = 10000

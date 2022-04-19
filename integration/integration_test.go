@@ -4318,6 +4318,17 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
+
+	eventC := make(chan service.Event, 1)
+	svc.WaitForEvent(context.TODO(), service.TeleportReadyEvent, eventC)
+	select {
+	case <-eventC:
+
+	case <-time.After(20 * time.Second):
+		dumpGoroutineProfile()
+		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
+	}
+
 	return svc, nil
 }
 

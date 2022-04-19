@@ -409,7 +409,7 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
 Helm defaults to using the latest version of the chart available in the repo, which will also correspond to the latest
 version of Teleport. You can make sure that the repo is up to date by running `helm repo update`.
 
-If you want to use a different version of Teleport, set the [`teleportVersionOverride`](../reference.mdx#teleportversionoverride) value.
+If you want to use a different version of Teleport, set the [`teleportVersionOverride`](../reference/teleport-cluster.mdx#teleportversionoverride) value.
 
 Here's an example where we set the chart to use 3 replicas:
 
@@ -463,4 +463,4 @@ $ helm --namespace cert-manager uninstall cert-manager
 You can follow our [Getting Started with Teleport guide](../../../setup/guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
 Teleport cluster.
 
-See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
+See the [high availability section of our Helm chart reference](../reference/teleport-cluster.mdx#highavailability) for more details on high availability.

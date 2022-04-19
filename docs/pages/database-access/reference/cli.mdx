@@ -3,11 +3,11 @@ title: Database Access CLI Reference
 description: CLI reference for Teleport Database Access.
 ---
 
-# Database Access CLI Reference
-
 ## teleport db start
 
 Starts Teleport Database Service agent.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ teleport db start \
@@ -18,13 +18,27 @@ $ teleport db start \
     --uri=postgres.example.com:5432
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db start \
+    --token=/path/to/token \
+    --auth-server=mytenant.teleport.sh:3080 \
+    --name=example \
+    --protocol=postgres \
+    --uri=postgres.mytenant.teleport.sh:5432
+```
+
+</ScopedBlock>
+
 | Flag | Description |
 | - | - |
 | `-d/--debug` | Enable verbose logging to stderr. |
 | `--pid-file` | Full path to the PID file. By default no PID file will be created. |
-| `--auth-server` | Address of the Teleport proxy server. |
-| `--token` | Invitation token to register with an auth server. |
-| `--ca-pin` | CA pin to validate the auth server. |
+| `--auth-server` | Address of the Teleport Proxy Service. |
+| `--token` | Invitation token to register with the Auth Service. |
+| `--ca-pin` | CA pin to validate the Auth Service. |
 | `-c/--config` | Path to a configuration file (default `/etc/teleport.yaml`). |
 | `--labels` | Comma-separated list of labels for this node, for example `env=dev,app=web`. |
 | `--fips` | Start Teleport in FedRAMP/FIPS 140-2 mode. |

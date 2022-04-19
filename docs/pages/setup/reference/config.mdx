@@ -9,17 +9,57 @@ Teleport uses the YAML file format for configuration. A full configuration refer
 file is shown below, this provides comments and all available options for `teleport.yaml`
 By default, it is stored in `/etc/teleport.yaml`.
 
-(!docs/pages/includes/backup-warning.mdx!)
-
-This document aims to be a reference rather than a starting point for a real cluster. 
-
 <Admonition type="danger" title="Before using this reference">
-You must edit your configuration file to meet the needs of your environment. Using a copy of the reference configuration will have unintended effects. To create a configuration file that you can use as a starting point, run the following command:
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-```code
-$ teleport configure -o file
-```
+- **Do not use this example configuration in production.**
+
+  You must edit your configuration file to meet the needs of your environment.
+  Using a copy of the reference configuration will have unintended effects. To
+  create a configuration file that you can use as a starting point, run the
+  following command:
+
+  ```code
+  $ teleport configure -o file
+  ```
+
+- You should back up your configuration file before making changes. This will
+  enable you to roll back to the previous configuration if you need to.
+
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Teleport Cloud">
+
+- **Do not use this example configuration in production.**
+
+  You must edit your configuration file to meet the needs of your environment.
+  Using a copy of the reference configuration will have unintended effects. To
+  create a configuration file that you can use as a starting point, run the
+  following command:
+
+  ```code
+  $ teleport configure -o file
+  ```
+
+- You should back up your configuration file before making changes. This will
+  enable you to roll back to the previous configuration if you need to.
+
+- Teleport Cloud manages the Auth Service and Proxy Service for you. Your
+  Teleport Nodes should include the following configuration options to avoid
+  unintended effects:
+
+  ```yaml
+  auth_service:
+    enabled: no
+  
+  proxy_service:
+    enabled: no
+  ```
+
+</TabItem>
+</Tabs>
 </Admonition>
+
 
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
@@ -471,6 +511,25 @@ ssh_service:
 
     # Enables/disables TCP forwarding. Default is 'true'
     port_forwarding: true
+
+    # When x11.enabled is set to yes, users with the "permit_x11_forwarding"
+    # role option will be able to request X11 forwarding sessions with 
+    # "tsh ssh -X".
+    #
+    # X11 forwarding will only work if the server has the "xauth" binary
+    # installed and the Teleport node can open Unix sockets.
+    # e.g. "$TEMP/.X11-unix/X[display_number]."
+    x11: 
+      # no by default
+      enabled: yes
+      # display_offset can be used to specify the start of the range of X11
+      # displays the server will use when granting X11 forwarding sessions
+      # 10 by default
+      display_offset: 10
+      # max_display can be set to specify the end of the range of X11 displays
+      # to use when granting X11 forwarding sessions
+      # display_offset + 1000 by default
+      max_display: 1010
 
 # This section configures the 'proxy service'
 proxy_service:

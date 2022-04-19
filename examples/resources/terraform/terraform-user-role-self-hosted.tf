@@ -11,7 +11,9 @@ provider "teleport" {
   # Update addr to point to Teleport Auth/Proxy
   # addr               = "auth.example.com:3025"
   addr               = "proxy.example.com:443"
-  identity_file_path = "terraform-identity"
+  cert_path          = "auth.crt"
+  key_path           = "auth.key"
+  root_ca_path       = "auth.cas"
 }
 
 resource "teleport_role" "terraform-test" {

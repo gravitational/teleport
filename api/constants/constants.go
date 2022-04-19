@@ -180,3 +180,15 @@ const (
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
 )
+
+const (
+	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
+	HTTPSProxy = "HTTPS_PROXY"
+
+	// HTTPProxy is an environment variable pointing to a HTTP proxy.
+	HTTPProxy = "HTTP_PROXY"
+
+	// NoProxy is an environment variable matching the cases
+	// when HTTPS_PROXY or HTTP_PROXY is ignored
+	NoProxy = "NO_PROXY"
+)

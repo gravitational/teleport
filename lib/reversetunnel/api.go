@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -99,6 +100,8 @@ type RemoteSite interface {
 	// IsClosed reports whether this RemoteSite has been closed and should no
 	// longer be used.
 	IsClosed() bool
+	// Closer allows the site to be closed
+	io.Closer
 }
 
 // Tunnel provides access to connected local or remote clusters

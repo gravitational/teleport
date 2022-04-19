@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gravitational/trace"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/coreos/pkg/timeutil"
 	"github.com/jonboulle/clockwork"
@@ -355,9 +357,6 @@ func (p ProviderConfig) Valid() error {
 	if !contains(p.IDTokenSigningAlgValues, "RS256") {
 		return errors.New("id_token_signing_alg_values_supported must include 'RS256'")
 	}
-	if contains(p.TokenEndpointAuthMethodsSupported, "none") {
-		return errors.New("token_endpoint_auth_signing_alg_values_supported cannot include 'none'")
-	}
 
 	uris := []struct {
 		val      *url.URL
@@ -649,9 +648,16 @@ func (r *httpProviderConfigGetter) Get() (cfg ProviderConfig, err error) {
 	}
 	defer resp.Body.Close()
 
-	data, err := ioutil.ReadAll(resp.Body)
+	const MaxDataSize = 1024 * 1024
+	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxDataSize+1))
 	if err != nil {
 		return cfg, trace.Wrap(err)
+	}
+
+	if len(data) > MaxDataSize {
+		//discard rest of the body to free up connection
+		io.Copy(ioutil.Discard, resp.Body)
+		return cfg, trace.Errorf("response exceeds maximum size of %d bytes", MaxDataSize)
 	}
 
 	if err = json.Unmarshal(data, &cfg); err != nil {

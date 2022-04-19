@@ -271,6 +271,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 				"Kubernetes service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
+		// since kubeServer.Serve is a blocking call, we emit this event right before
+		// the service has started
 		process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
 		err := kubeServer.Serve(listener)
 		if err != nil {
