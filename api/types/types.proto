@@ -296,7 +296,7 @@ message Redshift {
 // ElastiCache contains AWS ElastiCache Redis specific metadata.
 message ElastiCache {
     string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id" ];
-    string UserGroupID = 2 [ (gogoproto.jsontag) = "replication_group_id" ];
+    repeated string UserGroupIDs = 2 [ (gogoproto.jsontag) = "replication_group_ids" ];
     bool TLSEnabled = 3 [ (gogoproto.jsontag) = "tls_enabled" ];
     bool ClusterEnabled = 4 [ (gogoproto.jsontag) = "cluster_enabled" ];
 }

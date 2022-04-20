@@ -25,6 +25,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -68,28 +70,28 @@ func NewMetadata(config MetadataConfig) (*Metadata, error) {
 // Update updates cloud metadata of the provided database.
 func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 	if database.IsRDS() {
-		metadata, err := m.fetchRDSMetadata(ctx, database)
-		if err != nil {
-			if trace.IsAccessDenied(err) { // Permission errors are expected.
-				m.log.Debugf("No permissions to fetch RDS metadata for %q: %v.", database.GetName(), err)
-				return nil
-			}
-			return trace.Wrap(err)
-		}
-		m.log.Debugf("Fetched RDS metadata for %q: %v.", database.GetName(), metadata)
-		database.SetStatusAWS(*metadata)
+		return m.updateAWS(ctx, database, m.fetchRDSMetadata)
 	} else if database.IsRedshift() {
-		metadata, err := m.fetchRedshiftMetadata(ctx, database)
-		if err != nil {
-			if trace.IsAccessDenied(err) { // Permission errros are expected.
-				m.log.Debugf("No permissions to fetch Redshift metadata for %q: %v.", database.GetName(), err)
-				return nil
-			}
-			return trace.Wrap(err)
-		}
-		m.log.Debugf("Fetched Redshift metadata for %q: %v.", database.GetName(), metadata)
-		database.SetStatusAWS(*metadata)
+		return m.updateAWS(ctx, database, m.fetchRedshiftMetadata)
+	} else if database.IsCloudSQL() {
+		return m.updateAWS(ctx, database, m.fetchElastiCacheMetadata)
 	}
+	return nil
+}
+
+// updateAWS updates cloud metadata of the provided AWS database.
+func (m *Metadata) updateAWS(ctx context.Context, database types.Database, fetchFn func(context.Context, types.Database) (*types.AWS, error)) error {
+	metadata, err := fetchFn(ctx, database)
+	if err != nil {
+		if trace.IsAccessDenied(err) { // Permission errors are expected.
+			m.log.WithError(err).Debugf("No permissions to fetch metadata for %q.", database)
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	m.log.Debugf("Fetched metadata for %q: %v.", database, metadata)
+	database.SetStatusAWS(*metadata)
 	return nil
 }
 
@@ -142,6 +144,19 @@ func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Dat
 			ClusterID: aws.StringValue(cluster.ClusterIdentifier),
 		},
 	}, nil
+}
+
+// fetchElastiCacheMetadata fetches metadata for the provided ElastiCache database.
+func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
+	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(database.GetAWS().Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cluster, err := describeElastiCacheCluster(ctx, elastiCacheClient, database.GetAWS().ElastiCache.ReplicationGroupID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.MetadataFromElastiCacheCluster(cluster)
 }
 
 // fetchRDSInstanceMetadata fetches metadata about specified RDS instance.
@@ -202,4 +217,19 @@ func describeRedshiftCluster(ctx context.Context, redshiftClient redshiftiface.R
 		return nil, trace.BadParameter("expected 1 Redshift cluster for %v, got %s", clusterID, out.Clusters)
 	}
 	return out.Clusters[0], nil
+}
+
+// describeElastiCacheCluster returns AWS ElastiCache Redis cluster for the
+// specified ID.
+func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticacheiface.ElastiCacheAPI, replicationGroupID string) (*elasticache.ReplicationGroup, error) {
+	out, err := elastiCacheClient.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
+		ReplicationGroupId: aws.String(replicationGroupID),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	if len(out.ReplicationGroups) != 1 {
+		return nil, trace.BadParameter("expected 1 ElastiCache cluster for %v, got %s", replicationGroupID, out.ReplicationGroups)
+	}
+	return out.ReplicationGroups[0], nil
 }

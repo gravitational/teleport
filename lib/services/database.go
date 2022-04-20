@@ -255,9 +255,9 @@ func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.Replic
 	return newElastiCacheDatabase(cluster, metadata, cluster.ConfigurationEndpoint, ElastiCacheConfigurationEndpoint)
 }
 
-// NewDatabasesFromElastiCacheNodeGroup creates database resources from
+// NewDatabasesFromElastiCacheNodeGroups creates database resources from
 // ElastiCache node group.
-func NewDatabasesFromElastiCacheNodeGroup(cluster *elasticache.ReplicationGroup) (types.Databases, error) {
+func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup) (types.Databases, error) {
 	metadata, err := MetadataFromElastiCacheCluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -355,18 +355,12 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup) (*typ
 		return nil, trace.Wrap(err)
 	}
 
-	// AWS only allows a maximum of one group.
-	var userGroupID string
-	if len(cluster.UserGroupIds) > 0 {
-		userGroupID = aws.StringValue(cluster.UserGroupIds[0])
-	}
-
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		ElastiCache: types.ElastiCache{
 			ReplicationGroupID: aws.StringValue(cluster.ReplicationGroupId),
-			UserGroupID:        userGroupID,
+			UserGroupIDs:       aws.StringValueSlice(cluster.UserGroupIds),
 			TLSEnabled:         aws.BoolValue(cluster.TransitEncryptionEnabled),
 			ClusterEnabled:     aws.BoolValue(cluster.ClusterEnabled),
 		},

@@ -106,13 +106,13 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 			}
 			databases = append(databases, database)
 		} else {
-			databasesFromNodeGroup, err := services.NewDatabasesFromElastiCacheNodeGroup(cluster)
+			databasesFromNodeGroups, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster)
 			if err != nil {
 				f.log.Infof("Could not convert ElastiCache cluster %q to database resource: %v.",
 					aws.StringValue(cluster.ReplicationGroupId), err)
 				continue
 			}
-			databases = append(databases, databasesFromNodeGroup...)
+			databases = append(databases, databasesFromNodeGroups...)
 		}
 	}
 

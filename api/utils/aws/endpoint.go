@@ -18,6 +18,7 @@ package aws
 
 import (
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -57,9 +58,11 @@ func IsElastiCacheEndpoint(uri string) bool {
 // ParseRDSEndpoint extracts the identifier and region from the provided RDS
 // endpoint.
 func ParseRDSEndpoint(endpoint string) (id, region string, err error) {
-	endpoint, err = trimEndpointPort(endpoint)
-	if err != nil {
-		return "", "", trace.Wrap(err)
+	if strings.ContainsRune(endpoint, ':') {
+		endpoint, _, err = net.SplitHostPort(endpoint)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
 	}
 
 	if strings.HasSuffix(endpoint, AWSCNEndpointSuffix) {
@@ -97,9 +100,11 @@ func parseRDSCNEndpoint(endpoint string) (id, region string, err error) {
 // ParseRedshiftEndpoint extracts cluster ID and region from the provided
 // Redshift endpoint.
 func ParseRedshiftEndpoint(endpoint string) (clusterID, region string, err error) {
-	endpoint, err = trimEndpointPort(endpoint)
-	if err != nil {
-		return "", "", trace.Wrap(err)
+	if strings.ContainsRune(endpoint, ':') {
+		endpoint, _, err = net.SplitHostPort(endpoint)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
 	}
 
 	if strings.HasSuffix(endpoint, AWSCNEndpointSuffix) {
@@ -134,47 +139,57 @@ func parseRedshiftCNEndpoint(endpoint string) (clusterID, region string, err err
 	return parts[0], parts[3], nil
 }
 
-// TODO
+// RedisEndpointInfo describes details extracted from a Redis endpoint.
 type RedisEndpointInfo struct {
-	ClusterName    string
-	Region         string
-	TLSEnabled     bool
+	// ID is the identifier of the endpoint.
+	ID string
+	// Region is the AWS region for the endpoint.
+	Region string
+	// TLSEnabled specifies if TLS encryption is enabled.
+	TLSEnabled bool
+	// ClusterEnabled specifies if the Redis cluster mode is enabled.
 	ClusterEnabled bool
 }
 
-// TODO
+// ParseElastiCacheRedisEndpoint extracts the details from the provided
+// ElastiCache Redis endpoint.
 //
 // https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/GettingStarted.ConnectToCacheNode.html
 func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) {
-	endpoint, err := trimEndpointPort(endpoint)
+	// Remove schema and port.
+	if !strings.Contains(endpoint, "://") {
+		endpoint = "redis://" + endpoint
+	}
+
+	parsedURL, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	endpoint = parsedURL.Hostname()
 
-	var endpointWithoutSuffix string
+	// Remove partition suffix. Note that endpoints for CN regions use the same
+	// format but end with AWSCNEndpointSuffix.
+	endpointWithoutSuffix := ""
 	switch {
-	case strings.HasPrefix(endpoint, AWSEndpointSuffix):
+	case strings.HasSuffix(endpoint, AWSEndpointSuffix):
 		endpointWithoutSuffix = strings.TrimSuffix(endpoint, AWSEndpointSuffix)
 
 	case strings.HasSuffix(endpoint, AWSCNEndpointSuffix):
-		// Endpoints for CN regions look like this:
-		// my-redis-cluster.xxxxxx.0001.cnn1.cache.amazonaws.com.cn:6379
 		endpointWithoutSuffix = strings.TrimSuffix(endpoint, AWSCNEndpointSuffix)
 
 	default:
 		return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint", endpoint)
 	}
 
-	// Parts should end with service name without partition suffix.
+	// Split to parts to extract details. They look like this in general:
+	//   <part>.<part>.<part>.<short-region>.cache
+	//
+	// Note that ElastiCache uses short region codes like "use1".
+	//
+	// For Redis with Cluster mode enabled, a single "configuration" endpoint
+	// is provided for connection. For Redis with Cluster mode disabled, users
+	// can connect through either "primary", "reader", or "node" endpoints.
 	parts := strings.Split(endpointWithoutSuffix, ".")
-
-	// For <part>.<part>.<part>.<short-region>.cache.
-	//
-	// Note that ElastiCache uses short region codes (e.g. "use1" for "us-east-1").
-	//
-	// For Redis with Cluster mode enabled, there is a single "configuration"
-	// endpoint. For Redis with Cluster mode disabled, users can connect
-	// through either "primary", "reader", or "node" endpoints.
 	if len(parts) == 5 && parts[4] == ElastiCacheServiceName {
 		region, ok := ShortRegionToRegion(parts[3])
 		if !ok {
@@ -185,7 +200,7 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 		// clustercfg.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
 		if parts[0] == "clustercfg" {
 			return &RedisEndpointInfo{
-				ClusterName:    parts[1],
+				ID:             parts[1],
 				Region:         region,
 				TLSEnabled:     true,
 				ClusterEnabled: true,
@@ -196,7 +211,7 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 		// my-redis-cluster.xxxxxx.clustercfg.use1.cache.<suffix>:6379
 		if parts[2] == "clustercfg" {
 			return &RedisEndpointInfo{
-				ClusterName:    parts[0],
+				ID:             parts[0],
 				Region:         region,
 				TLSEnabled:     false,
 				ClusterEnabled: true,
@@ -207,7 +222,7 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 		// my-redis-cluster-001.xxxxxx.0001.use0.cache.<suffix>:6379
 		if isElasticCacheShardID(parts[2]) {
 			return &RedisEndpointInfo{
-				ClusterName:    trimElastiCacheNodeID(parts[0]),
+				ID:             trimElastiCacheNodeID(parts[0]),
 				Region:         region,
 				TLSEnabled:     false,
 				ClusterEnabled: false,
@@ -219,16 +234,17 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 		// master.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
 		// replica.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
 		return &RedisEndpointInfo{
-			ClusterName:    parts[1],
+			ID:             parts[1],
 			Region:         region,
 			TLSEnabled:     true,
 			ClusterEnabled: false,
 		}, nil
 	}
 
-	// Primary and reader endpoints for Redis with TLS disabled look like:
-	// my-redis.xxxxxx.ng.0001.use1.cache.<suffix>:6379
-	// my-redis-ro.xxxxxx.ng.0001.use1.cache.<suffix>:6379
+	// Primary and reader endpoints for Redis with TLS disabled have an extra
+	// shard ID in the endpoints, and they look like:
+	// my-redis-cluster.xxxxxx.ng.0001.use1.cache.<suffix>:6379
+	// my-redis-cluster-ro.xxxxxx.ng.0001.use1.cache.<suffix>:6379
 	if len(parts) == 6 && parts[5] == ElastiCacheServiceName && isElasticCacheShardID(parts[3]) {
 		region, ok := ShortRegionToRegion(parts[4])
 		if !ok {
@@ -239,7 +255,7 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 		clusterName := strings.TrimSuffix(parts[0], "-ro")
 
 		return &RedisEndpointInfo{
-			ClusterName:    clusterName,
+			ID:             clusterName,
 			Region:         region,
 			TLSEnabled:     false,
 			ClusterEnabled: false,
@@ -249,7 +265,9 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 	return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint", endpoint)
 }
 
-// TODO
+// isElasticCacheShardID returns true if the input part is in shard ID format.
+// The shard ID is a 4 character string of an integer left padded with zeros
+// (e.g. 0001).
 func isElasticCacheShardID(part string) bool {
 	if len(part) != 4 {
 		return false
@@ -258,7 +276,9 @@ func isElasticCacheShardID(part string) bool {
 	return err == nil
 }
 
-// TODO
+// isElasticCacheNodeID returns true if the input part is in node ID format.
+// The node ID is a 3 character string of an integer left padded with zeros
+// (e.g. 001).
 func isElasticCacheNodeID(part string) bool {
 	if len(part) != 3 {
 		return false
@@ -267,28 +287,15 @@ func isElasticCacheNodeID(part string) bool {
 	return err == nil
 }
 
-// TODO
-func trimElastiCacheNodeID(name string) string {
-	parts := strings.Split(name, "-")
-	lastPart := parts[len(parts)-1]
-	if isElasticCacheNodeID(lastPart) {
-		return strings.TrimSuffix(name, "-"+lastPart)
+// trimElastiCacheNodeID trims "-<node-id>" suffixe from input.
+func trimElastiCacheNodeID(input string) string {
+	if parts := strings.Split(input, "-"); len(parts) > 0 {
+		lastPart := parts[len(parts)-1]
+		if isElasticCacheNodeID(lastPart) {
+			return strings.TrimSuffix(input, "-"+lastPart)
+		}
 	}
-	return name
-}
-
-// TODO
-func trimEndpointPort(endpoint string) (string, error) {
-	if !strings.ContainsRune(endpoint, ':') {
-		return endpoint, nil
-	}
-
-	endpoint, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return endpoint, nil
+	return input
 }
 
 const (

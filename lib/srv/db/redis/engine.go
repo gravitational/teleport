@@ -181,16 +181,17 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		return nil, trace.Wrap(err)
 	}
 
-	connectionOptions, err := ParseRedisAddress(sessionCtx.Database.GetURI())
-	if err != nil {
-		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
-	}
-
+	defaultMode := Standalone
 	switch {
 	case sessionCtx.Database.IsElastiCache():
 		if sessionCtx.Database.GetAWS().ElastiCache.ClusterEnabled {
-			connectionOptions.mode = Cluster
+			defaultMode = Cluster
 		}
+	}
+
+	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
+	if err != nil {
+		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {

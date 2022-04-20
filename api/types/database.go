@@ -418,7 +418,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		if d.Spec.AWS.ElastiCache.ReplicationGroupID == "" {
-			d.Spec.AWS.ElastiCache.ReplicationGroupID = endpointInfo.ClusterName
+			d.Spec.AWS.ElastiCache.ReplicationGroupID = endpointInfo.ID
 		}
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = endpointInfo.Region
@@ -542,8 +542,6 @@ const (
 	DatabaseTypeAzure = "azure"
 	// DatabaseTypeElastiCache is AWS-hosted ElastiCache database.
 	DatabaseTypeElastiCache = "elasticache"
-	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
-	//DatabaseTypeMemoryDB = "memoryDB"
 )
 
 // DeduplicateDatabases deduplicates databases by name.
