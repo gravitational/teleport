@@ -82,29 +82,17 @@ const (
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
 
-	// Default DB to use for persisting state. Another options is "etcd"
-	BackendType = "bolt"
-
 	// BackendDir is a default backend subdirectory
 	BackendDir = "backend"
 
 	// BackendPath is a default backend path parameter
 	BackendPath = "path"
 
-	// Name of events bolt database file stored in DataDir
-	EventsBoltFile = "events.db"
-
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
 
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
-
-	// CacheTTL is a default cache TTL for persistent node cache
-	CacheTTL = 20 * time.Hour
-
-	// RecentCacheTTL is a default cache TTL for recently accessed items
-	RecentCacheTTL = 2 * time.Second
 
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
@@ -121,9 +109,6 @@ const (
 
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
-
-	// DefaultThrottleTimeout is a timemout used to throttle failed auth servers
-	DefaultThrottleTimeout = 10 * time.Second
 
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
@@ -199,9 +184,6 @@ const (
 	// for sync purposes
 	HOTPFirstTokensRange = 4
 
-	// HOTPTokenDigits is the number of digits in each token
-	HOTPTokenDigits = 6
-
 	// MinPasswordLength is minimum password length
 	MinPasswordLength = 6
 
@@ -223,9 +205,6 @@ const (
 	// ActiveSessionTTL is a TTL when session is marked as inactive
 	ActiveSessionTTL = 30 * time.Second
 
-	// ActivePartyTTL is a TTL when party is marked as inactive
-	ActivePartyTTL = 30 * time.Second
-
 	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
 	OIDCAuthRequestTTL = 10 * 60 * time.Second
 
@@ -235,12 +214,8 @@ const (
 	// GithubAuthRequestTTL is TTL of internally stored Github auth request
 	GithubAuthRequestTTL = 10 * 60 * time.Second
 
-	// OAuth2TTL is the default TTL for objects created during OAuth 2.0 flow
-	// such as web sessions, certificates or dynamically created users
-	OAuth2TTL = 60 * 60 * time.Second // 1 hour
-
 	// LogRotationPeriod defines how frequently to rotate the audit log file
-	LogRotationPeriod = (time.Hour * 24)
+	LogRotationPeriod = time.Hour * 24
 
 	// UploaderScanPeriod is a default uploader scan period
 	UploaderScanPeriod = 5 * time.Second
@@ -263,16 +238,6 @@ const (
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
 
-	// AuditLogSessions is the default expected amount of concurrent sessions
-	// supported by Audit logger, this number limits the possible
-	// amount of simultaneously processes concurrent sessions by the
-	// Audit log server, and 16K is OK for now
-	AuditLogSessions = 16384
-
-	// AccessPointCachedValues is the default maximum amount of cached values
-	// in access point
-	AccessPointCachedValues = 16384
-
 	// AuditLogTimeFormat is the format for the timestamp on audit log files.
 	AuditLogTimeFormat = "2006-01-02.15:04:05"
 
@@ -285,9 +250,6 @@ const (
 
 	// ClientCacheSize is the size of the RPC clients expiring cache
 	ClientCacheSize = 1024
-
-	// CSRSignTimeout is a default timeout for CSR request to be processed by K8s
-	CSRSignTimeout = 30 * time.Second
 
 	// Localhost is the address of localhost. Used for the default binding
 	// address for port forwarding.
@@ -393,9 +355,6 @@ var (
 	// DiskAlertInterval is disk space check interval.
 	DiskAlertInterval = 5 * time.Minute
 
-	// TopRequestsCapacity sets up default top requests capacity
-	TopRequestsCapacity = 128
-
 	// AuthQueueSize is auth service queue size
 	AuthQueueSize = 8192
 
@@ -425,12 +384,6 @@ var (
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
 	SessionControlTimeout = time.Minute * 2
-
-	// SPDYPingPeriod is the period for sending out SPDY ping frames on inbound
-	// and outbound connections. SPDY is used for interactive Kubernetes
-	// connections. These pings are needed to avoid timeouts on load balancers
-	// that don't respect TCP keep-alives.
-	SPDYPingPeriod = 30 * time.Second
 
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
@@ -563,10 +516,6 @@ const (
 
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
 	CgroupPath = "/cgroup2"
-
-	// ArgsCacheSize is the number of args events to store before dropping args
-	// events.
-	ArgsCacheSize = 1024
 )
 
 var (
@@ -579,9 +528,6 @@ var (
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
 	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
-
-	// ETCDPrefix is default key in ETCD clustered configurations
-	ETCDPrefix = "/teleport"
 
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
@@ -735,10 +681,6 @@ const (
 	// application access tokens.
 	ApplicationTokenAlgorithm = jose.RS256
 )
-
-// WindowsOpenSSHNamedPipe is the address of the named pipe that the
-// OpenSSH agent is on.
-const WindowsOpenSSHNamedPipe = `\\.\pipe\openssh-ssh-agent`
 
 var (
 	// FIPSCipherSuites is a list of supported FIPS compliant TLS cipher suites.
