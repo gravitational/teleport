@@ -51,6 +51,7 @@ var log = logrus.WithFields(logrus.Fields{
 var precomputedKeys = make(chan keyPair, 25)
 
 // precomputeTaskStarted is used to start the background task that precomputes key pairs.
+// This may only ever be accessed atomically.
 var precomputeTaskStarted int32
 
 func generateKeyPairImpl() ([]byte, []byte, error) {
