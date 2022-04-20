@@ -149,7 +149,6 @@ type Uploader struct {
 
 	cfg             UploaderConfig
 	log             *log.Entry
-	uploadCompleter *events.UploadCompleter
 
 	cancel   context.CancelFunc
 	ctx      context.Context

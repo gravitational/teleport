@@ -61,6 +61,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		Uploader:       mu,
 		AuditLog:       log,
 		SessionTracker: sessionTrackerService,
+		Clock:          clock,
 	})
 	require.NoError(t, err)
 
