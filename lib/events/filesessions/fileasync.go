@@ -221,16 +221,16 @@ func (u *Uploader) Serve() error {
 		// Tick at scan period but slow down (and speeds up) on errors.
 		case <-backoff.After():
 			var failed bool
-			if err := u.uploadCompleter.CheckUploads(u.ctx); err != nil {
-				if trace.Unwrap(err) != errContext {
-					failed = true
-					u.log.WithError(err).Warningf("Completer scan failed.")
-				}
-			}
 			if _, err := u.Scan(); err != nil {
 				if trace.Unwrap(err) != errContext {
 					failed = true
 					u.log.WithError(err).Warningf("Uploader scan failed.")
+				}
+			}
+			if err := u.uploadCompleter.CheckUploads(u.ctx); err != nil {
+				if trace.Unwrap(err) != errContext {
+					failed = true
+					u.log.WithError(err).Warningf("Completer scan failed.")
 				}
 			}
 			if failed {
