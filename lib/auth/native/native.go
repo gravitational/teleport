@@ -76,13 +76,13 @@ func generateKeyPairImpl() ([]byte, []byte, error) {
 }
 
 func replenishKeys() {
+	// Mark the task as stopped.
+	defer atomic.StoreInt32(&precomputeTaskStarted, 0)
+
 	for {
 		priv, pub, err := generateKeyPairImpl()
 		if err != nil {
 			log.Errorf("Failed to generate key pair: %v", err)
-
-			// Mark the task as stopped.
-			atomic.StoreInt32(&precomputeTaskStarted, 0)
 			return
 		}
 
