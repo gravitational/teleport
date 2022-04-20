@@ -1342,7 +1342,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	clt, err := srv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	priv, pub, err := clt.GenerateKeyPair()
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)

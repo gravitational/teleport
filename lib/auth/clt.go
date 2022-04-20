@@ -37,7 +37,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -1036,13 +1035,6 @@ func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(context.TODO(), c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
-}
-
-// GenerateKeyPair generates SSH private/public key pair optionally protected
-// by password. If the pass parameter is an empty string, the key pair
-// is not password-protected.
-func (c *Client) GenerateKeyPair() ([]byte, []byte, error) {
-	return native.GenerateKeyPair()
 }
 
 // GenerateHostCert takes the public key in the Open SSH ``authorized_keys``

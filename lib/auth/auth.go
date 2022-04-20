@@ -2295,7 +2295,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		return nil, trace.Wrap(err)
 	}
 
-	priv, pub, err := a.GetNewKeyPairFromPool()
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

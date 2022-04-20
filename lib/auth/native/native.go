@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -46,8 +47,73 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentKeyGen,
 })
 
-// PrecomputedNum is the number of keys to precompute and keep cached.
-var PrecomputedNum = 25
+// precomputedNum is the number of keys to precompute and keep cached.
+const precomputedNum = 25
+
+var precomputedKeys []keyPair
+var queuedKeys int
+var keyCacheLock sync.Mutex
+
+// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
+// This will in most cases pull from a precomputed queue.
+func GenerateKeyPair() ([]byte, []byte, error) {
+	// Generates a random RSA key pair.
+	generateKey := func() ([]byte, []byte, error) {
+		priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+		if err != nil {
+			return nil, nil, err
+		}
+		privDer := x509.MarshalPKCS1PrivateKey(priv)
+		privBlock := pem.Block{
+			Type:    "RSA PRIVATE KEY",
+			Headers: nil,
+			Bytes:   privDer,
+		}
+		privPem := pem.EncodeToMemory(&privBlock)
+
+		pub, err := ssh.NewPublicKey(&priv.PublicKey)
+		if err != nil {
+			return nil, nil, err
+		}
+		pubBytes := ssh.MarshalAuthorizedKey(pub)
+		return privPem, pubBytes, nil
+	}
+
+	keyCacheLock.Lock()
+	defer keyCacheLock.Unlock()
+
+	// Start a background task to replenish the key cache.
+	// Spawning one goroutine per key to be generated
+	// is slightly wasteful, but it's the simplest way to achieve
+	// a self-regulation system that won't suffer from key-starvation.
+	additional := precomputedNum - len(precomputedKeys) - queuedKeys
+	for i := 0; i < additional; i++ {
+		queuedKeys++
+
+		go func() {
+			priv, pub, err := generateKey()
+			if err != nil {
+				log.Errorf("Failed to generate key pair: %v", err)
+				return
+			}
+
+			keyCacheLock.Lock()
+			precomputedKeys = append(precomputedKeys, keyPair{priv, pub})
+			queuedKeys--
+			keyCacheLock.Unlock()
+		}()
+	}
+
+	if len(precomputedKeys) > 0 {
+		// Return a key from the cache if there is one.
+		key := precomputedKeys[0]
+		precomputedKeys = precomputedKeys[1:]
+		return key.privPem, key.pubBytes, nil
+	} else {
+		// Otherwise generate a key synchronously.
+		return generateKey()
+	}
+}
 
 type keyPair struct {
 	privPem  []byte
@@ -57,11 +123,8 @@ type keyPair struct {
 // keygen is a key generator that precomputes keys to provide quick access to
 // public/private key pairs.
 type Keygen struct {
-	keysCh chan keyPair
-
-	ctx             context.Context
-	cancel          context.CancelFunc
-	precomputeCount int
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// clock is used to control time.
 	clock clockwork.Clock
@@ -77,33 +140,16 @@ func SetClock(clock clockwork.Clock) KeygenOption {
 	}
 }
 
-// PrecomputeKeys sets up a number of private keys to pre-compute
-// in background, 0 disables the process
-func PrecomputeKeys(count int) KeygenOption {
-	return func(k *Keygen) {
-		k.precomputeCount = count
-	}
-}
-
 // New returns a new key generator.
 func New(ctx context.Context, opts ...KeygenOption) *Keygen {
 	ctx, cancel := context.WithCancel(ctx)
 	k := &Keygen{
-		ctx:             ctx,
-		cancel:          cancel,
-		precomputeCount: PrecomputedNum,
-		clock:           clockwork.NewRealClock(),
+		ctx:    ctx,
+		cancel: cancel,
+		clock:  clockwork.NewRealClock(),
 	}
 	for _, opt := range opts {
 		opt(k)
-	}
-
-	if k.precomputeCount > 0 {
-		log.Debugf("SSH cert authority is going to pre-compute %v keys.", k.precomputeCount)
-		k.keysCh = make(chan keyPair, k.precomputeCount)
-		go k.precomputeKeys()
-	} else {
-		log.Debugf("SSH cert authority started with no keys pre-compute.")
 	}
 
 	return k
@@ -112,62 +158,6 @@ func New(ctx context.Context, opts ...KeygenOption) *Keygen {
 // Close stops the precomputation of keys (if enabled) and releases all resources.
 func (k *Keygen) Close() {
 	k.cancel()
-}
-
-// GetNewKeyPairFromPool returns precomputed key pair from the pool.
-func (k *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
-	select {
-	case key := <-k.keysCh:
-		return key.privPem, key.pubBytes, nil
-	default:
-		return GenerateKeyPair()
-	}
-}
-
-// precomputeKeys continues loops forever trying to compute cache key pairs.
-func (k *Keygen) precomputeKeys() {
-	for {
-		privPem, pubBytes, err := GenerateKeyPair()
-		if err != nil {
-			log.Errorf("Unable to generate key pair: %v.", err)
-			continue
-		}
-		key := keyPair{
-			privPem:  privPem,
-			pubBytes: pubBytes,
-		}
-
-		select {
-		case <-k.ctx.Done():
-			log.Infof("Stopping key precomputation routine.")
-			return
-		case k.keysCh <- key:
-			continue
-		}
-	}
-}
-
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
-// execute.
-func GenerateKeyPair() ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
-	if err != nil {
-		return nil, nil, err
-	}
-	privDer := x509.MarshalPKCS1PrivateKey(priv)
-	privBlock := pem.Block{
-		Type:    "RSA PRIVATE KEY",
-		Headers: nil,
-		Bytes:   privDer,
-	}
-	privPem := pem.EncodeToMemory(&privBlock)
-
-	pub, err := ssh.NewPublicKey(&priv.PublicKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	pubBytes := ssh.MarshalAuthorizedKey(pub)
-	return privPem, pubBytes, nil
 }
 
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to

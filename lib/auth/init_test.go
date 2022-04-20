@@ -1004,7 +1004,7 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	conf := setupConfig(t)
 
 	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
-	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
+	keygen := native.New(context.TODO())
 	privHost, _, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	privUser, _, err := keygen.GenerateKeyPair()

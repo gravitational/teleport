@@ -54,7 +54,6 @@ func (s *NativeSuite) SetUpSuite(c *check.C) {
 
 	a := New(
 		context.TODO(),
-		PrecomputeKeys(1),
 		SetClock(fakeClock),
 	)
 
@@ -75,16 +74,6 @@ func (s *NativeSuite) TestGenerateHostCert(c *check.C) {
 
 func (s *NativeSuite) TestGenerateUserCert(c *check.C) {
 	s.suite.GenerateUserCert(c)
-}
-
-// TestDisablePrecompute makes sure that keygen works
-// when no keys are precomputed
-func (s *NativeSuite) TestDisablePrecompute(c *check.C) {
-	a := New(context.TODO(), PrecomputeKeys(0))
-
-	caPrivateKey, _, err := a.GenerateKeyPair()
-	c.Assert(err, check.IsNil)
-	c.Assert(caPrivateKey, check.NotNil)
 }
 
 // TestBuildPrincipals makes sure that the list of principals for a host
