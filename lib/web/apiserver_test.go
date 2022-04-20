@@ -163,11 +163,17 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.user = u.Username
 	s.clock = clockwork.NewFakeClock()
 
+	networkingConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		KeepAliveInterval: types.Duration(10 * time.Second),
+	})
+	c.Assert(err, IsNil)
+
 	s.server, err = auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
-			ClusterName: "localhost",
-			Dir:         c.MkDir(),
-			Clock:       s.clock,
+			ClusterName:             "localhost",
+			Dir:                     c.MkDir(),
+			Clock:                   s.clock,
+			ClusterNetworkingConfig: networkingConfig,
 		},
 	})
 	c.Assert(err, IsNil)
@@ -537,7 +543,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	err = s.server.Auth().CreateSAMLConnector(connector)
 	c.Assert(err, IsNil)
-	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)))
+	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
@@ -773,6 +779,7 @@ func TestClusterNodesGet(t *testing.T) {
 	nodes := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
 	require.Len(t, nodes.Items, 1)
+	require.Equal(t, 1, nodes.TotalCount)
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
@@ -1034,6 +1041,47 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	case <-ws2Event:
 		c.Fatal("unexpected resize event")
 	case <-time.After(time.Second):
+	}
+}
+
+// TestTerminalPing tests that the server sends continuous ping control messages.
+func (s *WebSuite) TestTerminalPing(c *C) {
+	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	c.Assert(err, IsNil)
+	defer ws.Close()
+
+	closed := false
+	done := make(chan struct{})
+	ws.SetPingHandler(func(message string) error {
+		if closed == false {
+			close(done)
+			closed = true
+		}
+
+		err := ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
+		if err == websocket.ErrCloseSent {
+			return nil
+		} else if e, ok := err.(net.Error); ok && e.Temporary() {
+			return nil
+		}
+		return err
+	})
+
+	// We need to continuously read incoming messages in order to process ping messages.
+	// We only care about receiving a ping here so dropping them is fine.
+	go func() {
+		for {
+			_, _, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Minute):
+		c.Fatal("timeout waiting for ping")
 	}
 }
 
@@ -2174,9 +2222,11 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 
 func TestTokenGeneration(t *testing.T) {
 	tt := []struct {
-		name      string
-		roles     types.SystemRoles
-		shouldErr bool
+		name       string
+		roles      types.SystemRoles
+		shouldErr  bool
+		joinMethod types.JoinMethod
+		allow      []*types.TokenRule
 	}{
 		{
 			name:      "single node role",
@@ -2203,6 +2253,19 @@ func TestTokenGeneration(t *testing.T) {
 			roles:     types.SystemRoles{},
 			shouldErr: true,
 		},
+		{
+			name:       "cannot request token with IAM join method without allow field",
+			roles:      types.SystemRoles{types.RoleNode},
+			joinMethod: types.JoinMethodIAM,
+			shouldErr:  true,
+		},
+		{
+			name:       "can request token with IAM join method",
+			roles:      types.SystemRoles{types.RoleNode},
+			joinMethod: types.JoinMethodIAM,
+			allow:      []*types.TokenRule{{AWSAccount: "1234"}},
+			shouldErr:  false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2213,8 +2276,10 @@ func TestTokenGeneration(t *testing.T) {
 			pack := proxy.authPack(t, "test-user@example.com")
 
 			endpoint := pack.clt.Endpoint("webapi", "token")
-			re, err := pack.clt.PostJSON(context.Background(), endpoint, createTokenRequest{
-				Roles: tc.roles,
+			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
+				Roles:      tc.roles,
+				JoinMethod: tc.joinMethod,
+				Allow:      tc.allow,
 			})
 
 			if tc.shouldErr {
@@ -2232,6 +2297,13 @@ func TestTokenGeneration(t *testing.T) {
 			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
 			require.NoError(t, err)
 			require.Equal(t, tc.roles, generatedToken.GetRoles())
+
+			expectedJoinMethod := tc.joinMethod
+			if tc.joinMethod == "" {
+				expectedJoinMethod = types.JoinMethodToken
+			}
+			// if no joinMethod is provided, expect token method
+			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
 		})
 	}
 }
@@ -2247,7 +2319,8 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	type testResponse struct {
-		Items []ui.Database `json:"items"`
+		Items      []ui.Database `json:"items"`
+		TotalCount int           `json:"totalCount"`
 	}
 
 	// No db registered.
@@ -2277,6 +2350,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
+	require.Equal(t, 1, resp.TotalCount)
 	require.EqualValues(t, ui.Database{
 		Name:     "test-db-name",
 		Desc:     "test-description",
@@ -2297,7 +2371,8 @@ func TestClusterKubesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	type testResponse struct {
-		Items []ui.Kube `json:"items"`
+		Items      []ui.KubeCluster `json:"items"`
+		TotalCount int              `json:"totalCount"`
 	}
 
 	// No kube registered.
@@ -2332,9 +2407,67 @@ func TestClusterKubesGet(t *testing.T) {
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
-	require.EqualValues(t, ui.Kube{
+	require.Equal(t, 1, resp.TotalCount)
+	require.EqualValues(t, ui.KubeCluster{
 		Name:   "test-kube-name",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+	}, resp.Items[0])
+}
+
+func TestClusterAppsGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	type testResponse struct {
+		Items      []ui.App `json:"items"`
+		TotalCount int      `json:"totalCount"`
+	}
+
+	resource := &types.AppServerV3{
+		Metadata: types.Metadata{Name: "test-app"},
+		Kind:     types.KindAppServer,
+		Version:  types.V2,
+		Spec: types.AppServerSpecV3{
+			HostID: "hostid",
+			App: &types.AppV3{
+				Metadata: types.Metadata{
+					Name:        "name",
+					Description: "description",
+					Labels:      map[string]string{"test-field": "test-value"},
+				},
+				Spec: types.AppSpecV3{
+					URI:        "https://console.aws.amazon.com", // sets field awsConsole to true
+					PublicAddr: "publicaddrs",
+				},
+			},
+		},
+	}
+
+	// Register a app service.
+	_, err := env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	require.NoError(t, err)
+
+	// Make the call.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// Test correct response.
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, 1, resp.TotalCount)
+	require.EqualValues(t, ui.App{
+		Name:        resource.Spec.App.GetName(),
+		Description: resource.Spec.App.GetDescription(),
+		URI:         resource.Spec.App.GetURI(),
+		PublicAddr:  resource.Spec.App.GetPublicAddr(),
+		Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
+		FQDN:        resource.Spec.App.GetPublicAddr(),
+		ClusterID:   env.server.ClusterName(),
+		AWSConsole:  true,
 	}, resp.Items[0])
 }
 
@@ -3641,8 +3774,8 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 }
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
-	hostSigners []ssh.Signer, clock clockwork.FakeClock) *proxy {
-
+	hostSigners []ssh.Signer, clock clockwork.FakeClock,
+) *proxy {
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
