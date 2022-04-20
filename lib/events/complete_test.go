@@ -36,6 +36,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	mu := NewMemoryUploader()
 	mu.Clock = clock
+	ctx := context.Background()
 
 	log := &mockAuditLog{}
 
@@ -57,13 +58,13 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		MockTrackers: []types.SessionTracker{sessionTracker},
 	}
 
-	uc, err := NewUploadCompleter(UploadCompleterConfig{
-		Unstarted:      true,
+	uc, err := NewUploadCompleter(ctx, UploadCompleterConfig{
 		Uploader:       mu,
 		AuditLog:       log,
 		SessionTracker: sessionTrackerService,
 	})
 	require.NoError(t, err)
+	defer uc.Close()
 
 	upload, err := mu.CreateUpload(context.Background(), sessionID)
 	require.NoError(t, err)
@@ -83,6 +84,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 // emits session.end or windows.desktop.session.end events for sessions
 // that are completed.
 func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
+	ctx := context.Background()
 	for _, test := range []struct {
 		startEvent   apievents.AuditEvent
 		endEventType string
@@ -99,14 +101,14 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 				sessionEvents: []apievents.AuditEvent{test.startEvent},
 			}
 
-			uc, err := NewUploadCompleter(UploadCompleterConfig{
-				Unstarted:      true,
+			uc, err := NewUploadCompleter(ctx, UploadCompleterConfig{
 				Uploader:       mu,
 				AuditLog:       log,
 				Clock:          clock,
 				SessionTracker: &eventstest.MockSessionTrackerService{},
 			})
 			require.NoError(t, err)
+			defer uc.Close()
 
 			upload, err := mu.CreateUpload(context.Background(), session.NewID())
 			require.NoError(t, err)

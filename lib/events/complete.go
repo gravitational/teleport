@@ -51,9 +51,6 @@ type UploadCompleterConfig struct {
 	CheckPeriod time.Duration
 	// Clock is used to override clock in tests
 	Clock clockwork.Clock
-	// Unstarted does not start automatic goroutine,
-	// is useful when completer is embedded in another function
-	Unstarted bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -78,11 +75,11 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 
 // NewUploadCompleter returns a new instance of the upload completer
 // the completer has to be closed to release resources and goroutines
-func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
+func NewUploadCompleter(ctx context.Context, cfg UploadCompleterConfig) (*UploadCompleter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	u := &UploadCompleter{
 		cfg: cfg,
 		log: log.WithFields(log.Fields{
@@ -91,9 +88,7 @@ func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
 		cancel:   cancel,
 		closeCtx: ctx,
 	}
-	if !cfg.Unstarted {
-		go u.run()
-	}
+	go u.run()
 	return u, nil
 }
 
@@ -128,6 +123,16 @@ func (u *UploadCompleter) run() {
 
 // CheckUploads fetches uploads and completes any abandoned uploads
 func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
+	trackers, err := u.cfg.SessionTracker.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var activeSessionIDs []string
+	for _, st := range trackers {
+		activeSessionIDs = append(activeSessionIDs, st.GetSessionID())
+	}
+
 	uploads, err := u.cfg.Uploader.ListUploads(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -140,14 +145,10 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 	}()
 
+	// Complete upload for any uploads without an active session tracker
 	for _, upload := range uploads {
-		// Check for an active session tracker for the session upload.
-		_, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String())
-		if err == nil {
-			// session appears to be active, don't complete the upload.
+		if apiutils.SliceContainsStr(activeSessionIDs, upload.SessionID.String()) {
 			continue
-		} else if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
 		}
 
 		parts, err := u.cfg.Uploader.ListParts(ctx, upload)

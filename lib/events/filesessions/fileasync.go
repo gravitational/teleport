@@ -102,21 +102,10 @@ func NewUploader(cfg UploaderConfig, sessionTracker services.SessionTrackerServi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// completer scans for uploads that have been initiated, but not completed
-	// by the client (aborted or crashed) and completes them
-	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-		Uploader:       handler,
-		AuditLog:       cfg.AuditLog,
-		Unstarted:      true,
-		SessionTracker: sessionTracker,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	ctx, cancel := context.WithCancel(cfg.Context)
 	uploader := &Uploader{
-		uploadCompleter: uploadCompleter,
-		cfg:             cfg,
+		cfg: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: cfg.Component,
 		}),
@@ -126,6 +115,18 @@ func NewUploader(cfg UploaderConfig, sessionTracker services.SessionTrackerServi
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
+
+	// completer scans for uploads that have been initiated, but not completed
+	// by the client (aborted or crashed) and completes them
+	uploader.uploadCompleter, err = events.NewUploadCompleter(uploader.ctx, events.UploadCompleterConfig{
+		Uploader:       handler,
+		AuditLog:       cfg.AuditLog,
+		SessionTracker: sessionTracker,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return uploader, nil
 }
 
@@ -225,12 +226,6 @@ func (u *Uploader) Serve() error {
 				if trace.Unwrap(err) != errContext {
 					failed = true
 					u.log.WithError(err).Warningf("Uploader scan failed.")
-				}
-			}
-			if err := u.uploadCompleter.CheckUploads(u.ctx); err != nil {
-				if trace.Unwrap(err) != errContext {
-					failed = true
-					u.log.WithError(err).Warningf("Completer scan failed.")
 				}
 			}
 			if failed {

@@ -1264,7 +1264,7 @@ func (process *TeleportProcess) initAuthService() error {
 	// session uploads and completing them
 	var uploadCompleter *events.UploadCompleter
 	if uploadHandler != nil {
-		uploadCompleter, err = events.NewUploadCompleter(events.UploadCompleterConfig{
+		uploadCompleter, err = events.NewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
 			AuditLog:       process.auditLog,
