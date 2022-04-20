@@ -23,6 +23,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -354,16 +355,32 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 
 			switch r.Type {
 			case versionRequest:
-				err := r.Reply(true, []byte(teleport.Version))
+				response := versionResponse{
+					ProxyVersion: teleport.Version,
+				}
+
+				pong, err := a.Client.Ping(ctx)
 				if err != nil {
-					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					a.log.WithError(err).Debugf("Failed to ping auth server.")
+				} else {
+					response.AuthVersion = pong.ServerVersion
+				}
+
+				payload, err := json.Marshal(response)
+				if err != nil {
+					a.log.WithError(err).Debugf("Failed to marshal version response")
+					payload = []byte(teleport.Version)
+				}
+
+				if err := r.Reply(true, payload); err != nil {
+					a.log.WithError(err).Debugf("Failed to reply to version request")
 					continue
 				}
 			default:
 				// This handles keep-alive messages and matches the behaviour of OpenSSH.
 				err := r.Reply(false, nil)
 				if err != nil {
-					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
 			}
