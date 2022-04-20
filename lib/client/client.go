@@ -621,7 +621,7 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 
 	resources, err := client.GetResourcesWithFilters(ctx, site, req)
 	if err != nil {
-		// ListResources for nodes not availalbe, provide fallback.
+		// ListResources for nodes not available, provide fallback.
 		// Fallback does not support search/predicate support, so if users
 		// provide them, it does nothing.
 		//
@@ -654,7 +654,7 @@ func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for app servers not availalbe, provide fallback.
+		// ListResources for app servers not available, provide fallback.
 		// Fallback does not support filters, so if users
 		// provide them, it does nothing.
 		//
@@ -729,7 +729,7 @@ func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.
 	return nil
 }
 
-// FindDatabaseServersByFilters returns all registered database proxy servers.
+// FindDatabaseServersByFilters returns registered database proxy servers that match the provided filter.
 func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
 	req.ResourceType = types.KindDatabaseServer
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
@@ -739,7 +739,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for db servers not availalbe, provide fallback.
+		// ListResources for db servers not available, provide fallback.
 		// Fallback does not support filters, so if users
 		// provide them, it does nothing.
 		//
