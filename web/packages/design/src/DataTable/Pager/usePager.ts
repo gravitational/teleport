@@ -1,4 +1,4 @@
-import { FetchStatus } from '../types';
+import { FetchStatus, ServersideProps } from './../types';
 
 export default function usePager({
   nextPage,
@@ -7,9 +7,10 @@ export default function usePager({
   paginatedData = [],
   currentPage,
   pageSize,
+  serversideProps,
   ...props
 }: Props) {
-  const currentPageData = paginatedData[currentPage];
+  const currentPageData = paginatedData[currentPage] || [];
   const searchFrom = currentPage * pageSize;
 
   const from = data.indexOf(currentPageData[0], searchFrom);
@@ -18,14 +19,25 @@ export default function usePager({
     searchFrom + pageSize - 1
   );
 
+  const count = data.length;
+
+  const isNextDisabled = serversideProps
+    ? serversideProps.startKeys[serversideProps.startKeys.length - 1] === ''
+    : to === data.length - 1;
+
+  const isPrevDisabled = serversideProps
+    ? serversideProps.startKeys.length <= 2
+    : currentPage === 0;
+
   return {
     nextPage,
     prevPage,
     from,
     to,
-    count: data.length,
-    isPrevDisabled: currentPage === 0,
-    isNextDisabled: to === data.length - 1,
+    count,
+    isNextDisabled,
+    isPrevDisabled,
+    serversideProps,
     ...props,
   };
 }
@@ -34,11 +46,12 @@ export type Props = {
   nextPage: () => void;
   prevPage: () => void;
   data: any[];
-  paginatedData: Array<Array<any>>;
-  currentPage: number;
-  pageSize: number;
+  paginatedData?: Array<Array<any>>;
+  currentPage?: number;
+  pageSize?: number;
   onFetchMore?: () => void;
   fetchStatus?: FetchStatus;
+  serversideProps?: ServersideProps;
 };
 
 export type State = ReturnType<typeof usePager>;

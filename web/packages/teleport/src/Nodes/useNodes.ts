@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,29 +15,58 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router';
+import { FetchStatus } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import history from 'teleport/services/history';
 import Ctx from 'teleport/teleportContext';
 import { StickyCluster } from 'teleport/types';
 import cfg from 'teleport/config';
-import { Node } from 'teleport/services/nodes';
+import { NodesResponse } from 'teleport/services/nodes';
 import { openNewTab } from 'teleport/lib/util';
+import getResourceUrlQueryParams, {
+  ResourceUrlQueryParams,
+} from 'teleport/getUrlQueryParams';
+import { SortType } from 'teleport/components/ServersideSearchPanel';
 
 export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const { isLeafCluster, clusterId } = stickyCluster;
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const { attempt, run, setAttempt } = useAttempt('processing');
+  const { search, pathname } = useLocation();
+  const [startKeys, setStartKeys] = useState<string[]>([]);
+  const { attempt, setAttempt } = useAttempt('processing');
   const [isAddNodeVisible, setIsAddNodeVisible] = useState(false);
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const logins = ctx.storeUser.getSshLogins();
+  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
+  const [params, setParams] = useState<ResourceUrlQueryParams>(() =>
+    getResourceUrlQueryParams(search)
+  );
+
+  const isSearchEmpty = !params?.query && !params?.search;
+
+  const [results, setResults] = useState<NodesResponse>({
+    nodes: [],
+    startKey: '',
+    totalCount: 0,
+  });
+
+  const pageSize = 15;
+
+  const from =
+    results.totalCount > 0 ? (startKeys.length - 2) * pageSize + 1 : 0;
+  const to = results.totalCount > 0 ? from + results.nodes.length - 1 : 0;
 
   useEffect(() => {
-    run(() =>
-      ctx.nodeService.fetchNodes(clusterId).then(res => setNodes(res.nodes))
-    );
-  }, [clusterId]);
+    fetchNodes();
+  }, [clusterId, search]);
 
-  const getNodeLoginOptions = (serverId: string) =>
-    makeOptions(clusterId, serverId, logins);
+  function replaceHistory(path: string) {
+    history.replace(path);
+  }
+
+  function getNodeLoginOptions(serverId: string) {
+    return makeOptions(clusterId, serverId, logins);
+  }
 
   const startSshSession = (login: string, serverId: string) => {
     const url = cfg.getSshConnectRoute({
@@ -49,13 +78,71 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     openNewTab(url);
   };
 
-  const fetchNodes = () => {
-    return ctx.nodeService
-      .fetchNodes(clusterId)
-      .then(res => setNodes(res.nodes))
-      .catch((err: Error) =>
-        setAttempt({ status: 'failed', statusText: err.message })
-      );
+  function setSort(sort: SortType) {
+    setParams({ ...params, sort });
+  }
+
+  function fetchNodes() {
+    setAttempt({ status: 'processing' });
+    ctx.nodeService
+      .fetchNodes(clusterId, { ...params, limit: pageSize })
+      .then(res => {
+        setResults(res);
+        setFetchStatus(res.startKey ? '' : 'disabled');
+        setStartKeys([res.nodes[0]?.id, res.startKey]);
+        setAttempt({ status: 'success' });
+      })
+      .catch((err: Error) => {
+        setAttempt({ status: 'failed', statusText: err.message });
+        setResults({ ...results, nodes: [], totalCount: 0 });
+        setStartKeys(['']);
+      });
+  }
+
+  const fetchNext = () => {
+    setFetchStatus('loading');
+    ctx.nodeService
+      .fetchNodes(clusterId, {
+        ...params,
+        limit: pageSize,
+        startKey: results.startKey,
+      })
+      .then(res => {
+        setResults({
+          ...results,
+          nodes: res.nodes,
+          startKey: res.startKey,
+        });
+        setFetchStatus(res.startKey ? '' : 'disabled');
+        setStartKeys([...startKeys, res.startKey]);
+      })
+      .catch((err: Error) => {
+        setAttempt({ status: 'failed', statusText: err.message });
+      });
+  };
+
+  const fetchPrev = () => {
+    setFetchStatus('loading');
+    ctx.nodeService
+      .fetchNodes(clusterId, {
+        ...params,
+        limit: pageSize,
+        startKey: startKeys[startKeys.length - 3],
+      })
+      .then(res => {
+        const tempStartKeys = startKeys;
+        tempStartKeys.pop();
+        setStartKeys(tempStartKeys);
+        setResults({
+          ...results,
+          nodes: res.nodes,
+          startKey: res.startKey,
+        });
+        setFetchStatus('');
+      })
+      .catch((err: Error) => {
+        setAttempt({ status: 'failed', statusText: err.message });
+      });
   };
 
   const hideAddNode = () => {
@@ -70,7 +157,6 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   return {
     canCreate,
     attempt,
-    nodes,
     getNodeLoginOptions,
     startSshSession,
     isAddNodeVisible,
@@ -78,6 +164,20 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     clusterId,
     hideAddNode,
     showAddNode,
+    results,
+    fetchNext,
+    fetchPrev,
+    pageSize,
+    from,
+    to,
+    params,
+    setParams,
+    startKeys,
+    setSort,
+    pathname,
+    replaceHistory,
+    fetchStatus,
+    isSearchEmpty,
   };
 }
 

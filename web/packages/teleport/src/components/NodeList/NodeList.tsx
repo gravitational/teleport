@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,51 +18,84 @@ import React from 'react';
 import Table, { Cell, LabelCell } from 'design/DataTable';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { Node } from 'teleport/services/nodes';
+import ServersideSearchPanel, {
+  SortType,
+} from 'teleport/components/ServersideSearchPanel';
+import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 
 function NodeList(props: Props) {
-  const { nodes = [], onLoginMenuOpen, onLoginSelect, pageSize = 100 } = props;
+  const {
+    nodes = [],
+    onLoginMenuOpen,
+    onLoginSelect,
+    pageSize,
+    totalCount,
+    fetchNext,
+    fetchPrev,
+    fetchStatus,
+    from,
+    to,
+    params,
+    setParams,
+    startKeys,
+    setSort,
+    pathname,
+    replaceHistory,
+  } = props;
 
   return (
-    <Table
-      columns={[
-        {
-          key: 'hostname',
-          headerText: 'Hostname',
-          isSortable: true,
-        },
-        {
-          key: 'addr',
-          headerText: 'Address',
-          isSortable: true,
-          render: renderAddressCell,
-        },
-        {
-          key: 'tags',
-          headerText: 'Labels',
-          render: ({ tags }) => <LabelCell data={tags} />,
-        },
-        {
-          altKey: 'connect-btn',
-          render: ({ id }) =>
-            renderLoginCell(id, onLoginSelect, onLoginMenuOpen),
-        },
-      ]}
-      emptyText="No Nodes Found"
-      data={nodes}
-      pagination={{
-        pageSize,
-      }}
-      isSearchable
-      searchableProps={[
-        'addr',
-        'hostname',
-        'id',
-        'tunnel',
-        'tags',
-        'clusterId',
-      ]}
-      customSearchMatchers={[tunnelMatcher]}
-    />
+    <>
+      <Table
+        columns={[
+          {
+            key: 'hostname',
+            headerText: 'Hostname',
+            isSortable: true,
+          },
+          {
+            key: 'addr',
+            headerText: 'Address',
+            render: renderAddressCell,
+          },
+          {
+            key: 'tags',
+            headerText: 'Labels',
+            render: ({ tags }) => <LabelCell data={tags} />,
+          },
+          {
+            altKey: 'connect-btn',
+            render: ({ id }) =>
+              renderLoginCell(id, onLoginSelect, onLoginMenuOpen),
+          },
+        ]}
+        emptyText="No Nodes Found"
+        data={nodes}
+        pagination={{
+          pageSize,
+        }}
+        fetching={{
+          onFetchNext: fetchNext,
+          onFetchPrev: fetchPrev,
+          fetchStatus,
+        }}
+        serversideProps={{
+          sort: params.sort,
+          setSort,
+          startKeys,
+          serversideSearchPanel: (
+            <ServersideSearchPanel
+              from={from}
+              to={to}
+              count={totalCount}
+              params={params}
+              setParams={setParams}
+              pathname={pathname}
+              replaceHistory={replaceHistory}
+            />
+          ),
+        }}
+      />
+    </>
   );
 }
 
@@ -105,18 +138,6 @@ export const renderAddressCell = ({ addr, tunnel }: Node) => (
   <Cell>{tunnel ? renderTunnel() : addr}</Cell>
 );
 
-function tunnelMatcher(
-  targetValue: any,
-  searchValue: string,
-  propName: keyof Node & string
-) {
-  return (
-    propName === 'tunnel' &&
-    targetValue &&
-    propName.includes(searchValue.toLocaleLowerCase())
-  );
-}
-
 function renderTunnel() {
   return (
     <span
@@ -130,7 +151,19 @@ type Props = {
   nodes: Node[];
   onLoginMenuOpen(serverId: string): { login: string; url: string }[];
   onLoginSelect(e: React.SyntheticEvent, login: string, serverId: string): void;
+  fetchNext: () => void;
+  fetchPrev: () => void;
+  fetchStatus: any;
+  from: number;
+  to: number;
+  totalCount: number;
   pageSize?: number;
+  params: ResourceUrlQueryParams;
+  setParams: (params: ResourceUrlQueryParams) => void;
+  startKeys: string[];
+  setSort: (sort: SortType) => void;
+  pathname: string;
+  replaceHistory: (path: string) => void;
 };
 
 export default NodeList;

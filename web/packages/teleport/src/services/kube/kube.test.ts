@@ -21,7 +21,9 @@ test('correct processed fetch response formatting', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(mockApiResponse);
 
   const kubeService = new KubeService();
-  const response = await kubeService.fetchKubernetes('clusterId');
+  const response = await kubeService.fetchKubernetes('clusterId', {
+    search: 'does-not-matter',
+  });
 
   expect(response).toEqual({
     kubes: [
@@ -39,7 +41,9 @@ test('handling of null fetch response', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
   const kubeService = new KubeService();
-  const response = await kubeService.fetchKubernetes('clusterId');
+  const response = await kubeService.fetchKubernetes('clusterId', {
+    search: 'does-not-matter',
+  });
 
   expect(response).toEqual({
     kubes: [],
@@ -54,7 +58,9 @@ test('handling of null labels', async () => {
     .mockResolvedValue({ items: [{ name: 'test', labels: null }] });
 
   const kubeService = new KubeService();
-  const response = await kubeService.fetchKubernetes('clusterId');
+  const response = await kubeService.fetchKubernetes('clusterId', {
+    search: 'does-not-matter',
+  });
 
   expect(response.kubes).toEqual([{ name: 'test', tags: [] }]);
 });

@@ -21,6 +21,7 @@ import { desktops } from './fixtures';
 
 export default {
   title: 'Teleport/Desktops',
+  excludeStories: ['props'],
 };
 
 export const Loading = () => (
@@ -29,7 +30,9 @@ export const Loading = () => (
 
 export const Loaded = () => <Desktops {...props} />;
 
-export const Empty = () => <Desktops {...props} desktops={[]} />;
+export const Empty = () => (
+  <Desktops {...props} results={{ desktops: [] }} isSearchEmpty={true} />
+);
 
 export const Failed = () => (
   <Desktops
@@ -38,8 +41,12 @@ export const Failed = () => (
   />
 );
 
-const props: State = {
-  desktops,
+export const props: State = {
+  results: {
+    desktops,
+    totalCount: desktops.length,
+  },
+  fetchStatus: '',
   attempt: { status: 'success' },
   username: 'user',
   clusterId: 'im-a-cluster',
@@ -47,4 +54,20 @@ const props: State = {
   isLeafCluster: false,
   getWindowsLoginOptions: () => [{ login: '', url: '' }],
   openRemoteDesktopTab: () => {},
+  fetchNext: () => null,
+  fetchPrev: () => null,
+  pageSize: desktops.length,
+  from: 1,
+  to: desktops.length,
+  params: {
+    search: '',
+    query: '',
+    sort: { fieldName: 'name', dir: 'ASC' },
+  },
+  setParams: () => null,
+  setSort: () => null,
+  startKeys: [''],
+  pathname: '',
+  replaceHistory: () => null,
+  isSearchEmpty: false,
 };

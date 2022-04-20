@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`list of all events 1`] = `
-.c13 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -30,40 +30,40 @@ exports[`list of all events 1`] = `
   width: 87px;
 }
 
-.c13:active {
+.c16:active {
   opacity: 0.56;
 }
 
-.c13:hover,
-.c13:focus {
+.c16:hover,
+.c16:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c13:active {
+.c16:active {
   opacity: 0.24;
 }
 
-.c13:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c8 {
+.c11 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c10 {
+.c13 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c12 {
+.c15 {
   display: inline-block;
   transition: color .3s;
   margin-right: 16px;
@@ -72,7 +72,7 @@ exports[`list of all events 1`] = `
   font-size: 16px;
 }
 
-.c4 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -83,24 +83,30 @@ exports[`list of all events 1`] = `
   color: #FFFFFF;
 }
 
-.c2 {
+.c4 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: flex-end;
 }
 
-.c3 {
+.c5 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
   align-items: center;
 }
 
-.c9 {
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c12 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
-  border-radius: 8px;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -109,39 +115,39 @@ exports[`list of all events 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c9 > thead > tr > th,
-.c9 > tbody > tr > th,
-.c9 > tfoot > tr > th,
-.c9 > thead > tr > td,
-.c9 > tbody > tr > td,
-.c9 > tfoot > tr > td {
+.c12 > thead > tr > th,
+.c12 > tbody > tr > th,
+.c12 > tfoot > tr > th,
+.c12 > thead > tr > td,
+.c12 > tbody > tr > td,
+.c12 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c9 > thead > tr > th:first-child,
-.c9 > tbody > tr > th:first-child,
-.c9 > tfoot > tr > th:first-child,
-.c9 > thead > tr > td:first-child,
-.c9 > tbody > tr > td:first-child,
-.c9 > tfoot > tr > td:first-child {
+.c12 > thead > tr > th:first-child,
+.c12 > tbody > tr > th:first-child,
+.c12 > tfoot > tr > th:first-child,
+.c12 > thead > tr > td:first-child,
+.c12 > tbody > tr > td:first-child,
+.c12 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c9 > thead > tr > th:last-child,
-.c9 > tbody > tr > th:last-child,
-.c9 > tfoot > tr > th:last-child,
-.c9 > thead > tr > td:last-child,
-.c9 > tbody > tr > td:last-child,
-.c9 > tfoot > tr > td:last-child {
+.c12 > thead > tr > th:last-child,
+.c12 > tbody > tr > th:last-child,
+.c12 > tfoot > tr > th:last-child,
+.c12 > thead > tr > td:last-child,
+.c12 > tbody > tr > td:last-child,
+.c12 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c9 > tbody > tr > td {
+.c12 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c9 > thead > tr > th {
+.c12 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -155,31 +161,23 @@ exports[`list of all events 1`] = `
   white-space: nowrap;
 }
 
-.c9 > thead > tr > th .c7 {
+.c12 > thead > tr > th .c10 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c9 > tbody > tr > td {
+.c12 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c9 tbody tr {
+.c12 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c9 tbody tr:hover {
+.c12 tbody tr:hover {
   background-color: rgb(37,49,98);
-}
-
-.c9 tbody > tr:last-child td:first-child {
-  border-bottom-left-radius: 8px;
-}
-
-.c9 tbody > tr:last-child td:last-child {
-  border-bottom-right-radius: 8px;
 }
 
 .c0 {
@@ -194,32 +192,32 @@ exports[`list of all events 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c6 {
+.c9 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c6 .c7 {
+.c9 .c10 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c6:hover .c7,
-.c6:focus .c7 {
+.c9:hover .c10,
+.c9:focus .c10 {
   opacity: 1;
 }
 
-.c6:disabled {
+.c9:disabled {
   cursor: default;
 }
 
-.c6:disabled .c7 {
+.c9:disabled .c10 {
   opacity: 0.1;
 }
 
-.c5 {
+.c7 {
   color: #03a9f4;
   background: none;
   text-decoration: underline;
@@ -231,45 +229,66 @@ exports[`list of all events 1`] = `
   font-size: 12px;
 }
 
-.c5:hover,
-.c5:focus {
+.c7:hover,
+.c7:focus {
   cursor: pointer;
 }
 
-.c5:disabled {
+.c7:disabled {
   color: rgba(255,255,255,0.3);
   cursor: wait;
 }
 
-.c1 {
-  box-sizing: border-box;
-  font-size: 12px;
-  min-width: 200px;
-  outline: none;
-  border: none;
+.c3 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
   border-radius: 200px;
-  height: 32px;
-  transition: all .2s;
-  color: rgba(255,255,255,0.87);
-  background: #111B48;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
-.c1:hover,
-.c1:focus,
-.c1:active {
+.c1 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c2 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c2:hover,
+.c2:focus,
+.c2:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c1::placeholder {
+.c2::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
 
-.c14 {
+.c17 {
   background: #000;
   border: 2px solid #651FFF;
   color: rgba(255,255,255,0.87);
@@ -284,19 +303,19 @@ exports[`list of all events 1`] = `
   transition: all 0.3s;
 }
 
-.c14:hover,
-.c14:active,
-.c14:focus {
+.c17:hover,
+.c17:active,
+.c17:focus {
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   color: #FFFFFF;
 }
 
-.c14:active {
+.c17:active {
   box-shadow: none;
   opacity: 0.56;
 }
 
-.c11 {
+.c14 {
   display: flex;
   align-items: center;
   min-width: 130px;
@@ -310,19 +329,27 @@ exports[`list of all events 1`] = `
   <nav
     class="c0"
   >
-    <input
-      class="c1"
-      placeholder="SEARCH..."
-      value=""
-    />
     <div
-      class="c2"
+      class="c1"
     >
+      <input
+        class="c2"
+        placeholder="SEARCH..."
+        value=""
+      />
       <div
         class="c3"
+      />
+    </div>
+    <div
+      class="c4"
+      width="100%"
+    >
+      <div
+        class="c5"
       >
         <div
-          class="c4"
+          class="c6"
           color="primary.contrastText"
         >
           SHOWING 
@@ -340,32 +367,32 @@ exports[`list of all events 1`] = `
           </strong>
         </div>
         <button
-          class="c5"
+          class="c7"
         >
           Fetch More
         </button>
       </div>
       <div
-        class="c2"
+        class="c8"
       >
         <button
-          class="c6"
+          class="c9"
           disabled=""
           title="Previous page"
         >
           <span
-            class="c7 c8 icon icon-arrow-left-circle "
+            class="c10 c11 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c6"
+          class="c9"
           disabled=""
           title="Next page"
         >
           <span
-            class="c7 c8 icon icon-arrow-right-circle "
+            class="c10 c11 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
@@ -374,7 +401,7 @@ exports[`list of all events 1`] = `
     </div>
   </nav>
   <table
-    class="c9"
+    class="c12"
   >
     <thead>
       <tr>
@@ -382,24 +409,28 @@ exports[`list of all events 1`] = `
           <a>
             Type
             <span
-              class="c7 c10 icon icon-chevrons-expand-vertical "
+              class="c10 c13 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
         </th>
-        <th>
+        <th
+          style="cursor: default;"
+        >
           Description
         </th>
         <th>
           <a>
             Created
             <span
-              class="c7 c10 icon icon-chevron-down "
+              class="c10 c13 icon icon-chevron-down "
               color="light"
             />
           </a>
         </th>
-        <th />
+        <th
+          style="cursor: default;"
+        />
       </tr>
     </thead>
     <tbody>
@@ -408,10 +439,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -432,7 +463,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -445,10 +476,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -469,7 +500,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -482,10 +513,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -506,7 +537,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -519,10 +550,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -543,7 +574,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -556,10 +587,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -580,7 +611,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -593,10 +624,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -617,7 +648,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -630,10 +661,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -654,7 +685,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -667,10 +698,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -691,7 +722,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -704,10 +735,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -728,7 +759,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -741,10 +772,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -765,7 +796,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -778,10 +809,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -802,7 +833,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -815,10 +846,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -839,7 +870,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -852,10 +883,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -876,7 +907,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -889,10 +920,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -913,7 +944,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -926,10 +957,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-keypair c7 c12"
+              class="c10 c15 icon icon-keypair c10 c15"
               color="light"
               font-size="3"
             />
@@ -950,7 +981,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -963,10 +994,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -987,7 +1018,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1000,10 +1031,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -1024,7 +1055,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1037,10 +1068,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -1061,7 +1092,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1074,10 +1105,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1098,7 +1129,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1111,10 +1142,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1135,7 +1166,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1148,10 +1179,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1172,7 +1203,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1185,10 +1216,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1209,7 +1240,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1222,10 +1253,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1246,7 +1277,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1259,10 +1290,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -1283,7 +1314,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1296,10 +1327,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-clipboard-text c7 c12"
+              class="c10 c15 icon icon-clipboard-text c10 c15"
               color="light"
               font-size="3"
             />
@@ -1320,7 +1351,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1333,10 +1364,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-clipboard-text c7 c12"
+              class="c10 c15 icon icon-clipboard-text c10 c15"
               color="light"
               font-size="3"
             />
@@ -1357,7 +1388,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1370,10 +1401,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-desktop c7 c12"
+              class="c10 c15 icon icon-desktop c10 c15"
               color="light"
               font-size="3"
             />
@@ -1394,7 +1425,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1407,10 +1438,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-desktop c7 c12"
+              class="c10 c15 icon icon-desktop c10 c15"
               color="light"
               font-size="3"
             />
@@ -1431,7 +1462,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1444,10 +1475,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-desktop c7 c12"
+              class="c10 c15 icon icon-desktop c10 c15"
               color="light"
               font-size="3"
             />
@@ -1468,7 +1499,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1481,10 +1512,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1505,7 +1536,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1518,10 +1549,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1542,7 +1573,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1555,10 +1586,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1579,7 +1610,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1592,10 +1623,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-unlock c7 c12"
+              class="c10 c15 icon icon-unlock c10 c15"
               color="light"
               font-size="3"
             />
@@ -1616,7 +1647,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1629,10 +1660,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-lock c7 c12"
+              class="c10 c15 icon icon-lock c10 c15"
               color="light"
               font-size="3"
             />
@@ -1653,7 +1684,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1666,10 +1697,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-vpn_key c7 c12"
+              class="c10 c15 icon icon-vpn_key c10 c15"
               color="light"
               font-size="3"
             />
@@ -1690,7 +1721,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1703,10 +1734,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -1727,7 +1758,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1740,10 +1771,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-vpn_key c7 c12"
+              class="c10 c15 icon icon-vpn_key c10 c15"
               color="light"
               font-size="3"
             />
@@ -1764,7 +1795,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1777,10 +1808,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-keypair c7 c12"
+              class="c10 c15 icon icon-keypair c10 c15"
               color="light"
               font-size="3"
             />
@@ -1801,7 +1832,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1814,10 +1845,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1838,7 +1869,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1851,10 +1882,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1875,7 +1906,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1888,10 +1919,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1912,7 +1943,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1925,10 +1956,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-database c7 c12"
+              class="c10 c15 icon icon-database c10 c15"
               color="light"
               font-size="3"
             />
@@ -1949,7 +1980,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1962,10 +1993,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -1986,7 +2017,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -1999,10 +2030,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -2023,7 +2054,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2036,7 +2067,7 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <a
               href="/web/cluster/im-a-cluster/session/941a4c65-c6cd-11ea-9bef-482ae3513733?recordingType=ssh"
@@ -2045,7 +2076,7 @@ exports[`list of all events 1`] = `
               title="Open Session Player"
             >
               <span
-                class="c7 c12 icon icon-terminal c14"
+                class="c10 c15 icon icon-terminal c17"
                 color="light"
                 font-size="3"
               />
@@ -2067,7 +2098,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2080,10 +2111,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-credit-card c7 c12"
+              class="c10 c15 icon icon-credit-card c10 c15"
               color="light"
               font-size="3"
             />
@@ -2104,7 +2135,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2117,10 +2148,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-credit-card c7 c12"
+              class="c10 c15 icon icon-credit-card c10 c15"
               color="light"
               font-size="3"
             />
@@ -2141,7 +2172,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2154,10 +2185,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-credit-card c7 c12"
+              class="c10 c15 icon icon-credit-card c10 c15"
               color="light"
               font-size="3"
             />
@@ -2178,7 +2209,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2191,10 +2222,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-credit-card c7 c12"
+              class="c10 c15 icon icon-credit-card c10 c15"
               color="light"
               font-size="3"
             />
@@ -2215,7 +2246,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2228,10 +2259,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2252,7 +2283,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2265,10 +2296,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2289,7 +2320,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2302,10 +2333,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-kubernetes c7 c12"
+              class="c10 c15 icon icon-kubernetes c10 c15"
               color="light"
               font-size="3"
             />
@@ -2326,7 +2357,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2339,10 +2370,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -2363,7 +2394,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2376,10 +2407,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2400,7 +2431,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2413,10 +2444,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2437,7 +2468,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2450,10 +2481,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2474,7 +2505,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2487,10 +2518,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2511,7 +2542,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2524,10 +2555,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2548,7 +2579,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2561,10 +2592,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2585,7 +2616,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2598,10 +2629,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2622,7 +2653,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2635,10 +2666,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2659,7 +2690,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2672,10 +2703,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2696,7 +2727,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2709,10 +2740,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2733,7 +2764,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2746,10 +2777,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2770,7 +2801,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2783,10 +2814,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2807,7 +2838,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2820,10 +2851,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -2844,7 +2875,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2857,10 +2888,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -2881,7 +2912,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2894,10 +2925,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -2918,7 +2949,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2931,10 +2962,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -2955,7 +2986,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -2968,10 +2999,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-file_upload c7 c12"
+              class="c10 c15 icon icon-file_upload c10 c15"
               color="light"
               font-size="3"
             />
@@ -2992,7 +3023,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3005,10 +3036,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-get_app c7 c12"
+              class="c10 c15 icon icon-get_app c10 c15"
               color="light"
               font-size="3"
             />
@@ -3029,7 +3060,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3042,10 +3073,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-get_app c7 c12"
+              class="c10 c15 icon icon-get_app c10 c15"
               color="light"
               font-size="3"
             />
@@ -3066,7 +3097,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3079,10 +3110,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -3103,7 +3134,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3116,10 +3147,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -3140,7 +3171,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3153,10 +3184,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -3177,7 +3208,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3190,10 +3221,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -3214,7 +3245,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3227,10 +3258,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-terminal c7 c12"
+              class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
             />
@@ -3251,7 +3282,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3264,10 +3295,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -3288,7 +3319,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3301,10 +3332,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -3325,7 +3356,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3338,10 +3369,10 @@ exports[`list of all events 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c11"
+            class="c14"
           >
             <span
-              class="c7 c12 icon icon-info_outline c7 c12"
+              class="c10 c15 icon icon-info_outline c10 c15"
               color="light"
               font-size="3"
             />
@@ -3362,7 +3393,7 @@ exports[`list of all events 1`] = `
           align="right"
         >
           <button
-            class="c13"
+            class="c16"
             kind="border"
             width="87px"
           >
@@ -3376,7 +3407,7 @@ exports[`list of all events 1`] = `
 `;
 
 exports[`loaded audit log screen 1`] = `
-.c17 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -3405,40 +3436,40 @@ exports[`loaded audit log screen 1`] = `
   width: 87px;
 }
 
-.c17:active {
+.c20:active {
   opacity: 0.56;
 }
 
-.c17:hover,
-.c17:focus {
+.c20:hover,
+.c20:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c17:active {
+.c20:active {
   opacity: 0.24;
 }
 
-.c17:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c12 {
+.c15 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c14 {
+.c17 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c16 {
+.c19 {
   display: inline-block;
   transition: color .3s;
   margin-right: 16px;
@@ -3447,7 +3478,7 @@ exports[`loaded audit log screen 1`] = `
   font-size: 16px;
 }
 
-.c9 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -3458,16 +3489,23 @@ exports[`loaded audit log screen 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
+.c9 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: flex-end;
 }
 
-.c8 {
+.c10 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
   align-items: center;
+}
+
+.c12 {
+  box-sizing: border-box;
+  display: flex;
 }
 
 .c1 {
@@ -3511,12 +3549,11 @@ exports[`loaded audit log screen 1`] = `
   padding-bottom: 24px;
 }
 
-.c13 {
+.c16 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
-  border-radius: 8px;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -3525,39 +3562,39 @@ exports[`loaded audit log screen 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c13 > thead > tr > th,
-.c13 > tbody > tr > th,
-.c13 > tfoot > tr > th,
-.c13 > thead > tr > td,
-.c13 > tbody > tr > td,
-.c13 > tfoot > tr > td {
+.c16 > thead > tr > th,
+.c16 > tbody > tr > th,
+.c16 > tfoot > tr > th,
+.c16 > thead > tr > td,
+.c16 > tbody > tr > td,
+.c16 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c13 > thead > tr > th:first-child,
-.c13 > tbody > tr > th:first-child,
-.c13 > tfoot > tr > th:first-child,
-.c13 > thead > tr > td:first-child,
-.c13 > tbody > tr > td:first-child,
-.c13 > tfoot > tr > td:first-child {
+.c16 > thead > tr > th:first-child,
+.c16 > tbody > tr > th:first-child,
+.c16 > tfoot > tr > th:first-child,
+.c16 > thead > tr > td:first-child,
+.c16 > tbody > tr > td:first-child,
+.c16 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c13 > thead > tr > th:last-child,
-.c13 > tbody > tr > th:last-child,
-.c13 > tfoot > tr > th:last-child,
-.c13 > thead > tr > td:last-child,
-.c13 > tbody > tr > td:last-child,
-.c13 > tfoot > tr > td:last-child {
+.c16 > thead > tr > th:last-child,
+.c16 > tbody > tr > th:last-child,
+.c16 > tfoot > tr > th:last-child,
+.c16 > thead > tr > td:last-child,
+.c16 > tbody > tr > td:last-child,
+.c16 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c13 > tbody > tr > td {
+.c16 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c13 > thead > tr > th {
+.c16 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -3571,31 +3608,23 @@ exports[`loaded audit log screen 1`] = `
   white-space: nowrap;
 }
 
-.c13 > thead > tr > th .c11 {
+.c16 > thead > tr > th .c14 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c13 > tbody > tr > td {
+.c16 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c13 tbody tr {
+.c16 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c13 tbody tr:hover {
+.c16 tbody tr:hover {
   background-color: rgb(37,49,98);
-}
-
-.c13 tbody > tr:last-child td:first-child {
-  border-bottom-left-radius: 8px;
-}
-
-.c13 tbody > tr:last-child td:last-child {
-  border-bottom-right-radius: 8px;
 }
 
 .c5 {
@@ -3610,60 +3639,81 @@ exports[`loaded audit log screen 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c10 {
+.c13 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c10 .c11 {
+.c13 .c14 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c10:hover .c11,
-.c10:focus .c11 {
+.c13:hover .c14,
+.c13:focus .c14 {
   opacity: 1;
 }
 
-.c10:disabled {
+.c13:disabled {
   cursor: default;
 }
 
-.c10:disabled .c11 {
+.c13:disabled .c14 {
   opacity: 0.1;
 }
 
-.c6 {
-  box-sizing: border-box;
-  font-size: 12px;
-  min-width: 200px;
-  outline: none;
-  border: none;
+.c8 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
   border-radius: 200px;
-  height: 32px;
-  transition: all .2s;
-  color: rgba(255,255,255,0.87);
-  background: #111B48;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
-.c6:hover,
-.c6:focus,
-.c6:active {
+.c6 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c7 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c7:hover,
+.c7:focus,
+.c7:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c6::placeholder {
+.c7::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
 
-.c15 {
+.c18 {
   display: flex;
   align-items: center;
   min-width: 130px;
@@ -3994,19 +4044,27 @@ exports[`loaded audit log screen 1`] = `
   <nav
     class="c5"
   >
-    <input
-      class="c6"
-      placeholder="SEARCH..."
-      value=""
-    />
     <div
-      class="c7"
+      class="c6"
     >
+      <input
+        class="c7"
+        placeholder="SEARCH..."
+        value=""
+      />
       <div
         class="c8"
+      />
+    </div>
+    <div
+      class="c9"
+      width="100%"
+    >
+      <div
+        class="c10"
       >
         <div
-          class="c9"
+          class="c11"
           color="primary.contrastText"
         >
           SHOWING 
@@ -4025,26 +4083,26 @@ exports[`loaded audit log screen 1`] = `
         </div>
       </div>
       <div
-        class="c7"
+        class="c12"
       >
         <button
-          class="c10"
+          class="c13"
           disabled=""
           title="Previous page"
         >
           <span
-            class="c11 c12 icon icon-arrow-left-circle "
+            class="c14 c15 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c10"
+          class="c13"
           disabled=""
           title="Next page"
         >
           <span
-            class="c11 c12 icon icon-arrow-right-circle "
+            class="c14 c15 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
@@ -4053,7 +4111,7 @@ exports[`loaded audit log screen 1`] = `
     </div>
   </nav>
   <table
-    class="c13"
+    class="c16"
   >
     <thead>
       <tr>
@@ -4061,24 +4119,28 @@ exports[`loaded audit log screen 1`] = `
           <a>
             Type
             <span
-              class="c11 c14 icon icon-chevrons-expand-vertical "
+              class="c14 c17 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
         </th>
-        <th>
+        <th
+          style="cursor: default;"
+        >
           Description
         </th>
         <th>
           <a>
             Created
             <span
-              class="c11 c14 icon icon-chevron-down "
+              class="c14 c17 icon icon-chevron-down "
               color="light"
             />
           </a>
         </th>
-        <th />
+        <th
+          style="cursor: default;"
+        />
       </tr>
     </thead>
     <tbody>
@@ -4087,10 +4149,10 @@ exports[`loaded audit log screen 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c15"
+            class="c18"
           >
             <span
-              class="c11 c16 icon icon-info_outline c11 c16"
+              class="c14 c19 icon icon-info_outline c14 c19"
               color="light"
               font-size="3"
             />
@@ -4111,7 +4173,7 @@ exports[`loaded audit log screen 1`] = `
           align="right"
         >
           <button
-            class="c17"
+            class="c20"
             kind="border"
             width="87px"
           >
@@ -4124,10 +4186,10 @@ exports[`loaded audit log screen 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c15"
+            class="c18"
           >
             <span
-              class="c11 c16 icon icon-info_outline c11 c16"
+              class="c14 c19 icon icon-info_outline c14 c19"
               color="light"
               font-size="3"
             />
@@ -4148,7 +4210,7 @@ exports[`loaded audit log screen 1`] = `
           align="right"
         >
           <button
-            class="c17"
+            class="c20"
             kind="border"
             width="87px"
           >
@@ -4161,10 +4223,10 @@ exports[`loaded audit log screen 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c15"
+            class="c18"
           >
             <span
-              class="c11 c16 icon icon-question-circle c11 c16"
+              class="c14 c19 icon icon-question-circle c14 c19"
               color="light"
               font-size="3"
             />
@@ -4185,7 +4247,7 @@ exports[`loaded audit log screen 1`] = `
           align="right"
         >
           <button
-            class="c17"
+            class="c20"
             kind="border"
             width="87px"
           >
@@ -4198,10 +4260,10 @@ exports[`loaded audit log screen 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c15"
+            class="c18"
           >
             <span
-              class="c11 c16 icon icon-terminal c11 c16"
+              class="c14 c19 icon icon-terminal c14 c19"
               color="light"
               font-size="3"
             />
@@ -4222,7 +4284,7 @@ exports[`loaded audit log screen 1`] = `
           align="right"
         >
           <button
-            class="c17"
+            class="c20"
             kind="border"
             width="87px"
           >
@@ -4235,10 +4297,10 @@ exports[`loaded audit log screen 1`] = `
           style="vertical-align: inherit;"
         >
           <div
-            class="c15"
+            class="c18"
           >
             <span
-              class="c11 c16 icon icon-terminal c11 c16"
+              class="c14 c19 icon icon-terminal c14 c19"
               color="light"
               font-size="3"
             />
@@ -4259,7 +4321,7 @@ exports[`loaded audit log screen 1`] = `
           align="right"
         >
           <button
-            class="c17"
+            class="c20"
             kind="border"
             width="87px"
           >

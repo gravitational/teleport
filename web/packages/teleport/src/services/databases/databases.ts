@@ -15,13 +15,16 @@ limitations under the License.
 */
 
 import api from 'teleport/services/api';
-import cfg from 'teleport/config';
+import cfg, { UrlResourcesParams } from 'teleport/config';
 import makeDatabase from './makeDatabase';
 import { DatabasesResponse } from './types';
 
 class DatabaseService {
-  fetchDatabases(clusterId?: string): Promise<DatabasesResponse> {
-    return api.get(cfg.getDatabasesUrl(clusterId)).then(json => {
+  fetchDatabases(
+    clusterId: string,
+    params: UrlResourcesParams
+  ): Promise<DatabasesResponse> {
+    return api.get(cfg.getDatabasesUrl(clusterId, params)).then(json => {
       const items = json?.items || [];
 
       return {

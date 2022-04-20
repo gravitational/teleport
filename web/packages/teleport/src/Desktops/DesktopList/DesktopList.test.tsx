@@ -17,26 +17,32 @@ import React from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
 import { desktops } from '../fixtures';
 import DesktopList from './DesktopList';
+import { props } from '../Desktops.story';
 
-test('search filter works', () => {
-  const searchValue = 'yetanother';
-  const expectedToBeVisible = /bar: foo/i;
-  const notExpectedToBeVisible = /d96e7dd6-26b6-56d5-8259-778f943f90f2/i;
+test('search generates correct url params', () => {
+  const replaceHistory = jest.fn();
 
   render(
     <DesktopList
+      {...props}
+      totalCount={50}
       username="joe"
       desktops={desktops}
       clusterId="im-a-cluster"
+      pathname="test.com/cluster/one/desktops"
       onLoginMenuOpen={() => null}
       onLoginSelect={() => null}
+      replaceHistory={replaceHistory}
     />
   );
 
   fireEvent.change(screen.getByPlaceholderText(/SEARCH.../i), {
-    target: { value: searchValue },
+    target: { value: 'test' },
   });
 
-  expect(screen.queryByText(expectedToBeVisible)).toBeInTheDocument();
-  expect(screen.queryByText(notExpectedToBeVisible)).toBeNull();
+  fireEvent.submit(screen.getByPlaceholderText(/SEARCH.../i));
+
+  expect(replaceHistory).toHaveBeenCalledWith(
+    'test.com/cluster/one/desktops?search=test&sort=name:asc'
+  );
 });

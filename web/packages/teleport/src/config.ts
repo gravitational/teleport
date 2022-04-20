@@ -18,6 +18,8 @@ import { generatePath } from 'react-router';
 import { merge } from 'lodash';
 import { AuthProvider, Auth2faType, PreferredMfaType } from 'shared/services';
 import { RecordingType } from 'teleport/services/recordings';
+import { SortType } from './components/ServersideSearchPanel/useServerSideSearchPanel';
+import generateResourcePath from './generateResourcePath';
 
 const cfg = {
   isEnterprise: false,
@@ -88,7 +90,8 @@ const cfg = {
   api: {
     appSession: '/v1/webapi/sessions/app',
     appFqdnPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
-    applicationsPath: '/v1/webapi/sites/:clusterId/apps',
+    applicationsPath:
+      '/v1/webapi/sites/:clusterId/apps?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
@@ -100,9 +103,10 @@ const cfg = {
     userStatusPath: '/v1/webapi/user/status',
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
-    nodesPath: '/v1/webapi/sites/:clusterId/nodes',
-    databasesPath: `/v1/webapi/sites/:clusterId/databases`,
-    desktopsPath: `/v1/webapi/sites/:clusterId/desktops`,
+    nodesPath:
+      '/v1/webapi/sites/:clusterId/nodes?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+    databasesPath: `/v1/webapi/sites/:clusterId/databases?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
+    desktopsPath: `/v1/webapi/sites/:clusterId/desktops?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username&width=:width&height=:height',
@@ -112,7 +116,8 @@ const cfg = {
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
-    kubernetesPath: '/v1/webapi/sites/:clusterId/kubernetes',
+    kubernetesPath:
+      '/v1/webapi/sites/:clusterId/kubernetes?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
     usersPath: '/v1/webapi/users',
     usersDelete: '/v1/webapi/users/:username',
@@ -327,24 +332,36 @@ const cfg = {
     return generatePath(cfg.api.terminalSessionPath, { clusterId, sid });
   },
 
-  getClusterNodesUrl(clusterId: string) {
-    return generatePath(cfg.api.nodesPath, { clusterId });
+  getClusterNodesUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.nodesPath, {
+      clusterId,
+      ...params,
+    });
   },
 
-  getDatabasesUrl(clusterId: string) {
-    return generatePath(cfg.api.databasesPath, { clusterId });
+  getDatabasesUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.databasesPath, {
+      clusterId,
+      ...params,
+    });
   },
 
-  getDesktopsUrl(clusterId: string) {
-    return generatePath(cfg.api.desktopsPath, { clusterId });
+  getDesktopsUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.desktopsPath, {
+      clusterId,
+      ...params,
+    });
   },
 
   getDesktopUrl(clusterId: string, desktopName: string) {
     return generatePath(cfg.api.desktopPath, { clusterId, desktopName });
   },
 
-  getApplicationsUrl(clusterId: string) {
-    return generatePath(cfg.api.applicationsPath, { clusterId });
+  getApplicationsUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.applicationsPath, {
+      clusterId,
+      ...params,
+    });
   },
 
   getScpUrl(params: UrlScpParams) {
@@ -369,8 +386,11 @@ const cfg = {
     return generatePath(cfg.api.rolesPath, { name });
   },
 
-  getKubernetesUrl(clusterId: string) {
-    return generatePath(cfg.api.kubernetesPath, { clusterId });
+  getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesPath, {
+      clusterId,
+      ...params,
+    });
   },
 
   getAuthnChallengeWithTokenUrl(tokenId: string) {
@@ -464,6 +484,14 @@ export interface UrlDesktopParams {
   username?: string;
   desktopName?: string;
   clusterId: string;
+}
+
+export interface UrlResourcesParams {
+  query?: string;
+  search?: string;
+  sort?: SortType;
+  limit?: number;
+  startKey?: string;
 }
 
 export default cfg;

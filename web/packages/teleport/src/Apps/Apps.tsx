@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2020-2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,17 +44,30 @@ export function Apps(props: State) {
     hideAddApp,
     canCreate,
     attempt,
-    apps,
+    results,
+    fetchNext,
+    fetchPrev,
+    from,
+    to,
+    pageSize,
+    params,
+    setParams,
+    startKeys,
+    setSort,
+    pathname,
+    replaceHistory,
+    fetchStatus,
+    isSearchEmpty,
   } = props;
 
-  const isEmpty = attempt.status === 'success' && apps.length === 0;
-  const hasApps = attempt.status === 'success' && apps.length > 0;
+  const hasNoApps =
+    attempt.status === 'success' && results.apps.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Applications</FeatureHeaderTitle>
-        {hasApps && (
+        {!hasNoApps && (
           <ButtonAdd
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -68,8 +81,25 @@ export function Apps(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
-      {hasApps && <AppList apps={apps} />}
-      {isEmpty && (
+      {attempt.status !== 'processing' && !hasNoApps && (
+        <AppList
+          apps={results.apps}
+          fetchNext={fetchNext}
+          fetchPrev={fetchPrev}
+          fetchStatus={fetchStatus}
+          from={from}
+          to={to}
+          totalCount={results.totalCount}
+          pageSize={pageSize}
+          params={params}
+          setParams={setParams}
+          startKeys={startKeys}
+          setSort={setSort}
+          pathname={pathname}
+          replaceHistory={replaceHistory}
+        />
+      )}
+      {hasNoApps && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

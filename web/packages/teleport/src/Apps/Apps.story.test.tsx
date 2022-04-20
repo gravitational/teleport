@@ -1,10 +1,5 @@
 import React from 'react';
-import renderHook, { act } from 'design/utils/renderHook';
 import { render } from 'design/utils/testing';
-import { Context } from 'teleport';
-import makeAcl from 'teleport/services/user/makeAcl';
-import { apps } from './fixtures';
-import useApps from './useApps';
 import { Loaded, Failed, Empty, EmptyReadOnly } from './Apps.story';
 
 jest.mock('teleport/useStickyClusterId', () =>
@@ -34,44 +29,3 @@ test('readonly empty state', () => {
   const { container } = render(<EmptyReadOnly />);
   expect(container).toMatchSnapshot();
 });
-
-test('useApps hook returns expected props', async () => {
-  const ctx = new Context();
-  const acl = makeAcl(sample.acl);
-  ctx.isEnterprise = true;
-  ctx.storeUser.setState({ acl });
-  ctx.appService.fetchApps = () => Promise.resolve({ apps });
-
-  let hook;
-
-  await act(async () => {
-    hook = renderHook(() => useApps(ctx));
-  });
-
-  expect(hook.current).toEqual(expect.objectContaining(expectedHookResponse));
-});
-
-const sample = {
-  acl: {
-    tokens: {
-      create: true,
-    },
-    apps: {
-      list: true,
-      create: true,
-      remove: true,
-      edit: true,
-      read: true,
-    },
-  },
-};
-
-const expectedHookResponse = {
-  clusterId: 'im-a-cluster',
-  isLeafCluster: false,
-  isEnterprise: true,
-  isAddAppVisible: false,
-  canCreate: true,
-  attempt: { status: 'success' },
-  apps,
-};

@@ -23,7 +23,7 @@ export default function makeDatabase(json): Database {
 
   return {
     name,
-    desc,
+    description: desc,
     title: formatDatabaseInfo(type, protocol).title,
     protocol,
     tags: labels.map(label => `${label.name}: ${label.value}`),

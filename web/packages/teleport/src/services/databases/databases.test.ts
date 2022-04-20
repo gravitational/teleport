@@ -21,13 +21,15 @@ test('correct formatting of database fetch response', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(mockResponse);
 
   const database = new DatabaseService();
-  const response = await database.fetchDatabases('im-a-cluster');
+  const response = await database.fetchDatabases('im-a-cluster', {
+    search: 'does-not-matter',
+  });
 
   expect(response).toEqual({
     databases: [
       {
         name: 'aurora',
-        desc: 'PostgreSQL 11.6: AWS Aurora',
+        description: 'PostgreSQL 11.6: AWS Aurora',
         title: 'RDS PostgreSQL',
         protocol: 'postgres',
         tags: ['cluster: root', 'env: aws'],
@@ -42,7 +44,9 @@ test('null response from database fetch', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
   const database = new DatabaseService();
-  const response = await database.fetchDatabases('im-a-cluster');
+  const response = await database.fetchDatabases('im-a-cluster', {
+    search: 'does-not-matter',
+  });
 
   expect(response).toEqual({
     databases: [],
@@ -69,7 +73,9 @@ describe('correct formatting of all type and protocol combos', () => {
       jest.spyOn(api, 'get').mockResolvedValue({ items: [{ type, protocol }] });
 
       const database = new DatabaseService();
-      const response = await database.fetchDatabases('im-a-cluster');
+      const response = await database.fetchDatabases('im-a-cluster', {
+        search: 'does-not-matter',
+      });
 
       expect(response.databases[0].title).toBe(combined);
     }
@@ -80,7 +86,9 @@ test('null labels field in database fetch response', async () => {
   jest.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
 
   const database = new DatabaseService();
-  const response = await database.fetchDatabases('im-a-cluster');
+  const response = await database.fetchDatabases('im-a-cluster', {
+    search: 'does-not-matter',
+  });
 
   expect(response.databases[0].tags).toEqual([]);
 });

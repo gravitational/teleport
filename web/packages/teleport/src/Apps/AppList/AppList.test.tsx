@@ -17,17 +17,42 @@
 import React from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
 import cfg from 'teleport/config';
-import { apps } from '../fixtures';
 import AppList from './AppList';
+import { props } from '../Apps.story';
 
 test('correct launch url is generated for a selected role', () => {
   jest.spyOn(cfg, 'getAppLauncherRoute');
 
-  render(<AppList apps={apps} />);
-
-  fireEvent.change(screen.getByPlaceholderText(/SEARCH.../i), {
-    target: { value: 'aws' },
-  });
+  render(
+    <AppList
+      {...props}
+      totalCount={1}
+      apps={[
+        {
+          name: 'aws-console-1',
+          uri: 'https://console.aws.amazon.com/ec2/v2/home',
+          publicAddr: 'awsconsole-1.teleport-proxy.com',
+          tags: ['aws_account_id: A1234', 'env: dev', 'cluster: two'],
+          description: 'This is an AWS Console app',
+          awsConsole: true,
+          awsRoles: [
+            {
+              arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+              display: 'EC2FullAccess',
+            },
+            {
+              arn: 'arn:aws:iam::joe123:role/EC2ReadOnly',
+              display: 'EC2ReadOnly',
+            },
+          ],
+          clusterId: 'one',
+          fqdn: 'awsconsole-1.com',
+          id: 'one-aws-console-1-awsconsole-1.teleport-proxy.com',
+          launchUrl: '',
+        },
+      ]}
+    />
+  );
 
   const launchBtn = screen.queryByText(/launch/i);
 

@@ -15,13 +15,16 @@ limitations under the License.
 */
 
 import api from 'teleport/services/api';
-import cfg from 'teleport/config';
+import cfg, { UrlResourcesParams } from 'teleport/config';
 import makeNode from './makeNode';
 import { NodesResponse } from './types';
 
-const service = {
-  fetchNodes(clusterId?: string): Promise<NodesResponse> {
-    return api.get(cfg.getClusterNodesUrl(clusterId)).then(json => {
+class NodeService {
+  fetchNodes(
+    clusterId?: string,
+    params?: UrlResourcesParams
+  ): Promise<NodesResponse> {
+    return api.get(cfg.getClusterNodesUrl(clusterId, params)).then(json => {
       const items = json?.items || [];
 
       return {
@@ -30,7 +33,7 @@ const service = {
         totalCount: json?.totalCount,
       };
     });
-  },
-};
+  }
+}
 
-export default service;
+export default NodeService;

@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`rendering of Session Recordings 1`] = `
-.c16 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -28,38 +28,38 @@ exports[`rendering of Session Recordings 1`] = `
   width: 80px;
 }
 
-.c16:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c19:hover,
+.c19:focus {
   background: #651FFF;
 }
 
-.c16:active {
+.c19:active {
   background: #354AA4;
 }
 
-.c16:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c12 {
+.c15 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c14 {
+.c17 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c15 {
+.c18 {
   display: inline-block;
   transition: color .3s;
   margin-right: 16px;
@@ -68,7 +68,7 @@ exports[`rendering of Session Recordings 1`] = `
   font-size: 16px;
 }
 
-.c9 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -79,16 +79,23 @@ exports[`rendering of Session Recordings 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
+.c9 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: flex-end;
 }
 
-.c8 {
+.c10 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
   align-items: center;
+}
+
+.c12 {
+  box-sizing: border-box;
+  display: flex;
 }
 
 .c1 {
@@ -132,12 +139,11 @@ exports[`rendering of Session Recordings 1`] = `
   padding-bottom: 24px;
 }
 
-.c13 {
+.c16 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
-  border-radius: 8px;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -146,39 +152,39 @@ exports[`rendering of Session Recordings 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c13 > thead > tr > th,
-.c13 > tbody > tr > th,
-.c13 > tfoot > tr > th,
-.c13 > thead > tr > td,
-.c13 > tbody > tr > td,
-.c13 > tfoot > tr > td {
+.c16 > thead > tr > th,
+.c16 > tbody > tr > th,
+.c16 > tfoot > tr > th,
+.c16 > thead > tr > td,
+.c16 > tbody > tr > td,
+.c16 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c13 > thead > tr > th:first-child,
-.c13 > tbody > tr > th:first-child,
-.c13 > tfoot > tr > th:first-child,
-.c13 > thead > tr > td:first-child,
-.c13 > tbody > tr > td:first-child,
-.c13 > tfoot > tr > td:first-child {
+.c16 > thead > tr > th:first-child,
+.c16 > tbody > tr > th:first-child,
+.c16 > tfoot > tr > th:first-child,
+.c16 > thead > tr > td:first-child,
+.c16 > tbody > tr > td:first-child,
+.c16 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c13 > thead > tr > th:last-child,
-.c13 > tbody > tr > th:last-child,
-.c13 > tfoot > tr > th:last-child,
-.c13 > thead > tr > td:last-child,
-.c13 > tbody > tr > td:last-child,
-.c13 > tfoot > tr > td:last-child {
+.c16 > thead > tr > th:last-child,
+.c16 > tbody > tr > th:last-child,
+.c16 > tfoot > tr > th:last-child,
+.c16 > thead > tr > td:last-child,
+.c16 > tbody > tr > td:last-child,
+.c16 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c13 > tbody > tr > td {
+.c16 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c13 > thead > tr > th {
+.c16 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -192,31 +198,23 @@ exports[`rendering of Session Recordings 1`] = `
   white-space: nowrap;
 }
 
-.c13 > thead > tr > th .c11 {
+.c16 > thead > tr > th .c14 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c13 > tbody > tr > td {
+.c16 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c13 tbody tr {
+.c16 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c13 tbody tr:hover {
+.c16 tbody tr:hover {
   background-color: rgb(37,49,98);
-}
-
-.c13 tbody > tr:last-child td:first-child {
-  border-bottom-left-radius: 8px;
-}
-
-.c13 tbody > tr:last-child td:last-child {
-  border-bottom-right-radius: 8px;
 }
 
 .c5 {
@@ -231,55 +229,76 @@ exports[`rendering of Session Recordings 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c10 {
+.c13 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c10 .c11 {
+.c13 .c14 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c10:hover .c11,
-.c10:focus .c11 {
+.c13:hover .c14,
+.c13:focus .c14 {
   opacity: 1;
 }
 
-.c10:disabled {
+.c13:disabled {
   cursor: default;
 }
 
-.c10:disabled .c11 {
+.c13:disabled .c14 {
   opacity: 0.1;
 }
 
-.c6 {
-  box-sizing: border-box;
-  font-size: 12px;
-  min-width: 200px;
-  outline: none;
-  border: none;
+.c8 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
   border-radius: 200px;
-  height: 32px;
-  transition: all .2s;
-  color: rgba(255,255,255,0.87);
-  background: #111B48;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
-.c6:hover,
-.c6:focus,
-.c6:active {
+.c6 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c7 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c7:hover,
+.c7:focus,
+.c7:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c6::placeholder {
+.c7::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
@@ -606,19 +625,27 @@ exports[`rendering of Session Recordings 1`] = `
     <nav
       class="c5"
     >
-      <input
-        class="c6"
-        placeholder="SEARCH..."
-        value=""
-      />
       <div
-        class="c7"
+        class="c6"
       >
+        <input
+          class="c7"
+          placeholder="SEARCH..."
+          value=""
+        />
         <div
           class="c8"
+        />
+      </div>
+      <div
+        class="c9"
+        width="100%"
+      >
+        <div
+          class="c10"
         >
           <div
-            class="c9"
+            class="c11"
             color="primary.contrastText"
           >
             SHOWING 
@@ -637,26 +664,26 @@ exports[`rendering of Session Recordings 1`] = `
           </div>
         </div>
         <div
-          class="c7"
+          class="c12"
         >
           <button
-            class="c10"
+            class="c13"
             disabled=""
             title="Previous page"
           >
             <span
-              class="c11 c12 icon icon-arrow-left-circle "
+              class="c14 c15 icon icon-arrow-left-circle "
               color="light"
               font-size="3"
             />
           </button>
           <button
-            class="c10"
+            class="c13"
             disabled=""
             title="Next page"
           >
             <span
-              class="c11 c12 icon icon-arrow-right-circle "
+              class="c14 c15 icon icon-arrow-right-circle "
               color="light"
               font-size="3"
             />
@@ -665,7 +692,7 @@ exports[`rendering of Session Recordings 1`] = `
       </div>
     </nav>
     <table
-      class="c13"
+      class="c16"
     >
       <thead>
         <tr>
@@ -673,7 +700,7 @@ exports[`rendering of Session Recordings 1`] = `
             <a>
               Type
               <span
-                class="c11 c14 icon icon-chevrons-expand-vertical "
+                class="c14 c17 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -682,7 +709,7 @@ exports[`rendering of Session Recordings 1`] = `
             <a>
               Name
               <span
-                class="c11 c14 icon icon-chevrons-expand-vertical "
+                class="c14 c17 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -691,7 +718,7 @@ exports[`rendering of Session Recordings 1`] = `
             <a>
               User(s)
               <span
-                class="c11 c14 icon icon-chevrons-expand-vertical "
+                class="c14 c17 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -700,7 +727,7 @@ exports[`rendering of Session Recordings 1`] = `
             <a>
               Duration
               <span
-                class="c11 c14 icon icon-chevrons-expand-vertical "
+                class="c14 c17 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -709,22 +736,26 @@ exports[`rendering of Session Recordings 1`] = `
             <a>
               Created
               <span
-                class="c11 c14 icon icon-chevron-down "
+                class="c14 c17 icon icon-chevron-down "
                 color="light"
               />
             </a>
           </th>
-          <th>
+          <th
+            style="cursor: default;"
+          >
             Session ID
           </th>
-          <th />
+          <th
+            style="cursor: default;"
+          />
         </tr>
       </thead>
       <tbody>
         <tr>
           <td>
             <span
-              class="c11 c15 icon icon-desktop c11 c15"
+              class="c14 c18 icon icon-desktop c14 c18"
               color="light"
               font-size="3"
             />
@@ -756,7 +787,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c11 c15 icon icon-desktop c11 c15"
+              class="c14 c18 icon icon-desktop c14 c18"
               color="light"
               font-size="3"
             />
@@ -788,7 +819,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c11 c15 icon icon-terminal c11 c15"
+              class="c14 c18 icon icon-terminal c14 c18"
               color="light"
               font-size="3"
             />
@@ -820,7 +851,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c11 c15 icon icon-terminal c11 c15"
+              class="c14 c18 icon icon-terminal c14 c18"
               color="light"
               font-size="3"
             />
@@ -852,7 +883,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c11 c15 icon icon-terminal c11 c15"
+              class="c14 c18 icon icon-terminal c14 c18"
               color="light"
               font-size="3"
             />
@@ -879,7 +910,7 @@ exports[`rendering of Session Recordings 1`] = `
             style=""
           >
             <a
-              class="c16"
+              class="c19"
               href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a?recordingType=ssh"
               kind="primary"
               target="_blank"
@@ -892,7 +923,7 @@ exports[`rendering of Session Recordings 1`] = `
         <tr>
           <td>
             <span
-              class="c11 c15 icon icon-terminal c11 c15"
+              class="c14 c18 icon icon-terminal c14 c18"
               color="light"
               font-size="3"
             />
@@ -919,7 +950,7 @@ exports[`rendering of Session Recordings 1`] = `
             style=""
           >
             <a
-              class="c16"
+              class="c19"
               href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a?recordingType=ssh"
               kind="primary"
               target="_blank"

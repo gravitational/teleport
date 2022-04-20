@@ -45,7 +45,7 @@ exports[`render device dashboard 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c11 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -73,33 +73,33 @@ exports[`render device dashboard 1`] = `
   padding: 0px 16px;
 }
 
-.c11:active {
+.c13:active {
   opacity: 0.56;
 }
 
-.c11:hover,
-.c11:focus {
+.c13:hover,
+.c13:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c11:active {
+.c13:active {
   opacity: 0.24;
 }
 
-.c11:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c9 {
+.c11 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c10 {
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -146,51 +146,50 @@ exports[`render device dashboard 1`] = `
   padding-bottom: 24px;
 }
 
-.c6 {
+.c8 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
-  border-radius: 8px;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
   border-top-right-radius: 0px;
 }
 
-.c6 > thead > tr > th,
-.c6 > tbody > tr > th,
-.c6 > tfoot > tr > th,
-.c6 > thead > tr > td,
-.c6 > tbody > tr > td,
-.c6 > tfoot > tr > td {
+.c8 > thead > tr > th,
+.c8 > tbody > tr > th,
+.c8 > tfoot > tr > th,
+.c8 > thead > tr > td,
+.c8 > tbody > tr > td,
+.c8 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c6 > thead > tr > th:first-child,
-.c6 > tbody > tr > th:first-child,
-.c6 > tfoot > tr > th:first-child,
-.c6 > thead > tr > td:first-child,
-.c6 > tbody > tr > td:first-child,
-.c6 > tfoot > tr > td:first-child {
+.c8 > thead > tr > th:first-child,
+.c8 > tbody > tr > th:first-child,
+.c8 > tfoot > tr > th:first-child,
+.c8 > thead > tr > td:first-child,
+.c8 > tbody > tr > td:first-child,
+.c8 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c6 > thead > tr > th:last-child,
-.c6 > tbody > tr > th:last-child,
-.c6 > tfoot > tr > th:last-child,
-.c6 > thead > tr > td:last-child,
-.c6 > tbody > tr > td:last-child,
-.c6 > tfoot > tr > td:last-child {
+.c8 > thead > tr > th:last-child,
+.c8 > tbody > tr > th:last-child,
+.c8 > tfoot > tr > th:last-child,
+.c8 > thead > tr > td:last-child,
+.c8 > tbody > tr > td:last-child,
+.c8 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c6 > tbody > tr > td {
+.c8 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c6 > thead > tr > th {
+.c8 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -204,31 +203,23 @@ exports[`render device dashboard 1`] = `
   white-space: nowrap;
 }
 
-.c6 > thead > tr > th .c8 {
+.c8 > thead > tr > th .c10 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c6 > tbody > tr > td {
+.c8 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c6 tbody tr {
+.c8 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c6 tbody tr:hover {
+.c8 tbody tr:hover {
   background-color: rgb(37,49,98);
-}
-
-.c6 tbody > tr:last-child td:first-child {
-  border-bottom-left-radius: 8px;
-}
-
-.c6 tbody > tr:last-child td:last-child {
-  border-bottom-right-radius: 8px;
 }
 
 .c4 {
@@ -243,35 +234,56 @@ exports[`render device dashboard 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c5 {
-  box-sizing: border-box;
-  font-size: 12px;
-  min-width: 200px;
-  outline: none;
-  border: none;
+.c7 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
   border-radius: 200px;
-  height: 32px;
-  transition: all .2s;
-  color: rgba(255,255,255,0.87);
-  background: #111B48;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
-.c5:hover,
-.c5:focus,
-.c5:active {
+.c5 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c6 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c6:hover,
+.c6:focus,
+.c6:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c5::placeholder {
+.c6::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
 
-.c7 > tbody > tr td {
+.c9 > tbody > tr td {
   vertical-align: middle;
   height: 32px;
 }
@@ -299,29 +311,40 @@ exports[`render device dashboard 1`] = `
   <nav
     class="c4"
   >
-    <input
+    <div
       class="c5"
-      placeholder="SEARCH..."
-      value=""
-    />
+    >
+      <input
+        class="c6"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c7"
+      />
+    </div>
   </nav>
   <table
-    class="c6 c7"
+    class="c8 c9"
     style="max-width: 100%;"
   >
     <thead>
       <tr>
-        <th>
+        <th
+          style="cursor: default;"
+        >
           Type
         </th>
-        <th>
+        <th
+          style="cursor: default;"
+        >
           Device Name
         </th>
         <th>
           <a>
             Registered
             <span
-              class="c8 c9 icon icon-chevron-down "
+              class="c10 c11 icon icon-chevron-down "
               color="light"
             />
           </a>
@@ -330,12 +353,14 @@ exports[`render device dashboard 1`] = `
           <a>
             Last Used
             <span
-              class="c8 c9 icon icon-chevrons-expand-vertical "
+              class="c10 c11 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
         </th>
-        <th />
+        <th
+          style="cursor: default;"
+        />
       </tr>
     </thead>
     <tbody>
@@ -347,7 +372,7 @@ exports[`render device dashboard 1`] = `
           title="iphone 12"
         >
           <div
-            class="c10"
+            class="c12"
             style="max-width: 96px; white-space: nowrap;"
           >
             iphone 12
@@ -363,7 +388,7 @@ exports[`render device dashboard 1`] = `
           align="right"
         >
           <button
-            class="c11"
+            class="c13"
             kind="border"
             title=""
           >
@@ -379,7 +404,7 @@ exports[`render device dashboard 1`] = `
           title="solokey"
         >
           <div
-            class="c10"
+            class="c12"
             style="max-width: 96px; white-space: nowrap;"
           >
             solokey
@@ -395,7 +420,7 @@ exports[`render device dashboard 1`] = `
           align="right"
         >
           <button
-            class="c11"
+            class="c13"
             kind="border"
             title=""
           >
@@ -411,7 +436,7 @@ exports[`render device dashboard 1`] = `
           title="backup yubikey"
         >
           <div
-            class="c10"
+            class="c12"
             style="max-width: 96px; white-space: nowrap;"
           >
             backup yubikey
@@ -427,7 +452,7 @@ exports[`render device dashboard 1`] = `
           align="right"
         >
           <button
-            class="c11"
+            class="c13"
             kind="border"
             title=""
           >
@@ -443,7 +468,7 @@ exports[`render device dashboard 1`] = `
           title="yubikey"
         >
           <div
-            class="c10"
+            class="c12"
             style="max-width: 96px; white-space: nowrap;"
           >
             yubikey
@@ -459,7 +484,7 @@ exports[`render device dashboard 1`] = `
           align="right"
         >
           <button
-            class="c11"
+            class="c13"
             kind="border"
             title=""
           >
@@ -539,7 +564,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c12 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -567,33 +592,33 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   padding: 0px 16px;
 }
 
-.c12:active {
+.c14:active {
   opacity: 0.56;
 }
 
-.c12:hover,
-.c12:focus {
+.c14:hover,
+.c14:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c12:active {
+.c14:active {
   opacity: 0.24;
 }
 
-.c12:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c10 {
+.c12 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -640,51 +665,50 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   padding-bottom: 24px;
 }
 
-.c7 {
+.c9 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
-  border-radius: 8px;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
   border-top-right-radius: 0px;
 }
 
-.c7 > thead > tr > th,
-.c7 > tbody > tr > th,
-.c7 > tfoot > tr > th,
-.c7 > thead > tr > td,
-.c7 > tbody > tr > td,
-.c7 > tfoot > tr > td {
+.c9 > thead > tr > th,
+.c9 > tbody > tr > th,
+.c9 > tfoot > tr > th,
+.c9 > thead > tr > td,
+.c9 > tbody > tr > td,
+.c9 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c7 > thead > tr > th:first-child,
-.c7 > tbody > tr > th:first-child,
-.c7 > tfoot > tr > th:first-child,
-.c7 > thead > tr > td:first-child,
-.c7 > tbody > tr > td:first-child,
-.c7 > tfoot > tr > td:first-child {
+.c9 > thead > tr > th:first-child,
+.c9 > tbody > tr > th:first-child,
+.c9 > tfoot > tr > th:first-child,
+.c9 > thead > tr > td:first-child,
+.c9 > tbody > tr > td:first-child,
+.c9 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c7 > thead > tr > th:last-child,
-.c7 > tbody > tr > th:last-child,
-.c7 > tfoot > tr > th:last-child,
-.c7 > thead > tr > td:last-child,
-.c7 > tbody > tr > td:last-child,
-.c7 > tfoot > tr > td:last-child {
+.c9 > thead > tr > th:last-child,
+.c9 > tbody > tr > th:last-child,
+.c9 > tfoot > tr > th:last-child,
+.c9 > thead > tr > td:last-child,
+.c9 > tbody > tr > td:last-child,
+.c9 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c7 > tbody > tr > td {
+.c9 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c7 > thead > tr > th {
+.c9 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -698,31 +722,23 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   white-space: nowrap;
 }
 
-.c7 > thead > tr > th .c9 {
+.c9 > thead > tr > th .c11 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c7 > tbody > tr > td {
+.c9 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c7 tbody tr {
+.c9 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c7 tbody tr:hover {
+.c9 tbody tr:hover {
   background-color: rgb(37,49,98);
-}
-
-.c7 tbody > tr:last-child td:first-child {
-  border-bottom-left-radius: 8px;
-}
-
-.c7 tbody > tr:last-child td:last-child {
-  border-bottom-right-radius: 8px;
 }
 
 .c5 {
@@ -737,35 +753,56 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c6 {
-  box-sizing: border-box;
-  font-size: 12px;
-  min-width: 200px;
-  outline: none;
-  border: none;
+.c8 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
   border-radius: 200px;
-  height: 32px;
-  transition: all .2s;
-  color: rgba(255,255,255,0.87);
-  background: #111B48;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
-.c6:hover,
-.c6:focus,
-.c6:active {
+.c6 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c7 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c7:hover,
+.c7:focus,
+.c7:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c6::placeholder {
+.c7::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
 
-.c8 > tbody > tr td {
+.c10 > tbody > tr td {
   vertical-align: middle;
   height: 32px;
 }
@@ -799,29 +836,40 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   <nav
     class="c5"
   >
-    <input
+    <div
       class="c6"
-      placeholder="SEARCH..."
-      value=""
-    />
+    >
+      <input
+        class="c7"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c8"
+      />
+    </div>
   </nav>
   <table
-    class="c7 c8"
+    class="c9 c10"
     style="max-width: 100%;"
   >
     <thead>
       <tr>
-        <th>
+        <th
+          style="cursor: default;"
+        >
           Type
         </th>
-        <th>
+        <th
+          style="cursor: default;"
+        >
           Device Name
         </th>
         <th>
           <a>
             Registered
             <span
-              class="c9 c10 icon icon-chevron-down "
+              class="c11 c12 icon icon-chevron-down "
               color="light"
             />
           </a>
@@ -830,12 +878,14 @@ exports[`render failed state for creating restricted privilege token 1`] = `
           <a>
             Last Used
             <span
-              class="c9 c10 icon icon-chevrons-expand-vertical "
+              class="c11 c12 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
         </th>
-        <th />
+        <th
+          style="cursor: default;"
+        />
       </tr>
     </thead>
     <tbody>
@@ -847,7 +897,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
           title="iphone 12"
         >
           <div
-            class="c11"
+            class="c13"
             style="max-width: 96px; white-space: nowrap;"
           >
             iphone 12
@@ -863,7 +913,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
           align="right"
         >
           <button
-            class="c12"
+            class="c14"
             kind="border"
             title=""
           >
@@ -879,7 +929,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
           title="solokey"
         >
           <div
-            class="c11"
+            class="c13"
             style="max-width: 96px; white-space: nowrap;"
           >
             solokey
@@ -895,7 +945,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
           align="right"
         >
           <button
-            class="c12"
+            class="c14"
             kind="border"
             title=""
           >
@@ -911,7 +961,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
           title="backup yubikey"
         >
           <div
-            class="c11"
+            class="c13"
             style="max-width: 96px; white-space: nowrap;"
           >
             backup yubikey
@@ -927,7 +977,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
           align="right"
         >
           <button
-            class="c12"
+            class="c14"
             kind="border"
             title=""
           >
@@ -943,7 +993,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
           title="yubikey"
         >
           <div
-            class="c11"
+            class="c13"
             style="max-width: 96px; white-space: nowrap;"
           >
             yubikey
@@ -959,7 +1009,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
           align="right"
         >
           <button
-            class="c12"
+            class="c14"
             kind="border"
             title=""
           >

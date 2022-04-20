@@ -21,14 +21,22 @@ import { databases } from './fixtures';
 
 export default {
   title: 'Teleport/Databases',
+  excludeStories: ['props'],
 };
 
 export const Loaded = () => <Databases {...props} />;
 
-export const Empty = () => <Databases {...props} databases={[]} />;
+export const Empty = () => (
+  <Databases {...props} results={{ databases: [] }} isSearchEmpty={true} />
+);
 
 export const EmptyReadOnly = () => (
-  <Databases {...props} databases={[]} canCreate={false} />
+  <Databases
+    {...props}
+    results={{ databases: [] }}
+    canCreate={false}
+    isSearchEmpty={true}
+  />
 );
 
 export const Loading = () => (
@@ -42,9 +50,13 @@ export const Failed = () => (
   />
 );
 
-const props: State = {
+export const props: State = {
+  results: {
+    databases,
+    totalCount: databases.length,
+  },
+  fetchStatus: '',
   attempt: { status: 'success' },
-  databases,
   clusterId: 'im-a-cluster',
   isLeafCluster: false,
   isEnterprise: false,
@@ -55,4 +67,20 @@ const props: State = {
   username: 'sam',
   version: '6.1.3',
   authType: 'local',
+  fetchNext: () => null,
+  fetchPrev: () => null,
+  pageSize: databases.length,
+  from: 1,
+  to: databases.length,
+  params: {
+    search: '',
+    query: '',
+    sort: { fieldName: 'name', dir: 'ASC' },
+  },
+  setParams: () => null,
+  setSort: () => null,
+  startKeys: [''],
+  pathname: '',
+  replaceHistory: () => null,
+  isSearchEmpty: false,
 };

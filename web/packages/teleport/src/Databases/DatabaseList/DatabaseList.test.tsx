@@ -17,25 +17,31 @@ import React from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
 import { databases } from '../fixtures';
 import DatabaseList from './DatabaseList';
+import { props } from '../Databases.story';
 
-test('search filter works', () => {
-  const searchValue = 'postgres-gcp';
-  const expectedToBeVisible = /value: gcp/i;
-  const notExpectedToBeVisible = /aurora/i;
+test('search generates correct url params', () => {
+  const replaceHistory = jest.fn();
 
   render(
     <DatabaseList
+      {...props}
       username="joe"
       clusterId="test"
       authType="local"
       databases={databases}
+      totalCount={50}
+      pathname="test.com/cluster/one/databases"
+      replaceHistory={replaceHistory}
     />
   );
 
   fireEvent.change(screen.getByPlaceholderText(/SEARCH.../i), {
-    target: { value: searchValue },
+    target: { value: 'test' },
   });
 
-  expect(screen.queryByText(expectedToBeVisible)).toBeInTheDocument();
-  expect(screen.queryByText(notExpectedToBeVisible)).toBeNull();
+  fireEvent.submit(screen.getByPlaceholderText(/SEARCH.../i));
+
+  expect(replaceHistory).toHaveBeenCalledWith(
+    'test.com/cluster/one/databases?search=test&sort=name:asc'
+  );
 });

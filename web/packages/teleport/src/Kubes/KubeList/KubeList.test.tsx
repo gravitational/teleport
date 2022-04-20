@@ -17,25 +17,31 @@ import React from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
 import { kubes } from '../fixtures';
 import KubeList from './KubeList';
+import { props } from '../Kubes.story';
 
-test('search filter works', () => {
-  const searchValue = 'tele.logicoma.dev-prod';
-  const expectedToBeVisible = /env: prod/i;
-  const notExpectedToBeVisible = /env: staging/i;
+test('search generates correct url params', () => {
+  const replaceHistory = jest.fn();
 
   render(
     <KubeList
+      {...props}
       username="joe"
       authType="local"
       kubes={kubes}
       clusterId={'some-cluster-name'}
+      totalCount={10}
+      pathname="test.com/cluster/one/kubes"
+      replaceHistory={replaceHistory}
     />
   );
 
   fireEvent.change(screen.getByPlaceholderText(/SEARCH.../i), {
-    target: { value: searchValue },
+    target: { value: 'test' },
   });
 
-  expect(screen.queryByText(expectedToBeVisible)).toBeInTheDocument();
-  expect(screen.queryByText(notExpectedToBeVisible)).toBeNull();
+  fireEvent.submit(screen.getByPlaceholderText(/SEARCH.../i));
+
+  expect(replaceHistory).toHaveBeenCalledWith(
+    'test.com/cluster/one/kubes?search=test&sort=name:asc'
+  );
 });

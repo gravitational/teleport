@@ -18,7 +18,7 @@ import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 import Logger from 'shared/libs/logger';
 import session from 'teleport/services/session';
 import history from 'teleport/services/history';
-import cfg, { UrlSshParams } from 'teleport/config';
+import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
@@ -36,6 +36,7 @@ const logger = Logger.create('teleport/console');
 export default class ConsoleContext {
   storeDocs = new StoreDocs();
   storeParties = new StoreParties();
+  nodesService = new serviceNodes();
 
   constructor() {
     // always initialize the console with 1 document
@@ -141,15 +142,15 @@ export default class ConsoleContext {
     });
   }
 
-  fetchNodes(clusterId: string) {
+  fetchNodes(clusterId: string, params?: UrlResourcesParams) {
     return Promise.all([
       serviceUser.fetchUserContext(),
-      serviceNodes.fetchNodes(clusterId),
+      this.nodesService.fetchNodes(clusterId, params),
     ]).then(values => {
       const [user, nodesRes] = values;
       return {
         logins: user.acl.sshLogins,
-        nodes: nodesRes.nodes,
+        nodesRes,
       };
     });
   }

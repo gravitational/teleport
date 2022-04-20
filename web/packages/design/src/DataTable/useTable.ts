@@ -10,6 +10,8 @@ export default function useTable<T>({
   showFirst,
   searchableProps,
   customSearchMatchers = [],
+  serversideProps,
+  fetching,
   ...props
 }: TableProps<T>) {
   const [state, setState] = useState(() => {
@@ -19,7 +21,7 @@ export default function useTable<T>({
       : columns.find(column => column.isSortable);
 
     return {
-      data: [] as T[],
+      data: serversideProps ? data : [],
       searchValue: '',
       sort: col
         ? {
@@ -56,17 +58,19 @@ export default function useTable<T>({
   }
 
   const updateData = (sort: typeof state.sort, searchValue: string) => {
-    const sortedAndFiltered = sortAndFilter(
-      data,
-      searchValue,
-      sort,
-      searchableProps ||
-        columns.filter(column => column.key).map(column => column.key),
-      searchAndFilterCb,
-      showFirst
-    );
-
-    if (pagination) {
+    // Don't do clientside sorting and filtering if serversideProps are defined
+    const sortedAndFiltered = serversideProps
+      ? data
+      : sortAndFilter(
+          data,
+          searchValue,
+          sort,
+          searchableProps ||
+            columns.filter(column => column.key).map(column => column.key),
+          searchAndFilterCb,
+          showFirst
+        );
+    if (pagination && !serversideProps) {
       setState({
         ...state,
         sort,
@@ -104,6 +108,9 @@ export default function useTable<T>({
   }
 
   function nextPage() {
+    if (serversideProps) {
+      fetching.onFetchNext();
+    }
     setState({
       ...state,
       pagination: {
@@ -114,6 +121,9 @@ export default function useTable<T>({
   }
 
   function prevPage() {
+    if (serversideProps) {
+      fetching.onFetchPrev();
+    }
     setState({
       ...state,
       pagination: {
@@ -124,8 +134,15 @@ export default function useTable<T>({
   }
 
   useEffect(() => {
-    updateData(state.sort, state.searchValue);
-  }, [data]);
+    if (serversideProps) {
+      setState({
+        ...state,
+        data,
+      });
+    } else {
+      updateData(state.sort, state.searchValue);
+    }
+  }, [data, serversideProps]);
 
   return {
     state,
@@ -135,6 +152,8 @@ export default function useTable<T>({
     onSort,
     nextPage,
     prevPage,
+    fetching,
+    serversideProps,
     ...props,
   };
 }

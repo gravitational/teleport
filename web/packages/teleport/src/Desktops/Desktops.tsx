@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,21 +40,36 @@ export function Desktops(props: State) {
     attempt,
     username,
     clusterId,
-    desktops,
     canCreate,
     isLeafCluster,
     getWindowsLoginOptions,
     openRemoteDesktopTab,
+    results,
+    fetchNext,
+    fetchPrev,
+    from,
+    to,
+    pageSize,
+    params,
+    setParams,
+    startKeys,
+    setSort,
+    pathname,
+    replaceHistory,
+    fetchStatus,
+    isSearchEmpty,
   } = props;
 
-  const isEmpty = attempt.status === 'success' && desktops.length === 0;
-  const hasDesktops = attempt.status === 'success' && desktops.length > 0;
+  const hasNoDesktops =
+    attempt.status === 'success' &&
+    results.desktops.length === 0 &&
+    isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Desktops</FeatureHeaderTitle>
-        {hasDesktops && (
+        {!hasNoDesktops && (
           <ButtonPrimary
             as="a"
             width="240px"
@@ -72,18 +87,29 @@ export function Desktops(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      {hasDesktops && (
-        <>
-          <DesktopList
-            desktops={desktops}
-            username={username}
-            clusterId={clusterId}
-            onLoginMenuOpen={getWindowsLoginOptions}
-            onLoginSelect={openRemoteDesktopTab}
-          />
-        </>
+      {attempt.status !== 'processing' && !hasNoDesktops && (
+        <DesktopList
+          desktops={results.desktops}
+          username={username}
+          clusterId={clusterId}
+          onLoginMenuOpen={getWindowsLoginOptions}
+          onLoginSelect={openRemoteDesktopTab}
+          fetchNext={fetchNext}
+          fetchPrev={fetchPrev}
+          fetchStatus={fetchStatus}
+          from={from}
+          to={to}
+          totalCount={results.totalCount}
+          pageSize={pageSize}
+          params={params}
+          setParams={setParams}
+          startKeys={startKeys}
+          setSort={setSort}
+          pathname={pathname}
+          replaceHistory={replaceHistory}
+        />
       )}
-      {isEmpty && (
+      {hasNoDesktops && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

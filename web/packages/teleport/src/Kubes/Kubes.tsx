@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,23 +37,36 @@ const DOC_URL = 'https://goteleport.com/docs/kubernetes-access/guides';
 
 export function Kubes(props: State) {
   const {
-    kubes,
     attempt,
     username,
     authType,
     isLeafCluster,
     clusterId,
     canCreate,
+    results,
+    fetchNext,
+    fetchPrev,
+    from,
+    to,
+    pageSize,
+    params,
+    setParams,
+    startKeys,
+    setSort,
+    pathname,
+    replaceHistory,
+    fetchStatus,
+    isSearchEmpty,
   } = props;
 
-  const isEmpty = attempt.status === 'success' && kubes.length === 0;
-  const hasKubes = attempt.status === 'success' && kubes.length > 0;
+  const hasNoKubes =
+    attempt.status === 'success' && results.kubes.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Kubernetes</FeatureHeaderTitle>
-        {hasKubes && (
+        {!hasNoKubes && (
           <ButtonPrimary
             as="a"
             width="240px"
@@ -71,17 +84,30 @@ export function Kubes(props: State) {
           <Indicator />
         </Box>
       )}
-      {hasKubes && (
+      {attempt.status !== 'processing' && !hasNoKubes && (
         <>
           <KubeList
-            kubes={kubes}
+            kubes={results.kubes}
             username={username}
             authType={authType}
             clusterId={clusterId}
+            fetchNext={fetchNext}
+            fetchPrev={fetchPrev}
+            fetchStatus={fetchStatus}
+            from={from}
+            to={to}
+            totalCount={results.totalCount}
+            pageSize={pageSize}
+            params={params}
+            setParams={setParams}
+            startKeys={startKeys}
+            setSort={setSort}
+            pathname={pathname}
+            replaceHistory={replaceHistory}
           />
         </>
       )}
-      {isEmpty && (
+      {hasNoKubes && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

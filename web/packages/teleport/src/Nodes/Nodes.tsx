@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ export default function Container() {
 
 export function Nodes(props: State) {
   const {
-    nodes,
+    results,
     getNodeLoginOptions,
     startSshSession,
     attempt,
@@ -50,6 +50,19 @@ export function Nodes(props: State) {
     isLeafCluster,
     isAddNodeVisible,
     clusterId,
+    fetchNext,
+    fetchPrev,
+    from,
+    to,
+    pageSize,
+    params,
+    setParams,
+    startKeys,
+    setSort,
+    pathname,
+    replaceHistory,
+    fetchStatus,
+    isSearchEmpty,
   } = props;
 
   function onLoginSelect(e: React.MouseEvent, login: string, serverId: string) {
@@ -61,14 +74,14 @@ export function Nodes(props: State) {
     startSshSession(login, serverId);
   }
 
-  const isEmpty = attempt.status === 'success' && nodes.length === 0;
-  const hasNodes = attempt.status === 'success' && nodes.length > 0;
+  const hasNoNodes =
+    attempt.status === 'success' && results.nodes.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
-        {hasNodes && (
+        {!hasNoNodes && (
           <Flex alignItems="center">
             <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
             <ButtonAdd
@@ -85,16 +98,29 @@ export function Nodes(props: State) {
           <Indicator />
         </Box>
       )}
-      {hasNodes && (
+      {attempt.status !== 'processing' && !hasNoNodes && (
         <>
           <NodeList
-            nodes={nodes}
+            nodes={results.nodes}
+            totalCount={results.totalCount}
             onLoginMenuOpen={getNodeLoginOptions}
             onLoginSelect={onLoginSelect}
+            fetchNext={fetchNext}
+            fetchPrev={fetchPrev}
+            fetchStatus={fetchStatus}
+            from={from}
+            to={to}
+            pageSize={pageSize}
+            params={params}
+            setParams={setParams}
+            startKeys={startKeys}
+            setSort={setSort}
+            pathname={pathname}
+            replaceHistory={replaceHistory}
           />
         </>
       )}
-      {isEmpty && (
+      {hasNoNodes && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

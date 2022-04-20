@@ -21,14 +21,26 @@ import { nodes } from './fixtures';
 
 export default {
   title: 'Teleport/Nodes',
+  excludeStories: ['props'],
 };
 
 export const Loaded = () => <Nodes {...props} />;
 
-export const Empty = () => <Nodes {...props} nodes={[]} />;
+export const Empty = () => (
+  <Nodes
+    {...props}
+    results={{ nodes: [], totalCount: 0 }}
+    isSearchEmpty={true}
+  />
+);
 
 export const EmptyReadOnly = () => (
-  <Nodes {...props} nodes={[]} canCreate={false} />
+  <Nodes
+    {...props}
+    results={{ nodes: [], totalCount: 0 }}
+    isSearchEmpty={true}
+    canCreate={false}
+  />
 );
 
 export const Loading = () => (
@@ -43,7 +55,11 @@ export const Failed = () => (
 );
 
 const props: State = {
-  nodes,
+  results: {
+    nodes,
+    totalCount: nodes.length,
+  },
+  fetchStatus: '',
   isLeafCluster: false,
   canCreate: true,
   attempt: { status: 'success' },
@@ -53,4 +69,20 @@ const props: State = {
   hideAddNode: () => null,
   showAddNode: () => null,
   clusterId: 'im-a-cluster',
+  fetchNext: () => null,
+  fetchPrev: () => null,
+  pageSize: 15,
+  from: 1,
+  to: nodes.length,
+  params: {
+    search: '',
+    query: '',
+    sort: { fieldName: 'hostname', dir: 'ASC' },
+  },
+  setParams: () => null,
+  setSort: () => null,
+  startKeys: [''],
+  pathname: '',
+  replaceHistory: () => null,
+  isSearchEmpty: false,
 };

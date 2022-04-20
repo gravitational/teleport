@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ export default function Container() {
 
 export function Databases(props: State) {
   const {
-    databases,
     attempt,
     isLeafCluster,
     canCreate,
@@ -49,16 +48,32 @@ export function Databases(props: State) {
     version,
     clusterId,
     authType,
+    results,
+    fetchNext,
+    fetchPrev,
+    from,
+    to,
+    pageSize,
+    params,
+    setParams,
+    startKeys,
+    setSort,
+    pathname,
+    replaceHistory,
+    fetchStatus,
+    isSearchEmpty,
   } = props;
 
-  const isEmpty = attempt.status === 'success' && databases.length === 0;
-  const hasDatabases = attempt.status === 'success' && databases.length > 0;
+  const hasNoDatabases =
+    attempt.status === 'success' &&
+    results.databases.length === 0 &&
+    isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
-        {hasDatabases && (
+        {!hasNoDatabases && (
           <ButtonAdd
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -72,17 +87,30 @@ export function Databases(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      {hasDatabases && (
+      {attempt.status !== 'processing' && !hasNoDatabases && (
         <>
           <DatabaseList
-            databases={databases}
+            databases={results.databases}
             username={username}
             clusterId={clusterId}
             authType={authType}
+            fetchNext={fetchNext}
+            fetchPrev={fetchPrev}
+            fetchStatus={fetchStatus}
+            from={from}
+            to={to}
+            totalCount={results.totalCount}
+            pageSize={pageSize}
+            params={params}
+            setParams={setParams}
+            startKeys={startKeys}
+            setSort={setSort}
+            pathname={pathname}
+            replaceHistory={replaceHistory}
           />
         </>
       )}
-      {isEmpty && (
+      {hasNoDatabases && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

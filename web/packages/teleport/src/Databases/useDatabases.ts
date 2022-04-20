@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,38 +15,121 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router';
+import { FetchStatus } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
+import getResourceUrlQueryParams, {
+  ResourceUrlQueryParams,
+} from 'teleport/getUrlQueryParams';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { Database } from 'teleport/services/databases';
+import history from 'teleport/services/history';
+import { DatabasesResponse } from 'teleport/services/databases';
+import { SortType } from 'teleport/components/ServersideSearchPanel';
 
 export default function useDatabases(ctx: Ctx) {
-  const { attempt, run, setAttempt } = useAttempt('processing');
+  const { search, pathname } = useLocation();
+  const [startKeys, setStartKeys] = useState<string[]>([]);
+  const { attempt, setAttempt } = useAttempt('processing');
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const username = ctx.storeUser.state.username;
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const isEnterprise = ctx.isEnterprise;
   const version = ctx.storeUser.state.cluster.authVersion;
   const authType = ctx.storeUser.state.authType;
-
-  const [databases, setDatabases] = useState<Database[]>([]);
   const [isAddDialogVisible, setIsAddDialogVisible] = useState(false);
+  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
+  const [params, setParams] = useState<ResourceUrlQueryParams>(() =>
+    getResourceUrlQueryParams(search)
+  );
+
+  const isSearchEmpty = !params?.query && !params?.search;
+
+  const [results, setResults] = useState<DatabasesResponse>({
+    databases: [],
+    startKey: '',
+    totalCount: 0,
+  });
+
+  const pageSize = 15;
+
+  const from =
+    results.totalCount > 0 ? (startKeys.length - 2) * pageSize + 1 : 0;
+  const to = results.totalCount > 0 ? from + results.databases.length - 1 : 0;
 
   useEffect(() => {
-    run(() =>
-      ctx.databaseService
-        .fetchDatabases(clusterId)
-        .then(res => setDatabases(res.databases))
-    );
-  }, [clusterId]);
+    fetchDatabases();
+  }, [clusterId, search]);
 
-  const fetchDatabases = () => {
-    return ctx.databaseService
-      .fetchDatabases(clusterId)
-      .then(res => setDatabases(res.databases))
-      .catch((err: Error) =>
-        setAttempt({ status: 'failed', statusText: err.message })
-      );
+  function setSort(sort: SortType) {
+    setParams({ ...params, sort });
+  }
+
+  function replaceHistory(path: string) {
+    history.replace(path);
+  }
+
+  function fetchDatabases() {
+    setAttempt({ status: 'processing' });
+    ctx.databaseService
+      .fetchDatabases(clusterId, { ...params, limit: pageSize })
+      .then(res => {
+        setResults(res);
+        setFetchStatus(res.startKey ? '' : 'disabled');
+        setStartKeys([res.databases[0]?.name, res.startKey]);
+        setAttempt({ status: 'success' });
+      })
+      .catch((err: Error) => {
+        setAttempt({ status: 'failed', statusText: err.message });
+        setResults({ ...results, databases: [], totalCount: 0 });
+        setStartKeys(['']);
+      });
+  }
+
+  const fetchNext = () => {
+    setFetchStatus('loading');
+    ctx.databaseService
+      .fetchDatabases(clusterId, {
+        ...params,
+        limit: pageSize,
+        startKey: results.startKey,
+      })
+      .then(res => {
+        setResults({
+          ...results,
+          databases: res.databases,
+          startKey: res.startKey,
+        });
+        setFetchStatus(res.startKey ? '' : 'disabled');
+        setStartKeys([...startKeys, res.startKey]);
+      })
+      .catch((err: Error) => {
+        setAttempt({ status: 'failed', statusText: err.message });
+      });
+  };
+
+  const fetchPrev = () => {
+    setFetchStatus('loading');
+    ctx.databaseService
+      .fetchDatabases(clusterId, {
+        ...params,
+        limit: pageSize,
+        startKey: startKeys[startKeys.length - 3],
+      })
+      .then(res => {
+        const tempStartKeys = startKeys;
+        tempStartKeys.pop();
+        setStartKeys(tempStartKeys);
+        setResults({
+          ...results,
+          databases: res.databases,
+          startKey: res.startKey,
+        });
+        setFetchStatus('');
+      })
+      .catch((err: Error) => {
+        setAttempt({ status: 'failed', statusText: err.message });
+      });
   };
 
   const hideAddDialog = () => {
@@ -59,7 +142,6 @@ export default function useDatabases(ctx: Ctx) {
   };
 
   return {
-    databases,
     attempt,
     canCreate,
     isLeafCluster,
@@ -71,6 +153,20 @@ export default function useDatabases(ctx: Ctx) {
     version,
     clusterId,
     authType,
+    results,
+    fetchNext,
+    fetchPrev,
+    pageSize,
+    from,
+    to,
+    params,
+    setParams,
+    startKeys,
+    setSort,
+    pathname,
+    replaceHistory,
+    fetchStatus,
+    isSearchEmpty,
   };
 }
 

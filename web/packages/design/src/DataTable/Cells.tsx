@@ -2,11 +2,41 @@ import React from 'react';
 import { Label } from 'design';
 import * as Icons from 'design/Icon';
 import { displayDate } from 'shared/services/loc';
-import { SortDir } from './types';
+import { ServersideProps, SortDir, TableColumn } from './types';
 
 export const Cell = props => <td children={props.children} {...props} />;
 
-export const SortHeaderCell = ({ dir, text, onClick }: SortHeaderCellProps) => {
+export function SortHeaderCell<T>({
+  column,
+  serversideProps,
+  dir,
+  text,
+  onClick,
+}: SortHeaderCellProps<T>) {
+  function handleServersideClick() {
+    serversideProps.setSort({
+      dir: serversideProps.sort?.dir === 'ASC' ? 'DESC' : 'ASC',
+      fieldName: column.key,
+    });
+  }
+
+  if (serversideProps) {
+    return (
+      <th>
+        <a onClick={handleServersideClick}>
+          {text}
+          <SortIndicator
+            sortDir={
+              serversideProps.sort?.fieldName === column.key
+                ? serversideProps.sort.dir
+                : null
+            }
+          />
+        </a>
+      </th>
+    );
+  }
+
   return (
     <th>
       <a onClick={onClick}>
@@ -15,13 +45,13 @@ export const SortHeaderCell = ({ dir, text, onClick }: SortHeaderCellProps) => {
       </a>
     </th>
   );
-};
+}
 
-export const SortIndicator = ({
+export function SortIndicator<T>({
   sortDir,
 }: {
-  sortDir?: SortHeaderCellProps['dir'];
-}) => {
+  sortDir?: SortHeaderCellProps<T>['dir'];
+}) {
   if (sortDir === 'DESC') {
     return <Icons.SortDesc />;
   }
@@ -31,7 +61,7 @@ export const SortIndicator = ({
   }
 
   return <Icons.Sort />;
-};
+}
 
 export const TextCell = ({ data }) => <Cell>{`${data || ''}`}</Cell>;
 
@@ -52,7 +82,9 @@ const renderLabelCell = (labels: string[] = []) => {
   return <Cell>{$labels}</Cell>;
 };
 
-type SortHeaderCellProps = {
+type SortHeaderCellProps<T> = {
+  column: TableColumn<T>;
+  serversideProps: ServersideProps;
   text: string;
   dir: SortDir;
   onClick: () => void;
