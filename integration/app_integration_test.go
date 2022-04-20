@@ -711,9 +711,16 @@ func TestAppServersHA(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// SetTestTimeouts is explicitly called here instead of
+	// within setupWithOptions such that the tests below can
+	// be run in parallel
+	SetTestTimeouts(time.Millisecond * time.Duration(500))
+
 	for name, test := range testCases {
+		name, test := name, test
 		t.Run(name, func(t *testing.T) {
-			pack := setupWithOptions(t, appTestOptions{rootAppServersCount: 3})
+			t.Parallel()
+			pack := setupWithOptions(t, appTestOptions{rootAppServersCount: 3, skipSettingTimeouts: true})
 			clusterName, publicAddr, appServers := test.packInfo(pack)
 
 			inCookie := pack.createAppSession(t, publicAddr, clusterName)
@@ -722,7 +729,7 @@ func TestAppServersHA(t *testing.T) {
 
 			// Stop all root app servers.
 			for i, appServer := range appServers {
-				appServer.Close()
+				require.NoError(t, appServer.Close())
 
 				// issue a request right after a server is gone.
 				status, err = test.makeRequest(pack, inCookie)
@@ -744,7 +751,7 @@ func TestAppServersHA(t *testing.T) {
 			// ones.
 			test.startAppServers(pack, 1)
 			for _, appServer := range servers {
-				appServer.Close()
+				require.NoError(t, appServer.Close())
 
 				// Everytime a app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
@@ -890,8 +897,9 @@ type appTestOptions struct {
 	rootAppServersCount int
 	leafAppServersCount int
 
-	rootConfig func(config *service.Config)
-	leafConfig func(config *service.Config)
+	rootConfig          func(config *service.Config)
+	leafConfig          func(config *service.Config)
+	skipSettingTimeouts bool
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -910,7 +918,9 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// self-signed certificate during tests.
 	lib.SetInsecureDevMode(true)
 
-	SetTestTimeouts(time.Millisecond * time.Duration(500))
+	if !opts.skipSettingTimeouts {
+		SetTestTimeouts(time.Millisecond * time.Duration(500))
+	}
 
 	p := &pack{
 		rootAppName:        "app-01",
@@ -1067,7 +1077,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.Console = nil
 	rcConf.Log = log
 	rcConf.DataDir = t.TempDir()
-	t.Cleanup(func() { os.RemoveAll(rcConf.DataDir) })
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(rcConf.DataDir)) })
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
 	rcConf.Proxy.Enabled = true
@@ -1083,7 +1093,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.Console = nil
 	lcConf.Log = log
 	lcConf.DataDir = t.TempDir()
-	t.Cleanup(func() { os.RemoveAll(lcConf.DataDir) })
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(lcConf.DataDir)) })
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")
 	lcConf.Proxy.Enabled = true
@@ -1102,14 +1112,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 	err = p.leafCluster.Start()
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		p.leafCluster.StopAll()
-	})
+	t.Cleanup(func() { require.NoError(t, p.leafCluster.StopAll()) })
 	err = p.rootCluster.Start()
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		p.rootCluster.StopAll()
-	})
+	t.Cleanup(func() { require.NoError(t, p.rootCluster.StopAll()) })
 
 	// At least one rootAppServer should start during the setup
 	rootAppServersCount := 1
@@ -1514,14 +1520,14 @@ func (p *pack) waitForLogout(appCookie string) (int, error) {
 func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 
-	servers := make([]*service.TeleportProcess, count)
+	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		raConf := service.MakeDefaultConfig()
 		raConf.Console = nil
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
-		t.Cleanup(func() { os.RemoveAll(raConf.DataDir) })
+		t.Cleanup(func() { require.NoError(t, os.RemoveAll(raConf.DataDir)) })
 		raConf.Token = "static-token-value"
 		raConf.AuthServers = []utils.NetAddr{
 			{
@@ -1566,11 +1572,14 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 			},
 		}, extraApps...)
 
-		appServer, err := p.rootCluster.StartApp(raConf)
-		require.NoError(t, err)
-		t.Cleanup(func() { appServer.Close() })
+		configs[i] = raConf
+	}
 
-		servers[i] = appServer
+	servers, err := p.rootCluster.StartApps(configs)
+	require.NoError(t, err)
+
+	for _, appServer := range servers {
+		t.Cleanup(func() { require.NoError(t, appServer.Close()) })
 	}
 
 	return servers
@@ -1578,14 +1587,14 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 
 func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
-	servers := make([]*service.TeleportProcess, count)
+	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		laConf := service.MakeDefaultConfig()
 		laConf.Console = nil
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
-		t.Cleanup(func() { os.RemoveAll(laConf.DataDir) })
+		t.Cleanup(func() { require.NoError(t, os.RemoveAll(laConf.DataDir)) })
 		laConf.Token = "static-token-value"
 		laConf.AuthServers = []utils.NetAddr{
 			{
@@ -1615,11 +1624,14 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 			},
 		}, extraApps...)
 
-		appServer, err := p.leafCluster.StartApp(laConf)
-		require.NoError(t, err)
-		t.Cleanup(func() { appServer.Close() })
+		configs[i] = laConf
+	}
 
-		servers[i] = appServer
+	servers, err := p.leafCluster.StartApps(configs)
+	require.NoError(t, err)
+
+	for _, appServer := range servers {
+		t.Cleanup(func() { require.NoError(t, appServer.Close()) })
 	}
 
 	return servers
