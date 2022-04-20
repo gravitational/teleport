@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -1041,15 +1042,7 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 // by password. If the pass parameter is an empty string, the key pair
 // is not password-protected.
 func (c *Client) GenerateKeyPair() ([]byte, []byte, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("keypair"), nil)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	var kp *generateKeyPairResponse
-	if err := json.Unmarshal(out.Bytes(), &kp); err != nil {
-		return nil, nil, err
-	}
-	return kp.PrivKey, []byte(kp.PubKey), err
+	return native.GenerateKeyPair()
 }
 
 // GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
@@ -1805,10 +1798,6 @@ type IdentityService interface {
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
 	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
-
-	// GenerateKeyPair generates SSH private/public key pair optionally protected
-	// by password.
-	GenerateKeyPair() ([]byte, []byte, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the

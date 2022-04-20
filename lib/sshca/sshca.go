@@ -24,9 +24,6 @@ import (
 // Authority implements minimal key-management facility for generating OpenSSH
 // compatible public/private key pairs and OpenSSH certificates
 type Authority interface {
-	// GenerateKeyPair generates new keypair
-	GenerateKeyPair() (privKey []byte, pubKey []byte, err error)
-
 	// GetNewKeyPairFromPool returns new keypair from pre-generated in memory pool
 	GetNewKeyPairFromPool() (privKey []byte, pubKey []byte, err error)
 

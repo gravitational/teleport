@@ -59,7 +59,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, dynamicToken)
 
-	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)

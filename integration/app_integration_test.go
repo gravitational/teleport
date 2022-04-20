@@ -42,6 +42,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1325,7 +1326,7 @@ func (p *pack) initCertPool(t *testing.T) {
 
 // makeTLSConfig returns TLS config suitable for making an app access request.
 func (p *pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.Config {
-	privateKey, publicKey, err := p.rootCluster.Process.GetAuthServer().GenerateKeyPair()
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	ws, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
@@ -1359,7 +1360,7 @@ func (p *pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.
 // makeTLSConfigNoSession returns TLS config for application access without
 // creating session to simulate nonexistent session scenario.
 func (p *pack) makeTLSConfigNoSession(t *testing.T, publicAddr, clusterName string) *tls.Config {
-	privateKey, publicKey, err := p.rootCluster.Process.GetAuthServer().GenerateKeyPair()
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(

@@ -37,12 +37,13 @@ import (
 )
 
 type AuthSuite struct {
-	A     sshca.Authority
-	Clock clockwork.Clock
+	A      sshca.Authority
+	Keygen func() ([]byte, []byte, error)
+	Clock  clockwork.Clock
 }
 
 func (s *AuthSuite) GenerateKeypairEmptyPass(c *check.C) {
-	priv, pub, err := s.A.GenerateKeyPair()
+	priv, pub, err := s.Keygen()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -54,7 +55,7 @@ func (s *AuthSuite) GenerateKeypairEmptyPass(c *check.C) {
 }
 
 func (s *AuthSuite) GenerateHostCert(c *check.C) {
-	priv, pub, err := s.A.GenerateKeyPair()
+	priv, pub, err := s.Keygen()
 	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -86,7 +87,7 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 }
 
 func (s *AuthSuite) GenerateUserCert(c *check.C) {
-	priv, pub, err := s.A.GenerateKeyPair()
+	priv, pub, err := s.Keygen()
 	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(priv)
