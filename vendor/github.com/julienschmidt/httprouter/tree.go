@@ -5,6 +5,7 @@
 package httprouter
 
 import (
+	"net/url"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -380,7 +381,13 @@ walk: // outer loop for walking the tree
 					i := len(p)
 					p = p[:i+1] // expand slice within preallocated capacity
 					p[i].Key = n.path[1:]
-					p[i].Value = path[:end]
+
+					value, err := url.PathUnescape(path[:end])
+					if err != nil {
+						p[i].Value = path[:end]
+					} else {
+						p[i].Value = value
+					}
 
 					// we need to go deeper!
 					if end < len(path) {
