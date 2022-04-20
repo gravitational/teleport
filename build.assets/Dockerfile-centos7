@@ -140,7 +140,7 @@ RUN cd /usr/local/lib64 && \
     echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
     ldconfig
 COPY pkgconfig/centos7/ /
-ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig"
+ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
 USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]
