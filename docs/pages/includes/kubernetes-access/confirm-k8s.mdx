@@ -1,0 +1,63 @@
+<Details
+title="Confirm Kubernetes is enabled in Teleport"
+scope={["oss", "enterprise"]}
+scopeOnly={true}
+opened={true}
+>
+
+Confirm the `Kubernetes` status is `enabled` within the cluster and the user has Kubernetes groups
+or users assigned.
+
+```code
+$ tsh status
+ Profile URL:        https://teleport.example.com:443
+  Logged in as:       bob
+  Cluster:            teleport.example.com
+  Roles:              access,editor
+  Logins:             bob
+  Kubernetes:         enabled
+  Kubernetes groups:  developer
+  Valid until:        2022-04-20 22:39:15 -0400 EDT [valid for 12h0m0s]
+  Extensions:         permit-X11-forwarding, permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+If Kubernetes is `disabled` then the `kube_listen_addr` needs setting within the `proxy_service` as below. Restart
+the Teleport process after setting this. 
+
+```yaml
+proxy_service:
+  enabled: true
+  kube_listen_addr: 0.0.0.0:3026
+```
+
+See the [Teleport Kubernetes Access Controls](/docs/kubernetes-access/controls) for configuring Kubernetes
+RBAC to Teleport roles if the user has no `Kubernetes groups` or `Kubernetes users`.
+
+</Details>
+<Details
+title="Confirm User has Kubernetes access"
+scope={["cloud"]}
+scopeOnly={true}
+opened={true}
+>
+
+The Teleport user access the Kubernetes cluster will need Kubernetes groups or users
+to connect to the Kubernetes cluster as.
+
+```code
+$ tsh status
+ Profile URL:        https://example.teleport.sh:443
+  Logged in as:       bob
+  Cluster:            example.teleport.sh
+  Roles:              access,editor
+  Logins:             bob
+  Kubernetes:         enabled
+  Kubernetes groups:  developer
+  Valid until:        2022-04-20 22:39:15 -0400 EDT [valid for 12h0m0s]
+  Extensions:         permit-X11-forwarding, permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+See the [Teleport Kubernetes Access Controls](/docs/kubernetes-access/controls) for configuring Kubernetes
+RBAC to Teleport roles if the user has no `Kubernetes groups` or `Kubernetes users`.
+
+</Details>
