@@ -965,6 +965,11 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 	return nil, trace.NotFound("cluster %q is not found", name)
 }
 
+// GetProxyPeerClient returns the proxy peer client
+func (s *server) GetProxyPeerClient() *proxy.Client {
+	return s.PeerClient
+}
+
 // alwaysClose forces onSiteTunnelClose to remove and close
 // the site by always returning false from HasValidConnections.
 type alwaysClose struct {

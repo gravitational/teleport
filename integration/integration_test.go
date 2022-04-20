@@ -3057,6 +3057,19 @@ func waitForMaxActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server
 		"Connections count on %v: %v, max %v, last error: %v", clusterName, lastCount, maxCount, lastErr)
 }
 
+// waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
+	var lastCount int
+	require.Eventually(
+		t,
+		func() bool {
+			return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
+		},
+		30*time.Second,
+		time.Second,
+		"Connections count %v, expected %v.", lastCount, expectedCount)
+}
+
 // waitForProxyCount waits a set time for the proxy count in clusterName to
 // reach some value.
 func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {

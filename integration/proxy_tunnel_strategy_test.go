@@ -140,6 +140,10 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	// make sure node doesn't open any reverse tunnel to the second proxy.
 	waitForMaxActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 0)
 
+	// make sure both proxies are connected to each other.
+	waitForActivePeerProxyConnections(t, p.proxies[0].Tunnel, 1)
+	waitForActivePeerProxyConnections(t, p.proxies[1].Tunnel, 1)
+
 	// make sure we can connect to the node going though any proxy.
 	p.dialNode(t)
 
@@ -210,11 +214,11 @@ func (p *proxyTunnelStrategy) dialDatabase(t *testing.T) {
 // makeLoadBalancer bootsraps a new load balancer for proxy instances.
 func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 	lbAddr := utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
-	lb, err := utils.NewLoadBalancer(context.TODO(), *lbAddr)
+	lb, err := utils.NewLoadBalancer(context.Background(), *lbAddr)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		lb.Close()
+		require.NoError(t, lb.Close())
 	})
 
 	require.NoError(t, lb.Listen())
@@ -253,7 +257,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T, strategy *types.TunnelStrat
 	require.NoError(t, auth.CreateEx(t, nil, conf))
 
 	t.Cleanup(func() {
-		auth.StopAll()
+		require.NoError(t, auth.StopAll())
 	})
 	require.NoError(t, auth.Start())
 
@@ -294,7 +298,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	p.lb.AddBackend(conf.Proxy.WebAddr)
 
 	t.Cleanup(func() {
-		proxy.StopAll()
+		require.NoError(t, proxy.StopAll())
 	})
 	require.NoError(t, proxy.Start())
 
@@ -323,7 +327,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	require.NoError(t, node.CreateEx(t, nil, conf))
 
 	t.Cleanup(func() {
-		node.StopAll()
+		require.NoError(t, node.StopAll())
 	})
 	require.NoError(t, node.Start())
 
@@ -375,7 +379,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	// start the process and block until specified events are received.
 	require.NoError(t, db.CreateEx(t, nil, conf))
 	t.Cleanup(func() {
-		db.StopAll()
+		require.NoError(t, db.StopAll())
 	})
 
 	receivedEvents, err := startAndWait(db.Process, []string{
@@ -404,7 +408,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		postgresDB.Close()
+		require.NoError(t, postgresDB.Close())
 	})
 	go postgresDB.Serve()
 

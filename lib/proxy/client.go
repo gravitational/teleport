@@ -398,6 +398,10 @@ func (c *Client) Stop() error {
 	return trace.NewAggregate(errs...)
 }
 
+func (c *Client) GetConnectionsCount() int {
+	return len(c.conns)
+}
+
 // shutdownConn gracefully shuts down a clientConn
 // by waiting for open streams to finish.
 func (c *Client) shutdownConn(conn *clientConn) error {
