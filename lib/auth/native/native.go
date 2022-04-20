@@ -50,8 +50,14 @@ var log = logrus.WithFields(logrus.Fields{
 // precomputedNum is the number of keys to precompute and keep cached.
 const precomputedNum = 25
 
+// precomputedKeys is a list of cached keys ready for usage.
 var precomputedKeys []keyPair
+
+// queuedKeys is how many keys are currently being precomputed.
+// This is kept track of to determine how many keys we need to replenish.
 var queuedKeys int
+
+// keyCacheLock protects the precomputedKeys and queuedKeys variables.
 var keyCacheLock sync.Mutex
 
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
