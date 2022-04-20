@@ -33,7 +33,7 @@ exports[`failed state 1`] = `
 `;
 
 exports[`loaded state 1`] = `
-.c14 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -62,27 +62,27 @@ exports[`loaded state 1`] = `
   margin-left: 16px;
 }
 
-.c14:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c14:hover,
-.c14:focus {
+.c17:hover,
+.c17:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c14:active {
+.c17:active {
   opacity: 0.24;
 }
 
-.c14:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c17 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -109,38 +109,38 @@ exports[`loaded state 1`] = `
   width: 108px;
 }
 
-.c17:active {
+.c20:active {
   opacity: 0.56;
 }
 
-.c17:hover,
-.c17:focus {
+.c20:hover,
+.c20:focus {
   background: #651FFF;
 }
 
-.c17:active {
+.c20:active {
   background: #354AA4;
 }
 
-.c17:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-}
-
-.c7 {
-  display: inline-block;
-  transition: color .3s;
-  color: #FFFFFF;
-  font-size: 16px;
 }
 
 .c10 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
+  font-size: 16px;
 }
 
 .c13 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c16 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -157,7 +157,7 @@ exports[`loaded state 1`] = `
   margin-right: 4px;
 }
 
-.c11 {
+.c14 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -178,7 +178,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c15 {
+.c18 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -199,7 +199,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c16 {
+.c19 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -220,7 +220,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c4 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -231,7 +231,7 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c12 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -240,24 +240,30 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
-.c2 {
+.c4 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: flex-end;
 }
 
-.c3 {
+.c5 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
   align-items: center;
 }
 
-.c8 {
+.c7 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c11 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
-  border-radius: 8px;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -266,39 +272,39 @@ exports[`loaded state 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c8 > thead > tr > th,
-.c8 > tbody > tr > th,
-.c8 > tfoot > tr > th,
-.c8 > thead > tr > td,
-.c8 > tbody > tr > td,
-.c8 > tfoot > tr > td {
+.c11 > thead > tr > th,
+.c11 > tbody > tr > th,
+.c11 > tfoot > tr > th,
+.c11 > thead > tr > td,
+.c11 > tbody > tr > td,
+.c11 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c8 > thead > tr > th:first-child,
-.c8 > tbody > tr > th:first-child,
-.c8 > tfoot > tr > th:first-child,
-.c8 > thead > tr > td:first-child,
-.c8 > tbody > tr > td:first-child,
-.c8 > tfoot > tr > td:first-child {
+.c11 > thead > tr > th:first-child,
+.c11 > tbody > tr > th:first-child,
+.c11 > tfoot > tr > th:first-child,
+.c11 > thead > tr > td:first-child,
+.c11 > tbody > tr > td:first-child,
+.c11 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c8 > thead > tr > th:last-child,
-.c8 > tbody > tr > th:last-child,
-.c8 > tfoot > tr > th:last-child,
-.c8 > thead > tr > td:last-child,
-.c8 > tbody > tr > td:last-child,
-.c8 > tfoot > tr > td:last-child {
+.c11 > thead > tr > th:last-child,
+.c11 > tbody > tr > th:last-child,
+.c11 > tfoot > tr > th:last-child,
+.c11 > thead > tr > td:last-child,
+.c11 > tbody > tr > td:last-child,
+.c11 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c8 > tbody > tr > td {
+.c11 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c8 > thead > tr > th {
+.c11 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -312,31 +318,23 @@ exports[`loaded state 1`] = `
   white-space: nowrap;
 }
 
-.c8 > thead > tr > th .c6 {
+.c11 > thead > tr > th .c9 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c8 > tbody > tr > td {
+.c11 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c8 tbody tr {
+.c11 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c8 tbody tr:hover {
+.c11 tbody tr:hover {
   background-color: rgb(37,49,98);
-}
-
-.c8 tbody > tr:last-child td:first-child {
-  border-bottom-left-radius: 8px;
-}
-
-.c8 tbody > tr:last-child td:last-child {
-  border-bottom-right-radius: 8px;
 }
 
 .c0 {
@@ -351,60 +349,81 @@ exports[`loaded state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c5 {
+.c8 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c5 .c6 {
+.c8 .c9 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c5:hover .c6,
-.c5:focus .c6 {
+.c8:hover .c9,
+.c8:focus .c9 {
   opacity: 1;
 }
 
-.c5:disabled {
+.c8:disabled {
   cursor: default;
 }
 
-.c5:disabled .c6 {
+.c8:disabled .c9 {
   opacity: 0.1;
 }
 
-.c1 {
-  box-sizing: border-box;
-  font-size: 12px;
-  min-width: 200px;
-  outline: none;
-  border: none;
+.c3 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
   border-radius: 200px;
-  height: 32px;
-  transition: all .2s;
-  color: rgba(255,255,255,0.87);
-  background: #111B48;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
-.c1:hover,
-.c1:focus,
-.c1:active {
+.c1 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c2 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c2:hover,
+.c2:focus,
+.c2:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c1::placeholder {
+.c2::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
 
-.c9 tbody > tr > td {
+.c12 tbody > tr > td {
   vertical-align: baseline;
 }
 
@@ -412,19 +431,27 @@ exports[`loaded state 1`] = `
   <nav
     class="c0"
   >
-    <input
-      class="c1"
-      placeholder="SEARCH..."
-      value=""
-    />
     <div
-      class="c2"
+      class="c1"
     >
+      <input
+        class="c2"
+        placeholder="SEARCH..."
+        value=""
+      />
       <div
         class="c3"
+      />
+    </div>
+    <div
+      class="c4"
+      width="100%"
+    >
+      <div
+        class="c5"
       >
         <div
-          class="c4"
+          class="c6"
           color="primary.contrastText"
         >
           SHOWING 
@@ -443,26 +470,26 @@ exports[`loaded state 1`] = `
         </div>
       </div>
       <div
-        class="c2"
+        class="c7"
       >
         <button
-          class="c5"
+          class="c8"
           disabled=""
           title="Previous page"
         >
           <span
-            class="c6 c7 icon icon-arrow-left-circle "
+            class="c9 c10 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c5"
+          class="c8"
           disabled=""
           title="Next page"
         >
           <span
-            class="c6 c7 icon icon-arrow-right-circle "
+            class="c9 c10 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
@@ -471,7 +498,7 @@ exports[`loaded state 1`] = `
     </div>
   </nav>
   <table
-    class="c8 c9"
+    class="c11 c12"
   >
     <thead>
       <tr>
@@ -479,7 +506,7 @@ exports[`loaded state 1`] = `
           <a>
             Status
             <span
-              class="c6 c10 icon icon-chevrons-expand-vertical "
+              class="c9 c13 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
@@ -488,7 +515,7 @@ exports[`loaded state 1`] = `
           <a>
             User
             <span
-              class="c6 c10 icon icon-chevrons-expand-vertical "
+              class="c9 c13 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
@@ -497,7 +524,7 @@ exports[`loaded state 1`] = `
           <a>
             Roles
             <span
-              class="c6 c10 icon icon-chevrons-expand-vertical "
+              class="c9 c13 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
@@ -506,7 +533,7 @@ exports[`loaded state 1`] = `
           <a>
             Request Reason
             <span
-              class="c6 c10 icon icon-chevrons-expand-vertical "
+              class="c9 c13 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
@@ -515,12 +542,14 @@ exports[`loaded state 1`] = `
           <a>
             Created
             <span
-              class="c6 c10 icon icon-chevron-down "
+              class="c9 c13 icon icon-chevron-down "
               color="light"
             />
           </a>
         </th>
-        <th />
+        <th
+          style="cursor: default;"
+        />
       </tr>
     </thead>
     <tbody>
@@ -529,7 +558,7 @@ exports[`loaded state 1`] = `
           style="display: flex; align-items: center;"
         >
           <span
-            class="c11"
+            class="c14"
             color="light"
             font-size="0"
             font-weight="bold"
@@ -538,7 +567,7 @@ exports[`loaded state 1`] = `
             width="10px"
           />
           <div
-            class="c12"
+            class="c15"
           >
             PENDING
           </div>
@@ -551,7 +580,7 @@ exports[`loaded state 1`] = `
         </td>
         <td>
           <div
-            class="c13"
+            class="c16"
             kind="secondary"
           >
             admin
@@ -571,7 +600,7 @@ exports[`loaded state 1`] = `
           style="white-space: nowrap;"
         >
           <a
-            class="c14"
+            class="c17"
             href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
             kind="border"
             ml="3"
@@ -586,7 +615,7 @@ exports[`loaded state 1`] = `
           style="display: flex; align-items: center;"
         >
           <span
-            class="c15"
+            class="c18"
             color="light"
             font-size="0"
             font-weight="bold"
@@ -595,7 +624,7 @@ exports[`loaded state 1`] = `
             width="10px"
           />
           <div
-            class="c12"
+            class="c15"
           >
             DENIED
           </div>
@@ -608,13 +637,13 @@ exports[`loaded state 1`] = `
         </td>
         <td>
           <div
-            class="c13"
+            class="c16"
             kind="secondary"
           >
             admin
           </div>
           <div
-            class="c13"
+            class="c16"
             kind="secondary"
           >
             ruhh
@@ -634,7 +663,7 @@ exports[`loaded state 1`] = `
           style="white-space: nowrap;"
         >
           <a
-            class="c14"
+            class="c17"
             href="/web/requests/3ce23da9-6b85-5fce-9bf3-5fb826120cb2"
             kind="border"
             ml="3"
@@ -649,7 +678,7 @@ exports[`loaded state 1`] = `
           style="display: flex; align-items: center;"
         >
           <span
-            class="c16"
+            class="c19"
             color="light"
             font-size="0"
             font-weight="bold"
@@ -658,7 +687,7 @@ exports[`loaded state 1`] = `
             width="10px"
           />
           <div
-            class="c12"
+            class="c15"
           >
             APPROVED
           </div>
@@ -671,19 +700,19 @@ exports[`loaded state 1`] = `
         </td>
         <td>
           <div
-            class="c13"
+            class="c16"
             kind="secondary"
           >
             admin
           </div>
           <div
-            class="c13"
+            class="c16"
             kind="secondary"
           >
             kaco
           </div>
           <div
-            class="c13"
+            class="c16"
             kind="secondary"
           >
             ziuzzow
@@ -701,7 +730,7 @@ exports[`loaded state 1`] = `
           style="white-space: nowrap;"
         >
           <button
-            class="c17"
+            class="c20"
             disabled=""
             kind="primary"
             width="108px"
@@ -709,7 +738,7 @@ exports[`loaded state 1`] = `
             assumed
           </button>
           <a
-            class="c14"
+            class="c17"
             href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
             kind="border"
             ml="3"
@@ -724,7 +753,7 @@ exports[`loaded state 1`] = `
           style="display: flex; align-items: center;"
         >
           <span
-            class="c16"
+            class="c19"
             color="light"
             font-size="0"
             font-weight="bold"
@@ -733,7 +762,7 @@ exports[`loaded state 1`] = `
             width="10px"
           />
           <div
-            class="c12"
+            class="c15"
           >
             APPROVED
           </div>
@@ -746,19 +775,19 @@ exports[`loaded state 1`] = `
         </td>
         <td>
           <div
-            class="c13"
+            class="c16"
             kind="secondary"
           >
             admin
           </div>
           <div
-            class="c13"
+            class="c16"
             kind="secondary"
           >
             kaco
           </div>
           <div
-            class="c13"
+            class="c16"
             kind="secondary"
           >
             ziuzzow
@@ -776,14 +805,14 @@ exports[`loaded state 1`] = `
           style="white-space: nowrap;"
         >
           <button
-            class="c17"
+            class="c20"
             kind="primary"
             width="108px"
           >
             assume roles
           </button>
           <a
-            class="c14"
+            class="c17"
             href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
             kind="border"
             ml="3"
