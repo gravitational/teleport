@@ -147,8 +147,8 @@ func NewUploader(cfg UploaderConfig, sessionTracker services.SessionTrackerServi
 type Uploader struct {
 	semaphore chan struct{}
 
-	cfg             UploaderConfig
-	log             *log.Entry
+	cfg UploaderConfig
+	log *log.Entry
 
 	cancel   context.CancelFunc
 	ctx      context.Context
