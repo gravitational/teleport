@@ -188,7 +188,9 @@ can be found [here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5
 #### `IRP_MJ_CREATE`
 
 RDP request: [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e)
+
 RDP response: [`Device Create Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76)
+
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L151)
 
 Note that the `SharedAccess` and `DesiredAccess` fields of the [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e)
@@ -226,7 +228,9 @@ responding to other `MajorFunctions` as needed. All other `MajorFunctions` shoul
 #### `IRP_MJ_CLOSE`
 
 RDP request: [`Device Close Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3ec6627f-9e0f-4941-a828-3fc6ed63d9e7)
+
 RDP response: [`Device Close Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5)
+
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L236)
 
 If file's `file_id_cache` entry has `delete_pending == true`, we'll send a `Shared Directory Delete Request` to the client and it's resultant `Shared Directory Delete Response`
@@ -236,7 +240,9 @@ The `file_id_cache` entry then must be deleted (even if the `Shared Directory De
 #### `IRP_MJ_READ`
 
 RDP request: [`Device Read Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3192516d-36a6-47c5-987a-55c214aa0441)
+
 RDP response: [`Device Read Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9)
+
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L268)
 
 The `Length` and `Offset` fields should be passed on to their corresponding fields in a `Shared Directory Read Request` and sent to the client, and corresponding
@@ -246,7 +252,9 @@ fields in the `Shared Directory Read Response` or `Shared Directory Error` the c
 #### `IRP_MJ_WRITE`
 
 RDP request: [`Device Write Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/2e25f0aa-a4ce-4ff3-ad62-ab6098280a3a)
+
 RDP response: [`Device Write Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/58160a47-2379-4c4a-a99d-24a1a666c02a)
+
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L326)
 
 The `Offset`, `Length`, and `WriteData` fields should be translated to their corresponding fields in a `Shared Directory Write Request` and passed to the client,
@@ -257,7 +265,9 @@ server.
 #### `IRP_MJ_QUERY_INFORMATION`
 
 RDP request: [`Server Drive Query Information Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/e43dcd68-2980-40a9-9238-344b6cf94946)
+
 RDP response: [`Client Drive Query Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4)
+
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L373)
 
 This request asks for information about a file or directory in the form of [`FileBasicInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/16023025-8a78-492f-8b96-c873b042ac50),
@@ -279,7 +289,9 @@ for the following fields, mapped to the `Shared Directory Info Response` fields 
 #### `IRP_MJ_SET_INFORMATION`
 
 RDP Request: [`Server Drive Set Information Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/b5d3104b-0e42-4cf8-9059-e9fe86615e5c)
+
 RDP Response: [`Client Drive Set Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970)
+
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L404)
 
 This message is sent by the RDP server to the client in order to modify a file's metadata, truncate its size, or mark it for deletion. Which of these operations
@@ -310,7 +322,9 @@ exist" `Shared Directory Error`. Send a `Shared Directory Move Request`, using `
 #### `IRP_MJ_DIRECTORY_CONTROL`
 
 RDP Request: [`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1)
+
 RDP Response: [`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140)
+
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L650)
 
 The above RDP request and response correspond to `MajorFunction = IRP_MJ_DIRECTORY_CONTROL`, `MinorFunction = IRP_MN_QUERY_DIRECTORY`. There is another possible
@@ -368,7 +382,9 @@ included a default mapping value as well:
 #### `IRP_MJ_QUERY_VOLUME_INFORMATION`
 
 RDP request: [`Server Drive Query Volume Information Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/484e622d-0e2b-423c-8461-7de38878effb)
+
 RDP response: [`Client Drive Query Volume Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/fbdc7db8-a268-4420-8b5e-ce689ad1d4ac)
+
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L442)
 
 This request comes to us as a in search of low level information about the folder we are sharing. This information is not available to us via the browser, so there
