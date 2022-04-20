@@ -88,6 +88,9 @@ func replenishKeys() {
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
 // This will in most cases pull from a precomputed cache of ready to use keys.
 func GenerateKeyPair() ([]byte, []byte, error) {
+	// Start the background task to replenish the queue of precomputed keys.
+	// This is only started once this function is called to avoid starting the task
+	// just by pulling in this package.
 	precomputeTaskStarted.Do(func() {
 		go replenishKeys()
 	})
