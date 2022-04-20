@@ -960,7 +960,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 				}
 			}
 
-			err = c.processEvent(ctx, event)
+			err = c.processEvent(ctx, event, true)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -995,8 +995,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 // relative to our current view of the world.
 //
 // *note*: this function is only sane to call when the cache and event stream are healthy, and
-// cannot run concurrently with event processing. this function injects additional events into
-// the outbound event stream.
+// cannot run concurrently with event processing.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
 	gracePeriod := apidefaults.ServerAnnounceTTL
@@ -1049,7 +1048,13 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 
 		// remove the node locally without emitting an event, other caches will
 		// eventually remove the same node when they run their expiry logic.
-		if err := c.presenceCache.DeleteNode(ctx, apidefaults.Namespace, node.GetName()); err != nil {
+		if err := c.processEvent(ctx, types.Event{
+			Type: types.OpDelete,
+			Resource: &types.ResourceHeader{
+				Kind:     types.KindNode,
+				Metadata: node.GetMetadata(),
+			},
+		}, false); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -1120,7 +1125,10 @@ func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 	}, nil
 }
 
-func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
+// processEvent hands the event off to the appropriate collection for processing. Any
+// resources which were not registered are ignored. If processing completed successfully
+// and emit is true the event will be emitted via the fanout.
+func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections[resourceKind]
 	if !ok {
@@ -1131,7 +1139,9 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	if err := collection.processEvent(ctx, event); err != nil {
 		return trace.Wrap(err)
 	}
-	c.eventsFanout.Emit(event)
+	if emit {
+		c.eventsFanout.Emit(event)
+	}
 	return nil
 }
 
