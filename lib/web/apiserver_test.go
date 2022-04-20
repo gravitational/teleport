@@ -2175,9 +2175,11 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 
 func TestTokenGeneration(t *testing.T) {
 	tt := []struct {
-		name      string
-		roles     types.SystemRoles
-		shouldErr bool
+		name       string
+		roles      types.SystemRoles
+		shouldErr  bool
+		joinMethod types.JoinMethod
+		allow      []*types.TokenRule
 	}{
 		{
 			name:      "single node role",
@@ -2204,6 +2206,19 @@ func TestTokenGeneration(t *testing.T) {
 			roles:     types.SystemRoles{},
 			shouldErr: true,
 		},
+		{
+			name:       "cannot request token with IAM join method without allow field",
+			roles:      types.SystemRoles{types.RoleNode},
+			joinMethod: types.JoinMethodIAM,
+			shouldErr:  true,
+		},
+		{
+			name:       "can request token with IAM join method",
+			roles:      types.SystemRoles{types.RoleNode},
+			joinMethod: types.JoinMethodIAM,
+			allow:      []*types.TokenRule{{AWSAccount: "1234"}},
+			shouldErr:  false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2214,8 +2229,10 @@ func TestTokenGeneration(t *testing.T) {
 			pack := proxy.authPack(t, "test-user@example.com")
 
 			endpoint := pack.clt.Endpoint("webapi", "token")
-			re, err := pack.clt.PostJSON(context.Background(), endpoint, createTokenRequest{
-				Roles: tc.roles,
+			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
+				Roles:      tc.roles,
+				JoinMethod: tc.joinMethod,
+				Allow:      tc.allow,
 			})
 
 			if tc.shouldErr {
@@ -2233,6 +2250,13 @@ func TestTokenGeneration(t *testing.T) {
 			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
 			require.NoError(t, err)
 			require.Equal(t, tc.roles, generatedToken.GetRoles())
+
+			expectedJoinMethod := tc.joinMethod
+			if tc.joinMethod == "" {
+				expectedJoinMethod = types.JoinMethodToken
+			}
+			// if no joinMethod is provided, expect token method
+			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
 		})
 	}
 }
@@ -2641,6 +2665,53 @@ func TestAddMFADevice(t *testing.T) {
 				U2FRegisterResponse:      u2fRegResp,
 				WebauthnRegisterResponse: webauthnRegResp,
 			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestDeleteMFA(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	//setting up client manually because we need sanitizer off
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	opts := []roundtrip.ClientParam{roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar), roundtrip.HTTPClient(client.NewInsecureWebClient())}
+	rclt, err := roundtrip.NewClient(proxy.webURL.String(), teleport.WebAPIVersion, opts...)
+	require.NoError(t, err)
+	clt := client.WebClient{Client: rclt}
+	jar.SetCookies(&proxy.webURL, pack.cookies)
+
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	// Obtain a privilege token.
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
+		SecondFactorToken: totpCode,
+	})
+	require.NoError(t, err)
+
+	var privilegeToken string
+	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
+
+	names := []string{"x", "??", "%123/", "///", "my/device", "?/%&*1"}
+	for _, devName := range names {
+		devName := devName
+		t.Run(devName, func(t *testing.T) {
+			t.Parallel()
+			otpSecret := base32.StdEncoding.EncodeToString([]byte(devName))
+			dev, err := services.NewTOTPDevice(devName, otpSecret, env.clock.Now())
+			require.NoError(t, err)
+			err = env.server.Auth().UpsertMFADevice(ctx, pack.user, dev)
+			require.NoError(t, err)
+
+			enc := url.PathEscape(devName)
+			_, err = clt.Delete(ctx, pack.clt.Endpoint("webapi", "mfa", "token", privilegeToken, "devices", enc))
 			require.NoError(t, err)
 		})
 	}
