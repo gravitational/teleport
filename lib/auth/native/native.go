@@ -47,78 +47,57 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentKeyGen,
 })
 
-// precomputedNum is the number of keys to precompute and keep cached.
-const precomputedNum = 25
+// precomputedKeys is a queue of cached keys ready for usage.
+var precomputedKeys = make(chan keyPair, 25)
 
-// precomputedKeys is a list of cached keys ready for usage.
-var precomputedKeys []keyPair
+// precomputeTaskStarted is used to start the background task that precomputes key pairs.
+var precomputeTaskStarted sync.Once
 
-// queuedKeys is how many keys are currently being precomputed.
-// This is kept track of to determine how many keys we need to replenish.
-var queuedKeys int
+func generateKeyPairImpl() ([]byte, []byte, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	if err != nil {
+		return nil, nil, err
+	}
+	privDer := x509.MarshalPKCS1PrivateKey(priv)
+	privBlock := pem.Block{
+		Type:    "RSA PRIVATE KEY",
+		Headers: nil,
+		Bytes:   privDer,
+	}
+	privPem := pem.EncodeToMemory(&privBlock)
 
-// keyCacheLock protects the precomputedKeys and queuedKeys variables.
-var keyCacheLock sync.Mutex
+	pub, err := ssh.NewPublicKey(&priv.PublicKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	pubBytes := ssh.MarshalAuthorizedKey(pub)
+	return privPem, pubBytes, nil
+}
+
+func replenishKeys() {
+	for {
+		priv, pub, err := generateKeyPairImpl()
+		if err != nil {
+			log.Errorf("Failed to generate key pair: %v", err)
+		}
+
+		precomputedKeys <- keyPair{priv, pub}
+	}
+}
 
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
-// This will in most cases pull from a precomputed queue.
+// This will in most cases pull from a precomputed cache of ready to use keys.
 func GenerateKeyPair() ([]byte, []byte, error) {
-	// Generates a random RSA key pair.
-	generateKey := func() ([]byte, []byte, error) {
-		priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
-		if err != nil {
-			return nil, nil, err
-		}
-		privDer := x509.MarshalPKCS1PrivateKey(priv)
-		privBlock := pem.Block{
-			Type:    "RSA PRIVATE KEY",
-			Headers: nil,
-			Bytes:   privDer,
-		}
-		privPem := pem.EncodeToMemory(&privBlock)
+	precomputeTaskStarted.Do(func() {
+		go replenishKeys()
+	})
 
-		pub, err := ssh.NewPublicKey(&priv.PublicKey)
-		if err != nil {
-			return nil, nil, err
-		}
-		pubBytes := ssh.MarshalAuthorizedKey(pub)
-		return privPem, pubBytes, nil
+	select {
+	case k := <-precomputedKeys:
+		return k.privPem, k.pubBytes, nil
+	default:
+		return generateKeyPairImpl()
 	}
-
-	keyCacheLock.Lock()
-	defer keyCacheLock.Unlock()
-
-	// Start a background task to replenish the key cache.
-	// Spawning one goroutine per key to be generated
-	// is slightly wasteful, but it's the simplest way to achieve
-	// a self-regulation system that won't suffer from key-starvation.
-	additional := precomputedNum - len(precomputedKeys) - queuedKeys
-	for i := 0; i < additional; i++ {
-		queuedKeys++
-
-		go func() {
-			priv, pub, err := generateKey()
-			if err != nil {
-				log.Errorf("Failed to generate key pair: %v", err)
-				return
-			}
-
-			keyCacheLock.Lock()
-			precomputedKeys = append(precomputedKeys, keyPair{priv, pub})
-			queuedKeys--
-			keyCacheLock.Unlock()
-		}()
-	}
-
-	if len(precomputedKeys) > 0 {
-		// Return a key from the cache if there is one.
-		key := precomputedKeys[0]
-		precomputedKeys = precomputedKeys[1:]
-		return key.privPem, key.pubBytes, nil
-	}
-
-	// Otherwise generate a key synchronously.
-	return generateKey()
 }
 
 type keyPair struct {
