@@ -23,7 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -51,7 +51,7 @@ var log = logrus.WithFields(logrus.Fields{
 var precomputedKeys = make(chan keyPair, 25)
 
 // precomputeTaskStarted is used to start the background task that precomputes key pairs.
-var precomputeTaskStarted sync.Once
+var precomputeTaskStarted int32
 
 func generateKeyPairImpl() ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
@@ -79,6 +79,10 @@ func replenishKeys() {
 		priv, pub, err := generateKeyPairImpl()
 		if err != nil {
 			log.Errorf("Failed to generate key pair: %v", err)
+
+			// Mark the task as stopped.
+			atomic.StoreInt32(&precomputeTaskStarted, 0)
+			return
 		}
 
 		precomputedKeys <- keyPair{priv, pub}
@@ -91,9 +95,9 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 	// Start the background task to replenish the queue of precomputed keys.
 	// This is only started once this function is called to avoid starting the task
 	// just by pulling in this package.
-	precomputeTaskStarted.Do(func() {
+	if atomic.SwapInt32(&precomputeTaskStarted, 1) == 0 {
 		go replenishKeys()
-	})
+	}
 
 	select {
 	case k := <-precomputedKeys:
