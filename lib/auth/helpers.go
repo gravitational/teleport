@@ -385,7 +385,7 @@ func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error
 // generateCertificate generates certificate for identity,
 // returns private public key pair
 func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
-	priv, pub, err := authServer.GenerateKeyPair("")
+	priv, pub, err := authServer.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -887,7 +887,7 @@ func (t *TestTLSServer) Stop() error {
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
-	priv, pub, err := clt.GenerateKeyPair("")
+	priv, pub, err := clt.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -307,7 +307,7 @@ func (a *AuthCommand) exportTLSAuthority(ctx context.Context, client auth.Client
 func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 	keygen := native.New(ctx, native.PrecomputeKeys(0))
 	defer keygen.Close()
-	privBytes, pubBytes, err := keygen.GenerateKeyPair("")
+	privBytes, pubBytes, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return trace.Wrap(err)
 	}

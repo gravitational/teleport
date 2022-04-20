@@ -98,7 +98,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	require.NoError(t, err)
 	a := p.a
 
-	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair("")
+	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)

@@ -42,7 +42,7 @@ import (
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
 func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
-	priv, pub, err := authServer.GenerateKeyPair("")
+	priv, pub, err := authServer.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

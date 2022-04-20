@@ -156,7 +156,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 	_, err = a.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair("")
+	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -605,7 +605,7 @@ func TestHostUniqueCheck(t *testing.T) {
 	err = a.UpsertToken(context.Background(), token)
 	require.NoError(t, err)
 
-	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair("")
+	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)

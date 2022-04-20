@@ -214,7 +214,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	tlsConfig.Time = s.clock.Now
 
 	// Generate certificate for user.
-	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair("")
+	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair()
 	require.NoError(t, err)
 	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
 		PublicKey:   publicKey,
@@ -228,7 +228,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	// Generate certificate for AWS console application.
-	privateKey, publicKey, err = s.tlsServer.Auth().GenerateKeyPair("")
+	privateKey, publicKey, err = s.tlsServer.Auth().GenerateKeyPair()
 	require.NoError(t, err)
 	certificate, err = s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
 		PublicKey:   publicKey,

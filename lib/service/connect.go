@@ -300,7 +300,7 @@ func (process *TeleportProcess) generateKeyPair(role types.SystemRole, reason st
 		return &keyPair, nil
 	}
 	process.log.Debugf("Generating new key pair for %v %v.", role, reason)
-	privPEM, pubSSH, err := process.Config.Keygen.GenerateKeyPair("")
+	privPEM, pubSSH, err := process.Config.Keygen.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

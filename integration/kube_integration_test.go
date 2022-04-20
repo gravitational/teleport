@@ -97,7 +97,7 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 	var err error
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
-	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair("")
+	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	suite.me, err = user.Current()
@@ -1294,7 +1294,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	privPEM, _, err := authServer.GenerateKeyPair("")
+	privPEM, _, err := authServer.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

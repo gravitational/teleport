@@ -807,7 +807,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		}
 	}
 
-	_, pub, err := srv.Auth().GenerateKeyPair("")
+	_, pub, err := srv.Auth().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1341,7 +1341,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	clt, err := srv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	priv, pub, err := clt.GenerateKeyPair("")
+	priv, pub, err := clt.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)

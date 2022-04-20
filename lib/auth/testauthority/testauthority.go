@@ -45,10 +45,10 @@ func NewWithClock(clock clockwork.Clock) *Keygen {
 }
 
 func (n *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
-	return n.GenerateKeyPair("")
+	return n.GenerateKeyPair()
 }
 
-func (n *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+func (n *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
 	randomKey := testPairs[(random.Int() % len(testPairs))]
 	return randomKey.Priv, randomKey.Pub, nil
 }

@@ -1751,11 +1751,11 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	return a.authServer.DeleteUser(ctx, user)
 }
 
-func (a *ServerWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
+func (a *ServerWithRoles) GenerateKeyPair() ([]byte, []byte, error) {
 	if err := a.action(apidefaults.Namespace, types.KindKeyPair, types.VerbCreate); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateKeyPair(pass)
+	return a.authServer.GenerateKeyPair()
 }
 
 func (a *ServerWithRoles) GenerateHostCert(

@@ -25,7 +25,7 @@ import (
 // compatible public/private key pairs and OpenSSH certificates
 type Authority interface {
 	// GenerateKeyPair generates new keypair
-	GenerateKeyPair(passphrase string) (privKey []byte, pubKey []byte, err error)
+	GenerateKeyPair() (privKey []byte, pubKey []byte, err error)
 
 	// GetNewKeyPairFromPool returns new keypair from pre-generated in memory pool
 	GetNewKeyPairFromPool() (privKey []byte, pubKey []byte, err error)

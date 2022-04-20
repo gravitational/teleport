@@ -68,10 +68,6 @@ func (s *NativeSuite) TestGenerateKeypairEmptyPass(c *check.C) {
 	s.suite.GenerateKeypairEmptyPass(c)
 }
 
-func (s *NativeSuite) TestGenerateKeypairPass(c *check.C) {
-	s.suite.GenerateKeypairPass(c)
-}
-
 func (s *NativeSuite) TestGenerateHostCert(c *check.C) {
 	s.suite.GenerateHostCert(c)
 }
@@ -85,7 +81,7 @@ func (s *NativeSuite) TestGenerateUserCert(c *check.C) {
 func (s *NativeSuite) TestDisablePrecompute(c *check.C) {
 	a := New(context.TODO(), PrecomputeKeys(0))
 
-	caPrivateKey, _, err := a.GenerateKeyPair("")
+	caPrivateKey, _, err := a.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	c.Assert(caPrivateKey, check.NotNil)
 }
@@ -100,13 +96,13 @@ func (s *NativeSuite) TestDisablePrecompute(c *check.C) {
 //     on the certificate.
 //   * If the host ID and node name are the same, only list one.
 func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
-	caPrivateKey, _, err := s.suite.A.GenerateKeyPair("")
+	caPrivateKey, _, err := s.suite.A.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(caPrivateKey)
 	c.Assert(err, check.IsNil)
 
-	_, hostPublicKey, err := s.suite.A.GenerateKeyPair("")
+	_, hostPublicKey, err := s.suite.A.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	tests := []struct {
@@ -197,7 +193,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 // TestUserCertCompatibility makes sure the compatibility flag can be used to
 // add to remove roles from certificate extensions.
 func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
-	priv, pub, err := s.suite.A.GenerateKeyPair("")
+	priv, pub, err := s.suite.A.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(priv)

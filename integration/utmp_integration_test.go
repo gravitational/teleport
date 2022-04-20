@@ -206,7 +206,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	// set up host private key and certificate
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := s.server.Auth().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -293,7 +293,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 
 func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	auth := s.server.Auth()
-	upriv, upub, err := auth.GenerateKeyPair("")
+	upriv, upub, err := auth.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

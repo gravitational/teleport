@@ -894,22 +894,13 @@ func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return message(fmt.Sprintf("user %q deleted", user)), nil
 }
 
-type generateKeyPairReq struct {
-	Password string `json:"password"`
-}
-
 type generateKeyPairResponse struct {
 	PrivKey []byte `json:"privkey"`
 	PubKey  string `json:"pubkey"`
 }
 
 func (s *APIServer) generateKeyPair(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateKeyPairReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	priv, pub, err := auth.GenerateKeyPair(req.Password)
+	priv, pub, err := auth.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -193,7 +193,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
+	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair()
 	c.Assert(err, IsNil)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -3448,7 +3448,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
-	priv, pub, err := server.Auth().GenerateKeyPair("")
+	priv, pub, err := server.Auth().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)

@@ -120,14 +120,14 @@ func (k *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 	case key := <-k.keysCh:
 		return key.privPem, key.pubBytes, nil
 	default:
-		return GenerateKeyPair("")
+		return GenerateKeyPair()
 	}
 }
 
 // precomputeKeys continues loops forever trying to compute cache key pairs.
 func (k *Keygen) precomputeKeys() {
 	for {
-		privPem, pubBytes, err := GenerateKeyPair("")
+		privPem, pubBytes, err := GenerateKeyPair()
 		if err != nil {
 			log.Errorf("Unable to generate key pair: %v.", err)
 			continue
@@ -149,7 +149,7 @@ func (k *Keygen) precomputeKeys() {
 
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
 // execute.
-func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+func GenerateKeyPair() ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, err
@@ -172,8 +172,8 @@ func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
 // execute.
-func (k *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
-	return GenerateKeyPair(passphrase)
+func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
+	return GenerateKeyPair()
 }
 
 // GenerateHostCert generates a host certificate with the passed in parameters.

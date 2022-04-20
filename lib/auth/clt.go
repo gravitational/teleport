@@ -1040,8 +1040,8 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 // GenerateKeyPair generates SSH private/public key pair optionally protected
 // by password. If the pass parameter is an empty string, the key pair
 // is not password-protected.
-func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("keypair"), generateKeyPairReq{Password: pass})
+func (c *Client) GenerateKeyPair() ([]byte, []byte, error) {
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("keypair"), nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1807,9 +1807,8 @@ type IdentityService interface {
 	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
 
 	// GenerateKeyPair generates SSH private/public key pair optionally protected
-	// by password. If the pass parameter is an empty string, the key pair
-	// is not password-protected.
-	GenerateKeyPair(pass string) ([]byte, []byte, error)
+	// by password.
+	GenerateKeyPair() ([]byte, []byte, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
