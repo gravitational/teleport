@@ -1,11 +1,9 @@
 steps:
   - name: quay.io/gravitational/next:main
     id: docs-test
-    env:
-      - WITH_EXTERNAL_LINKS=true
     entrypoint: /bin/bash
     dir: /src
-    args: 
-      - -c 
-      - ln -s /workspace /src/content && yarn markdown-lint-external-links
+    args:
+      - -c
+      - ln -s /workspace /src/content && yarn markdown-lint
     timeout: 10m
