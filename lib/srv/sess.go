@@ -376,7 +376,6 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		// not lingering anymore? someone reconnected? cool then... no need
 		// to die...
 		if !sess.isLingering() {
-			fmt.Println("Lingering")
 			s.log.Infof("Session %v has become active again.", sess.id)
 			return
 		}
