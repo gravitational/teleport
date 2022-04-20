@@ -27,9 +27,6 @@ import (
 // WebAPIVersion is a current webapi version
 const WebAPIVersion = "v1"
 
-// ForeverTTL means that object TTL will not expire unless deleted
-const ForeverTTL time.Duration = 0
-
 const (
 	// SSHAuthSock is the environment variable pointing to the
 	// Unix socket the SSH agent is running on.
@@ -145,9 +142,6 @@ const (
 
 	// ComponentBackend is a backend component
 	ComponentBackend = "backend"
-
-	// ComponentCachingClient is a caching auth client
-	ComponentCachingClient = "client:cache"
 
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
@@ -561,12 +555,6 @@ const (
 // SCP is Secure Copy.
 const SCP = "scp"
 
-// Root is *nix system administrator account name.
-const Root = "root"
-
-// Administrator is the Windows system administrator account name.
-const Administrator = "Administrator"
-
 // AdminRoleName is the name of the default admin role for all local users if
 // another role is not explicitly assigned
 const AdminRoleName = "admin"
@@ -656,9 +644,6 @@ const (
 
 	// EnvUserProfile is the home directory environment variable on Windows.
 	EnvUserProfile = "USERPROFILE"
-
-	// KubeCAPath is a hardcode of mounted CA inside every pod of K8s
-	KubeCAPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
 	// KubeRunTests turns on kubernetes tests
 	KubeRunTests = "TEST_KUBE"
@@ -768,6 +753,3 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
-
-// StandardRDPPort is the default port used for RDP.
-const StandardRDPPort = 3389
