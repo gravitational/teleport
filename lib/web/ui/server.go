@@ -21,9 +21,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // Label describes label for webapp
@@ -215,7 +215,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
-		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(teleport.StandardRDPPort) {
+		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
 			return splitAddr[0]
 		}
 		return addr

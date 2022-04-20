@@ -80,6 +80,12 @@ type AuthPreference interface {
 	// SetWebauthn sets the Webauthn configuration settings.
 	SetWebauthn(*Webauthn)
 
+	// GetAllowPasswordless returns if passwordless is allowed by cluster
+	// settings.
+	GetAllowPasswordless() bool
+	// SetAllowPasswordless sets the value of the allow passwordless setting.
+	SetAllowPasswordless(b bool)
+
 	// GetRequireSessionMFA returns true when all sessions in this cluster
 	// require an MFA check.
 	GetRequireSessionMFA() bool
@@ -323,6 +329,14 @@ func (c *AuthPreferenceV2) SetWebauthn(w *Webauthn) {
 	c.Spec.Webauthn = w
 }
 
+func (c *AuthPreferenceV2) GetAllowPasswordless() bool {
+	return c.Spec.AllowPasswordless != nil && c.Spec.AllowPasswordless.Value
+}
+
+func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
+	c.Spec.AllowPasswordless = NewBoolOption(b)
+}
+
 // GetRequireSessionMFA returns true when all sessions in this cluster require
 // an MFA check.
 func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
@@ -402,9 +416,13 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.SetOrigin(OriginDynamic)
 	}
 
-	// make sure type makes sense
 	switch c.Spec.Type {
-	case constants.Local, constants.OIDC, constants.SAML, constants.Github:
+	case constants.Local:
+		if !c.Spec.AllowLocalAuth.Value {
+			log.Warn("Ignoring local_auth=false when authentication.type=local")
+			c.Spec.AllowLocalAuth.Value = true
+		}
+	case constants.OIDC, constants.SAML, constants.Github:
 	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
@@ -418,8 +436,9 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	}
 
-	// make sure second factor makes sense
-	switch sf := c.Spec.SecondFactor; sf {
+	// Make sure second factor makes sense.
+	sf := c.Spec.SecondFactor
+	switch sf {
 	case constants.SecondFactorOff, constants.SecondFactorOTP:
 	case constants.SecondFactorWebauthn:
 		// If U2F is present validate it, we can derive Webauthn from it.
@@ -464,6 +483,30 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
+	}
+
+	// Set/validate AllowPasswordless. We need Webauthn first to do this properly.
+	hasWebauthn := sf == constants.SecondFactorWebauthn ||
+		sf == constants.SecondFactorOn ||
+		sf == constants.SecondFactorOptional
+	switch {
+	case c.Spec.AllowPasswordless == nil:
+		c.Spec.AllowPasswordless = NewBoolOption(hasWebauthn)
+	case !hasWebauthn && c.Spec.AllowPasswordless.Value:
+		return trace.BadParameter("missing required Webauthn configuration for passwordless=true")
+	}
+
+	// Validate connector name for type=local.
+	if c.Spec.Type == constants.Local {
+		switch connectorName := c.Spec.ConnectorName; connectorName {
+		case "", constants.LocalConnector: // OK
+		case constants.PasswordlessConnector:
+			if !c.Spec.AllowPasswordless.Value {
+				return trace.BadParameter("invalid local connector %q, passwordless not allowed by cluster settings", connectorName)
+			}
+		default:
+			return trace.BadParameter("invalid local connector %q", connectorName)
+		}
 	}
 
 	switch c.Spec.LockingMode {

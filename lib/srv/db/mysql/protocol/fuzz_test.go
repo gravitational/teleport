@@ -1,8 +1,7 @@
-//go:build windows
-// +build windows
+//go:build go1.18
 
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,26 +16,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package agentconn
+package protocol
 
 import (
-	"net"
+	"bytes"
+	"testing"
 
-	"github.com/gravitational/trace"
-
-	"github.com/Microsoft/go-winio"
+	"github.com/stretchr/testify/require"
 )
 
-const namedPipe = `\\.\pipe\openssh-ssh-agent`
-
-// Dial creates net.Conn to a SSH agent listening on a Windows named pipe.
-// This is behind a build flag because winio.DialPipe is only available on
-// Windows.
-func Dial(socket string) (net.Conn, error) {
-	conn, err := winio.DialPipe(namedPipe, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func FuzzParsePacket(f *testing.F) {
+	testcases := [][]byte{
+		{},
+		[]byte("00000"),
 	}
 
-	return conn, nil
+	for _, tc := range testcases {
+		f.Add(tc)
+	}
+
+	f.Fuzz(func(t *testing.T, packet []byte) {
+		r := bytes.NewReader(packet)
+		require.NotPanics(t, func() {
+			_, _ = ParsePacket(r)
+		})
+	})
 }
