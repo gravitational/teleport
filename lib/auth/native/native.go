@@ -115,10 +115,10 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 		key := precomputedKeys[0]
 		precomputedKeys = precomputedKeys[1:]
 		return key.privPem, key.pubBytes, nil
-	} else {
-		// Otherwise generate a key synchronously.
-		return generateKey()
 	}
+
+	// Otherwise generate a key synchronously.
+	return generateKey()
 }
 
 type keyPair struct {
