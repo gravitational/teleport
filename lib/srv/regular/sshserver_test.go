@@ -1586,13 +1586,13 @@ func TestSessionTracker(t *testing.T) {
 	err = se.Close()
 	require.NoError(t, err)
 
-	// Advance server clock to trigger the session to close (after lingering) and
-	// update the session tracker to expired. We don't know when the linger sleeper
-	// will start waiting for clock, so we give it a grace period of 5 seconds.
-	time.Sleep(time.Second * 5)
+	f.clock.BlockUntil(3)
 	f.clock.Advance(defaults.SessionIdlePeriod)
 
-	// once the session is closed, the tracker should expire (not found)
+	// Once the session is closed, the tracker should be termianted.
+	// Once the last set expiration is up, the tracker should be delted.
+	f.clock.Advance(defaults.SessionTrackerTTL)
+
 	trackerExpired := func() bool {
 		_, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
 		return trace.IsNotFound(err)
