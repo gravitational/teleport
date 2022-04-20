@@ -36,7 +36,6 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	mu := NewMemoryUploader()
 	mu.Clock = clock
-	ctx := context.Background()
 
 	log := &mockAuditLog{}
 
@@ -58,24 +57,23 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		MockTrackers: []types.SessionTracker{sessionTracker},
 	}
 
-	uc, err := NewUploadCompleter(ctx, UploadCompleterConfig{
+	uc, err := newUploadCompleter(UploadCompleterConfig{
 		Uploader:       mu,
 		AuditLog:       log,
 		SessionTracker: sessionTrackerService,
 	})
 	require.NoError(t, err)
-	defer uc.Close()
 
 	upload, err := mu.CreateUpload(context.Background(), sessionID)
 	require.NoError(t, err)
 
-	err = uc.CheckUploads(context.Background())
+	err = uc.checkUploads(context.Background())
 	require.NoError(t, err)
 	require.False(t, mu.uploads[upload.ID].completed)
 
 	clock.Advance(1 * time.Hour)
 
-	err = uc.CheckUploads(context.Background())
+	err = uc.checkUploads(context.Background())
 	require.NoError(t, err)
 	require.True(t, mu.uploads[upload.ID].completed)
 }
@@ -84,7 +82,6 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 // emits session.end or windows.desktop.session.end events for sessions
 // that are completed.
 func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
-	ctx := context.Background()
 	for _, test := range []struct {
 		startEvent   apievents.AuditEvent
 		endEventType string
@@ -101,14 +98,13 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 				sessionEvents: []apievents.AuditEvent{test.startEvent},
 			}
 
-			uc, err := NewUploadCompleter(ctx, UploadCompleterConfig{
+			uc, err := newUploadCompleter(UploadCompleterConfig{
 				Uploader:       mu,
 				AuditLog:       log,
 				Clock:          clock,
 				SessionTracker: &eventstest.MockSessionTrackerService{},
 			})
 			require.NoError(t, err)
-			defer uc.Close()
 
 			upload, err := mu.CreateUpload(context.Background(), session.NewID())
 			require.NoError(t, err)
@@ -118,7 +114,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			_, err = mu.UploadPart(context.Background(), *upload, 0, strings.NewReader("part"))
 			require.NoError(t, err)
 
-			err = uc.CheckUploads(context.Background())
+			err = uc.checkUploads(context.Background())
 			require.NoError(t, err)
 
 			// advance the clock to force the asynchronous session end event emission

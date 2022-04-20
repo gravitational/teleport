@@ -770,6 +770,10 @@ func (s *session) Close() error {
 				if err := s.recorder.Complete(s.serverCtx); err != nil {
 					s.log.WithError(err).Warn("Failed to close recorder.")
 				}
+
+				// Wait for the session recorder to signal completion before
+				// finishing cleanup. Otherwise the upload completer background
+				// process may enter a race to complete the upload first.
 				select {
 				case <-s.recorder.Done():
 				case <-time.After(time.Second * 30):

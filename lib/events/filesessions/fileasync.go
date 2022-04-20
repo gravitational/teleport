@@ -116,9 +116,10 @@ func NewUploader(cfg UploaderConfig, sessionTracker services.SessionTrackerServi
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
 
-	// completer scans for uploads that have been initiated, but not completed
-	// by the client (aborted or crashed) and completes them
-	uploader.uploadCompleter, err = events.NewUploadCompleter(uploader.ctx, events.UploadCompleterConfig{
+	// upload completer scans for uploads that have been initiated, but not completed
+	// by the client (aborted or crashed) and completes them. It will be closed once
+	// the uploader context is closed.
+	err = events.StartNewUploadCompleter(uploader.ctx, events.UploadCompleterConfig{
 		Uploader:       handler,
 		AuditLog:       cfg.AuditLog,
 		SessionTracker: sessionTracker,
@@ -298,9 +299,8 @@ func (u *Uploader) sessionErrorFilePath(sid session.ID) string {
 }
 
 // Close closes all operations
-func (u *Uploader) Close() error {
+func (u *Uploader) Close() {
 	u.cancel()
-	return u.uploadCompleter.Close()
 }
 
 type upload struct {
