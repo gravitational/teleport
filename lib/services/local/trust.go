@@ -89,33 +89,39 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 }
 
 // CompareAndSwapCertAuthority updates the cert authority value
-// if the existing value matches existing parameter, returns nil if succeeds,
+// if the existing value matches expected parameter, returns nil if succeeds,
 // trace.CompareFailed otherwise.
-func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) error {
+func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(new); err != nil {
 		return trace.Wrap(err)
 	}
+
+	key := backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName())
+
+	actualItem, err := s.Get(context.TODO(), key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	actual, err := services.UnmarshalCertAuthority(actualItem.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !services.CertAuthoritiesEquivalent(actual, expected) {
+		return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
+	}
+
 	newValue, err := services.MarshalCertAuthority(new)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	newItem := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName()),
+		Key:     key,
 		Value:   newValue,
 		Expires: new.Expiry(),
 	}
 
-	existingValue, err := services.MarshalCertAuthority(existing)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	existingItem := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(existing.GetType()), existing.GetName()),
-		Value:   existingValue,
-		Expires: existing.Expiry(),
-	}
-
-	_, err = s.CompareAndSwap(context.TODO(), existingItem, newItem)
+	_, err = s.CompareAndSwap(context.TODO(), *actualItem, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
 			return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
