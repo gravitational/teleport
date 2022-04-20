@@ -22,22 +22,19 @@ const (
 	// WebConfigAuthProviderOIDCType is OIDC provider type
 	WebConfigAuthProviderOIDCType = "oidc"
 	// WebConfigAuthProviderOIDCURL is OIDC webapi endpoint.
-	// Query param "redirect_url" must be located at the end of URL as this param
-	// gets manually extracted and assumes anything coming after it is part of this param.
+	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
 	WebConfigAuthProviderOIDCURL = "/v1/webapi/oidc/login/web?connector_id=:providerName&redirect_url=:redirect"
 
 	// WebConfigAuthProviderSAMLType is SAML provider type
 	WebConfigAuthProviderSAMLType = "saml"
 	// WebConfigAuthProviderSAMLURL is SAML webapi endpoint.
-	// Query param "redirect_url" must be located at the end of URL as this param
-	// gets manually extracted and assumes anything coming after it is part of this param.
+	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
 	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?connector_id=:providerName&redirect_url=:redirect"
 
 	// WebConfigAuthProviderGitHubType is GitHub provider type
 	WebConfigAuthProviderGitHubType = "github"
 	// WebConfigAuthProviderGitHubURL is GitHub webapi endpoint
-	// Query param "redirect_url" must be located at the end of URL as this param
-	// gets manually extracted and assumes anything coming after it is part of this param.
+	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
 	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?connector_id=:providerName&redirect_url=:redirect"
 )
 

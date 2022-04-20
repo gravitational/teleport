@@ -2728,11 +2728,15 @@ type ssoRequestParams struct {
 
 func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
 	// Manually grab the value from query param "redirect_url".
-	// The redirect URL can contain its own query params that it will
-	// incorrectly get parsed with the outer query params (i.e. connector_id)
-	// and truncate the redirect URL.
 	//
-	// This assumes that anything coming after "redirect_url" is part of
+	// The "redirect_url" param can contain its own query params such as in
+	// "https://localhost/login?connector_id=github&redirect_url=https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+	// which would be incorrectly parsed with the standard method.
+	// For example a call to r.URL.Query().Get("redirect_url") in the example above would return
+	// "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel",
+	// as it would take the "&sort=hostname:asc" to be a separate query param.
+	//
+	// This logic assumes that anything coming after "redirect_url" is part of
 	// the redirect URL.
 	splittedRawQuery := strings.Split(r.URL.RawQuery, "&redirect_url=")
 	var clientRedirectURL string
