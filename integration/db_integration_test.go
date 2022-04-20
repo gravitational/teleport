@@ -18,7 +18,9 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -31,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -588,6 +591,49 @@ func TestDatabaseAccessMongoSeparateListener(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDatabaseAgentState(t *testing.T) {
+	tests := map[string]struct {
+		agentParams databaseAgentStartParams
+	}{
+		"WithStaticDatabases": {
+			agentParams: databaseAgentStartParams{
+				databases: []service.Database{
+					{Name: "mysql", Protocol: defaults.ProtocolMySQL, URI: "localhost:3306"},
+					{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:5432"},
+				},
+			},
+		},
+		"WithResourceMatchers": {
+			agentParams: databaseAgentStartParams{
+				resourceMatchers: []services.ResourceMatcher{
+					{Labels: types.Labels{"*": []string{"*"}}},
+				},
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			pack := setupDatabaseTest(t)
+
+			// Start also ensures that the database agent has the “ready” state.
+			// If the agent can’t make it, this function will fail the test.
+			agent, _ := pack.startRootDatabaseAgent(t, test.agentParams)
+
+			// In addition to the checks performed during the agent start,
+			// we’ll request the diagnostic server to ensure the readyz route
+			// is returning to the proper state.
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%v/readyz", agent.Config.DiagnosticAddr.Addr), nil)
+			require.NoError(t, err)
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+	}
+}
+
 func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
 	max := time.Second
 	timeout := time.After(max)
@@ -1013,6 +1059,39 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 			t.Fatal("Leaf cluster access point is unavailable.")
 		}
 	}
+}
+
+// databaseAgentStartParams parameters used to configure a database agent.
+type databaseAgentStartParams struct {
+	databases        []service.Database
+	resourceMatchers []services.ResourceMatcher
+}
+
+// startRootDatabaseAgent starts a database agent with the provided
+// configuration on the root cluster.
+func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgentStartParams) (*service.TeleportProcess, *auth.Client) {
+	conf := service.MakeDefaultConfig()
+	conf.DataDir = t.TempDir()
+	conf.Token = "static-token-value"
+	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", ports.Pop())}
+	conf.AuthServers = []utils.NetAddr{
+		{
+			AddrNetwork: "tcp",
+			Addr:        net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()),
+		},
+	}
+	conf.Clock = p.clock
+	conf.Databases.Enabled = true
+	conf.Databases.Databases = params.databases
+	conf.Databases.ResourceMatchers = params.resourceMatchers
+
+	server, authClient, err := p.root.cluster.StartDatabase(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		server.Close()
+	})
+
+	return server, authClient
 }
 
 func containsDB(servers []types.DatabaseServer, name string) bool {

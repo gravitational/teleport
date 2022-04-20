@@ -28,7 +28,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -41,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -189,7 +192,13 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode))
+	ciphers := utils.DefaultCipherSuites()
+	tlsConfig, err := k.KubeClientTLSConfig(ciphers, kubeCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, err := client.NewKubeSession(cf.Context, tc, meta, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -462,12 +471,14 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 
 type kubeSessionsCommand struct {
 	*kingpin.CmdClause
+	format string
 }
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
 		CmdClause: parent.Command("sessions", "Get a list of active kubernetes sessions."),
 	}
+	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 
 	return c
 }
@@ -494,8 +505,31 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return filteredSessions[i].GetCreated().Before(filteredSessions[j].GetCreated())
 	})
 
-	printSessions(filteredSessions)
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		printSessions(filteredSessions)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeKubeSessions(sessions, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", c.format)
+	}
 	return nil
+}
+
+func serializeKubeSessions(sessions []types.SessionTracker, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(sessions, "", "  ")
+	} else {
+		out, err = yaml.Marshal(sessions)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func printSessions(sessions []types.SessionTracker) {
@@ -505,7 +539,7 @@ func printSessions(sessions []types.SessionTracker) {
 	}
 
 	output := table.AsBuffer().String()
-	print(output)
+	fmt.Println(output)
 }
 
 type kubeCredentialsCommand struct {
@@ -603,6 +637,7 @@ type kubeLSCommand struct {
 	labels         string
 	predicateExpr  string
 	searchKeywords string
+	format         string
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
@@ -611,6 +646,7 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	}
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
+	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	return c
 }
@@ -630,23 +666,53 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	}
 
 	selectedCluster := selectedKubeCluster(currentTeleportCluster)
-
-	var t asciitable.Table
-	if cf.Quiet {
-		t = asciitable.MakeHeadlessTable(2)
-	} else {
-		t = asciitable.MakeTable([]string{"Kube Cluster Name", "Selected"})
-	}
-	for _, cluster := range kubeClusters {
-		var selectedMark string
-		if cluster == selectedCluster {
-			selectedMark = "*"
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		var t asciitable.Table
+		if cf.Quiet {
+			t = asciitable.MakeHeadlessTable(2)
+		} else {
+			t = asciitable.MakeTable([]string{"Kube Cluster Name", "Selected"})
 		}
-		t.AddRow([]string{cluster, selectedMark})
+		for _, cluster := range kubeClusters {
+			var selectedMark string
+			if cluster == selectedCluster {
+				selectedMark = "*"
+			}
+			t.AddRow([]string{cluster, selectedMark})
+		}
+		fmt.Println(t.AsBuffer().String())
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeKubeClusters(kubeClusters, selectedCluster, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
-	fmt.Println(t.AsBuffer().String())
 
 	return nil
+}
+
+func serializeKubeClusters(kubeClusters []string, selectedCluster, format string) (string, error) {
+	type cluster struct {
+		KubeClusterName string `json:"kube_cluster_name"`
+		Selected        bool   `json:"selected"`
+	}
+	clusterInfo := make([]cluster, 0, len(kubeClusters))
+	for _, cl := range kubeClusters {
+		clusterInfo = append(clusterInfo, cluster{cl, cl == selectedCluster})
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(clusterInfo)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func selectedKubeCluster(currentTeleportCluster string) string {
