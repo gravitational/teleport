@@ -24,12 +24,19 @@ As of January 2022, [instance tags are available via the instance metadata servi
 
 ## Details
 
-EC2 tags will be supported everywhere that dynamic labels are currently supported (i.e. SSH, Kube, Apps, and Databases).
+EC2 tags will be supported everywhere that dynamic labels are currently supported (i.e. SSH, Kube, Apps, and Databases). Each agent will be assigned the same labels (so for instance, if a database agent has multiple databases, all of the databases will have the same labels from EC2).
 
-When a node is created, check if it is running in an EC2 instance. If it is, start a service that periodically (every hour) queries the instance metadata service and updates the tags. Tags created this way will use the `aws` prefix.
+When a Teleport process running an SSH or other service is started, check if it is running in an EC2 instance. If it is, fetch all tags from the instance metadata service and add them as labels to Teleport, then start a service that periodically (every hour) that does the same. Updates will replace all labels from the previous iteration, so newly created or deleted tags will be reflected in Teleport.
 
-In order to use this feature, instance tags in metadata must be enabled for the instance.
+EC2 labels will use the `aws` prefix in Teleport for namespacing (similar to `teleport.dev`). For example, if the instance has the tag `Name: my-instance`, Teleport will add the label `aws/Name: my-instance`. Ideally, the `aws` namespace will prevent collisions with static and command label names, but if there is a collision, EC2 labels will not override static or command labels.
+
+In order to use this feature, instance tags in metadata must be enabled for the instance. Instance tags in metadata can be enabled/disabled when launching a new instance; they can also be toggled for an existing instance via `Actions > Instance settings > Allow tags in instance metadata` in the management console or with the `modify-instance-metadata-options` command in the AWS CLI. See the [AWS documentation](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#allow-access-to-tags-in-IMDS) for more details.
+
+### Throttling
+AWS applies [per-instance throttling to instance metadata requests](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html#instancedata-throttling). Each instance can have at most 50 tags, so with one request to fetch all tag keys and up to 50 requests to fetch tag values, Teleport only needs to make at most 51 instance metadata requests per hour, which should not have throttling issues.
 
 ### Special Tags
 
-If the instance has the tag `Hostname` with a nonempty value, use that value as the node's hostname.
+#### `Hostname`
+
+When a Teleport process is created, it will check if it is running in an EC2 instance. If it is, and the instance has the tag `Hostname` with a nonempty value, the process will use that value as the node's hostname, overriding the hostname provided in the config.
