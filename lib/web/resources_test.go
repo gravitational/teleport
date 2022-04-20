@@ -350,7 +350,6 @@ func TestListResources(t *testing.T) {
 				ResourceType:        types.KindNode,
 				Limit:               defaults.MaxIterationLimit,
 				NeedTotalCount:      true,
-				SearchKeywords:      []string{},
 				PredicateExpression: "(labels[`\"test\"`] == \"+:',#*~%^\" && !exists(labels.tier)) || resource.spec.description != \"weird example https://foo.dev:3080?bar=a,b&baz=banana\"",
 			},
 		},
@@ -372,7 +371,6 @@ func TestListResources(t *testing.T) {
 			expected: proto.ListResourcesRequest{
 				ResourceType:   types.KindNode,
 				Limit:          defaults.MaxIterationLimit,
-				SearchKeywords: []string{},
 				NeedTotalCount: true,
 			},
 		},
@@ -382,7 +380,6 @@ func TestListResources(t *testing.T) {
 			expected: proto.ListResourcesRequest{
 				ResourceType:   types.KindNode,
 				Limit:          defaults.MaxIterationLimit,
-				SearchKeywords: []string{},
 				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
 				NeedTotalCount: true,
 			},
@@ -393,7 +390,6 @@ func TestListResources(t *testing.T) {
 			expected: proto.ListResourcesRequest{
 				ResourceType:   types.KindNode,
 				Limit:          defaults.MaxIterationLimit,
-				SearchKeywords: []string{},
 				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
 				NeedTotalCount: true,
 			},
