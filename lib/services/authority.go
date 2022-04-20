@@ -397,6 +397,18 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if cfg.ID != 0 {
 			ca.SetResourceID(cfg.ID)
 		}
+		// Correct problems with existing CAs that contain non-UTC times, which
+		// causes panics when doing a gogoproto Clone; should only ever be
+		// possible with LastRotated, but we enforce it on all the times anyway.
+		// See https://github.com/gogo/protobuf/issues/519 .
+		if ca.Spec.Rotation != nil {
+			apiutils.UTC(&ca.Spec.Rotation.Started)
+			apiutils.UTC(&ca.Spec.Rotation.LastRotated)
+			apiutils.UTC(&ca.Spec.Rotation.Schedule.UpdateClients)
+			apiutils.UTC(&ca.Spec.Rotation.Schedule.UpdateServers)
+			apiutils.UTC(&ca.Spec.Rotation.Schedule.Standby)
+		}
+
 		return &ca, nil
 	}
 
