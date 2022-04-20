@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -1897,21 +1898,23 @@ func TestApplyTraits(t *testing.T) {
 		{
 			comment: "AWS role ARN substitute in allow rule",
 			inTraits: map[string][]string{
-				"foo": {"bar"},
+				"foo":                     {"bar"},
+				teleport.TraitAWSRoleARNs: {"baz"},
 			},
 			allow: rule{
-				inRoleARNs:  []string{"{{external.foo}}"},
-				outRoleARNs: []string{"bar"},
+				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
+				outRoleARNs: []string{"bar", "baz"},
 			},
 		},
 		{
 			comment: "AWS role ARN substitute in deny rule",
 			inTraits: map[string][]string{
-				"foo": {"bar"},
+				"foo":                     {"bar"},
+				teleport.TraitAWSRoleARNs: {"baz"},
 			},
 			deny: rule{
-				inRoleARNs:  []string{"{{external.foo}}"},
-				outRoleARNs: []string{"bar"},
+				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
+				outRoleARNs: []string{"bar", "baz"},
 			},
 		},
 		{
