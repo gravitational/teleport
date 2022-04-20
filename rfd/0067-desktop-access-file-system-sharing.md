@@ -7,7 +7,9 @@ state: draft
 
 ## Introduction
 
-At a high level, implementing drive (folder) redirection for Teleport is a matter of taking RDP's File System Virtual Channel Extension protocol (described in [[MS-RDPEFS]](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/34d9de58-b2b5-40b6-b970-f82d4603bdb5)), and converting it to the TDP protocol (described in this document).
+At a high level, implementing drive (folder) redirection for Teleport is a matter of taking RDP's File System Virtual Channel Extension protocol (described in
+[[MS-RDPEFS]](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/34d9de58-b2b5-40b6-b970-f82d4603bdb5)), and converting it to the TDP protocol
+(described in this document).
 
 ```
                          Teleport Desktop Protocol                         RDP
@@ -21,41 +23,64 @@ At a high level, implementing drive (folder) redirection for Teleport is a matte
 +----------------------+     +------------------+  +------------------+     +------------------+
 ```
 
-RDP is an old protocol, and is designed in some ways to be deeply compatible with Windows operating system, which means that it contains a lot of details that aren't necessarily relevant or available to our client, which is limited to sort of file information is available to us through the browser. While this reality creates its own set of implementation difficulties for us, it also creates an opportunity for us to simplify drive redirection in the TDP protocol.
+RDP is an old protocol, and is designed in some ways to be deeply compatible with Windows operating system, which means that it contains a lot of details that
+aren't necessarily relevant or available to our client, which is limited to sort of file information is available to us through the browser. While this reality
+creates its own set of implementation difficulties for us, it also creates an opportunity for us to simplify drive redirection in the TDP protocol.
 
-Being such a longstanding, large, and complex protocol, it can sometimes be difficult to tell from it's documentation precisely how RDP is actually supposed to work. Adding to that difficulty is the File System Virtual Channel Extension designer's decision to leave some aspects of client and server dynamics unspecified:
+Being such a longstanding, large, and complex protocol, it can sometimes be difficult to tell from it's documentation precisely how RDP is actually supposed to
+work. Adding to that difficulty is the File System Virtual Channel Extension designer's decision to leave some aspects of client and server dynamics unspecified:
 
-"This protocol forwards server requests from the server-based application and returns replies from the client-file system. There are no specific rules implied by this protocol as to how and when a particular message is sent from the server and what the client is to reply." ([[MS-RDPEFS] 3.1.5.1](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1a8715b1-3afc-4bd7-8ec2-9625a9ce9610))
+"This protocol forwards server requests from the server-based application and returns replies from the client-file system. There are no specific rules implied by
+this protocol as to how and when a particular message is sent from the server and what the client is to reply."
+([[MS-RDPEFS] 3.1.5.1](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1a8715b1-3afc-4bd7-8ec2-9625a9ce9610))
 
-In cases of protocol ambiguity, the open source project [FreeRDP](https://github.com/FreeRDP/FreeRDP) is an invaluable resource as a canonical implementation, which will be used for reference. This document attempts to be exhaustive for core drive sharing functionality; for any cases that aren't accounted for in this document, it should be assumed that we follow FreeRDP's conventions and algorithms.
+In cases of protocol ambiguity, the open source project [FreeRDP](https://github.com/FreeRDP/FreeRDP) is an invaluable resource as a canonical implementation,
+which will be used for reference. This document attempts to be exhaustive for core drive sharing functionality; for any cases that aren't accounted for in this
+document, it should be assumed that we follow FreeRDP's conventions and algorithms.
 
 ## RDP Background
 
 ### [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s
 
-After the initial drive negotiation, RDP directs the remote machine's use of the drive by sending [[`Device I/O Request`s](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d). These requests are only sent from the server (the Windows Desktop) to the client (the Rust client running on Teleport's Windows Desktop Service).
+After the initial drive negotiation, RDP directs the remote machine's use of the drive by sending
+[[`Device I/O Request`s](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d). These requests are only sent
+from the server (the Windows Desktop) to the client (the Rust client running on Teleport's Windows Desktop Service).
 
 #### `DeviceId`
 
-In our case, `DeviceId` will always be whatever number we sent to the server in the [`Client Device List Announce`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d8b2bc1c-0207-4c15-abe3-62eaa2afcaf1) message we sent to initialize drive redirection. For now we are only supporting sharing a single directory, so this field is more or less irrelevant to us for this initial implementation.
+In our case, `DeviceId` will always be whatever number we sent to the server in the
+[`Client Device List Announce`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d8b2bc1c-0207-4c15-abe3-62eaa2afcaf1) message we sent to
+initialize drive redirection. For now we are only supporting sharing a single directory, so this field is more or less irrelevant to us for this initial
+implementation.
 
 Since it's trivial to add, we will include a corresponding field `directory_id` in TDP that corresponds with this field.
 
 #### `FileId`
 
-A `FileId` is generated by the client upon reciept of a [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d) where `MajorFunction = IRP_MJ_CREATE` and sent back to the server, which then uses it to denote that file in subsequent [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s. The `FileId` is valid until the client receives a [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d) with `MajorFunction = IRP_MJ_CLOSE`, at which point it becomes invalid and can be recycled.
+A `FileId` is generated by the client upon reciept of a [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)
+where `MajorFunction = IRP_MJ_CREATE` and sent back to the server, which then uses it to denote that file in subsequent
+[`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s. The `FileId` is valid until
+the client receives a [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d) with
+`MajorFunction = IRP_MJ_CLOSE`, at which point it becomes invalid and can be recycled.
 
-The semantics of these `MajorFunction`s and how this system works isn't obvious at first glance, and will be clarified in the [Typical Operation](#typical-operation) section below. TDP won't make use of `FileId`, electing to use a file or directory's (unix-like) relative path in each request. The relative `path` combined with `directory_id` gives a unique "id" to any shared file-like object for any number of root-level shared directories.
+The semantics of these `MajorFunction`s and how this system works isn't obvious at first glance, and will be clarified in the
+[Typical Operation](#typical-operation) section below. TDP won't make use of `FileId`, electing to use a file or directory's (unix-like) relative path in each
+request. The relative `path` combined with `directory_id` gives a unique "id" to any shared file-like object for any number of root-level shared directories.
 
 #### `CompletionId`
 
-`CompletionId`s are generated by the server and sent with each [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d). All [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)'s demand a [`Device I/O Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1c412a84-0776-4984-b35c-3f0445fcae65) in response, and the server matches [`Device I/O Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1c412a84-0776-4984-b35c-3f0445fcae65)s to [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s by the `CompletionId` field.
+`CompletionId`s are generated by the server and sent with each [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d).
+All [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s demand a
+[`Device I/O Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1c412a84-0776-4984-b35c-3f0445fcae65) in response, and the server
+matches [`Device I/O Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1c412a84-0776-4984-b35c-3f0445fcae65)s to
+[`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s by the `CompletionId` field.
 
 This design allows operations to take place asynchronously/concurrently, and we will mimic it in our TDP translation.
 
 #### `MajorFunction` & `MinorFunction`
 
-[`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s are classified by their `MajorFunction` field, which can contain the following values/semantics:
+[`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s are classified by their
+`MajorFunction` field, which can contain the following values/semantics:
 
 | Value                           | Meaning                          |
 | ------------------------------- | -------------------------------- |
@@ -71,17 +96,28 @@ This design allows operations to take place asynchronously/concurrently, and we 
 | IRP_MJ_DIRECTORY_CONTROL        | Directory control request        |
 | IRP_MJ_LOCK_CONTROL             | File lock control request        |
 
-[`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s are always the headers of more detailed request messages. For example, a [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d) with its `MajorFunction` set to `IRP_MJ_CREATE` denotes the beginning of a [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e), which contains further fields that specify the details of the request.
+[`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s are always the headers of more
+detailed request messages. For example, a [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)
+with its `MajorFunction` set to `IRP_MJ_CREATE` denotes the beginning of a [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e),
+which contains further fields that specify the details of the request.
 
 The `MinorFunction` further specifies `IRP_MJ_DIRECTORY_CONTROL` requests.
 
 #### Typical Operation
 
-As mentioned previously, the semantics of the `MajorFunction`s isn't necessarily obvious at first glance. For example, one might assume that an `IRP_MJ_CREATE` means "create a new file or directory", however it turns out this is only the case given a specific `CreateDisposition` in the attendant [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e).
+As mentioned previously, the semantics of the `MajorFunction`s isn't necessarily obvious at first glance. For example, one might assume that an `IRP_MJ_CREATE`
+means "create a new file or directory", however it turns out this is only the case given a specific `CreateDisposition` in the attendant
+[`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e).
 
-In fact, `IRP_MJ_CREATE` is sent at the beginning of any operation the server wants to execute. It most commonly just tells the client "create a reference to a file/directory and give it a `FileId`". The client does so and sends that `FileId` back to the server in response, and that `FileId` is then used in subsequent [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s that act on that file/directory, such as reading or writing. Once the operation is complete, the server sends a `IRP_MJ_CLOSE`, which typically means "remove the reference you created previously".
+In fact, `IRP_MJ_CREATE` is sent at the beginning of any operation the server wants to execute. It most commonly just tells the client "create a reference to a
+file/directory and give it a `FileId`". The client does so and sends that `FileId` back to the server in response, and that `FileId` is then used in subsequent
+[`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s that act on that file/
+directory, such as reading or writing. Once the operation is complete, the server sends a `IRP_MJ_CLOSE`, which typically means "remove the reference you created
+previously".
 
-As an example, here is what happens when the client first announces a new folder (named "abcdefg") to redirect (this first set of messages are not [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s, they're just here to make the example realistic):
+As an example, here is what happens when the client first announces a new folder (named "abcdefg") to redirect (this first set of messages are not
+[`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s, they're just here to make the
+example realistic):
 
 ```
 client (c) --> server (s): ClientDeviceListAnnounceRequest { device_count: 1, device_list: [DeviceAnnounceHeader { device_type: RDPDR_DTYP_FILESYSTEM, device_id: 2, preferred_dos_name: "abcdefg", device_data_length: 8, device_data: [97, 98, 99, 100, 101, 102, 103, 0] }] }
@@ -97,19 +133,25 @@ The initial negotiation is complete, and the server now wants to query informati
 s --> c: DeviceCreateRequest { device_io_request: DeviceIoRequest { device_id: 2, file_id: 0, completion_id: 0, major_function: IRP_MJ_CREATE, minor_function: IRP_MN_NONE }, desired_access: FILE_READ_ATTRIBUTES, allocation_size: 0, file_attributes: (empty), shared_access: FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, create_disposition: FILE_OPEN, create_options: FILE_DIRECTORY_FILE, path_length: 0, path: "" }
 ```
 
-We know it's referring to the top level directory we just shared in the `ClientDeviceListAnnounceRequest` by the corresponding `DeviceId` (`2`). The `Path` is an empty string (`""`), hence its requesting we create a reference for the top level directory itself. While `FileId` appears to be set to `0` in this request, this is actually just a junk field that should be ignored. The server is requesting that we create a `FileId` for the top level directory, which we will make `999` and respond with
+We know it's referring to the top level directory we just shared in the `ClientDeviceListAnnounceRequest` by the corresponding `DeviceId` (`2`). The `Path` is an
+empty string (`""`), hence its requesting we create a reference for the top level directory itself. While `FileId` appears to be set to `0` in this request, this
+is actually just a junk field that should be ignored. The server is requesting that we create a `FileId` for the top level directory, which we will make `999` and
+respond with
 
 ```
 c --> s: DeviceCreateResponse { device_io_reply: DeviceIoResponse { device_id: 2, completion_id: 0, io_status: 0 }, file_id: 999, information: FILE_SUPERSEDED }
 ```
 
-The server knows that was in response to that specific `IRP_MJ_CREATE` because of it's corresponding `CompletionId` field. Internally on the client, we've created some data structure that remembers that `FileId` `999` means `(DeviceId: 2, Path: "")` (the top level of the shared directory).
+The server knows that was in response to that specific `IRP_MJ_CREATE` because of it's corresponding `CompletionId` field. Internally on the client, we've created
+some data structure that remembers that `FileId` `999` means `(DeviceId: 2, Path: "")` (the top level of the shared directory).
 
 ```
 s --> c: ServerDriveQueryInformationRequest { device_io_request: DeviceIoRequest { device_id: 2, file_id: 999, completion_id: 0, major_function: IRP_MJ_QUERY_INFORMATION, minor_function: IRP_MN_NONE }, fs_information_class_lvl: FileBasicInformation }
 ```
 
-The server is asking us for information `IRP_MJ_QUERY_INFORMATION` about the tld (`FileId: 999`), which it wants back in the form of the [`FileBasicInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/16023025-8a78-492f-8b96-c873b042ac50) structure. (Here is where we would send a TDP message to gather that information from the client):
+The server is asking us for information `IRP_MJ_QUERY_INFORMATION` about the tld (`FileId: 999`), which it wants back in the form of the
+[`FileBasicInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/16023025-8a78-492f-8b96-c873b042ac50) structure. (Here is where we
+would send a TDP message to gather that information from the client):
 
 ```
 c --> s: ClientDriveQueryInformationResponse { device_io_response: DeviceIoResponse { device_id: 2, completion_id: 0, io_status: 0 }, length: 36, buffer: FileBasicInformation(FileBasicInformation { creation_time: 128271382742968750, last_access_time: 128271382742968750, last_write_time: 128271382742968750, change_time: 128271382742968750, file_attributes: FILE_ATTRIBUTE_DIRECTORY }) }
@@ -121,7 +163,8 @@ The server now has all the information it needs about this top level directory, 
 s --> c: DeviceCloseRequest { device_io_request: DeviceIoRequest { device_id: 2, file_id: 999, completion_id: 0, major_function: IRP_MJ_CLOSE, minor_function: IRP_MN_NONE } }
 ```
 
-There is a case where this `IRP_MJ_CLOSE` would mean "delete the file/directory" (discussed below), but in this specific case it just means "this set of operations is over, remove the `FileId` reference on the client".
+There is a case where this `IRP_MJ_CLOSE` would mean "delete the file/directory" (discussed below), but in this specific case it just means "this set of operations
+is over, remove the `FileId` reference on the client".
 
 ```
 c --> s: DeviceCloseResponse { device_io_response: DeviceIoResponse { device_id: 2, completion_id: 0, io_status: 0 }, padding: 0 }
@@ -137,7 +180,10 @@ A similar process would then take place for other operations, for example a read
 
 ## RDP --> TDP Translation
 
-The following section walks through each possible [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d) (`MajorFunction`) and describe the TDP <--> RDP interface that we will use to handle them. As mentioned in the introduction, we will be considering FreeRDP as the canonical implementation, whose entrypoint for handling [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s can be found [here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L691-L749).
+The following section walks through each possible [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)
+(`MajorFunction`) and describe the TDP <--> RDP interface that we will use to handle them. As mentioned in the introduction, we will be considering FreeRDP as the
+canonical implementation, whose entrypoint for handling [`Device I/O Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d)s
+can be found [here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L691-L749).
 
 #### `IRP_MJ_CREATE`
 
@@ -145,13 +191,23 @@ RDP request: [`Device Create Request`](https://docs.microsoft.com/en-us/openspec
 RDP response: [`Device Create Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76)
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L151)
 
-Note that the `SharedAccess` and `DesiredAccess` fields of the [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e) will be ignored. `SharedAccess` is related to file locking, which typically only has an "advisory" (as opposed to "mandatory") implementation on Unix-based OS's and we will assume is unimportant ([more here](https://www.thegeekstuff.com/2012/04/linux-file-locking-types/)). In FreeRDP `DesiredAccess` essentially sets [whether or not the file is writeable](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L702). Because file handles in the browser are always writeable, we will simply ignore this field.
+Note that the `SharedAccess` and `DesiredAccess` fields of the [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e)
+will be ignored. `SharedAccess` is related to file locking, which typically only has an "advisory" (as opposed to "mandatory") implementation on Unix-based OS's
+and we will assume is unimportant ([more here](https://www.thegeekstuff.com/2012/04/linux-file-locking-types/)). In FreeRDP `DesiredAccess` essentially sets
+[whether or not the file is writeable](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L702). Because
+file handles in the browser are always writeable, we will simply ignore this field.
 
-Our client will start by taking the `DeviceId`, `CompletionId`, and `Path` fields from the [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e) and sending them on to the client in their corresponding fields in the `Shared Directory Info Request`. The algorithm will work as does the meat of the FreeRDP algorithm (found [here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207-L332)). where `GetFileAttributesW` is substituted with `Shared Directory Info Request`, and `CreateDirectoryW` and `CreateFileW` are substituted with a `Shared Directory Create Request` (roughly speaking. Note that our `Shared Directory Create Request` fails if the file/directory already exists whereas `CreateDirectoryW` and `CreateFileW` don't necessarily, and so our algorithm should account for this).
+Our client will start by taking the `DeviceId`, `CompletionId`, and `Path` fields from the [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e)
+and sending them on to the client in their corresponding fields in the `Shared Directory Info Request`. The algorithm will work as does the meat of the FreeRDP
+algorithm (found [here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207-L332)). where
+`GetFileAttributesW` is substituted with `Shared Directory Info Request`, and `CreateDirectoryW` and `CreateFileW` are substituted with a `Shared Directory Create Request`
+(roughly speaking. Note that our `Shared Directory Create Request` fails if the file/directory already exists whereas `CreateDirectoryW` and `CreateFileW` don't
+necessarily, and so our algorithm should account for this).
 
 ##### `file_id_cache`
 
-Upon the successful execution of the algorithmic translation, our client will also create an entry in an internal `file_id_cache` indexed by `FileId`, with an object that looks like:
+Upon the successful execution of the algorithmic translation, our client will also create an entry in an internal `file_id_cache` indexed by `FileId`, with an
+object that looks like:
 
 ```json
 {
@@ -162,7 +218,10 @@ Upon the successful execution of the algorithmic translation, our client will al
 }
 ```
 
-This is our version of the `IRP_MJ_CREATE` semantics of "create a reference to a file/directory and give it a `FileId`" discussed above, and will be used in responding to other `MajorFunctions` as needed. All other `MajorFunctions` should begin by checking that an entry at `FileId` exists in this cache, and return an [`Device Close Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5) with `IoStatus` set to `STATUS_UNSUCCESSFUL` if it does not.
+This is our version of the `IRP_MJ_CREATE` semantics of "create a reference to a file/directory and give it a `FileId`" discussed above, and will be used in
+responding to other `MajorFunctions` as needed. All other `MajorFunctions` should begin by checking that an entry at `FileId` exists in this cache, and return an
+[`Device Close Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5) with `IoStatus` set to
+`STATUS_UNSUCCESSFUL` if it does not.
 
 #### `IRP_MJ_CLOSE`
 
@@ -170,7 +229,9 @@ RDP request: [`Device Close Request`](https://docs.microsoft.com/en-us/openspecs
 RDP response: [`Device Close Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5)
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L236)
 
-If file's `file_id_cache` entry has `delete_pending == true`, we'll send a `Shared Directory Delete Request` to the client and it's resultant `Shared Directory Delete Response` or `Shared Directory Error` will be translated into an appropriate [`Device Close Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5). The `file_id_cache` entry then must be deleted (even if the `Shared Directory Delete Request` fails).
+If file's `file_id_cache` entry has `delete_pending == true`, we'll send a `Shared Directory Delete Request` to the client and it's resultant `Shared Directory Delete Response`
+or `Shared Directory Error` will be translated into an appropriate [`Device Close Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5).
+The `file_id_cache` entry then must be deleted (even if the `Shared Directory Delete Request` fails).
 
 #### `IRP_MJ_READ`
 
@@ -178,7 +239,9 @@ RDP request: [`Device Read Request`](https://docs.microsoft.com/en-us/openspecs/
 RDP response: [`Device Read Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9)
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L268)
 
-The `Length` and `Offset` fields should be passed on to their corresponding fields in a `Shared Directory Read Request` and sent to the client, and corresponding fields in the `Shared Directory Read Response` or `Shared Directory Error` the client sends back should be packaged into a [`Device Read Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9) and retuned to the RDP server.
+The `Length` and `Offset` fields should be passed on to their corresponding fields in a `Shared Directory Read Request` and sent to the client, and corresponding
+fields in the `Shared Directory Read Response` or `Shared Directory Error` the client sends back should be packaged into a
+[`Device Read Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9) and retuned to the RDP server.
 
 #### `IRP_MJ_WRITE`
 
@@ -186,7 +249,10 @@ RDP request: [`Device Write Request`](https://docs.microsoft.com/en-us/openspecs
 RDP response: [`Device Write Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/58160a47-2379-4c4a-a99d-24a1a666c02a)
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L326)
 
-The `Offset`, `Length`, and `WriteData` fields should be translated to their corresponding fields in a `Shared Directory Write Request` and passed to the client, and the corresponding fields in the `Shared Directory Write Response` or `Shared Directory Error` should be translated into an [`Device Write Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/58160a47-2379-4c4a-a99d-24a1a666c02a) and sent back to the RDP server.
+The `Offset`, `Length`, and `WriteData` fields should be translated to their corresponding fields in a `Shared Directory Write Request` and passed to the client,
+and the corresponding fields in the `Shared Directory Write Response` or `Shared Directory Error` should be translated into an
+[`Device Write Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/58160a47-2379-4c4a-a99d-24a1a666c02a) and sent back to the RDP
+server.
 
 #### `IRP_MJ_QUERY_INFORMATION`
 
@@ -194,7 +260,10 @@ RDP request: [`Server Drive Query Information Request`](https://docs.microsoft.c
 RDP response: [`Client Drive Query Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4)
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L373)
 
-This request asks for information about a file or directory in the form of [`FileBasicInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/16023025-8a78-492f-8b96-c873b042ac50), [`FileStandardInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/5afa7f66-619c-48f3-955f-68c4ece704ae), or [`FileAttributeTagInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/d295752f-ce89-4b98-8553-266d37c84f0e), which collectively ask for the following fields, mapped to the `Shared Directory Info Response` fields we will fill them out with the following mapping to `File System Object` fields:
+This request asks for information about a file or directory in the form of [`FileBasicInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/16023025-8a78-492f-8b96-c873b042ac50),
+[`FileStandardInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/5afa7f66-619c-48f3-955f-68c4ece704ae), or
+[`FileAttributeTagInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/d295752f-ce89-4b98-8553-266d37c84f0e), which collectively ask
+for the following fields, mapped to the `Shared Directory Info Response` fields we will fill them out with the following mapping to `File System Object` fields:
 
 - `CreationTime` --> `last_modified`
 - `LastAccessTime` --> `last_modified`
@@ -213,15 +282,30 @@ RDP Request: [`Server Drive Set Information Request`](https://docs.microsoft.com
 RDP Response: [`Client Drive Set Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970)
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L404)
 
-This message is sent by the RDP server to the client in order to modify a file's metadata, truncate its size, or mark it for deletion. Which of these operations its intended for is determined by the `FsInformationClass` field, which will determine our response (also see [FreeRDP' implementation](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L579) for reference):
+This message is sent by the RDP server to the client in order to modify a file's metadata, truncate its size, or mark it for deletion. Which of these operations
+its intended for is determined by the `FsInformationClass` field, which will determine our response (also see
+[FreeRDP' implementation](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L579) for reference):
 
-[`FileBasicInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/16023025-8a78-492f-8b96-c873b042ac50): This type of request is for setting file metadata like creation time, last access time, etc. We don't have this level of access to file attributes in the browser. Fortunately, this degree of control isn't critical for the basic application of sharing a directory of standard files, so we will just ignore these types of requests and send back a [`Client Drive Set Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970) with `IoStatus = STATUS_SUCCESS`.
+[`FileBasicInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/16023025-8a78-492f-8b96-c873b042ac50): This type of request is for
+setting file metadata like creation time, last access time, etc. We don't have this level of access to file attributes in the browser. Fortunately, this degree of
+control isn't critical for the basic application of sharing a directory of standard files, so we will just ignore these types of requests and send back a
+[`Client Drive Set Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970) with
+`IoStatus = STATUS_SUCCESS`.
 
-[`FileEndOfFileInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/75241cca-3167-472f-8058-a52d77c6bb17) or [`FileAllocationInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/0201c69b-50db-412d-bab3-dd97aeede13b): This is a "truncate" request. It's not quite clear how this might be implemented on the client. I've determined empirically that we can just send back a [`Client Drive Set Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970) with `IoStatus = STATUS_SUCCESS` here without doing anything, and nothing breaks for editing basic text files, so we will start with that and reassess if we run into problems.
+[`FileEndOfFileInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/75241cca-3167-472f-8058-a52d77c6bb17) or
+[`FileAllocationInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/0201c69b-50db-412d-bab3-dd97aeede13b): This is a "truncate"
+request. It's not quite clear how this might be implemented on the client. I've determined empirically that we can just send back a
+[`Client Drive Set Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970) with
+`IoStatus = STATUS_SUCCESS` here without doing anything, and nothing breaks for editing basic text files, so we will start with that and reassess if we run into
+problems.
 
-[`FileDispositionInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/12c3dd1c-14f6-4229-9d29-75fb2cb392f6): This type of message can mark a file or directory for deletion, which we will do by marking the corresponding entry in `file_id_cache` with `delete_pending: true`. The actual deletion is not carried out here (see `IRP_MJ_CLOSE`).
+[`FileDispositionInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/12c3dd1c-14f6-4229-9d29-75fb2cb392f6): This type of message can
+mark a file or directory for deletion, which we will do by marking the corresponding entry in `file_id_cache` with `delete_pending: true`. The actual deletion is
+not carried out here (see `IRP_MJ_CLOSE`).
 
-[`FileRenameInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/1d2673a8-8fb9-4868-920a-775ccaa30cf8): Sent to rename a file. If `ReplaceIfExists == FALSE`, start the operation with a `Shared Directory Info Request` for the `FileName` and only continue if we receive a "resource does not exist" `Shared Directory Error`. Send a `Shared Directory Move Request`, using `file_id_cache.path` for `original_path` and `FileName` for `new_path`.
+[`FileRenameInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/1d2673a8-8fb9-4868-920a-775ccaa30cf8): Sent to rename a file. If
+`ReplaceIfExists == FALSE`, start the operation with a `Shared Directory Info Request` for the `FileName` and only continue if we receive a "resource does not
+exist" `Shared Directory Error`. Send a `Shared Directory Move Request`, using `file_id_cache.path` for `original_path` and `FileName` for `new_path`.
 
 #### `IRP_MJ_DIRECTORY_CONTROL`
 
@@ -229,15 +313,44 @@ RDP Request: [`Server Drive Query Directory Request`](https://docs.microsoft.com
 RDP Response: [`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140)
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L650)
 
-The above RDP request and response correspond to `MajorFunction = IRP_MJ_DIRECTORY_CONTROL`, `MinorFunction = IRP_MN_QUERY_DIRECTORY`. There is another possible `MinorFunction` called `IRP_MN_NOTIFY_CHANGE_DIRECTORY`, [but like FreeRDP we will ignore it](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L660).
+The above RDP request and response correspond to `MajorFunction = IRP_MJ_DIRECTORY_CONTROL`, `MinorFunction = IRP_MN_QUERY_DIRECTORY`. There is another possible
+`MinorFunction` called `IRP_MN_NOTIFY_CHANGE_DIRECTORY`,
+[but like FreeRDP we will ignore it](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L660).
 
-The way these requests work is somewhat odd -- first, a directory will be "opened" with an `IRP_MJ_OPEN` (per usual), then it will receive a series of `IRP_MJ_DIRECTORY_CONTROL` requests, each asking for an individual item in the identified directory, before being closed with an `IRP_MJ_CLOSE` (also per usual). The first of the series of requests will have `InitialQuery` set to `TRUE`, while subsequent requests will have it set to `FALSE`. Unlike most RDP messages, [`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140)s do allow for [dot directory names](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/fccd0313-0364-45bd-b75c-924fd6a5662f), and when running FreeRDP on MacOS the first two [`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140)s are always for `"."` and `".."`.
+The way these requests work is somewhat odd -- first, a directory will be "opened" with an `IRP_MJ_OPEN` (per usual), then it will receive a series of
+`IRP_MJ_DIRECTORY_CONTROL` requests, each asking for an individual item in the identified directory, before being closed with an `IRP_MJ_CLOSE` (also per usual).
+The first of the series of requests will have `InitialQuery` set to `TRUE`, while subsequent requests will have it set to `FALSE`. Unlike most RDP messages,
+[`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140)s do allow
+for [dot directory names](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/fccd0313-0364-45bd-b75c-924fd6a5662f), and when running FreeRDP on
+MacOS the first two
+[`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140)s are always
+for `"."` and `".."`.
 
-Upon receipt of an [`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1) with `InitialQuery` set to `TRUE`, we will extract the `path` from the `file_id_cache` and execute a `Shared Directory List Request`, whose `Shared Directory List Response` will be stored in `file_id_cache.fsos`. (If the client instead responds with a "resource does not exist" `Shared Directory Error`, we must send back a `Client I/O Response` with `IoStatus` set to `STATUS_NO_SUCH_FILE`). The client can then respond with a [`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140) for `"."`.
+Upon receipt of an [`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1)
+with `InitialQuery` set to `TRUE`, we will extract the `path` from the `file_id_cache` and execute a `Shared Directory List Request`, whose `Shared Directory List Response`
+will be stored in `file_id_cache.fsos`. (If the client instead responds with a "resource does not exist" `Shared Directory Error`, we must send back a `Client I/O Response`
+with `IoStatus` set to `STATUS_NO_SUCH_FILE`). The client can then respond with a [`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140) for `"."`.
 
-We will now expect a subsequent [`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1) with `InitialQuery` now set to `FALSE`, to which we'll respond back with a [`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140) for `".."` with a set of default values (listed below). On subsequent requests, we will take `file_id_cache.fsos[file_id_cache.fsos_index]` and send it back in a [`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140), incrementing `file_id_cache.fsos_index` each time. Finally, we'll recieve a [`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1) for which we have no additional item to report back, at which point we will send back a `Client I/O Response` with `IoStatus` set to `STATUS_NO_SUCH_FILE`, thus ending the sequence (at which point the server will send us an `IRP_MJ_CLOSE` for this `FileId`).
+We will now expect a subsequent
+[`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1) with
+`InitialQuery` now set to `FALSE`, to which we'll respond back with a
+[`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140) for `".."`
+with a set of default values (listed below). On subsequent requests, we will take `file_id_cache.fsos[file_id_cache.fsos_index]` and send it back in a
+[`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140),
+incrementing `file_id_cache.fsos_index` each time. Finally, we'll recieve a
+[`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1) for which we
+have no additional item to report back, at which point we will send back a `Client I/O Response` with `IoStatus` set to `STATUS_NO_SUCH_FILE`, thus ending the
+sequence (at which point the server will send us an `IRP_MJ_CLOSE` for this `FileId`).
 
-[`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1) can ask for information back in any of the following formats: [`FileDirectoryInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/b38bf518-9057-4c88-9ddd-5e2d3976a64b), [`FileFullDirectoryInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e8d926d1-3a22-4654-be9c-58317a85540b), [`FileBothDirectoryInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/270df317-9ba5-4ccb-ba00-8d22be139bc5), or [`FileNamesInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/a289f7a8-83d2-4927-8c88-b2d328dde5a5) (handled by FreeRDP starting [here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L796)). Collectively these data structures will be filled out with the following mapping to `File System Object` fields. In case such fields don't exist (such as for the `".."` directory), I've included a default mapping value as well:
+[`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1) can ask for
+information back in any of the following formats:
+[`FileDirectoryInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/b38bf518-9057-4c88-9ddd-5e2d3976a64b),
+[`FileFullDirectoryInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e8d926d1-3a22-4654-be9c-58317a85540b),
+[`FileBothDirectoryInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/270df317-9ba5-4ccb-ba00-8d22be139bc5), or
+[`FileNamesInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/a289f7a8-83d2-4927-8c88-b2d328dde5a5) (handled by FreeRDP starting
+[here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L796)). Collectively these data
+structures will be filled out with the following mapping to `File System Object` fields. In case such fields don't exist (such as for the `".."` directory), I've
+included a default mapping value as well:
 
 - `CreationTime` --> `last_modified`, 0 (default)
 - `LastAccessTime` --> `last_modified`, 0
@@ -258,27 +371,38 @@ RDP request: [`Server Drive Query Volume Information Request`](https://docs.micr
 RDP response: [`Client Drive Query Volume Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/fbdc7db8-a268-4420-8b5e-ce689ad1d4ac)
 FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L442)
 
-This request comes to us as a in search of low level information about the folder we are sharing. This information is not available to us via the browser, so there is no corresponding TDP message in this case. We will simply follow what FreeRDP does [here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L442-L581). We will emulate [`GetDiskFreeSpaceW`](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1025-L1041) by using [`UINT32_MAX`] for each of `lpSectorsPerCluster`, `lpNumberOfFreeClusters`, and `lpTotalNumberOfClusters`, and `1` for `lpBytesPerSector` (taken from [`GetDiskFreeSpaceA`](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1007-L1023)).
+This request comes to us as a in search of low level information about the folder we are sharing. This information is not available to us via the browser, so there
+is no corresponding TDP message in this case. We will simply follow what FreeRDP does
+[here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L442-L581). We will emulate
+[`GetDiskFreeSpaceW`](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1025-L1041) by using
+[`UINT32_MAX`] for each of `lpSectorsPerCluster`, `lpNumberOfFreeClusters`, and `lpTotalNumberOfClusters`, and `1` for `lpBytesPerSector` (taken from
+[`GetDiskFreeSpaceA`](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1007-L1023)).
 
-Hopefully this is good enough to keep everything running smoothly. We will need to experiment manually to check that this approach doesn't cause any obvious problems, and reassess if it does.
+Hopefully this is good enough to keep everything running smoothly. We will need to experiment manually to check that this approach doesn't cause any obvious
+problems, and reassess if it does.
 
 #### `IRP_MJ_DEVICE_CONTROL`
 
-This is effectively a no-op [in FreeRDP](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684). We have an implementation of it in order to handle our smartcard simulation, but it's irrelevant to this document.
+This is effectively a no-op [in FreeRDP](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684).
+We have an implementation of it in order to handle our smartcard simulation, but it's irrelevant to this document.
 
 #### `IRP_MJ_SET_VOLUME_INFORMATION`
 
-This is not supported by FreeRDP and causes it to execute [the `default` case](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L742-L745) which we will emulate.
+This is not supported by FreeRDP and causes it to execute
+[the `default` case](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L742-L745) which we will
+emulate.
 
 ## TDP File Shared Directory Extension
 
-Extends the TDP protocol, the rest of which is specified [here](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md). Note that "file" in the following context should be taken to mean "file or directory".
+Extends the TDP protocol, the rest of which is specified [here](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md). Note
+that "file" in the following context should be taken to mean "file or directory".
 
 #### 11 - Shared Directory Announce
 
 | message type (11) | completion_id uint32 | directory_id uint32 |
 
-This message announces a new directory to be shared over TDP. `directory_id` must be a unique identifier. Attempting to share multiple different directories using the same `directory_id` is undefined behavior.
+This message announces a new directory to be shared over TDP. `directory_id` must be a unique identifier. Attempting to share multiple different directories using
+the same `directory_id` is undefined behavior.
 
 #### 12 - Shared Directory Acknowledge
 
@@ -296,7 +420,10 @@ Acknowledges a `Shared Directory Announce` was successfully received.
 1. resource does not exist
 2. resource already exists
 
-For now, all errors will be unspecified, and translated into [`NTSTATUS::STATUS_UNSUCCESSFUL`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55) over RDP. Later, we can add more specific error messages for more specific RDP error handling, [as they do in FreeRDP](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L67-L132).
+For now, all errors will be unspecified, and translated into
+[`NTSTATUS::STATUS_UNSUCCESSFUL`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55) over RDP. Later, we
+can add more specific error messages for more specific RDP error handling,
+[as they do in FreeRDP](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L67-L132).
 
 #### 14 - Shared Directory Info Request
 
@@ -304,15 +431,20 @@ For now, all errors will be unspecified, and translated into [`NTSTATUS::STATUS_
 | message type (14) | directory_id uint32 | completion_id uint32 | path_length uint32 | path []byte |
 ```
 
-This message is sent from the server to the client to request information about a file. The server will be expecting a `Shared Directory Info Response` or `Shared Directory Error` in response. If a file or directory at `path` does not exist, the client should respond with a "resource does not exist" `Shared Directory Error`.
+This message is sent from the server to the client to request information about a file. The server will be expecting a `Shared Directory Info Response` or
+`Shared Directory Error` in response. If a file or directory at `path` does not exist, the client should respond with a "resource does not exist"
+`Shared Directory Error`.
 
 `directory_id` is the `directory_id` of the top level directory being shared, as specified in a previous `Announce Shared Directory` message.
 
-`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Info Response` or `Shared Directory Error` response.
+`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Info Response` or `Shared Directory Error`
+response.
 
 `path_length` is the length in bytes of the `path`
 
-`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".", "..". Absolute paths, or those containing path elements with either of the special characters, will result in an error. Info can be requested for the root-level directory by setting `path_length: 0` and `path: ""`.
+`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".",
+"..". Absolute paths, or those containing path elements with either of the special characters, will result in an error. Info can be requested for the root-level
+directory by setting `path_length: 0` and `path: ""`.
 
 #### 15 - Shared Directory Info Response
 
@@ -332,57 +464,69 @@ This message is sent by the client to the server in response to a `Shared Direct
 | message type (16) | directory_id uint32 | completion_id uint32 | file_type uint32 | path_length uint32 | path []byte |
 ```
 
-This message is sent by the server to the client to request the creation of a new file or directory. If a filesystem object at `path` already exists, the client should respond with a "resource already exists" `Shared Directory Error`.
+This message is sent by the server to the client to request the creation of a new file or directory. If a filesystem object at `path` already exists, the client
+should respond with a "resource already exists" `Shared Directory Error`.
 
 `directory_id` is the `directory_id` of the top level directory being shared, as specified in a previous `Announce Shared Directory` message.
 
-`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Create Response` or `Shared Directory Error` response.
+`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Create Response` or `Shared Directory Error`
+response.
 
 `file_type` matches the specification in `Shared Directory Info Response`.
 
 `path_length` is the length in bytes of the `path`.
 
-`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".", "..". Absolute paths, or those containing path elements with either of the special characters, will result in an error.
+`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".",
+"..". Absolute paths, or those containing path elements with either of the special characters, will result in an error.
 
 #### 17 - Shared Directory Create Response
 
 | message type (17) | completion_id uint32 |
 
-This message is sent by the client to the server to acknowledge a `Shared Directory Create Request` was successfully executed. A `Shared Directory Create Request` that fails should respond with an "operation failed" `Shared Directory Error`.
+This message is sent by the client to the server to acknowledge a `Shared Directory Create Request` was successfully executed. A `Shared Directory Create Request`
+that fails should respond with an "operation failed" `Shared Directory Error`.
 
 #### 18 - Shared Directory Delete Request
 
 | message type (18) | directory_id uint32 | completion_id uint32 | path_length uint32 | path []byte |
 
-This message is sent by the server to the client to request the deletion of a file or directory at `path`. If the operation fails, an "operation failed" `Shared Directory Error` should be returned. If the file or directory does not exist, a "resource does not exist" `Shared Directory Error` should be returned.
+This message is sent by the server to the client to request the deletion of a file or directory at `path`. If the operation fails, an "operation failed"
+`Shared Directory Error` should be returned. If the file or directory does not exist, a "resource does not exist" `Shared Directory Error` should be returned.
 
 `directory_id` is the `directory_id` of the top level directory being shared, as specified in a previous `Announce Shared Directory` message.
 
-`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Delete Response` or `Shared Directory Error` response.
+`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Delete Response` or `Shared Directory Error`
+response.
 
 `path_length` is the length in bytes of the `path`.
 
-`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".", "..". Absolute paths, or those containing path elements with either of the special characters, will result in an error.
+`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".",
+"..". Absolute paths, or those containing path elements with either of the special characters, will result in an error.
 
 #### 19 - Shared Directory Delete Response
 
 | message type (19) | completion_id uint32 |
 
-This message is sent by the client to the server to acknowledge a `Shared Directory Delete Request` was successfully executed. A `Shared Directory Create Request` that fails should respond with an appropriate `Shared Directory Error`.
+This message is sent by the client to the server to acknowledge a `Shared Directory Delete Request` was successfully executed. A `Shared Directory Create Request`
+that fails should respond with an appropriate `Shared Directory Error`.
 
 #### 20 - Shared Directory Read Request
 
 | message type (20) | directory_id uint32 | completion_id uint32 | path_length uint32 | path []byte | offset uint64 | length uint32 |
 
-This message is sent by the server to the client to request a maximum of `length` bytes be read from the file at `path`, starting at byte offset `offset`. If `offset` is greater than the full width of the file (or for any other read failure), an "operation failed" `Shared Directory Error` should be returned. If the file does not exist or the path is to a directory, a "resource does not exist" `Shared Directory Error` should be returned.
+This message is sent by the server to the client to request a maximum of `length` bytes be read from the file at `path`, starting at byte offset `offset`. If
+`offset` is greater than the full width of the file (or for any other read failure), an "operation failed" `Shared Directory Error` should be returned. If the file
+does not exist or the path is to a directory, a "resource does not exist" `Shared Directory Error` should be returned.
 
 `directory_id` is the `directory_id` of the top level directory being shared, as specified in a previous `Announce Shared Directory` message.
 
-`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Read Response` or `Shared Directory Error` response.
+`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Read Response` or `Shared Directory Error`
+response.
 
 `path_length` is the length in bytes of the `path`.
 
-`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".", "..". Absolute paths, or those containing path elements with either of the special characters, will result in an error.
+`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".",
+"..". Absolute paths, or those containing path elements with either of the special characters, will result in an error.
 
 `offset` specifies the file offset where the read operation is performed.
 
@@ -404,15 +548,19 @@ This message is sent by the client to the server in response to a `Shared Direct
 
 | message type (22) | directory_id uint32 | completion_id uint32 | path_length uint32 | path []byte | offset uint64 | write_data_length uint32 | write_data []byte |
 
-This message is sent by the server to the client to request `write_data` be written to the file specified by `path`. If `offset` is greater than the full width of the file (or for any other read failure), an "operation failed" `Shared Directory Error` should be returned. If the file does not exist or the path is to a directory, a "resource does not exist" `Shared Directory Error` should be returned.
+This message is sent by the server to the client to request `write_data` be written to the file specified by `path`. If `offset` is greater than the full width of
+the file (or for any other read failure), an "operation failed" `Shared Directory Error` should be returned. If the file does not exist or the path is to a
+directory, a "resource does not exist" `Shared Directory Error` should be returned.
 
 `directory_id` is the `directory_id` of the top level directory being shared, as specified in a previous `Announce Shared Directory` message.
 
-`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Write Response` or `Shared Directory Error` response.
+`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Write Response` or `Shared Directory Error`
+response.
 
 `path_length` is the length in bytes of the `path`.
 
-`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".", "..". Absolute paths, or those containing path elements with either of the special characters, will result in an error.
+`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".",
+"..". Absolute paths, or those containing path elements with either of the special characters, will result in an error.
 
 `offset` specifies the file offset where the write operation should start from.
 
@@ -434,9 +582,12 @@ This message is sent by the client to the server in response to a `Shared Direct
 
 | message type (24) | completion_id uint32 | original_path_length uint32 | original_path []byte | new_path_length uint32 | new_path []byte |
 
-This message is sent by the server to the client to request a file or directory be moved (or renamed). It should be expected to work like the linux [`mv`](https://linux.die.net/man/1/mv) utility (with no flags), returning either a `Shared Directory Move Response` to denote success, or a "resource does not exist" `Shared Directory Error` if either of the paths is invalid.
+This message is sent by the server to the client to request a file or directory be moved (or renamed). It should be expected to work like the linux
+[`mv`](https://linux.die.net/man/1/mv) utility (with no flags), returning either a `Shared Directory Move Response` to denote success, or a "resource does not
+exist" `Shared Directory Error` if either of the paths is invalid.
 
-`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Move Response` or `Shared Directory Error` response.
+`completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Move Response` or `Shared Directory Error`
+response.
 
 `original_path_length` is the length of `original_path`
 
@@ -458,13 +609,16 @@ This message is sent by the client to the server in response to a `Shared Direct
 
 | message type (25) | completion_id uint32 | path_length uint32 | path []byte |
 
-This message is sent by the server to the client to request the contents of a directory. If the `path` is to a file or does not exist, the client should return a "resource does not exist" `Shared Directory Error`, otherwise it should return a `Shared Directory List Response`.
+This message is sent by the server to the client to request the contents of a directory. If the `path` is to a file or does not exist, the client should return a
+"resource does not exist" `Shared Directory Error`, otherwise it should return a `Shared Directory List Response`.
 
 `completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory List Response` or `Shared Directory Error` response.
 
 `path_length` is the length in bytes of the `path`
 
-`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".", "..". Absolute paths, or those containing path elements with either of the special characters, will result in an error. Info can be requested for the root-level directory by setting `path_length: 0` and `path: ""`.
+`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".",
+"..". Absolute paths, or those containing path elements with either of the special characters, will result in an error. Info can be requested for the root-level
+directory by setting `path_length: 0` and `path: ""`.
 
 #### 27 - Shared Directory List Response
 
@@ -478,7 +632,8 @@ This message is sent by the client to the server in response to a `Shared Direct
 
 `fso_list_length` is the number of entries in the `fso_list`.
 
-`fso_list` is a list of `fso` objects representing all the files and directories in the directory specified by the `path` variable in the originating `Shared Directory List Request`.
+`fso_list` is a list of `fso` objects representing all the files and directories in the directory specified by the `path` variable in the originating
+`Shared Directory List Request`.
 
 ##### File System Object (fso)
 
@@ -488,13 +643,18 @@ This message is sent by the client to the server in response to a `Shared Direct
 
 `size` is the size of the file in bytes
 
-`file_type`s currently represents only the simple file/directory distinction. Later it may be modified to support more types such as those corresponding to the types available in RDP's [File Attributes](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca28ec38-f155-4768-81d6-4bfeb8586fc9) fields:
+`file_type`s currently represents only the simple file/directory distinction. Later it may be modified to support more types such as those corresponding to the
+types available in RDP's [File Attributes](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca28ec38-f155-4768-81d6-4bfeb8586fc9) fields:
 
 0. file
 1. directory
 
-The design of this message is constrained by [what information is made available to us by the browser](https://developer.mozilla.org/en-US/docs/Web/API/File) and which [File Information Classes](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1) are potentially requested by RDP.
+The design of this message is constrained by [what information is made available to us by the browser](https://developer.mozilla.org/en-US/docs/Web/API/File) and
+which [File Information Classes](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1) are potentially
+requested by RDP.
 
 `path_length` is the length in bytes of the `path`
 
-`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excluding special path characters ".", "..". Absolute paths, or those containing path elements with either of the special characters, are considered an error. A root-level shared directory is specified by setting `path_length: 0` and `path: ""`.
+`path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excluding special path characters ".",
+"..". Absolute paths, or those containing path elements with either of the special characters, are considered an error. A root-level shared directory is specified
+by setting `path_length: 0` and `path: ""`.
