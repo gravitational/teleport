@@ -76,5 +76,6 @@ ssh.config
 /teleport
 /tsh
 
-# Go workspace file
+# Go workspace files
 go.work
+go.work.sum
