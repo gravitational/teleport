@@ -19,7 +19,7 @@ use iso7816::command::Command;
 use iso7816::response::Status;
 use iso7816_tlv::ber::{Tag, Tlv, Value};
 use rdp::model::error::*;
-use rsa::pkcs1::FromRsaPrivateKey;
+use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::{BigUint, PublicKeyParts, RsaPrivateKey};
 use std::convert::TryFrom;
 use std::io::{Cursor, Read};
@@ -209,8 +209,8 @@ impl<const S: usize> Card<S> {
     /// to decrypt. Most crypto libraries don't directly expose RSA decryption without padding, as
     /// it's easy to build insecure crypto systems. Thankfully for us, this decryption is just a single
     /// modpow operation which is suppored by RustCrypto.
-    fn sign_auth_challenge(&self, challenge: &Vec<u8>) -> Vec<u8> {
-        let c = BigUint::from_bytes_be(challenge.as_slice());
+    fn sign_auth_challenge(&self, challenge: &[u8]) -> Vec<u8> {
+        let c = BigUint::from_bytes_be(challenge);
         let plain_text = c
             .modpow(self.piv_auth_key.d(), self.piv_auth_key.n())
             .to_bytes_be();
@@ -414,7 +414,7 @@ fn tlv_tag(val: u8) -> RdpResult<Tag> {
 }
 
 fn hex_data<const S: usize>(cmd: &Command<S>) -> String {
-    to_hex(&cmd.data().to_vec())
+    to_hex(cmd.data())
 }
 
 fn to_hex(bytes: &[u8]) -> String {
