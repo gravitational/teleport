@@ -320,12 +320,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.CachePolicy = *cachePolicy
 
-	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC
-	// algorithms.
+	// Apply insecure_no_tls
 	if (fc.DisableTLS != nil {
 		cfg.DisableTLS = fc.DisableTLS
 	}
 	
+	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC
+	// algorithms.
 	if len(fc.CipherSuites) > 0 {
 		cipherSuites, err := utils.CipherSuiteMapping(fc.CipherSuites)
 		if err != nil {
