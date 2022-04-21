@@ -181,7 +181,7 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 		return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint", endpoint)
 	}
 
-	// Split to parts to extract details. They look like this in general:
+	// Split into parts to extract details. They look like this in general:
 	//   <part>.<part>.<part>.<short-region>.cache
 	//
 	// Note that ElastiCache uses short region codes like "use1".
@@ -287,7 +287,7 @@ func isElasticCacheNodeID(part string) bool {
 	return err == nil
 }
 
-// trimElastiCacheNodeID trims "-<node-id>" suffixe from input.
+// trimElastiCacheNodeID trims "-<node-id>" suffix from input.
 func trimElastiCacheNodeID(input string) string {
 	if parts := strings.Split(input, "-"); len(parts) > 0 {
 		lastPart := parts[len(parts)-1]

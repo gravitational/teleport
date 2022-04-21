@@ -286,8 +286,13 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 
 // newElastiCacheDatabase returns a new ElastiCache database.
 func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, metadata *types.AWS, endpoint *elasticache.Endpoint, endpointType ElastiCacheEndpointType) (types.Database, error) {
+	name := aws.StringValue(cluster.ReplicationGroupId)
+	if endpointType == ElastiCacheReaderEndpoint {
+		name = fmt.Sprintf("%s-%s", name, endpointType)
+	}
+
 	return types.NewDatabaseV3(types.Metadata{
-		Name:        aws.StringValue(cluster.ReplicationGroupId),
+		Name:        name,
 		Description: fmt.Sprintf("ElastiCache in %v (%v endpoint)", metadata.Region, endpointType),
 		Labels:      labelsFromElastiCacheCluster(cluster, metadata, endpointType),
 	}, types.DatabaseSpecV3{

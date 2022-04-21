@@ -438,6 +438,7 @@ func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *Session) (*tls.Config, er
 			return nil, trace.BadParameter("invalid server CA certificate")
 		}
 	}
+
 	return tlsConfig, nil
 }
 

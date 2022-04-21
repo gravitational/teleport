@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 
 	"github.com/go-redis/redis/v8"
@@ -236,7 +237,7 @@ func (e *Engine) process(ctx context.Context) error {
 		// Function below maps errors that should be returned to the
 		// client as value or return them as err if we should terminate
 		// the session.
-		value, err := processSeverResponse(cmd, err)
+		value, err := processServerResponse(cmd, err)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -263,15 +264,18 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 	return redis.NewCmd(ctx, val...), nil
 }
 
-// processSeverResponse takes server response and an error returned from go-redis and returns
+// processServerResponse takes server response and an error returned from go-redis and returns
 // "terminal" errors as second value (connection should be terminated when this happens)
 // or returns error/value as the first value. Then value should be sent back to
 // the client without terminating the connection.
-func processSeverResponse(cmd *redis.Cmd, err error) (interface{}, error) {
+func processServerResponse(cmd *redis.Cmd, err error) (interface{}, error) {
 	value, cmdErr := cmd.Result()
 	if err == nil {
 		// If the server didn't return any error use cmd.Err() as server error.
 		err = cmdErr
+	}
+	if err != nil {
+		fmt.Println("---STeve reponse error", err)
 	}
 
 	switch {
