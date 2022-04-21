@@ -1879,6 +1879,11 @@ func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string
 
 	req := reqs[0]
 
+	if len(req.GetRequestedResourceIDs()) > 0 {
+		// TODO(nic): handle search-based access requests #10887
+		return nil, time.Time{}, trace.BadParameter("search-based access requests are not yet supported")
+	}
+
 	if !req.GetState().IsApproved() {
 		if req.GetState().IsDenied() {
 			return nil, time.Time{}, trace.AccessDenied("access request %q has been denied", accessRequestID)
@@ -2423,10 +2428,11 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
-		Roles:        req.GetRoles(),
-		RequestID:    req.GetName(),
-		RequestState: req.GetState().String(),
-		Reason:       req.GetRequestReason(),
+		Roles:                req.GetRoles(),
+		RequestedResourceIDs: req.GetRequestedResourceIDs(),
+		RequestID:            req.GetName(),
+		RequestState:         req.GetState().String(),
+		Reason:               req.GetRequestReason(),
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")

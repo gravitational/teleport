@@ -1918,34 +1918,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// add any applicable access request values.
 		req.AccessRequests = apiutils.Deduplicate(req.AccessRequests)
 		for _, reqID := range req.AccessRequests {
-			accessReq, err := services.GetAccessRequest(ctx, a.authServer, reqID)
+			newRoles, accessRequestExpiry, err := a.authServer.getRolesAndExpiryFromAccessRequest(req.Username, reqID)
 			if err != nil {
-				if trace.IsNotFound(err) {
-					return nil, trace.AccessDenied("invalid access request %q", reqID)
-				}
 				return nil, trace.Wrap(err)
 			}
-			if accessReq.GetUser() != req.Username {
-				return nil, trace.AccessDenied("invalid access request %q", reqID)
-			}
-			if !accessReq.GetState().IsApproved() {
-				if accessReq.GetState().IsDenied() {
-					return nil, trace.AccessDenied("access-request %q has been denied", reqID)
-				}
-				return nil, trace.AccessDenied("access-request %q is awaiting approval", reqID)
-			}
-			if err := services.ValidateAccessRequestForUser(a.authServer, accessReq); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			aexp := accessReq.GetAccessExpiry()
-			if aexp.Before(a.authServer.GetClock().Now()) {
-				return nil, trace.AccessDenied("access-request %q is expired", reqID)
-			}
-			if aexp.Before(req.Expires) {
+			if accessRequestExpiry.Before(req.Expires) {
 				// cannot generate a cert that would outlive the access request
-				req.Expires = aexp
+				req.Expires = accessRequestExpiry
 			}
-			roles = append(roles, accessReq.GetRoles()...)
+			roles = append(roles, newRoles...)
 		}
 		// nothing prevents an access-request from including roles already possessed by the
 		// user, so we must make sure to trim duplicate roles.
