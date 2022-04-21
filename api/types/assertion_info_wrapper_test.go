@@ -18,11 +18,12 @@ package types
 
 import (
 	"encoding/xml"
+	"testing"
+	"time"
+
 	saml2 "github.com/russellhaering/gosaml2"
 	samltypes "github.com/russellhaering/gosaml2/types"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestAssertionInfoWrapper_RoundTrip(t *testing.T) {
