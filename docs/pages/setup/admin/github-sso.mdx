@@ -4,24 +4,36 @@ description: Setting up Github SSO
 videoBanner: XjgN2WWFCX8
 ---
 
-This guide explains how to set up Github Single Sign On (SSO) for Teleport.
+This guide explains how to set up GitHub Single Sign On (SSO) so you can
+automatically map teams in your GitHub organization to users and roles in
+Teleport.
 
 ## Prerequisites
 
+- A GitHub organization with at least one team.
+
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
-- Create and register a GitHub OAuth App. To do so, follow the instructions in
-  GitHub's documentation.
-
-  [Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
-
-  Ensure that your OAuth App's "Authentication callback URL" is
-  `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the public
-  address of the Teleport Proxy Service.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/2. Create a GitHub authentication connector
+## Step 1/3. Create a GitHub OAuth app
+
+Create and register a GitHub OAuth App. When you do so, ensure that your OAuth
+App's "Authentication callback URL" is the following:
+
+```
+https://PROXY_ADDRESS/v1/webapi/github/
+```
+
+`PROXY_ADDRESS` must be <ScopedBlock scope={["oss", "enterprise"]}>the public
+address of the Teleport Proxy Service</ScopedBlock><ScopedBlock
+scope="cloud">your Teleport Cloud tenant address</ScopedBlock>.
+
+Instructions for creating a GitHub OAuth app are available here:
+
+[Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
+
+## Step 2/3. Create a GitHub authentication connector
 
 Define a GitHub authentication connector by creating a file called `github.yaml`
 with the following content:
@@ -61,6 +73,7 @@ Finally, create the connector using `tctl`:
 
 ```code
 $ tctl create github.yaml
+# authentication connector "github" has been created
 ```
 
 <Admonition type="tip">
@@ -70,7 +83,7 @@ $ tctl create github.yaml
   able to determine team memberships for these organizations.
 </Admonition>
 
-## Step 2/2. Configure authentication preference
+## Step 3/3. Configure authentication preference
 
 Configure the Teleport Auth Service to enable the GitHub authentication
 connector.
@@ -88,10 +101,13 @@ spec:
 version: v2
 ```
 
+For `rp_id`, use the public address of your <ScopedBlock scope={["oss", "enterprise"]}>Teleport Proxy Service</ScopedBlock><ScopedBlock scope="cloud">Teleport Cloud tenant</ScopedBlock>.
+
 Create the resource:
 
 ```code
 $ tctl create -f cap.yaml
+# cluster auth preference has been updated
 ```
 
 <Details scope={["enterprise", "oss"]} scopeOnly={true} opened title="Static configuration file">
@@ -107,6 +123,37 @@ auth_service:
 </Details>
 
 You can now log in with Teleport using GitHub SSO.
+
+
+Run the following to log out of Teleport and log in again using GitHub SSO.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ tsh logout
+# Logged out all users from all proxies.
+$ tsh login --proxy=tele.example.com
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh logout
+# Logged out all users from all proxies.
+$ tsh login --proxy=mytenant.teleport.sh
+```
+
+</ScopedBlock>
+
+When you sign in for the first time, you will see a prompt to authorize your
+GitHub OAuth app:
+
+![GitHub SSO authorization view](../../../img/github-sso-auth-screen.jpg)
+
+After logging in successfully, you will see the following:
+
+![Login success view](../../../img/login-success.jpg)
 
 ## Troubleshooting
 
