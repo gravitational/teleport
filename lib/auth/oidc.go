@@ -314,14 +314,14 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 
 	log.Debugf("OIDC claims: %v.", re.claims)
 
-	verified, ok, err := claims.StringClaim("email_verified")
+	emailVerified, hasEmailVerifiedClaim, err := claims.StringClaim("email_verified")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Allow by default, not all OIDC providers correctly set this claim.
-	if ok {
-		if verified == "false" {
+	if hasEmailVerifiedClaim {
+		if emailVerified == "false" {
 			return nil, trace.AccessDenied("email not verified by OIDC provider")
 		}
 	}
