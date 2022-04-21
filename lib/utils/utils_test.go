@@ -41,26 +41,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestCapitalize tests capitalize function
-func TestCapitalize(t *testing.T) {
-	t.Parallel()
-	type testCase struct {
-		name string
-		in   string
-		out  string
-	}
-	cases := []testCase{
-		{name: "capitalize text", in: "hello there", out: "Hello there"},
-		{name: "ignore whitespace-only", in: " ", out: " "},
-		{name: "ignore empty", in: "", out: ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.out, Capitalize(tc.in))
-		})
-	}
-}
-
 // TestLinear tests retry logic
 func TestLinear(t *testing.T) {
 	t.Parallel()
