@@ -81,10 +81,6 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx, err = p.Middleware.WrapContextWithUser(ctx, tlsConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	clientIP, err := utils.ClientIPFromConn(clientConn)
 	if err != nil {
@@ -97,11 +93,16 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	}
 	defer releaseConn()
 
-	serviceConn, authContext, err := p.Service.Connect(ctx, common.ConnectParams{
+	proxyCtx, err := p.Service.Authorize(ctx, tlsConn, common.ConnectParams{
 		User:     server.GetUser(),
 		Database: server.GetDatabase(),
 		ClientIP: clientIP,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serviceConn, err := p.Service.Connect(ctx, proxyCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -113,10 +114,9 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// Auth has completed, the client enters command phase, start proxying
 	// all messages back-and-forth.
-	err = p.Service.Proxy(ctx, authContext, tlsConn, serviceConn)
+	err = p.Service.Proxy(ctx, proxyCtx, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -141,6 +141,8 @@ func (p *Proxy) makeServer(clientConn net.Conn) *server.Conn {
 			mysql.DEFAULT_COLLATION_ID,
 			mysql.AUTH_NATIVE_PASSWORD,
 			nil,
+			// TLS config can actually be nil if the client is connecting
+			// through local TLS proxy without TLS.
 			p.TLSConfig),
 		&credentialProvider{},
 		server.EmptyHandler{})
@@ -170,11 +172,18 @@ func (p *Proxy) performHandshake(conn *multiplexer.Conn, server *server.Conn) (*
 	// First part of the handshake completed and the connection has been
 	// upgraded to TLS so now we can look at the client certificate and
 	// see which database service to route the connection to.
-	tlsConn, ok := server.Conn.Conn.(*tls.Conn)
-	if !ok {
-		return nil, trace.BadParameter("expected TLS connection")
+	switch c := server.Conn.Conn.(type) {
+	case *tls.Conn:
+		return c, nil
+	case *multiplexer.Conn:
+		tlsConn, ok := c.Conn.(*tls.Conn)
+		if !ok {
+			return nil, trace.BadParameter("expected TLS connection, got: %T", c.Conn)
+		}
+		return tlsConn, nil
 	}
-	return tlsConn, nil
+	return nil, trace.BadParameter("expected *tls.Conn or *multiplexer.Conn, got: %T",
+		server.Conn.Conn)
 }
 
 // maybeReadProxyLine peeks into the connection to see if instead of regular

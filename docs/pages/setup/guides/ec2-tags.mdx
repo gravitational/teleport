@@ -1,23 +1,29 @@
 ---
-title: EC2 Tags as Teleport node labels
-description: How to setup Teleport node labels based on EC2 tags
-h1: Sync EC2 Tags and Teleport node labels
+title: EC2 Tags as Teleport Node Labels
+description: How to set up Teleport Node labels based on EC2 tags
+h1: Sync EC2 Tags and Teleport Node Labels
 ---
 
-This section will explain how to setup Teleport node labels based on EC2 tags.
+This guide will explain how to set up Teleport Node labels based on Amazon EC2 tags.
 
 ## Prerequisites
 
-- Teleport v(=teleport.version=) Open Source or Enterprise.
-- AWS instance running Teleport
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- One Teleport Node running on an Amazon EC2 instance. See
+  [Adding Nodes](../admin/adding-nodes.mdx) for how to set up a Teleport Node.
+- The following software installed on your Teleport Node: `curl`, `python`, and
+  the `aws` CLI, which comes from the `awscli` Python package.
 
 ## Step 1/3. Deploy the script
 
-You’ll need a script on your instance which can query the AWS API and get the values of tags for you.
+You’ll need a script on your EC2 instance that can query the AWS API and get the
+values of your instance's tags for you. The Teleport Node will then use these
+values to execute RBAC rules.
 
-Here’s one you can use:
+Here’s one script you can use:
 
-```bash
+```code
 #!/bin/bash
 if [[ "$1" == "" ]]; then
 	echo "Usage: $(basename $0) <tag>"
@@ -45,15 +51,9 @@ Run the command below to make it executable:
 $ chmod +x /usr/local/bin/get-tag.sh
 ```
 
-<Admonition type="note">
-For the script to work, you’ll need `curl`, `python` and the `aws` command line tool installed.
-`aws` comes from the awscli Python package, so you can install it using `pip3 install awscli` or similar.
-If you don’t have `python`, `pip3` or curl installed, look for them in your OS’s package manager.
-</Admonition>
+## Step 2/3. Set up an IAM role
 
-## Step 2/3. Setup IAM role
-
-Grant your EC2 instance an IAM role which will allow it to query tags values for EC2 instances.
+Grant your EC2 instance an IAM role that will allow it to query tag values for EC2 instances.
 
 Here’s an example policy which you can add to an IAM role:
 
@@ -71,29 +71,29 @@ Here’s an example policy which you can add to an IAM role:
 }
 ```
 
-Once this is done, query the value of the test tag on your EC2 instance by running `/usr/local/bin/get-tag.sh` test:
+Once this is done, query the value of the test tag on your EC2 instance by running the following command:
 
-```bash
-[ec2-user@ip-172-31-26-55 ~]# /usr/local/bin/get-tag.sh test
+```code
+$ /usr/local/bin/get-tag.sh test
 tagValue
 ```
 
-## Step 3/3. Modify config file
+## Step 3/3. Modify the Teleport Node config file
 
-Modify your Teleport config file `/etc/teleport.yaml` to add commands to run on your node:
+Modify the Teleport config file on your node (`/etc/teleport.yaml`) as follows:
 
 ```yaml
 teleport:
   ssh_service:
-  enabled: yes
-  listen_addr: 0.0.0.0:3022
-  commands:
-    - name: aws_tag_test
-      command: ['/usr/local/bin/get-tag.sh', 'test']
-      period: 1h
+    enabled: yes
+    listen_addr: 0.0.0.0:3022
+    commands:
+      - name: aws_tag_test
+        command: ['/usr/local/bin/get-tag.sh', 'test']
+        period: 1h
 ```
 
-This config will add a label with the key `aws_tag_test` to your instance - its value will be set to whatever the test tag is set to and it will be updated once every hour.
+This config will add a label with the key `aws_tag_test` to your instance. Its value will be set to whatever the `test` tag is set to and it will be updated once every hour.
 
 Restart Teleport on the node and you should see the new label appear:
 
@@ -107,7 +107,7 @@ Now you have a label on the instance which you can use inside a Teleport role. H
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: test-tag-role
 spec:
@@ -124,6 +124,11 @@ spec:
     port_forwarding: true
 ```
 
-When assigned to Teleport users, this role will only allow them to log into Teleport nodes which have the `aws_tag_test` label with the value of tagValue, effectively gating access to infrastructure based on the value of the EC2 test tag.
+When assigned to Teleport users, this role will only allow them to log in to
+Teleport Nodes which have the `aws_tag_test` label with the value of `tagValue`,
+effectively gating access to infrastructure based on the value of the EC2 `test`
+tag.
 
-By adding multiple commands to a Teleport node set to the values of different tags and then adding Teleport roles which reference them, you can build quite complex RBAC systems based off your EC2 tagging structure.
+By adding multiple commands to a Teleport Node, setting the values of different
+tags, then adding Teleport roles that reference these tags, you can build
+fine-grained RBAC systems based on your EC2 tagging structure.

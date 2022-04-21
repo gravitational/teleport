@@ -157,6 +157,7 @@ func StatDir(path string) (os.FileInfo, error) {
 
 // getHomeDir returns the home directory based off the OS.
 func getHomeDir() string {
+	// TODO(zmb3): use os.UserHomeDir instead and remove these constants
 	switch runtime.GOOS {
 	case constants.LinuxOS:
 		return os.Getenv(teleport.EnvHome)

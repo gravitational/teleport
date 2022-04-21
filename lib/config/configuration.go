@@ -24,7 +24,6 @@ import (
 	"bufio"
 	"crypto/x509"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -33,6 +32,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	stdlog "log"
 
 	"golang.org/x/crypto/ssh"
 
@@ -46,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -139,6 +142,14 @@ type CommandLineFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
+	// DatabaseADKeytabFile is the path to Kerberos keytab file.
+	DatabaseADKeytabFile string
+	// DatabaseADKrb5File is the path to krb5.conf file.
+	DatabaseADKrb5File string
+	// DatabaseADDomain is the Active Directory domain for authentication.
+	DatabaseADDomain string
+	// DatabaseADSPN is the database Service Principal Name.
+	DatabaseADSPN string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -265,6 +276,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if fc.Storage.Type == lite.AlternativeName {
 			fc.Storage.Type = lite.GetName()
 		}
+		// If the alternative name "cockroachdb" is given, update it to "postgres".
+		if fc.Storage.Type == postgres.AlternativeName {
+			fc.Storage.Type = postgres.GetName()
+		}
+
+		// Fix yamlv2 issue with nested storage sections.
+		fc.Storage.Params.Cleanse()
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
@@ -281,21 +299,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply logger settings
-	logger := utils.NewLogger()
-	err = applyLogConfig(fc.Logger, logger)
+	err = applyLogConfig(fc.Logger, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.Log = logger
-
-	// Apply logging configuration for the global logger instance
-	// DELETE this when global logger instance is no longer in use.
-	//
-	// Logging configuration has already been validated above
-	_ = applyLogConfig(fc.Logger, log.StandardLogger())
 
 	if fc.CachePolicy.TTL != "" {
-		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+		log.Warn("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+	if fc.CachePolicy.Type == memory.GetName() {
+		log.Debugf("cache.type config option is explicitly set to %v.", memory.GetName())
+	} else if fc.CachePolicy.Type != "" {
+		log.Warn("cache.type config option is deprecated and will be ignored, caches are always in memory in this version.")
 	}
 
 	// apply cache policy for node and proxy
@@ -419,14 +434,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
-func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
+func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
+	logger := log.StandardLogger()
+
 	switch loggerConfig.Output {
 	case "":
 		break // not set
 	case "stderr", "error", "2":
 		logger.SetOutput(os.Stderr)
+		cfg.Console = io.Discard // disable console printing
 	case "stdout", "out", "1":
 		logger.SetOutput(os.Stdout)
+		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
 		err := utils.SwitchLoggerToSyslog(logger)
 		if err != nil {
@@ -479,10 +498,13 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		}
 
 		logger.SetFormatter(formatter)
+		stdlog.SetOutput(io.Discard) // disable the standard logger used by external dependencies
+		stdlog.SetFlags(0)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
 
+	cfg.Log = logger
 	return nil
 }
 
@@ -539,6 +561,9 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if fc.Auth.MessageOfTheDay != "" {
 		cfg.Auth.Preference.SetMessageOfTheDay(fc.Auth.MessageOfTheDay)
 	}
 
@@ -637,42 +662,42 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	if fc.Proxy.ListenAddress != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.SSHAddr = *addr
 	}
 	if fc.Proxy.WebAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, int(defaults.HTTPListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, defaults.HTTPListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.WebAddr = *addr
 	}
 	if fc.Proxy.TunAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, int(defaults.SSHProxyTunnelListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
 	if fc.Proxy.MySQLAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, int(defaults.MySQLListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, defaults.MySQLListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MySQLAddr = *addr
 	}
 	if fc.Proxy.PostgresAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, int(defaults.PostgresListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, defaults.PostgresListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PostgresAddr = *addr
 	}
 	if fc.Proxy.MongoAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, int(defaults.MongoListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, defaults.MongoListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -956,6 +981,11 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
+	cfg.SSH.X11, err = fc.SSH.X11ServerConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -1070,6 +1100,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
+			},
+			AD: service.DatabaseAD{
+				KeytabFile: database.AD.KeytabFile,
+				Krb5File:   database.AD.Krb5File,
+				Domain:     database.AD.Domain,
+				SPN:        database.AD.SPN,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
@@ -1192,6 +1228,9 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Metrics.ListenAddr = addr
 
+	cfg.Metrics.GRPCServerLatency = fc.Metrics.GRPCServerLatency
+	cfg.Metrics.GRPCClientLatency = fc.Metrics.GRPCClientLatency
+
 	if !fc.Metrics.MTLSEnabled() {
 		return nil
 	}
@@ -1254,15 +1293,6 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 // applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
 func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.WindowsDesktop.Enabled = true
-
-	// Support for reading an LDAP password from a file was dropped for Teleport 9.
-	// Check if this old option is still set and issue a clear error for one major version.
-	// DELETE IN 10.0 (zmb3)
-	if len(fc.WindowsDesktop.LDAP.PasswordFile) > 0 {
-		return trace.BadParameter("Support for password_file was deprecated in Teleport 9 " +
-			"in favor of certificate-based authentication. Remove the password_file field from " +
-			"teleport.yaml to fix this error.")
-	}
 
 	if fc.WindowsDesktop.ListenAddress != "" {
 		listenAddr, err := utils.ParseHostPortAddr(fc.WindowsDesktop.ListenAddress, int(defaults.WindowsDesktopListenPort))
@@ -1657,6 +1687,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
 			},
+			AD: service.DatabaseAD{
+				KeytabFile: clf.DatabaseADKeytabFile,
+				Krb5File:   clf.DatabaseADKrb5File,
+				Domain:     clf.DatabaseADDomain,
+				SPN:        clf.DatabaseADSPN,
+			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1724,7 +1760,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// apply --debug flag to config:
 	if clf.Debug {
-		cfg.Console = ioutil.Discard
+		cfg.Console = io.Discard
 		cfg.Debug = clf.Debug
 	}
 
@@ -1955,7 +1991,7 @@ func splitRoles(roles string) []string {
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
-		cfg.JoinMethod = service.JoinMethodToken
+		cfg.JoinMethod = types.JoinMethodToken
 		_, err := cfg.ApplyToken(fc.AuthToken)
 		return trace.Wrap(err)
 	}
@@ -1964,10 +2000,12 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 		cfg.Token = fc.JoinParams.TokenName
-		if fc.JoinParams.Method != "ec2" {
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2"`, fc.JoinParams.Method)
+		switch fc.JoinParams.Method {
+		case types.JoinMethodEC2, types.JoinMethodIAM:
+			cfg.JoinMethod = fc.JoinParams.Method
+		default:
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
 		}
-		cfg.JoinMethod = service.JoinMethodEC2
 	}
 	return nil
 }

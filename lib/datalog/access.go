@@ -79,6 +79,7 @@ const (
 	// Used for final table key generation.
 	keyJoin = "_"
 	// Indices used for final table generation.
+	//nolint:deadcode,varcheck
 	userIndex  = 0
 	loginIndex = 1
 	nodeIndex  = 2

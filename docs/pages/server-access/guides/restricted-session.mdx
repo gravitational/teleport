@@ -1,7 +1,7 @@
 ---
-title: Restricted Session for SSH
+title: Restricted Sessions for SSH
 description: How restrict what can be performed under an SSH session
-h1: Restricted Session for SSH
+h1: Restricted Sessions for SSH
 videoBanner: DgFZpWszL4M
 ---
 
@@ -11,15 +11,17 @@ Teleport supports network restrictions with more types coming in the future.
 
 ## Prerequisites
 
-Teleport 7.0+ with Restricted Sessions requires Linux kernel 5.8 (or above).
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-You can check your kernel version using the `uname` command. The output should look
-something like the following.
+- Linux kernel 5.8 (or above).
 
-```code
-$ uname -r
-# 5.8.17
-```
+  You can check your kernel version using the `uname` command. The output should look
+  something like the following.
+
+  ```code
+  $ uname -r
+  # 5.8.17
+  ```
 
 ### Linux distributions and supported kernels
 
@@ -35,26 +37,29 @@ $ uname -r
 </tbody>
 </table>
 
+(!docs/pages/includes/tctl.mdx!)
+
 ## Network Restrictions
 
-Network restrictions work similar to a firewall but with several differences:
+Network restrictions work similarly to a firewall but with several differences:
 1. Firewall rules apply to the entire machine whereas network restrictions are applied
    only to SSH sessions.
 2. Whereas firewall typically blocks ingress (inbound) connections, network restrictions
    block egress (outbound) connections.
-3. Firewall rules are typically static but Restricted Session comes with an API allowing the
-   rules to be dynamically updated across the entire fleet.
+3. Firewall rules are typically static but Teleport provides an API for
+   Restricted Sessions that allows the rules to be dynamically updated across
+   the entire fleet.
 
-## Step 1/4. Install and configure Teleport node
+## Step 1/4. Install and configure a Teleport Node
 
-Follow our [installation instructions](../../installation.mdx) to install Teleport Auth, Proxy
-and Nodes.
+Set up your Teleport Node with the following content in `/etc/teleport.yaml`.
 
-Set up the Teleport node with this `/etc/teleport.yaml`. See our [configuration file setup](../../setup/reference/config.mdx) for more instructions.
+<Notice type="warning">
 
-<Admonition type="note">
-  Restricted Session requires Enhanced Recording to be enabled as well. This requirement will be removed in the future.
-</Admonition>
+  Restricted Sessions require Enhanced Recording to be enabled. This
+  requirement will be removed in the future.
+
+</Notice>
 
 ```yaml
 # Example config to be saved as /etc/teleport.yaml
@@ -62,7 +67,7 @@ teleport:
   nodename: graviton-node
   auth_token: exampletoken
   auth_servers:
-  # Replace with IP of Teleport Auth server.
+  # Replace with the address of the Teleport Auth Server.
   - 127.0.0.1:3025
   data_dir: /var/lib/teleport
 proxy_service:
@@ -84,15 +89,15 @@ ssh_service:
 
 ## Step 2/4. Define a network restrictions policy
 
-Create a file `netpolicy.yaml`:
+Create a file called `netpolicy.yaml`:
 
 ```yaml
 kind: network_restrictions
-version: v4
+version: v5
 metadata:
   name: network-restrictions
 spec:
-  # When Restricted Session is enabled, the network policy becomes
+  # When Restricted Sessions are enabled, the network policy becomes
   # "deny-all". Must add back the ranges to allow
   allow:
     # Allow LAN access
@@ -121,15 +126,16 @@ $ tctl create -f netpolicy.yaml
 # network restrictions have been updated
 ```
 
-<Admonition type="note">
-  - If the Restricted Session is not enabled in `teleport.yaml`, all network operations will be allowed.
-  - When the Restricted Session is enabled but `network_restrictions` object has not been created via `tctl` or the API,
-    the default policy stays allow-all.
-  - However when the `network_restrictions` object is created, the default policy switches to deny-all.
-    Be sure to add back all the necessary ranges into the allow list.
-</Admonition>
+If Restricted Sessions are not enabled in `teleport.yaml`, all network
+operations will be allowed. When Restricted Sessions are enabled but a
+`network_restrictions` object has not been created via `tctl` or the API, the
+default policy stays allow-all.
 
-## Step 3/4. Test by logging into node via Teleport
+However when the `network_restrictions` object is created, the default policy
+switches to deny-all. If you expect network operations to target certain
+IP ranges, be sure to state these within the `allow` section.
+
+## Step 3/4. Test Restricted Sessions
 
 ```code
 $ curl -v https://google.com
@@ -145,7 +151,8 @@ $ curl -v https://google.com
 
 ## Step 4/4. Inspect logs
 
-The audit log will contain an entry with `session.network` event (there may be more entries present for the same `curl` command):
+The Teleport audit log will contain an entry with a `session.network` event (there may be
+more entries present for the same `curl` command):
 
 ```json
 {
@@ -173,11 +180,15 @@ The audit log will contain an entry with `session.network` event (there may be m
 ```
 
 This is the same event that is issued by Enhanced Recording. You can differentiate them by the `action` field.
-Enhanced Recording sets the `action` to `0` (`OBSERVED`) while Restricted Session sets this value to `1` (`DENIED`).
+Enhanced Recording sets the `action` to `0` (`OBSERVED`) while a Restricted Session sets this value to `1` (`DENIED`).
 
 <Admonition type="tip">
-  Restricted Session requires Enhanced Recording to be enabled as well. This requirement will be removed in the future.
   To quickly check the status of the audit log, you can simply tail the logs with
   `tail -f /var/lib/teleport/log/events.log`, the resulting capture from Teleport will
   be a JSON log for each command and network request.
 </Admonition>
+
+## Next steps
+
+- See the [Teleport Configuration Reference](../../setup/reference/config.mdx) for more
+information on configuring Restricted Sessions.

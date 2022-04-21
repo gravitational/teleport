@@ -20,8 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -65,6 +67,7 @@ func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 		return clientPack.client, nil
 	}
 
+	clientPack.cancel()
 	delete(a.oidcClients, conn.GetName())
 	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
 
@@ -77,40 +80,36 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaults.WebHeadersTimeout)
-	defer cancel()
-
+	// SyncProviderConfig doesn't take a context for cancellation, instead it
+	// returns a channel that has to be closed to stop the sync. To ensure that
+	// the sync is eventually stopped we create a child context of the server context, which
+	// is cancelled either on deletion of the connector or shutdown of the server.
+	// This will cause syncCtx.Done() to unblock, at which point we can close the stop channel.
+	firstSync := make(chan struct{})
+	syncCtx, syncCancel := context.WithCancel(a.closeCtx)
 	go func() {
-		defer cancel()
-		client.SyncProviderConfig(conn.GetIssuerURL())
+		stop := client.SyncProviderConfig(conn.GetIssuerURL())
+		close(firstSync)
+		<-syncCtx.Done()
+		close(stop)
 	}()
 
 	select {
-	case <-ctx.Done():
+	case <-firstSync:
+	case <-time.After(defaults.WebHeadersTimeout):
+		syncCancel()
+		return nil, trace.ConnectionProblem(nil,
+			"timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
+			conn.GetName(), conn.GetIssuerURL())
 	case <-a.closeCtx.Done():
+		syncCancel()
 		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
-	}
-
-	// Canceled is expected in case if sync provider config finishes faster
-	// than the deadline
-	if ctx.Err() != nil && ctx.Err() != context.Canceled {
-		var err error
-		if ctx.Err() == context.DeadlineExceeded {
-			err = trace.ConnectionProblem(err,
-				"failed to reach out to oidc connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
-				conn.GetName(), conn.GetIssuerURL())
-		} else {
-			err = trace.ConnectionProblem(err,
-				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
-				conn.GetName(), conn.GetIssuerURL())
-		}
-		return nil, err
 	}
 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
+	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config, cancel: syncCancel}
 
 	return client, nil
 }
@@ -364,7 +363,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
@@ -388,7 +387,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(types.CertAuthID{
+		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)
@@ -592,8 +591,18 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, trace.AccessDenied("bad status code: %v", resp.StatusCode)
+	code := resp.StatusCode
+	if code < 200 || code > 299 {
+		// These are expected userinfo failures.
+		if code == http.StatusBadRequest || code == http.StatusUnauthorized ||
+			code == http.StatusForbidden || code == http.StatusMethodNotAllowed {
+			return nil, trace.AccessDenied("bad status code: %v", code)
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, trace.ReadError(code, body)
 	}
 
 	var claims jose.Claims
@@ -649,6 +658,11 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 			log.Debugf("OIDC provider doesn't offer valid UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
 			return idTokenClaims, nil
 		}
+		// This captures 400, 401, 403, and 405.
+		if trace.IsAccessDenied(err) {
+			log.Debugf("UserInfo endpoint returned an error: %v. Returning token claims: %v.", err, idTokenClaims)
+			return idTokenClaims, nil
+		}
 		log.Debugf("Unable to fetch UserInfo claims: %v.", err)
 		return nil, trace.Wrap(err, "unable to fetch UserInfo claims")
 	}
@@ -691,19 +705,19 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 
 // getOAuthClient returns a Oauth2 client from the oidc.Client.  If the connector is set as a Ping provider sets the Client Secret Post auth method
 func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
-
 	oac, err := oidcClient.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	//If the default client secret basic is used the Ping OIDC
-	// will throw an error of multiple client credentials.  Even if you set in Ping
-	// to use Client Secret Post it will return to use client secret basic.
-	// Issue https://github.com/gravitational/teleport/issues/8374
-	if connector.GetProvider() == teleport.Ping {
+	// For OIDC, Ping and Okta will throw an error when the
+	// default client secret basic method is used.
+	// See: https://github.com/gravitational/teleport/issues/8374
+	switch connector.GetProvider() {
+	case teleport.Ping, teleport.Okta:
 		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
 	}
+
 	return oac, err
 }
 

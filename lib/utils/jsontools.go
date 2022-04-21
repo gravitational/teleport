@@ -70,10 +70,30 @@ func FastUnmarshal(data []byte, v interface{}) error {
 	return nil
 }
 
+// SafeConfig uses jsoniter's ConfigFastest settings but enables map key
+// sorting to ensure CompareAndSwap checks consistently succeed.
+var SafeConfig = jsoniter.Config{
+	EscapeHTML:                    false,
+	MarshalFloatWith6Digits:       true, // will lose precision
+	ObjectFieldMustBeSimpleString: true, // do not unescape object field
+	SortMapKeys:                   true,
+}.Froze()
+
 // FastMarshal uses the json-iterator library for fast JSON marshalling.
 // Note, this function unmarshals floats with 6 digits precision.
 func FastMarshal(v interface{}) ([]byte, error) {
-	data, err := jsoniter.ConfigFastest.Marshal(v)
+	data, err := SafeConfig.Marshal(v)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return data, nil
+}
+
+// FastMarshal uses the json-iterator library for fast JSON marshalling
+// with indentation. Note, this function unmarshals floats with 6 digits precision.
+func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
+	data, err := SafeConfig.MarshalIndent(v, prefix, indent)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -7,6 +7,7 @@
         "roles",
         "kubeClusterName",
         "apps",
+        "awsDatabases",
         "databases",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
@@ -26,7 +27,8 @@
         "imagePullPolicy",
         "initContainers",
         "resources",
-        "tolerations"
+        "tolerations",
+        "probeTimeoutSeconds"
     ],
     "properties": {
         "authToken": {
@@ -69,6 +71,34 @@
                     "default": ""
                 },
                 "additionalProperties": true
+            }
+        },
+        "awsDatabases": {
+            "$id": "#/properties/awsDatabases",
+            "type": "array",
+            "default": [],
+            "required": [
+                "types",
+                "regions",
+                "tags"
+            ],
+            "properties": {
+                "types": {
+                    "$id": "#/properties/awsDatabases/types",
+                    "type": "array",
+                    "default": []
+                },
+                "regions": {
+                    "$id": "#/properties/awsDatabases/regions",
+                    "type": "string",
+                    "default": []
+                },
+                "tags": {
+                    "$id": "#/properties/awsDatabases/tags",
+                    "type": "string",
+                    "default": []
+                },
+                "additionalProperties": false
             }
         },
         "databases": {
@@ -255,6 +285,16 @@
                 }
             }
         },
+        "extraArgs": {
+            "$id": "#/properties/extraArgs",
+            "type": "array",
+            "default": []
+        },
+        "extraEnv": {
+            "$id": "#/properties/extraEnv",
+            "type": "array",
+            "default": []
+        },
         "extraVolumes": {
             "$id": "#/properties/extraVolumes",
             "type": "array",
@@ -289,6 +329,11 @@
             "$id": "#/properties/tolerations",
             "type": "array",
             "default": []
+        },
+        "probeTimeoutSeconds": {
+            "$id": "#/properties/probeTimeoutSeconds",
+            "type": "integer",
+            "default": 1
         }
     }
 }

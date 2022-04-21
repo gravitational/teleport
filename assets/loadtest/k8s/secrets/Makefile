@@ -23,6 +23,21 @@ env:
 		exit 1; \
 	fi
 
+	@if [ -z ${PROM_REMOTE_URL} ]; then \
+		echo "PROM_REMOTE_URL is not set, cannot apply cluster."; \
+		exit 1; \
+	fi
+
+	@if [ -z ${PROM_USER} ]; then \
+		echo "PROM_USER is not set, cannot apply cluster."; \
+		exit 1; \
+	fi
+
+	@if [ -z ${PROM_PASSWORD} ]; then \
+		echo "PROM_PASSWORD is not set, cannot apply cluster."; \
+		exit 1; \
+	fi
+
 	@echo PROXY_IP=$(shell make -C ../../network get-proxy-ip) > secrets.env
 	@echo PROXY_HOST=${PROXY_HOST} >> secrets.env
 	@echo GRAFANA_IP=$(shell make -C ../../network get-grafana-ip) >> secrets.env
@@ -31,6 +46,9 @@ env:
 	@echo PROXY_TOKEN=$(shell cat proxy-token) >> secrets.env
 	@echo TC_TOKEN=$(shell cat tc-token) >> secrets.env
 	@echo GCP_PROJECT=$(shell make -C ../../cluster get-project) >> secrets.env
+	@echo PROM_REMOTE_URL=${PROM_REMOTE_URL} >> secrets.env
+	@echo PROM_USER=${PROM_USER} >> secrets.env
+	@echo PROM_PASSWORD=${PROM_PASSWORD} >> secrets.env
 
 grafana-pass:
 	openssl rand -base64 32 | tr -d '\n' > grafana-pass

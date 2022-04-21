@@ -14,6 +14,9 @@ spec:
     metadata:
       labels:
         teleport-role: auth
+        backend: etcd
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3434"
     spec:
       volumes:
         - name: config

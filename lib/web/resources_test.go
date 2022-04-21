@@ -18,9 +18,12 @@ package web
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
@@ -111,15 +114,18 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    desktop_clipboard: true
     enhanced_recording:
     - command
     - network
     forward_agent: false
     max_session_ttl: 30h0m0s
     port_forwarding: true
+    record_session:
+      desktop: true
 version: v3
 `
-	role, err := types.NewRole("roleName", types.RoleSpecV4{
+	role, err := types.NewRoleV3("roleName", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{"test"},
 		},
@@ -128,12 +134,12 @@ version: v3
 
 	item, err := ui.NewResourceItem(role)
 	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "role:roleName",
 		Kind:    types.KindRole,
 		Name:    "roleName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestNewResourceItemTrustedCluster(t *testing.T) {
@@ -164,7 +170,7 @@ func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
-		role, err := types.NewRole("test", types.RoleSpecV4{
+		role, err := types.NewRoleV3("test", types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Logins: []string{"test"},
 			},
@@ -328,6 +334,99 @@ version: v2`
 	require.Contains(t, tc.Content, "name: test-goodcontent")
 }
 
+func TestListResources(t *testing.T) {
+	t.Parallel()
+
+	// Test parsing query params.
+	testCases := []struct {
+		name, url       string
+		wantBadParamErr bool
+		expected        proto.ListResourcesRequest
+	}{
+		{
+			name: "decode complex query correctly",
+			url:  "https://dev:3080/login?query=(labels%5B%60%22test%22%60%5D%20%3D%3D%20%22%2B%3A'%2C%23*~%25%5E%22%20%26%26%20!exists(labels.tier))%20%7C%7C%20resource.spec.description%20!%3D%20%22weird%20example%20https%3A%2F%2Ffoo.dev%3A3080%3Fbar%3Da%2Cb%26baz%3Dbanana%22",
+			expected: proto.ListResourcesRequest{
+				ResourceType:        types.KindNode,
+				Limit:               defaults.MaxIterationLimit,
+				NeedTotalCount:      true,
+				PredicateExpression: "(labels[`\"test\"`] == \"+:',#*~%^\" && !exists(labels.tier)) || resource.spec.description != \"weird example https://foo.dev:3080?bar=a,b&baz=banana\"",
+			},
+		},
+		{
+			name: "all param defined and set",
+			url:  `https://dev:3080/login?query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
+			expected: proto.ListResourcesRequest{
+				ResourceType:        types.KindNode,
+				Limit:               50,
+				StartKey:            "banana",
+				SearchKeywords:      []string{"foo+bar", "baz", "foo,bar", "some phrase"},
+				PredicateExpression: `labels.env == "prod"`,
+				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
+			},
+		},
+		{
+			name: "all query param defined but empty",
+			url:  `https://dev:3080/login?query=&startKey=&search=&sort=&limit=&startKey=`,
+			expected: proto.ListResourcesRequest{
+				ResourceType:   types.KindNode,
+				Limit:          defaults.MaxIterationLimit,
+				NeedTotalCount: true,
+			},
+		},
+		{
+			name: "sort partially defined: fieldName",
+			url:  `https://dev:3080/login?sort=foo`,
+			expected: proto.ListResourcesRequest{
+				ResourceType:   types.KindNode,
+				Limit:          defaults.MaxIterationLimit,
+				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
+				NeedTotalCount: true,
+			},
+		},
+		{
+			name: "sort partially defined: fieldName with colon",
+			url:  `https://dev:3080/login?sort=foo:`,
+			expected: proto.ListResourcesRequest{
+				ResourceType:   types.KindNode,
+				Limit:          defaults.MaxIterationLimit,
+				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
+				NeedTotalCount: true,
+			},
+		},
+		{
+			name:            "invalid limit value",
+			wantBadParamErr: true,
+			url:             `https://dev:3080/login?limit=12invalid`,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			httpReq, err := http.NewRequest("", tc.url, nil)
+			require.NoError(t, err)
+
+			m := &mockedResourceAPIGetter{}
+			m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+				if !tc.wantBadParamErr {
+					require.Equal(t, tc.expected, req)
+				}
+				return nil, nil
+			}
+
+			_, err = listResources(m, httpReq, types.KindNode)
+			if tc.wantBadParamErr {
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
@@ -340,6 +439,7 @@ type mockedResourceAPIGetter struct {
 	mockGetTrustedCluster     func(ctx context.Context, name string) (types.TrustedCluster, error)
 	mockGetTrustedClusters    func(ctx context.Context) ([]types.TrustedCluster, error)
 	mockDeleteTrustedCluster  func(ctx context.Context, name string) error
+	mockListResources         func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 func (m *mockedResourceAPIGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
@@ -426,4 +526,12 @@ func (m *mockedResourceAPIGetter) DeleteTrustedCluster(ctx context.Context, name
 	}
 
 	return trace.NotImplemented("mockDeleteTrustedCluster not implemented")
+}
+
+func (m *mockedResourceAPIGetter) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if m.mockListResources != nil {
+		return m.mockListResources(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("mockListResources not implemented")
 }

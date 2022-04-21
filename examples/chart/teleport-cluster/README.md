@@ -47,3 +47,7 @@ secret `license` in the chart namespace.
 
 See https://goteleport.com/docs/kubernetes-access/helm/guides/ for guides on setting up HA Teleport clusters
 in EKS or GKE, plus a more comprehensive chart reference.
+
+## Contributing to the chart
+
+Please read [CONTRIBUTING.md](../CONTRIBUTING.md) before raising a pull request to this chart.

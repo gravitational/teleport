@@ -176,9 +176,9 @@ type Context struct {
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource types.Resource
-	// Session is an optional session.end event. These events hold information
-	// about session recordings.
-	Session *events.SessionEnd
+	// Session is an optional session.end or windows.desktop.session.end event.
+	// These events hold information about session recordings.
+	Session events.AuditEvent
 	// SSHSession is an optional (active) SSH session.
 	SSHSession *session.Session
 }
@@ -193,6 +193,10 @@ const (
 	UserIdentifier = "user"
 	// ResourceIdentifier represents resource registered identifier in the rules
 	ResourceIdentifier = "resource"
+	// ResourceLabelsIdentifier refers to the static and dynamic labels in a resource.
+	ResourceLabelsIdentifier = "labels"
+	// ResourceNameIdentifier refers to the metadata name field for a resource.
+	ResourceNameIdentifier = "name"
 	// SessionIdentifier refers to a session (recording) in the rules.
 	SessionIdentifier = "session"
 	// SSHSessionIdentifier refers to an (active) SSH session in the rules.
@@ -232,8 +236,9 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		}
 		return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 	case SessionIdentifier:
-		session := &events.SessionEnd{}
-		if ctx.Session != nil {
+		var session events.AuditEvent = &events.SessionEnd{}
+		switch ctx.Session.(type) {
+		case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
 			session = ctx.Session
 		}
 		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
@@ -518,3 +523,113 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 		},
 	})
 }
+
+// NewResourceParser returns a parser made for boolean expressions based on a
+// json-serialiable resource. Customized to allow short identifiers common in all
+// resources:
+//  - `metadata.name` can be referenced with `name` ie: `name == "jenkins"``
+//  - `metadata.labels + spec.dynamic_labels` can be referenced with `labels`
+//     ie: `labels.env == "prod"`
+// All other fields can be referenced by starting expression with identifier `resource`
+// followed by the names of the json fields ie: `resource.spec.public_addr`.
+func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, error) {
+	predEquals := func(a interface{}, b interface{}) predicate.BoolPredicate {
+		switch aval := a.(type) {
+		case label:
+			bval, ok := b.(string)
+			return func() bool {
+				return ok && aval.value == bval
+			}
+		default:
+			return predicate.Equals(a, b)
+		}
+	}
+
+	p, err := predicate.NewParser(predicate.Def{
+		Operators: predicate.Operators{
+			AND: predicate.And,
+			OR:  predicate.Or,
+			NOT: predicate.Not,
+			EQ:  predEquals,
+			NEQ: func(a interface{}, b interface{}) predicate.BoolPredicate {
+				return predicate.Not(predEquals(a, b))
+			},
+		},
+		Functions: map[string]interface{}{
+			"equals": predEquals,
+			// search allows fuzzy matching against select field values.
+			"search": func(searchVals ...string) predicate.BoolPredicate {
+				return func() bool {
+					return resource.MatchSearch(searchVals)
+				}
+			},
+			// exists checks for an existence of a label by checking
+			// if a key exists. Label value are unchecked.
+			"exists": func(l label) predicate.BoolPredicate {
+				return func() bool {
+					return len(l.key) > 0
+				}
+			},
+		},
+		GetIdentifier: func(fields []string) (interface{}, error) {
+			switch fields[0] {
+			case ResourceLabelsIdentifier:
+				combinedLabels := resource.GetAllLabels()
+				switch {
+				// Field length of 1 means the user is using
+				// an index expression ie: labels["env"], which the
+				// parser will expect a map for lookup in `GetProperty`.
+				case len(fields) == 1:
+					return labels(combinedLabels), nil
+				case len(fields) > 2:
+					return nil, trace.BadParameter("only two fields are supported with identifier %q, got %d: %v", ResourceLabelsIdentifier, len(fields), fields)
+				default:
+					key := fields[1]
+					val, ok := combinedLabels[key]
+					if ok {
+						return label{key: key, value: val}, nil
+					}
+					return label{}, nil
+				}
+
+			case ResourceNameIdentifier:
+				if len(fields) > 1 {
+					return nil, trace.BadParameter("only one field are supported with identifier %q, got %d: %v", ResourceNameIdentifier, len(fields), fields)
+				}
+				return resource.GetName(), nil
+			case ResourceIdentifier:
+				return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
+			default:
+				return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+			}
+		},
+		GetProperty: func(mapVal, keyVal interface{}) (interface{}, error) {
+			m, ok := mapVal.(labels)
+			if !ok {
+				return GetStringMapValue(mapVal, keyVal)
+			}
+
+			key, ok := keyVal.(string)
+			if !ok {
+				return nil, trace.BadParameter("only string keys are supported")
+			}
+
+			val, ok := m[key]
+			if ok {
+				return label{key: key, value: val}, nil
+			}
+			return label{}, nil
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return boolPredicateParser{Parser: p}, nil
+}
+
+type label struct {
+	key, value string
+}
+
+type labels map[string]string

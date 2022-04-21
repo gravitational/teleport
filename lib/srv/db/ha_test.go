@@ -76,7 +76,7 @@ func TestHA(t *testing.T) {
 		HostID:    onlineHostID,
 	})
 	go func() {
-		for conn := range testCtx.proxyConn {
+		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
 			go onlineServer.HandleConnection(conn)
 		}
 	}()

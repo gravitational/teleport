@@ -19,11 +19,12 @@ package client
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
+	"os"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -114,7 +115,7 @@ func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cas, err := ioutil.ReadFile(c.caFile)
+	cas, err := os.ReadFile(c.caFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -361,7 +362,7 @@ func (c *profileCreds) load() error {
 
 func configureTLS(c *tls.Config) *tls.Config {
 	tlsConfig := c.Clone()
-	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
+	tlsConfig.NextProtos = utils.Deduplicate(append(tlsConfig.NextProtos, http2.NextProtoTLS))
 
 	// If SNI isn't set, set it to the default name that can be found
 	// on all Teleport issued certificates. This is needed because we

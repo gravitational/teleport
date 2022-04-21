@@ -18,9 +18,9 @@ package web
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -75,9 +75,7 @@ type addMFADeviceRequest struct {
 	DeviceName string `json:"deviceName"`
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
-	// U2FRegisterResponse is U2F registration challenge response.
-	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2fRegisterResponse"`
-	// WebauthnRegisterResponse is U2F registration challenge response.
+	// WebauthnRegisterResponse is a WebAuthn registration challenge response.
 	WebauthnRegisterResponse *webauthn.CredentialCreationResponse `json:"webauthnRegisterResponse"`
 }
 
@@ -97,13 +95,6 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	case req.SecondFactorToken != "":
 		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
 			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
-		}}
-	case req.U2FRegisterResponse != nil:
-		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
-			U2F: &proto.U2FRegisterResponse{
-				RegistrationData: req.U2FRegisterResponse.RegistrationData,
-				ClientData:       req.U2FRegisterResponse.ClientData,
-			},
 		}}
 	case req.WebauthnRegisterResponse != nil:
 		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
@@ -156,6 +147,10 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 type createRegisterChallengeRequest struct {
 	// DeviceType is the type of MFA device to get a register challenge for.
 	DeviceType string `json:"deviceType"`
+	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
+	// It mimics the proto.DeviceUsage enum.
+	// Defaults to MFA.
+	DeviceUsage string `json:"deviceUsage"`
 }
 
 // createRegisterChallengeWithTokenHandle creates and returns MFA register challenges for a new device for the specified device type.
@@ -169,17 +164,26 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 	switch req.DeviceType {
 	case "totp":
 		deviceType = proto.DeviceType_DEVICE_TYPE_TOTP
-	case "u2f":
-		deviceType = proto.DeviceType_DEVICE_TYPE_U2F
 	case "webauthn":
 		deviceType = proto.DeviceType_DEVICE_TYPE_WEBAUTHN
 	default:
 		return nil, trace.BadParameter("MFA device type %q unsupported", req.DeviceType)
 	}
 
+	var deviceUsage proto.DeviceUsage
+	switch strings.ToLower(req.DeviceUsage) {
+	case "", "mfa":
+		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_MFA
+	case "passwordless":
+		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+	default:
+		return nil, trace.BadParameter("device usage %q unsupported", req.DeviceUsage)
+	}
+
 	chal, err := h.cfg.ProxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
-		TokenID:    p.ByName("token"),
-		DeviceType: deviceType,
+		TokenID:     p.ByName("token"),
+		DeviceType:  deviceType,
+		DeviceUsage: deviceUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -22,11 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 func TestMain(m *testing.M) {
@@ -70,7 +71,7 @@ func TestDynamoDB(t *testing.T) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		clock := clockwork.NewFakeClock()
+		clock := clockwork.NewFakeClockAt(time.Now())
 		uut.clock = clock
 		return uut, clock, nil
 	}

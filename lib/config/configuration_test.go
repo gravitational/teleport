@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -38,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -65,7 +63,7 @@ var testConfigs testConfigFiles
 func writeTestConfigs() error {
 	var err error
 
-	testConfigs.tempDir, err = ioutil.TempDir("", "teleport-config")
+	testConfigs.tempDir, err = os.MkdirTemp("", "teleport-config")
 	if err != nil {
 		return err
 	}
@@ -431,7 +429,9 @@ func TestConfigReading(t *testing.T) {
 					Certificate: "/etc/teleport/proxy.crt",
 				},
 			},
-			CACerts: []string{"/etc/teleport/ca.crt"},
+			CACerts:           []string{"/etc/teleport/ca.crt"},
+			GRPCServerLatency: true,
+			GRPCClientLatency: true,
 		},
 		WindowsDesktop: WindowsDesktopService{
 			Service: Service{
@@ -669,7 +669,7 @@ func TestApplyConfig(t *testing.T) {
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
-	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
+	u2fCAFromFile, err := os.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
 		Kind:    types.KindClusterAuthPreference,
@@ -712,6 +712,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			AllowLocalAuth:        types.NewBoolOption(true),
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
+			AllowPasswordless:     types.NewBoolOption(false),
 		},
 	}))
 
@@ -920,12 +921,11 @@ func TestParseCachePolicy(t *testing.T) {
 		out *service.CachePolicy
 		err error
 	}{
-		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, Type: lite.GetName()}},
-		{in: &CachePolicy{EnabledFlag: "yes", TTL: "10h"}, out: &service.CachePolicy{Enabled: true, Type: lite.GetName()}},
-		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false, Type: memory.GetName()}},
-		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, Type: memory.GetName()}},
-		{in: &CachePolicy{EnabledFlag: "no"}, out: &service.CachePolicy{Type: lite.GetName(), Enabled: false}},
-		{in: &CachePolicy{Type: "memsql"}, err: trace.BadParameter("unsupported backend")},
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true}},
+		{in: &CachePolicy{EnabledFlag: "true", TTL: "10h"}, out: &service.CachePolicy{Enabled: true}},
+		{in: &CachePolicy{Type: "whatever", EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false}},
+		{in: &CachePolicy{Type: "name", EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true}},
+		{in: &CachePolicy{EnabledFlag: "no"}, out: &service.CachePolicy{Enabled: false}},
 	}
 	for i, tc := range tcs {
 		comment := fmt.Sprintf("test case #%v", i)
@@ -1164,6 +1164,8 @@ func makeConfigFixture() string {
 	// Metrics service.
 	conf.Metrics.EnabledFlag = "yes"
 	conf.Metrics.ListenAddress = "tcp://metrics"
+	conf.Metrics.GRPCServerLatency = true
+	conf.Metrics.GRPCClientLatency = true
 	conf.Metrics.CACerts = []string{"/etc/teleport/ca.crt"}
 	conf.Metrics.KeyPairs = []KeyPair{
 		{
@@ -1572,13 +1574,6 @@ func TestWindowsDesktopService(t *testing.T) {
 				}
 			},
 		},
-		{
-			desc:        "NOK - uses deprecated password_file field",
-			expectError: require.Error,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.LDAP.PasswordFile = "/path/to/some/file"
-			},
-		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			fc := &FileConfig{}
@@ -1712,23 +1707,25 @@ func TestAppsCLF(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		clf := CommandLineFlags{
-			Roles:   tt.inRoles,
-			AppName: tt.inAppName,
-			AppURI:  tt.inAppURI,
-		}
-		cfg := service.MakeDefaultConfig()
-		err := Configure(&clf, cfg)
-		if err != nil {
-			require.IsType(t, err, tt.outError, tt.desc)
-		} else {
-			require.NoError(t, err, tt.desc)
-		}
-		if tt.outError != nil {
-			continue
-		}
-		require.True(t, cfg.Apps.Enabled, tt.desc)
-		require.Len(t, cfg.Apps.Apps, 1, tt.desc)
+		t.Run(tt.desc, func(t *testing.T) {
+			clf := CommandLineFlags{
+				Roles:   tt.inRoles,
+				AppName: tt.inAppName,
+				AppURI:  tt.inAppURI,
+			}
+			cfg := service.MakeDefaultConfig()
+			err := Configure(&clf, cfg)
+			if err != nil {
+				require.IsType(t, err, tt.outError)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.outError != nil {
+				return
+			}
+			require.True(t, cfg.Apps.Enabled)
+			require.Len(t, cfg.Apps.Apps, 1)
+		})
 	}
 }
 
@@ -1961,6 +1958,34 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				GCP: service.DatabaseGCP{
 					ProjectID:  "gcp-project-1",
 					InstanceID: "gcp-instance-1",
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "SQL Server",
+			inFlags: CommandLineFlags{
+				DatabaseName:         "sqlserver",
+				DatabaseProtocol:     defaults.ProtocolSQLServer,
+				DatabaseURI:          "localhost:1433",
+				DatabaseADKeytabFile: "/etc/keytab",
+				DatabaseADDomain:     "EXAMPLE.COM",
+				DatabaseADSPN:        "MSSQLSvc/sqlserver.example.com:1433",
+			},
+			outDatabase: service.Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
+				AD: service.DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Krb5File:   defaults.Krb5FilePath,
+					Domain:     "EXAMPLE.COM",
+					SPN:        "MSSQLSvc/sqlserver.example.com:1433",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile},
