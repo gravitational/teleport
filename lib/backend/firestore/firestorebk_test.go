@@ -18,18 +18,32 @@ package firestore
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
+	firestorepb "google.golang.org/genproto/googleapis/firestore/v1"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/check.v1"
 )
@@ -190,4 +204,138 @@ func (s *FirestoreSuite) TestReadLegacyRecord(c *check.C) {
 	c.Assert(got.Value, check.DeepEquals, item.Value)
 	c.Assert(got.ID, check.DeepEquals, item.ID)
 	c.Assert(got.Expires.Equal(item.Expires), check.Equals, true)
+}
+
+type mockFirestoreServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	firestorepb.FirestoreServer
+
+	reqs []proto.Message
+
+	// If set, Commit returns this error.
+	commitErr error
+}
+
+func (s *mockFirestoreServer) Commit(ctx context.Context, req *firestorepb.CommitRequest) (*firestorepb.CommitResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
+
+	if len(req.Writes) > commitLimit {
+		return nil, status.Errorf(codes.InvalidArgument, "too many writes in a transaction")
+	}
+
+	s.reqs = append(s.reqs, req)
+	if s.commitErr != nil {
+		return nil, s.commitErr
+	}
+	return &firestorepb.CommitResponse{
+		WriteResults: []*firestorepb.WriteResult{{
+			UpdateTime: timestamppb.Now(),
+		}},
+	}, nil
+}
+
+func TestDeleteDocuments(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		assertion   require.ErrorAssertionFunc
+		responseErr error
+		commitErr   error
+		documents   int
+	}{
+		{
+			name:      "failed to commit",
+			assertion: require.Error,
+			commitErr: errors.New("failed to commit documents"),
+			documents: 1,
+		},
+		{
+			name:      "commit less than limit",
+			assertion: require.NoError,
+			documents: commitLimit - 123,
+		},
+		{
+			name:      "commit limit",
+			assertion: require.NoError,
+			documents: commitLimit,
+		},
+		{
+			name:      "commit more than limit",
+			assertion: require.NoError,
+			documents: (commitLimit * 3) + 173,
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			docs := make([]*firestore.DocumentSnapshot, 0, tt.documents)
+			for i := 0; i < tt.documents; i++ {
+				docs = append(docs, &firestore.DocumentSnapshot{
+					Ref: &firestore.DocumentRef{
+						Path: fmt.Sprintf("projects/test-project/databases/test-db/documents/test/%d", i+1),
+					},
+					CreateTime: time.Now(),
+					UpdateTime: time.Now(),
+				})
+			}
+
+			mockFirestore := &mockFirestoreServer{
+				commitErr: tt.commitErr,
+			}
+			srv := grpc.NewServer()
+			firestorepb.RegisterFirestoreServer(srv, mockFirestore)
+
+			lis, err := net.Listen("tcp", "localhost:0")
+			require.NoError(t, err)
+			go func() { require.NoError(t, srv.Serve(lis)) }()
+			t.Cleanup(srv.Stop)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			conn, err := grpc.Dial(lis.Addr().String(), grpc.WithInsecure())
+			require.NoError(t, err)
+
+			client, err := firestore.NewClient(ctx, "test-project", option.WithGRPCConn(conn))
+			require.NoError(t, err)
+
+			b := &Backend{
+				svc:           client,
+				Entry:         utils.NewLoggerForTests().WithFields(logrus.Fields{trace.Component: BackendName}),
+				clock:         clockwork.NewFakeClock(),
+				clientContext: ctx,
+				clientCancel:  cancel,
+				backendConfig: backendConfig{
+					Config: Config{
+						CollectionName: "test-collection",
+					},
+				},
+			}
+
+			tt.assertion(t, b.deleteDocuments(docs))
+
+			if tt.documents == 0 {
+				return
+			}
+
+			var committed int
+			for _, req := range mockFirestore.reqs {
+				switch r := req.(type) {
+				case *firestorepb.CommitRequest:
+					committed += len(r.Writes)
+				}
+			}
+
+			require.Equal(t, tt.documents, committed)
+
+		})
+	}
 }
