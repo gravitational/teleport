@@ -292,17 +292,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
 		inRoleARNs := r.GetAWSRoleARNs(condition)
-		var outRoleARNs []string
-		for _, arn := range inRoleARNs {
-			variableValues, err := ApplyValueTraits(arn, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping AWS role ARN %v: %v.", arn, err)
-				}
-				continue
-			}
-			outRoleARNs = append(outRoleARNs, variableValues...)
-		}
+		outRoleARNs := applyValueTraitsSlice(inRoleARNs, traits, "AWS role ARN")
 		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
 
 		// apply templates to kubernetes groups
@@ -454,7 +444,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		switch variable.Name() {
 		case teleport.TraitLogins, teleport.TraitWindowsLogins,
 			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
-			teleport.TraitDBNames, teleport.TraitDBUsers:
+			teleport.TraitDBNames, teleport.TraitDBUsers,
+			teleport.TraitAWSRoleARNs:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}

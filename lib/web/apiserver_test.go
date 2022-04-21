@@ -240,7 +240,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		nodeDataDir,
 		"",
 		utils.NetAddr{},
-		nil,
+		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
@@ -306,7 +306,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		c.MkDir(),
 		"",
 		utils.NetAddr{},
-		nil,
+		s.proxyClient,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode(revTunServer, s.proxyClient),
 		regular.SetSessionServer(s.proxyClient),
@@ -546,7 +546,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 
-	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after&connector_id=` + connector.GetName())
+	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
 	c.Assert(err, IsNil)
 	req, err := http.NewRequest("GET", baseURL.String(), nil)
 	c.Assert(err, IsNil)
@@ -3105,6 +3105,74 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NotEmpty(t, re.Recovery.Created)
 }
 
+func TestParseSSORequestParams(t *testing.T) {
+	t.Parallel()
+
+	token := "someMeaninglessTokenString"
+
+	tests := []struct {
+		name, url string
+		wantErr   bool
+		expected  *ssoRequestParams
+	}{
+		{
+			name: "preserve redirect's query params (escaped)",
+			url:  "https://localhost/login?connector_id=oidc&redirect_url=https:%2F%2Flocalhost:8080%2Fweb%2Fcluster%2Fim-a-cluster-name%2Fnodes%3Fsearch=tunnel&sort=hostname:asc",
+			expected: &ssoRequestParams{
+				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+				connectorID:       "oidc",
+				csrfToken:         token,
+			},
+		},
+		{
+			name: "preserve redirect's query params (unescaped)",
+			url:  "https://localhost/login?connector_id=github&redirect_url=https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+			expected: &ssoRequestParams{
+				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+				connectorID:       "github",
+				csrfToken:         token,
+			},
+		},
+		{
+			name: "preserve various encoded chars",
+			url:  "https://localhost/login?connector_id=saml&redirect_url=https:%2F%2Flocalhost:8080%2Fweb%2Fcluster%2Fim-a-cluster-name%2Fapps%3Fquery=search(%2522watermelon%2522%252C%2520%2522this%2522)%2520%2526%2526%2520labels%255B%2522unique-id%2522%255D%2520%253D%253D%2520%2522hi%2522&sort=name:asc",
+			expected: &ssoRequestParams{
+				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
+				connectorID:       "saml",
+				csrfToken:         token,
+			},
+		},
+		{
+			name:    "invalid redirect_url query param",
+			url:     "https://localhost/login?redirect=https://localhost/nodes&connector_id=oidc",
+			wantErr: true,
+		},
+		{
+			name:    "invalid connector_id query param",
+			url:     "https://localhost/login?redirect_url=https://localhost/nodes&connector=oidc",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest("", tc.url, nil)
+			require.NoError(t, err)
+			addCSRFCookieToReq(req, token)
+
+			params, err := parseSSORequestParams(req)
+
+			switch {
+			case tc.wantErr:
+				require.Error(t, err)
+			default:
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, params)
+			}
+		})
+	}
+}
+
 type authProviderMock struct {
 	server types.ServerV2
 }
@@ -3498,7 +3566,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		nodeDataDir,
 		"",
 		utils.NetAddr{},
-		nil,
+		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
@@ -3593,7 +3661,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-		nil,
+		client,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode(revTunServer, client),
 		regular.SetSessionServer(client),
