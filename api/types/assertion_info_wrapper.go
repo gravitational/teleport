@@ -20,19 +20,35 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/trace"
+
+	"github.com/russellhaering/gosaml2"
 )
 
-// NewSSODiagnosticInfo creates new SSODiagnosticInfo object using arbitrary value, which is serialized using JSON.
-func NewSSODiagnosticInfo(infoType SSOInfoType, value interface{}) (*SSODiagnosticInfo, error) {
-	out, err := json.Marshal(value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+type AssertionInfoWrapper saml2.AssertionInfo
 
-	return &SSODiagnosticInfo{InfoType: infoType, Value: out}, nil
+func (a *AssertionInfoWrapper) Size() int {
+	bytes, err := json.Marshal(a)
+	if err != nil {
+		return 0
+	}
+	return len(bytes)
 }
 
-// GetValue deserializes embedded JSON of SSODiagnosticInfo.Value given typed pointer.
-func (m *SSODiagnosticInfo) GetValue(value interface{}) error {
-	return trace.Wrap(json.Unmarshal(m.Value, &value))
+func (a *AssertionInfoWrapper) Unmarshal(bytes []byte) error {
+	return trace.Wrap(json.Unmarshal(bytes, a))
+}
+
+func (a *AssertionInfoWrapper) MarshalTo(bytes []byte) (int, error) {
+	out, err := json.Marshal(a)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	if len(out) > cap(bytes) {
+		return 0, trace.BadParameter("capacity too low: %v, need %v", cap(bytes), len(out))
+	}
+
+	copy(bytes, out)
+
+	return len(out), nil
 }
