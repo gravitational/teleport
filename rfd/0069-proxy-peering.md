@@ -3,7 +3,7 @@ authors: David Boslee (david@goteleport.com), Naji Obeid (naji@goteleport.com)
 state: draft
 ---
 
-# RFD XX - Proxy Peering
+# RFD 69 - Proxy Peering
 
 ## What
 This document describes an API that enables a proxy to dial the nodes connected to a peer proxy. This is an optional feature that will allow node agents to connect to a single proxy and be reachable through any other proxy in the cluster.
