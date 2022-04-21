@@ -247,11 +247,6 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			switch update := req.Update.(type) {
 			case *proto.UpdateSessionTrackerRequest_UpdateState:
 				session.SetState(update.UpdateState.State)
-				if update.UpdateState.State == types.SessionState_SessionStateTerminated {
-					// Mark session tracker for deletion.
-					session.SetExpiry(s.bk.Clock().Now())
-				}
-
 			case *proto.UpdateSessionTrackerRequest_AddParticipant:
 				session.AddParticipant(*update.AddParticipant.Participant)
 			case *proto.UpdateSessionTrackerRequest_RemoveParticipant:

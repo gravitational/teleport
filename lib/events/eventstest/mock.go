@@ -99,7 +99,14 @@ type MockSessionTrackerService struct {
 }
 
 func (m *MockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	return nil, nil
+	var trackers []types.SessionTracker
+	for _, tracker := range m.MockTrackers {
+		// mock session tracker expiration
+		if tracker.Expiry().After(m.Clock.Now()) {
+			trackers = append(trackers, tracker)
+		}
+	}
+	return trackers, nil
 }
 
 func (m *MockSessionTrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
