@@ -904,11 +904,19 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 
 	retry.Reset()
 
-	relativeExpiryInterval := interval.New(interval.Config{
-		Duration:      c.Config.RelativeExpiryCheckInterval,
-		FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-		Jitter:        utils.NewSeventhJitter(),
-	})
+	// only enable relative node expiry if the cache is configured
+	// to watch for types.KindNode
+	relativeExpiryInterval := interval.NewNoop()
+	for _, watch := range c.Config.Watches {
+		if watch.Kind == types.KindNode {
+			relativeExpiryInterval = interval.New(interval.Config{
+				Duration:      c.Config.RelativeExpiryCheckInterval,
+				FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+				Jitter:        utils.NewSeventhJitter(),
+			})
+			break
+		}
+	}
 	defer relativeExpiryInterval.Stop()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})

@@ -509,6 +509,20 @@ func expectEvent(t *testing.T, eventsC <-chan Event, expectedEvent string) {
 	}
 }
 
+func unexpectedEvent(t *testing.T, eventsC <-chan Event, unexpectedEvent string) {
+	timeC := time.After(time.Second)
+	for {
+		select {
+		case event := <-eventsC:
+			if event.Type == unexpectedEvent {
+				t.Fatalf("Received unexpected event: %s", unexpectedEvent)
+			}
+		case <-timeC:
+			return
+		}
+	}
+}
+
 func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
@@ -2379,7 +2393,38 @@ func TestRelativeExpiryLimit(t *testing.T) {
 		// advance clock to trigger next relative expiry check
 		clock.Advance(time.Hour * 24)
 	}
+}
 
+func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = time.Second
+		c.Clock = clock
+		c.Watches = []types.WatchKind{{Kind: types.KindNode}}
+		return c
+	})
+	t.Cleanup(p.Close)
+
+	p2 := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = time.Second
+		c.Clock = clock
+		c.Watches = []types.WatchKind{
+			{Kind: types.KindNamespace},
+			{Kind: types.KindNamespace},
+			{Kind: types.KindCertAuthority},
+		}
+		return c
+	})
+	t.Cleanup(p2.Close)
+
+	for i := 0; i < 2; i++ {
+		clock.Advance(time.Hour * 24)
+		drainEvents(p.eventsC)
+		expectEvent(t, p.eventsC, RelativeExpiry)
+
+		drainEvents(p2.eventsC)
+		unexpectedEvent(t, p2.eventsC, RelativeExpiry)
+	}
 }
 
 func TestCache_Backoff(t *testing.T) {
