@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/russellhaering/gosaml2"
+	saml2 "github.com/russellhaering/gosaml2"
 )
 
 type AssertionInfoWrapper saml2.AssertionInfo
