@@ -19,6 +19,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     listRootClusters: ITerminalServiceService_IListRootClusters;
     listLeafClusters: ITerminalServiceService_IListLeafClusters;
     listDatabases: ITerminalServiceService_IListDatabases;
+    listDatabaseUsers: ITerminalServiceService_IListDatabaseUsers;
     listGateways: ITerminalServiceService_IListGateways;
     listServers: ITerminalServiceService_IListServers;
     listKubes: ITerminalServiceService_IListKubes;
@@ -59,6 +60,15 @@ interface ITerminalServiceService_IListDatabases extends grpc.MethodDefinition<v
     requestDeserialize: grpc.deserialize<v1_service_pb.ListDatabasesRequest>;
     responseSerialize: grpc.serialize<v1_service_pb.ListDatabasesResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.ListDatabasesResponse>;
+}
+interface ITerminalServiceService_IListDatabaseUsers extends grpc.MethodDefinition<v1_service_pb.ListDatabaseUsersRequest, v1_service_pb.ListDatabaseUsersResponse> {
+    path: "/teleport.terminal.v1.TerminalService/ListDatabaseUsers";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.ListDatabaseUsersRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.ListDatabaseUsersRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.ListDatabaseUsersResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.ListDatabaseUsersResponse>;
 }
 interface ITerminalServiceService_IListGateways extends grpc.MethodDefinition<v1_service_pb.ListGatewaysRequest, v1_service_pb.ListGatewaysResponse> {
     path: "/teleport.terminal.v1.TerminalService/ListGateways";
@@ -175,6 +185,7 @@ export interface ITerminalServiceServer {
     listRootClusters: grpc.handleUnaryCall<v1_service_pb.ListClustersRequest, v1_service_pb.ListClustersResponse>;
     listLeafClusters: grpc.handleUnaryCall<v1_service_pb.ListLeafClustersRequest, v1_service_pb.ListClustersResponse>;
     listDatabases: grpc.handleUnaryCall<v1_service_pb.ListDatabasesRequest, v1_service_pb.ListDatabasesResponse>;
+    listDatabaseUsers: grpc.handleUnaryCall<v1_service_pb.ListDatabaseUsersRequest, v1_service_pb.ListDatabaseUsersResponse>;
     listGateways: grpc.handleUnaryCall<v1_service_pb.ListGatewaysRequest, v1_service_pb.ListGatewaysResponse>;
     listServers: grpc.handleUnaryCall<v1_service_pb.ListServersRequest, v1_service_pb.ListServersResponse>;
     listKubes: grpc.handleUnaryCall<v1_service_pb.ListKubesRequest, v1_service_pb.ListKubesResponse>;
@@ -199,6 +210,9 @@ export interface ITerminalServiceClient {
     listDatabases(request: v1_service_pb.ListDatabasesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
     listDatabases(request: v1_service_pb.ListDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
     listDatabases(request: v1_service_pb.ListDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
+    listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
+    listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
+    listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     listGateways(request: v1_service_pb.ListGatewaysRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListGatewaysResponse) => void): grpc.ClientUnaryCall;
     listGateways(request: v1_service_pb.ListGatewaysRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListGatewaysResponse) => void): grpc.ClientUnaryCall;
     listGateways(request: v1_service_pb.ListGatewaysRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListGatewaysResponse) => void): grpc.ClientUnaryCall;
@@ -248,6 +262,9 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public listDatabases(request: v1_service_pb.ListDatabasesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
     public listDatabases(request: v1_service_pb.ListDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
     public listDatabases(request: v1_service_pb.ListDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
+    public listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
+    public listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
+    public listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     public listGateways(request: v1_service_pb.ListGatewaysRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListGatewaysResponse) => void): grpc.ClientUnaryCall;
     public listGateways(request: v1_service_pb.ListGatewaysRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListGatewaysResponse) => void): grpc.ClientUnaryCall;
     public listGateways(request: v1_service_pb.ListGatewaysRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListGatewaysResponse) => void): grpc.ClientUnaryCall;
