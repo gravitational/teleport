@@ -26,6 +26,25 @@ A lock can target the following objects or attributes:
   deployment.
 </Admonition>
 
+System administrators can disable a compromised user or node—or
+prevent access during cluster maintenance—by placing a lock
+on a session, user or host identity.
+
+Teleport will reject new API requests and terminate active
+connections to SSH, database, desktop, and Kubernetes sessions
+matching the lock's target.
+
+A lock can target the following objects or attributes:
+
+- a Teleport user by the user's name
+- a Teleport [RBAC](../reference.mdx) role by the role's name
+- an MFA device by the device's UUID
+- an OS/UNIX login
+- a Teleport node by the node's UUID (effectively unregistering it from the
+  cluster)
+- a Windows desktop by the desktop's name
+- an [Access Request](../../enterprise/workflow/index.mdx) by UUID
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -34,15 +53,109 @@ A lock can target the following objects or attributes:
 
 ## Creating a new lock
 
-Locks are modeled as [resources](../../setup/reference/resources.mdx) with `kind:
-lock`.  To create a new lock, one can run the `tctl lock` command:
+You can create a new lock with the `tctl lock` command. Specify the lock target
+with one of the following options:
+
+<Tabs>
+  <TabItem label="Username">
+  ```code
+  $ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Role">
+  All users with assigned roles matching the target role will be locked.
+  ```code
+  $ tctl lock --role=contractor --message="All contractor access is disabled for 10h." --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Multi-factor device">
+  All connections initated with per-session MFA matching the device ID will be locked.
+  ```code
+  $ tctl lock --mfa-device=d6c06a18-e147-4232-9dfe-6f83a28d5850 --message="All contractor access is disabled for 10h." --ttl=10h
+  # Created a lock with name "d6c06a18-e147-4232-9dfe-6f83a28d5850".
+  ```
+  </TabItem>
+  <TabItem label="Node">
+  All connections to the specified node will be locked.
+  ```code
+  $ tctl lock --node=363256df-f78a-4d99-803c-bae19da9ede4 --message="The node is under investigation." --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Windows Desktop">
+  All connections to the specified Windows Desktop will be locked.
+  ```code
+  $ tctl lock --windows-desktop=WIN-FMPFM5UF1SS-teleport-example-com --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Access request">
+  All connections using elevated privileges from the matching access request will be locked.
+  ```code
+  $ tctl lock --access-request=261e80c5-357b-4c43-9b67-40a6bc4c6e4d --ttl=24h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+</Tabs>
+
+<Details
+  title="Troubleshooting: failed to create a lock?"
+  opened={false}
+>
+
+If your user is missing a lock permission, you will get error when creating
+a role:
+
+```txt
+ERROR: access denied to perform action "create" on "lock"
+```
+
+Create a role `locksmith`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: locksmith
+spec:
+  allow:
+    rules:
+      - resources: [lock]
+        verbs: [list, create, read, update, delete]
+```
 
 ```code
 $ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h
 # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
 ```
 
-Note that without specifying `--ttl` or `--expires` the created lock remains in
+And assign this role to a user. The user must log in again for this role to take
+effect.
+
+</Details>
+
+With a lock in force, all established connections involving the lock's target
+get terminated while any new requests are rejected.
+
+Errors returned and warnings logged in this situation feature a message of the
+form:
+```
+lock targeting User:"foo@example.com" is in force: Suspicious activity.
+```
+
+<Admonition type="note">
+You can tweak the message returned to a user with `--message` parameter:
+
+```code
+$ tctl lock --user=foo@example.com --message="Please come back tomorrow." --ttl=24h
+```
+</Admonition>
+
+<Details title="Under the hood: Lock resource and expiration" opened={false}>
+
+Note that without specifying `--ttl` or `--expires`, the created lock remains in
 force until explicitly removed with `tctl rm`.  Refer to `tctl lock --help` for
 the list of all supported parameters.
 
@@ -61,8 +174,10 @@ spec:
 ```
 
 The `kind: lock` resources can also be created and updated using `tctl create`
-as per usual, see the [Admin Guide](../../setup/reference/resources.mdx) for more
+as per usual. See the [Admin Guide](../../setup/reference/resources.mdx) for more
 details.
+
+</Details>
 
 ## Lock in force
 
@@ -77,21 +192,25 @@ lock targeting User:"foo@example.com" is in force: Suspicious activity.
 
 ## Locking mode
 
-If a Teleport node or proxy cannot properly synchronize its local lock view
-with the backend, there is a decision to be made about whether to rely on the
-last known locks. This decision strategy is encoded as one of the two modes:
+If a Teleport node or Proxy Service cannot properly synchronize its local lock
+view with the backend, there is a decision to be made about whether to rely on
+the last known locks. This decision strategy is encoded as one of the two modes:
 - `strict` mode causes all interactions to be terminated when the locks are not
   guaranteed to be up to date;
 - `best_effort` mode keeps relying on the most recent locks.
 
-The cluster-wide mode defaults to `best_effort`.
-You can set up default locking mode via API or CLI using resource `cluster_auth_preference`
-or static configuration file:
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+The cluster-wide mode defaults to `best_effort`. You can set up the default
+locking mode via API or CLI using a `cluster_auth_preference` resource or static
+configuration file:
 
 <Tabs>
   <TabItem label="API or CLI">
-    Create a YAML file `cap.yaml` or get the existing file using `tctl get cap`
-    
+
+    Create a YAML file called `cap.yaml` or get the existing file using
+    `tctl get cap`.
+
     ```yaml
     kind: cluster_auth_preference
     metadata:
@@ -109,7 +228,7 @@ or static configuration file:
     ```
   </TabItem>
   <TabItem label="Static Config">
-    Edit the `teleport.yaml` of the Auth server:
+    Edit `/etc/teleport.yaml` on the Auth Server:
 
     ```yaml
     auth_service:
@@ -117,9 +236,36 @@ or static configuration file:
             locking_mode: best_effort
     ```
 
-    Restart the auth server for the change to take effect.
+    Restart the Auth Server for the change to take effect.
   </TabItem>
 </Tabs>
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+The cluster-wide mode defaults to `best_effort`. You can set up the default
+locking mode via API or CLI using a `cluster_auth_preference` resource:
+
+Create a YAML file called `cap.yaml` or get the existing file using
+`tctl get cap`.
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  locking_mode: best_effort
+version: v2
+```
+
+Create a resource:
+
+```code
+$ tctl create -f cap.yaml
+# cluster auth preference has been updated
+```
+
+</ScopedBlock>
 
 It is also possible to configure the locking mode for a particular role:
 
