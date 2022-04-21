@@ -3760,7 +3760,7 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 				}
 			}
 		}
-		pool, err := DefaultClientCertPool(ap, clusterName)
+		pool, totalSubjectsLen, err := DefaultClientCertPool(ap, clusterName)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
 			// this falls back to the default config
@@ -3779,16 +3779,10 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 		// If the number of CAs turns out too large for the handshake, drop all but
 		// the current cluster CA. In the unlikely case where it's wrong, the
 		// client will be rejected.
-		var totalSubjectsLen int64
-		for _, s := range pool.Subjects() {
-			// Each subject in the list gets a separate 2-byte length prefix.
-			totalSubjectsLen += 2
-			totalSubjectsLen += int64(len(s))
-		}
 		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("Number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.", len(pool.Subjects()))
+			log.Debugf("Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.")
 
-			pool, err = DefaultClientCertPool(ap, currentClusterName)
+			pool, _, err = DefaultClientCertPool(ap, currentClusterName)
 			if err != nil {
 				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
 				// this falls back to the default config
