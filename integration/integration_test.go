@@ -237,6 +237,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
 		}, {
+			comment:          "recording proxy with upload to file server",
 			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
