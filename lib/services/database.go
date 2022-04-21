@@ -291,10 +291,12 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, metadata *typ
 		name = fmt.Sprintf("%s-%s", name, endpointType)
 	}
 
+	labels := labelsFromElastiCacheCluster(cluster, metadata, endpointType)
+
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        name,
 		Description: fmt.Sprintf("ElastiCache in %v (%v endpoint)", metadata.Region, endpointType),
-		Labels:      labelsFromElastiCacheCluster(cluster, metadata, endpointType),
+		Labels:      labels,
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
@@ -372,6 +374,42 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup) (*typ
 	}, nil
 }
 
+// UpdateElastiCacheDatabaseLabels adds extra static labels to ElastiCache
+// database, and returns the updated database.
+func UpdateElastiCacheDatabaseLabels(database types.Database, tags []*elasticache.Tag, nodes []*elasticache.CacheCluster, subnetGroups []*elasticache.CacheSubnetGroup) types.Database {
+	replicationGroupID := database.GetAWS().ElastiCache.ReplicationGroupID
+	subnetGroupName := ""
+	labels := database.GetStaticLabels()
+
+	// Add AWS resource tags.
+	for _, tag := range tags {
+		key := aws.StringValue(tag.Key)
+		if types.IsValidLabelKey(key) {
+			labels[key] = aws.StringValue(tag.Value)
+		}
+	}
+
+	// Find any node belongs to this database and set engine version label.
+	for _, node := range nodes {
+		if aws.StringValue(node.ReplicationGroupId) == replicationGroupID {
+			subnetGroupName = aws.StringValue(node.CacheSubnetGroupName)
+			labels[labelEngineVersion] = aws.StringValue(node.EngineVersion)
+			break
+		}
+	}
+
+	// Find the subnet group used by this database and set VPC ID label.
+	for _, subnetGroup := range subnetGroups {
+		if aws.StringValue(subnetGroup.CacheSubnetGroupName) == subnetGroupName {
+			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
+			break
+		}
+	}
+
+	database.SetStaticLabels(labels)
+	return database
+}
+
 // engineToProtocol converts RDS instance engine to the database protocol.
 func engineToProtocol(engine string) string {
 	switch engine {
@@ -422,7 +460,7 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 	return labels
 }
 
-// labelsFromRedshiftCluster creates database labels for the provided
+// labelsFromElastiCacheCluster creates database labels for the provided
 // ElastiCache cluster.
 func labelsFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, meta *types.AWS, endpointType ElastiCacheEndpointType) map[string]string {
 	labels := make(map[string]string)
@@ -430,8 +468,6 @@ func labelsFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, meta *t
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
 	labels[labelEndpointType] = string(endpointType)
-
-	// TODO add labelEngineVersion and possibly labelVPCID.
 	return labels
 }
 
@@ -655,6 +691,8 @@ const (
 	labelEngineVersion = "engine-version"
 	// labelEndpointType is the label key containing the RDS endpoint type.
 	labelEndpointType = "endpoint-type"
+	// labelVPCID is the label key containing the VPC ID.
+	labelVPCID = "vpc-id"
 )
 
 const (
