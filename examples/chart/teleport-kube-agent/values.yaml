@@ -5,9 +5,9 @@
 # Join token for the cluster.
 # Leave empty if the secret "teleport-kube-agent-join-token"
 # has been created before and contains a valid join token
-authToken: ""
+authToken: "test"
 # Address of the teleport proxy with port (usually :3080).
-proxyAddr: ""
+proxyAddr: "proxy.example.com"
 # Comma-separated list of roles to enable (any of: kube,db,app)
 roles: "kube"
 
@@ -16,7 +16,7 @@ roles: "kube"
 ################################################################
 
 # Name for this kubernetes cluster to be used by teleport users.
-kubeClusterName: ""
+kubeClusterName: "test"
 
 ################################################################
 # Values that must be provided if Application access is enabled.
@@ -169,7 +169,9 @@ nodeSelector: {}
 
 # Kubernetes deployment labels to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
-clusterLabels: {}
+additionalLabels: {
+  "key": "value"
+}
 
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/

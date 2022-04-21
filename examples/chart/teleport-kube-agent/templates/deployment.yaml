@@ -11,9 +11,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
-{{- if .Values.clusterLabels }}
-  {{- toYaml .Values.clusterLabels | nindent 4 }}
-{{- end }}
+  {{- if .Values.additionalLabels }}
+    {{- toYaml .Values.additionalLabels | nindent 4 }}
+  {{- end }}
   {{- if .Values.annotations.deployment }}
   annotations:
     {{- toYaml .Values.annotations.deployment | nindent 4 }}
@@ -23,6 +23,9 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}
+  {{- if .Values.additionalLabels }}
+    {{- toYaml .Values.additionalLabels | nindent 6 }}
+  {{- end }}
   template:
     metadata:
       annotations:
@@ -33,6 +36,9 @@ spec:
 {{- end }}
       labels:
         app: {{ .Release.Name }}
+    {{- if .Values.additionalLabels }}
+      {{- toYaml .Values.additionalLabels | nindent 8 }}
+    {{- end }}
     spec:
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
