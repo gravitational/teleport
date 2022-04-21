@@ -375,9 +375,6 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	if tunnelErr == nil {
 		return conn, true, nil
 	}
-	if !trace.IsNotFound(tunnelErr) {
-		return nil, false, trace.Wrap(tunnelErr)
-	}
 	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
 	if s.tryProxyPeering(params) {
@@ -394,7 +391,9 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	err = trace.NewAggregate(tunnelErr, peerErr)
 	tunnelMsg := getTunnelErrorMessage(params, "reverse tunnel", err)
 
-	if s.skipDirectDial(params) {
+	// Skip direct dial when the tunnel error is not a not found error. This
+	// means the agent is tunneling but the connection failed for some reason.
+	if s.skipDirectDial(params) || !trace.IsNotFound(tunnelErr) {
 		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
 	}
 
