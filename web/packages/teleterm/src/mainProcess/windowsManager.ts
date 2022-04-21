@@ -25,7 +25,7 @@ export class WindowsManager {
       backgroundColor: theme.colors.primary.darker,
       minWidth: 400,
       minHeight: 300,
-      title: 'Teleport Terminal',
+      title: 'Teleport Connect Preview',
       icon: getAssetPath('icon.png'),
       webPreferences: {
         contextIsolation: true,

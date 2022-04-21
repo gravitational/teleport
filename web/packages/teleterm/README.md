@@ -1,10 +1,10 @@
-## Teleport Terminal
+## Teleport Connect
 
-Teleport Terminal (teleterm) is a desktop application that allows easy access to Teleport resources.
+Teleport Connect (previously Teleport Terminal, package name `teleterm`) is a desktop application that allows easy access to Teleport resources.
 
 ### Building and Packaging
 
-Teleport Terminal consists of two main components: the `tsh` tool and the Electron app. Our build
+Teleport Connect consists of two main components: the `tsh` tool and the Electron app. Our build
 scripts assume that the `webapps` repo and the `teleport` repo are in the same folder.
 
 To get started, first we need to build `tsh` that resides in the `teleport` repo.
