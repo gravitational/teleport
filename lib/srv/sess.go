@@ -81,10 +81,12 @@ type SessionRegistry struct {
 	// srv refers to the upon which this session registry is created.
 	srv Server
 
-	auth auth.ClientI
+	// sessiontrackerService is used to share session activity to
+	// other teleport components through the auth server.
+	sessionTrackerService services.SessionTrackerService
 }
 
-func NewSessionRegistry(srv Server, auth auth.ClientI) (*SessionRegistry, error) {
+func NewSessionRegistry(srv Server, sts services.SessionTrackerService) (*SessionRegistry, error) {
 	err := utils.RegisterPrometheusCollectors(serverSessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,17 +96,17 @@ func NewSessionRegistry(srv Server, auth auth.ClientI) (*SessionRegistry, error)
 		return nil, trace.BadParameter("session server is required")
 	}
 
-	if auth == nil {
-		return nil, trace.BadParameter("auth client is required")
+	if sts == nil {
+		return nil, trace.BadParameter("session tracker service is required")
 	}
 
 	return &SessionRegistry{
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, srv.Component()),
 		}),
-		srv:      srv,
-		sessions: make(map[rsession.ID]*session),
-		auth:     auth,
+		srv:                   srv,
+		sessions:              make(map[rsession.ID]*session),
+		sessionTrackerService: sts,
 	}, nil
 }
 
@@ -139,7 +141,7 @@ func (s *SessionRegistry) Close() {
 }
 
 // OpenSession either joins an existing session or starts a new session.
-func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+func (s *SessionRegistry) OpenSession(ch ssh.Channel, ctx *ServerContext) error {
 	session := ctx.getSession()
 	if session != nil {
 		ctx.Infof("Joining existing session %v.", session.id)
@@ -156,7 +158,7 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 		}
 
 		// Update the in-memory data structure that a party member has joined.
-		_, err := session.join(ch, req, ctx, mode)
+		_, err := session.join(ch, ctx, mode)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -176,6 +178,7 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 		return trace.Wrap(err)
 	}
 	ctx.setSession(sess)
+	ctx.AddCloser(sess)
 	s.addSession(sess)
 	ctx.Infof("Creating (interactive) session %v.", sid)
 
@@ -189,7 +192,7 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 }
 
 // OpenExecSession opens an non-interactive exec session.
-func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, ctx *ServerContext) error {
 	// Create a new session ID. These sessions can not be joined so no point in
 	// looking for an exisiting one.
 	sessionID := rsession.NewID()
@@ -592,7 +595,7 @@ func (s *session) Stop() {
 // by the creator of the session, other closers should use Stop instead. Calling this
 // prematurely can result in missing audit events, session recordings, and other
 // unexpected errors.
-func (s *session) Close() {
+func (s *session) Close() error {
 	s.Stop()
 
 	s.BroadcastMessage("Closing session...")
@@ -619,6 +622,8 @@ func (s *session) Close() {
 			s.log.WithError(err).Warn("Failed to close recorder.")
 		}
 	}
+
+	return nil
 }
 
 func (s *session) waitOnAccess() error {
@@ -1021,8 +1026,12 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		ctx.srv.GetRestrictedSessionManager().OpenSession(s.bpfContext, s.cgroupID)
 	}
 
+	ctx.Debug("Waiting for continue signal")
+
 	// Process has been placed in a cgroup, continue execution.
 	s.term.Continue()
+
+	ctx.Debug("Got continue signal")
 
 	// Start a heartbeat that marks this session as active with current members
 	// of party in the backend.
@@ -1150,6 +1159,12 @@ func (s *session) newStreamer(ctx *ServerContext) (events.Streamer, error) {
 		s.log.Debugf("Using sync streamer for session %v.", s.id)
 		return ctx.srv, nil
 	}
+
+	if ctx.IsTestStub {
+		s.log.Debugf("Using discard streamer for test")
+		return events.NewDiscardEmitter(), nil
+	}
+
 	s.log.Debugf("Using async streamer for session %v.", s.id)
 	fileStreamer, err := filesessions.NewStreamer(sessionsStreamingUploadDir(ctx))
 	if err != nil {
@@ -1440,10 +1455,11 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 		go func() {
 			defer s.term.AddParty(-1)
 			_, err := io.Copy(s.inWriter, p)
-			if err != nil {
-				s.log.Errorf("Party member %v left session %v due to an error: %v", p.id, s.id, err)
-			}
-			s.log.Infof("Party member %v left session %v.", p.id, s.id)
+			s.log.Debugf("Copying from Party %v to session writer completed with error %v.", p.id, err)
+
+			// Close the party in case it isn't already closed. This may
+			// happen if the party's underying ssh connection was closed.
+			p.Close()
 		}()
 	}
 
@@ -1485,7 +1501,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	return nil
 }
 
-func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
+func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
 	if ctx.Identity.TeleportUser != s.initiator {
 		roles := []types.Role(ctx.Identity.RoleSet)
 		accessContext := auth.SessionAccessContext{
@@ -1614,7 +1630,7 @@ func (p *party) closeUnderSessionLock() {
 
 func (s *session) trackerGet() (types.SessionTracker, error) {
 	// get the session from the registry
-	sess, err := s.registry.auth.GetSessionTracker(s.serverCtx, s.id.String())
+	sess, err := s.registry.sessionTrackerService.GetSessionTracker(s.serverCtx, s.id.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1655,7 +1671,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		HostPolicies: policySet,
 	}
 
-	_, err := s.registry.auth.CreateSessionTracker(s.serverCtx, req)
+	_, err := s.registry.sessionTrackerService.CreateSessionTracker(s.serverCtx, req)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
@@ -1695,7 +1711,7 @@ func (s *session) trackerAddParticipant(participant *party) error {
 		},
 	}
 
-	err := s.registry.auth.UpdateSessionTracker(s.serverCtx, req)
+	err := s.registry.sessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }
 
@@ -1710,7 +1726,7 @@ func (s *session) trackerRemoveParticipant(participantID string) error {
 		},
 	}
 
-	err := s.registry.auth.UpdateSessionTracker(s.serverCtx, req)
+	err := s.registry.sessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }
 
@@ -1727,7 +1743,7 @@ func (s *session) trackerUpdateState(state types.SessionState) error {
 		},
 	}
 
-	err := s.registry.auth.UpdateSessionTracker(s.serverCtx, req)
+	err := s.registry.sessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }
 
@@ -1741,6 +1757,6 @@ func (s *session) trackerUpdateExpiry(expires time.Time) error {
 		},
 	}
 
-	err := s.registry.auth.UpdateSessionTracker(s.serverCtx, req)
+	err := s.registry.sessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }
