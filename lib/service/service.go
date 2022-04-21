@@ -1261,10 +1261,9 @@ func (process *TeleportProcess) initAuthService() error {
 	process.setLocalAuth(authServer)
 
 	// Upload completer is responsible for checking for initiated but abandoned
-	// session uploads and completing them
-	var uploadCompleter *events.UploadCompleter
+	// session uploads and completing them. it will be closed once the process exits.
 	if uploadHandler != nil {
-		uploadCompleter, err = events.NewUploadCompleter(events.UploadCompleterConfig{
+		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
 			AuditLog:       process.auditLog,
@@ -1485,9 +1484,6 @@ func (process *TeleportProcess) initAuthService() error {
 			// such as access workflow plugins from normal users.  Without this, a graceful shutdown
 			// of the auth server basically never exits.
 			warnOnErr(tlsServer.Close(), log)
-		}
-		if uploadCompleter != nil {
-			warnOnErr(uploadCompleter.Close(), log)
 		}
 		log.Info("Exited.")
 	})
@@ -2111,7 +2107,7 @@ func (process *TeleportProcess) initUploaderService(streamer events.Streamer, au
 
 	process.OnExit("fileuploader.shutdown", func(payload interface{}) {
 		log.Infof("File uploader is shutting down.")
-		warnOnErr(fileUploader.Close(), log)
+		fileUploader.Close()
 		log.Infof("File uploader has shut down.")
 	})
 
