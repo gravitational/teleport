@@ -92,6 +92,10 @@ func NewSessionRegistry(srv Server, auth auth.ClientI) (*SessionRegistry, error)
 		return nil, trace.BadParameter("session server is required")
 	}
 
+	if auth == nil {
+		return nil, trace.BadParameter("auth client is required")
+	}
+
 	return &SessionRegistry{
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, srv.Component()),
@@ -372,7 +376,6 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		// not lingering anymore? someone reconnected? cool then... no need
 		// to die...
 		if !sess.isLingering() {
-			fmt.Println("Lingering")
 			s.log.Infof("Session %v has become active again.", sess.id)
 			return
 		}
@@ -761,8 +764,11 @@ func (s *session) Close() error {
 				}
 			}
 
+			// Complete the session recording
 			if s.recorder != nil {
-				s.recorder.Close(s.serverCtx)
+				if err := s.recorder.Complete(s.serverCtx); err != nil {
+					s.log.WithError(err).Warn("Failed to close recorder.")
+				}
 			}
 
 			s.stateUpdate.L.Lock()
@@ -1701,10 +1707,6 @@ func (p *party) Close() (err error) {
 }
 
 func (s *session) trackerGet() (types.SessionTracker, error) {
-	if s.registry.auth == nil {
-		return nil, trace.BadParameter("cannot fetch session without auth service")
-	}
-
 	// get the session from the registry
 	sess, err := s.registry.auth.GetSessionTracker(s.serverCtx, s.id.String())
 	if err != nil {
@@ -1715,10 +1717,6 @@ func (s *session) trackerGet() (types.SessionTracker, error) {
 }
 
 func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	s.log.Debug("Creating tracker")
 	initator := &types.Participant{
 		ID:         teleportUser,
@@ -1776,10 +1774,6 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 }
 
 func (s *session) trackerAddParticipant(participant *party) error {
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	s.log.Debugf("Tracking participant: %v", participant.user)
 	req := &proto.UpdateSessionTrackerRequest{
 		SessionID: s.id.String(),
@@ -1800,10 +1794,6 @@ func (s *session) trackerAddParticipant(participant *party) error {
 }
 
 func (s *session) trackerRemoveParticipant(participantID string) error {
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	s.log.Debugf("Not tracking participant: %v", participantID)
 	req := &proto.UpdateSessionTrackerRequest{
 		SessionID: s.id.String(),
@@ -1822,10 +1812,6 @@ func (s *session) trackerUpdateState(state types.SessionState) error {
 	s.state = state
 	s.stateUpdate.Broadcast()
 
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	req := &proto.UpdateSessionTrackerRequest{
 		SessionID: s.id.String(),
 		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
@@ -1840,10 +1826,6 @@ func (s *session) trackerUpdateState(state types.SessionState) error {
 }
 
 func (s *session) trackerUpdateExpiry(expires time.Time) error {
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	req := &proto.UpdateSessionTrackerRequest{
 		SessionID: s.id.String(),
 		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{

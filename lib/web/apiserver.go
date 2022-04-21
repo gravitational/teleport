@@ -1866,13 +1866,21 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
+
+	resp, err := listResources(clt, r, types.KindNode)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items: ui.MakeServers(site.GetName(), servers),
+		Items:      ui.MakeServers(site.GetName(), servers),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
@@ -1894,8 +1902,8 @@ func (h *Handler) siteNodeConnect(
 	r *http.Request,
 	p httprouter.Params,
 	ctx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
-
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
@@ -2719,13 +2727,27 @@ type ssoRequestParams struct {
 }
 
 func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
-	query := r.URL.Query()
-
-	clientRedirectURL := query.Get("redirect_url")
+	// Manually grab the value from query param "redirect_url".
+	//
+	// The "redirect_url" param can contain its own query params such as in
+	// "https://localhost/login?connector_id=github&redirect_url=https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+	// which would be incorrectly parsed with the standard method.
+	// For example a call to r.URL.Query().Get("redirect_url") in the example above would return
+	// "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel",
+	// as it would take the "&sort=hostname:asc" to be a separate query param.
+	//
+	// This logic assumes that anything coming after "redirect_url" is part of
+	// the redirect URL.
+	splittedRawQuery := strings.Split(r.URL.RawQuery, "&redirect_url=")
+	var clientRedirectURL string
+	if len(splittedRawQuery) > 1 {
+		clientRedirectURL, _ = url.QueryUnescape(splittedRawQuery[1])
+	}
 	if clientRedirectURL == "" {
 		return nil, trace.BadParameter("missing redirect_url query parameter")
 	}
 
+	query := r.URL.Query()
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
