@@ -321,7 +321,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.CachePolicy = *cachePolicy
 
 	// Apply insecure_no_tls
-	if (fc.DisableTLS != nil {
+	if fc.DisableTLS != nil {
 		cfg.DisableTLS = fc.DisableTLS
 	}
 	
