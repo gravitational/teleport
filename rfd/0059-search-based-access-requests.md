@@ -11,6 +11,9 @@ This RFD proposes just-in-time search-based access requests which will enable
 users to request access to resources based on a search and/or selection of
 individual resources, rather than having to request one or more roles.
 
+Also proposed is a method to automatically request access to an SSH node when
+the user does not normally have permission, but is able to request it.
+
 ## Why
 
 Teleport users may not know in advance which roles they need or who should grant
@@ -82,11 +85,11 @@ $ tsh request search --kind db --labels 'env=prod'
 Found 2 items:
 
 name kind     id
-db-1 database 388aff7f-459f-4a43-804a-3729854976ab
-db-2 database 3be2fdad-7c79-4cfa-924e-ec1ea7225320
+db-1 database db:388aff7f-459f-4a43-804a-3729854976ab
+db-2 database db:3be2fdad-7c79-4cfa-924e-ec1ea7225320
 
 Create access request by:
-> tsh request create --id 388aff7f-459f-4a43-804a-3729854976ab --id 3be2fdad-7c79-4cfa-924e-ec1ea7225320
+> tsh request create --resources "db:388aff7f-459f-4a43-804a-3729854976ab,db:3be2fdad-7c79-4cfa-924e-ec1ea7225320"
 ```
 
 Users can search by kind, labels, and keywords. The `tsh request search` command
@@ -102,32 +105,32 @@ is fully customizable and scriptable.
 ### On-Demand SSH
 
 Many times users would not want to search and request access in two steps.
-Teleport will have a new alias flag modifier that will try accessing a node, in
-case if access denied, it will request access for a node all in one step:
+Teleport will have a new alias flag modifier that will try accessing a node, and
+if access denied it will request access for a node all in one step:
 
 ```bash
-# -P "Please" activate try and request mode
-$ tsh ssh -P root@db-node
+$ tsh ssh --request root@db-node
 # by default, if tsh will succeed to SSH, it will just continue with a
 # Session, otherwise it will find a node and create a search based access request
 You do not have access to the system by default, created access request.
 
 Please wait...
 
-Access request has been approved. Happy hacking!
+Access request has been approved.
 $
 ```
 
-Some customers would want to have `-P` flag as a default. New alias feature in
-profile, will allow those users to set `tsh ssh` as an alias for `tsh ssh -P`.
+Some customers would want to have `--request` flag as a default. The alias
+feature in the tsh profile will allow those users to set `tsh ssh` as an alias for `tsh
+ssh --request`.
 
 For OpenSSH use-cases, some users would like to load the new certificates in the
-agent, `tsh login -A root@db-node` will work like `tsh ssh -P` command except
-instead of login, it will load the keys in the agent.
+agent, `tsh login --request root@db-node` will work like the `tsh ssh -request`
+command except instead of login, it will load the keys in the agent.
 
 ### Role Spec
 
-To enable this level of matching, we propose an extension to the role spec to
+To enable this level of matching we propose an extension to the role spec to
 determine the final roles that need to be granted.
 
 We will specify two roles that define this flow.
@@ -169,6 +172,21 @@ spec:
     db_labels:
        owner: db-admin
 ```
+
+### Which roles will be requested
+
+When creating a search-based access request the underlying roles being requested
+will be determined automaticially. For simplicity, all roles which the user has
+permission to search as (included in `search_as_roles` on any of the roles the
+user has) will be requested. This request will be limited to only the exact
+resources found in the search, and (if approved) the user will have access to
+all logins granted by those roles.
+
+For "on-demand ssh" (`tsh ssh --request user@node`) we will attempt to find and
+request a single role which grants access to the node with the requested login.
+If multiple such roles exist, the role with the lowest number of allowed logins
+will be requested. In case of a tie, the requested role will be chosen
+arbitrarily.
 
 ### Certificate issuance and RBAC
 
