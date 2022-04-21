@@ -11,6 +11,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+  {{- if .Values.clusterLabels }}
+    {{- toYaml .Values.clusterLabels | nindent 4 }}
+  {{- end }}
 spec:
   serviceName: {{ .Release.Name }}
   replicas: {{ $replicaCount }}

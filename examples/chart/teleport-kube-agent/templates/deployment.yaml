@@ -11,6 +11,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+{{- if .Values.clusterLabels }}
+  {{- toYaml .Values.clusterLabels | nindent 4 }}
+{{- end }}
   {{- if .Values.annotations.deployment }}
   annotations:
     {{- toYaml .Values.annotations.deployment | nindent 4 }}

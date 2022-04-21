@@ -167,6 +167,10 @@ affinity: {}
 # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
 nodeSelector: {}
 
+# Kubernetes deployment labels to apply
+# https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+clusterLabels: {}
+
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 annotations:
