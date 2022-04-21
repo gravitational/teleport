@@ -178,21 +178,30 @@ func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServicePr
 	return serviceProvider, nil
 }
 
-func (a *Server) createSSODiagInfo(ctx context.Context, authKind string, id string, infoType types.SSOInfoType, value interface{}) {
-	entry, err := types.NewSSODiagnosticInfo(infoType, value)
-	if err != nil {
-		log.WithError(err).Warn("Failed to serialize SSO diag info.")
-	}
+type ssoDiagContext struct {
+	authKind                string
+	createSSODiagnosticInfo func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error
 
-	err = a.Identity.CreateSSODiagnosticInfo(ctx, authKind, id, *entry)
+	requestID string
+	testFlow  bool
+	info      types.SSODiagnosticInfo
+}
+
+func (c *ssoDiagContext) Write(ctx context.Context) {
+	err := c.createSSODiagnosticInfo(ctx, c.authKind, c.requestID, c.info)
 	if err != nil {
-		log.WithError(err).Warn("Failed to create SSO diag info.")
+		log.WithError(err).WithField("requestID", c.requestID).Warn("failed to write SSO diag info data")
 	}
 }
 
-func (a *Server) calculateSAMLUser(ctx context.Context, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
-	var err error
+func (a *Server) newSSODiagContext(authKind string) *ssoDiagContext {
+	return &ssoDiagContext{
+		authKind:                authKind,
+		createSSODiagnosticInfo: a.Identity.CreateSSODiagnosticInfo,
+	}
+}
 
+func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      assertionInfo.NameID,
@@ -200,30 +209,22 @@ func (a *Server) calculateSAMLUser(ctx context.Context, connector types.SAMLConn
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
-	writeDiagInfo := func(infoType types.SSOInfoType, value interface{}) {
-		if request.SSOTestFlow {
-			a.createSSODiagInfo(ctx, types.KindSAML, request.ID, infoType, value)
-		}
-	}
-
-	writeDiagInfo(types.SSOInfoType_SAML_TRAITS_FROM_ASSERTIONS, p.traits)
-	writeDiagInfo(types.SSOInfoType_SAML_CONNECTOR_TRAIT_MAPPING, connector.GetTraitMappings())
+	diagCtx.info.SAMLTraitsFromAssertions = p.traits
+	diagCtx.info.SAMLConnectorTraitMapping = connector.GetTraitMappings()
 
 	var warnings []string
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
-		type warn struct {
-			Message  string   `json:"message"`
-			Warnings []string `json:"warnings,omitempty"`
-		}
-
 		if len(warnings) != 0 {
-			writeDiagInfo(types.SSOInfoType_SAML_ATTRIBUTES_TO_ROLES_WARNINGS, warn{
-				Message:  "No roles mapped for the user",
-				Warnings: warnings})
 			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
+			diagCtx.info.SAMLAttributesToRolesWarnings = &types.SAMLAttributesToRolesWarnings{
+				Message:  "No roles mapped for the user",
+				Warnings: warnings,
+			}
 		} else {
-			writeDiagInfo(types.SSOInfoType_SAML_ATTRIBUTES_TO_ROLES_WARNINGS, warn{Message: "No roles mapped for the user. The mappings may contain typos."})
+			diagCtx.info.SAMLAttributesToRolesWarnings = &types.SAMLAttributesToRolesWarnings{
+				Message: "No roles mapped for the user. The mappings may contain typos.",
+			}
 		}
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
@@ -381,12 +382,18 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 		Method: events.LoginMethodSAML,
 	}
 
-	var auxInfo validateSAMLAuxInfo
+	diagCtx := a.newSSODiagContext(types.KindSAML)
 
-	auth, err := a.validateSAMLResponse(ctx, samlResponse, &auxInfo)
+	auth, err := a.validateSAMLResponse(ctx, diagCtx, samlResponse)
+	if err != nil {
+		diagCtx.info.Error = trace.UserMessage(err)
+	}
 
-	if auxInfo.attributeStatements != nil {
-		attributes, err := apievents.EncodeMapStrings(auxInfo.attributeStatements)
+	diagCtx.Write(ctx)
+
+	attributeStatements := diagCtx.info.SAMLAttributeStatements
+	if attributeStatements != nil {
+		attributes, err := apievents.EncodeMapStrings(attributeStatements)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
 			log.WithError(err).Debug("Failed to encode identity attributes.")
@@ -396,12 +403,8 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	}
 
 	if err != nil {
-		if auxInfo.ssoTestFlow {
-			a.createSSODiagInfo(ctx, types.KindSAML, auxInfo.requestID, types.SSOInfoType_ERROR, trace.UserMessage(err))
-		}
-
 		event.Code = events.UserSSOLoginFailureCode
-		if auxInfo.ssoTestFlow {
+		if diagCtx.testFlow {
 			event.Code = events.UserSSOTestFlowLoginFailureCode
 		}
 		event.Status.Success = false
@@ -416,7 +419,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	event.Status.Success = true
 	event.User = auth.Username
 	event.Code = events.UserSSOLoginCode
-	if auxInfo.ssoTestFlow {
+	if diagCtx.testFlow {
 		event.Code = events.UserSSOTestFlowLoginCode
 	}
 
@@ -430,30 +433,18 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	return auth, nil
 }
 
-type validateSAMLAuxInfo struct {
-	attributeStatements map[string][]string
-	ssoTestFlow         bool
-	requestID           string
-}
-
-func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, auxInfo *validateSAMLAuxInfo) (*SAMLAuthResponse, error) {
+func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string) (*SAMLAuthResponse, error) {
 	requestID, err := ParseSAMLInResponseTo(samlResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	auxInfo.requestID = requestID
+	diagCtx.requestID = requestID
 
 	request, err := a.Identity.GetSAMLAuthRequest(ctx, requestID)
 	if err != nil {
 		return nil, trace.Wrap(err).AddUserMessage("Failed to get SAML Auth Request")
 	}
-	auxInfo.ssoTestFlow = request.SSOTestFlow
-
-	writeDiagInfo := func(infoType types.SSOInfoType, value interface{}) {
-		if request.SSOTestFlow {
-			a.createSSODiagInfo(ctx, types.KindSAML, requestID, infoType, value)
-		}
-	}
+	diagCtx.testFlow = request.SSOTestFlow
 
 	connector, provider, err := a.getConnectorAndProvider(ctx, *request)
 	if err != nil {
@@ -465,7 +456,9 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 		return nil, trace.AccessDenied("received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err).AddUserMessage("Failed to retrieve assertion info. This may indicate IdP configuration error.")
 	}
 
-	writeDiagInfo(types.SSOInfoType_SAML_ASSERTION_INFO, assertionInfo)
+	if diagCtx.testFlow {
+		diagCtx.info.SAMLAssertionInfo = (*types.AssertionInfoWrapper)(assertionInfo)
+	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
 		return nil, trace.AccessDenied("invalid time in SAML assertion info").AddUserMessage("SAML assertion info contained warning: invalid time.")
@@ -476,6 +469,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 	}
 
 	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
+	log.Debugf("SAML assertion warnings: %+v.", assertionInfo.WarningInfo)
 
 	attributeStatements := map[string][]string{}
 
@@ -488,13 +482,8 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 		attributeStatements[key] = vals
 	}
 
-	auxInfo.attributeStatements = attributeStatements
-
-	writeDiagInfo(types.SSOInfoType_SAML_ATTRIBUTE_STATEMENTS, attributeStatements)
-
-	log.Debugf("SAML assertion warnings: %+v.", assertionInfo.WarningInfo)
-
-	writeDiagInfo(types.SSOInfoType_SAML_ATTRIBUTES_TO_ROLES, connector.GetAttributesToRoles())
+	diagCtx.info.SAMLAttributeStatements = attributeStatements
+	diagCtx.info.SAMLAttributesToRoles = connector.GetAttributesToRoles()
 
 	if len(connector.GetAttributesToRoles()) == 0 {
 		return nil, trace.BadParameter("no attributes to roles mapping, check connector documentation").AddUserMessage("Attributes-to-roles mapping is empty, SSO user will never have any roles.")
@@ -504,12 +493,21 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateSAMLUser(ctx, connector, *assertionInfo, request)
+	params, err := a.calculateSAMLUser(diagCtx, connector, *assertionInfo, request)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 
-	writeDiagInfo(types.SSOInfoType_CREATE_USER_PARAMS, params)
+	diagCtx.info.CreateUserParams = &types.CreateUserParams{
+		ConnectorName: params.connectorName,
+		Username:      params.username,
+		Logins:        params.logins,
+		KubeGroups:    params.kubeGroups,
+		KubeUsers:     params.kubeUsers,
+		Roles:         params.roles,
+		Traits:        params.traits,
+		SessionTTL:    types.Duration(params.sessionTTL),
+	}
 
 	user, err := a.createSAMLUser(params, request.SSOTestFlow)
 	if err != nil {
@@ -528,7 +526,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 
 	// In test flow skip signing and creating web sessions.
 	if request.SSOTestFlow {
-		writeDiagInfo(types.SSOInfoType_SUCCESS, "test flow")
+		diagCtx.info.Success = "test flow"
 		return auth, nil
 	}
 
@@ -573,6 +571,6 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 		auth.HostSigners = append(auth.HostSigners, authority)
 	}
 
-	writeDiagInfo(types.SSOInfoType_SUCCESS, "full flow")
+	diagCtx.info.Success = "regular flow"
 	return auth, nil
 }

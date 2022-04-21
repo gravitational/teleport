@@ -2362,7 +2362,7 @@ func (a *ServerWithRoles) GetSAMLAuthRequest(ctx context.Context, id string) (*s
 }
 
 // GetSSODiagnosticInfo returns SSO diagnostic info records.
-func (a *ServerWithRoles) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error) {
+func (a *ServerWithRoles) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
 	var resource string
 
 	switch authKind {

@@ -1176,16 +1176,16 @@ func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*services.S
 }
 
 // GetSSODiagnosticInfo returns SSO diagnostic info records.
-func (c *Client) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error) {
+func (c *Client) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
 	out, err := c.Get(ctx, c.Endpoint("sso", "diag", authKind, authRequestID), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response []types.SSODiagnosticInfo
+	var response types.SSODiagnosticInfo
 	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return response, nil
+	return &response, nil
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
@@ -1783,7 +1783,7 @@ type IdentityService interface {
 	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*services.SAMLAuthRequest, error)
 
 	// GetSSODiagnosticInfo returns SSO diagnostic info records.
-	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error)
+	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
 
 	// CreateGithubConnector creates a new Github connector
 	CreateGithubConnector(connector types.GithubConnector) error

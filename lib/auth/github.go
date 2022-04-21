@@ -334,32 +334,6 @@ type createUserParams struct {
 	sessionTTL time.Duration
 }
 
-func (cup createUserParams) MarshalJSON() ([]byte, error) {
-	j, err := json.Marshal(struct {
-		ConnectorName string              `json:"connector_name"`
-		Username      string              `json:"username"`
-		Logins        []string            `json:"logins"`
-		KubeGroups    []string            `json:"kube_groups,omitempty"`
-		KubeUsers     []string            `json:"kube_users,omitempty"`
-		Roles         []string            `json:"roles"`
-		Traits        map[string][]string `json:"traits"`
-		SessionTTL    time.Duration       `json:"session_ttl"`
-	}{
-		ConnectorName: cup.connectorName,
-		Username:      cup.username,
-		Logins:        cup.logins,
-		KubeGroups:    cup.kubeGroups,
-		KubeUsers:     cup.kubeUsers,
-		Roles:         cup.roles,
-		Traits:        cup.traits,
-		SessionTTL:    cup.sessionTTL,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return j, nil
-}
-
 func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),

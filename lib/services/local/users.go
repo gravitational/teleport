@@ -1221,15 +1221,9 @@ func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind 
 		return trace.BadParameter("missing parameter authRequestID")
 	}
 
-	var prefix string
-
 	switch authKind {
-	case types.KindSAML:
-		prefix = samlPrefix
-	case types.KindGithub:
-		prefix = githubPrefix
-	case types.KindOIDC:
-		prefix = oidcPrefix
+	case types.KindSAML, types.KindGithub, types.KindOIDC:
+		// nothing to do
 	default:
 		return trace.BadParameter("unsupported authKind %q", authKind)
 	}
@@ -1240,7 +1234,7 @@ func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind 
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, prefix, requestsTracePrefix, authRequestID, uuid.New().String()),
+		Key:     backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID),
 		Value:   jsonValue,
 		Expires: backend.Expiry(s.Clock(), time.Minute*15),
 	}
@@ -1252,39 +1246,29 @@ func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind 
 }
 
 // GetSSODiagnosticInfo returns SSO diagnostic info records.
-func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error) {
+func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
 	if authRequestID == "" {
 		return nil, trace.BadParameter("missing parameter id")
 	}
-	var prefix string
 
 	switch authKind {
-	case types.KindSAML:
-		prefix = samlPrefix
-	case types.KindGithub:
-		prefix = githubPrefix
-	case types.KindOIDC:
-		prefix = oidcPrefix
+	case types.KindSAML, types.KindGithub, types.KindOIDC:
+		// nothing to do
 	default:
 		return nil, trace.BadParameter("unsupported authKind %q", authKind)
 	}
 
-	startKey := backend.Key(webPrefix, connectorsPrefix, prefix, requestsTracePrefix, authRequestID)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var out []types.SSODiagnosticInfo
-	for _, item := range result.Items {
-		var req types.SSODiagnosticInfo
-		if err := json.Unmarshal(item.Value, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, req)
+	var req types.SSODiagnosticInfo
+	if err := json.Unmarshal(item.Value, &req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return out, nil
+	return &req, nil
 }
 
 // CreateGithubConnector creates a new Github connector
