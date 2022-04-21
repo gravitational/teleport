@@ -2,18 +2,24 @@
 title: Troubleshooting
 description: Troubleshooting and Collecting Metrics of Teleport Processes
 ---
+<Notice scope={["cloud"]} type="tip">
+
+These instructions apply to `teleport` processes running on your own
+infrastructure in order to access specific resources. In Teleport Cloud, the
+Auth and Proxy Services are monitored and managed for you.
+
+</Notice>
 
 ## Troubleshooting
 
-To diagnose problems you can configure [`teleport`](../reference/cli.mdx#teleport) to
-run with verbose logging enabled by passing it `-d` flag.
+To diagnose problems you can configure the `teleport` process to run with
+verbose logging enabled by passing it the `-d` flag.
 
-<Admonition
-  type="tip"
-  title="NOTE"
+<Notice
+  type="warning"
 >
   It is not recommended to run Teleport in production with verbose logging as it generates a substantial amount of data.
-</Admonition>
+</Notice>
 
 Sometimes you may want to reset [`teleport`](../reference/cli.mdx#teleport) to a
 clean state. This can be accomplished by erasing everything under the `data_dir`
@@ -21,9 +27,10 @@ directory, which defaults to `/var/lib/teleport/`.
 
 ## Debug dump
 
-You can get a goroutine dump of a running process by sending it `USR1` signal.
+You can get a goroutine dump of a running `teleport` process by sending it
+`USR1` signal.
 
-Locate a running teleport daemon PID:
+Locate a running `teleport` daemon PID:
 
 ```code
 # Locate teleport process PID
@@ -31,13 +38,14 @@ $ pidof teleport
 235119
 ```
 
-Send a `USR1` signal to teleport process:
+Send a `USR1` signal to a `teleport` process:
 
 ```code
 $ kill -USR1 $(pidof teleport)
 ```
 
-Teleport will print the debug information to `stderr`. Here what you will see in the logs:
+Teleport will print the debug information to `stderr`. Here what you will see in
+the logs:
 
 ```txt
 INFO [PROC:1]    Got signal "user defined signal 1", logging diagnostic info to stderr. service/signals.go:99
@@ -52,9 +60,15 @@ runtime/pprof.writeGoroutineStacks(0x3c2ffc0, 0xc0001a8010, 0xc001011a38, 0x4bcf
 ```
 
 ## Getting help
+<Tabs>
+<TabItem scope={["cloud", "enterprise"]} label="Commercial">
+If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on GitHub](https://github.com/gravitational/teleport/issues) or create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
-If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
-
-For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
+</TabItem>
+<TabItem scope={["oss"]} label="Open Source">
+If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on GitHub](https://github.com/gravitational/teleport/issues).
 
 For more information about custom features, or to try our [Enterprise edition](../../enterprise/introduction.mdx) of Teleport, please reach out to us at [sales](https://goteleport.com/signup/enterprise/).
+</TabItem>
+</Tabs>
+
