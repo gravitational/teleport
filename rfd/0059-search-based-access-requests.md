@@ -95,6 +95,9 @@ Create access request by:
 Users can search by kind, labels, and keywords. The `tsh request search` command
 will output a `tsh request create` command which can be used to request access.
 
+There will also be a flag `tsh request search --create ...` which will automatically
+execute the search and create the access reqeust in a single step.
+
 The CLI UX may be improved by allowing users to perform multiple searches,
 "stage" which resources they want to request access to and store this state
 locally, and finally execute the full request without needing each UUID on the
