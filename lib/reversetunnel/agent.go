@@ -23,7 +23,6 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -355,24 +354,16 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 
 			switch r.Type {
 			case versionRequest:
-				response := versionResponse{
-					ProxyVersion: teleport.Version,
-				}
+				version := teleport.Version
 
 				pong, err := a.Client.Ping(ctx)
 				if err != nil {
 					a.log.WithError(err).Debugf("Failed to ping auth server.")
 				} else {
-					response.AuthVersion = pong.ServerVersion
+					version = pong.ServerVersion
 				}
 
-				payload, err := json.Marshal(response)
-				if err != nil {
-					a.log.WithError(err).Debugf("Failed to marshal version response")
-					payload = []byte(teleport.Version)
-				}
-
-				if err := r.Reply(true, payload); err != nil {
+				if err := r.Reply(true, []byte(version)); err != nil {
 					a.log.WithError(err).Debugf("Failed to reply to version request")
 					continue
 				}

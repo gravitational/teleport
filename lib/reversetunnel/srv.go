@@ -19,7 +19,6 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -1128,19 +1127,9 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 
 // isPreV8Cluster checks if the cluster is older than 8.0.0.
 func isPreV8Cluster(ctx context.Context, conn ssh.Conn) (bool, string, error) {
-	response, err := sendVersionRequest(ctx, conn)
+	version, err := sendVersionRequest(ctx, conn)
 	if err != nil {
 		return false, "", trace.Wrap(err)
-	}
-
-	// If the AuthVersion wasn't provided it means that the
-	// remote side is still only reporting proxy version. In
-	// that case the only thing we can do is fallback to using
-	// the ProxyVersion and hope that the Auth server is running
-	// the same version
-	version := response.AuthVersion
-	if version == "" {
-		version = response.ProxyVersion
 	}
 
 	remoteClusterVersion, err := semver.NewVersion(version)
@@ -1160,9 +1149,9 @@ func isPreV8Cluster(ctx context.Context, conn ssh.Conn) (bool, string, error) {
 }
 
 // sendVersionRequest sends a request for the version remote Teleport cluster.
-func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (*versionResponse, error) {
+func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (string, error) {
 	errorCh := make(chan error, 1)
-	versionCh := make(chan versionResponse, 1)
+	versionCh := make(chan string, 1)
 
 	go func() {
 		ok, payload, err := sconn.SendRequest(versionRequest, true, nil)
@@ -1174,26 +1163,19 @@ func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (*versionResponse, 
 			errorCh <- trace.BadParameter("no response to %v request", versionRequest)
 			return
 		}
-		var response versionResponse
-		if err := json.Unmarshal(payload, &response); err != nil {
-			// failure means that we are talking to an older version
-			// that only reports its proxy version
-			versionCh <- versionResponse{ProxyVersion: string(payload)}
-			return
-		}
 
-		versionCh <- response
+		versionCh <- string(payload)
 	}()
 
 	select {
 	case ver := <-versionCh:
-		return &ver, nil
+		return ver, nil
 	case err := <-errorCh:
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	case <-time.After(defaults.WaitCopyTimeout):
-		return nil, trace.BadParameter("timeout waiting for version")
+		return "", trace.BadParameter("timeout waiting for version")
 	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
+		return "", trace.Wrap(ctx.Err())
 	}
 }
 
@@ -1204,8 +1186,3 @@ const (
 
 	versionRequest = "x-teleport-version"
 )
-
-type versionResponse struct {
-	ProxyVersion string `json:"proxy"`
-	AuthVersion  string `json:"auth"`
-}
