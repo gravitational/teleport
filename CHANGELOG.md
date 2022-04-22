@@ -1,5 +1,15 @@
 # Changelog
 
+## 9.1.1
+
+This release of Teleport contains multiple bug fixes and improvements.
+
+* Fixed regression issue where reverse tunnel connections inadvertently started respecting `HTTP_PROXY`. [#12035](https://github.com/gravitational/teleport/pull/12035)
+* Fixed potential deadlock in SSH server. [#12122](https://github.com/gravitational/teleport/pull/12122)
+* Fixed issue with Kubernetes service not reporting its readiness. [#12152](https://github.com/gravitational/teleport/pull/12152)
+* Fixed issue with JumpCloud identity provider. [#11936](https://github.com/gravitational/teleport/pull/11936)
+* Fixed issue with deleting many records from Firestore backend. [#12177](https://github.com/gravitational/teleport/pull/12177)
+
 ## 9.1.0
 
 Teleport 9.1 is a minor release that brings several new features, security and bug fixes.
