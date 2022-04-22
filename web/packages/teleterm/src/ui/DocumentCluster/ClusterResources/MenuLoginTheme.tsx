@@ -12,10 +12,14 @@ const menuLoginTheme = {
       ...theme.colors.primary,
       lighter: theme.colors.primary.darker,
     },
+    secondary: {
+      ...theme.colors.secondary,
+      dark: theme.colors.text.primary,
+    },
     grey: {
       [50]: 'rgba(255,255,255,0.05)',
       [900]: theme.colors.text.primary,
-      [100]: theme.colors.text.secondary
+      [100]: theme.colors.text.secondary,
     },
     link: theme.colors.text.primary,
   },

@@ -1,6 +1,6 @@
 import React, { FC, useEffect } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import useAsync from 'teleterm/ui/useAsync';
+import { useAsync } from 'shared/hooks/useAsync';
 import styled from 'styled-components';
 
 export const AppInitializer: FC = props => {

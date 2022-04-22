@@ -109,6 +109,19 @@ export default function createClient(addr: string) {
       });
     },
 
+    async listDatabaseUsers(dbUri: string) {
+      const req = new api.ListDatabaseUsersRequest().setDbUri(dbUri);
+      return new Promise<string[]>((resolve, reject) => {
+        tshd.listDatabaseUsers(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject().usersList);
+          }
+        });
+      });
+    },
+
     async listServers(clusterUri: string) {
       const req = new api.ListServersRequest().setClusterUri(clusterUri);
       return new Promise<types.Server[]>((resolve, reject) => {

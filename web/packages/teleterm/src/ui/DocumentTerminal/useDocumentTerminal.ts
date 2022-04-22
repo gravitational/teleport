@@ -20,7 +20,7 @@ import { IAppContext } from 'teleterm/ui/types';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { PtyCommand, PtyProcess } from 'teleterm/services/pty/types';
-import useAsync from 'teleterm/ui/useAsync';
+import { useAsync } from 'shared/hooks/useAsync';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
 
 export default function useDocumentTerminal(doc: Doc) {

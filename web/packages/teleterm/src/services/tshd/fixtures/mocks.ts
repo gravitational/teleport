@@ -5,6 +5,7 @@ export class MockTshClient implements types.TshClient {
   listRootClusters: () => Promise<types.Cluster[]>;
   listLeafClusters: (clusterUri: string) => Promise<types.Cluster[]>;
   listDatabases: (clusterUri: string) => Promise<types.Database[]>;
+  listDatabaseUsers: (dbUri: string) => Promise<string[]>;
   listKubes: (clusterUri: string) => Promise<types.Kube[]>;
   listApps: (clusterUri: string) => Promise<types.Application[]>;
   listServers: (clusterUri: string) => Promise<types.Server[]>;

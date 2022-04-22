@@ -14,61 +14,62 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useImperativeHandle, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 import Menu, { MenuItem } from 'design/Menu';
 import { space } from 'design/system';
-import { MenuLoginProps } from './types';
-import { ButtonBorder, Flex } from 'design';
+import { MenuLoginProps, LoginItem, MenuLoginHandle } from './types';
+import { ButtonBorder, Flex, Indicator } from 'design';
 import { CarrotDown } from 'design/Icon';
+import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
-export class MenuLogin extends React.Component<MenuLoginProps> {
-  static displayName = 'MenuLogin';
+export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
+  (props, ref) => {
+    const { onSelect, anchorOrigin, transformOrigin } = props;
+    const anchorRef = useRef<HTMLElement>();
+    const [isOpen, setIsOpen] = useState(false);
+    const [getLoginItemsAttempt, runGetLoginItems] = useAsync(() =>
+      Promise.resolve().then(() => props.getLoginItems())
+    );
 
-  anchorEl = React.createRef();
+    const placeholder = props.placeholder || 'Enter login name…';
+    const onOpen = () => {
+      if (!getLoginItemsAttempt.status) {
+        runGetLoginItems();
+      }
+      setIsOpen(true);
+    };
+    const onClose = () => {
+      setIsOpen(false);
+    };
+    const onItemClick = (
+      e: React.MouseEvent<HTMLAnchorElement>,
+      login: string
+    ) => {
+      onClose();
+      onSelect(e, login);
+    };
+    const onKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && e.currentTarget.value) {
+        onClose();
+        onSelect(e, e.currentTarget.value);
+      }
+    };
 
-  state = {
-    logins: [],
-    open: false,
-    anchorEl: null,
-  };
+    useImperativeHandle(ref, () => ({
+      open: () => {
+        onOpen();
+      },
+    }));
 
-  onOpen = () => {
-    const logins = this.props.getLoginItems();
-    this.setState({
-      logins,
-      open: true,
-    });
-  };
-
-  onItemClick = (e: React.MouseEvent<HTMLAnchorElement>, login: string) => {
-    this.onClose();
-    this.props.onSelect(e, login);
-  };
-
-  onClose = () => {
-    this.setState({ open: false });
-  };
-
-  onKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && e.currentTarget.value) {
-      this.onClose();
-      this.props.onSelect(e, e.currentTarget.value);
-    }
-  };
-
-  render() {
-    const { anchorOrigin, transformOrigin } = this.props;
-    const placeholder = this.props.placeholder || 'Enter login name…';
-    const { open, logins } = this.state;
     return (
       <React.Fragment>
         <ButtonBorder
           height="24px"
           size="small"
-          setRef={e => (this.anchorEl = e)}
-          onClick={this.onOpen}
+          setRef={anchorRef}
+          onClick={onOpen}
         >
           CONNECT
           <CarrotDown ml={2} mr={-2} fontSize="2" color="text.secondary" />
@@ -76,42 +77,35 @@ export class MenuLogin extends React.Component<MenuLoginProps> {
         <Menu
           anchorOrigin={anchorOrigin}
           transformOrigin={transformOrigin}
-          anchorEl={this.anchorEl}
-          open={open}
-          onClose={this.onClose}
+          anchorEl={anchorRef.current}
+          open={isOpen}
+          onClose={onClose}
           getContentAnchorEl={null}
         >
           <LoginItemList
-            logins={logins}
-            onKeyPress={this.onKeyPress}
-            onClick={this.onItemClick}
+            getLoginItemsAttempt={getLoginItemsAttempt}
+            onKeyPress={onKeyPress}
+            onClick={onItemClick}
             placeholder={placeholder}
           />
         </Menu>
       </React.Fragment>
     );
   }
-}
+);
 
-export const LoginItemList = ({ logins, onClick, onKeyPress, placeholder }) => {
-  logins = logins || [];
-  const $menuItems = logins.map((item, key) => {
-    const { login, url } = item;
-    return (
-      <StyledMenuItem
-        key={key}
-        px="2"
-        mx="2"
-        as={url ? NavLink : StyledButton}
-        to={url}
-        onClick={(e: Event) => {
-          onClick(e, login);
-        }}
-      >
-        {login}
-      </StyledMenuItem>
-    );
-  });
+const LoginItemList = ({
+  getLoginItemsAttempt,
+  onClick,
+  onKeyPress,
+  placeholder,
+}: {
+  getLoginItemsAttempt: Attempt<LoginItem[]>;
+  onClick: (e: React.MouseEvent<HTMLAnchorElement>, login: string) => void;
+  onKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  placeholder: string;
+}) => {
+  const content = getLoginItemListContent(getLoginItemsAttempt, onClick);
 
   return (
     <Flex flexDirection="column">
@@ -124,10 +118,52 @@ export const LoginItemList = ({ logins, onClick, onKeyPress, placeholder }) => {
         placeholder={placeholder}
         autoComplete="off"
       />
-      {$menuItems}
+      {content}
     </Flex>
   );
 };
+
+function getLoginItemListContent(
+  getLoginItemsAttempt: Attempt<LoginItem[]>,
+  onClick: (e: React.MouseEvent<HTMLAnchorElement>, login: string) => void
+) {
+  switch (getLoginItemsAttempt.status) {
+    case '':
+    case 'processing':
+      return (
+        <Indicator
+          css={({ theme }) => `
+            align-self: center;
+            color: ${theme.colors.secondary.dark}
+          `}
+        />
+      );
+    case 'error':
+      // Ignore errors and let the caller handle them outside of this component. There's little
+      // space to show the error inside the menu.
+      return null;
+    case 'success':
+      const logins = getLoginItemsAttempt.data;
+
+      return logins.map((item, key) => {
+        const { login, url } = item;
+        return (
+          <StyledMenuItem
+            key={key}
+            px="2"
+            mx="2"
+            as={url ? NavLink : StyledButton}
+            to={url}
+            onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+              onClick(e, login);
+            }}
+          >
+            {login}
+          </StyledMenuItem>
+        );
+      });
+  }
+}
 
 const StyledButton = styled.button`
   color: inherit;

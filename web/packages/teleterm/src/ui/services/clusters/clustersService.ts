@@ -413,6 +413,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return [...this.state.dbs.values()];
   }
 
+  async getDbUsers(dbUri: string): Promise<string[]> {
+    return await this.client.listDatabaseUsers(dbUri);
+  }
+
   useState() {
     return useStore(this).state;
   }

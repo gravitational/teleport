@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useEffect } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-import useAsync from 'teleterm/ui/useAsync';
+import { useAsync } from 'shared/hooks/useAsync';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
 
 export default function useGateway(doc: types.DocumentGateway) {

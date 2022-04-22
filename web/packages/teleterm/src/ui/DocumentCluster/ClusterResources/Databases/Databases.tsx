@@ -22,6 +22,9 @@ import { renderLabelCell } from '../renderLabelCell';
 import { Danger } from 'design/Alert';
 import { MenuLogin } from 'shared/components/MenuLogin';
 import { MenuLoginTheme } from '../MenuLoginTheme';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 
 export default function Container() {
   const state = useDatabases();
@@ -49,8 +52,12 @@ function DatabaseList(props: State) {
           },
           {
             altKey: 'connect-btn',
-            render: db =>
-              renderConnectButton(user => props.connect(db.uri, user)),
+            render: db => (
+              <ConnectButton
+                dbUri={db.uri}
+                onConnect={user => props.connect(db.uri, user)}
+              />
+            ),
           },
         ]}
         pagination={{ pageSize: 100, pagerPosition: 'bottom' }}
@@ -60,13 +67,23 @@ function DatabaseList(props: State) {
   );
 }
 
-function renderConnectButton(onConnect: (user: string) => void) {
+function ConnectButton({
+  dbUri,
+  onConnect,
+}: {
+  dbUri: string;
+  onConnect: (user: string) => void;
+}) {
+  const { clustersService, notificationsService } = useAppContext();
+
   return (
     <Cell align="right">
       <MenuLoginTheme>
         <MenuLogin
           placeholder="Enter username…"
-          getLoginItems={() => []}
+          getLoginItems={() =>
+            getDatabaseUsers(dbUri, clustersService, notificationsService)
+          }
           onSelect={(_, user) => onConnect(user)}
           transformOrigin={{
             vertical: 'top',
@@ -80,4 +97,24 @@ function renderConnectButton(onConnect: (user: string) => void) {
       </MenuLoginTheme>
     </Cell>
   );
+}
+
+async function getDatabaseUsers(
+  dbUri: string,
+  clustersService: ClustersService,
+  notificationsService: NotificationsService
+) {
+  try {
+    const dbUsers = await clustersService.getDbUsers(dbUri);
+    return dbUsers.map(user => ({ login: user, url: '' }));
+  } catch (e) {
+    // Emitting a warning instead of an error here because fetching those username suggestions is
+    // not the most important part of the app.
+    notificationsService.notifyWarning({
+      title: 'Could not fetch database usernames',
+      description: e.message,
+    });
+
+    throw e;
+  }
 }

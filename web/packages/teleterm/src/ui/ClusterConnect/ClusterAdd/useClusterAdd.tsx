@@ -1,5 +1,5 @@
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import useAsync from 'teleterm/ui/useAsync';
+import { useAsync } from 'shared/hooks/useAsync';
 import { ClusterAddProps, ClusterAddPresentationProps } from './ClusterAdd';
 
 export function useClusterAdd(
