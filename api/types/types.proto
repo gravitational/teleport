@@ -2634,9 +2634,8 @@ message GithubConnectorSpecV3 {
     string Display = 5 [ (gogoproto.jsontag) = "display" ];
 }
 
-// SAMLAttributesToRolesWarnings contains warnings produced during the process of mapping the SAML
-// attributes to roles.
-message SAMLAttributesToRolesWarnings {
+// SSOWarnings conveys a user-facing main message along with auxiliary warnings.
+message SSOWarnings {
     // Message is main user-facing message to be shown.
     string Message = 1 [ (gogoproto.jsontag) = "message,omitempty" ];
     // Warnings is a set of distinct warnings to be reported.
@@ -2672,47 +2671,50 @@ message CreateUserParams {
 
 // SSODiagnosticInfo is a single SSO diagnostic info entry.
 message SSODiagnosticInfo {
+    // TestFlow indicates the SSO flow was a test one.
+    bool TestFlow = 1 [ (gogoproto.jsontag) = "test_flow" ];
+
     // Error stores user-friendly error message.
-    string Error = 1 [ (gogoproto.jsontag) = "error" ];
+    string Error = 2 [ (gogoproto.jsontag) = "error" ];
 
     // Success if present, marks the flow as finished with success.
-    string Success = 2 [ (gogoproto.jsontag) = "success" ];
+    bool Success = 3 [ (gogoproto.jsontag) = "success" ];
 
     // CreateUserParams represents the user creation parameters as called during SSO login flow.
-    CreateUserParams CreateUserParams = 3 [ (gogoproto.jsontag) = "create_user_params,omitempty" ];
+    CreateUserParams CreateUserParams = 4 [ (gogoproto.jsontag) = "create_user_params,omitempty" ];
 
     // SAMLAttributesToRoles represents mapping from attributes to roles, as used during SAML login
     // flow.
-    repeated AttributeMapping SAMLAttributesToRoles = 4
+    repeated AttributeMapping SAMLAttributesToRoles = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "attributes_to_roles,omitempty" ];
 
     // SAMLAttributesToRolesWarnings contains warnings produced during the process of mapping the
     // SAML attributes to roles.
-    SAMLAttributesToRolesWarnings SAMLAttributesToRolesWarnings = 5
+    SSOWarnings SAMLAttributesToRolesWarnings = 6
         [ (gogoproto.jsontag) = "saml_attributes_to_roles_warnings,omitempty" ];
 
     // SAMLAttributeStatements represents SAML attribute statements.
-    wrappers.LabelValues SAMLAttributeStatements = 6 [
+    wrappers.LabelValues SAMLAttributeStatements = 7 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "saml_attribute_statements,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 
     // SAMLAssertionInfo represents raw SAML assertion info as returned by IdP during SAML flow.
-    bytes SAMLAssertionInfo = 7 [
+    bytes SAMLAssertionInfo = 8 [
         (gogoproto.jsontag) = "saml_assertion_info,omitempty",
-        (gogoproto.customtype) = "AssertionInfoWrapper"
+        (gogoproto.customtype) = "AssertionInfo"
     ];
 
     // SAMLTraitsFromAssertions represents traits translated from SAML assertions.
-    wrappers.LabelValues SAMLTraitsFromAssertions = 8 [
+    wrappers.LabelValues SAMLTraitsFromAssertions = 9 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "saml_traits_from_assertions,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 
     // SAMLConnectorTraitMapping represents connector-specific trait mapping.
-    repeated TraitMapping SAMLConnectorTraitMapping = 9 [
+    repeated TraitMapping SAMLConnectorTraitMapping = 10 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "saml_connector_trait_mapping,omitempty"
     ];

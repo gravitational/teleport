@@ -24,9 +24,11 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 )
 
-type AssertionInfoWrapper saml2.AssertionInfo
+// AssertionInfo is an alias for saml2.AssertionInfo with additional methods, required for serialization to/from protobuf.
+// With those we can reference it with an option like so: `(gogoproto.customtype) = "AssertionInfo"`
+type AssertionInfo saml2.AssertionInfo
 
-func (a *AssertionInfoWrapper) Size() int {
+func (a *AssertionInfo) Size() int {
 	bytes, err := json.Marshal(a)
 	if err != nil {
 		return 0
@@ -34,11 +36,11 @@ func (a *AssertionInfoWrapper) Size() int {
 	return len(bytes)
 }
 
-func (a *AssertionInfoWrapper) Unmarshal(bytes []byte) error {
+func (a *AssertionInfo) Unmarshal(bytes []byte) error {
 	return trace.Wrap(json.Unmarshal(bytes, a))
 }
 
-func (a *AssertionInfoWrapper) MarshalTo(bytes []byte) (int, error) {
+func (a *AssertionInfo) MarshalTo(bytes []byte) (int, error) {
 	out, err := json.Marshal(a)
 	if err != nil {
 		return 0, trace.Wrap(err)

@@ -26,13 +26,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAssertionInfoWrapper_RoundTrip(t *testing.T) {
+func TestAssertionInfo_RoundTrip(t *testing.T) {
 	tests := []struct {
 		name string
-		src  AssertionInfoWrapper
+		src  AssertionInfo
 	}{
-		{name: "empty", src: AssertionInfoWrapper{}},
-		{name: "full", src: (AssertionInfoWrapper)(saml2.AssertionInfo{
+		{name: "empty", src: AssertionInfo{}},
+		{name: "full", src: (AssertionInfo)(saml2.AssertionInfo{
 			NameID: "zz",
 			Values: map[string]samltypes.Attribute{
 				"foo": {
@@ -72,7 +72,7 @@ func TestAssertionInfoWrapper_RoundTrip(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.src.Size(), count)
 
-			dst := &AssertionInfoWrapper{}
+			dst := &AssertionInfo{}
 			err = dst.Unmarshal(buf)
 			require.NoError(t, err)
 			require.Equal(t, &tt.src, dst)
