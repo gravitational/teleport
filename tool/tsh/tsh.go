@@ -2015,11 +2015,18 @@ func getAppRow(proxy, cluster string, app types.Application, active []tlsca.Rout
 			break
 		}
 	}
-	if verbose {
-		row = append(row, name, app.GetDescription(), app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
-	} else {
-		row = append(row, name, app.GetDescription(), app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
+
+	protocol := "HTTP"
+	if app.IsTCP() {
+		protocol = "TCP"
 	}
+
+	if verbose {
+		row = append(row, name, app.GetDescription(), protocol, app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
+	} else {
+		row = append(row, name, app.GetDescription(), protocol, app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
+	}
+
 	return row
 }
 
@@ -2033,10 +2040,10 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	// lines per node.
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Application", "Description", "Public Address", "URI", "Labels"}, rows...)
+		t = asciitable.MakeTable([]string{"Application", "Description", "Type", "Public Address", "URI", "Labels"}, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Application", "Description", "Public Address", "Labels"}, rows, "Labels")
+			[]string{"Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
 }

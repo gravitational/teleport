@@ -3210,6 +3210,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log.Info("Web UI is disabled.")
 	}
 
+	// Register ALPN handler that will be accepting connections for plain
+	// TCP applications.
+	alpnRouter.Add(alpnproxy.HandlerDecs{
+		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolTCP),
+		Handler:   webHandler.HandleConnection,
+	})
+
 	var peerAddr string
 	var proxyServer *proxy.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {

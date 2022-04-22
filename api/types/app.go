@@ -61,6 +61,8 @@ type Application interface {
 	GetRewrite() *Rewrite
 	// IsAWSConsole returns true if this app is AWS management console.
 	IsAWSConsole() bool
+	// IsTCP returns true if this app represents a TCP endpoint.
+	IsTCP() bool
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
 	GetAWSAccountID() string
 	// Copy returns a copy of this app resource.
@@ -232,6 +234,11 @@ func (a *AppV3) GetRewrite() *Rewrite {
 // IsAWSConsole returns true if this app is AWS management console.
 func (a *AppV3) IsAWSConsole() bool {
 	return strings.HasPrefix(a.Spec.URI, constants.AWSConsoleURL)
+}
+
+// IsTCP returns true if this app represents a TCP endpoint.
+func (a *AppV3) IsTCP() bool {
+	return strings.HasPrefix(a.Spec.URI, "tcp://")
 }
 
 // GetAWSAccountID returns value of label containing AWS account ID on this app.
