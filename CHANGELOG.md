@@ -1,5 +1,24 @@
 # Changelog
 
+## 8.3.8
+
+This release of Teleport contains multiple bug fixes and stability improvements.
+
+* Made relogin attempts use strongest auth method. [#11848](https://github.com/gravitational/teleport/pull/11848)
+* Fixed issue with key principals not being used when using identity files. [#11792](https://github.com/gravitational/teleport/pull/11792)
+* Added gRPC latency metrics for auth and proxy services. [#11776](https://github.com/gravitational/teleport/pull/11776)
+* Fixed potential panic in CA rotation. [#12107](https://github.com/gravitational/teleport/pull/12107)
+* Fixed issue with Kubernetes services not reporting its readiness. [#12153](https://github.com/gravitational/teleport/pull/12153)
+* Added ability to sign database credentials with `tctl auth sign`. [#12044](https://github.com/gravitational/teleport/pull/12044)
+* Fixed issue with Database service not reporting readiness when using dynamic registration. [#12041](https://github.com/gravitational/teleport/pull/12041)
+* Fixed issue with connecting to self-hosted databases in insecure mode. [#11759](https://github.com/gravitational/teleport/pull/11759)
+* Updated `tsh db ls` to display available users. [#11941](https://github.com/gravitational/teleport/pull/11941)
+* Fixed issue with deleting MFA devices with `/` in names. [#12081](https://github.com/gravitational/teleport/pull/
+12081)
+* Updated Go to v1.17.9. [#11933](https://github.com/gravitational/teleport/pull/11933)
+* Fixed Okta OIDC connector. [#11718](https://github.com/gravitational/teleport/pull/11718)
+* Fixed goroutine leak in Okta OIDC client. [#12077](https://github.com/gravitational/teleport/pull/12077)
+
 ## 8.3.7
 
 This release of Teleport contains multiple fixes and improvements.
