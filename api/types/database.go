@@ -64,6 +64,8 @@ type Database interface {
 
 	GetOptions() DatabaseOptions
 
+	GetMySQLServerVersion() string
+
 	SetMySQLServerVersion(version string)
 	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
@@ -259,8 +261,16 @@ func (d *DatabaseV3) GetOptions() DatabaseOptions {
 	return d.Spec.Options
 }
 
+func (d *DatabaseV3) GetMySQLServerVersion() string {
+	if d.Status.MySQLServerVersion != "" {
+		return d.Status.MySQLServerVersion
+	}
+
+	return d.Spec.Options.MySQLServerVersion
+}
+
 func (d *DatabaseV3) SetMySQLServerVersion(version string) {
-	d.Spec.Options.MySQLServerVersion = version
+	d.Status.MySQLServerVersion = version
 }
 
 // IsEmpty returns true if AWS metadata is empty.

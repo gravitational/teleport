@@ -272,6 +272,8 @@ message DatabaseStatusV3 {
     string CACert = 1 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
     // AWS is the auto-discovered AWS cloud database metadata.
     AWS AWS = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws" ];
+
+    string MySQLServerVersion = 3 [ (gogoproto.jsontag) = "mysql_server_version,omitempty" ];
 }
 
 // AWS contains AWS metadata about the database.
