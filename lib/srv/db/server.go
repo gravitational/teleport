@@ -775,6 +775,11 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Context:      s.closeContext,
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
+		UpdateDatabaseFn: func(ctx context.Context, database types.Database) error {
+			err := s.updateDatabase(ctx, database)
+			s.reconcileCh <- struct{}{}
+			return err
+		},
 	})
 }
 

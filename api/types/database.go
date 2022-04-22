@@ -61,6 +61,10 @@ type Database interface {
 	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
 	SetStatusCA(string)
+
+	GetOptions() DatabaseOptions
+
+	SetMySQLServerVersion(version string)
 	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
@@ -249,6 +253,14 @@ func (d *DatabaseV3) GetTLS() DatabaseTLS {
 // SetStatusCA sets the database CA certificate in the status field.
 func (d *DatabaseV3) SetStatusCA(ca string) {
 	d.Status.CACert = ca
+}
+
+func (d *DatabaseV3) GetOptions() DatabaseOptions {
+	return d.Spec.Options
+}
+
+func (d *DatabaseV3) SetMySQLServerVersion(version string) {
+	d.Spec.Options.MySQLServerVersion = version
 }
 
 // IsEmpty returns true if AWS metadata is empty.

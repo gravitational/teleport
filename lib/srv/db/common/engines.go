@@ -20,6 +20,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 
 	"github.com/gravitational/trace"
@@ -79,6 +80,8 @@ type EngineConfig struct {
 	Clock clockwork.Clock
 	// Log is used for logging.
 	Log logrus.FieldLogger
+
+	UpdateDatabaseFn func(ctx context.Context, database types.Database) error
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

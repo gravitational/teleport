@@ -102,6 +102,27 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			e.Log.WithError(err).Error("Failed to close connection to MySQL server.")
 		}
 	}()
+
+	serverVersion := serverConn.GetServerVersion()
+	cfgVersion := sessionCtx.Database.GetOptions().MySQLServerVersion
+	if serverVersion != sessionCtx.Database.GetOptions().MySQLServerVersion {
+		sessionCtx.Database.SetMySQLServerVersion(serverVersion)
+
+		err = e.UpdateDatabaseFn(ctx, sessionCtx.Database)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if sessionCtx.Database.Origin() == types.OriginDynamic {
+			err = e.AuthClient.UpdateDatabase(ctx, sessionCtx.Database)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	e.Log.Warnf("DB agent server version: %s; cfgVer: %s", serverVersion, cfgVersion)
+
 	// Send back OK packet to indicate auth/connect success. At this point
 	// the original client should consider the connection phase completed.
 	err = e.proxyConn.WriteOK(nil)

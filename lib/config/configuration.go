@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"crypto/x509"
 	"io"
+	stdlog "log"
 	"net"
 	"net/url"
 	"os"
@@ -32,8 +33,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-
-	stdlog "log"
 
 	"golang.org/x/crypto/ssh"
 
@@ -1082,6 +1081,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
+			Options: service.DatabaseOptions{
+				MySQLServerVersion: "8.0.28",
+			},
 			TLS: service.DatabaseTLS{
 				CACert:     caBytes,
 				ServerName: database.TLS.ServerName,
@@ -1664,11 +1666,14 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			}
 		}
 		db := service.Database{
-			Name:          clf.DatabaseName,
-			Description:   clf.DatabaseDescription,
-			Protocol:      clf.DatabaseProtocol,
-			URI:           clf.DatabaseURI,
-			StaticLabels:  staticLabels,
+			Name:         clf.DatabaseName,
+			Description:  clf.DatabaseDescription,
+			Protocol:     clf.DatabaseProtocol,
+			URI:          clf.DatabaseURI,
+			StaticLabels: staticLabels,
+			Options: service.DatabaseOptions{
+				MySQLServerVersion: "8.0.18",
+			},
 			DynamicLabels: dynamicLabels,
 			TLS: service.DatabaseTLS{
 				CACert: caBytes,

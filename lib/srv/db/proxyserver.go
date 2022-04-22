@@ -326,7 +326,10 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	case defaults.ProtocolPostgres:
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
-		return s.MySQLProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
+		db := proxyCtx.Servers[0].GetDatabase()
+		version := db.GetOptions().MySQLServerVersion
+		s.log.Warnf("MySQL version: %s", version)
+		return s.MySQLProxyNoTLS(version).HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
@@ -375,12 +378,13 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 }
 
 // MySQLProxyNoTLS returns a new instance of the non-TLS MySQL proxy.
-func (s *ProxyServer) MySQLProxyNoTLS() *mysql.Proxy {
+func (s *ProxyServer) MySQLProxyNoTLS(serverVersion string) *mysql.Proxy {
 	return &mysql.Proxy{
-		Middleware: s.middleware,
-		Service:    s,
-		Limiter:    s.cfg.Limiter,
-		Log:        s.log,
+		Middleware:         s.middleware,
+		Service:            s,
+		Limiter:            s.cfg.Limiter,
+		Log:                s.log,
+		MySQLServerVersion: serverVersion,
 	}
 }
 

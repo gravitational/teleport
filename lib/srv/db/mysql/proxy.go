@@ -52,6 +52,8 @@ type Proxy struct {
 	Log logrus.FieldLogger
 	// Limiter limits the number of active connections per client IP.
 	Limiter *limiter.Limiter
+
+	MySQLServerVersion string
 }
 
 // HandleConnection accepts connection from a MySQL client, authenticates
@@ -61,7 +63,13 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// by peeking into the first few bytes. This is needed to be able to detect
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
-	server := p.makeServer(conn)
+
+	mysqlServerVersion := p.MySQLServerVersion
+	if mysqlServerVersion == "" {
+		mysqlServerVersion = serverVersion
+	}
+
+	server := p.makeServer(conn, mysqlServerVersion)
 	// If any error happens, make sure to send it back to the client, so it
 	// has a chance to close the connection from its side.
 	defer func() {
@@ -133,7 +141,7 @@ func (p *credentialProvider) GetCredential(_ string) (string, bool, error) { ret
 
 // makeServer creates a MySQL server from the accepted client connection that
 // provides access to various parts of the handshake.
-func (p *Proxy) makeServer(clientConn net.Conn) *server.Conn {
+func (p *Proxy) makeServer(clientConn net.Conn, serverVersion string) *server.Conn {
 	return server.MakeConn(
 		clientConn,
 		server.NewServer(

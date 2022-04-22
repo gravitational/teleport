@@ -261,6 +261,9 @@ message DatabaseSpecV3 {
     DatabaseTLS TLS = 8 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "tls,omitempty" ];
     // AD is the Active Directory configuration for the database.
     AD AD = 9 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "ad,omitempty" ];
+
+    DatabaseOptions Options = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "options,omitempty" ];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -349,6 +352,10 @@ message DatabaseTLS {
     // ServerName allows to provide custom hostname. This value will override the
     // servername/hostname on a certificate during validation.
     string ServerName = 3 [ (gogoproto.jsontag) = "server_name,omitempty" ];
+}
+
+message DatabaseOptions {
+    string MySQLServerVersion = 1 [ (gogoproto.jsontag) = "mysql_server_version,omitempty" ];
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.

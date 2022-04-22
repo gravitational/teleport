@@ -626,6 +626,8 @@ type Database struct {
 	URI string
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string
+
+	Options DatabaseOptions
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels services.CommandLabels
 	// TLS keeps database connection TLS configuration.
@@ -678,6 +680,10 @@ func (m TLSMode) ToProto() types.DatabaseTLSMode {
 	default: // VerifyFull
 		return types.DatabaseTLSMode_VERIFY_FULL
 	}
+}
+
+type DatabaseOptions struct {
+	MySQLServerVersion string
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
