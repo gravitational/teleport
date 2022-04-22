@@ -19,6 +19,9 @@ export class Gateway extends jspb.Message {
     getTargetUser(): string;
     setTargetUser(value: string): Gateway;
 
+    getTargetSubresourceName(): string;
+    setTargetSubresourceName(value: string): Gateway;
+
     getLocalAddress(): string;
     setLocalAddress(value: string): Gateway;
 
@@ -48,6 +51,7 @@ export namespace Gateway {
         targetName: string,
         targetUri: string,
         targetUser: string,
+        targetSubresourceName: string,
         localAddress: string,
         localPort: string,
         protocol: string,
