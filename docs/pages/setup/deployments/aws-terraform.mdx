@@ -714,7 +714,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 - [Install the Teleport binary on the Server](../../installation.mdx)
 - [Run Teleport - we recommend using systemd](../admin/daemon.mdx#systemd-unit-file)
 - [Set the correct settings in /etc/teleport.yaml](../reference/config.mdx)
-- [Add nodes to the Teleport cluster](../admin/adding-nodes.mdx#adding-nodes-to-the-cluster)
+- [Add Nodes to the Teleport cluster](../admin/adding-nodes.mdx)
 
 ### Getting the CA pin hash
 
@@ -736,7 +736,7 @@ $ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_clu
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate a node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../admin/adding-nodes.mdx#adding-nodes-to-the-cluster).
+You can also generate a Node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../admin/adding-nodes.mdx).
 
 ### Joining nodes via the Teleport auth server
 
