@@ -125,11 +125,11 @@ func (c *ChConn) RemoteAddr() net.Addr {
 // Read reads from the channel.
 func (c *ChConn) Read(data []byte) (int, error) {
 	n, err := c.reader.Read(data)
-	// A lot of code relies on net.ErrClosed or "use of closed network connection" error to
+	// A lot of code relies on "use of closed network connection" error to
 	// gracefully handle terminated connections so convert the closed pipe
 	// error to it.
 	if err != nil && err == io.ErrClosedPipe {
-		return n, trace.Wrap(net.ErrClosed, constants.UseOfClosedNetworkConnection)
+		return n, trace.ConnectionProblem(err, constants.UseOfClosedNetworkConnection)
 	}
 	// Do not wrap the error to avoid masking the underlying error such as
 	// timeout error which is returned when read deadline is exceeded.
