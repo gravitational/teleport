@@ -1248,7 +1248,7 @@ func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind 
 // GetSSODiagnosticInfo returns SSO diagnostic info records.
 func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
 	if authRequestID == "" {
-		return nil, trace.BadParameter("missing parameter id")
+		return nil, trace.BadParameter("missing parameter authRequestID")
 	}
 
 	switch authKind {
