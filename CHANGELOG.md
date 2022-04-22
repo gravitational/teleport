@@ -1,5 +1,25 @@
 # Changelog
 
+## 7.3.19
+
+This release of Teleport contains multiple bug fixes and stability improvements.
+
+* Fixed issue with message of the day not showing up in all scenarios. [#11372](https://github.com/gravitational/teleport/pull/11372)
+* Fixed issue with Kubernetes Access panicking in some cases. [#12143](https://github.com/gravitational/teleport/pull/12143)
+* Improved Teleport process reload reliability when sending SIGHUP. [#11455](https://github.com/gravitational/teleport/pull/11455)
+* Improved in-memory and SQLite cache reliability. [#11660](https://github.com/gravitational/teleport/pull/11660)
+* Fixed potential panic during CA rotation. [#12108](https://github.com/gravitational/teleport/pull/12108)
+* Fixed console player Ctrl-C and Ctrl-D functionality. [#11559](https://github.com/gravitational/teleport/pull/11559)
+* Improved error message when joining to cluster with another cluster's state. [#11753](https://github.com/gravitational/teleport/pull/11753)
+* Improved error message when using incorrect auth connector. [#11886](https://github.com/gravitational/teleport/pull/11886)
+* Fixed issue with not being able to delete MFA devices with `/` in names. [#12109](https://github.com/gravitational/teleport/pull/12109)
+* Fixed race condition in tsh player. [#11491](https://github.com/gravitational/teleport/pull/11491)
+* Fixed Okta OIDC support. [#11718](https://github.com/gravitational/teleport/pull/11718)
+* Multiple reverse tunnel stability improvements. [#11201](https://github.com/gravitational/teleport/pull/11201)
+* Improved network utilization with session uploader. [#11696](https://github.com/gravitational/teleport/pull/11696)
+* Improved remote clusters bookkeeping. [#11705](https://github.com/gravitational/teleport/pull/11705)
+* Fixed goroutine leak in OIDC client. [#12076](https://github.com/gravitational/teleport/pull/12076)
+
 ## 7.3.18
 
 This release of Teleport contains multiple performance and stability improvements.
