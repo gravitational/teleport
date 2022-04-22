@@ -58,6 +58,8 @@ type Config struct {
 	// ExtraHeaders is a map of extra HTTP headers to be included in
 	// requests.
 	ExtraHeaders map[string]string
+	// IgnoreHTTPProxy disables support for HTTP proxying when true.
+	IgnoreHTTPProxy bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -83,9 +85,11 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,
 		},
-		Proxy: func(req *http.Request) (*url.URL, error) {
+	}
+	if !cfg.IgnoreHTTPProxy {
+		transport.Proxy = func(req *http.Request) (*url.URL, error) {
 			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-		},
+		}
 	}
 	return &http.Client{
 		Transport: proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
