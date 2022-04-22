@@ -455,6 +455,8 @@ const (
 	Ping = "ping"
 	// Okta should be used for Okta OIDC providers.
 	Okta = "okta"
+	// JumpCloud is an identity provider.
+	JumpCloud = "jumpcloud"
 )
 
 const (
