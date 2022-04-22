@@ -119,7 +119,7 @@ spec:
         {{- end }}
         {{- if .Values.extraEnv }}
         env:
-          {{- toYaml .Values.extraEnv | nindent 10 }}
+          {{- toYaml .Values.extraEnv | nindent 8 }}
         {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
@@ -148,6 +148,7 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to start
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
         readinessProbe:
           httpGet:
             path: /readyz
@@ -155,6 +156,7 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to register
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
 {{- if .Values.resources }}
         resources:
   {{- toYaml .Values.resources | nindent 10 }}

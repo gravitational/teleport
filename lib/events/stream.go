@@ -1116,9 +1116,6 @@ func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID)
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
 	}
-	if m.Clock != nil {
-		upload.Initiated = m.Clock.Now()
-	}
 	m.uploads[upload.ID] = &MemoryUpload{
 		id:        upload.ID,
 		sessionID: sessionID,
@@ -1177,15 +1174,15 @@ func (m *MemoryUploader) UploadPart(ctx context.Context, upload StreamUpload, pa
 	return &StreamPart{Number: partNumber}, nil
 }
 
-// ListUploads lists uploads that have been initiated but not completed with
-// earlier uploads returned first.
+// ListUploads lists uploads that have been initiated but not completed
 func (m *MemoryUploader) ListUploads(ctx context.Context) ([]StreamUpload, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 	out := make([]StreamUpload, 0, len(m.uploads))
-	for id := range m.uploads {
+	for id, upload := range m.uploads {
 		out = append(out, StreamUpload{
-			ID: id,
+			ID:        id,
+			SessionID: upload.sessionID,
 		})
 	}
 	return out, nil

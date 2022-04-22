@@ -403,7 +403,7 @@ When `existingDataVolume` is set to the name of an existing volume, the `/var/li
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set existingDataVolume=my-volume
   ```
   </TabItem>
@@ -496,7 +496,7 @@ Enables the creation of a Kubernetes persistent volume to hold Teleport agent st
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set storage.enabled=true
   ```
   </TabItem>
@@ -521,7 +521,7 @@ name needs to exist on the Kubernetes cluster for Teleport to use.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set storage.storageClassName=teleport-storage-class
   ```
   </TabItem>
@@ -543,7 +543,7 @@ The size of persistent volume to create.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set storage.requests=128Mi
   ```
   </TabItem>
@@ -993,7 +993,7 @@ Kubernetes affinity to set for pod assignments.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set nodeSelector.role=node \
   --set nodeSelector.region=us-east
   ```
@@ -1329,6 +1329,29 @@ Kubernetes Tolerations to set for pod assignment.
   --set tolerations[0].operator=Equal \
   --set tolerations[0].value=teleport \
   --set tolerations[0].effect=NoSchedule
+  ```
+  </TabItem>
+</Tabs>
+
+## `probeTimeoutSeconds`
+
+| Type | Default value |
+| - | - |
+| `integer` | `1` |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
+
+Kubernetes timeouts for the liveness and readiness probes.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  probeTimeoutSeconds: 5
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set probeTimeoutSeconds=5
   ```
   </TabItem>
 </Tabs>

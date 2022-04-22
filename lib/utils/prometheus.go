@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -56,4 +57,33 @@ func BuildCollector() prometheus.Collector {
 		},
 		func() float64 { return 1 },
 	)
+}
+
+// CreateGRPCServerMetrics creates server grpc metrics configuration that is to be registered and used by the caller
+// in an openmetrics unary and/or stream interceptor
+func CreateGRPCServerMetrics(latencyEnabled bool, labels prometheus.Labels) *om.ServerMetrics {
+	serverOpts := []om.ServerMetricsOption{om.WithServerCounterOptions(om.WithConstLabels(labels))}
+	if latencyEnabled {
+		histOpts := grpcHistogramOpts(labels)
+		serverOpts = append(serverOpts, om.WithServerHandlingTimeHistogram(histOpts...))
+	}
+	return om.NewServerMetrics(serverOpts...)
+}
+
+// CreateGRPCClientMetrics creates client grpc metrics configuration that is to be registered and used by the caller
+// in an openmetrics unary and/or stream interceptor
+func CreateGRPCClientMetrics(latencyEnabled bool, labels prometheus.Labels) *om.ClientMetrics {
+	clientOpts := []om.ClientMetricsOption{om.WithClientCounterOptions(om.WithConstLabels(labels))}
+	if latencyEnabled {
+		histOpts := grpcHistogramOpts(labels)
+		clientOpts = append(clientOpts, om.WithClientHandlingTimeHistogram(histOpts...))
+	}
+	return om.NewClientMetrics(clientOpts...)
+}
+
+func grpcHistogramOpts(labels prometheus.Labels) []om.HistogramOption {
+	return []om.HistogramOption{
+		om.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 16)),
+		om.WithHistogramConstLabels(labels),
+	}
 }

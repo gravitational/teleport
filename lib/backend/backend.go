@@ -85,10 +85,6 @@ type Backend interface {
 	// CloseWatchers closes all the watchers
 	// without closing the backend
 	CloseWatchers()
-
-	// Migrate performs any data migration necessary between Teleport versions.
-	// Migrate must be called BEFORE using any other methods of the Backend.
-	Migrate(context.Context) error
 }
 
 // IterateRange is a helper for stepping over a range
@@ -237,6 +233,36 @@ func (p Params) GetString(key string) string {
 	return s
 }
 
+// Cleanse fixes an issue with yamlv2 decoding nested sections to
+// map[interface{}]interface{} rather than map[string]interface{}.
+// ObjectToStruct will fail on the former. yamlv3 corrects this behaviour.
+// All non-string keys are dropped.
+func (p Params) Cleanse() {
+	for key, value := range p {
+		if mapValue, ok := value.(map[interface{}]interface{}); ok {
+			p[key] = convertParams(mapValue)
+		}
+	}
+}
+
+// convertParams converts from a map[interface{}]interface{} to
+// map[string]interface{} recursively. All non-string keys are dropped.
+// This function is called by Params.Cleanse.
+func convertParams(from map[interface{}]interface{}) (to map[string]interface{}) {
+	to = make(map[string]interface{}, len(from))
+	for key, value := range from {
+		strKey, ok := key.(string)
+		if !ok {
+			continue
+		}
+		if mapValue, ok := value.(map[interface{}]interface{}); ok {
+			value = convertParams(mapValue)
+		}
+		to[strKey] = value
+	}
+	return to
+}
+
 // NoLimit specifies no limits
 const NoLimit = 0
 
@@ -381,9 +407,3 @@ func Key(parts ...string) []byte {
 func internalKey(internalPrefix string, parts ...string) []byte {
 	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
 }
-
-// NoMigrations implements a nop Migrate method of Backend.
-// Backend implementations should embed this when no migrations are necessary.
-type NoMigrations struct{}
-
-func (NoMigrations) Migrate(context.Context) error { return nil }

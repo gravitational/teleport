@@ -132,7 +132,6 @@ var (
 )
 
 type EtcdBackend struct {
-	backend.NoMigrations
 	nodes []string
 	*log.Entry
 	cfg       *Config
