@@ -258,7 +258,32 @@ the request to be granted.
 Access request slack and mattermost plugin should add routing to channels by
 label and resource type.
 
-Will complete this section with an example config, or create another RFD.
+In addition to the existing `role_to_recipients` configuration
+```
+[role_to_recipients]
+"dev" = "devs-slack-channel" # All requests to 'dev' role will be sent to this
+channel
+"*" = ["admin@example.com", "admin-slack-channel] # These recipients will receive
+review requests not handled by the roles above
+```
+
+There will be a new `label_to_recipients` section
+```
+[label_to_recipients]
+"env:prod" = "prod-slack-channel" # All requests for resources labelled "env":
+"prod" will go to this slack channel
+"env:staging" = "staging-slack-channel" # All requests for resources labelled
+"env": "staging" will go to this slack channel
+"*" = ["admin@example.com", "admin-slack-channel] # These recipients will receive
+review requests not handled by the labels above
+```
+
+The labels used to match the recipients will be all labels of all resources
+being requested.
+
+Since search-based access requests will also be requesting limited access to
+roles (even though the roles will be determined automatically) notifications
+will be sent to all matching channels from both sections.
 
 ### Audit events
 
