@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -206,9 +207,11 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cmd, err := newCmdBuilder(client, profile, database, cf.SiteName,
-			WithLocalProxy("localhost", addr.Port(0), ""),
-			WithNoTLS()).getConnectCommand()
+		cmd, err := dbcmd.NewCmdBuilder(client, profile, database, cf.SiteName,
+			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
+			dbcmd.WithNoTLS(),
+			dbcmd.WithLogger(log),
+		).GetConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
