@@ -291,12 +291,10 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, metadata *typ
 		name = fmt.Sprintf("%s-%s", name, endpointType)
 	}
 
-	labels := labelsFromElastiCacheCluster(cluster, metadata, endpointType)
-
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        name,
 		Description: fmt.Sprintf("ElastiCache in %v (%v endpoint)", metadata.Region, endpointType),
-		Labels:      labels,
+		Labels:      labelsFromElastiCacheCluster(cluster, metadata, endpointType),
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
@@ -511,7 +509,7 @@ func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
 	return !ver.LessThan(*minIAMSupportedVer)
 }
 
-// IsRDSClusterSupported checks whether the aurora cluster is supported.
+// IsRDSClusterSupported checks whether the Aurora cluster is supported.
 func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	switch aws.StringValue(cluster.EngineMode) {
 	// Aurora Serverless (v1 and v2) does not support IAM authentication

@@ -60,6 +60,14 @@ var (
 	// redshiftActions list of actions used when giving Redshift auto-discovery
 	// permissions.
 	redshiftActions = []string{"redshift:DescribeClusters"}
+	// elastiCacheActions is a list of actions used for ElastiCache
+	// auto-discovery and metadata update.
+	elastiCacheActions = []string{
+		"elasticache:ListTagsForResource",
+		"elasticache:DescribeReplicationGroups",
+		"elasticache:DescribeCacheClusters",
+		"elasticache:DescribeCacheSubnetGroups",
+	}
 	// boundaryRDSAuroraActions aditional actions added to the policy boundary
 	// when policy has RDS auto-discovery.
 	boundaryRDSAuroraActions = []string{"rds-db:connect"}
@@ -359,15 +367,20 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 		statements = append(statements, buildRedshiftStatements()...)
 	}
 
+	// ElastiCache does not require permissions to edit user/role IAM policy.
+	if hasElastiCacheDatabases(flags, fileConfig) {
+		statements = append(statements, buildElastiCacheStatements()...)
+	}
+
 	// If RDS the auto discovery is enabled or there are Redshift databases, we
 	// need permission to edit the target user/role.
 	if rdsAutoDiscovery || redshiftDatabases {
-		targetStaments, err := buildIAMEditStatements(target)
+		targetStatements, err := buildIAMEditStatements(target)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		statements = append(statements, targetStaments...)
+		statements = append(statements, targetStatements...)
 	}
 
 	document := awslib.NewPolicyDocument()
@@ -394,15 +407,20 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 		statements = append(statements, buildRedshiftBoundaryStatements()...)
 	}
 
+	// ElastiCache does not require permissions to edit user/role IAM policy.
+	if hasElastiCacheDatabases(flags, fileConfig) {
+		statements = append(statements, buildElastiCacheBoundaryStatements()...)
+	}
+
 	// If RDS the auto discovery is enabled or there are Redshift databases, we
 	// need permission to edit the target user/role.
 	if rdsAutoDiscovery || redshiftDatabases {
-		targetStaments, err := buildIAMEditStatements(target)
+		targetStatements, err := buildIAMEditStatements(target)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		statements = append(statements, targetStaments...)
+		statements = append(statements, targetStatements...)
 	}
 
 	document := awslib.NewPolicyDocument()
@@ -415,6 +433,30 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 	), nil
 }
 
+// isAutoDiscoveryEnabledForType returns true if provided AWS matcher type is
+// found.
+func isAutoDiscoveryEnabledForType(fileConfig *config.FileConfig, matcherType string) bool {
+	for _, matcher := range fileConfig.Databases.AWSMatchers {
+		for _, databaseType := range matcher.Types {
+			if databaseType == matcherType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// findEndpointIs returns true if provided check return true for any static
+// endpoint.
+func findEndpointIs(fileConfig *config.FileConfig, endpointIs func(string) bool) bool {
+	for _, database := range fileConfig.Databases.Databases {
+		if endpointIs(database.URI) {
+			return true
+		}
+	}
+	return false
+}
+
 // isRDSAutoDiscoveryEnabled checks if the agent needs permission for
 // RDS/Aurora auto-discovery.
 func isRDSAutoDiscoveryEnabled(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
@@ -422,15 +464,7 @@ func isRDSAutoDiscoveryEnabled(flags BootstrapFlags, fileConfig *config.FileConf
 		return true
 	}
 
-	for _, matcher := range fileConfig.Databases.AWSMatchers {
-		for _, databaseType := range matcher.Types {
-			if databaseType == types.DatabaseTypeRDS {
-				return true
-			}
-		}
-	}
-
-	return false
+	return isAutoDiscoveryEnabledForType(fileConfig, types.DatabaseTypeRDS)
 }
 
 // hasRedshiftDatabases checks if the agent needs permission for
@@ -440,23 +474,19 @@ func hasRedshiftDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) b
 		return true
 	}
 
-	// Check if Redshift auto-discovery is enabled.
-	for _, matcher := range fileConfig.Databases.AWSMatchers {
-		for _, databaseType := range matcher.Types {
-			if databaseType == types.DatabaseTypeRedshift {
-				return true
-			}
-		}
+	return isAutoDiscoveryEnabledForType(fileConfig, types.DatabaseTypeRedshift) ||
+		findEndpointIs(fileConfig, awsutils.IsRedshiftEndpoint)
+}
+
+// hasElastiCacheDatabases checks if the agent needs permission for
+// ElastiCache databases.
+func hasElastiCacheDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+	if flags.ForceElastiCachePermissions {
+		return true
 	}
 
-	// Check if there is any static Redshift database configured.
-	for _, database := range fileConfig.Databases.Databases {
-		if awsutils.IsRedshiftEndpoint(database.URI) {
-			return true
-		}
-	}
-
-	return false
+	return isAutoDiscoveryEnabledForType(fileConfig, types.DatabaseTypeElastiCache) ||
+		findEndpointIs(fileConfig, awsutils.IsElastiCacheEndpoint)
 }
 
 // buildIAMEditStatements returns IAM statements necessary for the Teleport
@@ -525,4 +555,22 @@ func buildRedshiftBoundaryStatements() []*awslib.Statement {
 			Resources: []string{"*"},
 		},
 	}
+}
+
+// buildElastiCacheStatements returns IAM statements necessary for ElastiCache
+// databases.
+func buildElastiCacheStatements() []*awslib.Statement {
+	return []*awslib.Statement{
+		{
+			Effect:    awslib.EffectAllow,
+			Actions:   elastiCacheActions,
+			Resources: []string{"*"},
+		},
+	}
+}
+
+// buildElastiCacheBoundaryStatements returns IAM boundary statements necessary for
+// Redshift databases.
+func buildElastiCacheBoundaryStatements() []*awslib.Statement {
+	return buildElastiCacheStatements()
 }

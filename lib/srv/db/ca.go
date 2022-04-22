@@ -111,8 +111,7 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 		return filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database))), nil
 
 	// All Redshift instances share the same root CA which can be downloaded
-	// from a well-known URL. Redshift in China partition uses a different
-	// root CA.
+	// from a well-known URL.
 	case types.DatabaseTypeRedshift:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database))), nil
 
@@ -120,7 +119,7 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 	// x509.SystemCertPool should be sufficient to verify ElastiCache servers.
 	// However, x509.SystemCertPool does not support windows for go versions
 	// older than 1.18. In addtion, system cert path can be overridden by
-	// environment variables in many OSes. Therefore, Amazon root CA is
+	// environment variables on many OSes. Therefore, Amazon root CA is
 	// downloaded here to be safe.
 	case types.DatabaseTypeElastiCache:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL)), nil

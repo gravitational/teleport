@@ -73,7 +73,7 @@ func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 		return m.updateAWS(ctx, database, m.fetchRDSMetadata)
 	} else if database.IsRedshift() {
 		return m.updateAWS(ctx, database, m.fetchRedshiftMetadata)
-	} else if database.IsCloudSQL() {
+	} else if database.IsElastiCache() {
 		return m.updateAWS(ctx, database, m.fetchElastiCacheMetadata)
 	}
 	return nil

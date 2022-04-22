@@ -134,10 +134,12 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
-	// DatabaseAWSRDSClusterID is RDS instance identifier.
+	// DatabaseAWSRDSInstanceID is RDS instance identifier.
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
+	// DatabaseAWSElastiCacheReplicationGroupID is ElastiCache replication group ID.
+	DatabaseAWSElastiCacheReplicationGroupID string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -1096,6 +1098,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 					InstanceID: database.AWS.RDS.InstanceID,
 					ClusterID:  database.AWS.RDS.ClusterID,
 				},
+				ElastiCache: service.DatabaseAWSElastiCache{
+					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
@@ -1681,6 +1686,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: clf.DatabaseAWSRDSInstanceID,
 					ClusterID:  clf.DatabaseAWSRDSClusterID,
+				},
+				ElastiCache: service.DatabaseAWSElastiCache{
+					ReplicationGroupID: clf.DatabaseAWSElastiCacheReplicationGroupID,
 				},
 			},
 			GCP: service.DatabaseGCP{
