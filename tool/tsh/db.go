@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -50,11 +51,29 @@ func onListDatabases(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	proxy, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cluster, err := proxy.ConnectToCurrentCluster(cf.Context, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer cluster.Close()
+
 	// Retrieve profile to be able to show which databases user is logged into.
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	sort.Slice(databases, func(i, j int) bool {
 		return databases[i].GetName() < databases[j].GetName()
 	})
@@ -63,7 +82,7 @@ func onListDatabases(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, cf.Format, cf.Verbose))
+	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
 }
 
 // onDatabaseLogin implements "tsh db login" command.
