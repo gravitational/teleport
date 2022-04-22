@@ -348,6 +348,50 @@ export namespace ListDatabasesResponse {
     }
 }
 
+export class ListDatabaseUsersRequest extends jspb.Message { 
+    getDbUri(): string;
+    setDbUri(value: string): ListDatabaseUsersRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListDatabaseUsersRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: ListDatabaseUsersRequest): ListDatabaseUsersRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListDatabaseUsersRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListDatabaseUsersRequest;
+    static deserializeBinaryFromReader(message: ListDatabaseUsersRequest, reader: jspb.BinaryReader): ListDatabaseUsersRequest;
+}
+
+export namespace ListDatabaseUsersRequest {
+    export type AsObject = {
+        dbUri: string,
+    }
+}
+
+export class ListDatabaseUsersResponse extends jspb.Message { 
+    clearUsersList(): void;
+    getUsersList(): Array<string>;
+    setUsersList(value: Array<string>): ListDatabaseUsersResponse;
+    addUsers(value: string, index?: number): string;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListDatabaseUsersResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: ListDatabaseUsersResponse): ListDatabaseUsersResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListDatabaseUsersResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListDatabaseUsersResponse;
+    static deserializeBinaryFromReader(message: ListDatabaseUsersResponse, reader: jspb.BinaryReader): ListDatabaseUsersResponse;
+}
+
+export namespace ListDatabaseUsersResponse {
+    export type AsObject = {
+        usersList: Array<string>,
+    }
+}
+
 export class CreateGatewayRequest extends jspb.Message { 
     getTargetUri(): string;
     setTargetUri(value: string): CreateGatewayRequest;

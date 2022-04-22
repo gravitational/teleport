@@ -21,9 +21,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // Label describes label for webapp
@@ -101,8 +101,8 @@ func MakeServers(clusterName string, servers []types.Server) []Server {
 	return uiServers
 }
 
-// Kube describes a kube cluster.
-type Kube struct {
+// KubeCluster describes a kube cluster.
+type KubeCluster struct {
 	// Name is the name of the kube cluster.
 	Name string `json:"name"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
@@ -110,29 +110,21 @@ type Kube struct {
 }
 
 // MakeKubes creates ui kube objects and returns a list..
-func MakeKubes(clusterName string, servers []types.Server) []Kube {
-	kubeClusters := map[string]*types.KubernetesCluster{}
+func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
+	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
+	for _, cluster := range clusters {
+		staticLabels := cluster.GetStaticLabels()
+		dynamicLabels := cluster.GetDynamicLabels()
+		uiLabels := make([]Label, 0, len(staticLabels)+len(dynamicLabels))
 
-	// Get unique kube clusters
-	for _, server := range servers {
-		// Process each kube cluster.
-		for _, cluster := range server.GetKubernetesClusters() {
-			kubeClusters[cluster.Name] = cluster
-		}
-	}
-
-	uiKubeClusters := make([]Kube, 0, len(kubeClusters))
-	for _, cluster := range kubeClusters {
-		uiLabels := []Label{}
-
-		for name, value := range cluster.StaticLabels {
+		for name, value := range staticLabels {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: value,
 			})
 		}
 
-		for name, cmd := range cluster.DynamicLabels {
+		for name, cmd := range dynamicLabels {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: cmd.GetResult(),
@@ -141,8 +133,8 @@ func MakeKubes(clusterName string, servers []types.Server) []Kube {
 
 		sort.Sort(sortedLabels(uiLabels))
 
-		uiKubeClusters = append(uiKubeClusters, Kube{
-			Name:   cluster.Name,
+		uiKubeClusters = append(uiKubeClusters, KubeCluster{
+			Name:   cluster.GetName(),
 			Labels: uiLabels,
 		})
 	}
@@ -215,7 +207,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
-		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(teleport.StandardRDPPort) {
+		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
 			return splitAddr[0]
 		}
 		return addr
