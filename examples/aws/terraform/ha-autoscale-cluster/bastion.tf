@@ -1,6 +1,6 @@
 // Bastion is an emergency access bastion
-// that could be spinned up on demand in case if
-// of need to have emrergency administrative access
+// that could be spun up on demand in case
+// of the need to have emergency administrative access
 resource "aws_instance" "bastion" {
   count                       = "1"
   ami                         = data.aws_ami.base.id

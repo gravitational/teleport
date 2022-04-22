@@ -1968,7 +1968,7 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	defer proxyClient.Close()
 
 	filter := customFilter
-	if customFilter == nil {
+	if filter == nil {
 		filter = &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			Labels:              tc.Labels,
@@ -2027,7 +2027,7 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	defer proxyClient.Close()
 
 	filter := customFilter
-	if customFilter == nil {
+	if filter == nil {
 		filter = &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			Labels:              tc.Labels,
@@ -3323,7 +3323,7 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 // ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
 // { "name" -> "value", "long name" -> "quoted value" }
 func ParseLabelSpec(spec string) (map[string]string, error) {
-	tokens := []string{}
+	var tokens []string
 	openQuotes := false
 	var tokenStart, assignCount int
 	specLen := len(spec)
@@ -3370,11 +3370,11 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 // allowing a custom delimiter. Defaults to comma delimiter if not defined.
 func ParseSearchKeywords(spec string, customDelimiter rune) []string {
 	delimiter := customDelimiter
-	if customDelimiter == 0 {
+	if delimiter == 0 {
 		delimiter = rune(',')
 	}
 
-	tokens := []string{}
+	var tokens []string
 	openQuotes := false
 	var tokenStart int
 	specLen := len(spec)
