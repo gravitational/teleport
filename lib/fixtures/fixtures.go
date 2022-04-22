@@ -19,9 +19,8 @@ import (
 	"runtime/debug"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/kylelemons/godebug/diff"
 	check "gopkg.in/check.v1"
 )
 
@@ -104,10 +103,8 @@ func AssertConnectionProblem(t *testing.T, err error) {
 
 // DeepCompare uses gocheck DeepEquals but provides nice diff if things are not equal
 func DeepCompare(c *check.C, a, b interface{}) {
-	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}
-
 	if !reflect.DeepEqual(a, b) {
-		c.Fatalf("Values are not equal\n%v\nStack:\n%v\n", diff.Diff(d.Sdump(a), d.Sdump(b)), string(debug.Stack()))
+		c.Fatalf("Values are not equal, diff:\n%s\nStack:\n%v\n", cmp.Diff(a, b), string(debug.Stack()))
 	}
 }
 
