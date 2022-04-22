@@ -18,10 +18,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -464,7 +464,7 @@ func isRDSAutoDiscoveryEnabled(flags BootstrapFlags, fileConfig *config.FileConf
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForType(fileConfig, types.DatabaseTypeRDS)
+	return isAutoDiscoveryEnabledForType(fileConfig, services.AWSMatcherRDS)
 }
 
 // hasRedshiftDatabases checks if the agent needs permission for
@@ -474,7 +474,7 @@ func hasRedshiftDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) b
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForType(fileConfig, types.DatabaseTypeRedshift) ||
+	return isAutoDiscoveryEnabledForType(fileConfig, services.AWSMatcherRedshift) ||
 		findEndpointIs(fileConfig, awsutils.IsRedshiftEndpoint)
 }
 
@@ -485,7 +485,7 @@ func hasElastiCacheDatabases(flags BootstrapFlags, fileConfig *config.FileConfig
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForType(fileConfig, types.DatabaseTypeElastiCache) ||
+	return isAutoDiscoveryEnabledForType(fileConfig, services.AWSMatcherElastiCache) ||
 		findEndpointIs(fileConfig, awsutils.IsElastiCacheEndpoint)
 }
 
