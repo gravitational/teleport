@@ -883,7 +883,8 @@ type DatabaseSpecV3 struct {
 	// Allows to provide custom CA cert or override server name.
 	TLS DatabaseTLS `protobuf:"bytes,8,opt,name=TLS,proto3" json:"tls,omitempty"`
 	// AD is the Active Directory configuration for the database.
-	AD                   AD              `protobuf:"bytes,9,opt,name=AD,proto3" json:"ad,omitempty"`
+	AD AD `protobuf:"bytes,9,opt,name=AD,proto3" json:"ad,omitempty"`
+	// Options are additional database options.
 	Options              DatabaseOptions `protobuf:"bytes,10,opt,name=Options,proto3" json:"options,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
 	XXX_unrecognized     []byte          `json:"-"`
@@ -928,7 +929,8 @@ type DatabaseStatusV3 struct {
 	// CACert is the auto-downloaded cloud database CA certificate.
 	CACert string `protobuf:"bytes,1,opt,name=CACert,proto3" json:"ca_cert,omitempty"`
 	// AWS is the auto-discovered AWS cloud database metadata.
-	AWS                  AWS      `protobuf:"bytes,2,opt,name=AWS,proto3" json:"aws"`
+	AWS AWS `protobuf:"bytes,2,opt,name=AWS,proto3" json:"aws"`
+	// MySQLServerVersion is the server version read from a MySQL server handshake message.
 	MySQLServerVersion   string   `protobuf:"bytes,3,opt,name=MySQLServerVersion,proto3" json:"mysql_server_version,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1288,7 +1290,10 @@ func (m *DatabaseTLS) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_DatabaseTLS proto.InternalMessageInfo
 
+// DatabaseOptions are additional database options.
 type DatabaseOptions struct {
+	// MySQLServerVersion is the server version reported by DB proxy if the runtime information is
+	// not available.
 	MySQLServerVersion   string   `protobuf:"bytes,1,opt,name=MySQLServerVersion,proto3" json:"mysql_server_version,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

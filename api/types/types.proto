@@ -261,7 +261,7 @@ message DatabaseSpecV3 {
     DatabaseTLS TLS = 8 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "tls,omitempty" ];
     // AD is the Active Directory configuration for the database.
     AD AD = 9 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "ad,omitempty" ];
-
+    // Options are additional database options.
     DatabaseOptions Options = 10
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "options,omitempty" ];
 }
@@ -272,7 +272,7 @@ message DatabaseStatusV3 {
     string CACert = 1 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
     // AWS is the auto-discovered AWS cloud database metadata.
     AWS AWS = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws" ];
-
+    // MySQLServerVersion is the server version read from a MySQL server handshake message.
     string MySQLServerVersion = 3 [ (gogoproto.jsontag) = "mysql_server_version,omitempty" ];
 }
 
@@ -356,7 +356,10 @@ message DatabaseTLS {
     string ServerName = 3 [ (gogoproto.jsontag) = "server_name,omitempty" ];
 }
 
+// DatabaseOptions are additional database options.
 message DatabaseOptions {
+    // MySQLServerVersion is the server version reported by DB proxy if the runtime information is
+    // not available.
     string MySQLServerVersion = 1 [ (gogoproto.jsontag) = "mysql_server_version,omitempty" ];
 }
 

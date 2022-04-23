@@ -61,11 +61,12 @@ type Database interface {
 	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
 	SetStatusCA(string)
-
+	// GetOptions returns the database options from spec.
 	GetOptions() DatabaseOptions
-
+	// GetMySQLServerVersion returns the MySQL server version either from configuration or
+	// reported by the database.
 	GetMySQLServerVersion() string
-
+	// SetMySQLServerVersion sets the runtime MySQL server version.
 	SetMySQLServerVersion(version string)
 	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
@@ -257,10 +258,13 @@ func (d *DatabaseV3) SetStatusCA(ca string) {
 	d.Status.CACert = ca
 }
 
+// GetOptions returns the database options from spec.
 func (d *DatabaseV3) GetOptions() DatabaseOptions {
 	return d.Spec.Options
 }
 
+// GetMySQLServerVersion returns the MySQL server version either from configuration or
+// reported by the database.
 func (d *DatabaseV3) GetMySQLServerVersion() string {
 	if d.Status.MySQLServerVersion != "" {
 		return d.Status.MySQLServerVersion
@@ -269,6 +273,7 @@ func (d *DatabaseV3) GetMySQLServerVersion() string {
 	return d.Spec.Options.MySQLServerVersion
 }
 
+// SetMySQLServerVersion sets the runtime MySQL server version.
 func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 	d.Status.MySQLServerVersion = version
 }

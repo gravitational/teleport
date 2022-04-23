@@ -111,6 +111,11 @@ spec:
     ...
     -----END CERTIFICATE-----
 
+  # Additional database options.
+  options:
+    # MySQL server version reported by Teleport Proxy in tunnel mode when the real version is not available.
+    mysql_server_version: 8.0.28
+
   # Optional AWS configuration for RDS/Aurora/Redshift. Can be auto-detected from the endpoint.
   aws:
     # Region the database is deployed in.

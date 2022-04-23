@@ -103,18 +103,10 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 	}()
 
-	serverVersion := serverConn.GetServerVersion()
-	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
-	if serverVersion != statusVersion {
-		sessionCtx.Database.SetMySQLServerVersion(serverVersion)
-
-		err = e.UpdateDatabaseFn(ctx, sessionCtx.Database)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	if err := e.updateServerVersion(ctx, sessionCtx, serverConn); err != nil {
+		// Log but do not fail connection if the version update fails.
+		e.Log.WithError(err).Warnf("Failed to update the MySQL server version")
 	}
-
-	e.Log.Warnf("DB agent server version: %s; statusVer: %s", serverVersion, statusVersion)
 
 	// Send back OK packet to indicate auth/connect success. At this point
 	// the original client should consider the connection phase completed.
@@ -137,6 +129,20 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	case <-ctx.Done():
 		e.Log.Debug("Context canceled.")
 	}
+	return nil
+}
+
+// updateServerVersion updates the server runtime version if the version reported by the database is different from
+// the version in status configuration.
+func (e *Engine) updateServerVersion(ctx context.Context, sessionCtx *common.Session, serverConn *client.Conn) error {
+	serverVersion := serverConn.GetServerVersion()
+	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
+	if serverVersion != statusVersion {
+		sessionCtx.Database.SetMySQLServerVersion(serverVersion)
+
+		return trace.Wrap(e.UpdateDatabaseFn(ctx, sessionCtx.Database))
+	}
+
 	return nil
 }
 

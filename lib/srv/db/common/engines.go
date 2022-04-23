@@ -80,7 +80,7 @@ type EngineConfig struct {
 	Clock clockwork.Clock
 	// Log is used for logging.
 	Log logrus.FieldLogger
-
+	// UpdateDatabaseFn is a callback function that allows to update current list of databases.
 	UpdateDatabaseFn func(ctx context.Context, database types.Database) error
 }
 

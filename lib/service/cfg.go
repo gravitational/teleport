@@ -626,7 +626,7 @@ type Database struct {
 	URI string
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string
-
+	// Options are additional database options.
 	Options DatabaseOptions
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels services.CommandLabels
