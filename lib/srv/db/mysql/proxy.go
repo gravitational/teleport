@@ -52,7 +52,8 @@ type Proxy struct {
 	Log logrus.FieldLogger
 	// Limiter limits the number of active connections per client IP.
 	Limiter *limiter.Limiter
-
+	// MySQLServerVersion is the MySQL server version that will be reported
+	// to the client during initial handshake.
 	MySQLServerVersion string
 }
 
@@ -64,12 +65,13 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
 
+	// Set correct server version. This field can be empty is the information is not available.
 	mysqlServerVersion := p.MySQLServerVersion
 	if mysqlServerVersion == "" {
 		mysqlServerVersion = serverVersion
 	}
 
-	server := p.makeServer(conn, mysqlServerVersion)
+	mysqlServer := p.makeServer(conn, mysqlServerVersion)
 	// If any error happens, make sure to send it back to the client, so it
 	// has a chance to close the connection from its side.
 	defer func() {
@@ -78,14 +80,14 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 			err = trace.BadParameter("failed to handle MySQL client connection")
 		}
 		if err != nil {
-			if writeErr := server.WriteError(err); writeErr != nil {
+			if writeErr := mysqlServer.WriteError(err); writeErr != nil {
 				p.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
 			}
 		}
 	}()
 	// Perform first part of the handshake, up to the point where client sends
 	// us certificate and connection upgrades to TLS.
-	tlsConn, err := p.performHandshake(conn, server)
+	tlsConn, err := p.performHandshake(conn, mysqlServer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -102,8 +104,8 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	defer releaseConn()
 
 	proxyCtx, err := p.Service.Authorize(ctx, tlsConn, common.ConnectParams{
-		User:     server.GetUser(),
-		Database: server.GetDatabase(),
+		User:     mysqlServer.GetUser(),
+		Database: mysqlServer.GetDatabase(),
 		ClientIP: clientIP,
 	})
 	if err != nil {
@@ -118,7 +120,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// Before replying OK to the client which would make the client consider
 	// auth completed, wait for OK packet from db service indicating auth
 	// success.
-	err = p.waitForOK(server, serviceConn)
+	err = p.waitForOK(mysqlServer, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,7 +180,7 @@ func (p *Proxy) performHandshake(conn *multiplexer.Conn, server *server.Conn) (*
 		return nil, trace.Wrap(err)
 	}
 	// First part of the handshake completed and the connection has been
-	// upgraded to TLS so now we can look at the client certificate and
+	// upgraded to TLS, so now we can look at the client certificate and
 	// see which database service to route the connection to.
 	switch c := server.Conn.Conn.(type) {
 	case *tls.Conn:

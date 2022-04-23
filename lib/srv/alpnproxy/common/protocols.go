@@ -48,7 +48,7 @@ const (
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
 
-	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP2 protocol
+	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP 1.1 protocol
 	ProtocolHTTP Protocol = "http/1.1"
 
 	// ProtocolHTTP2 is TLS ALPN protocol value used to indicate HTTP2 protocol.

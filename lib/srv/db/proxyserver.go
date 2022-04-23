@@ -326,10 +326,8 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	case defaults.ProtocolPostgres:
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
-		db := proxyCtx.Servers[0].GetDatabase()
-		version := db.GetMySQLServerVersion()
-		s.log.Warnf("MySQL version: %s", version)
-		return s.MySQLProxyNoTLS(version).HandleConnection(s.closeCtx, tlsConn)
+		mysqlServerVersion := getMySQLVersionFromServer(proxyCtx.Servers)
+		return s.MySQLProxyNoTLS(mysqlServerVersion).HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
@@ -343,6 +341,15 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// getMySQLVersionFromServer returns the MySQL version returned by an instance on last connection or
+// the MySQLServerVersion set in configuration if the first one is not available.
+// Function picks a random server each time if more than one are available.
+func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
+	count := len(servers)
+	db := servers[rand.Intn(count)].GetDatabase()
+	return db.GetMySQLServerVersion()
 }
 
 // PostgresProxy returns a new instance of the Postgres protocol aware proxy.

@@ -76,3 +76,18 @@ func TestDatabaseStatus(t *testing.T) {
 	database.SetStatusAWS(awsMeta)
 	require.Equal(t, awsMeta, database.GetAWS())
 }
+
+func TestMySQLServerVersion(t *testing.T) {
+	database, err := NewDatabaseV3(Metadata{
+		Name: "test",
+	}, DatabaseSpecV3{
+		Protocol: "mysql",
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, "", database.GetMySQLServerVersion())
+
+	database.SetMySQLServerVersion("8.0.1")
+	require.Equal(t, "8.0.1", database.GetMySQLServerVersion())
+}
