@@ -36,8 +36,8 @@ Like in case of other databases, a user will have to add an entry to the telepor
 db_service:
   enabled: "yes"
   databases:
-      - name: "snowflake"
-      description: "Snowflake database"
+    - name: "snowflake"
+      description: "❄ Snowflake database"
       protocol: "snowflake"
       uri: "im12345.us-east-2.aws.snowflakecomputing.com"
 ```
