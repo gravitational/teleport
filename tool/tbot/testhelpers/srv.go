@@ -50,8 +50,9 @@ func DefaultConfig(t *testing.T) *config.FileConfig {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr:    mustGetFreeLocalListenerAddr(t),
+			TunAddr:    mustGetFreeLocalListenerAddr(t),
+			PublicAddr: []string{"proxy.example.com"},
 		},
 		Auth: config.Auth{
 			Service: config.Service{

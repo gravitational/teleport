@@ -18,21 +18,52 @@ package config
 
 import (
 	"context"
+	"io/fs"
+	"os"
+	"path"
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
 
-const TemplateSSHClientName = "ssh_client"
+const (
+	// TemplateSSHClientName is the config name for generating ssh client
+	// config files.
+	TemplateSSHClientName = "ssh_client"
 
-const TemplateIdentityFileName = "identityfile"
+	// TemplateIdentityName is the config name for Teleport identity files.
+	TemplateIdentityName = "identity"
+
+	// TemplateTLSName is the config name for TLS client certificates.
+	TemplateTLSName = "tls"
+
+	// TemplateTLSCAsName is the config name for TLS CA certificates.
+	TemplateTLSCAsName = "tls_cas"
+
+	// TemplateMongoName is the config name for MongoDB-formatted certificates.
+	TemplateMongoName = "mongo"
+
+	// TemplateCockroachName is the config name for CockroachDB-formatted
+	// certificates.
+	TemplateCockroachName = "cockroach"
+)
 
 // AllConfigTemplates lists all valid config templates, intended for help
 // messages
-var AllConfigTemplates = [...]string{TemplateSSHClientName, TemplateIdentityFileName}
+var AllConfigTemplates = [...]string{
+	TemplateSSHClientName,
+	TemplateIdentityName,
+	TemplateTLSName,
+	TemplateTLSCAsName,
+	TemplateMongoName,
+	TemplateCockroachName,
+}
 
 // FileDescription is a minimal spec needed to create an empty end-user-owned
 // file with bot-writable ACLs during `tbot init`.
@@ -48,6 +79,9 @@ type FileDescription struct {
 // Template defines functions for dynamically writing additional files to
 // a Destination.
 type Template interface {
+	// Name returns the name of this config template.
+	Name() string
+
 	// Describe generates a list of all files this ConfigTemplate will generate
 	// at runtime. Currently ConfigTemplates are required to know this
 	// statically as this must be callable without any auth clients (or any
@@ -62,8 +96,12 @@ type Template interface {
 // TemplateConfig contains all possible config template variants. Exactly one
 // variant must be set to be considered valid.
 type TemplateConfig struct {
-	SSHClient    *TemplateSSHClient    `yaml:"ssh_client,omitempty"`
-	IdentityFile *TemplateIdentityFile `yaml:"identityfile,omitempty"`
+	SSHClient *TemplateSSHClient `yaml:"ssh_client,omitempty"`
+	Identity  *TemplateIdentity  `yaml:"identity,omitempty"`
+	TLS       *TemplateTLS       `yaml:"tls,omitempty"`
+	TLSCAs    *TemplateTLSCAs    `yaml:"tls_cas,omitempty"`
+	Mongo     *TemplateMongo     `yaml:"mongo,omitempty"`
+	Cockroach *TemplateCockroach `yaml:"cockroach,omitempty"`
 }
 
 func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
@@ -78,8 +116,16 @@ func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 		switch simpleTemplate {
 		case TemplateSSHClientName:
 			c.SSHClient = &TemplateSSHClient{}
-		case TemplateIdentityFileName:
-			return trace.BadParameter("`identityfile` requires parameters, provide `identityfile: ...` instead")
+		case TemplateIdentityName:
+			c.Identity = &TemplateIdentity{}
+		case TemplateTLSName:
+			c.TLS = &TemplateTLS{}
+		case TemplateTLSCAsName:
+			c.TLSCAs = &TemplateTLSCAs{}
+		case TemplateMongoName:
+			c.Mongo = &TemplateMongo{}
+		case TemplateCockroachName:
+			c.Cockroach = &TemplateCockroach{}
 		default:
 			return trace.BadParameter(
 				"invalid config template '%s' on line %d, expected one of: %s",
@@ -106,8 +152,40 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 		notNilCount++
 	}
 
-	if c.IdentityFile != nil {
-		if err := c.IdentityFile.CheckAndSetDefaults(); err != nil {
+	if c.Identity != nil {
+		if err := c.Identity.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		notNilCount++
+	}
+
+	if c.TLS != nil {
+		if err := c.TLS.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		notNilCount++
+	}
+
+	if c.TLSCAs != nil {
+		if err := c.TLSCAs.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		notNilCount++
+	}
+
+	if c.Mongo != nil {
+		if err := c.Mongo.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		notNilCount++
+	}
+
+	if c.Cockroach != nil {
+		if err := c.Cockroach.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -123,14 +201,85 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// GetConfigTemplate returns the first not-nil config template implementation
+// in the struct.
 func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
 	if c.SSHClient != nil {
 		return c.SSHClient, nil
 	}
 
-	if c.IdentityFile != nil {
-		return c.IdentityFile, nil
+	if c.Identity != nil {
+		return c.Identity, nil
+	}
+
+	if c.TLS != nil {
+		return c.TLS, nil
+	}
+
+	if c.TLSCAs != nil {
+		return c.TLSCAs, nil
+	}
+
+	if c.Mongo != nil {
+		return c.Mongo, nil
+	}
+
+	if c.Cockroach != nil {
+		return c.Cockroach, nil
 	}
 
 	return nil, trace.BadParameter("no valid config template")
+}
+
+// BotConfigWriter is a trivial adapter to use the identityfile package with
+// bot destinations.
+type BotConfigWriter struct {
+	// dest is the destination that will handle writing of files.
+	dest destination.Destination
+
+	// subpath is the subdirectory within the destination to which the files
+	// should be written.
+	subpath string
+}
+
+// WriteFile writes the file to the destination. Only the basename of the path
+// is used. Specified permissions are ignored.
+func (b *BotConfigWriter) WriteFile(name string, data []byte, _ os.FileMode) error {
+	p := path.Base(name)
+	if b.subpath != "" {
+		p = path.Join(b.subpath, p)
+	}
+
+	log.Debugf("WriteFile(%q, ...) to %q", name, p)
+	return trace.Wrap(b.dest.Write(p, data))
+}
+
+// Remove removes files. This is a dummy implementation that always returns not found.
+func (b *BotConfigWriter) Remove(name string) error {
+	return &os.PathError{Op: "stat", Path: name, Err: os.ErrNotExist}
+}
+
+// Stat checks file status. This implementation always returns not found.
+func (b *BotConfigWriter) Stat(name string) (fs.FileInfo, error) {
+	return nil, &os.PathError{Op: "stat", Path: name, Err: os.ErrNotExist}
+}
+
+// newClientKey returns a sane client.Key for the given bot identity.
+func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) *client.Key {
+	return &client.Key{
+		KeyIndex: client.KeyIndex{
+			ClusterName: ident.ClusterName,
+		},
+		Priv:      ident.PrivateKeyBytes,
+		Pub:       ident.PublicKeyBytes,
+		Cert:      ident.CertBytes,
+		TLSCert:   ident.TLSCertBytes,
+		TrustedCA: auth.AuthoritiesToTrustedCerts(hostCAs),
+
+		// TODO: configure these? we have a 1:1 mapping of destination
+		// -> app/db/kube cert so this should be knowable, but are these ever
+		// used by identityfile?
+		KubeTLSCerts: make(map[string][]byte),
+		DBTLSCerts:   make(map[string][]byte),
+	}
 }

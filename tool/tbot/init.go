@@ -47,7 +47,7 @@ func getInitArtifacts(destination *config.DestinationConfig) (map[string]bool, e
 
 	// Collect all base artifacts and filter for the destination.
 	for _, artifact := range identity.GetArtifacts() {
-		if artifact.Matches(destination.Kinds...) {
+		if artifact.Matches(identity.DestinationKinds()...) {
 			toCreate[artifact.Key] = false
 		}
 	}

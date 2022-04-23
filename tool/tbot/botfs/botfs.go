@@ -77,9 +77,13 @@ const (
 	// contents to succeed.
 	DefaultDirMode fs.FileMode = 0700
 
-	// OpenMode is the mode with which files should be opened for reading and
+	// ReadMode is the mode with which files should be opened for reading and
 	// writing.
-	OpenMode int = os.O_CREATE | os.O_RDWR
+	ReadMode int = os.O_CREATE | os.O_RDONLY
+
+	// WriteMode is the mode with which files should be opened specifically
+	// for writing.
+	WriteMode int = os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 )
 
 // ACLOptions contains parameters needed to configure ACLs
@@ -94,8 +98,13 @@ type ACLOptions struct {
 
 // openStandard attempts to open the given path for reading and writing with
 // O_CREATE set.
-func openStandard(path string) (*os.File, error) {
-	file, err := os.OpenFile(path, OpenMode, DefaultMode)
+func openStandard(path string, write bool) (*os.File, error) {
+	mode := ReadMode
+	if write {
+		mode = WriteMode
+	}
+
+	file, err := os.OpenFile(path, mode, DefaultMode)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -114,7 +123,7 @@ func createStandard(path string, isDir bool) error {
 		return nil
 	}
 
-	f, err := openStandard(path)
+	f, err := openStandard(path, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
