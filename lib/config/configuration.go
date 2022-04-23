@@ -149,6 +149,9 @@ type CommandLineFlags struct {
 	DatabaseADDomain string
 	// DatabaseADSPN is the database Service Principal Name.
 	DatabaseADSPN string
+	// MySQLServerVersion is the MySQL server version reported to a client
+	// if the value cannot be obtained from the database.
+	MySQLServerVersion string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -1082,7 +1085,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
 			Options: service.DatabaseOptions{
-				MySQLServerVersion: "8.0.28",
+				MySQLServerVersion: database.Options.MySQLServerVersion,
 			},
 			TLS: service.DatabaseTLS{
 				CACert:     caBytes,
@@ -1672,7 +1675,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			URI:          clf.DatabaseURI,
 			StaticLabels: staticLabels,
 			Options: service.DatabaseOptions{
-				MySQLServerVersion: "8.0.18",
+				MySQLServerVersion: clf.MySQLServerVersion,
 			},
 			DynamicLabels: dynamicLabels,
 			TLS: service.DatabaseTLS{

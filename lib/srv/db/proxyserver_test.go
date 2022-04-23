@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/stretchr/testify/require"
 )
 
@@ -239,4 +240,45 @@ func TestProxyRateLimiting(t *testing.T) {
 			require.FailNow(t, "we should hit the limit by now")
 		})
 	}
+}
+
+func TestProxyMySQLVersion(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedMySQL("mysql", mysql.WithServerVersion("8.0.12")),
+	)
+
+	waitCh := make(chan struct{})
+
+	testCtx.server.cfg.OnReconcile = func(databases types.Databases) {
+		waitCh <- struct{}{}
+	}
+
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	mysqlClient, proxy, err := testCtx.mysqlClientLocalProxy(ctx, "bob", "mysql", "bob")
+	require.NoError(t, err)
+	// The first connection returns default version
+	require.Equal(t, "8.0.0-Teleport", mysqlClient.GetServerVersion())
+
+	require.NoError(t, mysqlClient.Close())
+	require.NoError(t, proxy.Close())
+
+	// wait for the database version to be propagated
+	select {
+	case <-waitCh:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "failed to reconcile databases")
+	}
+
+	mysqlClient, proxy, err = testCtx.mysqlClientLocalProxy(ctx, "bob", "mysql", "bob")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, mysqlClient.Close())
+		require.NoError(t, proxy.Close())
+	})
+	require.Equal(t, "8.0.12", mysqlClient.GetServerVersion())
 }
