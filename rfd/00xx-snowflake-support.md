@@ -48,7 +48,8 @@ to Snowflake by an administrator. The procedure of adding the key to Snowflake i
 
 ### Database access support
 
-`tsh db login` should export a user private key in PCKS8 format (that's the only format supported by `snowsql` and some SDKs).
+`tsh db login` should export the user private key currently stored for example in 
+`~/.tsh/keys/proxy.example.com/alice` in PCKS8 format (that's the only format supported by `snowsql` and some SDKs).
 That key should be used to sign a "Teleport JWT". Client then should send the request with generated JWT to authenticate 
 with Snowflake. Teleport can intercept HTTP communication between a client and the Snowflake. The first request send by 
 the client should be to the `/session/v1/login-request` endpoint which contains all login information as username, JWT. 
@@ -71,7 +72,7 @@ sequenceDiagram
     Teleport->>client: Send Teleport Auth token
 ```
 
-Nn each request Teleport can replace the "Teleport Auth token" with Snowflake Auth token:
+On every request Teleport can replace the "Teleport Auth token" with Snowflake Auth token:
 
 ```mermaid
 sequenceDiagram
