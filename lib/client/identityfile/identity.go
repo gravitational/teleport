@@ -19,6 +19,10 @@ package identityfile
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"io/fs"
 	"os"
@@ -69,6 +73,8 @@ const (
 	// FormatRedis produces CA and key pair in the format suitable for
 	// configuring a Redis database for mutual TLS.
 	FormatRedis Format = "redis"
+
+	FormatSnowflake Format = "snowflake"
 
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
@@ -276,7 +282,39 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case FormatSnowflake:
+		pubPath := cfg.OutputPath + ".pub"
 
+		if err := checkOverwrite(writer, cfg.OverwriteDestination, pubPath); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var caCerts []byte
+		for _, ca := range cfg.Key.TrustedCA {
+			for _, cert := range ca.TLSCertificates {
+				block, _ := pem.Decode(cert)
+				cert, err := x509.ParseCertificate(block.Bytes)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				pubKey, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				keyFp := sha256.Sum256(pubKey)
+				fmt.Printf("FINGERPRINT: SHA256:%s\n", base64.StdEncoding.EncodeToString(keyFp[:]))
+				pubPem := pem.EncodeToMemory(&pem.Block{
+					Type:  "PUBLIC KEY",
+					Bytes: pubKey,
+				})
+				caCerts = append(caCerts, pubPem...)
+			}
+		}
+
+		err = os.WriteFile(pubPath, caCerts, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, cfg.OutputPath)
 		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {

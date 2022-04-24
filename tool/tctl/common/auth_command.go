@@ -328,7 +328,8 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
-	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach, identityfile.FormatRedis:
+	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
+		identityfile.FormatRedis, identityfile.FormatSnowflake:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
 	}
 	switch {
@@ -492,27 +493,33 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 	}
 	switch a.outputFormat {
 	case identityfile.FormatDatabase:
-		dbAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		err = dbAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
 	case identityfile.FormatMongo:
-		mongoAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		err = mongoAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
 	case identityfile.FormatCockroach:
-		cockroachAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		err = cockroachAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
 	case identityfile.FormatRedis:
-		redisAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		err = redisAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+			"files":  strings.Join(filesWritten, ", "),
+			"output": a.output,
+		})
+	case identityfile.FormatSnowflake:
+		// TODO: update template args
+		err = snowflakeAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
 	}
-	return nil
+	return err
 }
 
 var (
@@ -566,6 +573,13 @@ tls-ca-cert-file /path/to/{{.output}}.cas
 tls-cert-file /path/to/{{.output}}.crt
 tls-key-file /path/to/{{.output}}.key
 tls-protocols "TLSv1.2 TLSv1.3"
+`))
+
+	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+You know what to do:....
+
+Path {{.output}}
 `))
 )
 

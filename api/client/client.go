@@ -1185,6 +1185,18 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 	return resp.GetToken(), nil
 }
 
+func (c *Client) GenerateDatabaseJWT(ctx context.Context, req types.GenerateSnowflakeJWT) (string, error) {
+	resp, err := c.grpc.GenerateDatabaseJWT(ctx, &proto.DatabaseJWTRequest{
+		UserName:    req.Username,
+		AccountName: req.Account,
+	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetToken(), nil
+}
+
 // DeleteKubeService deletes a named kubernetes service.
 func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteKubeService(ctx, &proto.DeleteKubeServiceRequest{

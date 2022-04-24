@@ -1002,6 +1002,18 @@ func (g *GRPCServer) GenerateDatabaseCert(ctx context.Context, req *proto.Databa
 	return response, nil
 }
 
+func (g *GRPCServer) GenerateDatabaseJWT(ctx context.Context, req *proto.DatabaseJWTRequest) (*proto.DatabaseJWTResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.GenerateDatabaseJWT(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
 // GetApplicationServers returns all registered application servers.
 func (g *GRPCServer) GetApplicationServers(ctx context.Context, req *proto.GetApplicationServersRequest) (*proto.GetApplicationServersResponse, error) {
 	auth, err := g.authenticate(ctx)

@@ -53,3 +53,11 @@ func (p *GenerateAppTokenRequest) Check() error {
 	}
 	return nil
 }
+
+type GenerateSnowflakeJWT struct {
+	// Username is the Teleport identity.
+	Username string
+
+	// Roles are the roles assigned to the user within Teleport.
+	Account string
+}

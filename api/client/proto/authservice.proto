@@ -807,6 +807,13 @@ message DatabaseCertResponse {
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
 }
 
+message DatabaseJWTRequest {
+    string AccountName = 1 [ (gogoproto.jsontag) = "account_name" ];
+    string UserName = 2 [ (gogoproto.jsontag) = "user_name" ];
+}
+
+message DatabaseJWTResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
+
 // GetRoleRequest is a request to query a role.
 message GetRoleRequest {
     // Name is the name of the role to get.
@@ -1912,6 +1919,8 @@ service AuthService {
     // GenerateDatabaseCert generates client certificate used by a database
     // service to authenticate with the database instance.
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
+
+    rpc GenerateDatabaseJWT(DatabaseJWTRequest) returns (DatabaseJWTResponse);
 
     // GetRole retrieves a role described by the given request.
     rpc GetRole(GetRoleRequest) returns (types.RoleV5);

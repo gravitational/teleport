@@ -3200,6 +3200,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				MatchFunc: alpnproxy.MatchByProtocol(
 					alpncommon.ProtocolMongoDB,
 					alpncommon.ProtocolRedisDB,
+					alpncommon.ProtocolSnowflake,
 					alpncommon.ProtocolSQLServer),
 			})
 		}

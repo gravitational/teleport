@@ -807,6 +807,8 @@ func (d *Database) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
 		}
+	} else if d.Protocol == defaults.ProtocolSnowflake {
+		// TODO() noop for now
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)

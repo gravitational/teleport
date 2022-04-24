@@ -127,12 +127,9 @@ func (p *SignParams) Check() error {
 }
 
 // Sign will return a signed JWT with the passed in claims embedded within.
-func (k *Key) Sign(p SignParams) (string, error) {
+func (k *Key) sign(claims Claims) (string, error) {
 	if k.config.PrivateKey == nil {
 		return "", trace.BadParameter("can not sign token with non-signing key")
-	}
-	if err := p.Check(); err != nil {
-		return "", trace.Wrap(err)
 	}
 
 	// Create a signer with configured private key and algorithm.
@@ -152,6 +149,18 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
+	token, err := josejwt.Signed(sig).Claims(claims).CompactSerialize()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
+}
+
+func (k *Key) Sign(p SignParams) (string, error) {
+	if err := p.Check(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	// Sign the claims and create a JWT token.
 	claims := Claims{
 		Claims: josejwt.Claims{
@@ -165,11 +174,23 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		Username: p.Username,
 		Roles:    p.Roles,
 	}
-	token, err := josejwt.Signed(sig).Claims(claims).CompactSerialize()
-	if err != nil {
-		return "", trace.Wrap(err)
+
+	return k.sign(claims)
+}
+
+func (k *Key) SignSnowflake(p SignParams, issuer string) (string, error) {
+	// Sign the claims and create a JWT token.
+	claims := Claims{
+		Claims: josejwt.Claims{
+			Subject:   p.Username,
+			Issuer:    issuer,
+			NotBefore: josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    josejwt.NewNumericDate(p.Expires),
+			IssuedAt:  josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+		},
 	}
-	return token, nil
+
+	return k.sign(claims)
 }
 
 // VerifyParams are the parameters needed to pass the token and data needed to verify.

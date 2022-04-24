@@ -166,6 +166,9 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolSQLServer:
 		return c.getSQLServerCommand(), nil
+
+	case defaults.ProtocolSnowflake:
+		return c.getSnowflakeCommand(), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -454,6 +457,19 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	}
 
 	return c.exe.Command(mssqlBin, args...)
+}
+
+func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
+	args := []string{
+		"--noup",
+		"-a", "accn-name??", //TODO(JN): Do we need this?
+		"-u", c.db.Username,
+		"-h", c.host,
+		"-p", strconv.Itoa(c.port),
+		"-o", "log_level=DEBUG",
+	}
+
+	return exec.Command("snowsql", args...)
 }
 
 type connectionCommandOpts struct {
