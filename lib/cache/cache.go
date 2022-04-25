@@ -61,11 +61,9 @@ var (
 	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
 )
 
-const cacheTargetAuth string = "auth"
-
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
-	cfg.target = cacheTargetAuth
+	cfg.target = "auth"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
@@ -556,6 +554,9 @@ type Config struct {
 	// "relative expiration" checks which are used to compensate for real backends
 	// that have suffer from overly lazy ttl'ing of resources.
 	RelativeExpiryCheckInterval time.Duration
+	// RelativeExpiryLimit determines the maximum number of nodes that may be
+	// removed during relative expiration.
+	RelativeExpiryLimit int
 	// EventsC is a channel for event notifications,
 	// used in tests
 	EventsC chan Event
@@ -598,11 +599,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.CacheInitTimeout = time.Second * 20
 	}
 	if c.RelativeExpiryCheckInterval == 0 {
-		// TODO(fspmarshall): change this to 1/2 offline threshold once that becomes
-		// a configurable value. This will likely be a dynamic configuration, and
-		// therefore require lazy initialization after the cache has become healthy.
-		c.RelativeExpiryCheckInterval = apidefaults.ServerAnnounceTTL / 2
+		c.RelativeExpiryCheckInterval = apidefaults.ServerKeepAliveTTL() + 5*time.Second
 	}
+	if c.RelativeExpiryLimit == 0 {
+		c.RelativeExpiryLimit = 2000
+	}
+
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache
 	}
@@ -902,11 +904,19 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 
 	retry.Reset()
 
-	relativeExpiryInterval := interval.New(interval.Config{
-		Duration:      c.Config.RelativeExpiryCheckInterval,
-		FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-		Jitter:        utils.NewSeventhJitter(),
-	})
+	// only enable relative node expiry if the cache is configured
+	// to watch for types.KindNode
+	relativeExpiryInterval := interval.NewNoop()
+	for _, watch := range c.Config.Watches {
+		if watch.Kind == types.KindNode {
+			relativeExpiryInterval = interval.New(interval.Config{
+				Duration:      c.Config.RelativeExpiryCheckInterval,
+				FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+				Jitter:        utils.NewSeventhJitter(),
+			})
+			break
+		}
+	}
 	defer relativeExpiryInterval.Stop()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
@@ -958,7 +968,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 				}
 			}
 
-			err = c.processEvent(ctx, event)
+			err = c.processEvent(ctx, event, true)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -973,7 +983,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 // staleness by only removing items which are stale from within the cache's own "frame of
 // reference".
 //
-// to better understand why we use this expiry strategy, its important to understand the two
+// to better understand why we use this expiry strategy, it's important to understand the two
 // distinct scenarios that we're trying to accommodate:
 //
 // 1. Expiry events are being emitted very lazily by the real backend (*hours* after the time
@@ -993,15 +1003,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 // relative to our current view of the world.
 //
 // *note*: this function is only sane to call when the cache and event stream are healthy, and
-// cannot run concurrently with event processing. this function injects additional events into
-// the outbound event stream.
+// cannot run concurrently with event processing.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
-	if c.target != cacheTargetAuth {
-		// if we are not the auth cache, we are a downstream cache and can rely upon the
-		// upstream auth cache to perform relative expiry and propagate the changes.
-		return nil
-	}
-
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
 	gracePeriod := apidefaults.ServerAnnounceTTL
 
@@ -1051,20 +1054,24 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 			continue
 		}
 
-		// event stream processing is paused while this function runs.  we perform the
-		// actual expiry by constructing a fake delete event for the resource which both
-		// updates this cache, and all downstream caches.
-		err = c.processEvent(ctx, types.Event{
+		// remove the node locally without emitting an event, other caches will
+		// eventually remove the same node when they run their expiry logic.
+		if err := c.processEvent(ctx, types.Event{
 			Type: types.OpDelete,
 			Resource: &types.ResourceHeader{
 				Kind:     types.KindNode,
 				Metadata: node.GetMetadata(),
 			},
-		})
-		if err != nil {
+		}, false); err != nil {
 			return trace.Wrap(err)
 		}
-		removed++
+
+		// high churn rates can cause purging a very large number of nodes
+		// per interval, limit to a sane number such that we don't overwhelm
+		// things or get too far out of sync with other caches.
+		if removed++; removed >= c.Config.RelativeExpiryLimit {
+			break
+		}
 	}
 
 	if removed > 0 {
@@ -1126,7 +1133,10 @@ func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 	}, nil
 }
 
-func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
+// processEvent hands the event off to the appropriate collection for processing. Any
+// resources which were not registered are ignored. If processing completed successfully
+// and emit is true the event will be emitted via the fanout.
+func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections[resourceKind]
 	if !ok {
@@ -1137,7 +1147,9 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	if err := collection.processEvent(ctx, event); err != nil {
 		return trace.Wrap(err)
 	}
-	c.eventsFanout.Emit(event)
+	if emit {
+		c.eventsFanout.Emit(event)
+	}
 	return nil
 }
 

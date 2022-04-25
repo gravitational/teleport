@@ -317,6 +317,14 @@ enter: buildbox
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
 
 #
+# Starts a root shell inside the build container
+#
+.PHONY:enter-root
+enter-root: buildbox
+	docker run $(DOCKERFLAGS) -ti \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
+
+#
 # Starts shell inside the centos7 container
 #
 .PHONY:enter/centos7

@@ -1751,13 +1751,6 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	return a.authServer.DeleteUser(ctx, user)
 }
 
-func (a *ServerWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	if err := a.action(apidefaults.Namespace, types.KindKeyPair, types.VerbCreate); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return a.authServer.GenerateKeyPair(pass)
-}
-
 func (a *ServerWithRoles) GenerateHostCert(
 	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {
