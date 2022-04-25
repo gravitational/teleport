@@ -41,12 +41,12 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -66,7 +66,7 @@ type testPack struct {
 	bk          backend.Backend
 	clusterName types.ClusterName
 	a           *Server
-	mockEmitter *events.MockEmitter
+	mockEmitter *eventstest.MockEmitter
 }
 
 func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
@@ -87,7 +87,7 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
-		Authority:              authority.New(),
+		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}
 	p.a, err = NewServer(authConfig)
@@ -156,7 +156,7 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		return p, trace.Wrap(err)
 	}
 
-	p.mockEmitter = &events.MockEmitter{}
+	p.mockEmitter = &eventstest.MockEmitter{}
 	p.a.emitter = p.mockEmitter
 	return p, nil
 }
@@ -780,7 +780,7 @@ func TestUpdateConfig(t *testing.T) {
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
-		Authority:              authority.New(),
+		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}
 	authServer, err := NewServer(authConfig)
@@ -831,7 +831,7 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 
-	// test create uesr, happy path
+	// test create user, happy path
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
@@ -1012,7 +1012,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
-	mockE := &events.MockEmitter{}
+	mockE := &eventstest.MockEmitter{}
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
 
@@ -1169,7 +1169,8 @@ func TestNewWebSession(t *testing.T) {
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	err = p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	require.NoError(t, err)
 
 	// Create a user.
 	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})
@@ -1202,7 +1203,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	username := "llama@goteleport.com"
@@ -1508,7 +1509,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{

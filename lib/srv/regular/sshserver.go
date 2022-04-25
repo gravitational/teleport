@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/user"
@@ -862,7 +861,7 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	pid := os.Getpid()
 
 	// build the socket path and set permissions
-	socketDir, err := ioutil.TempDir(os.TempDir(), "teleport-")
+	socketDir, err := os.MkdirTemp(os.TempDir(), "teleport-")
 	if err != nil {
 		return trace.Wrap(err)
 	}

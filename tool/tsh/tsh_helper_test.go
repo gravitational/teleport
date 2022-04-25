@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os/user"
 	"testing"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -106,7 +108,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
-func (s *suite) setupLeafCluster(t *testing.T) {
+func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	fileConfig := &config.FileConfig{
 		Version: "v2",
 		Global: config.Global{
@@ -164,6 +166,9 @@ func (s *suite) setupLeafCluster(t *testing.T) {
 	})
 	require.NoError(t, err)
 	cfg.Auth.Resources = []types.Resource{sshLoginRole}
+	if options.leafConfigFunc != nil {
+		options.leafConfigFunc(cfg)
+	}
 	s.leaf = runTeleport(t, cfg)
 
 	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
@@ -172,6 +177,7 @@ func (s *suite) setupLeafCluster(t *testing.T) {
 
 type testSuiteOptions struct {
 	rootConfigFunc func(cfg *service.Config)
+	leafConfigFunc func(cfg *service.Config)
 	leafCluster    bool
 }
 
@@ -180,6 +186,12 @@ type testSuiteOptionFunc func(o *testSuiteOptions)
 func withRootConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.rootConfigFunc = fn
+	}
+}
+
+func withLeafConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
+	return func(o *testSuiteOptions) {
+		o.leafConfigFunc = fn
 	}
 }
 
@@ -197,8 +209,9 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	s := &suite{}
 
 	s.setupRootCluster(t, options)
-	if options.leafCluster {
-		s.setupLeafCluster(t)
+
+	if options.leafCluster || options.leafConfigFunc != nil {
+		s.setupLeafCluster(t, options)
 		require.Eventually(t, func() bool {
 			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
 			require.NoError(t, err)
@@ -234,4 +247,17 @@ func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 			t.Fatalf("service server didn't receved %v event after 30s", event)
 		}
 	}
+}
+
+func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string) {
+	ctx := context.Background()
+	credentials := apiclient.LoadProfile(tshHomePath, "")
+	c, err := apiclient.New(context.Background(), apiclient.Config{
+		Addrs:                    []string{addr},
+		Credentials:              []apiclient.Credentials{credentials},
+		InsecureAddressDiscovery: true,
+	})
+	require.NoError(t, err)
+	_, err = c.Ping(ctx)
+	require.NoError(t, err)
 }

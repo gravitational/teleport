@@ -139,6 +139,11 @@ With every user combination, try to login and signup with invalid second factor,
   - [ ] ssh -L \<regular-node\>
   - [ ] ssh -L \<node-remote-cluster\>
 
+- [ ] Verify proxy jump functionality
+  Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
+  - [ ] tsh ssh -J \<leaf-proxy\>
+  - [ ] ssh -J \<leaf-proxy\>
+
 - [ ] Interact with a cluster using the Web UI
   - [ ] Connect to a Teleport node
   - [ ] Connect to a OpenSSH node

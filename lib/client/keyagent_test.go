@@ -19,7 +19,6 @@ package client
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -254,7 +253,7 @@ func TestHostCertVerification(t *testing.T) {
 	// Create a CA, generate a keypair for the CA, and add it to the known
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
-	caPriv, caPub, err := keygen.GenerateKeyPair("")
+	caPriv, caPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(caPriv)
 	require.NoError(t, err)
@@ -269,7 +268,7 @@ func TestHostCertVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate a host certificate for node with role "node".
-	_, hostPub, err := keygen.GenerateKeyPair("")
+	_, hostPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
@@ -353,7 +352,7 @@ func TestHostKeyVerification(t *testing.T) {
 
 	// make a fake host key:
 	keygen := testauthority.New()
-	_, pub, err := keygen.GenerateKeyPair("")
+	_, pub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	pk, _, _, _, err := ssh.ParseAuthorizedKey(pub)
 	require.NoError(t, err)
@@ -411,7 +410,7 @@ func TestDefaultHostPromptFunc(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, keyBytes, err := keygen.GenerateKeyPair("")
+	_, keyBytes, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
 	require.NoError(t, err)
@@ -481,7 +480,7 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
 	keygen := testauthority.New()
 
-	privateKey, publicKey, err := keygen.GenerateKeyPair("")
+	privateKey, publicKey, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return nil, err
 	}
@@ -549,7 +548,7 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 func startDebugAgent(t *testing.T) error {
 	// Create own tmp dir instead of using t.TmpDir
 	// because net.Listen("unix", path) has dir path length limitation
-	tempDir, err := ioutil.TempDir("", "teleport-test")
+	tempDir, err := os.MkdirTemp("", "teleport-test")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.RemoveAll(tempDir)

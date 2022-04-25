@@ -42,6 +42,13 @@ const (
 	// are captured.
 	EnhancedRecordingNetwork = "network"
 
+	// LocalConnector is the authenticator connector for local logins.
+	LocalConnector = "local"
+
+	// PasswordlessConnector is the authenticator connector for
+	// local/passwordless logins.
+	PasswordlessConnector = "passwordless"
+
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
@@ -121,7 +128,16 @@ const (
 
 	// NoLoginPrefix is the prefix used for nologin certificate principals.
 	NoLoginPrefix = "-teleport-nologin-"
+
+	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
+	DatabaseCAMinVersion = "10.0.0"
 )
+
+// SystemConnectors lists the names of the system-reserved connectors.
+var SystemConnectors = []string{
+	LocalConnector,
+	PasswordlessConnector,
+}
 
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
@@ -188,4 +204,16 @@ const (
 	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
+)
+
+const (
+	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
+	HTTPSProxy = "HTTPS_PROXY"
+
+	// HTTPProxy is an environment variable pointing to a HTTP proxy.
+	HTTPProxy = "HTTP_PROXY"
+
+	// NoProxy is an environment variable matching the cases
+	// when HTTPS_PROXY or HTTP_PROXY is ignored
+	NoProxy = "NO_PROXY"
 )

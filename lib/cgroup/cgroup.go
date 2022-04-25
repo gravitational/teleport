@@ -178,7 +178,8 @@ func readPids(path string) ([]string, error) {
 	for scanner.Scan() {
 		pids = append(pids, scanner.Text())
 	}
-	if scanner.Err() != nil {
+	err = scanner.Err()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 

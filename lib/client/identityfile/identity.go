@@ -20,7 +20,6 @@ package identityfile
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,12 +158,12 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(certPath, cfg.Key.Cert, identityfile.FilePermissions)
+		err = os.WriteFile(certPath, cfg.Key.Cert, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
+		err = os.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -186,12 +185,12 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
+		err = os.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
+		err = os.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -201,7 +200,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				caCerts = append(caCerts, cert...)
 			}
 		}
-		err = ioutil.WriteFile(casPath, caCerts, identityfile.FilePermissions)
+		err = os.WriteFile(casPath, caCerts, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -215,7 +214,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = ioutil.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.Priv...), identityfile.FilePermissions)
+		err = os.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.Priv...), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -225,7 +224,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				caCerts = append(caCerts, cert...)
 			}
 		}
-		err = ioutil.WriteFile(casPath, caCerts, identityfile.FilePermissions)
+		err = os.WriteFile(casPath, caCerts, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -22,18 +22,18 @@ package agentconn
 import (
 	"net"
 
-	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/gravitational/trace"
 
 	"github.com/Microsoft/go-winio"
 )
 
+const namedPipe = `\\.\pipe\openssh-ssh-agent`
+
 // Dial creates net.Conn to a SSH agent listening on a Windows named pipe.
 // This is behind a build flag because winio.DialPipe is only available on
 // Windows.
 func Dial(socket string) (net.Conn, error) {
-	conn, err := winio.DialPipe(defaults.WindowsOpenSSHNamedPipe, nil)
+	conn, err := winio.DialPipe(namedPipe, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -55,8 +56,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
 	"gopkg.in/check.v1"
-
-	"github.com/gravitational/trace"
 )
 
 // ExecSuite also implements ssh.ConnMetadata
@@ -129,7 +128,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 		ClusterName: "localhost",
 		srv: &fakeServer{
 			accessPoint: s.a,
-			auditLog:    &fakeLog{},
+			auditLog:    events.NewDiscardAuditLog(),
 			id:          "00000000-0000-0000-0000-000000000000",
 		},
 		Identity: IdentityContext{
@@ -287,7 +286,7 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 		IsTestStub:        true,
 		srv: &fakeServer{
 			accessPoint: s.a,
-			auditLog:    &fakeLog{},
+			auditLog:    events.NewDiscardAuditLog(),
 			id:          "00000000-0000-0000-0000-000000000000",
 		},
 	}
@@ -435,7 +434,7 @@ func (f *fakeTerminal) SetTermType(string) {
 // fakeServer is stub for tests
 type fakeServer struct {
 	auditLog events.IAuditLog
-	events.MockEmitter
+	eventstest.MockEmitter
 	accessPoint AccessPoint
 	id          string
 }
@@ -530,54 +529,4 @@ func (f *fakeServer) GetRestrictedSessionManager() restricted.Manager {
 
 func (f *fakeServer) GetLockWatcher() *services.LockWatcher {
 	return nil
-}
-
-// fakeLog is used in tests to obtain the last event emit to the Audit Log.
-type fakeLog struct {
-}
-
-func (a *fakeLog) EmitAuditEventLegacy(e events.Event, f events.EventFields) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) PostSessionSlice(s events.SessionSlice) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) UploadSessionRecording(r events.SessionRecording) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) GetSessionChunk(namespace string, sid rsession.ID, offsetBytes int, maxBytes int) ([]byte, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) GetSessionEvents(namespace string, sid rsession.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return nil, "", trace.NotFound("")
-}
-
-func (a *fakeLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
-	return nil, "", trace.NotFound("")
-}
-
-func (a *fakeLog) StreamSessionEvents(ctx context.Context, sessionID rsession.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-	e <- trace.NotImplemented("not implemented")
-	return c, e
-}
-
-func (a *fakeLog) WaitForDelivery(context.Context) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) Close() error {
-	return trace.NotFound("")
 }

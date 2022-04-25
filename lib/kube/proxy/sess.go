@@ -329,13 +329,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	io := srv.NewTermManager()
 
-	if tty {
-		err = io.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", id.String()))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	s := &session{
 		ctx:                            ctx,
 		forwarder:                      forwarder,
@@ -360,6 +353,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		stateUpdate:                    sync.NewCond(&sync.Mutex{}),
 		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
 	}
+
+	s.BroadcastMessage("Creating session with ID: %v...", id.String())
+	s.BroadcastMessage(srv.SessionControlsInfoBroadcast)
 
 	go func() {
 		if _, open := <-s.io.TerminateNotifier(); open {
@@ -445,7 +441,6 @@ func (s *session) launch() error {
 	}()
 
 	s.log.Debugf("Launching session: %v", s.id)
-	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 
 	q := s.req.URL.Query()
 	request := &remoteCommandRequest{
@@ -462,6 +457,9 @@ func (s *session) launch() error {
 		context:            s.req.Context(),
 		pingPeriod:         s.forwarder.cfg.ConnPingPeriod,
 	}
+
+	s.podName = request.podName
+	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 
 	eventPodMeta := request.eventPodMeta(request.context, s.sess.creds)
 	s.io.OnWriteError = func(idString string, err error) {
@@ -541,7 +539,6 @@ func (s *session) launch() error {
 		}
 	}()
 
-	s.podName = request.podName
 	err = s.trackerUpdateState(types.SessionState_SessionStateRunning)
 	if err != nil {
 		s.log.Warn("Failed to set tracker state to running")

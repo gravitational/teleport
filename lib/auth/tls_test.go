@@ -42,9 +42,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -1206,164 +1206,6 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 	}
 }
 
-func (s *TLSSuite) TestSharedSessions(c *check.C) {
-	clt, err := s.server.NewClient(TestAdmin())
-	c.Assert(err, check.IsNil)
-
-	out, err := clt.GetSessions(apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.DeepEquals, []session.Session{})
-
-	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-	sess := session.Session{
-		ID:             session.NewID(),
-		TerminalParams: session.TerminalParams{W: 100, H: 100},
-		Created:        date,
-		LastActive:     date,
-		Login:          "bob",
-		Namespace:      apidefaults.Namespace,
-	}
-	c.Assert(clt.CreateSession(sess), check.IsNil)
-
-	out, err = clt.GetSessions(apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-
-	c.Assert(out, check.DeepEquals, []session.Session{sess})
-	marshal := func(f events.EventFields) []byte {
-		data, err := json.Marshal(f)
-		if err != nil {
-			panic(err)
-		}
-		return data
-	}
-
-	uploadDir := c.MkDir()
-
-	// emit two events: "one" and "two" for this session, and event "three"
-	// for some other session
-	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", apidefaults.Namespace), 0755)
-	c.Assert(err, check.IsNil)
-	forwarder, err := events.NewForwarder(events.ForwarderConfig{
-		Namespace:      apidefaults.Namespace,
-		SessionID:      sess.ID,
-		ServerID:       teleport.ComponentUpload,
-		DataDir:        uploadDir,
-		RecordSessions: true,
-		IAuditLog:      clt,
-	})
-	c.Assert(err, check.IsNil)
-
-	err = forwarder.PostSessionSlice(events.SessionSlice{
-		Namespace: apidefaults.Namespace,
-		SessionID: string(sess.ID),
-		Chunks: []*events.SessionChunk{
-			{
-				Time:       time.Now().UTC().UnixNano(),
-				EventIndex: 0,
-				EventType:  events.SessionStartEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob", "val": "one"}),
-			},
-			{
-				Time:       time.Now().UTC().UnixNano(),
-				EventIndex: 1,
-				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob", "val": "two"}),
-			},
-		},
-		Version: events.V3,
-	})
-	c.Assert(err, check.IsNil)
-	c.Assert(forwarder.Close(), check.IsNil)
-
-	anotherSessionID := session.NewID()
-	forwarder, err = events.NewForwarder(events.ForwarderConfig{
-		Namespace:      apidefaults.Namespace,
-		SessionID:      sess.ID,
-		ServerID:       teleport.ComponentUpload,
-		DataDir:        uploadDir,
-		RecordSessions: true,
-		IAuditLog:      clt,
-	})
-	c.Assert(err, check.IsNil)
-	err = clt.PostSessionSlice(events.SessionSlice{
-		Namespace: apidefaults.Namespace,
-		SessionID: string(anotherSessionID),
-		Chunks: []*events.SessionChunk{
-			{
-				Time:       time.Now().UTC().UnixNano(),
-				EventIndex: 0,
-				EventType:  events.SessionStartEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "alice"}),
-			},
-			{
-				Time:       time.Now().UTC().UnixNano(),
-				EventIndex: 1,
-				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "alice"}),
-			},
-		},
-		Version: events.V3,
-	})
-	c.Assert(err, check.IsNil)
-	c.Assert(forwarder.Close(), check.IsNil)
-
-	// start uploader process
-	eventsC := make(chan events.UploadEvent, 100)
-	uploader, err := events.NewUploader(events.UploaderConfig{
-		ServerID:   "upload",
-		DataDir:    uploadDir,
-		Namespace:  apidefaults.Namespace,
-		Context:    context.TODO(),
-		ScanPeriod: 100 * time.Millisecond,
-		AuditLog:   clt,
-		EventsC:    eventsC,
-	})
-	c.Assert(err, check.IsNil)
-	err = uploader.Scan()
-	c.Assert(err, check.IsNil)
-
-	// scanner should upload the events
-	select {
-	case event := <-eventsC:
-		c.Assert(event, check.NotNil)
-		c.Assert(event.Error, check.IsNil)
-	case <-time.After(time.Second):
-		c.Fatalf("Timeout wating for the upload event")
-	}
-
-	// ask for strictly session events:
-	e, err := clt.GetSessionEvents(apidefaults.Namespace, sess.ID, 0, true)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(e), check.Equals, 2)
-	c.Assert(e[0].GetString("val"), check.Equals, "one")
-	c.Assert(e[1].GetString("val"), check.Equals, "two")
-
-	// try searching for events with no filter (empty query) - should get all 3 events:
-	to := time.Now().In(time.UTC).Add(time.Hour)
-	from := to.Add(-time.Hour * 2)
-	history, _, err := clt.SearchEvents(from, to, apidefaults.Namespace, nil, 0, types.EventOrderDescending, "")
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.NotNil)
-	// Extra event is the upload event
-	c.Assert(len(history), check.Equals, 5)
-
-	// try searching for only "session.end" events (real query)
-	history, _, err = clt.SearchEvents(from, to, apidefaults.Namespace, []string{events.SessionEndEvent}, 0, types.EventOrderDescending, "")
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.NotNil)
-	c.Assert(len(history), check.Equals, 2)
-	var found bool
-	for _, event := range history {
-		realEvent, ok := event.(*apievents.SessionEnd)
-		c.Assert(ok, check.Equals, true)
-		if realEvent.GetSessionID() == string(anotherSessionID) {
-			found = true
-			c.Assert(realEvent.Login, check.Equals, "alice")
-		}
-	}
-	c.Assert(found, check.Equals, true)
-}
-
 func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
@@ -1643,7 +1485,7 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 }
 
 func (s *TLSSuite) TestAccessRequest(c *check.C) {
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -1832,7 +1674,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -1921,7 +1763,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 func TestGenerateCerts(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
-	priv, pub, err := srv.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -2372,7 +2214,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 // correct format.
 func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 	ctx := context.Background()
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -2448,7 +2290,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, pub, err := s.server.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// try and generate a host cert, this should fail because we are recording
@@ -2683,7 +2525,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 
 	// Make sure access is denied for SSH login.
-	_, pub, err := s.server.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	_, err = s.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
@@ -2781,7 +2623,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Generate public and private keys for node.
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	c.Assert(err, check.IsNil)
@@ -2916,7 +2758,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Generate public and private keys for node.
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	c.Assert(err, check.IsNil)

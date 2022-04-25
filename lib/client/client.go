@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -622,7 +621,7 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 
 	resources, err := client.GetResourcesWithFilters(ctx, site, req)
 	if err != nil {
-		// ListResources for nodes not availalbe, provide fallback.
+		// ListResources for nodes not available, provide fallback.
 		// Fallback does not support search/predicate support, so if users
 		// provide them, it does nothing.
 		//
@@ -655,7 +654,7 @@ func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for app servers not availalbe, provide fallback.
+		// ListResources for app servers not available, provide fallback.
 		// Fallback does not support filters, so if users
 		// provide them, it does nothing.
 		//
@@ -717,7 +716,20 @@ func (proxy *ProxyClient) DeleteAppSession(ctx context.Context, sessionID string
 	return nil
 }
 
-// FindDatabaseServersByFilters returns all registered database proxy servers.
+// DeleteUserAppSessions removes user's all application web sessions.
+func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	authClient, err := proxy.ConnectToRootCluster(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = authClient.DeleteUserAppSessions(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// FindDatabaseServersByFilters returns registered database proxy servers that match the provided filter.
 func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
 	req.ResourceType = types.KindDatabaseServer
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
@@ -727,7 +739,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for db servers not availalbe, provide fallback.
+		// ListResources for db servers not available, provide fallback.
 		// Fallback does not support filters, so if users
 		// provide them, it does nothing.
 		//
@@ -1001,7 +1013,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 	if err != nil {
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
-		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
+		serverErrorMsg, _ := io.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
 			nodeName(strings.Split(address, "@")[0]), serverErrorMsg)
 	}
@@ -1152,7 +1164,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
-		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
+		serverErrorMsg, _ := io.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
 			nodeName(nodeAddress.Addr), serverErrorMsg)
 	}
@@ -1640,7 +1652,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			RouteToCluster: nodeAddr.Cluster,
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
+			return PromptMFAChallenge(ctx, c, proxyAddr, nil /* opts */)
 		},
 	)
 	if err != nil {

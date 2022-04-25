@@ -52,7 +52,11 @@ storage:
 # Destinations specifies where short-lived certificates are stored.
 destinations:
     # Directory specifies where short-lived certificates are stored.
-    - directory: /opt/machine-id
+    - directory:
+        # Configure the path at which to store certificates and other
+        # artifacts.
+        path: /opt/machine-id
+
         # Configure symlink attack prevention. Requires Linux 5.6+.
         # Possible values:
         #   * try-secure (default): Attempt to securely read and write certificates

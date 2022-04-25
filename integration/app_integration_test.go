@@ -42,6 +42,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -755,6 +756,63 @@ func TestAppServersHA(t *testing.T) {
 	}
 }
 
+func TestAppInvalidateAppSessionsOnLogout(t *testing.T) {
+	// Create cluster, user, and credentials package.
+	pack := setup(t)
+
+	// Create an application session.
+	appCookie := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+
+	// Issue a request to the application to guarantee everything is working correctly.
+	status, _, err := pack.makeRequest(appCookie, http.MethodGet, "/")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+
+	// Logout from Teleport.
+	status, _, err = pack.makeWebapiRequest(http.MethodDelete, "sessions", []byte{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+
+	// As deleting WebSessions might not happen immediately, run the next request
+	// in an `Eventually` block.
+	require.Eventually(t, func() bool {
+		// Issue another request to the application. Now, it should receive a
+		// redirect because the application sessions are gone.
+		status, _, err = pack.makeRequest(appCookie, http.MethodGet, "/")
+		require.NoError(t, err)
+		return status == http.StatusFound
+	}, time.Second, 250*time.Millisecond)
+}
+
+func TestAppInvalidateCertificatesSessionsOnLogout(t *testing.T) {
+	// Create cluster, user, and credentials package.
+	pack := setup(t)
+
+	// Generates TLS config for making app requests.
+	reqTLS := pack.makeTLSConfig(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+	require.NotNil(t, reqTLS)
+
+	// Issue a request to the application to guarantee everything is working correctly.
+	status, _, err := pack.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+
+	// Logout from Teleport.
+	status, _, err = pack.makeWebapiRequest(http.MethodDelete, "sessions", []byte{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+
+	// As deleting WebSessions might not happen immediately, run the next request
+	// in an `Eventually` block.
+	require.Eventually(t, func() bool {
+		// Issue another request to the application. Now, it should receive a
+		// redirect because the application sessions are gone.
+		status, _, err = pack.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
+		require.NoError(t, err)
+		return status == http.StatusFound
+	}, time.Second, 250*time.Millisecond)
+}
+
 // pack contains identity as well as initialized Teleport clusters and instances.
 type pack struct {
 	username string
@@ -980,7 +1038,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	p.headerAppURI = headerServer.URL
 	p.flushAppURI = flushServer.URL
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
@@ -1196,14 +1254,29 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+	statusCode, body, err := p.makeWebapiRequest(http.MethodPost, "sessions/app", casReq)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, statusCode)
 
+	var casResp *web.CreateAppSessionResponse
+	err = json.Unmarshal(body, &casResp)
+	require.NoError(t, err)
+
+	return casResp.CookieValue
+}
+
+// makeWebapiRequest makes a request to the root cluster Web API.
+func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, []byte, error) {
 	u := url.URL{
 		Scheme: "https",
 		Host:   net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
-		Path:   "/v1/webapi/sessions/app",
+		Path:   fmt.Sprintf("/v1/webapi/%s", endpoint),
 	}
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(casReq))
-	require.NoError(t, err)
+
+	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(payload))
+	if err != nil {
+		return 0, nil, trace.Wrap(err)
+	}
 
 	req.AddCookie(&http.Cookie{
 		Name:  web.CookieName,
@@ -1211,23 +1284,8 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	var casResp *web.CreateAppSessionResponse
-	err = json.NewDecoder(resp.Body).Decode(&casResp)
-	require.NoError(t, err)
-
-	return casResp.CookieValue
+	statusCode, body, err := p.sendRequest(req, nil)
+	return statusCode, []byte(body), trace.Wrap(err)
 }
 
 func (p *pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {
@@ -1268,7 +1326,7 @@ func (p *pack) initCertPool(t *testing.T) {
 
 // makeTLSConfig returns TLS config suitable for making an app access request.
 func (p *pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.Config {
-	privateKey, publicKey, err := p.rootCluster.Process.GetAuthServer().GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	ws, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
@@ -1302,7 +1360,7 @@ func (p *pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.
 // makeTLSConfigNoSession returns TLS config for application access without
 // creating session to simulate nonexistent session scenario.
 func (p *pack) makeTLSConfigNoSession(t *testing.T, publicAddr, clusterName string) *tls.Config {
-	privateKey, publicKey, err := p.rootCluster.Process.GetAuthServer().GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(

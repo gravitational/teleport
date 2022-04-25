@@ -28,12 +28,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
@@ -70,6 +73,7 @@ func newMFACommand(app *kingpin.Application) mfaCommands {
 type mfaLSCommand struct {
 	*kingpin.CmdClause
 	verbose bool
+	format  string
 }
 
 func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
@@ -77,6 +81,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
+	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 	return c
 }
 
@@ -112,8 +117,32 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 	// Sort by name before printing.
 	sort.Slice(devs, func(i, j int) bool { return devs[i].GetName() < devs[j].GetName() })
 
-	printMFADevices(devs, c.verbose)
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		printMFADevices(devs, c.verbose)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeMFADevices(devs, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", c.format)
+	}
+
 	return nil
+}
+
+func serializeMFADevices(devs []*types.MFADevice, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(devs, "", "  ")
+	} else {
+		out, err = yaml.Marshal(devs)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func printMFADevices(devs []*types.MFADevice, verbose bool) {
@@ -147,6 +176,10 @@ type mfaAddCommand struct {
 	*kingpin.CmdClause
 	devName string
 	devType string
+	// pwdless is nil if unset, true/false if explicitly set.
+	// If passwordless is not supported it's always set to false.
+	// The default behavior is the same as false.
+	pwdless *bool
 }
 
 func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
@@ -156,6 +189,22 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
 		StringVar(&c.devType)
+
+	if wancli.IsFIDO2Available() {
+		var allowPwdless bool
+		c.Flag("allow-passwordless", "Allow passwordless logins").
+			Action(func(_ *kingpin.ParseContext) error {
+				// If the callback is called it means that the flag was explicitly set,
+				// so we can copy its contents to the command.
+				c.pwdless = &allowPwdless
+				return nil
+			}).
+			BoolVar(&allowPwdless)
+	} else {
+		allowPwdless := false
+		c.pwdless = &allowPwdless
+	}
+
 	return c
 }
 
@@ -204,7 +253,22 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("device name can not be empty")
 	}
 
-	dev, err := c.addDeviceRPC(ctx, tc, c.devName, devType)
+	// If passwordless is supported but unset, then ask the user.
+	if devType != proto.DeviceType_DEVICE_TYPE_WEBAUTHN {
+		pwdless := false
+		c.pwdless = &pwdless // only WebAuthn does passwordless
+	}
+	if c.pwdless == nil {
+		answer, err := prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Allow passwordless logins", []string{"YES", "NO"})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		val := answer == "YES"
+		c.pwdless = &val
+	}
+	pwdless := c.pwdless != nil && *c.pwdless
+
+	dev, err := c.addDeviceRPC(ctx, tc, c.devName, devType, pwdless)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -231,7 +295,9 @@ func deviceTypesFromPreferredMFA(preferredMFA constants.SecondFactorType) []stri
 	}
 }
 
-func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportClient, devName string, devType proto.DeviceType) (*types.MFADevice, error) {
+func (c *mfaAddCommand) addDeviceRPC(
+	ctx context.Context,
+	tc *client.TeleportClient, devName string, devType proto.DeviceType, passwordless bool) (*types.MFADevice, error) {
 	var dev *types.MFADevice
 	if err := client.RetryWithRelogin(ctx, tc, func() error {
 		pc, err := tc.ConnectToProxy(ctx)
@@ -252,10 +318,15 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 			return trace.Wrap(err)
 		}
 		// Init.
+		usage := proto.DeviceUsage_DEVICE_USAGE_MFA
+		if passwordless {
+			usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+		}
 		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_Init{
 			Init: &proto.AddMFADeviceRequestInit{
-				DeviceName: devName,
-				DeviceType: devType,
+				DeviceName:  devName,
+				DeviceType:  devType,
+				DeviceUsage: usage,
 			},
 		}}); err != nil {
 			return trace.Wrap(err)
@@ -270,7 +341,9 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_ExistingMFAChallenge", resp.Response)
 		}
-		authResp, err := client.PromptMFAChallenge(ctx, tc.Config.WebProxyAddr, authChallenge, "*registered* ", false)
+		authResp, err := client.PromptMFAChallenge(ctx, authChallenge, tc.Config.WebProxyAddr, &client.PromptMFAChallengeOpts{
+			PromptDevicePrefix: "*registered*",
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -321,6 +394,8 @@ func promptRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.MFA
 	case *proto.MFARegisterChallenge_TOTP:
 		return promptTOTPRegisterChallenge(ctx, c.GetTOTP())
 	case *proto.MFARegisterChallenge_Webauthn:
+		// WebAuthn prompt doesn't take in "r" because it reads directly from stdin
+		// using term.ReadPassword.
 		return promptWebauthnRegisterChallenge(ctx, proxyAddr, c.GetWebauthn())
 	default:
 		return nil, trace.BadParameter("server bug: unexpected registration challenge type: %T", c.Request)
@@ -388,7 +463,8 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 	// Help the user with typos, don't submit the code until it has the right
 	// length.
 	for {
-		totpCode, err = prompt.Input(ctx, os.Stdout, prompt.Stdin(), "Once created, enter an OTP code generated by the app")
+		totpCode, err = prompt.Password(
+			ctx, os.Stdout, prompt.Stdin(), "Once created, enter an OTP code generated by the app")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -409,9 +485,12 @@ func promptWebauthnRegisterChallenge(ctx context.Context, proxyAddr string, cc *
 	}
 	log.Debugf("WebAuthn: prompting MFA devices with origin %q", origin)
 
-	fmt.Println("Tap your *new* security key")
+	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
+	prompt.PINMessage = "Enter your *new* security key PIN"
+	prompt.FirstTouchMessage = "Tap your *new* security key"
+	prompt.SecondTouchMessage = "Tap your *new* security key again to complete registration"
 
-	resp, err := wancli.Register(ctx, origin, wanlib.CredentialCreationFromProto(cc))
+	resp, err := wancli.Register(ctx, origin, wanlib.CredentialCreationFromProto(cc), prompt)
 	return resp, trace.Wrap(err)
 }
 
@@ -468,7 +547,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_MFAChallenge", resp.Response)
 		}
-		authResp, err := client.PromptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, authChallenge, "", false)
+		authResp, err := client.PromptMFAChallenge(cf.Context, authChallenge, tc.Config.WebProxyAddr, nil /* opts */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
