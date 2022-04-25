@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
@@ -249,8 +250,9 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 
 	// create a request to validate a trusted cluster (token and local certificate authorities)
 	validateRequest := ValidateTrustedClusterRequest{
-		Token: trustedCluster.GetToken(),
-		CAs:   localCertAuthorities,
+		Token:           trustedCluster.GetToken(),
+		CAs:             localCertAuthorities,
+		TeleportVersion: teleport.Version,
 	}
 
 	// log the local certificate authorities that we are sending
@@ -520,24 +522,65 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	}
 
 	// export local cluster certificate authority and return it to the cluster
-	validateResponse := ValidateTrustedClusterResponse{
-		CAs: []types.CertAuthority{},
-	}
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA} {
-		certAuthority, err := a.GetCertAuthority(
-			ctx,
-			types.CertAuthID{Type: caType, DomainName: domainName},
-			false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		validateResponse.CAs = append(validateResponse.CAs, certAuthority)
+	validateResponse := ValidateTrustedClusterResponse{}
+
+	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName, validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// log the local certificate authorities we are sending
 	log.Debugf("Sending validate response: CAs=%v", validateResponse.CAs)
 
 	return &validateResponse, nil
+}
+
+// getLeafClusterCAs returns a slice with Cert Authorities that should be returned in response to ValidateTrustedClusterRequest.
+func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthority, error) {
+	certTypes, err := getCATypesForLeaf(validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	caCerts := make([]types.CertAuthority, 0, len(certTypes))
+
+	for _, caType := range certTypes {
+		certAuthority, err := srv.GetCertAuthority(
+			ctx,
+			types.CertAuthID{Type: caType, DomainName: domainName},
+			false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		caCerts = append(caCerts, certAuthority)
+	}
+
+	return caCerts, nil
+}
+
+// getCATypesForLeaf returns the list of CA certificates that should be sync in response to ValidateTrustedClusterRequest.
+func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
+	var err error
+
+	databaseCASupported := false
+	if validateRequest.TeleportVersion != "" {
+		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
+		// cluster this field will be empty.
+		databaseCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.DatabaseCAMinVersion)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
+		}
+	}
+
+	certTypes := []types.CertAuthType{types.HostCA, types.UserCA}
+
+	if databaseCASupported {
+		// Database CA was introduced in Teleport 10.0. Do not send it to older clusters
+		// as they don't understand it.
+		certTypes = append(certTypes, types.DatabaseCA)
+	}
+
+	return certTypes, nil
 }
 
 func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName string) (map[string]string, error) {
@@ -614,8 +657,9 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 }
 
 type ValidateTrustedClusterRequest struct {
-	Token string                `json:"token"`
-	CAs   []types.CertAuthority `json:"certificate_authorities"`
+	Token           string                `json:"token"`
+	CAs             []types.CertAuthority `json:"certificate_authorities"`
+	TeleportVersion string                `json:"teleport_version"`
 }
 
 func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestRaw, error) {
@@ -631,14 +675,16 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	}
 
 	return &ValidateTrustedClusterRequestRaw{
-		Token: v.Token,
-		CAs:   cas,
+		Token:           v.Token,
+		CAs:             cas,
+		TeleportVersion: v.TeleportVersion,
 	}, nil
 }
 
 type ValidateTrustedClusterRequestRaw struct {
-	Token string   `json:"token"`
-	CAs   [][]byte `json:"certificate_authorities"`
+	Token           string   `json:"token"`
+	CAs             [][]byte `json:"certificate_authorities"`
+	TeleportVersion string   `json:"teleport_version"`
 }
 
 func (v *ValidateTrustedClusterRequestRaw) ToNative() (*ValidateTrustedClusterRequest, error) {
@@ -654,8 +700,9 @@ func (v *ValidateTrustedClusterRequestRaw) ToNative() (*ValidateTrustedClusterRe
 	}
 
 	return &ValidateTrustedClusterRequest{
-		Token: v.Token,
-		CAs:   cas,
+		Token:           v.Token,
+		CAs:             cas,
+		TeleportVersion: v.TeleportVersion,
 	}, nil
 }
 

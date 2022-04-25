@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/api/constants"
@@ -94,7 +93,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 			if ca.GetClusterName() != clusterName {
 				continue
 			}
-			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
+			info := fmt.Sprintf("%v CA ", string(ca.GetType()))
 			rotation := ca.GetRotation()
 			standbyPhase := rotation.Phase == types.RotationPhaseStandby || rotation.Phase == ""
 			if standbyPhase && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
@@ -133,7 +132,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 				if ca.GetClusterName() == clusterName {
 					continue
 				}
-				info := fmt.Sprintf("Remote %v CA %q", strings.Title(string(ca.GetType())), ca.GetClusterName())
+				info := fmt.Sprintf("Remote %v CA %q", string(ca.GetType()), ca.GetClusterName())
 				rotation := ca.GetRotation()
 				table.AddRow([]string{info, rotation.String()})
 			}

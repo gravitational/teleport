@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -120,4 +121,21 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user string, db types.Data
 	}
 
 	return nil
+}
+
+// GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
+func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
+	roleSet, err := services.FetchRoles(c.status.Roles, c.clusterClient, c.status.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	db, err := c.GetDatabase(ctx, dbURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbUsers := roleSet.EnumerateDatabaseUsers(db)
+
+	return dbUsers.Allowed(), nil
 }
