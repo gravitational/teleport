@@ -22,6 +22,16 @@ export const Failed = () => {
   );
 };
 
+export const Approved = () => {
+  return (
+    <RequestDelete
+      {...props}
+      attempt={{ status: '' }}
+      requestState="APPROVED"
+    />
+  );
+};
+
 const props = {
   requestId: '5ee98d44-de9d-5103-a7cd-072b1ff76253',
   user: 'admin',

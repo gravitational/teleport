@@ -163,7 +163,6 @@ exports[`render device list 1`] = `
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
-  border-radius: 8px;
   font-size: 12px;
   width: 100%;
 }
@@ -233,14 +232,6 @@ exports[`render device list 1`] = `
   background-color: rgb(37,49,98);
 }
 
-.c6 tbody > tr:last-child td:first-child {
-  border-bottom-left-radius: 8px;
-}
-
-.c6 tbody > tr:last-child td:last-child {
-  border-bottom-right-radius: 8px;
-}
-
 .c7 > tbody > tr td {
   vertical-align: middle;
   height: 32px;
@@ -280,10 +271,14 @@ exports[`render device list 1`] = `
       >
         <thead>
           <tr>
-            <th>
+            <th
+              style="cursor: default;"
+            >
               Type
             </th>
-            <th>
+            <th
+              style="cursor: default;"
+            >
               Device Name
             </th>
             <th>
@@ -304,7 +299,9 @@ exports[`render device list 1`] = `
                 />
               </a>
             </th>
-            <th />
+            <th
+              style="cursor: default;"
+            />
           </tr>
         </thead>
         <tbody>

@@ -1,37 +1,16 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`failed state 1`] = `
-.c7 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
-  margin: 0 0 24px 0;
-  min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
-}
-
-.c7 a {
-  color: #FFFFFF;
-}
-
-.c12 {
+exports[`approved role escalation 1`] = `
+.c11 {
   box-sizing: border-box;
 }
 
-.c18 {
+.c16 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c19 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -57,25 +36,25 @@ exports[`failed state 1`] = `
   padding: 0px 24px;
 }
 
-.c19:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c19:hover,
-.c19:focus {
+.c17:hover,
+.c17:focus {
   background: #651FFF;
 }
 
-.c19:active {
+.c17:active {
   background: #354AA4;
 }
 
-.c19:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c21 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -102,21 +81,21 @@ exports[`failed state 1`] = `
   margin-right: 16px;
 }
 
-.c21:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c21:hover,
-.c21:focus {
+.c19:hover,
+.c19:focus {
   background: #ff1744;
 }
 
-.c21:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c22 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -142,16 +121,395 @@ exports[`failed state 1`] = `
   padding: 0px 24px;
 }
 
-.c22:active {
+.c20:active {
   opacity: 0.56;
 }
 
-.c22:hover,
-.c22:focus {
+.c20:hover,
+.c20:focus {
   background: #2C3A73;
 }
 
-.c22:disabled {
+.c20:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-bottom: 8px;
+  margin-top: 8px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c15 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  max-width: 550px;
+  width: 100%;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.c18 {
+  box-sizing: border-box;
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="c4"
+      >
+        <div
+          class="c5"
+          color="text.primary"
+        >
+          Delete Request?
+        </div>
+      </div>
+      <div
+        class="c6"
+      >
+        <div
+          class="c7"
+        >
+          <div
+            class="c8"
+          >
+            <div
+              class="c9"
+            >
+              You are about to delete a request from
+            </div>
+            <div
+              class="c10"
+              title="admin"
+            >
+              admin
+            </div>
+             
+            <div
+              class="c9"
+            >
+              for the following roles:
+            </div>
+            <div
+              class="c11"
+            >
+              <div
+                class="c12"
+                kind="secondary"
+              >
+                dba
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c13"
+        >
+          Since this access request has already been approved, deleting the request now will NOT remove the user's access to these roles. If you would like to lock the user's access to the requested roles, you can run:
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+          >
+            <div
+              class="c16"
+            >
+              $
+            </div>
+            <div>
+              tctl lock --access_request 5ee98d44-de9d-5103-a7cd-072b1ff76253
+            </div>
+          </div>
+          <button
+            class="c17"
+            kind="primary"
+            style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+      <div
+        class="c18"
+      >
+        <button
+          class="c19"
+          kind="warning"
+        >
+          Delete Request
+        </button>
+        <button
+          class="c20"
+          kind="secondary"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`failed state 1`] = `
+.c7 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c7 a {
+  color: #FFFFFF;
+}
+
+.c12 {
+  box-sizing: border-box;
+}
+
+.c15 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #d50000;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+}
+
+.c15:active {
+  opacity: 0.56;
+}
+
+.c15:hover,
+.c15:focus {
+  background: #ff1744;
+}
+
+.c15:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c16 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c16:active {
+  opacity: 0.56;
+}
+
+.c16:hover,
+.c16:focus {
+  background: #2C3A73;
+}
+
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -203,54 +561,17 @@ exports[`failed state 1`] = `
   margin-right: 4px;
 }
 
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
 .c8 {
   box-sizing: border-box;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   display: flex;
   flex-wrap: wrap;
 }
 
 .c9 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   display: flex;
   align-items: baseline;
-}
-
-.c16 {
-  box-sizing: border-box;
-  margin-top: 8px;
-  padding: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c17 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
 }
 
 .c1 {
@@ -298,7 +619,7 @@ exports[`failed state 1`] = `
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
-  max-width: 500px;
+  max-width: 550px;
   width: 100%;
 }
 
@@ -318,7 +639,7 @@ exports[`failed state 1`] = `
   flex-direction: column;
 }
 
-.c20 {
+.c14 {
   box-sizing: border-box;
 }
 
@@ -378,7 +699,7 @@ exports[`failed state 1`] = `
             <div
               class="c10"
             >
-              for the roles:
+              for the following roles:
             </div>
             <div
               class="c12"
@@ -392,53 +713,18 @@ exports[`failed state 1`] = `
             </div>
           </div>
         </div>
-        <div
-          class="c14"
-        >
-          If this request has been approved, deleting the request will not remove this users access to these roles.
-        </div>
-        <div
-          class="c15"
-        >
-           
-          If you would also like to lock this users access run:
-        </div>
-        <div
-          class="c16"
-        >
-          <div
-            class="c17"
-            style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-          >
-            <div
-              class="c18"
-            >
-              $
-            </div>
-            <div>
-              tctl lock --access_request 5ee98d44-de9d-5103-a7cd-072b1ff76253
-            </div>
-          </div>
-          <button
-            class="c19"
-            kind="primary"
-            style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-          >
-            Copy
-          </button>
-        </div>
       </div>
       <div
-        class="c20"
+        class="c14"
       >
         <button
-          class="c21"
+          class="c15"
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c22"
+          class="c16"
           kind="secondary"
         >
           Cancel
@@ -454,56 +740,7 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
 }
 
-.c17 {
-  box-sizing: border-box;
-  margin-right: 4px;
-}
-
-.c18 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c18:active {
-  opacity: 0.56;
-}
-
-.c18:hover,
-.c18:focus {
-  background: #651FFF;
-}
-
-.c18:active {
-  background: #354AA4;
-}
-
-.c18:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c20 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -530,21 +767,21 @@ exports[`loaded state 1`] = `
   margin-right: 16px;
 }
 
-.c20:active {
+.c14:active {
   opacity: 0.56;
 }
 
-.c20:hover,
-.c20:focus {
+.c14:hover,
+.c14:focus {
   background: #ff1744;
 }
 
-.c20:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c21 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -570,16 +807,16 @@ exports[`loaded state 1`] = `
   padding: 0px 24px;
 }
 
-.c21:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c21:hover,
-.c21:focus {
+.c15:hover,
+.c15:focus {
   background: #2C3A73;
 }
 
-.c21:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -631,54 +868,17 @@ exports[`loaded state 1`] = `
   margin-right: 4px;
 }
 
-.c13 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   display: flex;
   flex-wrap: wrap;
 }
 
 .c8 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   display: flex;
   align-items: baseline;
-}
-
-.c15 {
-  box-sizing: border-box;
-  margin-top: 8px;
-  padding: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c16 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
 }
 
 .c1 {
@@ -726,7 +926,7 @@ exports[`loaded state 1`] = `
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
-  max-width: 500px;
+  max-width: 550px;
   width: 100%;
 }
 
@@ -746,7 +946,7 @@ exports[`loaded state 1`] = `
   flex-direction: column;
 }
 
-.c19 {
+.c13 {
   box-sizing: border-box;
 }
 
@@ -800,7 +1000,7 @@ exports[`loaded state 1`] = `
             <div
               class="c9"
             >
-              for the roles:
+              for the following roles:
             </div>
             <div
               class="c11"
@@ -814,53 +1014,18 @@ exports[`loaded state 1`] = `
             </div>
           </div>
         </div>
-        <div
-          class="c13"
-        >
-          If this request has been approved, deleting the request will not remove this users access to these roles.
-        </div>
-        <div
-          class="c14"
-        >
-           
-          If you would also like to lock this users access run:
-        </div>
-        <div
-          class="c15"
-        >
-          <div
-            class="c16"
-            style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-          >
-            <div
-              class="c17"
-            >
-              $
-            </div>
-            <div>
-              tctl lock --access_request 5ee98d44-de9d-5103-a7cd-072b1ff76253
-            </div>
-          </div>
-          <button
-            class="c18"
-            kind="primary"
-            style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-          >
-            Copy
-          </button>
-        </div>
       </div>
       <div
-        class="c19"
+        class="c13"
       >
         <button
-          class="c20"
+          class="c14"
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c21"
+          class="c15"
           kind="secondary"
         >
           Cancel
@@ -876,56 +1041,7 @@ exports[`processing state 1`] = `
   box-sizing: border-box;
 }
 
-.c17 {
-  box-sizing: border-box;
-  margin-right: 4px;
-}
-
-.c18 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c18:active {
-  opacity: 0.56;
-}
-
-.c18:hover,
-.c18:focus {
-  background: #651FFF;
-}
-
-.c18:active {
-  background: #354AA4;
-}
-
-.c18:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c20 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -952,21 +1068,21 @@ exports[`processing state 1`] = `
   margin-right: 16px;
 }
 
-.c20:active {
+.c14:active {
   opacity: 0.56;
 }
 
-.c20:hover,
-.c20:focus {
+.c14:hover,
+.c14:focus {
   background: #ff1744;
 }
 
-.c20:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c21 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -992,16 +1108,16 @@ exports[`processing state 1`] = `
   padding: 0px 24px;
 }
 
-.c21:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c21:hover,
-.c21:focus {
+.c15:hover,
+.c15:focus {
   background: #2C3A73;
 }
 
-.c21:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -1053,54 +1169,17 @@ exports[`processing state 1`] = `
   margin-right: 4px;
 }
 
-.c13 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-}
-
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   display: flex;
   flex-wrap: wrap;
 }
 
 .c8 {
   box-sizing: border-box;
-  margin-bottom: 8px;
   display: flex;
   align-items: baseline;
-}
-
-.c15 {
-  box-sizing: border-box;
-  margin-top: 8px;
-  padding: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c16 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
 }
 
 .c1 {
@@ -1148,7 +1227,7 @@ exports[`processing state 1`] = `
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
-  max-width: 500px;
+  max-width: 550px;
   width: 100%;
 }
 
@@ -1168,7 +1247,7 @@ exports[`processing state 1`] = `
   flex-direction: column;
 }
 
-.c19 {
+.c13 {
   box-sizing: border-box;
 }
 
@@ -1222,7 +1301,7 @@ exports[`processing state 1`] = `
             <div
               class="c9"
             >
-              for the roles:
+              for the following roles:
             </div>
             <div
               class="c11"
@@ -1236,54 +1315,19 @@ exports[`processing state 1`] = `
             </div>
           </div>
         </div>
-        <div
-          class="c13"
-        >
-          If this request has been approved, deleting the request will not remove this users access to these roles.
-        </div>
-        <div
-          class="c14"
-        >
-           
-          If you would also like to lock this users access run:
-        </div>
-        <div
-          class="c15"
-        >
-          <div
-            class="c16"
-            style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-          >
-            <div
-              class="c17"
-            >
-              $
-            </div>
-            <div>
-              tctl lock --access_request 5ee98d44-de9d-5103-a7cd-072b1ff76253
-            </div>
-          </div>
-          <button
-            class="c18"
-            kind="primary"
-            style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-          >
-            Copy
-          </button>
-        </div>
       </div>
       <div
-        class="c19"
+        class="c13"
       >
         <button
-          class="c20"
+          class="c14"
           disabled=""
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c21"
+          class="c15"
           disabled=""
           kind="secondary"
         >
