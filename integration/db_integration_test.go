@@ -940,7 +940,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	p := &databasePack{
