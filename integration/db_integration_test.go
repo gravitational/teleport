@@ -1445,12 +1445,11 @@ func startRedis(t *testing.T, config common.TestServerConfig, tlsConfig *tls.Con
 		},
 		NetworkID: "cloudbuild",
 		Cmd: []string{
-			"--port", "6379",
-			//"--port", "0",
-			//"--tls-port", "6379",
-			//"--tls-cert-file", certDir + "/server.crt",
-			//"--tls-key-file", certDir + "/server.key",
-			//"--tls-ca-cert-file", certDir + "/server.cas",
+			"--port", "0",
+			"--tls-port", "6379",
+			"--tls-cert-file", certDir + "/server.crt",
+			"--tls-key-file", certDir + "/server.key",
+			"--tls-ca-cert-file", certDir + "/server.cas",
 		},
 		PortBindings: map[docker.Port][]docker.PortBinding{
 			"6379/tcp": {{HostPort: port}},
