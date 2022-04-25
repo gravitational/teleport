@@ -610,11 +610,21 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	return auth.GetNodesWithLabels(ctx, site, namespace, labels)
 }
 
-// FindServersByFilters returns list of the nodes which have filters matched.
+// FindNodesByFilters returns list of the nodes in the current cluster which have filters matched.
 func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
+	cluster, err := proxy.currentCluster()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := proxy.FindNodesByFiltersForCluster(ctx, req, *cluster)
+	return servers, trace.Wrap(err)
+}
+
+// FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
+func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster types.Site) ([]types.Server, error) {
 	req.ResourceType = types.KindNode
 
-	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	site, err := proxy.ClusterAccessPoint(ctx, cluster.Name, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

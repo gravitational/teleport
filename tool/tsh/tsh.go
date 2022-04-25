@@ -308,6 +308,9 @@ type CLIConf struct {
 
 	// ExtraProxyHeaders is configuration read from the .tsh/config/config.yaml file.
 	ExtraProxyHeaders []ExtraProxyHeaders
+
+	// ListAll specifies if an ls command should return results from all clusters and proxies.
+	ListAll bool
 }
 
 // Stdout returns the stdout writer.
@@ -558,6 +561,7 @@ func Run(args []string, opts ...cliOption) error {
 	ls.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	ls.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	ls.Flag("all", "list nodes from all clusters and proxies").Short('R').BoolVar(&cf.ListAll)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
@@ -1395,6 +1399,10 @@ func onLogout(cf *CLIConf) error {
 
 // onListNodes executes 'tsh ls' command.
 func onListNodes(cf *CLIConf) error {
+	if cf.ListAll {
+		return trace.Wrap(listNodesAllClusters(cf))
+	}
+
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1418,6 +1426,117 @@ func onListNodes(cf *CLIConf) error {
 	}
 
 	return nil
+}
+
+type nodeListing struct {
+	Proxy   string       `json:"proxy"`
+	Cluster string       `json:"cluster"`
+	Node    types.Server `json:"node"`
+}
+
+func listNodesAllClusters(cf *CLIConf) error {
+	profile, profiles, err := client.Status(cf.HomePath, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if profile != nil {
+		profiles = append(profiles, profile)
+	}
+
+	nodeListings := make([]nodeListing, 0)
+
+	for _, p := range profiles {
+		cf.Proxy = p.ProxyURL.Host
+		tc, err := makeClient(cf, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = client.RetryWithRelogin(cf.Context, tc, func() error {
+			result, err := tc.ListNodesWithFiltersAllClusters(cf.Context)
+			if err != nil {
+				return err
+			}
+			for clusterName, nodes := range result {
+				for _, node := range nodes {
+					nodeListings = append(nodeListings, nodeListing{
+						Proxy:   cf.Proxy,
+						Cluster: clusterName,
+						Node:    node,
+					})
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	sort.Slice(nodeListings, func(i, j int) bool {
+		if nodeListings[i].Proxy != nodeListings[j].Proxy {
+			return nodeListings[i].Proxy < nodeListings[j].Proxy
+		}
+		if nodeListings[i].Cluster != nodeListings[j].Cluster {
+			return nodeListings[i].Cluster < nodeListings[j].Cluster
+		}
+		return nodeListings[i].Node.GetHostname() < nodeListings[j].Node.GetHostname()
+	})
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		printNodesWithClusters(nodeListings, cf.Verbose)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeNodesWithClusters(nodeListings, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+
+	}
+	return nil
+}
+
+func printNodesWithClusters(nodes []nodeListing, verbose bool) {
+	// Reusable function to get addr or tunnel for each node
+	getAddr := func(n types.Server) string {
+		if n.GetUseTunnel() {
+			return "⟵ Tunnel"
+		}
+		return n.GetAddr()
+	}
+
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"})
+		for _, n := range nodes {
+			t.AddRow([]string{
+				n.Proxy, n.Cluster, n.Node.GetName(), getAddr(n.Node), n.Node.LabelsString(),
+			})
+		}
+	} else {
+		var rows [][]string
+		for _, n := range nodes {
+			rows = append(rows,
+				[]string{n.Proxy, n.Cluster, n.Node.GetHostname(), getAddr(n.Node), sortedLabels(n.Node.GetAllLabels())},
+			)
+		}
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
+	}
+	fmt.Println(t.AsBuffer().String())
+}
+
+func serializeNodesWithClusters(nodes []nodeListing, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(nodes, "", "  ")
+	} else {
+		out, err = yaml.Marshal(nodes)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
