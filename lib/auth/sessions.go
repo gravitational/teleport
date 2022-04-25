@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -61,7 +62,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	}
 
 	// Create certificate for this session.
-	privateKey, publicKey, err := s.GetNewKeyPairFromPool()
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

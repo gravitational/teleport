@@ -59,7 +59,7 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 }
 
 func newClientKey(t *testing.T) *client.Key {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	ff, tc, err := newSelfSignedCA(privateKey)
@@ -86,7 +86,7 @@ func newClientKey(t *testing.T) *client.Key {
 	require.NoError(t, err)
 
 	ta := testauthority.New()
-	priv, _, err := ta.GenerateKeyPair("")
+	priv, _, err := ta.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
