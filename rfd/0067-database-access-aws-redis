@@ -104,8 +104,9 @@ the next.)
 
 When a client tries to connect to ElastiCache and MemoryDB Redis servers, the
 database service automatically logins Teleport managed database users by
-sending `auth` commands with the stored passwords to the Redis server. For
-database users not managed by Teleport, users can manually input `auth`.
+sending `auth` commands with the stored passwords (using the `PREVIOUS` version
+as described above) to the Redis server. For database users not managed by
+Teleport, users can manually input `auth`.
 
 ### Secret store
 
@@ -125,8 +126,8 @@ type SecretValue struct {
     Value string
     // Version is the version of the secret value.
     Version string
-    // Created is the creation time of this version.
-    Created time.Time
+    // CreatedAt is the creation time of this version.
+    CreatedAt time.Time
 }
 
 // PutValueRequest defines the request to create a new secret version.
@@ -160,7 +161,8 @@ type Secrets interface {
     // versions respectively. If the version is empty, "CURRENT" is used.
     GetValue(key string, version string) (*SecretValue, error)
 
-    // Delete deletes the secret for the provided path.
+    // Delete deletes the secret for the provided path. All versions of the
+    // secert should be deleted at the same time.
     Delete(key string) error
 }
 ```
@@ -184,7 +186,9 @@ db_service:
 
       # Optional secret store settings.
       secret_store:
-        # Secert name prefix. Defaults to "teleport/".
+        # Secret key prefix. Defaults to "teleport/".
+        # Secrets for Teleport managed ElastiCache users can be found at
+        # "<key_prefix>/elasticache/<user-id>" in AWS Secrets Manager.
         key_prefix: "teleport/"
 
         # The ARN, key ID, or alias of the AWS KMS key that Secrets Manager
