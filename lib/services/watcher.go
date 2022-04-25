@@ -1019,7 +1019,7 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
-	case c.CertAuthorityC <- c.collectedCAs.ToSlice():
+	case c.CertAuthorityC <- updatedCerts.ToSlice():
 	}
 	return nil
 }

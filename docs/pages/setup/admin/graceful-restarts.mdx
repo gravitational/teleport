@@ -3,9 +3,17 @@ title: Graceful Restarts
 description: Graceful restarts of Teleport.
 ---
 
+<Notice scope={["cloud"]} type="tip">
+
+These instructions apply to `teleport` processes running on Teleport Nodes. In
+Teleport Cloud, the Auth and Proxy Services are monitored and managed for you.
+
+</Notice>
+
 ## Signals
 
-You can send signals to a Teleport daemon to get diagnostic or gracefully shut it down:
+You can send signals to a `teleport` process to get diagnostic information or
+gracefully shut it down:
 
 | Signal | Teleport Daemon Behavior |
 | - | - |
@@ -28,21 +36,21 @@ $ pidof teleport
 235119
 ```
 
-Unpack a new binary and replace a binary without stopping a server.
-Preserve the old binary, just in case if the upgrade goes wrong.
+Unpack a new binary and replace a binary without stopping a `teleport` process.
+Preserve the old binary, just in case the upgrade goes wrong.
 
 ```code
 $ mv /usr/bin/teleport /usr/bin/teleport.bak
 $ cp /new/binary/teleport /usr/bin/teleport
 ```
 
-Fork a new teleport process:
+Fork a new `teleport` process:
 
 ```code
 $ kill -USR2 $(pidof teleport)
 ```
 
-The original teleport process forked a new child process and passed existing file descriptors
+The original `teleport` process forked a new child process and passed existing file descriptors
 to the child. You now have two processes handling requests on the same socket:
 
 ```code
@@ -53,7 +61,7 @@ $ pidof teleport
 In our example, `235276` is a PID of the child process, and `235119` is a PID of the parent.
 
 In the logs you will see that the parent process reports that it has forked a new child
-process, and the child accepts file descriptors from it's parent.
+process, and the child accepts file descriptors from its parent.
 
 ```txt
 2021-08-19T10:16:51-07:00 [PROC:1]  INFO Forked new child process. path:/usr/local/teleport service/signals.go:457
@@ -85,9 +93,13 @@ Examine the logs and use the system. You have two options:
      type="danger"
      title="WARNING"
      >
-     If you are upgrading the Teleport using SSH connection using Teleport,
-     make sure to re-establish a new connection to the new teleport instance and launch shut down from it.
-     You can always see which node process handles the connection by using `pstree`:
+
+    If you are upgrading a `teleport` daemon using an SSH connection established
+    via Teleport, make sure to connect to the newly upgraded `teleport` process
+    and shut down the previous `teleport` process from it.
+    
+    You can see which `teleport` process handles the connection by using
+    `pstree`:
 
     ```code
     $ pstree -aps $$
@@ -105,21 +117,21 @@ Examine the logs and use the system. You have two options:
     $ kill -QUIT 235119
     ```
 
-    The parent process will log graceful shutdown:
+    The parent process will log a graceful shutdown:
 
     ```txt
     2021-08-19T10:32:10-07:00 INFO [PROXY:SER] Shutting down gracefully. service/service.go:2952
     ```
 
-    In a couple of minutes all existing connections drain off and the parent will exit:
+    In a couple of minutes, all existing connections drain off and the parent will exit:
 
     ```code
     $ pidof teleport
     # 235276
     ```
     
-    If for some reason, the parent process gets stuck, for example waiting on existing connections to finish,
-    you can shut it down non-gracefully:
+    If for some reason, the parent process gets stuck (e.g., waiting for
+    existing connections to finish), you can shut it down non-gracefully:
 
     ```code
     $ kill -TERM 235119

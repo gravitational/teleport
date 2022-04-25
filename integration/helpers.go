@@ -192,9 +192,9 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	}
 
 	// generate instance secrets (keys):
-	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
+	keygen := native.New(context.TODO())
 	if cfg.Priv == nil || cfg.Pub == nil {
-		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair("")
+		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair()
 	}
 	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
 	fatalIf(err)
@@ -484,7 +484,7 @@ type UserCredsRequest struct {
 
 // GenerateUserCreds generates key to be used by client
 func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
-	priv, pub, err := testauthority.New().GenerateKeyPair("")
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1728,7 +1728,7 @@ func genUserKey() (*client.Key, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, pub, err := keygen.GenerateKeyPair("")
+	priv, pub, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

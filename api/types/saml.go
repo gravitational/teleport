@@ -343,8 +343,8 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if o.Metadata.Name == constants.Local {
-		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
+	if name := o.Metadata.Name; utils.SliceContainsStr(constants.SystemConnectors, name) {
+		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", name)
 	}
 	if o.Spec.AssertionConsumerService == "" {
 		return trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package services_test
 
 import (
 	"crypto/x509/pkix"
@@ -24,7 +24,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	. "github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestCertPoolFromCertAuthorities(t *testing.T) {
@@ -160,4 +164,48 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 	ca1modID := ca1.Clone()
 	ca1modID.SetResourceID(ca1.GetResourceID() + 1)
 	require.True(t, CertAuthoritiesEquivalent(ca1, ca1modID))
+}
+
+func TestCertAuthorityUTCUnmarshal(t *testing.T) {
+	t.Parallel()
+	ta := testauthority.New()
+	t.Cleanup(ta.Close)
+
+	_, pub, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+	_, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "clustername"}, nil, time.Hour)
+	require.NoError(t, err)
+
+	caLocal, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "clustername",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{PublicKey: pub}},
+			TLS: []*types.TLSKeyPair{{Cert: cert}},
+		},
+		Rotation: &types.Rotation{
+			LastRotated: time.Now().In(time.FixedZone("not UTC", 2*60*60)),
+		},
+	})
+	require.NoError(t, err)
+	// needed for CertAuthoritiesEquivalent, as this will get called by
+	// UnmarshalCertAuthority
+	require.NoError(t, SyncCertAuthorityKeys(caLocal))
+
+	_, offset := caLocal.GetRotation().LastRotated.Zone()
+	require.NotZero(t, offset)
+
+	item, err := utils.FastMarshal(caLocal)
+	require.NoError(t, err)
+	require.Contains(t, string(item), "+02:00\"")
+	caUTC, err := UnmarshalCertAuthority(item)
+	require.NoError(t, err)
+
+	_, offset = caUTC.GetRotation().LastRotated.Zone()
+	require.Zero(t, offset)
+
+	// see https://github.com/gogo/protobuf/issues/519
+	require.NotPanics(t, func() { caUTC.Clone() })
+
+	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
 }

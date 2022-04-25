@@ -292,17 +292,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
 		inRoleARNs := r.GetAWSRoleARNs(condition)
-		var outRoleARNs []string
-		for _, arn := range inRoleARNs {
-			variableValues, err := ApplyValueTraits(arn, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping AWS role ARN %v: %v.", arn, err)
-				}
-				continue
-			}
-			outRoleARNs = append(outRoleARNs, variableValues...)
-		}
+		outRoleARNs := applyValueTraitsSlice(inRoleARNs, traits, "AWS role ARN")
 		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
 
 		// apply templates to kubernetes groups
@@ -454,7 +444,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		switch variable.Name() {
 		case teleport.TraitLogins, teleport.TraitWindowsLogins,
 			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
-			teleport.TraitDBNames, teleport.TraitDBUsers:
+			teleport.TraitDBNames, teleport.TraitDBUsers,
+			teleport.TraitAWSRoleARNs:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -727,6 +718,11 @@ type AccessChecker interface {
 
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
+
+	// GetSearchAsRoles returns the list of roles which the checker should be able to
+	// "assume" while searching for resources, and should be able to request with a
+	// search-based access request.
+	GetSearchAsRoles() []string
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -2324,6 +2320,17 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		return allowCond, nil
 	}
 	return &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: allowCond}}, nil
+}
+
+// GetSearchAsRoles returns the list of roles which the RoleSet should be able
+// to "assume" while searching for resources, and should be able to request with
+// a search-based access request.
+func (set RoleSet) GetSearchAsRoles() []string {
+	var searchAsRoles []string
+	for _, role := range set {
+		searchAsRoles = append(searchAsRoles, role.GetSearchAsRoles()...)
+	}
+	return apiutils.Deduplicate(searchAsRoles)
 }
 
 // AccessMFAParams contains MFA-related parameters for methods that check access.
