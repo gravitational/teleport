@@ -350,7 +350,17 @@ type ElastiCacheMock struct {
 	TagsByARN         map[string][]*elasticache.Tag
 }
 
-func (m *ElastiCacheMock) DescribeReplicationGroupsPagesWithContext(_ context.Context, _ *elasticache.DescribeReplicationGroupsInput, fn func(*elasticache.DescribeReplicationGroupsOutput, bool) bool, _ ...request.Option) error {
+func (m *ElastiCacheMock) DescribeReplicationGroupsWithContext(_ aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error) {
+	for _, replicationGroup := range m.ReplicationGroups {
+		if aws.StringValue(replicationGroup.ReplicationGroupId) == aws.StringValue(input.ReplicationGroupId) {
+			return &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{replicationGroup},
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("ElastiCache %v not found", aws.StringValue(input.ReplicationGroupId))
+}
+func (m *ElastiCacheMock) DescribeReplicationGroupsPagesWithContext(_ aws.Context, _ *elasticache.DescribeReplicationGroupsInput, fn func(*elasticache.DescribeReplicationGroupsOutput, bool) bool, _ ...request.Option) error {
 	fn(&elasticache.DescribeReplicationGroupsOutput{
 		ReplicationGroups: m.ReplicationGroups,
 	}, true)

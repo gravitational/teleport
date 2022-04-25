@@ -118,7 +118,7 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 	// ElastiCache databases are signed with Amazon root CA. In most cases,
 	// x509.SystemCertPool should be sufficient to verify ElastiCache servers.
 	// However, x509.SystemCertPool does not support windows for go versions
-	// older than 1.18. In addtion, system cert path can be overridden by
+	// older than 1.18. In addition, system cert path can be overridden by
 	// environment variables on many OSes. Therefore, Amazon root CA is
 	// downloaded here to be safe.
 	case types.DatabaseTypeElastiCache:

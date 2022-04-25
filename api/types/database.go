@@ -22,11 +22,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // Database represents a database proxied by a database server.
@@ -89,7 +91,9 @@ type Database interface {
 	IsAzure() bool
 	// IsElastiCache returns true if this is an AWS ElastiCache database.
 	IsElastiCache() bool
-	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+	// IsAWSHosted returns true if database is hosted by AWS.
+	IsAWSHosted() bool
+	// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or Cloud SQL).
 	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
@@ -311,10 +315,15 @@ func (d *DatabaseV3) IsElastiCache() bool {
 	return d.GetType() == DatabaseTypeElastiCache
 }
 
-// IsCloudHosted returns true if database is hosted in the cloud (AWS
-// RDS/Aurora/Redshift/ElastiCache, Azure or Cloud SQL).
+// IsAWSHosted returns true if database is hosted by AWS.
+func (d *DatabaseV3) IsAWSHosted() bool {
+	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache()
+}
+
+// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
+// Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure() || d.IsElastiCache()
+	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
 }
 
 // GetType returns the database type.
@@ -415,7 +424,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case awsutils.IsElastiCacheEndpoint(d.Spec.URI):
 		endpointInfo, err := awsutils.ParseElastiCacheRedisEndpoint(d.Spec.URI)
 		if err != nil {
-			return trace.Wrap(err)
+			logrus.WithError(err).Warnf("Failed to parse %v as ElastiCache endpoint", d.Spec.URI)
+			break
 		}
 		if d.Spec.AWS.ElastiCache.ReplicationGroupID == "" {
 			d.Spec.AWS.ElastiCache.ReplicationGroupID = endpointInfo.ID
@@ -423,8 +433,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = endpointInfo.Region
 		}
-		d.Spec.AWS.ElastiCache.TLSEnabled = endpointInfo.TLSEnabled
-		d.Spec.AWS.ElastiCache.ClusterEnabled = endpointInfo.ClusterEnabled
+		d.Spec.AWS.ElastiCache.TransitEncryptionEnabled = endpointInfo.TransitEncryptionEnabled
+		d.Spec.AWS.ElastiCache.EndpointType = endpointInfo.EndpointType
 	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
 		if err != nil {

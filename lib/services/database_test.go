@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
@@ -543,10 +544,10 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 			AccountID: "1234567890",
 			Region:    "us-east-1",
 			ElastiCache: types.ElastiCache{
-				ReplicationGroupID: "my-cluster",
-				UserGroupIDs:       []string{"my-user-group"},
-				TLSEnabled:         true,
-				ClusterEnabled:     true,
+				ReplicationGroupID:       "my-cluster",
+				UserGroupIDs:             []string{"my-user-group"},
+				TransitEncryptionEnabled: true,
+				EndpointType:             awsutils.ElastiCacheConfigurationEndpoint,
 			},
 		},
 	})
@@ -598,10 +599,10 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 			AccountID: "1234567890",
 			Region:    "us-east-1",
 			ElastiCache: types.ElastiCache{
-				ReplicationGroupID: "my-cluster",
-				UserGroupIDs:       []string{"my-user-group"},
-				TLSEnabled:         true,
-				ClusterEnabled:     false,
+				ReplicationGroupID:       "my-cluster",
+				UserGroupIDs:             []string{"my-user-group"},
+				TransitEncryptionEnabled: true,
+				EndpointType:             awsutils.ElastiCachePrimaryEndpoint,
 			},
 		},
 	})
@@ -624,10 +625,10 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 			AccountID: "1234567890",
 			Region:    "us-east-1",
 			ElastiCache: types.ElastiCache{
-				ReplicationGroupID: "my-cluster",
-				UserGroupIDs:       []string{"my-user-group"},
-				TLSEnabled:         true,
-				ClusterEnabled:     false,
+				ReplicationGroupID:       "my-cluster",
+				UserGroupIDs:             []string{"my-user-group"},
+				TransitEncryptionEnabled: true,
+				EndpointType:             awsutils.ElastiCacheReaderEndpoint,
 			},
 		},
 	})

@@ -145,11 +145,27 @@ type RedisEndpointInfo struct {
 	ID string
 	// Region is the AWS region for the endpoint.
 	Region string
-	// TLSEnabled specifies if TLS encryption is enabled.
-	TLSEnabled bool
-	// ClusterEnabled specifies if the Redis cluster mode is enabled.
-	ClusterEnabled bool
+	// TransitEncryptionEnabled specifies if in-transit encryption (TLS) is
+	// enabled.
+	TransitEncryptionEnabled bool
+	// EndpointType specifies the type of the endpoint.
+	EndpointType string
 }
+
+const (
+	// ElastiCacheConfigurationEndpoint is the configuration endpoint that used
+	// for cluster mode connection.
+	ElastiCacheConfigurationEndpoint = "configuration"
+	// ElastiCachePrimaryEndpoint is the endpoint of the primary node in the
+	// node group.
+	ElastiCachePrimaryEndpoint = "primary"
+	// ElastiCachePrimaryEndpoint is the endpoint of the replica nodes in the
+	// node group.
+	ElastiCacheReaderEndpoint = "reader"
+	// ElastiCacheNodeEndpoint is the endpoint that used to connect to an
+	// individual node.
+	ElastiCacheNodeEndpoint = "node"
+)
 
 // ParseElastiCacheRedisEndpoint extracts the details from the provided
 // ElastiCache Redis endpoint.
@@ -178,7 +194,7 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 		endpointWithoutSuffix = strings.TrimSuffix(endpoint, AWSCNEndpointSuffix)
 
 	default:
-		return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint", endpoint)
+		return nil, trace.BadParameter("%v is not a valid AWS endpoint", endpoint)
 	}
 
 	// Split into parts to extract details. They look like this in general:
@@ -186,58 +202,70 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 	//
 	// Note that ElastiCache uses short region codes like "use1".
 	//
-	// For Redis with Cluster mode enabled, a single "configuration" endpoint
-	// is provided for connection. For Redis with Cluster mode disabled, users
-	// can connect through either "primary", "reader", or "node" endpoints.
+	// For Redis with cluster mode enabled, users can connect through either
+	// "configuration" endpoint or individual "node" endpoints.
+	// For Redis with cluster mode disabled, users can connect through either
+	// "primary", "reader", or individual "node" endpoints.
 	parts := strings.Split(endpointWithoutSuffix, ".")
 	if len(parts) == 5 && parts[4] == ElastiCacheServiceName {
 		region, ok := ShortRegionToRegion(parts[3])
 		if !ok {
-			return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint: %v is not a valid region", endpoint, parts[3])
+			return nil, trace.BadParameter("%v is not a valid region", parts[3])
 		}
 
 		// Configuration endpoint for Redis with TLS enabled looks like:
-		// clustercfg.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
+		// clustercfg.my-redis-shards.xxxxxx.use1.cache.<suffix>:6379
 		if parts[0] == "clustercfg" {
 			return &RedisEndpointInfo{
-				ID:             parts[1],
-				Region:         region,
-				TLSEnabled:     true,
-				ClusterEnabled: true,
+				ID:                       parts[1],
+				Region:                   region,
+				TransitEncryptionEnabled: true,
+				EndpointType:             ElastiCacheConfigurationEndpoint,
 			}, nil
 		}
 
 		// Configuration endpoint for Redis with TLS disabled looks like:
-		// my-redis-cluster.xxxxxx.clustercfg.use1.cache.<suffix>:6379
+		// my-redis-shards.xxxxxx.clustercfg.use1.cache.<suffix>:6379
 		if parts[2] == "clustercfg" {
 			return &RedisEndpointInfo{
-				ID:             parts[0],
-				Region:         region,
-				TLSEnabled:     false,
-				ClusterEnabled: true,
+				ID:                       parts[0],
+				Region:                   region,
+				TransitEncryptionEnabled: false,
+				EndpointType:             ElastiCacheConfigurationEndpoint,
 			}, nil
 		}
 
 		// Node endpoint for Redis with TLS disabled looks like:
 		// my-redis-cluster-001.xxxxxx.0001.use0.cache.<suffix>:6379
+		// my-redis-shards-0001-001.xxxxxx.0001.use0.cache.<suffix>:6379
 		if isElasticCacheShardID(parts[2]) {
 			return &RedisEndpointInfo{
-				ID:             trimElastiCacheNodeID(parts[0]),
-				Region:         region,
-				TLSEnabled:     false,
-				ClusterEnabled: false,
+				ID:                       trimElastiCacheShardAndNodeID(parts[0]),
+				Region:                   region,
+				TransitEncryptionEnabled: false,
+				EndpointType:             ElastiCacheNodeEndpoint,
 			}, nil
 		}
 
 		// Node, primary, reader endpoints for Redis with TLS enabled look like:
-		// my-redis-cluster-001.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
 		// master.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
 		// replica.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
+		// my-redis-cluster-001.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
+		// my-redis-shards-0001-001.my-redis-shards.xxxxxx.use1.cache.<suffix>:6379
+		var endpointType string
+		switch strings.ToLower(parts[0]) {
+		case "master":
+			endpointType = ElastiCachePrimaryEndpoint
+		case "replica":
+			endpointType = ElastiCacheReaderEndpoint
+		default:
+			endpointType = ElastiCacheNodeEndpoint
+		}
 		return &RedisEndpointInfo{
-			ID:             parts[1],
-			Region:         region,
-			TLSEnabled:     true,
-			ClusterEnabled: false,
+			ID:                       parts[1],
+			Region:                   region,
+			TransitEncryptionEnabled: true,
+			EndpointType:             endpointType,
 		}, nil
 	}
 
@@ -248,21 +276,28 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 	if len(parts) == 6 && parts[5] == ElastiCacheServiceName && isElasticCacheShardID(parts[3]) {
 		region, ok := ShortRegionToRegion(parts[4])
 		if !ok {
-			return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint: %v is not a valid region", endpoint, parts[4])
+			return nil, trace.BadParameter("%v is not a valid region", parts[4])
 		}
 
-		// Remove "-ro" if exist.
-		clusterName := strings.TrimSuffix(parts[0], "-ro")
+		// Remove "-ro" from reader endpoint.
+		if strings.HasSuffix(parts[0], "-ro") {
+			return &RedisEndpointInfo{
+				ID:                       strings.TrimSuffix(parts[0], "-ro"),
+				Region:                   region,
+				TransitEncryptionEnabled: false,
+				EndpointType:             ElastiCacheReaderEndpoint,
+			}, nil
+		}
 
 		return &RedisEndpointInfo{
-			ID:             clusterName,
-			Region:         region,
-			TLSEnabled:     false,
-			ClusterEnabled: false,
+			ID:                       parts[0],
+			Region:                   region,
+			TransitEncryptionEnabled: false,
+			EndpointType:             ElastiCachePrimaryEndpoint,
 		}, nil
 	}
 
-	return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint", endpoint)
+	return nil, trace.BadParameter("unknown ElastiCache Redis endpoint format")
 }
 
 // isElasticCacheShardID returns true if the input part is in shard ID format.
@@ -287,15 +322,24 @@ func isElasticCacheNodeID(part string) bool {
 	return err == nil
 }
 
-// trimElastiCacheNodeID trims "-<node-id>" suffix from input.
-func trimElastiCacheNodeID(input string) string {
-	if parts := strings.Split(input, "-"); len(parts) > 0 {
-		lastPart := parts[len(parts)-1]
-		if isElasticCacheNodeID(lastPart) {
-			return strings.TrimSuffix(input, "-"+lastPart)
+// trimElastiCacheShardAndNodeID trims shard and node ID suffix from input.
+func trimElastiCacheShardAndNodeID(input string) string {
+	// input can be one of:
+	// <replication-group-id>
+	// <replication-group-id>-<node-id>
+	// <replication-group-id>-<shard-id>-<node-id>
+	parts := strings.Split(input, "-")
+	if len(parts) > 0 {
+		if isElasticCacheNodeID(parts[len(parts)-1]) {
+			parts = parts[:len(parts)-1]
 		}
 	}
-	return input
+	if len(parts) > 0 {
+		if isElasticCacheShardID(parts[len(parts)-1]) {
+			parts = parts[:len(parts)-1]
+		}
+	}
+	return strings.Join(parts, "-")
 }
 
 const (

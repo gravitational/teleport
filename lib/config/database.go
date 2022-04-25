@@ -232,16 +232,16 @@ type DatabaseSampleFlags struct {
 	AuthToken string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
-	// RDSDiscoveryRegions list of regions the RDS auto-discovery is
+	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
-	// RedshiftDiscoveryRegions list of regions the Redshift auto-discovery is
+	// RedshiftDiscoveryRegions is a list of regions the Redshift auto-discovery is
 	// configured.
 	RedshiftDiscoveryRegions []string
-	// ElastiCacheDiscoveryRegions list of regions the ElastiCache
+	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
 	// auto-discovery is configured.
 	ElastiCacheDiscoveryRegions []string
-	// DatabaseProtocols list of database protocols supported.
+	// DatabaseProtocols is a list of database protocols supported.
 	DatabaseProtocols []string
 }
 

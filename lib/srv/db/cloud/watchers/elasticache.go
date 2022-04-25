@@ -108,16 +108,6 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 	// Fetch more information to provide extra labels. Do not fail because some
 	// of these labels are missing.
-	//
-	// Engine version is not found in elasticache.ReplicationGroup but can be
-	// found in per node details.
-	//
-	// Resource tags are not found in elasticache.ReplicationGroup but can be
-	// on obtained by elasticache.ListTagsForResource (one call per resource).
-	//
-	// ElastiCache servers do not have public IPs so they are usually only
-	// accessible within the same VPC. Having a VPC ID label can be very useful
-	// for filtering. VPC ID is obtained from subnet group details.
 	nodes, err := getElastiCacheNodes(ctx, f.cfg.ElastiCache)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
@@ -137,6 +127,9 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 	var databases types.Databases
 	for _, cluster := range eligibleClusters {
+		// Resource tags are not found in elasticache.ReplicationGroup but can
+		// be on obtained by elasticache.ListTagsForResource (one call per
+		// resource).
 		tags, err := getElastiCacheTagsForCluster(ctx, f.cfg.ElastiCache, cluster)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
@@ -163,8 +156,8 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 		// Create databases using primary and reader endpoints for Redis with
 		// cluster mode disabled. When cluster mode is disabled, it is expected
-		// there is only one node group (shard) with one primary endpoint and
-		// one reader endpoint.
+		// there is only one node group (aka shard) with one primary endpoint
+		// and one reader endpoint.
 		if databasesFromNodeGroups, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels); err != nil {
 			f.log.Infof("Could not convert ElastiCache cluster %q node groups to database resource: %v.",
 				aws.StringValue(cluster.ReplicationGroupId), err)

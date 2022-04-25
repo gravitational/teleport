@@ -23,6 +23,7 @@ import (
 	"net"
 
 	"github.com/go-redis/redis/v8"
+	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -182,7 +183,8 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 	}
 
 	defaultMode := Standalone
-	if sessionCtx.Database.IsElastiCache() && sessionCtx.Database.GetAWS().ElastiCache.ClusterEnabled {
+	if sessionCtx.Database.IsElastiCache() &&
+		sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
 		defaultMode = Cluster
 	}
 
@@ -283,7 +285,7 @@ func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session
 		// Teleport errors should be returned to the client.
 		return err, nil
 	case errors.Is(err, context.DeadlineExceeded):
-		if sessionCtx.Database.IsElastiCache() && !sessionCtx.Database.GetAWS().ElastiCache.TLSEnabled {
+		if sessionCtx.Database.IsElastiCache() && !sessionCtx.Database.GetAWS().ElastiCache.TransitEncryptionEnabled {
 			return nil, trace.ConnectionProblem(err, "Connection timeout on ElastiCache database. Please verify if in-transit encryption is enabled on the server.")
 		}
 

@@ -310,11 +310,11 @@ message ElastiCache {
     // ReplicationGroupID is the Redis replication group ID.
     string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id" ];
     // UserGroupIDs is a list of user group IDs.
-    repeated string UserGroupIDs = 2 [ (gogoproto.jsontag) = "replication_group_ids" ];
-    // TLSEnabled indicates whether in-transit encryption (TLS) is enabled.
-    bool TLSEnabled = 3 [ (gogoproto.jsontag) = "tls_enabled" ];
-    // TLSEnabled indicates whether Redis cluster mode is enabled.
-    bool ClusterEnabled = 4 [ (gogoproto.jsontag) = "cluster_enabled" ];
+    repeated string UserGroupIDs = 2 [ (gogoproto.jsontag) = "user_group_ids" ];
+    // TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.
+    bool TransitEncryptionEnabled = 3 [ (gogoproto.jsontag) = "transit_encryption_enabled" ];
+    // EndpointType is the type of the endpoint.
+    string EndpointType = 4 [ (gogoproto.jsontag) = "endpoint_type" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.

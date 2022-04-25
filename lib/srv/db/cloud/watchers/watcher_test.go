@@ -390,7 +390,7 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 		return cluster, database, tags
 	}
 
-	// Only one primary endpoint from a single node group.
+	// Return the primary endpoint from a single node group.
 	databases, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
 	require.NoError(t, err)
 	require.Len(t, databases, 1)

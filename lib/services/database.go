@@ -243,30 +243,20 @@ func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, 
 // NewDatabaseFromElastiCacheConfigurationEndpoint creates a database resource
 // from ElastiCache configuration endpoint.
 func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Database, error) {
-	metadata, err := MetadataFromElastiCacheCluster(cluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if cluster.ConfigurationEndpoint == nil {
 		return nil, trace.BadParameter("missing configuration endpoint")
 	}
 
-	return newElastiCacheDatabase(cluster, metadata, cluster.ConfigurationEndpoint, ElastiCacheConfigurationEndpoint, extraLabels)
+	return newElastiCacheDatabase(cluster, cluster.ConfigurationEndpoint, awsutils.ElastiCacheConfigurationEndpoint, extraLabels)
 }
 
 // NewDatabasesFromElastiCacheNodeGroups creates database resources from
 // ElastiCache node groups.
 func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
-	metadata, err := MetadataFromElastiCacheCluster(cluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var databases types.Databases
 	for _, nodeGroup := range cluster.NodeGroups {
 		if nodeGroup.PrimaryEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, metadata, nodeGroup.PrimaryEndpoint, ElastiCachePrimaryEndpoint, extraLabels)
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.PrimaryEndpoint, awsutils.ElastiCachePrimaryEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -274,7 +264,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 		}
 
 		if nodeGroup.ReaderEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, metadata, nodeGroup.ReaderEndpoint, ElastiCacheReaderEndpoint, extraLabels)
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.ReaderEndpoint, awsutils.ElastiCacheReaderEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -285,9 +275,14 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 }
 
 // newElastiCacheDatabase returns a new ElastiCache database.
-func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, metadata *types.AWS, endpoint *elasticache.Endpoint, endpointType ElastiCacheEndpointType, extraLabels map[string]string) (types.Database, error) {
+func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *elasticache.Endpoint, endpointType string, extraLabels map[string]string) (types.Database, error) {
+	metadata, err := MetadataFromElastiCacheCluster(cluster, endpointType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	name := aws.StringValue(cluster.ReplicationGroupId)
-	if endpointType == ElastiCacheReaderEndpoint {
+	if endpointType == awsutils.ElastiCacheReaderEndpoint {
 		name = fmt.Sprintf("%s-%s", name, endpointType)
 	}
 
@@ -354,7 +349,7 @@ func MetadataFromRedshiftCluster(cluster *redshift.Cluster) (*types.AWS, error) 
 
 // MetadataFromElastiCacheCluster creates AWS metadata for the provided
 // ElastiCache cluster.
-func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup) (*types.AWS, error) {
+func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -364,10 +359,10 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup) (*typ
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		ElastiCache: types.ElastiCache{
-			ReplicationGroupID: aws.StringValue(cluster.ReplicationGroupId),
-			UserGroupIDs:       aws.StringValueSlice(cluster.UserGroupIds),
-			TLSEnabled:         aws.BoolValue(cluster.TransitEncryptionEnabled),
-			ClusterEnabled:     aws.BoolValue(cluster.ClusterEnabled),
+			ReplicationGroupID:       aws.StringValue(cluster.ReplicationGroupId),
+			UserGroupIDs:             aws.StringValueSlice(cluster.UserGroupIds),
+			TransitEncryptionEnabled: aws.BoolValue(cluster.TransitEncryptionEnabled),
+			EndpointType:             endpointType,
 		},
 	}, nil
 }
@@ -399,6 +394,10 @@ func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elast
 	}
 
 	// Find the subnet group used by this cluster and set VPC ID label.
+	//
+	// ElastiCache servers do not have public IPs so they are usually only
+	// accessible within the same VPC. Having a VPC ID label can be very useful
+	// for filtering.
 	for _, subnetGroup := range allSubnetGroups {
 		if aws.StringValue(subnetGroup.CacheSubnetGroupName) == subnetGroupName {
 			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
@@ -463,7 +462,7 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 
 // labelsFromElastiCacheCluster creates database labels for the provided
 // ElastiCache cluster.
-func labelsFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, meta *types.AWS, endpointType ElastiCacheEndpointType, extraLabels map[string]string) map[string]string {
+func labelsFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
 	labels := make(map[string]string)
 	for key, value := range extraLabels {
 		labels[key] = value
@@ -471,7 +470,7 @@ func labelsFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, meta *t
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
-	labels[labelEndpointType] = string(endpointType)
+	labels[labelEndpointType] = endpointType
 	return labels
 }
 
@@ -740,20 +739,4 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
-)
-
-// ElastiCacheEndpointType specifies the endpoint type for ElastiCache
-// clusters.
-type ElastiCacheEndpointType string
-
-const (
-	// ElastiCacheConfigurationEndpoint is the configuration endpoint that used
-	// for cluster mode connection.
-	ElastiCacheConfigurationEndpoint ElastiCacheEndpointType = "configuration"
-	// ElastiCachePrimaryEndpoint is the endpoint of the primary node in the
-	// node group.
-	ElastiCachePrimaryEndpoint ElastiCacheEndpointType = "primary"
-	// ElastiCachePrimaryEndpoint is the endpoint of the replica nodes in the
-	// node group.
-	ElastiCacheReaderEndpoint ElastiCacheEndpointType = "reader"
 )

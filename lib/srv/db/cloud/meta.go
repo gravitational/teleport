@@ -156,7 +156,10 @@ func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.MetadataFromElastiCacheCluster(cluster)
+
+	// Endpoint type does not change.
+	endpointType := database.GetAWS().ElastiCache.EndpointType
+	return services.MetadataFromElastiCacheCluster(cluster, endpointType)
 }
 
 // fetchRDSInstanceMetadata fetches metadata about specified RDS instance.

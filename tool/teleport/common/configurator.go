@@ -83,7 +83,7 @@ func onConfigureDatabaseBootstrap(flags configureDatabaseBootstrapFlags) error {
 
 	fmt.Printf("Reading configuration at %q...\n\n", flags.config.ConfigPath)
 	if len(configurators) == 0 {
-		fmt.Println("The agent doesn’t require any extra configuration.")
+		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil
 	}
 
@@ -206,7 +206,7 @@ func onConfigureDatabasesAWSPrint(flags configureDatabaseAWSPrintFlags) error {
 
 	// Check if configurator actions is empty.
 	if configurator.IsEmpty() {
-		fmt.Println("The agent doesn’t require any extra configuration.")
+		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil
 	}
 
@@ -261,7 +261,7 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 
 	// Check if configurator actions is empty.
 	if configurator.IsEmpty() {
-		fmt.Println("The agent doesn’t require any extra configuration.")
+		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil
 	}
 
@@ -285,7 +285,7 @@ func printDBConfiguratorActions(actions []dbconfigurators.ConfiguratorAction) {
 	}
 }
 
-// executeDBConfiguratorActions iterate over all actions, executing and priting
+// executeDBConfiguratorActions iterate over all actions, executing and printing
 // their results.
 func executeDBConfiguratorActions(ctx context.Context, configuratorName string, actions []dbconfigurators.ConfiguratorAction) error {
 	actionContext := &dbconfigurators.ConfiguratorActionContext{}

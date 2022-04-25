@@ -145,64 +145,98 @@ func TestParseElastiCacheRedisEndpoint(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:     "cluster enabled, TLS enabled",
-			inputURI: "clustercfg.my-redis-cluster.xxxxxx.use1.cache.amazonaws.com:6379",
+			name:     "configuration endpoint, TLS enabled",
+			inputURI: "clustercfg.my-redis-shards.xxxxxx.use1.cache.amazonaws.com:6379",
 			expectInfo: &RedisEndpointInfo{
-				ID:             "my-redis-cluster",
-				Region:         "us-east-1",
-				TLSEnabled:     true,
-				ClusterEnabled: true,
+				ID:                       "my-redis-shards",
+				Region:                   "us-east-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             ElastiCacheConfigurationEndpoint,
 			},
 		},
 		{
-			name:     "cluster enabled, TLS disabled",
-			inputURI: "my-redis-cluster.xxxxxx.clustercfg.use1.cache.amazonaws.com:6379",
+			name:     "primary endpoint, TLS enabled",
+			inputURI: "master.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
 			expectInfo: &RedisEndpointInfo{
-				ID:             "my-redis-cluster",
-				Region:         "us-east-1",
-				ClusterEnabled: true,
+				ID:                       "my-redis-cluster",
+				Region:                   "ca-central-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             ElastiCachePrimaryEndpoint,
 			},
 		},
 		{
-			name:     "cluster disabled, TLS enabled",
+			name:     "reader endpoint, TLS enabled",
 			inputURI: "replica.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
 			expectInfo: &RedisEndpointInfo{
-				ID:         "my-redis-cluster",
-				Region:     "ca-central-1",
-				TLSEnabled: true,
+				ID:                       "my-redis-cluster",
+				Region:                   "ca-central-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             ElastiCacheReaderEndpoint,
 			},
 		},
 		{
-			name:     "cluster disabled, TLS disabled, reader endpoint",
+			name:     "node endpoint, TLS enabled",
+			inputURI: "my-redis-shards-0002-001.my-redis-shards.xxxxxx.cac1.cache.amazonaws.com:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "my-redis-shards",
+				Region:                   "ca-central-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             ElastiCacheNodeEndpoint,
+			},
+		},
+		{
+			name:     "configuration endpoint, TLS disabled",
+			inputURI: "my-redis-shards.xxxxxx.clustercfg.use1.cache.amazonaws.com:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:           "my-redis-shards",
+				Region:       "us-east-1",
+				EndpointType: ElastiCacheConfigurationEndpoint,
+			},
+		},
+		{
+			name:     "primary endpiont, TLS disabled",
+			inputURI: "my-redis-cluster.xxxxxx.ng.0001.cac1.cache.amazonaws.com:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:           "my-redis-cluster",
+				Region:       "ca-central-1",
+				EndpointType: ElastiCachePrimaryEndpoint,
+			},
+		},
+		{
+			name:     "reader endpiont, TLS disabled",
 			inputURI: "my-redis-cluster-ro.xxxxxx.ng.0001.cac1.cache.amazonaws.com:6379",
 			expectInfo: &RedisEndpointInfo{
-				ID:     "my-redis-cluster",
-				Region: "ca-central-1",
+				ID:           "my-redis-cluster",
+				Region:       "ca-central-1",
+				EndpointType: ElastiCacheReaderEndpoint,
 			},
 		},
 		{
-			name:     "cluster disabled, TLS disabled, node endpoint",
-			inputURI: "my-redis-cluster-001.xxxxxx.0001.cac1.cache.amazonaws.com:6379",
+			name:     "node endpoint, TLS disabled",
+			inputURI: "my-redis-shards-0001-001.xxxxxx.0001.cac1.cache.amazonaws.com:6379",
 			expectInfo: &RedisEndpointInfo{
-				ID:     "my-redis-cluster",
-				Region: "ca-central-1",
+				ID:           "my-redis-shards",
+				Region:       "ca-central-1",
+				EndpointType: ElastiCacheNodeEndpoint,
 			},
 		},
 		{
 			name:     "CN endpoint",
 			inputURI: "replica.my-redis-cluster.xxxxxx.cnn1.cache.amazonaws.com.cn:6379",
 			expectInfo: &RedisEndpointInfo{
-				ID:         "my-redis-cluster",
-				Region:     "cn-north-1",
-				TLSEnabled: true,
+				ID:                       "my-redis-cluster",
+				Region:                   "cn-north-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             ElastiCacheReaderEndpoint,
 			},
 		},
 		{
 			name:     "endpoint with schema and parameters",
 			inputURI: "redis://my-redis-cluster.xxxxxx.ng.0001.cac1.cache.amazonaws.com:6379?a=b&c=d",
 			expectInfo: &RedisEndpointInfo{
-				ID:     "my-redis-cluster",
-				Region: "ca-central-1",
+				ID:           "my-redis-cluster",
+				Region:       "ca-central-1",
+				EndpointType: ElastiCachePrimaryEndpoint,
 			},
 		},
 		{
@@ -223,11 +257,7 @@ func TestParseElastiCacheRedisEndpoint(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
-
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			actualInfo, err := ParseElastiCacheRedisEndpoint(test.inputURI)
 			if test.expectError {
 				require.Error(t, err)

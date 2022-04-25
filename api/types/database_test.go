@@ -76,3 +76,40 @@ func TestDatabaseStatus(t *testing.T) {
 	database.SetStatusAWS(awsMeta)
 	require.Equal(t, awsMeta, database.GetAWS())
 }
+
+func TestDatabaseElastiCacheEndpoint(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "elasticache",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "ca-central-1",
+			ElastiCache: ElastiCache{
+				ReplicationGroupID:       "my-redis-cluster",
+				TransitEncryptionEnabled: true,
+				EndpointType:             "configuration",
+			},
+		}, database.GetAWS())
+		require.True(t, database.IsElastiCache())
+		require.True(t, database.IsAWSHosted())
+		require.True(t, database.IsCloudHosted())
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "elasticache",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "some.endpoint.cache.amazonaws.com:6379",
+		})
+
+		// No error but AWS is not populated.
+		require.NoError(t, err)
+		require.Equal(t, AWS{}, database.GetAWS())
+	})
+}
