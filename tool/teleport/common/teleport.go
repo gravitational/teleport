@@ -486,7 +486,7 @@ func onConfigDump(flags dumpFlags) error {
 	entries, err := os.ReadDir(flags.DataDir)
 	if err != nil && !os.IsNotExist(err) {
 		fmt.Fprintf(
-			os.Stderr, "could not check the contents of %s: %s\nThe data directory may contain existing cluster state.", flags.DataDir, err.Error())
+			os.Stderr, "Could not check the contents of %s: %s\nThe data directory may contain existing cluster state.\n", flags.DataDir, err.Error())
 	}
 
 	if !os.IsNotExist(err) && len(entries) != 0 {
