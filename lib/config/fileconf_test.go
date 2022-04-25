@@ -673,7 +673,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
 		require.Equal(t, "no", fc.Auth.EnabledFlag)
 		require.Equal(t, "yes", fc.Apps.EnabledFlag)
-		require.Equal(t, "yes", fc.Databases.EnabledFlag)
+		require.Equal(t, "no", fc.Databases.EnabledFlag) // db is always disabled
 	})
 
 	t.Run("Auth server", func(t *testing.T) {

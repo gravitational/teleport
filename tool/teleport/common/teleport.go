@@ -496,6 +496,14 @@ func onConfigDump(flags dumpFlags) error {
 			flags.DataDir, flags.DataDir)
 	}
 
+	if strings.Contains(flags.Roles, defaults.RoleDatabase) {
+		fmt.Fprintln(os.Stderr, "Role db requires further configuration, db_service will be disabled")
+	}
+
+	if strings.Contains(flags.Roles, defaults.RoleWindowsDesktop) {
+		fmt.Fprintln(os.Stderr, "Role windowsdesktop requires further configuration, windows_desktop_service will be disabled")
+	}
+
 	if configPath != "" {
 		if modules.GetModules().BuildType() == modules.BuildOSS {
 			fmt.Printf("Wrote config to file %q. Now you can start the server. Happy Teleporting!\n", configPath)

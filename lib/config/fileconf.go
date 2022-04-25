@@ -220,13 +220,17 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	// DB config:
 	var dbs Databases
 	if roles[defaults.RoleDatabase] {
-		dbs.EnabledFlag = "yes"
+		// keep it disable since `teleport configure` don't have all the necessary flags
+		// for this kind of resource
+		dbs.EnabledFlag = "no"
 	}
 
 	// WindowsDesktop config:
 	var d WindowsDesktopService
 	if roles[defaults.RoleWindowsDesktop] {
-		d.EnabledFlag = "yes"
+		// keep it disable since `teleport configure` don't have all the necessary flags
+		// for this kind of resource
+		d.EnabledFlag = "no"
 	}
 
 	fc = &FileConfig{
