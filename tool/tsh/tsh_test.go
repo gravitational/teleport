@@ -1560,7 +1560,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       },
       "gcp": {},
       "azure": {},
@@ -1578,7 +1579,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       }
     }
   }]

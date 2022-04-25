@@ -182,7 +182,7 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		return nil, trace.Wrap(err)
 	}
 
-	// Set default mode. Default mode can be overriden by URI parameters.
+	// Set default mode. Default mode can be overridden by URI parameters.
 	defaultMode := Standalone
 	if sessionCtx.Database.IsElastiCache() &&
 		sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
