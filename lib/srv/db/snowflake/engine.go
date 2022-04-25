@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -69,12 +70,26 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 }
 
 func (e *Engine) SendError(err error) {
+	if err == nil || utils.IsOKNetworkError(err) {
+		return
+	}
+	//TODO(jakule): implement
 	e.Log.Errorf("snowflake error: %+v", err)
 }
 
+const (
+	certPath    = "/Users/jnyckowski/projects/certs/example.com+5.pem"
+	privKeyPath = "/Users/jnyckowski/projects/certs/example.com+5-key.pem"
+)
+
 func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) error {
 	uri := session.Database.GetURI()
-	accountName := strings.Split(uri, ".")[0]
+	uriParts := strings.Split(uri, ".")
+	if len(uriParts) != 5 {
+		return trace.BadParameter("invalid Snowflake url: %s", uri)
+	}
+
+	accountName := uriParts[0]
 
 	jwtToken, err := e.AuthClient.GenerateDatabaseJWT(ctx, types.GenerateSnowflakeJWT{
 		Username: session.DatabaseUser,
@@ -106,11 +121,6 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 				break
 			}
 
-			const (
-				certPath    = "/Users/jnyckowski/projects/certs/example.com+5.pem"
-				privKeyPath = "/Users/jnyckowski/projects/certs/example.com+5-key.pem"
-			)
-
 			cert, err := tls.LoadX509KeyPair(certPath, privKeyPath)
 			if err != nil {
 				e.Log.Fatal(err)
@@ -132,23 +142,42 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 			continue
 		}
 
-		bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		var bodyGzAll []byte
+		if req.Header.Get("Content-Encoding") == "gzip" {
+			bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
-		bodyGzAll, err := io.ReadAll(bodyGZ)
-		if err != nil {
-			return trace.Wrap(err)
+			bodyGzAll, err = io.ReadAll(bodyGZ)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			bodyGzAll = body
 		}
 
 		e.Log.Debugf("%s", string(bodyGzAll))
+
+		if strings.Contains(req.Header.Get("Authorization"), "Snowflake Token") && !strings.Contains(req.Header.Get("Authorization"), "None") {
+			e.connectionToken = req.Header.Get("Authorization")
+		}
+
+		if req.Header.Get("Authorization") == "Basic" {
+			req.Header.Del("Authorization")
+		}
 
 		if e.connectionToken == "" {
 			if newBody, err := replaceToken(bodyGzAll, jwtToken); err == nil {
 				e.Log.Debugf("new body: %s", string(newBody))
 				buf := &bytes.Buffer{}
-				wr := gzip.NewWriter(buf)
+
+				var wr io.WriteCloser
+				if req.Header.Get("Content-Encoding") == "gzip" {
+					wr = gzip.NewWriter(buf)
+				} else {
+					wr = &MyWriteCloser{buf}
+				}
 				if _, err := wr.Write(newBody); err != nil {
 					e.Log.Error(err)
 				}
@@ -160,29 +189,42 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 				e.Log.Debugf("newbody size: %d", buf.Len())
 
 				body = buf.Bytes()
+			} else {
+				e.Log.Errorf("failed to unmarshal login JSON: %v", err)
 			}
 		}
 
+		e.Log.Debugf("old url: %s", req.URL.String())
 		req.URL.Scheme = "https"
 		req.URL.Host = session.Database.GetURI()
 		newUrl := req.URL.String()
 		e.Log.Debugf("new url: %s", newUrl)
+		e.Log.Debugf("method: %s", req.Method)
 
 		reqCopy, err := http.NewRequest(req.Method, newUrl, bytes.NewReader(body))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
+		req.Header.Del("Content-Length")
+
 		for k, v := range req.Header {
 			if reqCopy.Header.Get(k) != "" {
 				continue
 			}
+			e.Log.Debugf("setting header %s: %s", k, strings.Join(v, ","))
 			reqCopy.Header.Set(k, strings.Join(v, ","))
 		}
 
+		//reqCopy.Header.Set("Content-Length", strconv.Itoa(len(body)))
+
 		if e.connectionToken != "" {
 			e.Log.Debugf("setting Snowflake token %s", e.connectionToken)
-			reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
+			if strings.Contains(e.connectionToken, "Snowflake Token") {
+				reqCopy.Header.Set("Authorization", e.connectionToken)
+			} else {
+				reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
+			}
 		}
 
 		c := http.Client{}
@@ -196,6 +238,12 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 			return trace.Wrap(err)
 		}
 
+		e.Log.Debugf("resp: %s", string(dumpResp))
+
+		if resp.StatusCode != 200 {
+			return trace.Errorf("Not 200 response code: %d", resp.StatusCode)
+		}
+
 		if e.connectionToken == "" {
 			if err := e.extractToken(dumpResp); err == nil {
 				e.Log.Debugf("extracted token")
@@ -203,8 +251,6 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 				e.Log.Debugf("failed to extract token: %v", err)
 			}
 		}
-
-		e.Log.Debugf("resp: %s", string(dumpResp))
 
 		_, err = e.clientConn.Write(dumpResp)
 		if err != nil {
@@ -250,7 +296,17 @@ func replaceToken(loginReq []byte, jwtToken string) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logReq.Data.Token = jwtToken
+	logReq.Data["TOKEN"] = jwtToken
+	logReq.Data["ACCOUNT_NAME"] = "im56867"
+	logReq.Data["AUTHENTICATOR"] = "SNOWFLAKE_JWT"
+
+	if _, ok := logReq.Data["PASSWORD"]; ok {
+		delete(logReq.Data, "PASSWORD")
+	}
+
+	if _, ok := logReq.Data["EXT_AUTHN_DUO_METHOD"]; ok {
+		delete(logReq.Data, "EXT_AUTHN_DUO_METHOD")
+	}
 
 	return json.Marshal(logReq)
 }
@@ -291,31 +347,40 @@ type LoginResponse struct {
 }
 
 type LoginRequest struct {
-	Data struct {
-		ClientAppID       string      `json:"CLIENT_APP_ID"`
-		ClientAppVersion  string      `json:"CLIENT_APP_VERSION"`
-		SvnRevision       interface{} `json:"SVN_REVISION"`
-		AccountName       string      `json:"ACCOUNT_NAME"`
-		LoginName         string      `json:"LOGIN_NAME"`
-		ClientEnvironment struct {
-			Application    string      `json:"APPLICATION"`
-			Os             string      `json:"OS"`
-			OsVersion      string      `json:"OS_VERSION"`
-			PythonVersion  string      `json:"PYTHON_VERSION"`
-			PythonRuntime  string      `json:"PYTHON_RUNTIME"`
-			PythonCompiler string      `json:"PYTHON_COMPILER"`
-			OcspMode       string      `json:"OCSP_MODE"`
-			Tracing        int         `json:"TRACING"`
-			LoginTimeout   int         `json:"LOGIN_TIMEOUT"`
-			NetworkTimeout interface{} `json:"NETWORK_TIMEOUT"`
-		} `json:"CLIENT_ENVIRONMENT"`
-		Authenticator     string `json:"AUTHENTICATOR"`
-		Token             string `json:"TOKEN"`
-		SessionParameters struct {
-			AbortDetachedQuery     bool `json:"ABORT_DETACHED_QUERY"`
-			Autocommit             bool `json:"AUTOCOMMIT"`
-			ClientSessionKeepAlive bool `json:"CLIENT_SESSION_KEEP_ALIVE"`
-			ClientPrefetchThreads  int  `json:"CLIENT_PREFETCH_THREADS"`
-		} `json:"SESSION_PARAMETERS"`
-	} `json:"data"`
+	//Data struct {
+	//	ClientAppID       string      `json:"CLIENT_APP_ID"`
+	//	ClientAppVersion  string      `json:"CLIENT_APP_VERSION"`
+	//	SvnRevision       interface{} `json:"SVN_REVISION"`
+	//	AccountName       string      `json:"ACCOUNT_NAME"`
+	//	LoginName         string      `json:"LOGIN_NAME"`
+	//	ClientEnvironment struct {
+	//		Application    string      `json:"APPLICATION"`
+	//		Os             string      `json:"OS"`
+	//		OsVersion      string      `json:"OS_VERSION"`
+	//		PythonVersion  string      `json:"PYTHON_VERSION"`
+	//		PythonRuntime  string      `json:"PYTHON_RUNTIME"`
+	//		PythonCompiler string      `json:"PYTHON_COMPILER"`
+	//		OcspMode       string      `json:"OCSP_MODE"`
+	//		Tracing        interface{} `json:"TRACING"`
+	//		LoginTimeout   int         `json:"LOGIN_TIMEOUT"`
+	//		NetworkTimeout interface{} `json:"NETWORK_TIMEOUT"`
+	//	} `json:"CLIENT_ENVIRONMENT"`
+	//	Authenticator     string `json:"AUTHENTICATOR"`
+	//	Token             string `json:"TOKEN"`
+	//	SessionParameters struct {
+	//		AbortDetachedQuery     bool `json:"ABORT_DETACHED_QUERY"`
+	//		Autocommit             bool `json:"AUTOCOMMIT"`
+	//		ClientSessionKeepAlive bool `json:"CLIENT_SESSION_KEEP_ALIVE"`
+	//		ClientPrefetchThreads  int  `json:"CLIENT_PREFETCH_THREADS"`
+	//	} `json:"SESSION_PARAMETERS"`
+	//} `json:"data"`
+	Data map[string]interface{} `json:"data"`
+}
+
+type MyWriteCloser struct {
+	io.Writer
+}
+
+func (mwc *MyWriteCloser) Close() error {
+	return nil
 }
