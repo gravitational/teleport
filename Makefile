@@ -612,9 +612,7 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES = $(shell go list ./... | grep integration)
 integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
-	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
-		| tee $(TEST_LOG_DIR)/integration-root.json \
-		| $(RENDER_TESTS) -report-by test
+	$(CGOFLAG) go test -v -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
 # Lint the source code.
