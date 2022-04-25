@@ -161,7 +161,7 @@ func TestKnownHosts(t *testing.T) {
 	pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 	require.NoError(t, err)
 
-	_, p2, _ := s.keygen.GenerateKeyPair("")
+	_, p2, _ := s.keygen.GenerateKeyPair()
 	pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
 	err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub})
@@ -247,7 +247,7 @@ func TestProxySSHConfig(t *testing.T) {
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
 
-	hostPriv, hostPub, err := s.keygen.GenerateKeyPair("")
+	hostPriv, hostPub, err := s.keygen.GenerateKeyPair()
 	require.NoError(t, err)
 
 	caSigner, err := ssh.ParsePrivateKey(CAPriv)
@@ -300,7 +300,7 @@ func TestProxySSHConfig(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, int(called.Load()), 1)
 
-	_, spub, err := testauthority.New().GenerateKeyPair("")
+	_, spub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	caPub22, _, _, _, err := ssh.ParseAuthorizedKey(spub)
 	require.NoError(t, err)
@@ -436,7 +436,7 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 		err             error
 		priv, pub, cert []byte
 	)
-	priv, pub, _ = s.keygen.GenerateKeyPair("")
+	priv, pub, _ = s.keygen.GenerateKeyPair()
 	allowedLogins := []string{idx.Username, "root"}
 	ttl := 20 * time.Minute
 	if makeExpired {

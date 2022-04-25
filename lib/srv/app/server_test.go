@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
@@ -214,7 +215,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	tlsConfig.Time = s.clock.Now
 
 	// Generate certificate for user.
-	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
 		PublicKey:   publicKey,
@@ -228,7 +229,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	// Generate certificate for AWS console application.
-	privateKey, publicKey, err = s.tlsServer.Auth().GenerateKeyPair("")
+	privateKey, publicKey, err = native.GenerateKeyPair()
 	require.NoError(t, err)
 	certificate, err = s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
 		PublicKey:   publicKey,
