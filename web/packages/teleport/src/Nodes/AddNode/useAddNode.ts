@@ -22,6 +22,7 @@ import { JoinToken, Rule } from 'teleport/services/joinToken';
 
 export default function useAddNode(ctx: TeleportContext) {
   const { attempt, run } = useAttempt('');
+  const { attempt: iamAttempt, run: iamRun } = useAttempt('');
   const isEnterprise = ctx.isEnterprise;
   const version = ctx.storeUser.state.cluster.authVersion;
   const user = ctx.storeUser.state.username;
@@ -37,7 +38,7 @@ export default function useAddNode(ctx: TeleportContext) {
   }
 
   function createIamJoinToken(rules: Rule) {
-    return run(() =>
+    return iamRun(() =>
       ctx.joinTokenService
         .fetchJoinToken(['Node'], 'iam', [rules])
         .then(setIamJoinToken)
@@ -56,6 +57,7 @@ export default function useAddNode(ctx: TeleportContext) {
     token,
     iamJoinToken,
     createIamJoinToken,
+    iamAttempt,
   };
 }
 

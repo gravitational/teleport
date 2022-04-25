@@ -43,6 +43,7 @@ export function AddNode({
   isAuthTypeLocal,
   token,
   iamJoinToken,
+  iamAttempt,
   createIamJoinToken,
 }: Props & State) {
   return (
@@ -101,7 +102,7 @@ export function AddNode({
         {method === 'iam' && (
           <Iam
             onGenerate={createIamJoinToken}
-            attempt={attempt}
+            attempt={iamAttempt}
             token={iamJoinToken}
             isEnterprise={isEnterprise}
             version={version}

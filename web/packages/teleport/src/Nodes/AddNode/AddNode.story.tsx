@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { AddNode } from './AddNode';
 
 export default {
@@ -64,7 +65,7 @@ export const IamProcessing = () => (
     {...props}
     method="iam"
     iamJoinToken={null}
-    attempt={{ status: 'processing' }}
+    iamAttempt={{ status: 'processing' }}
   />
 );
 
@@ -73,7 +74,7 @@ export const IamFailed = () => (
     {...props}
     method="iam"
     iamJoinToken={null}
-    attempt={{ status: 'failed', statusText: 'some err' }}
+    iamAttempt={{ status: 'failed', statusText: 'some err' }}
   />
 );
 
@@ -94,7 +95,11 @@ const props = {
   attempt: {
     status: 'success',
     statusText: '',
-  } as any,
+  } as Attempt,
+  iamAttempt: {
+    status: 'success',
+    statusText: '',
+  } as Attempt,
   token: {
     id: 'some-join-token-hash',
     expiryText: '4 hours',
