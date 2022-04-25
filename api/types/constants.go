@@ -43,9 +43,6 @@ const (
 	// KindUser is a user resource
 	KindUser = "user"
 
-	// KindKeyPair is a public/private key pair
-	KindKeyPair = "key_pair"
-
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
 
