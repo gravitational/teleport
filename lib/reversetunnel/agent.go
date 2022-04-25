@@ -354,16 +354,17 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 
 			switch r.Type {
 			case versionRequest:
-				version := teleport.Version
-
+				// reply with the auth server version
 				pong, err := a.Client.Ping(ctx)
 				if err != nil {
 					a.log.WithError(err).Debugf("Failed to ping auth server.")
-				} else {
-					version = pong.ServerVersion
+					if err := r.Reply(false, []byte("Failed to retrieve auth version")); err != nil {
+						a.log.Debugf("Failed to reply to %version request: %v.", err)
+						continue
+					}
 				}
 
-				if err := r.Reply(true, []byte(version)); err != nil {
+				if err := r.Reply(true, []byte(pong.ServerVersion)); err != nil {
 					a.log.WithError(err).Debugf("Failed to reply to version request")
 					continue
 				}

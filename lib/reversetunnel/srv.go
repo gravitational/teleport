@@ -38,8 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -1062,25 +1060,12 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
-	// Check if the cluster that is connecting is a pre-v8 cluster. If it is,
-	// don't assume the newer organization of cluster configuration resources
-	// (RFD 28) because older proxy servers will reject that causing the cache
-	// to go into a re-sync loop.
-	var accessPointFunc auth.NewRemoteProxyCachingAccessPoint
-	ok, version, err := isPreV8Cluster(closeContext, sconn)
+	remoteVersion, err := getRemoteAuthVersion(closeContext, sconn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if ok {
-		srv.log.Debugf("cluster %q running %q connecting, loading old cache policy.", domainName, version)
-		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
-	} else {
-		accessPointFunc = srv.newAccessPoint
-	}
 
-	// Configure access to the cached subset of the Auth Server API of the remote
-	// cluster this remote site provides access to.
-	accessPoint, err := accessPointFunc(clt, []string{"reverse", domainName})
+	accessPoint, err := createRemoteAccessPoint(srv, clt, remoteVersion, domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1125,31 +1110,35 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	return remoteSite, nil
 }
 
-// isPreV8Cluster checks if the cluster is older than 8.0.0.
-func isPreV8Cluster(ctx context.Context, conn ssh.Conn) (bool, string, error) {
-	version, err := sendVersionRequest(ctx, conn)
+// createRemoteAccessPoint creates a new access point for the remote cluster.
+// Checks if the cluster that is connecting is a pre-v8 cluster. If it is,
+// don't assume the newer organization of cluster configuration resources
+// (RFD 28) because older proxy servers will reject that causing the cache
+// to go into a re-sync loop.
+func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("8.0.0"))
 	if err != nil {
-		return false, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	remoteClusterVersion, err := semver.NewVersion(version)
-	if err != nil {
-		return false, "", trace.Wrap(err)
-	}
-	minClusterVersion, err := semver.NewVersion(utils.VersionBeforeAlpha("8.0.0"))
-	if err != nil {
-		return false, "", trace.Wrap(err)
-	}
-	// Return true if the version is older than 8.0.0
-	if remoteClusterVersion.LessThan(*minClusterVersion) {
-		return true, version, nil
+	accessPointFunc := srv.Config.NewCachingAccessPoint
+	if !ok {
+		srv.log.Debugf("cluster %q running %q is connecting, loading old cache policy.", domainName, version)
+		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
 	}
 
-	return false, version, nil
+	// Configure access to the cached subset of the Auth Server API of the remote
+	// cluster this remote site provides access to.
+	accessPoint, err := accessPointFunc(clt, []string{"reverse", domainName})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessPoint, nil
 }
 
-// sendVersionRequest sends a request for the version remote Teleport cluster.
-func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (string, error) {
+// getRemoteAuthVersion sends a version request to the remote agent.
+func getRemoteAuthVersion(ctx context.Context, sconn ssh.Conn) (string, error) {
 	errorCh := make(chan error, 1)
 	versionCh := make(chan string, 1)
 
