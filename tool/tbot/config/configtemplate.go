@@ -142,54 +142,24 @@ func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (c *TemplateConfig) CheckAndSetDefaults() error {
+	templates := []interface{ CheckAndSetDefaults() error }{
+		c.SSHClient,
+		c.Identity,
+		c.TLS,
+		c.TLSCAs,
+		c.Mongo,
+		c.Cockroach,
+	}
+
 	notNilCount := 0
+	for _, template := range templates {
+		if template != nil {
+			if err := template.CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
 
-	if c.SSHClient != nil {
-		if err := c.SSHClient.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+			notNilCount++
 		}
-
-		notNilCount++
-	}
-
-	if c.Identity != nil {
-		if err := c.Identity.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		notNilCount++
-	}
-
-	if c.TLS != nil {
-		if err := c.TLS.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		notNilCount++
-	}
-
-	if c.TLSCAs != nil {
-		if err := c.TLSCAs.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		notNilCount++
-	}
-
-	if c.Mongo != nil {
-		if err := c.Mongo.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		notNilCount++
-	}
-
-	if c.Cockroach != nil {
-		if err := c.Cockroach.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		notNilCount++
 	}
 
 	if notNilCount == 0 {
@@ -204,28 +174,19 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 // GetConfigTemplate returns the first not-nil config template implementation
 // in the struct.
 func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
-	if c.SSHClient != nil {
-		return c.SSHClient, nil
+	templates := []Template{
+		c.SSHClient,
+		c.Identity,
+		c.TLS,
+		c.TLSCAs,
+		c.Mongo,
+		c.Cockroach,
 	}
 
-	if c.Identity != nil {
-		return c.Identity, nil
-	}
-
-	if c.TLS != nil {
-		return c.TLS, nil
-	}
-
-	if c.TLSCAs != nil {
-		return c.TLSCAs, nil
-	}
-
-	if c.Mongo != nil {
-		return c.Mongo, nil
-	}
-
-	if c.Cockroach != nil {
-		return c.Cockroach, nil
+	for _, template := range templates {
+		if template != nil {
+			return template, nil
+		}
 	}
 
 	return nil, trace.BadParameter("no valid config template")
@@ -250,7 +211,6 @@ func (b *BotConfigWriter) WriteFile(name string, data []byte, _ os.FileMode) err
 		p = path.Join(b.subpath, p)
 	}
 
-	log.Debugf("WriteFile(%q, ...) to %q", name, p)
 	return trace.Wrap(b.dest.Write(p, data))
 }
 
