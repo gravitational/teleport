@@ -202,7 +202,9 @@ func (p *AgentPool) updateConnectedProxies() {
 		return
 	}
 
-	p.AgentPoolConfig.ConnectedProxyGetter.setProxyIDs(p.active.proxyIDs())
+	proxies := p.active.proxyIDs()
+	p.log.Debugf("Updating connected proxies: %v", proxies)
+	p.AgentPoolConfig.ConnectedProxyGetter.setProxyIDs(proxies)
 }
 
 // Count is the number connected agents.
@@ -282,14 +284,16 @@ func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease,
 	return agent, nil
 }
 
-func (p *AgentPool) updateRuntimeConfig(ctx context.Context) {
+func (p *AgentPool) updateRuntimeConfig(ctx context.Context) error {
 	netConfig, err := p.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		p.log.WithError(err).Warnf("Failed to get latest cluster networking config.")
-		return
+		return trace.Wrap(err)
 	}
 
 	p.runtimeConfig.update(netConfig)
+	p.log.Debugf("Runtime config: tunnel_strategy: %v connection_count: %v", p.runtimeConfig.tunnelStrategyType, p.runtimeConfig.connectionCount)
+
+	return nil
 }
 
 // processEvents handles all events in the queue. Unblocking when a new agent
@@ -308,7 +312,11 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 		break
 	}
 
-	p.updateRuntimeConfig(ctx)
+	err := p.updateRuntimeConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	p.disconnectAgents()
 	if p.isAgentRequired() {
 		return nil
@@ -323,7 +331,11 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 		case agent := <-events:
 			p.handleEvent(ctx, agent)
 
-			p.updateRuntimeConfig(ctx)
+			err := p.updateRuntimeConfig(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			p.disconnectAgents()
 			if p.isAgentRequired() {
 				return nil
@@ -350,6 +362,7 @@ func (p *AgentPool) disconnectAgents() {
 	for {
 		agent, ok := p.active.poplen(p.runtimeConfig.connectionCount)
 		if !ok {
+			p.updateConnectedProxies()
 			return
 		}
 
@@ -402,6 +415,7 @@ func (p *AgentPool) handleEvent(ctx context.Context, agent Agent) {
 			p.wg.Done()
 		}
 	}
+	p.updateConnectedProxies()
 	p.log.Debugf("Active agent count: %d", p.active.len())
 }
 
@@ -425,7 +439,6 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	options := make([]proxy.DialerOptionFunc, 0)
-
 	if p.runtimeConfig.useALPNRouting() {
 		tlsConfig := &tls.Config{
 			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
