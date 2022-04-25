@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod cliprdr;
-pub mod errors;
-pub mod piv;
-pub mod rdpdr;
-pub mod scard;
-pub mod util;
-pub mod vchan;
+mod cliprdr;
+mod errors;
+mod piv;
+mod rdpdr;
+mod scard;
+mod util;
+mod vchan;
 
 #[macro_use]
 extern crate log;
