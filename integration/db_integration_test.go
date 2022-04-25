@@ -25,6 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
+	"github.com/siddontang/go-mysql/client"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -43,14 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	"github.com/jonboulle/clockwork"
-	"github.com/siddontang/go-mysql/client"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // TestDatabaseAccessPostgresRootCluster tests a scenario where a user connects
@@ -1283,4 +1283,45 @@ func containsDB(servers []types.DatabaseServer, name string) bool {
 		}
 	}
 	return false
+}
+
+// TestDatabaseAccessLargeQuery tests a scenario where a user connects
+// to a MySQL database running in a root cluster.
+func TestDatabaseAccessLargeQuery(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	pack := setupDatabaseTest(t, withClock(clock))
+
+	// Connect to the database service in root cluster.
+	client, err := mysql.MakeTestClient(common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.mysqlService.Name,
+			Protocol:    pack.root.mysqlService.Protocol,
+			Username:    "root",
+		},
+	})
+	require.NoError(t, err)
+
+	query := fmt.Sprintf("select %s", stringN(100*1024))
+	result, err := client.Execute(query)
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	now := clock.Now()
+	clock.Advance(time.Hour)
+
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+
+	// Disconnect.
+	err = client.Close()
+	require.NoError(t, err)
 }

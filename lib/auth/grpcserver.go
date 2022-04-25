@@ -279,7 +279,13 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			start := time.Now()
 			err = eventStream.EmitAuditEvent(stream.Context(), event)
 			if err != nil {
-				return trace.Wrap(err)
+				switch {
+				case isPermanentEmitError(err):
+					g.WithError(err).Error("Failed to EmitAuditEvent due to a permanent error")
+					continue
+				default:
+					return trace.Wrap(err)
+				}
 			}
 			event.Size()
 			processed += int64(event.Size())
@@ -300,6 +306,25 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			return trace.BadParameter("unsupported stream request")
 		}
 	}
+}
+
+func isPermanentEmitError(err error) bool {
+	if trace.IsBadParameter(err) {
+		return true
+	}
+	if !trace.IsAggregate(err) {
+		return false
+	}
+	agg, ok := trace.Unwrap(err).(trace.Aggregate)
+	if !ok {
+		return false
+	}
+	for _, err := range agg.Errors() {
+		if !trace.IsBadParameter(err) && !isPermanentEmitError(err) {
+			return false
+		}
+	}
+	return true
 }
 
 // logInterval is used to log stats after this many events

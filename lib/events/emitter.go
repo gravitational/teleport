@@ -489,6 +489,8 @@ func (t *TeeStream) Complete(ctx context.Context) error {
 	return t.stream.Complete(ctx)
 }
 
+var ()
+
 // EmitAuditEvent emits audit events and forwards session control events
 // to the audit log
 func (t *TeeStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
