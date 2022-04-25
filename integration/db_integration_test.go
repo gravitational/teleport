@@ -23,16 +23,16 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
-	"os"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1366,7 +1366,7 @@ func makeTestServerTLSConfig(config common.TestServerConfig) ([]byte, []byte, []
 	if cn == "" {
 		cn = "localhost"
 	}
-	privateKey, _, err := testauthority.New().GenerateKeyPair("")
+	privateKey, _, err := testauthority.New().GenerateKeyPair()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
