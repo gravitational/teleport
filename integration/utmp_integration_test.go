@@ -263,7 +263,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		nodeDir,
 		"",
 		utils.NetAddr{},
-		nil,
+		s.nodeClient,
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
