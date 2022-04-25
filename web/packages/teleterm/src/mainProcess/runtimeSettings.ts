@@ -14,7 +14,7 @@ const RESOURCES_PATH = app.isPackaged
 const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
 
 // Allows running tsh in insecure mode (development)
-const isInsecure = dev || argv.slice(2).indexOf('--insecure') !== -1;
+const isInsecure = dev || argv.includes('--insecure');
 
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
