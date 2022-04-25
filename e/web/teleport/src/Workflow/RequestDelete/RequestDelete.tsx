@@ -22,12 +22,13 @@ export function RequestDelete({
   user,
   roles,
   requestId,
+  requestState,
   onClose,
   onDelete,
 }: ReturnType<typeof useRequestDelete>) {
   return (
     <Dialog
-      dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
+      dialogCss={() => ({ maxWidth: '550px', width: '100%' })}
       disableEscapeKeyDown={false}
       onClose={close}
       open={true}
@@ -39,8 +40,8 @@ export function RequestDelete({
         {attempt.status === 'failed' && (
           <Alert kind="danger" children={attempt.statusText} />
         )}
-        <Flex flexWrap="wrap" mb={2}>
-          <Flex alignItems="baseline" mb={2}>
+        <Flex flexWrap="wrap" mb={1}>
+          <Flex alignItems="baseline">
             <Text mr={1} typography="body2">
               You are about to delete a request from
             </Text>
@@ -48,23 +49,25 @@ export function RequestDelete({
               {user}
             </Text>{' '}
             <Text mr={1} typography="body2">
-              for the roles:
+              for the following roles:
             </Text>
             <RolesRequested roles={roles} />
           </Flex>
         </Flex>
-        <Text mb={3} typography="body2">
-          If this request has been approved, deleting the request will not
-          remove this users access to these roles.
-        </Text>
-        <Text typography="body2">
-          {' '}
-          If you would also like to lock this users access run:
-        </Text>
-        <TextSelectCopy
-          mt={2}
-          text={`tctl lock --access_request ${requestId}`}
-        />
+        {requestState === 'APPROVED' && (
+          <>
+            <Text mt={2} mb={2} typography="body2">
+              Since this access request has already been approved, deleting the
+              request now will NOT remove the user's access to these roles. If
+              you would like to lock the user's access to the requested roles,
+              you can run:
+            </Text>
+            <TextSelectCopy
+              mt={2}
+              text={`tctl lock --access_request ${requestId}`}
+            />
+          </>
+        )}
       </DialogContent>
       <DialogFooter>
         <ButtonWarning

@@ -5,10 +5,13 @@ import cfg from 'e-teleport/config';
 
 import { State as RequestViewState } from '../RequestView/useRequestView';
 
+import type { RequestState } from 'e-teleport/services/workflow';
+
 export default function useRequestDelete({
   user,
   roles,
   requestId,
+  requestState,
   onClose,
   ctx,
 }: Props) {
@@ -28,6 +31,7 @@ export default function useRequestDelete({
   return {
     attempt,
     requestId,
+    requestState,
     user,
     roles,
     onClose,
@@ -37,6 +41,7 @@ export default function useRequestDelete({
 
 export type Props = {
   requestId: string;
+  requestState: RequestState;
   user: string;
   roles: string[];
   onClose: RequestViewState['toggleConfirmDelete'];

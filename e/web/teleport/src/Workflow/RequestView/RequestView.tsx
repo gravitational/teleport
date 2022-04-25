@@ -66,6 +66,7 @@ export function RequestView({
           user={request.user}
           roles={request.roles}
           requestId={request.id}
+          requestState={request.state}
           onClose={toggleConfirmDelete}
         />
       )}
