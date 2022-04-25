@@ -62,7 +62,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 			return nil, trace.Wrap(err)
 		}
 	}
-	caCert, signer, err := getCaAndSigner(s.GetKeyStore(), databaseCA, req)
+	caCert, signer, err := getCAandSigner(s.GetKeyStore(), databaseCA, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,7 +93,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 // getCaAndSigner returns correct signer and CA that should be used when generating database certificate.
 // This function covers the database CA rotation scenario when on rotation init phase additional/new TLS
 // key should be used to sign the database CA. Otherwise, the trust chain will break on update_clients.
-func getCaAndSigner(keyStore keystore.KeyStore, databaseCA types.CertAuthority, req *proto.DatabaseCertRequest) ([]byte, crypto.Signer, error) {
+func getCAandSigner(keyStore keystore.KeyStore, databaseCA types.CertAuthority, req *proto.DatabaseCertRequest) ([]byte, crypto.Signer, error) {
 	if req.Requester == proto.DatabaseCertRequest_TCTL && databaseCA.GetRotation().Phase == types.RotationPhaseInit {
 		return keyStore.GetAdditionalTrustedTLSCertAndSigner(databaseCA)
 	}
