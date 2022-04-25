@@ -2,10 +2,11 @@ package auth
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+	
+	"github.com/stretchr/testify/require"
 )
 
 func Test_ssoDiagContext_writeToBackend(t *testing.T) {

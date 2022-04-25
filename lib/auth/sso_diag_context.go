@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+
 	"github.com/gravitational/teleport/api/types"
 )
 
