@@ -38,12 +38,12 @@ $ tbot start \
 | `-a/--auth-server`   | Address of the Teleport Auth Server (On-Prem installs) or Teleport Cloud tenant.       |
 | `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect.                   |
 | `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
-| `--data-dir`         | Directory to store internal bot data. Access to this directory should be limited.              | 
+| `--data-dir`         | Directory to store internal bot data. Access to this directory should be limited.              |
 | `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
 | `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
 | `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
 | `--join-method`      | Method to use to join the cluster. Can be `token` or `iam`.                                    |
-| `--one-shot`         | If set, quit after the first renewal.                                                          |
+| `--oneshot`          | If set, quit after the first renewal.                                                          |
 
 ## `tbot init`
 

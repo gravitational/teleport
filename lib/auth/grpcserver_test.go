@@ -37,6 +37,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -622,13 +623,15 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Enable MFA support.
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+	authSpec := &types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-	})
+	}
+	authPref, err := types.NewAuthPreference(*authSpec)
+
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
 	auth := srv.Auth()
@@ -711,8 +714,10 @@ func TestDeleteLastMFADevice(t *testing.T) {
 			cap, err := auth.GetAuthPreference(ctx)
 			require.NoError(t, err)
 			if cap.GetSecondFactor() != test.secondFactor {
-				cap.SetSecondFactor(test.secondFactor)
-				require.NoError(t, auth.SetAuthPreference(ctx, cap))
+				authSpec.SecondFactor = test.secondFactor
+				newCAP, err := types.NewAuthPreference(*authSpec)
+				require.NoError(t, err)
+				require.NoError(t, auth.SetAuthPreference(ctx, newCAP))
 			}
 
 			testDeleteMFADevice(ctx, t, cl, test.opts)
@@ -803,7 +808,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		}
 	}
 
-	_, pub, err := srv.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1337,7 +1342,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	clt, err := srv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	priv, pub, err := clt.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
