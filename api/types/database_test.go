@@ -101,7 +101,7 @@ func TestDatabaseElastiCacheEndpoint(t *testing.T) {
 	})
 
 	t.Run("invalid URI", func(t *testing.T) {
-		database, err := NewDatabaseV2(Metadata{
+		database, err := NewDatabaseV3(Metadata{
 			Name: "elasticache",
 		}, DatabaseSpecV3{
 			Protocol: "redis",
