@@ -12,12 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod consts;
+mod flags;
+
 use crate::errors::{invalid_data_error, not_implemented_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
 use crate::util;
 use crate::Payload;
 use crate::{scard, vchan};
-use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use consts::{
+    CapabilityType, Component, DeviceType, FsInformationClassLevel, MajorFunction, MinorFunction,
+    PacketId, DRIVE_CAPABILITY_VERSION_02, DRIVE_DEVICE_ID, GENERAL_CAPABILITY_VERSION_02,
+    NTSTATUS, SCARD_DEVICE_ID, SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
+};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
 use rdp::core::tpkt;
@@ -26,7 +33,7 @@ use rdp::model::error::*;
 use std::convert::{TryFrom, TryInto};
 use std::io::{Read, Write};
 
-pub const CHANNEL_NAME: &str = "rdpdr";
+pub use consts::CHANNEL_NAME;
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
@@ -427,37 +434,9 @@ impl SharedHeader {
     }
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum Component {
-    RDPDR_CTYP_CORE = 0x4472,
-    RDPDR_CTYP_PRN = 0x5052,
-}
-
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum PacketId {
-    PAKID_CORE_SERVER_ANNOUNCE = 0x496E,
-    PAKID_CORE_CLIENTID_CONFIRM = 0x4343,
-    PAKID_CORE_CLIENT_NAME = 0x434E,
-    PAKID_CORE_DEVICELIST_ANNOUNCE = 0x4441,
-    PAKID_CORE_DEVICE_REPLY = 0x6472,
-    PAKID_CORE_DEVICE_IOREQUEST = 0x4952,
-    PAKID_CORE_DEVICE_IOCOMPLETION = 0x4943,
-    PAKID_CORE_SERVER_CAPABILITY = 0x5350,
-    PAKID_CORE_CLIENT_CAPABILITY = 0x4350,
-    PAKID_CORE_DEVICELIST_REMOVE = 0x444D,
-    PAKID_PRN_CACHE_DATA = 0x5043,
-    PAKID_CORE_USER_LOGGEDON = 0x554C,
-    PAKID_PRN_USING_XPS = 0x5543,
-}
-
 type ServerAnnounceRequest = ClientIdMessage;
 type ClientAnnounceReply = ClientIdMessage;
 type ServerClientIdConfirm = ClientIdMessage;
-
-const VERSION_MAJOR: u16 = 0x0001;
-const VERSION_MINOR: u16 = 0x000c;
 
 #[derive(Debug)]
 struct ClientIdMessage {
@@ -595,12 +574,6 @@ impl CapabilitySet {
     }
 }
 
-const SMARTCARD_CAPABILITY_VERSION_01: u32 = 0x00000001;
-const DRIVE_CAPABILITY_VERSION_02: u32 = 0x00000002;
-#[allow(dead_code)]
-const GENERAL_CAPABILITY_VERSION_01: u32 = 0x00000001;
-const GENERAL_CAPABILITY_VERSION_02: u32 = 0x00000002;
-
 #[derive(Debug)]
 struct CapabilityHeader {
     cap_type: CapabilityType,
@@ -626,16 +599,6 @@ impl CapabilityHeader {
             version: payload.read_u32::<LittleEndian>()?,
         })
     }
-}
-
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum CapabilityType {
-    CAP_GENERAL_TYPE = 0x0001,
-    CAP_PRINTER_TYPE = 0x0002,
-    CAP_PORT_TYPE = 0x0003,
-    CAP_DRIVE_TYPE = 0x0004,
-    CAP_SMARTCARD_TYPE = 0x0005,
 }
 
 #[derive(Debug)]
@@ -719,10 +682,6 @@ impl GeneralCapabilitySet {
 }
 
 type ClientCoreCapabilityResponse = ServerCoreCapabilityRequest;
-
-// Each redirected device requires a unique ID.
-const SCARD_DEVICE_ID: u32 = 1;
-const DRIVE_DEVICE_ID: u32 = 2;
 
 #[derive(Debug)]
 struct ClientDeviceListAnnounceRequest {
@@ -810,16 +769,6 @@ impl DeviceAnnounceHeader {
     }
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum DeviceType {
-    RDPDR_DTYP_SERIAL = 0x00000001,
-    RDPDR_DTYP_PARALLEL = 0x00000002,
-    RDPDR_DTYP_PRINT = 0x00000004,
-    RDPDR_DTYP_FILESYSTEM = 0x00000008,
-    RDPDR_DTYP_SMARTCARD = 0x00000020,
-}
-
 #[derive(Debug)]
 struct ServerDeviceAnnounceResponse {
     device_id: u32,
@@ -887,31 +836,6 @@ impl DeviceIoRequest {
             minor_function,
         })
     }
-}
-
-/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
-#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq)]
-#[allow(non_camel_case_types)]
-enum MajorFunction {
-    IRP_MJ_CREATE = 0x00000000,
-    IRP_MJ_CLOSE = 0x00000002,
-    IRP_MJ_READ = 0x00000003,
-    IRP_MJ_WRITE = 0x00000004,
-    IRP_MJ_DEVICE_CONTROL = 0x0000000E,
-    IRP_MJ_QUERY_VOLUME_INFORMATION = 0x0000000A,
-    IRP_MJ_SET_VOLUME_INFORMATION = 0x0000000B,
-    IRP_MJ_QUERY_INFORMATION = 0x00000005,
-    IRP_MJ_SET_INFORMATION = 0x00000006,
-    IRP_MJ_DIRECTORY_CONTROL = 0x0000000C,
-    IRP_MJ_LOCK_CONTROL = 0x00000011,
-}
-
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum MinorFunction {
-    IRP_MN_NONE = 0x00000000,
-    IRP_MN_QUERY_DIRECTORY = 0x00000001,
-    IRP_MN_NOTIFY_CHANGE_DIRECTORY = 0x00000002,
 }
 
 /// 2.2.1.4.5 Device Control Request (DR_CONTROL_REQ)
@@ -1005,12 +929,12 @@ type ServerCreateDriveRequest = DeviceCreateRequest;
 struct DeviceCreateRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_CREATE.
     device_io_request: DeviceIoRequest,
-    desired_access: DesiredAccessFlags,
+    desired_access: flags::DesiredAccess,
     allocation_size: u64,
-    file_attributes: FileAttributesFlags,
-    shared_access: SharedAccessFlags,
-    create_disposition: CreateDispositionFlags,
-    create_options: CreateOptionsFlags,
+    file_attributes: flags::FileAttributes,
+    shared_access: flags::SharedAccess,
+    create_disposition: flags::CreateDisposition,
+    create_options: flags::CreateOptions,
     path_length: u32,
     path: String,
 }
@@ -1019,17 +943,17 @@ impl DeviceCreateRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let invalid_flags = || invalid_data_error("invalid flags in Device Create Request");
 
-        let desired_access = DesiredAccessFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+        let desired_access = flags::DesiredAccess::from_bits(payload.read_u32::<LittleEndian>()?)
             .ok_or_else(invalid_flags)?;
         let allocation_size = payload.read_u64::<LittleEndian>()?;
-        let file_attributes = FileAttributesFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+        let file_attributes = flags::FileAttributes::from_bits(payload.read_u32::<LittleEndian>()?)
             .ok_or_else(invalid_flags)?;
-        let shared_access = SharedAccessFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+        let shared_access = flags::SharedAccess::from_bits(payload.read_u32::<LittleEndian>()?)
             .ok_or_else(invalid_flags)?;
         let create_disposition =
-            CreateDispositionFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+            flags::CreateDisposition::from_bits(payload.read_u32::<LittleEndian>()?)
                 .ok_or_else(invalid_flags)?;
-        let create_options = CreateOptionsFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+        let create_options = flags::CreateOptions::from_bits(payload.read_u32::<LittleEndian>()?)
             .ok_or_else(invalid_flags)?;
         let path_length = payload.read_u32::<LittleEndian>()?;
 
@@ -1050,143 +974,6 @@ impl DeviceCreateRequest {
             path_length,
             path,
         })
-    }
-}
-
-bitflags! {
-    /// DesiredAccess can be interpreted as either
-    /// 2.2.13.1.1 File_Pipe_Printer_Access_Mask [MS-SMB2] (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/77b36d0f-6016-458a-a7a0-0f4a72ae1534)
-    /// or
-    /// 2.2.13.1.2 Directory_Access_Mask [MS-SMB2] (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/0a5934b1-80f1-4da0-b1bf-5e021c309b71)
-    ///
-    /// This implements the combination of the two. For flags where the names and/or functions are distinct between the two,
-    /// the names are appended with an "_OR_", and the File_Pipe_Printer_Access_Mask functionality is described on the top line comment,
-    /// and the Directory_Access_Mask functionality is described on the bottom (2nd) line comment.
-    struct DesiredAccessFlags: u32 {
-        /// This value indicates the right to read data from the file or named pipe.
-        /// This value indicates the right to enumerate the contents of the directory.
-        const FILE_READ_DATA_OR_FILE_LIST_DIRECTORY = 0x00000001;
-        /// This value indicates the right to write data into the file or named pipe beyond the end of the file.
-        /// This value indicates the right to create a file under the directory.
-        const FILE_WRITE_DATA_OR_FILE_ADD_FILE = 0x00000002;
-        /// This value indicates the right to append data into the file or named pipe.
-        /// This value indicates the right to add a sub-directory under the directory.
-        const FILE_APPEND_DATA_OR_FILE_ADD_SUBDIRECTORY = 0x00000004;
-        /// This value indicates the right to read the extended attributes of the file or named pipe.
-        const FILE_READ_EA = 0x00000008;
-        /// This value indicates the right to write or change the extended attributes to the file or named pipe.
-        const FILE_WRITE_EA = 0x00000010;
-        /// This value indicates the right to traverse this directory if the server enforces traversal checking.
-        const FILE_TRAVERSE = 0x00000020;
-        /// This value indicates the right to delete entries within a directory.
-        const FILE_DELETE_CHILD = 0x00000040;
-        /// This value indicates the right to execute the file/directory.
-        const FILE_EXECUTE = 0x00000020;
-        /// This value indicates the right to read the attributes of the file/directory.
-        const FILE_READ_ATTRIBUTES = 0x00000080;
-        /// This value indicates the right to change the attributes of the file/directory.
-        const FILE_WRITE_ATTRIBUTES = 0x00000100;
-        /// This value indicates the right to delete the file/directory.
-        const DELETE = 0x00010000;
-        /// This value indicates the right to read the security descriptor for the file/directory or named pipe.
-        const READ_CONTROL = 0x00020000;
-        /// This value indicates the right to change the discretionary access control list (DACL) in the security descriptor for the file/directory or named pipe. For the DACL data structure, see ACL in [MS-DTYP].
-        const WRITE_DAC = 0x00040000;
-        /// This value indicates the right to change the owner in the security descriptor for the file/directory or named pipe.
-        const WRITE_OWNER = 0x00080000;
-        /// SMB2 clients set this flag to any value. SMB2 servers SHOULD ignore this flag.
-        const SYNCHRONIZE = 0x00100000;
-        /// This value indicates the right to read or change the system access control list (SACL) in the security descriptor for the file/directory or named pipe. For the SACL data structure, see ACL in [MS-DTYP].
-        const ACCESS_SYSTEM_SECURITY = 0x01000000;
-        /// This value indicates that the client is requesting an open to the file with the highest level of access the client has on this file. If no access is granted for the client on this file, the server MUST fail the open with STATUS_ACCESS_DENIED.
-        const MAXIMUM_ALLOWED = 0x02000000;
-        /// This value indicates a request for all the access flags that are previously listed except MAXIMUM_ALLOWED and ACCESS_SYSTEM_SECURITY.
-        const GENERIC_ALL = 0x10000000;
-        /// This value indicates a request for the following combination of access flags listed above: FILE_READ_ATTRIBUTES| FILE_EXECUTE| SYNCHRONIZE| READ_CONTROL.
-        const GENERIC_EXECUTE = 0x20000000;
-        /// This value indicates a request for the following combination of access flags listed above: FILE_WRITE_DATA| FILE_APPEND_DATA| FILE_WRITE_ATTRIBUTES| FILE_WRITE_EA| SYNCHRONIZE| READ_CONTROL.
-        const GENERIC_WRITE = 0x40000000;
-        /// This value indicates a request for the following combination of access flags listed above: FILE_READ_DATA| FILE_READ_ATTRIBUTES| FILE_READ_EA| SYNCHRONIZE| READ_CONTROL.
-        const GENERIC_READ = 0x80000000;
-    }
-}
-
-bitflags! {
-    /// 2.6 File Attributes [MS-FSCC]
-    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca28ec38-f155-4768-81d6-4bfeb8586fc9
-    struct FileAttributesFlags: u32 {
-        const FILE_ATTRIBUTE_READONLY = 0x00000001;
-        const FILE_ATTRIBUTE_HIDDEN = 0x00000002;
-        const FILE_ATTRIBUTE_SYSTEM = 0x00000004;
-        const FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
-        const FILE_ATTRIBUTE_ARCHIVE = 0x00000020;
-        const FILE_ATTRIBUTE_NORMAL = 0x00000080;
-        const FILE_ATTRIBUTE_TEMPORARY = 0x00000100;
-        const FILE_ATTRIBUTE_SPARSE_FILE = 0x00000200;
-        const FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400;
-        const FILE_ATTRIBUTE_COMPRESSED = 0x00000800;
-        const FILE_ATTRIBUTE_OFFLINE = 0x00001000;
-        const FILE_ATTRIBUTE_NOT_CONTENT_INDEXED = 0x00002000;
-        const FILE_ATTRIBUTE_ENCRYPTED = 0x00004000;
-        const FILE_ATTRIBUTE_INTEGRITY_STREAM = 0x00008000;
-        const FILE_ATTRIBUTE_NO_SCRUB_DATA = 0x00020000;
-        const FILE_ATTRIBUTE_RECALL_ON_OPEN = 0x00040000;
-        const FILE_ATTRIBUTE_PINNED = 0x00080000;
-        const FILE_ATTRIBUTE_UNPINNED = 0x00100000;
-        const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x00400000;
-    }
-}
-
-bitflags! {
-    /// Specifies the sharing mode for the open. If ShareAccess values of FILE_SHARE_READ, FILE_SHARE_WRITE and FILE_SHARE_DELETE are set for a printer file or a named pipe, the server SHOULD<35> ignore these values. The field MUST be constructed using a combination of zero or more of the following bit values.
-    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
-    struct SharedAccessFlags: u32 {
-        const FILE_SHARE_READ = 0x00000001;
-        const FILE_SHARE_WRITE = 0x00000002;
-        const FILE_SHARE_DELETE = 0x00000004;
-    }
-}
-
-bitflags! {
-    /// Defines the action the server MUST take if the file that is specified in the name field already exists. For opening named pipes, this field can be set to any value by the client and MUST be ignored by the server. For other files, this field MUST contain one of the following values.
-    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
-    /// See https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
-    /// for information about how these should be interpreted.
-    struct CreateDispositionFlags: u32 {
-        const FILE_SUPERSEDE = 0x00000000;
-        const FILE_OPEN = 0x00000001;
-        const FILE_CREATE = 0x00000002;
-        const FILE_OPEN_IF = 0x00000003;
-        const FILE_OVERWRITE = 0x00000004;
-        const FILE_OVERWRITE_IF = 0x00000005;
-    }
-}
-
-bitflags! {
-    /// Specifies the options to be applied when creating or opening the file. Combinations of the bit positions listed below are valid, unless otherwise noted. This field MUST be constructed using the following values.
-    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
-    struct CreateOptionsFlags: u32 {
-        const FILE_DIRECTORY_FILE = 0x00000001;
-        const FILE_WRITE_THROUGH = 0x00000002;
-        const FILE_SEQUENTIAL_ONLY = 0x00000004;
-        const FILE_NO_INTERMEDIATE_BUFFERING = 0x00000008;
-        const FILE_SYNCHRONOUS_IO_ALERT = 0x00000010;
-        const FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020;
-        const FILE_NON_DIRECTORY_FILE = 0x00000040;
-        const FILE_COMPLETE_IF_OPLOCKED = 0x00000100;
-        const FILE_NO_EA_KNOWLEDGE = 0x00000200;
-        const FILE_RANDOM_ACCESS = 0x00000800;
-        const FILE_DELETE_ON_CLOSE = 0x00001000;
-        const FILE_OPEN_BY_FILE_ID = 0x00002000;
-        const FILE_OPEN_FOR_BACKUP_INTENT = 0x00004000;
-        const FILE_NO_COMPRESSION = 0x00008000;
-        const FILE_OPEN_REMOTE_INSTANCE = 0x00000400;
-        const FILE_OPEN_REQUIRING_OPLOCK = 0x00010000;
-        const FILE_DISALLOW_EXCLUSIVE = 0x00020000;
-        const FILE_RESERVE_OPFILTER = 0x00100000;
-        const FILE_OPEN_REPARSE_POINT = 0x00200000;
-        const FILE_OPEN_NO_RECALL = 0x00400000;
-        const FILE_OPEN_FOR_FREE_SPACE_QUERY = 0x00800000;
     }
 }
 
@@ -1215,27 +1002,28 @@ struct DeviceCreateResponse {
     /// +---------------------+--------------------+
     /// | FILE_OVERWRITE_IF   |   FILE_OVERWRITTEN |
     /// +---------------------+--------------------+
-    information: InformationFlags,
+    information: flags::Information,
 }
 
 impl DeviceCreateResponse {
     fn new(device_create_request: &DeviceCreateRequest, io_status: NTSTATUS) -> Self {
         let device_io_request = &device_create_request.device_io_request;
 
-        let information: InformationFlags;
+        let information: flags::Information;
         if device_create_request.create_disposition.intersects(
-            CreateDispositionFlags::FILE_SUPERSEDE
-                | CreateDispositionFlags::FILE_OPEN
-                | CreateDispositionFlags::FILE_CREATE
-                | CreateDispositionFlags::FILE_OVERWRITE,
+            flags::CreateDisposition::FILE_SUPERSEDE
+                | flags::CreateDisposition::FILE_OPEN
+                | flags::CreateDisposition::FILE_CREATE
+                | flags::CreateDisposition::FILE_OVERWRITE,
         ) {
-            information = InformationFlags::FILE_SUPERSEDED;
-        } else if device_create_request.create_disposition == CreateDispositionFlags::FILE_OPEN_IF {
-            information = InformationFlags::FILE_OPENED;
-        } else if device_create_request.create_disposition
-            == CreateDispositionFlags::FILE_OVERWRITE_IF
+            information = flags::Information::FILE_SUPERSEDED;
+        } else if device_create_request.create_disposition == flags::CreateDisposition::FILE_OPEN_IF
         {
-            information = InformationFlags::FILE_OVERWRITTEN;
+            information = flags::Information::FILE_OPENED;
+        } else if device_create_request.create_disposition
+            == flags::CreateDisposition::FILE_OVERWRITE_IF
+        {
+            information = flags::Information::FILE_OVERWRITTEN;
         } else {
             panic!("program error, CreateDispositionFlags check should be exhaustive");
         }
@@ -1257,35 +1045,6 @@ impl DeviceCreateResponse {
         w.write_u8(self.information.bits())?;
         Ok(w)
     }
-}
-
-bitflags! {
-    /// An unsigned 8-bit integer. This field indicates the success of the Device Create Request (section 2.2.1.4.1).
-    /// The value of the Information field depends on the value of CreateDisposition field in the Device Create Request
-    /// (section 2.2.1.4.1). If the IoStatus field is set to 0x00000000, this field MAY be skipped, in which case the
-    /// server MUST assume that the Information field is set to 0x00.
-    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76
-    struct InformationFlags: u8 {
-        /// A new file was created.
-        const FILE_SUPERSEDED = 0x00000000;
-        /// An existing file was opened.
-        const FILE_OPENED = 0x00000001;
-        /// An existing file was overwritten.
-        const FILE_OVERWRITTEN = 0x00000003;
-    }
-}
-
-/// Windows defines an absolutely massive list of potential NTSTATUS values.
-/// This enum includes the basic ones we support for communicating with the windows machine.
-/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
-#[derive(ToPrimitive, Debug)]
-#[repr(u32)]
-#[allow(non_camel_case_types)]
-enum NTSTATUS {
-    STATUS_SUCCESS = 0x00000000,
-    STATUS_UNSUCCESSFUL = 0xC0000001,
-    STATUS_NOT_IMPLEMENTED = 0xC0000002,
-    STATUS_NO_MORE_FILES = 0x80000006,
 }
 
 /// 2.2.3.3.8 Server Drive Query Information Request (DR_DRIVE_QUERY_INFORMATION_REQ)
@@ -1337,60 +1096,6 @@ impl ServerDriveQueryInformationRequest {
 
 /// 2.4 File Information Classes [MS-FSCC]
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
-#[derive(FromPrimitive, Debug, PartialEq)]
-#[repr(u32)]
-enum FsInformationClassLevel {
-    FileAccessInformation = 8,
-    FileAlignmentInformation = 17,
-    FileAllInformation = 18,
-    FileAllocationInformation = 19,
-    FileAlternateNameInformation = 21,
-    FileAttributeTagInformation = 35,
-    FileBasicInformation = 4,
-    FileBothDirectoryInformation = 3,
-    FileCompressionInformation = 28,
-    FileDirectoryInformation = 1,
-    FileDispositionInformation = 13,
-    FileEaInformation = 7,
-    FileEndOfFileInformation = 20,
-    FileFullDirectoryInformation = 2,
-    FileFullEaInformation = 15,
-    FileHardLinkInformation = 46,
-    FileIdBothDirectoryInformation = 37,
-    FileIdExtdDirectoryInformation = 60,
-    FileIdFullDirectoryInformation = 38,
-    FileIdGlobalTxDirectoryInformation = 50,
-    FileIdInformation = 59,
-    FileInternalInformation = 6,
-    FileLinkInformation = 11,
-    FileMailslo = 26,
-    FileMailslotSetInformation = 27,
-    FileModeInformation = 16,
-    FileMoveClusterInformation = 31,
-    FileNameInformation = 9,
-    FileNamesInformation = 12,
-    FileNetworkOpenInformation = 34,
-    FileNormalizedNameInformation = 48,
-    FileObjectIdInformation = 29,
-    FilePipeInformation = 23,
-    FilePipInformation = 24,
-    FilePipeRemoteInformation = 25,
-    FilePositionInformation = 14,
-    FileQuotaInformation = 32,
-    FileRenameInformation = 10,
-    FileReparsePointInformation = 33,
-    FileSfioReserveInformation = 44,
-    FileSfioVolumeInformation = 45,
-    FileShortNameInformation = 40,
-    FileStandardInformation = 5,
-    FileStandardLinkInformation = 54,
-    FileStreamInformation = 22,
-    FileTrackingInformation = 36,
-    FileValidDataLengthInformation = 39,
-}
-
-/// 2.4 File Information Classes [MS-FSCC]
-/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
 #[derive(Debug)]
 enum FsInformationClass {
     FileBasicInformation(FileBasicInformation),
@@ -1416,7 +1121,7 @@ struct FileBasicInformation {
     last_access_time: i64,
     last_write_time: i64,
     change_time: i64,
-    file_attributes: FileAttributesFlags,
+    file_attributes: flags::FileAttributes,
     // NOTE: The `reserved` field in the spec MUST not be serialized and sent over RDP, or it will break the server implementation.
     // FreeRDP does the same: https://github.com/FreeRDP/FreeRDP/blob/1adb263813ca2e76a893ef729a04db8f94b5d757/channels/drive/client/drive_file.c#L508
     //reserved: u32,
@@ -1508,7 +1213,7 @@ struct FileBothDirectoryInformation {
     change_time: i64,
     end_of_file: i64,
     allocation_size: i64,
-    file_attributes: FileAttributesFlags,
+    file_attributes: flags::FileAttributes,
     file_name_length: u32,
     // ea_size: u32,
     // short_name_length: i8,
@@ -1526,9 +1231,9 @@ const FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE: u32 = (5 * 4) + (6 * 8) + 1 + 2
 impl From<FileHandle> for FileBothDirectoryInformation {
     fn from(handle: FileHandle) -> Self {
         let file_attributes = if handle.is_dir {
-            FileAttributesFlags::FILE_ATTRIBUTE_DIRECTORY
+            flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
         } else {
-            FileAttributesFlags::FILE_ATTRIBUTE_NORMAL
+            flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
         };
         return FileBothDirectoryInformation::new(
             handle.last_modified,
@@ -1549,7 +1254,7 @@ impl FileBothDirectoryInformation {
         last_write_time: i64,
         change_time: i64,
         file_size: i64,
-        file_attributes: FileAttributesFlags,
+        file_attributes: flags::FileAttributes,
         file_name: String,
     ) -> Self {
         return Self {
@@ -1615,7 +1320,7 @@ impl ClientDriveQueryInformationResponse {
                     last_access_time: 2,
                     last_write_time: 3,
                     change_time: 4,
-                    file_attributes: FileAttributesFlags::FILE_ATTRIBUTE_DIRECTORY,
+                    file_attributes: flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY,
                 }),
             ),
             FsInformationClassLevel::FileStandardInformation => (
@@ -1707,7 +1412,7 @@ struct ServerDriveNotifyChangeDirectoryRequest {
     device_io_request: DeviceIoRequest,
     /// If nonzero, a change anywhere within the tree MUST trigger the notification response; otherwise, only a change in the root directory will do so.
     watch_tree: u8,
-    completion_filter: CompletionFilterFlags,
+    completion_filter: flags::CompletionFilter,
     // Padding (27 bytes):  An array of 27 bytes. This field is unused and MUST be ignored.
 }
 
@@ -1718,7 +1423,7 @@ impl ServerDriveNotifyChangeDirectoryRequest {
 
         let watch_tree = payload.read_u8()?;
         let completion_filter =
-            CompletionFilterFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+            flags::CompletionFilter::from_bits(payload.read_u32::<LittleEndian>()?)
                 .ok_or_else(invalid_flags)?;
 
         Ok(Self {
@@ -1726,38 +1431,6 @@ impl ServerDriveNotifyChangeDirectoryRequest {
             watch_tree,
             completion_filter,
         })
-    }
-}
-
-bitflags! {
-    /// Specifies the types of changes to monitor. It is valid to choose multiple trigger conditions.
-    /// In this case, if any condition is met, the client is notified of the change and the CHANGE_NOTIFY operation is completed.
-    /// See CompletionFilter at: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/598f395a-e7a2-4cc8-afb3-ccb30dd2df7c
-    struct CompletionFilterFlags: u32 {
-        /// The client is notified if a file-name changes.
-        const FILE_NOTIFY_CHANGE_FILE_NAME = 0x00000001;
-        /// The client is notified if a directory name changes.
-        const FILE_NOTIFY_CHANGE_DIR_NAME = 0x00000002;
-        /// The client is notified if a file's attributes change. Possible file attribute values are specified in [MS-FSCC] section 2.6.
-        const FILE_NOTIFY_CHANGE_ATTRIBUTES = 0x00000004;
-        /// The client is notified if a file's size changes.
-        const FILE_NOTIFY_CHANGE_SIZE = 0x00000008;
-        /// The client is notified if the last write time of a file changes.
-        const FILE_NOTIFY_CHANGE_LAST_WRITE = 0x00000010;
-        /// The client is notified if the last access time of a file changes.
-        const FILE_NOTIFY_CHANGE_LAST_ACCESS = 0x00000020;
-        /// The client is notified if the creation time of a file changes.
-        const FILE_NOTIFY_CHANGE_CREATION = 0x00000040;
-        /// The client is notified if a file's extended attributes (EAs) change.
-        const FILE_NOTIFY_CHANGE_EA = 0x00000080;
-        /// The client is notified of a file's access control list (ACL) settings change.
-        const FILE_NOTIFY_CHANGE_SECURITY = 0x00000100;
-        /// The client is notified if a named stream is added to a file.
-        const FILE_NOTIFY_CHANGE_STREAM_NAME = 0x00000200;
-        /// The client is notified if the size of a named stream is changed.
-        const FILE_NOTIFY_CHANGE_STREAM_SIZE = 0x00000400;
-        /// The client is notified if a named stream is modified.
-        const FILE_NOTIFY_CHANGE_STREAM_WRITE = 0x00000800;
     }
 }
 
