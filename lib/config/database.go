@@ -235,8 +235,8 @@ type DatabaseSampleFlags struct {
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
-	// RedshiftDiscoveryRegions is a list of regions the Redshift auto-discovery is
-	// configured.
+	// RedshiftDiscoveryRegions is a list of regions the Redshift
+	// auto-discovery is configured.
 	RedshiftDiscoveryRegions []string
 	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
 	// auto-discovery is configured.

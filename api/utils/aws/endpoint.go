@@ -139,7 +139,8 @@ func parseRedshiftCNEndpoint(endpoint string) (clusterID, region string, err err
 	return parts[0], parts[3], nil
 }
 
-// RedisEndpointInfo describes details extracted from a Redis endpoint.
+// RedisEndpointInfo describes details extracted from a ElastiCache or MemoryDB
+// Redis endpoint.
 type RedisEndpointInfo struct {
 	// ID is the identifier of the endpoint.
 	ID string
@@ -184,7 +185,7 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 	endpoint = parsedURL.Hostname()
 
 	// Remove partition suffix. Note that endpoints for CN regions use the same
-	// format but end with AWSCNEndpointSuffix.
+	// format except they end with AWSCNEndpointSuffix.
 	endpointWithoutSuffix := ""
 	switch {
 	case strings.HasSuffix(endpoint, AWSEndpointSuffix):
@@ -248,10 +249,10 @@ func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) 
 		}
 
 		// Node, primary, reader endpoints for Redis with TLS enabled look like:
-		// master.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
-		// replica.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
 		// my-redis-cluster-001.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
 		// my-redis-shards-0001-001.my-redis-shards.xxxxxx.use1.cache.<suffix>:6379
+		// master.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
+		// replica.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
 		var endpointType string
 		switch strings.ToLower(parts[0]) {
 		case "master":

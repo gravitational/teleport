@@ -433,30 +433,6 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 	), nil
 }
 
-// isAutoDiscoveryEnabledForType returns true if provided AWS matcher type is
-// found.
-func isAutoDiscoveryEnabledForType(fileConfig *config.FileConfig, matcherType string) bool {
-	for _, matcher := range fileConfig.Databases.AWSMatchers {
-		for _, databaseType := range matcher.Types {
-			if databaseType == matcherType {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// findEndpointIs returns true if provided check return true for any static
-// endpoint.
-func findEndpointIs(fileConfig *config.FileConfig, endpointIs func(string) bool) bool {
-	for _, database := range fileConfig.Databases.Databases {
-		if endpointIs(database.URI) {
-			return true
-		}
-	}
-	return false
-}
-
 // isRDSAutoDiscoveryEnabled checks if the agent needs permission for
 // RDS/Aurora auto-discovery.
 func isRDSAutoDiscoveryEnabled(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
@@ -464,7 +440,7 @@ func isRDSAutoDiscoveryEnabled(flags BootstrapFlags, fileConfig *config.FileConf
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForType(fileConfig, services.AWSMatcherRDS)
+	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherRDS)
 }
 
 // hasRedshiftDatabases checks if the agent needs permission for
@@ -474,7 +450,7 @@ func hasRedshiftDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) b
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForType(fileConfig, services.AWSMatcherRedshift) ||
+	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherRedshift) ||
 		findEndpointIs(fileConfig, awsutils.IsRedshiftEndpoint)
 }
 
@@ -485,8 +461,32 @@ func hasElastiCacheDatabases(flags BootstrapFlags, fileConfig *config.FileConfig
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForType(fileConfig, services.AWSMatcherElastiCache) ||
+	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherElastiCache) ||
 		findEndpointIs(fileConfig, awsutils.IsElastiCacheEndpoint)
+}
+
+// isAutoDiscoveryEnabledForMatcher returns true if provided AWS matcher type
+// is found.
+func isAutoDiscoveryEnabledForMatcher(fileConfig *config.FileConfig, matcherType string) bool {
+	for _, matcher := range fileConfig.Databases.AWSMatchers {
+		for _, databaseType := range matcher.Types {
+			if databaseType == matcherType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// findEndpointIs returns true if provided check returns true for any static
+// endpoint.
+func findEndpointIs(fileConfig *config.FileConfig, endpointIs func(string) bool) bool {
+	for _, database := range fileConfig.Databases.Databases {
+		if endpointIs(database.URI) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildIAMEditStatements returns IAM statements necessary for the Teleport

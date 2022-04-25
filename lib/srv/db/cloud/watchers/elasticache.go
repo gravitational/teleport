@@ -108,7 +108,7 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 	// Fetch more information to provide extra labels. Do not fail because some
 	// of these labels are missing.
-	nodes, err := getElastiCacheNodes(ctx, f.cfg.ElastiCache)
+	allNodes, err := getElastiCacheNodes(ctx, f.cfg.ElastiCache)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			f.log.WithError(err).Debug("No permissions to describe nodes")
@@ -116,7 +116,7 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 			f.log.WithError(err).Info("Failed to describe nodes.")
 		}
 	}
-	subnetGroups, err := getElastiCacheSubnetGroups(ctx, f.cfg.ElastiCache)
+	allSubnetGroups, err := getElastiCacheSubnetGroups(ctx, f.cfg.ElastiCache)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			f.log.WithError(err).Debug("No permissions to describe subnet groups")
@@ -130,16 +130,16 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 		// Resource tags are not found in elasticache.ReplicationGroup but can
 		// be on obtained by elasticache.ListTagsForResource (one call per
 		// resource).
-		tags, err := getElastiCacheTagsForCluster(ctx, f.cfg.ElastiCache, cluster)
+		tags, err := getElastiCacheResourceTags(ctx, f.cfg.ElastiCache, cluster.ARN)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
 				f.log.WithError(err).Debug("No permissions to list resource tags")
 			} else {
-				f.log.WithError(err).Infof("Failed to list tags for ElastiCache cluster %q.", aws.StringValue(cluster.ReplicationGroupId))
+				f.log.WithError(err).Infof("Failed to list resource tags for ElastiCache cluster %q.", aws.StringValue(cluster.ReplicationGroupId))
 			}
 		}
 
-		extraLabels := services.ExtraElastiCacheLabels(cluster, tags, nodes, subnetGroups)
+		extraLabels := services.ExtraElastiCacheLabels(cluster, tags, allNodes, allSubnetGroups)
 
 		// Create database using configuration endpoint for Redis with cluster
 		// mode enabled.
@@ -159,7 +159,7 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 		// there is only one node group (aka shard) with one primary endpoint
 		// and one reader endpoint.
 		if databasesFromNodeGroups, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels); err != nil {
-			f.log.Infof("Could not convert ElastiCache cluster %q node groups to database resource: %v.",
+			f.log.Infof("Could not convert ElastiCache cluster %q node groups to database resources: %v.",
 				aws.StringValue(cluster.ReplicationGroupId), err)
 		} else {
 			databases = append(databases, databasesFromNodeGroups...)
@@ -206,7 +206,7 @@ func getElastiCacheNodes(ctx context.Context, client elasticacheiface.ElastiCach
 
 			// There are three types of elasticache.CacheCluster:
 			// 1) a Memcache cluster.
-			// 2) a Redis node belongs to a single node deployment (no TLS support).
+			// 2) a Redis node belongs to a single node deployment (legacy, no TLS support).
 			// 3) a Redis node belongs to a Redis replication group.
 			// Only the ones belong to replication groups are wanted.
 			for _, cacheCluster := range page.CacheClusters {
@@ -237,11 +237,11 @@ func getElastiCacheSubnetGroups(ctx context.Context, client elasticacheiface.Ela
 	return subnetGroups, common.ConvertError(err)
 }
 
-// getElastiCacheTagsForCluster fetches resource tags for provided ElastiCache
+// getElastiCacheResourceTags fetches resource tags for provided ElastiCache
 // replication group.
-func getElastiCacheTagsForCluster(ctx context.Context, client elasticacheiface.ElastiCacheAPI, cluster *elasticache.ReplicationGroup) ([]*elasticache.Tag, error) {
+func getElastiCacheResourceTags(ctx context.Context, client elasticacheiface.ElastiCacheAPI, resourceName *string) ([]*elasticache.Tag, error) {
 	input := &elasticache.ListTagsForResourceInput{
-		ResourceName: cluster.ARN,
+		ResourceName: resourceName,
 	}
 	output, err := client.ListTagsForResourceWithContext(ctx, input)
 	if err != nil {

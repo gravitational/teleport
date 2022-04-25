@@ -245,10 +245,7 @@ func TestWatcher(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			watcher, err := NewWatcher(ctx, WatcherConfig{AWSMatchers: test.awsMatchers, Clients: test.clients})
 			require.NoError(t, err)
 
@@ -366,6 +363,8 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 		ReplicationGroupId:       aws.String(name),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
+
+		// Default has one primary endpoint in the only node group.
 		NodeGroups: []*elasticache.NodeGroup{{
 			PrimaryEndpoint: &elasticache.Endpoint{
 				Address: aws.String("primary.localhost"),
@@ -390,7 +389,6 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 		return cluster, database, tags
 	}
 
-	// Return the primary endpoint from a single node group.
 	databases, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
 	require.NoError(t, err)
 	require.Len(t, databases, 1)

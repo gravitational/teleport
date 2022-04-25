@@ -78,7 +78,7 @@ func TestDatabaseStatus(t *testing.T) {
 }
 
 func TestDatabaseElastiCacheEndpoint(t *testing.T) {
-	t.Run("valid", func(t *testing.T) {
+	t.Run("valid URI", func(t *testing.T) {
 		database, err := NewDatabaseV3(Metadata{
 			Name: "elasticache",
 		}, DatabaseSpecV3{
@@ -100,16 +100,28 @@ func TestDatabaseElastiCacheEndpoint(t *testing.T) {
 		require.True(t, database.IsCloudHosted())
 	})
 
-	t.Run("invalid", func(t *testing.T) {
-		database, err := NewDatabaseV3(Metadata{
+	t.Run("invalid URI", func(t *testing.T) {
+		database, err := NewDatabaseV2(Metadata{
 			Name: "elasticache",
 		}, DatabaseSpecV3{
 			Protocol: "redis",
 			URI:      "some.endpoint.cache.amazonaws.com:6379",
+			AWS: AWS{
+				Region: "us-east-5",
+				ElastiCache: ElastiCache{
+					ReplicationGroupID: "some-id",
+				},
+			},
 		})
 
-		// No error but AWS is not populated.
+		// A warning is logged, no error is returned, and AWS metadata is not
+		// updated.
 		require.NoError(t, err)
-		require.Equal(t, AWS{}, database.GetAWS())
+		require.Equal(t, AWS{
+			Region: "us-east-5",
+			ElastiCache: ElastiCache{
+				ReplicationGroupID: "some-id",
+			},
+		}, database.GetAWS())
 	})
 }
