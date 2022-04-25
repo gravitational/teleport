@@ -40,7 +40,7 @@ func newMigrateTest() knownHostsMigrateTest {
 }
 
 func generateHostCert(t *testing.T, s *knownHostsMigrateTest, clusterName string) []byte {
-	_, hostPub, err := s.keygen.GenerateKeyPair("")
+	_, hostPub, err := s.keygen.GenerateKeyPair()
 	require.NoError(t, err)
 
 	caSigner, err := ssh.ParsePrivateKey(CAPriv)
