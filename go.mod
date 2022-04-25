@@ -13,7 +13,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.16
 	github.com/ThalesIgnite/crypto11 v1.2.4
 	github.com/alicebob/miniredis/v2 v2.17.0
-	github.com/aquasecurity/libbpfgo v0.1.0
+	github.com/aquasecurity/libbpfgo v0.2.5-libbpf-0.7.0
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.43.15
 	github.com/aws/aws-sdk-go-v2 v1.9.0
