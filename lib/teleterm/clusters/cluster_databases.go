@@ -116,6 +116,7 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
 		Username:    user,
+		Database:    dbName,
 	}, c.status)
 	if err != nil {
 		return trace.Wrap(err)
