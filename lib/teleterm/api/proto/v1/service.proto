@@ -27,7 +27,7 @@ import "v1/app.proto";
 import "v1/server.proto";
 import "v1/auth_settings.proto";
 
-// TerminalService desribes teleterm service
+// TerminalService describes Teleterm service
 service TerminalService {
     // ListRootClusters lists root clusters
     rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
@@ -35,6 +35,8 @@ service TerminalService {
     rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
     // ListDatabases lists databases
     rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+    // ListDatabaseUsers lists allowed users for the given database based on the role set.
+    rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
     // ListGateways lists gateways
     rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
     // ListServers lists servers
@@ -116,6 +118,10 @@ message ListDatabasesRequest { string cluster_uri = 1; }
 message ListLeafClustersRequest { string cluster_uri = 1; }
 
 message ListDatabasesResponse { repeated Database databases = 1; }
+
+message ListDatabaseUsersRequest { string db_uri = 1; }
+
+message ListDatabaseUsersResponse { repeated string users = 1; }
 
 message CreateGatewayRequest {
     string target_uri = 1;

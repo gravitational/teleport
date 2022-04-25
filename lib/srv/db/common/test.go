@@ -66,7 +66,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	if cn == "" {
 		cn = "localhost"
 	}
-	privateKey, _, err := testauthority.New().GenerateKeyPair("")
+	privateKey, _, err := testauthority.New().GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

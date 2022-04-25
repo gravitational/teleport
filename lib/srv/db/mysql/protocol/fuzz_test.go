@@ -1,5 +1,7 @@
+//go:build go1.18
+
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,27 +16,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package protocol
 
 import (
-	"strings"
-	"unicode"
+	"bytes"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-// Capitalize returns a copy of the string
-// with first rune converted to capital letter
-func Capitalize(s string) string {
-	// Use a closure here to remember state.
-	// Hackish but effective. Depends on Map scanning in order and calling
-	// the closure once per rune.
-	done := false
-	return strings.Map(
-		func(r rune) rune {
-			if done {
-				return r
-			}
-			done = true
-			return unicode.ToTitle(r)
-		},
-		s)
+func FuzzParsePacket(f *testing.F) {
+	testcases := [][]byte{
+		{},
+		[]byte("00000"),
+	}
+
+	for _, tc := range testcases {
+		f.Add(tc)
+	}
+
+	f.Fuzz(func(t *testing.T, packet []byte) {
+		r := bytes.NewReader(packet)
+		require.NotPanics(t, func() {
+			_, _ = ParsePacket(r)
+		})
+	})
 }

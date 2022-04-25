@@ -867,7 +867,8 @@
         "first": "abcd123-insecure-do-not-use-this",
         "second": "efgh456-insecure-do-not-use-this",
         "third": "ijkl789-insecure-do-not-use-this"
-      }
+      },
+      "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "fedramp": {
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
