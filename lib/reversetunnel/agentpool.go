@@ -253,7 +253,7 @@ func (p *AgentPool) run() error {
 
 // connectAgent connects a new agent and processes any agent events blocking until a
 // new agent is connected or an error occurs.
-func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease, events <-chan Agent) (*agent, error) {
+func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease, events <-chan Agent) (Agent, error) {
 	lease, err := p.waitForLease(ctx, leases, events)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -432,7 +432,7 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 }
 
 // newAgent creates a new agent instance.
-func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease track.Lease) (*agent, error) {
+func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease track.Lease) (Agent, error) {
 	addr, err := p.Resolver()
 	if err != nil {
 		return nil, trace.Wrap(err)

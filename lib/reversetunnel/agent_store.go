@@ -41,7 +41,7 @@ func (s *agentStore) len() int {
 }
 
 // add adds an agent to the store.
-func (s *agentStore) add(agent *agent) {
+func (s *agentStore) add(agent Agent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.agents = append(s.agents, agent)
