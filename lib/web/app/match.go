@@ -85,7 +85,9 @@ func MatchName(name string) Matcher {
 // doesn't return any error.
 func MatchHealthy(proxyClient reversetunnel.Tunnel, identity *tlsca.Identity) Matcher {
 	return func(appServer types.AppServer) bool {
-		_, err := dialAppServer(proxyClient, identity, appServer)
+		conn, err := dialAppServer(proxyClient, identity, appServer)
+		conn.Close()
+
 		return err == nil
 	}
 }
