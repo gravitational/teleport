@@ -1587,6 +1587,9 @@ message RoleOptions {
     // CertExtensions specifies the key/values
     repeated CertExtension CertExtensions = 17
         [ (gogoproto.jsontag) = "cert_extensions,omitempty" ];
+
+    // PinSourceIP forces the same client IP for certificate generation and usage
+    bool PinSourceIP = 18 [ (gogoproto.jsontag) = "pin_source_ip", (gogoproto.casttype) = "Bool" ];
 }
 
 message RecordSession {

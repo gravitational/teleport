@@ -281,6 +281,9 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	}
 	if c.ClientIP != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionClientIP] = c.ClientIP
+		if c.PinSourceIP {
+			cert.Permissions.CriticalOptions = map[string]string{"source-address": c.ClientIP}
+		}
 	}
 	if c.Impersonator != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionImpersonator] = c.Impersonator

@@ -298,6 +298,8 @@ type UserCertParams struct {
 	Renewable bool
 	// Generation counts the number of times a certificate has been renewed.
 	Generation uint64
+	// PinSourceIP forces the same client IP for certificate generation and usage
+	PinSourceIP bool
 }
 
 // CheckAndSetDefaults checks the user certificate parameters
