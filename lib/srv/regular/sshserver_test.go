@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -128,7 +129,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
-	priv, pub, err := testServer.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -1633,7 +1634,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	priv, pub, err := authSrv.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -1928,7 +1929,7 @@ type upack struct {
 func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	ctx := context.Background()
 	auth := testSvr.Auth()
-	upriv, upub, err := auth.GenerateKeyPair("")
+	upriv, upub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
