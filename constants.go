@@ -647,12 +647,6 @@ const (
 	// KubeConfigFile is a default filename where k8s stores its user local config
 	KubeConfigFile = "config"
 
-	// EnvHome is home environment variable
-	EnvHome = "HOME"
-
-	// EnvUserProfile is the home directory environment variable on Windows.
-	EnvUserProfile = "USERPROFILE"
-
 	// KubeRunTests turns on kubernetes tests
 	KubeRunTests = "TEST_KUBE"
 
