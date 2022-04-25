@@ -20,6 +20,7 @@ package labels
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -165,4 +167,96 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 	defer l.mu.Unlock()
 
 	l.c.Labels[name] = value
+}
+
+type EC2Labels struct {
+	mu  sync.Mutex
+	log *logrus.Entry
+
+	client *utils.InstanceMetadataClient
+	labels map[string]string
+
+	closeContext context.Context
+	closeFunc    context.CancelFunc
+}
+
+func NewEC2Labels(ctx context.Context, log *logrus.Entry) (*EC2Labels, error) {
+	closeContext, closeFunc := context.WithCancel(ctx)
+
+	client, err := utils.NewInstanceMetadataClient(closeContext)
+	if err != nil {
+		closeFunc()
+		return nil, trace.Wrap(err)
+	}
+
+	l := EC2Labels{
+		log:          log,
+		client:       client,
+		labels:       make(map[string]string),
+		closeContext: closeContext,
+		closeFunc:    closeFunc,
+	}
+	if l.log == nil {
+		l.log = logrus.NewEntry(logrus.StandardLogger())
+	}
+	return &l, nil
+}
+
+// Get returns the list of updated EC2 labels.
+func (l *EC2Labels) Get() map[string]string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	m := make(map[string]string)
+	for k, v := range l.labels {
+		m[fmt.Sprintf("%s/%s", types.AWSNamespace, k)] = v
+	}
+
+	return m
+}
+
+// Sync will block and synchronously update EC2 labels.
+func (l *EC2Labels) Sync() {
+	m := make(map[string]string)
+
+	tags, err := l.client.GetTagKeys()
+	if err != nil {
+		l.log.Errorf("Error fetching EC2 tags: %v", err)
+		return
+	}
+
+	for _, t := range tags {
+		value, err := l.client.GetTagValue(t)
+		if err != nil {
+			l.log.Errorf("Error fetching EC2 tags: %v", err)
+			return
+		}
+		m[t] = value
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.labels = m
+}
+
+// Start will start a loop that continually keeps EC2 labels updated.
+func (l *EC2Labels) Start() {
+	go func() {
+		ticker := time.NewTicker(types.EC2LabelUpdatePeriod)
+		defer ticker.Stop()
+
+		for {
+			l.Sync()
+			select {
+			case <-ticker.C:
+			case <-l.closeContext.Done():
+				return
+			}
+		}
+	}()
+}
+
+// Close will free up all resources and stop keeping EC2 labels updated.
+func (l *EC2Labels) Close() {
+	l.closeFunc()
 }

@@ -16,6 +16,8 @@ limitations under the License.
 
 package types
 
+import "time"
+
 const (
 	// DefaultAPIGroup is a default group of permissions API,
 	// lets us to add different permission types
@@ -321,6 +323,14 @@ const (
 	// OriginCloud is an origin value indicating that the resource was
 	// imported from a cloud provider.
 	OriginCloud = "cloud"
+)
+
+const (
+	// AWSNamespace is used as the namespace prefix for any labels
+	// imported from AWS.
+	AWSNamespace = "aws"
+	// EC2LabelUpdatePeriod is the period for updating EC2 labels.
+	EC2LabelUpdatePeriod = time.Hour
 )
 
 // OriginValues lists all possible origin values.

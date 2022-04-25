@@ -18,8 +18,10 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"regexp"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -83,4 +85,53 @@ func IsEC2NodeID(id string) bool {
 // the given Instance Identity Document.
 func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
 	return iid.AccountID + "-" + iid.InstanceID
+}
+
+// InstanceMetadataClient is a wrapper for an imds.Client.
+type InstanceMetadataClient struct {
+	imdsClient *imds.Client
+	ctx        context.Context
+}
+
+// NewInstanceMetadataClient creates a new instance metadata client.
+func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &InstanceMetadataClient{
+		imdsClient: imds.NewFromConfig(cfg), ctx: ctx,
+	}, nil
+}
+
+// getMetadata gets the raw metadata from a specified path.
+func (client *InstanceMetadataClient) getMetadata(path string) (string, error) {
+	output, err := client.imdsClient.GetMetadata(client.ctx, &imds.GetMetadataInput{Path: path})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer output.Content.Close()
+	body, err := io.ReadAll(output.Content)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(body), nil
+}
+
+// GetTagKeys gets all of the EC2 tag keys.
+func (client *InstanceMetadataClient) GetTagKeys() ([]string, error) {
+	body, err := client.getMetadata("tags/instance")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return strings.Split(body, "\n"), nil
+}
+
+// GetTagValue gets the value for a specified tag key.
+func (client *InstanceMetadataClient) GetTagValue(key string) (string, error) {
+	body, err := client.getMetadata(fmt.Sprintf("tags/instance/%s", key))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return body, nil
 }
