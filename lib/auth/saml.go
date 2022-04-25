@@ -129,6 +129,10 @@ func (a *Server) getConnectorAndProvider(ctx context.Context, req services.SAMLA
 			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
 		}
 
+		if req.ConnectorID == "" {
+			return nil, nil, trace.BadParameter("ConnectorID cannot be empty")
+		}
+
 		// stateless test flow
 		connector, err := types.NewSAMLConnector(req.ConnectorID, *req.ConnectorSpec)
 		if err != nil {
@@ -146,6 +150,7 @@ func (a *Server) getConnectorAndProvider(ctx context.Context, req services.SAMLA
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+
 		return connector, provider, nil
 	}
 
