@@ -242,7 +242,7 @@ func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, 
 
 // NewDatabaseFromElastiCacheConfigurationEndpoint creates a database resource
 // from ElastiCache configuration endpoint.
-func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.ReplicationGroup) (types.Database, error) {
+func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Database, error) {
 	metadata, err := MetadataFromElastiCacheCluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -252,12 +252,12 @@ func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.Replic
 		return nil, trace.BadParameter("missing configuration endpoint")
 	}
 
-	return newElastiCacheDatabase(cluster, metadata, cluster.ConfigurationEndpoint, ElastiCacheConfigurationEndpoint)
+	return newElastiCacheDatabase(cluster, metadata, cluster.ConfigurationEndpoint, ElastiCacheConfigurationEndpoint, extraLabels)
 }
 
 // NewDatabasesFromElastiCacheNodeGroups creates database resources from
-// ElastiCache node group.
-func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup) (types.Databases, error) {
+// ElastiCache node groups.
+func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
 	metadata, err := MetadataFromElastiCacheCluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -266,7 +266,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 	var databases types.Databases
 	for _, nodeGroup := range cluster.NodeGroups {
 		if nodeGroup.PrimaryEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, metadata, nodeGroup.PrimaryEndpoint, ElastiCachePrimaryEndpoint)
+			database, err := newElastiCacheDatabase(cluster, metadata, nodeGroup.PrimaryEndpoint, ElastiCachePrimaryEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -274,7 +274,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 		}
 
 		if nodeGroup.ReaderEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, metadata, nodeGroup.ReaderEndpoint, ElastiCacheReaderEndpoint)
+			database, err := newElastiCacheDatabase(cluster, metadata, nodeGroup.ReaderEndpoint, ElastiCacheReaderEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -285,7 +285,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 }
 
 // newElastiCacheDatabase returns a new ElastiCache database.
-func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, metadata *types.AWS, endpoint *elasticache.Endpoint, endpointType ElastiCacheEndpointType) (types.Database, error) {
+func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, metadata *types.AWS, endpoint *elasticache.Endpoint, endpointType ElastiCacheEndpointType, extraLabels map[string]string) (types.Database, error) {
 	name := aws.StringValue(cluster.ReplicationGroupId)
 	if endpointType == ElastiCacheReaderEndpoint {
 		name = fmt.Sprintf("%s-%s", name, endpointType)
@@ -293,8 +293,8 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, metadata *typ
 
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        name,
-		Description: fmt.Sprintf("ElastiCache in %v (%v endpoint)", metadata.Region, endpointType),
-		Labels:      labelsFromElastiCacheCluster(cluster, metadata, endpointType),
+		Description: fmt.Sprintf("ElastiCache cluster in %v (%v endpoint)", metadata.Region, endpointType),
+		Labels:      labelsFromElastiCacheCluster(cluster, metadata, endpointType, extraLabels),
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
@@ -372,23 +372,25 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup) (*typ
 	}, nil
 }
 
-// UpdateElastiCacheDatabaseLabels adds extra static labels to ElastiCache
-// database, and returns the updated database.
-func UpdateElastiCacheDatabaseLabels(database types.Database, tags []*elasticache.Tag, nodes []*elasticache.CacheCluster, subnetGroups []*elasticache.CacheSubnetGroup) types.Database {
-	replicationGroupID := database.GetAWS().ElastiCache.ReplicationGroupID
+// ExtraElastiCacheLabels returns a list of extra labels for provided
+// ElastiCache cluster.
+func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elasticache.Tag, allNodes []*elasticache.CacheCluster, allSubnetGroups []*elasticache.CacheSubnetGroup) map[string]string {
+	replicationGroupID := aws.StringValue(cluster.ReplicationGroupId)
 	subnetGroupName := ""
-	labels := database.GetStaticLabels()
+	labels := make(map[string]string)
 
 	// Add AWS resource tags.
 	for _, tag := range tags {
 		key := aws.StringValue(tag.Key)
 		if types.IsValidLabelKey(key) {
 			labels[key] = aws.StringValue(tag.Value)
+		} else {
+			log.Debugf("Skipping ElastiCache tag %q, not a valid label key.", key)
 		}
 	}
 
-	// Find any node belongs to this database and set engine version label.
-	for _, node := range nodes {
+	// Find any node belongs to this cluster and set engine version label.
+	for _, node := range allNodes {
 		if aws.StringValue(node.ReplicationGroupId) == replicationGroupID {
 			subnetGroupName = aws.StringValue(node.CacheSubnetGroupName)
 			labels[labelEngineVersion] = aws.StringValue(node.EngineVersion)
@@ -396,16 +398,15 @@ func UpdateElastiCacheDatabaseLabels(database types.Database, tags []*elasticach
 		}
 	}
 
-	// Find the subnet group used by this database and set VPC ID label.
-	for _, subnetGroup := range subnetGroups {
+	// Find the subnet group used by this cluster and set VPC ID label.
+	for _, subnetGroup := range allSubnetGroups {
 		if aws.StringValue(subnetGroup.CacheSubnetGroupName) == subnetGroupName {
 			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
 			break
 		}
 	}
 
-	database.SetStaticLabels(labels)
-	return database
+	return labels
 }
 
 // engineToProtocol converts RDS instance engine to the database protocol.
@@ -450,6 +451,8 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 		key := aws.StringValue(tag.Key)
 		if types.IsValidLabelKey(key) {
 			labels[key] = aws.StringValue(tag.Value)
+		} else {
+			log.Debugf("Skipping Redshift tag %q, not a valid label key.", key)
 		}
 	}
 	labels[types.OriginLabel] = types.OriginCloud
@@ -460,8 +463,11 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 
 // labelsFromElastiCacheCluster creates database labels for the provided
 // ElastiCache cluster.
-func labelsFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, meta *types.AWS, endpointType ElastiCacheEndpointType) map[string]string {
+func labelsFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, meta *types.AWS, endpointType ElastiCacheEndpointType, extraLabels map[string]string) map[string]string {
 	labels := make(map[string]string)
+	for key, value := range extraLabels {
+		labels[key] = value
+	}
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region

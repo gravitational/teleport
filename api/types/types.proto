@@ -293,14 +293,6 @@ message Redshift {
     string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
 }
 
-// ElastiCache contains AWS ElastiCache Redis specific metadata.
-message ElastiCache {
-    string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id" ];
-    repeated string UserGroupIDs = 2 [ (gogoproto.jsontag) = "replication_group_ids" ];
-    bool TLSEnabled = 3 [ (gogoproto.jsontag) = "tls_enabled" ];
-    bool ClusterEnabled = 4 [ (gogoproto.jsontag) = "cluster_enabled" ];
-}
-
 // RDS contains AWS RDS specific database metadata.
 message RDS {
     // InstanceID is the RDS instance identifier.
@@ -311,6 +303,18 @@ message RDS {
     string ResourceID = 3 [ (gogoproto.jsontag) = "resource_id,omitempty" ];
     // IAMAuth indicates whether database IAM authentication is enabled.
     bool IAMAuth = 4 [ (gogoproto.jsontag) = "iam_auth" ];
+}
+
+// ElastiCache contains AWS ElastiCache Redis specific metadata.
+message ElastiCache {
+    // ReplicationGroupID is the Redis replication group ID.
+    string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id" ];
+    // UserGroupIDs is a list of user group IDs.
+    repeated string UserGroupIDs = 2 [ (gogoproto.jsontag) = "replication_group_ids" ];
+    // TLSEnabled indicates whether in-transit encryption (TLS) is enabled.
+    bool TLSEnabled = 3 [ (gogoproto.jsontag) = "tls_enabled" ];
+    // TLSEnabled indicates whether Redis cluster mode is enabled.
+    bool ClusterEnabled = 4 [ (gogoproto.jsontag) = "cluster_enabled" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.

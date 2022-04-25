@@ -208,9 +208,9 @@ func TestWatcher(t *testing.T) {
 			clients: &common.TestCloudClients{
 				ElastiCache: &cloud.ElastiCacheMock{
 					ReplicationGroups: []*elasticache.ReplicationGroup{
-						elasticacheProd,
-						elasticacheQA,
-						elasticacheTest,
+						elasticacheProd, // labels match
+						elasticacheQA,   // labels match
+						elasticacheTest, // labels do not match
 						elasticacheUnavailable,
 						elasticacheUnsupported,
 					},
@@ -382,17 +382,19 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 		Key:   aws.String("env"),
 		Value: aws.String(env),
 	}}
+	extraLabels := services.ExtraElastiCacheLabels(cluster, tags, nil, nil)
 
 	if aws.BoolValue(cluster.ClusterEnabled) {
-		database, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster)
+		database, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
 		require.NoError(t, err)
-		return cluster, services.UpdateElastiCacheDatabaseLabels(database, tags, nil, nil), tags
+		return cluster, database, tags
 	}
 
-	databases, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster)
+	// Only one primary endpoint from a single node group.
+	databases, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
 	require.NoError(t, err)
 	require.Len(t, databases, 1)
-	return cluster, services.UpdateElastiCacheDatabaseLabels(databases[0], tags, nil, nil), tags
+	return cluster, databases[0], tags
 }
 
 // withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.
