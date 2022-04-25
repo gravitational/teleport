@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -1484,7 +1485,7 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 }
 
 func (s *TLSSuite) TestAccessRequest(c *check.C) {
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -1673,7 +1674,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -1762,7 +1763,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 func TestGenerateCerts(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
-	priv, pub, err := srv.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -2213,7 +2214,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 // correct format.
 func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 	ctx := context.Background()
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -2289,7 +2290,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, pub, err := s.server.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// try and generate a host cert, this should fail because we are recording
@@ -2524,7 +2525,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 
 	// Make sure access is denied for SSH login.
-	_, pub, err := s.server.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	_, err = s.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
@@ -2622,7 +2623,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Generate public and private keys for node.
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	c.Assert(err, check.IsNil)
@@ -2757,7 +2758,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Generate public and private keys for node.
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	c.Assert(err, check.IsNil)

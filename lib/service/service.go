@@ -770,13 +770,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		precomputeCount := native.PrecomputedNum
-		// in case if not auth or proxy services are enabled,
-		// there is no need to precompute any SSH keys in the pool
-		if !cfg.Auth.Enabled && !cfg.Proxy.Enabled {
-			precomputeCount = 0
-		}
-		cfg.Keygen = native.New(process.ExitContext(), native.PrecomputeKeys(precomputeCount))
+		cfg.Keygen = native.New(process.ExitContext())
 	}
 
 	if cfg.Auth.Enabled {
@@ -1261,10 +1255,9 @@ func (process *TeleportProcess) initAuthService() error {
 	process.setLocalAuth(authServer)
 
 	// Upload completer is responsible for checking for initiated but abandoned
-	// session uploads and completing them
-	var uploadCompleter *events.UploadCompleter
+	// session uploads and completing them. it will be closed once the process exits.
 	if uploadHandler != nil {
-		uploadCompleter, err = events.NewUploadCompleter(events.UploadCompleterConfig{
+		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
 			AuditLog:       process.auditLog,
@@ -1485,9 +1478,6 @@ func (process *TeleportProcess) initAuthService() error {
 			// such as access workflow plugins from normal users.  Without this, a graceful shutdown
 			// of the auth server basically never exits.
 			warnOnErr(tlsServer.Close(), log)
-		}
-		if uploadCompleter != nil {
-			warnOnErr(uploadCompleter.Close(), log)
 		}
 		log.Info("Exited.")
 	})
@@ -2111,7 +2101,7 @@ func (process *TeleportProcess) initUploaderService(streamer events.Streamer, au
 
 	process.OnExit("fileuploader.shutdown", func(payload interface{}) {
 		log.Infof("File uploader is shutting down.")
-		warnOnErr(fileUploader.Close(), log)
+		fileUploader.Close()
 		log.Infof("File uploader has shut down.")
 	})
 
@@ -2148,6 +2138,7 @@ func (process *TeleportProcess) initMetricsService() error {
 			return trace.BadParameter("no keypairs were provided for the metrics service with mtls enabled")
 		}
 
+		addedCerts := false
 		pool := x509.NewCertPool()
 		for _, caCertPath := range process.Config.Metrics.CACerts {
 			caCert, err := os.ReadFile(caCertPath)
@@ -2158,9 +2149,10 @@ func (process *TeleportProcess) initMetricsService() error {
 			if !pool.AppendCertsFromPEM(caCert) {
 				return trace.BadParameter("failed to parse prometheus CA certificate: %+v", caCertPath)
 			}
+			addedCerts = true
 		}
 
-		if len(pool.Subjects()) == 0 {
+		if !addedCerts {
 			return trace.BadParameter("no prometheus ca certs were provided for the metrics service with mtls enabled")
 		}
 
@@ -3358,7 +3350,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		// order to be able to validate certificates provided by app
 		// access CLI clients.
 		var err error
-		tlsClone.ClientCAs, err = auth.DefaultClientCertPool(accessPoint, clusterName)
+		tlsClone.ClientCAs, _, err = auth.DefaultClientCertPool(accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

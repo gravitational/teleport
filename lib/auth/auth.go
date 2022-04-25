@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -150,7 +151,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
-		cfg.KeyStoreConfig.RSAKeyPairSource = cfg.Authority.GenerateKeyPair
+		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	if cfg.KeyStoreConfig.HostUUID == "" {
 		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
@@ -2294,7 +2295,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		return nil, trace.Wrap(err)
 	}
 
-	priv, pub, err := a.GetNewKeyPairFromPool()
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3664,6 +3665,7 @@ const (
 type oidcClient struct {
 	client *oidc.Client
 	config oidc.ClientConfig
+	cancel context.CancelFunc
 }
 
 // samlProvider is internal structure that stores SAML client and its config
@@ -3760,7 +3762,7 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 				}
 			}
 		}
-		pool, err := DefaultClientCertPool(ap, clusterName)
+		pool, totalSubjectsLen, err := DefaultClientCertPool(ap, clusterName)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
 			// this falls back to the default config
@@ -3779,16 +3781,10 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 		// If the number of CAs turns out too large for the handshake, drop all but
 		// the current cluster CA. In the unlikely case where it's wrong, the
 		// client will be rejected.
-		var totalSubjectsLen int64
-		for _, s := range pool.Subjects() {
-			// Each subject in the list gets a separate 2-byte length prefix.
-			totalSubjectsLen += 2
-			totalSubjectsLen += int64(len(s))
-		}
 		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("Number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.", len(pool.Subjects()))
+			log.Debugf("Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.")
 
-			pool, err = DefaultClientCertPool(ap, currentClusterName)
+			pool, _, err = DefaultClientCertPool(ap, currentClusterName)
 			if err != nil {
 				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
 				// this falls back to the default config
