@@ -46,7 +46,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	if err := c.ReissueDBCerts(ctx, params.TargetUser, db, params.TargetSubresourceName); err != nil {
+	if err := c.ReissueDBCerts(ctx, params.TargetUser, params.TargetSubresourceName, db); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
