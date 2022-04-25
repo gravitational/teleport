@@ -245,6 +245,8 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		},
 	}
 
+	fwd.router.UseRawPath = true
+
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 
@@ -799,11 +801,6 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	<-party.closeC
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return nil, nil
 }
 

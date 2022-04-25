@@ -42,6 +42,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -89,6 +90,10 @@ func NewSessionRegistry(srv Server, auth auth.ClientI) (*SessionRegistry, error)
 
 	if srv.GetSessionServer() == nil {
 		return nil, trace.BadParameter("session server is required")
+	}
+
+	if auth == nil {
+		return nil, trace.BadParameter("auth client is required")
 	}
 
 	return &SessionRegistry{
@@ -371,7 +376,6 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		// not lingering anymore? someone reconnected? cool then... no need
 		// to die...
 		if !sess.isLingering() {
-			fmt.Println("Lingering")
 			s.log.Infof("Session %v has become active again.", sess.id)
 			return
 		}
@@ -703,6 +707,10 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 
 	err = sess.trackerCreate(ctx.Identity.TeleportUser, policySets)
 	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -756,8 +764,11 @@ func (s *session) Close() error {
 				}
 			}
 
+			// Complete the session recording
 			if s.recorder != nil {
-				s.recorder.Close(s.serverCtx)
+				if err := s.recorder.Complete(s.serverCtx); err != nil {
+					s.log.WithError(err).Warn("Failed to close recorder.")
+				}
 			}
 
 			s.stateUpdate.L.Lock()
@@ -1273,6 +1284,9 @@ func sessionsStreamingUploadDir(ctx *ServerContext) string {
 }
 
 func (s *session) broadcastResult(r ExecResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for _, p := range s.parties {
 		p.ctx.SendExecResult(r)
 	}
@@ -1693,10 +1707,6 @@ func (p *party) Close() (err error) {
 }
 
 func (s *session) trackerGet() (types.SessionTracker, error) {
-	if s.registry.auth == nil {
-		return nil, trace.BadParameter("cannot fetch session without auth service")
-	}
-
 	// get the session from the registry
 	sess, err := s.registry.auth.GetSessionTracker(s.serverCtx, s.id.String())
 	if err != nil {
@@ -1707,10 +1717,6 @@ func (s *session) trackerGet() (types.SessionTracker, error) {
 }
 
 func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	s.log.Debug("Creating tracker")
 	initator := &types.Participant{
 		ID:         teleportUser,
@@ -1745,7 +1751,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 
 	_, err := s.registry.auth.CreateSessionTracker(s.serverCtx, req)
 	if err != nil {
-		return trace.Wrap(err)
+		return trail.FromGRPC(err)
 	}
 
 	// Start go routine to push back session expiration while session is still active.
@@ -1768,10 +1774,6 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 }
 
 func (s *session) trackerAddParticipant(participant *party) error {
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	s.log.Debugf("Tracking participant: %v", participant.user)
 	req := &proto.UpdateSessionTrackerRequest{
 		SessionID: s.id.String(),
@@ -1792,10 +1794,6 @@ func (s *session) trackerAddParticipant(participant *party) error {
 }
 
 func (s *session) trackerRemoveParticipant(participantID string) error {
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	s.log.Debugf("Not tracking participant: %v", participantID)
 	req := &proto.UpdateSessionTrackerRequest{
 		SessionID: s.id.String(),
@@ -1814,10 +1812,6 @@ func (s *session) trackerUpdateState(state types.SessionState) error {
 	s.state = state
 	s.stateUpdate.Broadcast()
 
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	req := &proto.UpdateSessionTrackerRequest{
 		SessionID: s.id.String(),
 		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
@@ -1832,10 +1826,6 @@ func (s *session) trackerUpdateState(state types.SessionState) error {
 }
 
 func (s *session) trackerUpdateExpiry(expires time.Time) error {
-	if s.registry.auth == nil {
-		return nil
-	}
-
 	req := &proto.UpdateSessionTrackerRequest{
 		SessionID: s.id.String(),
 		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{

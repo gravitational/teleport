@@ -453,6 +453,10 @@ const (
 	// Ping is the common backend for all Ping Identity-branded identity
 	// providers (including PingOne, PingFederate, etc).
 	Ping = "ping"
+	// Okta should be used for Okta OIDC providers.
+	Okta = "okta"
+	// JumpCloud is an identity provider.
+	JumpCloud = "jumpcloud"
 )
 
 const (
@@ -525,6 +529,10 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitAWSRoleARNs is the name of the role variable used to store
+	// allowed AWS role ARNs.
+	TraitAWSRoleARNs = "aws_role_arns"
+
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
 	TraitTeams = "github_teams"
@@ -552,6 +560,10 @@ const (
 	// TraitInternalDBUsersVariable is the variable used to store allowed
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
+
+	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
+	// role ARNs for local accounts.
+	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
 )
 
 // SCP is Secure Copy.

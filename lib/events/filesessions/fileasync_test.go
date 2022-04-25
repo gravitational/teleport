@@ -448,9 +448,6 @@ type uploaderPack struct {
 func (u *uploaderPack) Close(t *testing.T) {
 	u.cancel()
 
-	err := u.uploader.Close()
-	require.NoError(t, err)
-
 	if u.scanDir != "" {
 		err := os.RemoveAll(u.scanDir)
 		require.NoError(t, err)

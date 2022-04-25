@@ -53,7 +53,12 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	appServers, err := clt.GetApplicationServers(r.Context(), apidefaults.Namespace)
+	resp, err := listResources(clt, r, types.KindAppServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -71,6 +76,8 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Identity:          identity,
 			Apps:              types.DeduplicateApps(apps),
 		}),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 

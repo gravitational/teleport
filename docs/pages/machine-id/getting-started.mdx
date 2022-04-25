@@ -39,7 +39,7 @@ proxy_service:
 ## Step 1/4. Download and install Teleport (=teleport.version=)
 
 In this step, you will be downloading and installing Teleport binaries onto the
-machine you wish to assign an identity to. 
+machine you wish to assign an identity to.
 
 Each Teleport package hosted on our
 downloads page ships with several useful binaries, including `teleport`,
@@ -96,7 +96,8 @@ Machine ID can join with a token or the [IAM Method](https://goteleport.com/docs
   </TabItem>
   <TabItem label="IAM Method">
   First, create an IAM method token that specifies the AWS account from which
-  the bot can join.
+  the bot can join. Create the below file as `iam-token.yaml` then run `tctl
+  create -f iam-token.yaml`.
 
   ```
   kind: token
@@ -111,14 +112,13 @@ Machine ID can join with a token or the [IAM Method](https://goteleport.com/docs
   spec:
     # Only allow bots to join using this token.
     roles: [Bot]
-  
+
     # Set the join method to be IAM.
     join_method: iam
 
-    # Define the name of the bot that will be allowed to use this token. Note,
-    # the "bot-" prefix is required. The name of the bot you will create is "robot".
-    bot_name: bot-robot
-  
+    # Define the name of the bot that will be allowed to use this token.
+    bot_name: robot
+
     allow:
     # Restrict the AWS account and (optionally) ARN that can use this token.
     # This information can be obtained from running the
@@ -218,9 +218,9 @@ using `tsh ls`. You might see output like the following on your system.
 
 ```code
 $ tsh ls
-Node Name Address        Labels                        
---------- -------------- ----------------------------- 
-node-name  127.0.0.1:3022 arch=x86_64,group=api-servers 
+Node Name Address        Labels
+--------- -------------- -----------------------------
+node-name  127.0.0.1:3022 arch=x86_64,group=api-servers
 ```
 
 To use Machine ID with the OpenSSH integration, run the following command to
