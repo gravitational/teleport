@@ -308,12 +308,25 @@ lint: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) lint"
 
+.PHONY:lint-helm
+lint-helm: buildbox
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) lint-helm"
+
 #
 # Starts shell inside the build container
 #
 .PHONY:enter
 enter: buildbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
+
+#
+# Starts a root shell inside the build container
+#
+.PHONY:enter-root
+enter-root: buildbox
+	docker run $(DOCKERFLAGS) -ti \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
 
 #
