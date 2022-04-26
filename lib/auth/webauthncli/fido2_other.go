@@ -35,7 +35,7 @@ func IsFIDO2Available() bool {
 
 func fido2Login(
 	ctx context.Context,
-	origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt,
+	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	return nil, "", errFIDO2Unavailable
 }

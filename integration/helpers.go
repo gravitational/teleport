@@ -88,7 +88,6 @@ func SetTestTimeouts(t time.Duration) {
 	defaults.ResyncInterval = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t
-	defaults.CachePollPeriod = t
 }
 
 // TeleInstance represents an in-memory instance of a teleport
@@ -193,9 +192,9 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	}
 
 	// generate instance secrets (keys):
-	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
+	keygen := native.New(context.TODO())
 	if cfg.Priv == nil || cfg.Pub == nil {
-		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair("")
+		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair()
 	}
 	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
 	fatalIf(err)
@@ -326,10 +325,24 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return []types.CertAuthority{
-		hostCA,
-		userCA,
-	}, nil
+	dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+		Roles:      []string{},
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []types.CertAuthority{hostCA, userCA, dbCA}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -371,7 +384,7 @@ func (s *InstanceSecrets) GetIdentity() *auth.Identity {
 	return i
 }
 
-// GetSiteAPI() is a helper which returns an API endpoint to a site with
+// GetSiteAPI is a helper which returns an API endpoint to a site with
 // a given name. i endpoint implements HTTP-over-SSH access to the
 // site's auth server.
 func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
@@ -471,7 +484,7 @@ type UserCredsRequest struct {
 
 // GenerateUserCreds generates key to be used by client
 func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
-	priv, pub, err := testauthority.New().GenerateKeyPair("")
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1103,25 +1116,14 @@ func (i *TeleInstance) Start() error {
 	// Build a list of expected events to wait for before unblocking based off
 	// the configuration passed in.
 	expectedEvents := []string{}
-	if i.Config.Auth.Enabled {
-		expectedEvents = append(expectedEvents, service.AuthTLSReady)
-	}
+	// Always wait for TeleportReadyEvent.
+	expectedEvents = append(expectedEvents, service.TeleportReadyEvent)
 	if i.Config.Proxy.Enabled {
 		expectedEvents = append(expectedEvents, service.ProxyReverseTunnelReady)
-		expectedEvents = append(expectedEvents, service.ProxySSHReady)
 		expectedEvents = append(expectedEvents, service.ProxyAgentPoolReady)
 		if !i.Config.Proxy.DisableWebService {
 			expectedEvents = append(expectedEvents, service.ProxyWebServerReady)
 		}
-	}
-	if i.Config.SSH.Enabled {
-		expectedEvents = append(expectedEvents, service.NodeSSHReady)
-	}
-	if i.Config.Apps.Enabled {
-		expectedEvents = append(expectedEvents, service.AppsReady)
-	}
-	if i.Config.Databases.Enabled {
-		expectedEvents = append(expectedEvents, service.DatabasesReady)
 	}
 
 	// Start the process and block until the expected events have arrived.
@@ -1726,7 +1728,7 @@ func genUserKey() (*client.Key, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, pub, err := keygen.GenerateKeyPair("")
+	priv, pub, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1755,4 +1757,27 @@ func genUserKey() (*client.Key, error) {
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, nil
+}
+
+// getLocalIP gets the non-loopback IP address of this host.
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		default:
+			continue
+		}
+		if !ip.IsLoopback() {
+			return ip.String(), nil
+		}
+	}
+	return "", trace.NotFound("No non-loopback local IP address found")
 }

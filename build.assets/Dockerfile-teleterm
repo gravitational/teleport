@@ -1,0 +1,53 @@
+ARG BUILDBOX_VERSION
+# GRPC_NODE_PLUGIN_BINARY_TYPE can be "prebuilt" or "compiled"
+ARG GRPC_NODE_PLUGIN_BINARY_TYPE
+FROM quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION as base
+
+ARG BUILDARCH
+
+# Install buf
+RUN BIN="/usr/local/bin" && \
+    VERSION="1.0.0-rc1" && \
+    BINARY_NAME="buf" && \
+    curl -sSL \
+     "https://github.com/bufbuild/buf/releases/download/v${VERSION}/${BINARY_NAME}-$(uname -s)-$(uname -m)" \
+    -o "${BIN}/${BINARY_NAME}" && \
+    chmod +x "${BIN}/${BINARY_NAME}"
+
+# Install node
+ARG NODE_VERSION=v15.14.0
+ENV NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
+ENV NODE_PATH="/usr/local/lib/node-${NODE_VERSION}-linux-${BUILDARCH}"
+ENV PATH="$PATH:${NODE_PATH}/bin"
+RUN (curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib)
+
+# Install js proto tools
+RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1)
+RUN go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
+
+FROM base as grpc_node_plugin_binary_prebuilt
+ONBUILD RUN (npm install --global grpc-tools@1.11.2)
+
+FROM base as grpc_node_plugin_binary_compiled
+ONBUILD RUN apt-get update -y && \
+    apt-get install -q -y --no-install-recommends build-essential cmake jq && \
+    apt-get clean -y && \
+    rm -rf /var/lib/apt/lists/*
+ONBUILD RUN (npm install --global --ignore-scripts grpc-tools@1.11.2)
+ONBUILD COPY teleterm_linux_arm64.toolchain.cmake ./linux_arm64.toolchain.cmake
+ONBUILD RUN git clone --depth=1 --branch=grpc-tools@1.11.2 https://github.com/grpc/grpc-node.git && \
+    mv linux_arm64.toolchain.cmake grpc-node/packages/grpc-tools/. && \
+    cd grpc-node && \
+    git submodule update --init --recursive && \
+    cd packages/grpc-tools && \
+    cmake -DCMAKE_TOOLCHAIN_FILE=linux_arm64.toolchain.cmake . && \
+    cmake --build . --target clean && cmake --build . --target grpc_node_plugin -- -j 12 && \
+    cp grpc_node_plugin $(npm root -g)/grpc-tools/bin/. && \
+    # grpc-tools requires both protoc and grpc_node_plugin, but protoc is already installed by
+    # the buildbox image.
+    ln -s $(which protoc) $(npm root -g)/grpc-tools/bin/protoc && \
+    cd ../../.. && \
+    rm -rf grpc-node
+
+# Choose an appropriate image and run ONBUILD instructions from it.
+FROM grpc_node_plugin_binary_${GRPC_NODE_PLUGIN_BINARY_TYPE}

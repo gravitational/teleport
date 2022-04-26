@@ -168,32 +168,39 @@ else
 fi
 
 # handle differences between 'gravitational' arch and system arch
-FILENAME_ARCH=${ARCH}
-if [[ "${ARCH}" == "i386" ]]; then
-    FILENAME_ARCH="386"
-    TEXT_ARCH="32-bit"
-elif [[ "${ARCH}" == "386" ]]; then
-    ARCH="i386"
-    TEXT_ARCH="32-bit"
-elif [[ "${ARCH}" == "x86_64" ]]; then
-    FILENAME_ARCH="amd64"
-    if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
-        ARCH="x86_64"
-    fi
-    TEXT_ARCH="64-bit"
-elif [[ "${ARCH}" == "amd64" ]]; then
-    if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
-        ARCH="x86_64"
-    fi
-    TEXT_ARCH="64-bit"
+if [[ "${ARCH}" == "386" || "${ARCH}" == "i386" ]]; then
+    TEXT_ARCH="32-bit x86"
+    TARBALL_ARCH="386"
+    DEB_PACKAGE_ARCH="i386"
+    DEB_OUTPUT_ARCH="i386"
+    RPM_PACKAGE_ARCH="i386"
+    RPM_OUTPUT_ARCH="i386"
+elif [[ "${ARCH}" == "amd64" || "${ARCH}" == "x86_64" ]]; then
+    TEXT_ARCH="64-bit x86"
+    TARBALL_ARCH="amd64"
+    DEB_PACKAGE_ARCH="amd64"
+    DEB_OUTPUT_ARCH="amd64"
+    RPM_PACKAGE_ARCH="x86_64"
+    RPM_OUTPUT_ARCH="x86_64"
 elif [[ "${ARCH}" == "arm" ]]; then
-    TEXT_ARCH="ARMv7"
+    TEXT_ARCH="32-bit ARM"
+    TARBALL_ARCH="arm"
+    # 32-bit arm can be hardfloat and softfloat, and we build for linux-gnueabihf
+    DEB_PACKAGE_ARCH="armhf"
+    DEB_OUTPUT_ARCH="arm" # backwards compatibility
+    RPM_PACKAGE_ARCH="armv7hl"
+    RPM_OUTPUT_ARCH="arm" # backwards compatibility
 elif [[ "${ARCH}" == "arm64" ]]; then
-    TEXT_ARCH="ARMv8/ARM64"
+    TEXT_ARCH="64-bit ARM"
+    TARBALL_ARCH="arm64"
+    DEB_PACKAGE_ARCH="arm64"
+    DEB_OUTPUT_ARCH="arm64"
+    RPM_PACKAGE_ARCH="aarch64"
+    RPM_OUTPUT_ARCH="arm64" # backwards compatibility
 fi
 
 # amd64 RPMs should use CentOS 7 compatible artifacts
-if [[ "${PACKAGE_TYPE}" == "rpm" && "${ARCH}" == "x86_64" ]]; then
+if [[ "${PACKAGE_TYPE}" == "rpm" && "${RPM_PACKAGE_ARCH}" == "x86_64" ]]; then
     OPTIONAL_TARBALL_SECTION+="-centos7"
 fi
 
@@ -204,7 +211,7 @@ fi
 
 # set variables appropriately depending on type of package being built
 if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
-    TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
+    TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport-ent"
     RPM_NAME="teleport-ent"
@@ -215,7 +222,7 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition]"
     fi
 else
-    TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
+    TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport"
     RPM_NAME="teleport"
@@ -252,7 +259,8 @@ else
     EXTRA_DOCKER_OPTIONS=""
     RPM_SIGN_STANZA=""
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
-        OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${ARCH}.rpm"
+        PACKAGE_ARCH="${RPM_PACKAGE_ARCH}"
+        OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${RPM_OUTPUT_ARCH}.rpm"
         FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
         # the rpm/rpmmacros file suppresses the creation of .build-id files (see https://github.com/gravitational/teleport/issues/7040)
         EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm/rpmmacros:/root/.rpmmacros"
@@ -269,7 +277,8 @@ else
             RPM_SIGN_STANZA="--rpm-sign"
         fi
     elif [[ "${PACKAGE_TYPE}" == "deb" ]]; then
-        OUTPUT_FILENAME="${TAR_PATH}_${TELEPORT_VERSION}${OPTIONAL_RUNTIME_SECTION}_${ARCH}.deb"
+        PACKAGE_ARCH="${DEB_PACKAGE_ARCH}"
+        OUTPUT_FILENAME="${TAR_PATH}_${TELEPORT_VERSION}${OPTIONAL_RUNTIME_SECTION}_${DEB_OUTPUT_ARCH}.deb"
         FILE_PERMISSIONS_STANZA="--deb-user root --deb-group root "
     fi
 fi
@@ -397,7 +406,7 @@ else
         --license "${LICENSE}" \
         --vendor "${VENDOR}" \
         --description "${DESCRIPTION} ${TYPE_DESCRIPTION}" \
-        --architecture ${ARCH} \
+        --architecture ${PACKAGE_ARCH} \
         --package ${OUTPUT_FILENAME} \
         --chdir /src/buildroot \
         --directories ${LINUX_DATA_DIR} \

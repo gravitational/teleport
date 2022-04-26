@@ -22,18 +22,33 @@ import (
 )
 
 var (
-	stdinOnce = &sync.Once{}
-	stdin     *ContextReader
+	stdinMU sync.Mutex
+	stdin   StdinReader
 )
+
+// StdinReader contains ContextReader methods applicable to stdin.
+type StdinReader interface {
+	Reader
+	SecureReader
+}
 
 // Stdin returns a singleton ContextReader wrapped around os.Stdin.
 //
 // os.Stdin should not be used directly after the first call to this function
-// to avoid losing data. Closing this ContextReader will prevent all future
-// reads for all callers.
-func Stdin() *ContextReader {
-	stdinOnce.Do(func() {
+// to avoid losing data.
+func Stdin() StdinReader {
+	stdinMU.Lock()
+	defer stdinMU.Unlock()
+	if stdin == nil {
 		stdin = NewContextReader(os.Stdin)
-	})
+	}
 	return stdin
+}
+
+// SetStdin allows callers to change the Stdin reader.
+// Useful to replace Stdin for tests, but should be avoided in production code.
+func SetStdin(rd StdinReader) {
+	stdinMU.Lock()
+	defer stdinMU.Unlock()
+	stdin = rd
 }

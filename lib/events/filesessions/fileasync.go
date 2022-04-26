@@ -30,6 +30,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -91,7 +92,7 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 }
 
 // NewUploader creates new disk based session logger
-func NewUploader(cfg UploaderConfig) (*Uploader, error) {
+func NewUploader(cfg UploaderConfig, sessionTracker services.SessionTrackerService) (*Uploader, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,20 +102,10 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// completer scans for uploads that have been initiated, but not completed
-	// by the client (aborted or crashed) and completes them
-	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-		Uploader:  handler,
-		AuditLog:  cfg.AuditLog,
-		Unstarted: true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	ctx, cancel := context.WithCancel(cfg.Context)
 	uploader := &Uploader{
-		uploadCompleter: uploadCompleter,
-		cfg:             cfg,
+		cfg: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: cfg.Component,
 		}),
@@ -124,6 +115,19 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
+
+	// upload completer scans for uploads that have been initiated, but not completed
+	// by the client (aborted or crashed) and completes them. It will be closed once
+	// the uploader context is closed.
+	err = events.StartNewUploadCompleter(uploader.ctx, events.UploadCompleterConfig{
+		Uploader:       handler,
+		AuditLog:       cfg.AuditLog,
+		SessionTracker: sessionTracker,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return uploader, nil
 }
 
@@ -143,9 +147,8 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 type Uploader struct {
 	semaphore chan struct{}
 
-	cfg             UploaderConfig
-	log             *log.Entry
-	uploadCompleter *events.UploadCompleter
+	cfg UploaderConfig
+	log *log.Entry
 
 	cancel   context.CancelFunc
 	ctx      context.Context
@@ -219,12 +222,6 @@ func (u *Uploader) Serve() error {
 		// Tick at scan period but slow down (and speeds up) on errors.
 		case <-backoff.After():
 			var failed bool
-			if err := u.uploadCompleter.CheckUploads(u.ctx); err != nil {
-				if trace.Unwrap(err) != errContext {
-					failed = true
-					u.log.WithError(err).Warningf("Completer scan failed.")
-				}
-			}
 			if _, err := u.Scan(); err != nil {
 				if trace.Unwrap(err) != errContext {
 					failed = true
@@ -301,9 +298,8 @@ func (u *Uploader) sessionErrorFilePath(sid session.ID) string {
 }
 
 // Close closes all operations
-func (u *Uploader) Close() error {
+func (u *Uploader) Close() {
 	u.cancel()
-	return u.uploadCompleter.Close()
 }
 
 type upload struct {

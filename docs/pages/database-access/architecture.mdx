@@ -3,8 +3,6 @@ title: Database Access Architecture
 description: How Teleport Database Access works.
 ---
 
-# Database Access Architecture
-
 This section provides an overview of Teleport Database Access inner workings.
 
 ## How it works
@@ -15,9 +13,22 @@ Let's take a look at a sample Database Access deployment:
 
 In it, we have the following Teleport components:
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
 - [Teleport Proxy](../architecture/proxy.mdx). A stateless service
-  that performs a function of an authentication gateway, serves web UI and
+  that performs a function of an authentication gateway, serves the Web UI, and
   accepts database (and other) client connections.
+  
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+- [Teleport Proxy](../architecture/proxy.mdx). A stateless service that performs
+  a function of an authentication gateway, serves the Web UI, and accepts
+  database (and other) client connections. This service is accessible at your
+  Teleport Cloud tenant URL, e.g., `mytenant.teleport.sh`.
+
+</ScopedBlock>
+
 - [Teleport Auth](../architecture/authentication.mdx). Serves as
   cluster's certificate authority, handles user authentication/authorization
   and issues short-lived client certificates.

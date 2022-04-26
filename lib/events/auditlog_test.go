@@ -31,6 +31,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -167,8 +168,8 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 }
 
 func (a *AuditTestSuite) TestExternalLog(c *check.C) {
-	m := &MockAuditLog{
-		emitter: MockEmitter{},
+	m := &mockAuditLog{
+		emitter: eventstest.MockEmitter{},
 	}
 
 	fakeClock := clockwork.NewFakeClock()
@@ -185,6 +186,6 @@ func (a *AuditTestSuite) TestExternalLog(c *check.C) {
 	evt := &events.SessionConnect{}
 	c.Assert(alog.EmitAuditEvent(context.Background(), evt), check.IsNil)
 
-	c.Assert(m.emitter.events, check.HasLen, 1)
-	c.Assert(m.emitter.events[0], check.Equals, evt)
+	c.Assert(m.emitter.Events(), check.HasLen, 1)
+	c.Assert(m.emitter.Events()[0], check.Equals, evt)
 }

@@ -33,6 +33,13 @@ type Reader interface {
 	ReadContext(ctx context.Context) ([]byte, error)
 }
 
+// SecureReader is the interface for password readers.
+type SecureReader interface {
+	// ReadPassword reads from the underlying buffer, respecting context
+	// cancellation.
+	ReadPassword(ctx context.Context) ([]byte, error)
+}
+
 // Confirmation prompts the user for a yes/no confirmation for question.
 // The prompt is written to out and the answer is read from in.
 //
@@ -63,7 +70,7 @@ func PickOne(ctx context.Context, out io.Writer, in Reader, question string, opt
 	fmt.Fprintf(out, "%s [%s]: ", question, strings.Join(options, ", "))
 	answerOrig, err := in.ReadContext(ctx)
 	if err != nil {
-		return "", trace.WrapWithMessage(err, "failed reading prompt response")
+		return "", trace.Wrap(err, "failed reading prompt response")
 	}
 	answer := strings.ToLower(strings.TrimSpace(string(answerOrig)))
 	for _, opt := range options {
@@ -83,7 +90,19 @@ func Input(ctx context.Context, out io.Writer, in Reader, question string) (stri
 	fmt.Fprintf(out, "%s: ", question)
 	answer, err := in.ReadContext(ctx)
 	if err != nil {
-		return "", trace.WrapWithMessage(err, "failed reading prompt response")
+		return "", trace.Wrap(err, "failed reading prompt response")
 	}
 	return strings.TrimSpace(string(answer)), nil
+}
+
+// Password prompts the user for a password. The prompt is written to out and
+// the answer is read from in.
+// The in reader has to be a terminal.
+func Password(ctx context.Context, out io.Writer, in SecureReader, question string) (string, error) {
+	fmt.Fprintf(out, "%s:\n", question)
+	answer, err := in.ReadPassword(ctx)
+	if err != nil {
+		return "", trace.Wrap(err, "failed reading prompt response")
+	}
+	return string(answer), nil // passwords not trimmed
 }
