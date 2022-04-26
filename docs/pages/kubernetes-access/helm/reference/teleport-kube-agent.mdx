@@ -768,6 +768,27 @@ Ensures that this number of replicas is available during voluntary disruptions, 
   </TabItem>
 </Tabs>
 
+## `priorityClassName`
+
+| Type | Default value |
+| - | - |
+| `string` | `nil` |
+
+`priorityClassName` allows to specify a priority class for the `teleport-kube-agent` deployment/statefulset.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  priorityClassName: "teleport-kube-agent"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set serviceAccountName=teleport-kube-agent
+  ```
+  </TabItem>
+</Tabs>
+
 ## `serviceAccountName`
 
 <Admonition type="note">

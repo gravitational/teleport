@@ -328,6 +328,25 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set priorityClassName when set in values
+    values:
+      - ../.lint/priority-class-name.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: teleport-kube-agent
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set not set priorityClassName when not set in values
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.priorityClassName
+      - matchSnapshot:
+          path: spec.template.spec
+
   - it: should set serviceAccountName when set in values
     values:
       - ../.lint/service-account-name.yaml

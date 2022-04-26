@@ -206,6 +206,11 @@
                 }
             }
         },
+        "priorityClassName": {
+            "$id": "#/properties/priorityClassName",
+            "type": "string",
+            "default": ""
+        },
         "serviceAccountName": {
             "$id": "#/properties/serviceAccountName",
             "type": "string",
@@ -228,7 +233,13 @@
                 "level": {
                     "$id": "#/properties/log/properties/level",
                     "type": "string",
-                    "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+                    "enum": [
+                        "DEBUG",
+                        "INFO",
+                        "WARN",
+                        "WARNING",
+                        "ERROR"
+                    ],
                     "default": "INFO"
                 },
                 "deployment": {
