@@ -35,9 +35,6 @@ message Gateway {
     string target_uri = 3;
     // target_user is the target user
     string target_user = 4;
-    // target_subresource_name points at a subresource of the remote resource, for example a
-    // database name on a database server.
-    string target_subresource_name = 9;
     // local_address is the gateway address on localhost
     string local_address = 5;
     // local_port is the gateway address on localhost
@@ -51,4 +48,7 @@ message Gateway {
     // This means that the Database Access team can add support for a new protocol and Teleterm will
     // support it right away without any changes to Teleterm's code.
     string cli_command = 8;
+    // target_subresource_name points at a subresource of the remote resource, for example a
+    // database name on a database server.
+    string target_subresource_name = 9;
 }

@@ -19,9 +19,6 @@ export class Gateway extends jspb.Message {
     getTargetUser(): string;
     setTargetUser(value: string): Gateway;
 
-    getTargetSubresourceName(): string;
-    setTargetSubresourceName(value: string): Gateway;
-
     getLocalAddress(): string;
     setLocalAddress(value: string): Gateway;
 
@@ -33,6 +30,9 @@ export class Gateway extends jspb.Message {
 
     getCliCommand(): string;
     setCliCommand(value: string): Gateway;
+
+    getTargetSubresourceName(): string;
+    setTargetSubresourceName(value: string): Gateway;
 
 
     serializeBinary(): Uint8Array;
@@ -51,10 +51,10 @@ export namespace Gateway {
         targetName: string,
         targetUri: string,
         targetUser: string,
-        targetSubresourceName: string,
         localAddress: string,
         localPort: string,
         protocol: string,
         cliCommand: string,
+        targetSubresourceName: string,
     }
 }
