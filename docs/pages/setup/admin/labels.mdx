@@ -13,7 +13,7 @@ There are two kinds of labels:
 - **Static labels** do not change over time while the `teleport` process is
   running. Examples of static labels are the physical location of Nodes and the
   name of the environment (e.g., `staging` vs. `production`).
-- **Dynamic labels**, also known as "label commands," allow you to generate
+- **Dynamic labels**, also known as **label commands**, allow you to generate
   labels at runtime. Teleport will execute an external command on a Node at a
   configurable frequency and the output of the command becomes the label value.
   Examples include reporting load averages, the presence of a process, and the time after
@@ -35,11 +35,13 @@ This guide explains how to add labels to Teleport resources.
 You can label any resource managed by Teleport using the instructions in this
 guide. See the following guides for how to add resources to a Teleport cluster:
 
-- [Applications](../../application-access/getting-started.mdx)
-- [Databases](../../database-access/getting-started.mdx)
-- [Kubernetes clusters](../../kubernetes-access/getting-started.mdx)
-- [Servers](../../server-access/getting-started.mdx)
-- [Windows desktops](../../desktop-access/getting-started.mdx)
+|Guide|Notes on labeling|
+|---|---|
+|[Applications](../../application-access/getting-started.mdx)||
+|[Databases](../../database-access/getting-started.mdx)|Teleport can discover some AWS-hosted databases automatically. In this case, labels will also be automatically applied. |
+|[Kubernetes clusters](../../kubernetes-access/getting-started.mdx)||
+|[Servers](../../server-access/getting-started.mdx)||
+|[Windows desktops](../../desktop-access/getting-started.mdx)|Dynamic labels are not supported for Windows desktops. See our [Desktop Access documentation](../../desktop-access/rbac.mdx#labeling) for how to label desktops.|
 
 </Admonition>
 
@@ -54,11 +56,9 @@ your environment to install Teleport.
 
 ### Generate a token
 
-<ScopedBlock scope="cloud">On your local machine, use</ScopedBlock><ScopedBlock
-scope={["oss", "enterprise"]}>On the host that runs the Teleport Auth Service,
-use</ScopedBlock> the `tctl` tool to generate an invite token that your Node
-will use to join the cluster. In the following example, a new token is created
-with a TTL of five minutes:
+On your local machine, use the `tctl` tool to generate an invite token that your
+Node will use to join the cluster. In the following example, a new token is
+created with a TTL of five minutes:
 
 ```code
 # Generate a short-lived invitation token for a new node:
@@ -72,61 +72,22 @@ $ tctl tokens ls
 # (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
 ```
 
-Copy the token. On your Node, assign it to an environment variable we will use
-in the next step:
+Copy the token. On the remote host that you will add to your Teleport cluster as a
+Node, assign the token to an environment variable:
 
 ```code
 $ export JOIN_TOKEN=<token>
 ```
 
+We will use this in the next step.
+
 ## Step 2/3. Apply a static label to your Node
 
-There are two ways to configure Node labels: 
+You can configure Node labels by editing Teleport's configuration file, then
+starting Teleport.
 
-- Using a command line flag when starting Teleport
-- Editing Teleport's configuration file, then starting Teleport
-
-<Tabs>
-<TabItem label="Command Line">
-
-Use the `--labels` flag with the `teleport start` command. This command also
-uses the token we generated earlier to join the Node to the cluster.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-On your Node, record the address of your Auth Service:
-
-```code
-$ ADDR=tele.example.com:3025
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-On your Node, record the address of your Teleport Cloud tenant:
-
-```code
-$ ADDR=mytenant.teleport.sh:443
-```
-
-</ScopedBlock>
-
-Start Teleport:
-
-```code
-$ sudo teleport start \
-  --auth-server=${ADDR?} \
-  --roles=node \
-  --labels environment=dev \
-  --token=${TOKEN?}
-```
-
-
-</TabItem>
-<TabItem label="Config File">
-
-You can apply labels to your Node by editing the Node's configuration file,
-`/etc/teleport.yaml`, to include the following content:
+On the host where you will run your Node, paste the following content into
+`/etc/teleport.yaml` and adjust it for your environment:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -134,6 +95,9 @@ You can apply labels to your Node by editing the Node's configuration file,
 version: v2
 teleport:
   auth_servers:
+    # The address of your Auth Service. You can also use a Proxy Service
+    # address, e.g., tele.example.com:443, if your Auth Service is not
+    # exposed to the internet.
     - tele.example.com:3025
 
 auth_service:
@@ -156,6 +120,7 @@ ssh_service:
 version: v2
 teleport:
   auth_servers:
+    # Your Teleport Cloud tenant address
     - mytenant.teleport.sh:443
 
 auth_service:
@@ -176,81 +141,110 @@ ssh_service:
 Next, start Teleport with the join token you created earlier:
 
 ```code
-$ sudo teleport start --token=${TOKEN?}
+$ sudo teleport start --token=${JOIN_TOKEN?}
 ```
-
-</TabItem>
-</Tabs>
 
 Verify that you have added the label by running the following on your local
 machine. Your Teleport user must be authorized to access the Node.
 
 ```code
-$ tsh ls --search environment=dev
-Node Name         Address    Labels          
------------------ ---------- --------------- 
-ip-192-0-2-0 ⟵ Tunnel   environment=dev 
+$ tsh ls --query 'labels["environment"]=="dev"'
+Node Name    Address    Labels          
+------------ ---------- --------------- 
+bdcb47b87ad6 ⟵ Tunnel environment=dev
 ```
 
-## Step 3/3. Apply dynamic labels via commands
+<Details title="Don't see your Node?" opened={false}>
 
-Before following this step, stop Teleport on your Node.
+First, check the logs for your Node to ensure the SSH Service is running. Your logs should resemble the following:
 
-As with static labels, you can apply dynamic labels either when starting
-Teleport on the command line or by editing the Teleport configuration file.
+```text
+2022-04-27T14:44:23Z INFO [NODE:1]    Service is starting in tunnel mode. service/service.go:1993
+2022-04-27T14:44:23Z INFO [PROC:1]    The new service has started successfully. Starting syncing rotation status with period 10m0s. service/connect.go:482
+2022-04-27T14:44:23Z INFO             Service has started successfully. service/service.go:523
+2022-04-27T14:44:24Z INFO [NODE:PROX] Connected. addr:172.17.0.2:40184 remote-addr:192.0.2.0:443 leaseID:1 target:teleport.example.com:443 reversetunnel/agent.go:409
+```
 
-<Tabs>
-<TabItem label="Command Line">
+Next, ensure that your Teleport user has a login that corresponds to a user on
+your Node.
 
-To define labels as command line arguments, use the `--labels` flag as shown
-below. This method works well for simple commands.
+Run the following command to get the current logins for your user:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-On your Node, record the address of your Auth Service:
-
 ```code
-$ ADDR=tele.example.com:3025
+$ tsh status
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       myuser
+  Cluster:            teleport.example.com
+  Roles:              access, editor
+  Logins:             -teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe
+  Kubernetes:         enabled
+  Valid until:        2022-04-27 22:26:50 -0400 EDT [valid for 11h40m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
-On your Node, record the address of your Teleport Cloud tenant:
-
 ```code
-$ ADDR=mytenant.teleport.sh:443
+tsh status
+> Profile URL:        https://mytenant.teleport.sh:443
+  Logged in as:       myuser
+  Cluster:            mytenant.teleport.sh
+  Roles:              access, editor
+  Logins:             -teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe
+  Kubernetes:         enabled
+  Valid until:        2022-04-27 22:26:50 -0400 EDT [valid for 11h40m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
 </ScopedBlock>
 
-Start Teleport:
+In this example, `-teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe` means
+that no logins have been assigned to the user.
+
+To add logins, retrieve your user configuration as YAML:
 
 ```code
-$ sudo teleport start \
-  --auth-server=${ADDR?}\
-  --roles=node \
-  --token=${TOKEN?} \
-  --labels uptime=[1m:"uptime -p"],kernel=[1h:"uname -r"]
+# Replace "myuser" with your Teleport username
+$ tctl get user/myuser > user.yaml
 ```
 
-Verify that you have added the label by running the following on your local
-machine. Your Teleport user must be authorized to access the Node.
+Edit the `logins` field for your user. Each login must exist as a user on the
+host:
+
+```diff
+     db_users: null
+     kubernetes_groups: null
+     kubernetes_users: null
+-    logins: null
++    logins: 
++      - root
+     windows_logins: null
+ version: v2
+```
+
+Apply your changes:
 
 ```code
-$ tsh ls
-Node Name         Address    Labels          
------------------ ---------- --------------- 
-ip-192-0-2-0 ⟵ Tunnel   kernel=5.13.0-1021-aws,uptime=up 40 minutes 
+$ tctl create -f user.yaml 
+user "myuser" has been updated
 ```
 
-</TabItem>
-<TabItem label="Config File">
+Log out of your cluster, then log in again. You should now see your Node when
+you run `tsh ls`.
 
-You can configure dynamic labels by editing the `/etc/teleport.yaml`
-configuration file on your Node. 
+</Details>
 
-Define a `commands` array as shown below:
+## Step 3/3. Apply dynamic labels via commands
+
+Before following this step, stop Teleport on your Node.
+
+As with static labels, you can apply dynamic labels by editing the
+Teleport configuration file.
+
+Edit `/etc/teleport.yaml` to define a `commands` array as shown below:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -333,11 +327,20 @@ how `'` and `"` are interchangeable, so you can use them for nested quotations.
 command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\\.[0-9]+\\.[0-9]+'"]
 ```
 
+<Notice type="warning">
+
+When configuring a command to generate dynamic labels, the executable named
+within your command must be the path to a valid file. The executable permission
+bit must be set and shell scripts must have a
+[shebang line](https://en.wikipedia.org/wiki/Shebang_\(Unix\)).
+
+</Notice>
+
 Once you have configured your labels, start Teleport with the join token you
 created earlier:
 
 ```code
-$ sudo teleport start --token=${TOKEN?}
+$ sudo teleport start --token=${JOIN_TOKEN?}
 ```
 
 Verify that you have added the labels by running the following on your local
@@ -347,20 +350,19 @@ machine. Your Teleport user must be authorized to access the Node.
 $ tsh ls
 Node Name         Address    Labels          
 ----------------- ---------- --------------- 
-ip-192-0-2-0 ⟵ Tunnel   arch=x86_64,hostname=ip-172-30-156-233 
+ip-192-0-2-0      ⟵ Tunnel arch=x86_64,hostname=ip-172-30-156-233 
 ```
 
-</TabItem>
-</Tabs>
+<Details title="Problems re-joining the Node?">
 
-<Notice type="warning">
+Try creating another join token using the `tctl nodes add` command from earlier
+and starting your Node again.
 
-When configuring a command to generate dynamic labels, the executable named
-within your command must be the path to a valid file. The executable permission
-bit must be set and shell scripts must have a
-[shebang line](https://en.wikipedia.org/wiki/Shebang_\(Unix\)).
+If this doesn't work, delete the directory your Node uses to maintain its state,
+`/var/lib/teleport`, and try again.
 
-</Notice>
+</Details>
+
 
 ## Next steps: Using labels
 
