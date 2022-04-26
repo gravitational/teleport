@@ -98,7 +98,7 @@ type ConfigWriter interface {
 	// permissions if the file is new.
 	WriteFile(name string, data []byte, perm os.FileMode) error
 
-	// Remove removes a file
+	// Remove removes a file.
 	Remove(name string) error
 
 	// Stat fetches information about a file.
