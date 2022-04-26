@@ -308,6 +308,11 @@ lint: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) lint"
 
+.PHONY:lint-helm
+lint-helm: buildbox
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) lint-helm"
+
 #
 # Starts shell inside the build container
 #
