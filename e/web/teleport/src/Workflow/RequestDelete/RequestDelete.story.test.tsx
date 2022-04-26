@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loaded, Failed, Processing } from './RequestDelete.story';
+import { Loaded, Failed, Processing, Approved } from './RequestDelete.story';
 import { render, screen } from 'design/utils/testing';
 
 test('loaded state', () => {
@@ -14,5 +14,10 @@ test('failed state', () => {
 
 test('processing state', () => {
   render(<Processing />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('approved role escalation', () => {
+  render(<Approved />);
   expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });

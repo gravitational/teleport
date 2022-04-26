@@ -9,7 +9,6 @@ import {
   Flex,
   LabelState,
   Indicator,
-  Label,
 } from 'design';
 import { CircleCheck, CircleCross, ChevronCircleDown } from 'design/Icon';
 import useTeleportE from 'e-teleport/useTeleportE';
@@ -20,6 +19,7 @@ import {
 } from 'e-teleport/services/workflow';
 import RequestDelete from '../RequestDelete';
 import RequestReview from '../RequestReview';
+import RolesRequested from '../RolesRequested';
 import useRequestView, { State } from './useRequestView';
 
 export default function Container() {
@@ -62,7 +62,13 @@ export function RequestView({
   return (
     <>
       {confirmDelete && (
-        <RequestDelete requestId={request.id} onClose={toggleConfirmDelete} />
+        <RequestDelete
+          user={request.user}
+          roles={request.roles}
+          requestId={request.id}
+          requestState={request.state}
+          onClose={toggleConfirmDelete}
+        />
       )}
 
       <Flex>
@@ -194,16 +200,6 @@ const Timeline = styled.div`
   left: 55px;
   border-left: 2px solid ${props => props.theme.colors.primary.lighter};
 `;
-
-function RolesRequested({ roles }: { roles: string[] }) {
-  const $roles = roles.sort().map(role => (
-    <Label mr="1" key={role} kind="secondary" mt="1">
-      {role}
-    </Label>
-  ));
-
-  return <Box>{$roles}</Box>;
-}
 
 function RequestorTimestamp({
   user,
