@@ -354,16 +354,25 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 
 			switch r.Type {
 			case versionRequest:
-				err := r.Reply(true, []byte(teleport.Version))
+				// reply with the auth server version
+				pong, err := a.Client.Ping(ctx)
 				if err != nil {
-					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					a.log.WithError(err).Warnf("Failed to ping auth server in response to %v request.", r.Type)
+					if err := r.Reply(false, []byte("Failed to retrieve auth version")); err != nil {
+						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+						continue
+					}
+				}
+
+				if err := r.Reply(true, []byte(pong.ServerVersion)); err != nil {
+					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
 			default:
 				// This handles keep-alive messages and matches the behaviour of OpenSSH.
 				err := r.Reply(false, nil)
 				if err != nil {
-					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
 			}
