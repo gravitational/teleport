@@ -135,7 +135,7 @@ func TestForwardProxy(t *testing.T) {
 func createForwardProxy(t *testing.T, handlers ...ConnectRequestHandler) *ForwardProxy {
 	return createForwardProxyWithConfig(t, ForwardProxyConfig{
 		Listener: mustCreateLocalListener(t),
-		Handlers: []ConnectRequestHandler(handlers),
+		Handlers: handlers,
 	})
 }
 

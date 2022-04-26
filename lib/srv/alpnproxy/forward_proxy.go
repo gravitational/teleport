@@ -106,8 +106,8 @@ func (p *ForwardProxy) Close() error {
 }
 
 // GetAddr returns the listener address.
-func (l *ForwardProxy) GetAddr() string {
-	return l.cfg.Listener.Addr().String()
+func (p *ForwardProxy) GetAddr() string {
+	return p.cfg.Listener.Addr().String()
 }
 
 // ServeHTTP serves HTTP requests. Implements http.Handler.
