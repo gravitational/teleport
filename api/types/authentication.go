@@ -519,7 +519,7 @@ func (u *U2F) Check() error {
 	}
 
 	// AppID must be a valid URL.
-	// NOTE: We allow naked AppID's without a scheme for compatibility with WebAuthn
+	// NOTE: We allow naked AppIDs without a scheme for compatibility with WebAuthn
 	//       as we rely on that behaviour to derive WebAuthn configs on-the-fly.
 	//       This is only valid if all facets are also naked however.
 	appIDUrl, err := url.Parse(u.AppID)
