@@ -180,46 +180,7 @@ the `6.2` Teleport release.
 
 ### Create a user
 
-Create local Teleport user with the built-in `access` role:
-
-```code
-$ tctl users add --roles=access alice
-```
-
-The `access` role allows users to see all connected database servers, but
-database names and accounts are restricted to the user's `db_names` and
-`db_users` traits. Normally, these traits come from the identity provider. For
-the local user you've just created you can update them manually to allow it to
-connect to the `postgres` database as a `teleport@<project-id>.iam` database
-service account.
-
-First, export the user resource:
-
-```code
-$ tctl get users/alice > alice.yaml
-```
-
-Update the resource to include the following traits:
-
-```yaml
-traits:
-  # Database account names the user will be allowed to use.
-  # Note: replace <project-id> with your GCP project ID.
-  db_users:
-  - teleport@<project-id>.iam
-  # Database names the user will be allowed to connect to.
-  db_names:
-  - postgres
-```
-
-Update the user:
-
-```code
-$ tctl create alice.yaml -f
-```
-
-For more detailed information about database access controls see [RBAC](../rbac.mdx)
-documentation.
+(!docs/pages/includes/database-access/create-user.mdx!)
 
 ## Step 6/7. Set up the Teleport Database service
 
