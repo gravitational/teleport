@@ -108,7 +108,7 @@ const TooltipContents = () => (
     <Text typography="paragraph2">
       Label Matching:{' '}
       <Text ml={1} as="span" bold>
-        <code>labels.key1 == "value1" && labels["key-2"] != "value2"</code>{' '}
+        <code>labels["key"] == "value" && labels["key2"] != "value2"</code>{' '}
       </Text>
       <br />
       Fuzzy Searching:{' '}
@@ -118,7 +118,7 @@ const TooltipContents = () => (
       <br />
       Combination:{' '}
       <Text ml={1} as="span" bold>
-        <code>labels.key1 == "value1" && search("foo")</code>
+        <code>labels["key1"] == "value1" && search("foo")</code>
       </Text>
     </Text>
     <Text typography="paragraph2" mt={2}>
