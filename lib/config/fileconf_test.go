@@ -174,7 +174,7 @@ func TestAuthenticationSection(t *testing.T) {
 		expected    *AuthenticationConfig
 	}{
 		{
-			desc: "local auth with OTP",
+			desc: "Local auth with OTP",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
@@ -187,7 +187,7 @@ func TestAuthenticationSection(t *testing.T) {
 				SecondFactor: "otp",
 			},
 		}, {
-			desc: "local auth without OTP",
+			desc: "Local auth without OTP",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
@@ -293,6 +293,29 @@ func TestAuthenticationSection(t *testing.T) {
 				Webauthn: &Webauthn{
 					Disabled: true,
 				},
+			},
+		}, {
+			desc: "Local auth with passwordless connector",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "on",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"passwordless":   "true",
+					"connector_name": "passwordless",
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "on",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				Passwordless:  types.NewBoolOption(true),
+				ConnectorName: "passwordless",
 			},
 		},
 	}
