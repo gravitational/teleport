@@ -292,3 +292,7 @@ tolerations: []
 # Timeouts for the readiness and liveness probes
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 probeTimeoutSeconds: 1
+
+# List of hosts and IPs that will be injected into the pod's hosts file
+# https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/
+hostAliases: []

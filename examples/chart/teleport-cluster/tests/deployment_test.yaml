@@ -425,6 +425,35 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set host aliases when hostAliases set in values
+    values:
+      - ../.lint/host-aliases.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.hostAliases[0].hostnames
+          content: "root.teleport.internal"
+      - equal:
+          path: spec.template.spec.hostAliases[0].ip
+          value: "10.10.0.1"
+      - contains:
+          path: spec.template.spec.hostAliases[1].hostnames
+          content: "mongo.db"
+      - contains:
+          path: spec.template.spec.hostAliases[1].hostnames
+          content: "mongodb.internal"
+      - equal:
+          path: spec.template.spec.hostAliases[1].ip
+          value: "10.10.1.1"
+      - contains:
+          path: spec.template.spec.hostAliases[2].hostnames
+          content: "elastic.search"
+      - contains:
+          path: spec.template.spec.hostAliases[2].hostnames
+          content: "elasticsearch.internal"
+      - equal:
+          path: spec.template.spec.hostAliases[2].ip
+          value: "10.10.1.2"
+
   - it: should provision initContainer correctly when set in values
     values:
       - ../.lint/initcontainers.yaml

@@ -1276,6 +1276,33 @@ A list of extra arguments to pass to the `teleport start` command when running a
   </TabItem>
 </Tabs>
 
+## `hostAliases`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `list` | `[]` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/)
+
+A list of extra host aliases to be set on the main Teleport container.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  hostAliases:
+  - hostnames:
+    - root.teleport.internal
+    ip: 10.10.0.1
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "hostAliases[0].hostnames[0]=root.teleport.internal" \
+  --set "hostAliases[0].ip=10.10.0.1"
+  ```
+  </TabItem>
+</Tabs>
+
 ## `extraEnv`
 
 | Type | Default value | Can be used in `custom` mode? |
