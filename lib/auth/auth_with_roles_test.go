@@ -468,6 +468,7 @@ func TestSSODiagnosticInfo(t *testing.T) {
 
 	// empty role
 	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
 
 	// privileged role
 	privRole, err := CreateRole(ctx, srv.Auth(), "priv-access", types.RoleSpecV5{
@@ -518,6 +519,7 @@ func TestSSODiagnosticInfo(t *testing.T) {
 	info, err = client.GetSSODiagnosticInfo(ctx, types.KindSAML, "ABC123")
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, info)
 
 	info, err = clientPriv.GetSSODiagnosticInfo(ctx, types.KindSAML, "ABC123")
 	require.NoError(t, err)
