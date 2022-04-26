@@ -203,7 +203,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	connectionURI := cfg.ConnectionURI()
 	path := filepath.Join(cfg.Path, defaultDBFile)
 	// Ensure that the path to the root directory exists.
-	err := os.MkdirAll(cfg.Path, defaultDirMode)
+	err := os.MkdirAll(cfg.Path, os.ModeDir|defaultDirMode)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
