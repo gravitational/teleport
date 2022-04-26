@@ -26,7 +26,7 @@ import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
   (props, ref) => {
-    const { onSelect, anchorOrigin, transformOrigin } = props;
+    const { onSelect, anchorOrigin, transformOrigin, required = true } = props;
     const anchorRef = useRef<HTMLElement>();
     const [isOpen, setIsOpen] = useState(false);
     const [getLoginItemsAttempt, runGetLoginItems] = useAsync(() =>
@@ -51,7 +51,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       onSelect(e, login);
     };
     const onKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter' && e.currentTarget.value) {
+      if (e.key === 'Enter' && (!required || e.currentTarget.value)) {
         onClose();
         onSelect(e, e.currentTarget.value);
       }

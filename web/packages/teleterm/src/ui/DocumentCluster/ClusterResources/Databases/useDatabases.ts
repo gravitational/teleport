@@ -24,7 +24,7 @@ export function useDatabases() {
   const dbs = clusterContext.getDbs();
   const syncStatus = clusterContext.getSyncStatus().dbs;
 
-  function connect(dbUri: string, user: string): void {
+  function connect(dbUri: string, dbUser: string, dbName: string): void {
     const db = appContext.clustersService.findDb(dbUri);
     const rootClusterUri = routing.ensureRootClusterUri(db.uri);
     const documentsService =
@@ -33,9 +33,10 @@ export function useDatabases() {
     const doc = documentsService.createGatewayDocument({
       // Not passing the `gatewayUri` field here, as at this point the gateway doesn't exist yet.
       // `port` is not passed as well, we'll let the tsh daemon pick a random one.
-      title: db.name,
       targetUri: db.uri,
-      targetUser: user,
+      targetName: db.name,
+      targetUser: dbUser,
+      targetSubresourceName: dbName,
     });
     documentsService.add(doc);
     documentsService.open(doc.uri);

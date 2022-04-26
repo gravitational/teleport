@@ -24,6 +24,7 @@ export function ExpanderConnections() {
           connected: true,
           kind: 'connection.gateway',
           title: 'graves',
+          targetName: 'graves',
           id: '68b6a281',
           targetUri: 'brock',
           port: '22',

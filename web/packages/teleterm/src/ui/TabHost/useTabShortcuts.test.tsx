@@ -38,6 +38,7 @@ function getMockDocuments(): Document[] {
       title: 'Test 4',
       gatewayUri: '',
       targetUri: '',
+      targetName: 'foobar',
       targetUser: 'foo',
     },
     {
@@ -46,6 +47,7 @@ function getMockDocuments(): Document[] {
       title: 'Test 5',
       gatewayUri: '',
       targetUri: '',
+      targetName: 'foobar',
       targetUser: 'bar',
     },
     {

@@ -74,4 +74,5 @@ export type CreateGatewayParams = {
   targetUri: string;
   port?: string;
   user?: string;
+  subresource_name?: string;
 };

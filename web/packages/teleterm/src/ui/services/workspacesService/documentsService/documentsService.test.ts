@@ -58,6 +58,7 @@ describe('document should be added', () => {
     kind: 'doc.gateway',
     gatewayUri: '',
     targetUri: '',
+    targetName: '',
     targetUser: 'foo',
   };
 
@@ -129,6 +130,7 @@ test('only gateway documents should be returned', () => {
     title: 'gw',
     gatewayUri: '',
     targetUri: '',
+    targetName: '',
     targetUser: 'foo',
   };
 

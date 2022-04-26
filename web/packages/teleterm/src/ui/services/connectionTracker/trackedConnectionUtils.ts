@@ -48,6 +48,8 @@ export function createGatewayConnection(
     port: document.port,
     targetUri: document.targetUri,
     targetUser: document.targetUser,
+    targetName: document.targetName,
+    targetSubresourceName: document.targetSubresourceName,
     gatewayUri: document.gatewayUri,
   };
 }

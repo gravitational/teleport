@@ -33,6 +33,7 @@ export default function useGateway(doc: types.DocumentGateway) {
         targetUri: doc.targetUri,
         port: doc.port,
         user: doc.targetUser,
+        subresource_name: doc.targetSubresourceName,
       });
 
       workspaceDocumentsService.update(doc.uri, {

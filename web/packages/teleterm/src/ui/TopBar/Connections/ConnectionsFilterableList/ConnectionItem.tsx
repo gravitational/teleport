@@ -48,15 +48,24 @@ export function ConnectionItem(props: ConnectionItemProps) {
         height: unset;
       `}
     >
-      <ConnectionStatusIndicator mr={3} connected={props.item.connected} />
+      <ConnectionStatusIndicator
+        mr={3}
+        css={`
+          flex-shrink: 0;
+        `}
+        connected={props.item.connected}
+      />
       <Flex
         alignItems="center"
         justifyContent="space-between"
         flex="1"
-        width="100%"
         minWidth="0"
       >
-        <Flex flexDirection="column">
+        <div
+          css={`
+            min-width: 0;
+          `}
+        >
           <Text
             typography="body1"
             bold
@@ -64,7 +73,6 @@ export function ConnectionItem(props: ConnectionItemProps) {
             title={props.item.title}
             css={`
               line-height: 16px;
-              white-space: normal;
             `}
           >
             {props.item.title}
@@ -72,13 +80,11 @@ export function ConnectionItem(props: ConnectionItemProps) {
           <Text
             color="text.secondary"
             typography="body2"
-            css={`
-              white-space: normal;
-            `}
+            title={props.item.clusterName}
           >
             {props.item.clusterName}
           </Text>
-        </Flex>
+        </div>
         <ButtonIcon
           mr="-3px"
           color="text.placeholder"

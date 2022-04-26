@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import styled from 'styled-components';
 import { useDatabases, State } from './useDatabases';
 import { Table } from 'teleterm/ui/components/Table';
 import { Cell } from 'design/DataTable';
 import { renderLabelCell } from '../renderLabelCell';
 import { Danger } from 'design/Alert';
-import { MenuLogin } from 'shared/components/MenuLogin';
+import { MenuLogin, MenuLoginHandle } from 'shared/components/MenuLogin';
 import { MenuLoginTheme } from '../MenuLoginTheme';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -55,7 +56,9 @@ function DatabaseList(props: State) {
             render: db => (
               <ConnectButton
                 dbUri={db.uri}
-                onConnect={user => props.connect(db.uri, user)}
+                onConnect={(dbUser, dbName) =>
+                  props.connect(db.uri, dbUser, dbName)
+                }
               />
             ),
           },
@@ -72,32 +75,65 @@ function ConnectButton({
   onConnect,
 }: {
   dbUri: string;
-  onConnect: (user: string) => void;
+  onConnect: (dbUser: string, dbName: string) => void;
 }) {
   const { clustersService, notificationsService } = useAppContext();
+  const dbNameMenuLoginRef = useRef<MenuLoginHandle>();
+  const [dbUser, setDbUser] = useState<string>();
 
   return (
     <Cell align="right">
       <MenuLoginTheme>
-        <MenuLogin
-          placeholder="Enter username…"
-          getLoginItems={() =>
-            getDatabaseUsers(dbUri, clustersService, notificationsService)
-          }
-          onSelect={(_, user) => onConnect(user)}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-          anchorOrigin={{
-            vertical: 'center',
-            horizontal: 'right',
-          }}
-        />
+        <OverlayGrid>
+          {/* The db name MenuLogin will be overlayed by the db username MenuLogin, which the user
+          should interact with first. */}
+          <MenuLogin
+            ref={dbNameMenuLoginRef}
+            placeholder="Enter optional db name"
+            required={false}
+            getLoginItems={() => []}
+            onSelect={(_, dbName) => onConnect(dbUser, dbName)}
+            transformOrigin={transformOrigin}
+            anchorOrigin={anchorOrigin}
+          />
+          <MenuLogin
+            placeholder="Enter username"
+            getLoginItems={() =>
+              getDatabaseUsers(dbUri, clustersService, notificationsService)
+            }
+            onSelect={(_, user) => {
+              setDbUser(user);
+              dbNameMenuLoginRef.current.open();
+            }}
+            transformOrigin={transformOrigin}
+            anchorOrigin={anchorOrigin}
+          />
+        </OverlayGrid>
       </MenuLoginTheme>
     </Cell>
   );
 }
+
+const transformOrigin = {
+  vertical: 'top',
+  horizontal: 'right',
+};
+const anchorOrigin = {
+  vertical: 'center',
+  horizontal: 'right',
+};
+
+const OverlayGrid = styled.div`
+  display: inline-grid;
+
+  & > button {
+    grid-area: 1 / 1;
+  }
+
+  & button:first-child {
+    visibility: hidden;
+  }
+`;
 
 async function getDatabaseUsers(
   dbUri: string,

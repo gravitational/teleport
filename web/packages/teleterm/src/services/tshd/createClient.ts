@@ -215,7 +215,8 @@ export default function createClient(addr: string) {
       const req = new api.CreateGatewayRequest()
         .setTargetUri(params.targetUri)
         .setTargetUser(params.user)
-        .setLocalPort(params.port);
+        .setLocalPort(params.port)
+        .setTargetSubresourceName(params.subresource_name);
       return new Promise<types.Gateway>((resolve, reject) => {
         tshd.createGateway(req, (err, response) => {
           if (err) {

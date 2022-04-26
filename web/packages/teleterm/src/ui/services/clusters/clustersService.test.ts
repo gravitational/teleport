@@ -22,6 +22,7 @@ const gatewayMock: tsh.Gateway = {
   localPort: '2000',
   protocol: 'https',
   targetName: 'Test',
+  targetSubresourceName: '',
   targetUser: '',
   targetUri: 'clusters/xxx/',
   cliCommand: 'psql postgres://postgres@localhost:5432/postgres',
