@@ -269,15 +269,16 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 	claimName := "email_verified"
 	unverified := func() error { return trace.AccessDenied("email not verified by OIDC provider") }
 
-	emailVerified, hasEmailVerifiedClaim, err := claims.StringClaim(claimName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	emailVerified, hasEmailVerifiedClaim, _ := claims.StringClaim(claimName)
 	if hasEmailVerifiedClaim && emailVerified == "false" {
 		return unverified()
 	} else {
-		emailVerified, ok := claims[claimName].(bool)
+		data, ok := claims[claimName]
+		if !ok {
+			return nil
+		}
+
+		emailVerified, ok := data.(bool)
 		if ok && !emailVerified {
 			return unverified()
 		}
