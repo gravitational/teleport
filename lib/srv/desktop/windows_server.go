@@ -829,6 +829,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Conn:           tdpConn,
 		AuthorizeFn:    authorize,
 		AllowClipboard: authCtx.Checker.DesktopClipboard(),
+		// TODO(isaiah) AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
+		AllowDirectorySharing: true,
 	})
 	if err != nil {
 		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)

@@ -30,6 +30,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
 use rdp::core::tpkt;
 use rdp::model::data::Message;
+use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
 use std::convert::{TryFrom, TryInto};
 use std::io::{Read, Write};
@@ -43,15 +44,24 @@ pub use consts::CHANNEL_NAME;
 pub struct Client {
     vchan: vchan::Client,
     scard: scard::Client,
+    request_file_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
+
     dot_dot_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
     fake_file_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
 }
 
 impl Client {
-    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>, pin: String) -> Self {
+    pub fn new(
+        cert_der: Vec<u8>,
+        key_der: Vec<u8>,
+        pin: String,
+        request_file_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
+    ) -> Self {
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
+            request_file_info,
+
             dot_dot_sent: false,
             fake_file_sent: false,
         }

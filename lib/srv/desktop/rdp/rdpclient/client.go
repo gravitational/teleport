@@ -225,6 +225,7 @@ func (c *Client) connect(ctx context.Context) error {
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
 		C.bool(c.cfg.AllowClipboard),
+		C.bool(c.cfg.AllowDirectorySharing),
 	)
 	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)
@@ -448,6 +449,16 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOError {
 	if err := c.cfg.Conn.OutputMessage(tdp.ClipboardData(data)); err != nil {
 		return C.CString(fmt.Sprintf("failed to send clipboard data: %v", err))
 	}
+	return nil
+}
+
+//export sd_info_request
+func sd_info_request(handle C.uintptr_t, dirId C.uint32_t, completionId C.uint32_t, length C.uint32_t, path *C.char) C.CGOError {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryInfoRequest(uint32(dirId), uint32(completionId), C.GoString(path))
+}
+
+func (c *Client) sharedDirectoryInfoRequest(dirId uint32, completionId uint32, path string) C.CGOError {
+	// TODO(isaiah)
 	return nil
 }
 

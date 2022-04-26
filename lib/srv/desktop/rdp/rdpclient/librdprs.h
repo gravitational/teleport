@@ -132,7 +132,8 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
                                  uint8_t *key_der,
                                  uint16_t screen_width,
                                  uint16_t screen_height,
-                                 bool allow_clipboard);
+                                 bool allow_clipboard,
+                                 bool allow_directory_sharing);
 
 /**
  * `update_clipboard` is called from Go, and caches data that was copied
@@ -207,3 +208,8 @@ extern void free_go_string(char *s);
 extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
 extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
+
+extern CGOError sd_info_request(uintptr_t client_ref,
+                                uint32_t dir_id,
+                                uint32_t completion_id,
+                                char *path);

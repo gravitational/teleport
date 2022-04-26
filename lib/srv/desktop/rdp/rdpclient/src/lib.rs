@@ -123,6 +123,7 @@ pub unsafe extern "C" fn connect_rdp(
     screen_width: u16,
     screen_height: u16,
     allow_clipboard: bool,
+    allow_directory_sharing: bool,
 ) -> ClientOrError {
     // Convert from C to Rust types.
     let addr = from_go_string(go_addr);
@@ -140,6 +141,7 @@ pub unsafe extern "C" fn connect_rdp(
             screen_width,
             screen_height,
             allow_clipboard,
+            allow_directory_sharing,
         },
     )
     .into()
@@ -173,6 +175,7 @@ struct ConnectParams {
     screen_width: u16,
     screen_height: u16,
     allow_clipboard: bool,
+    allow_directory_sharing: bool,
 }
 
 fn connect_rdp_inner(
@@ -233,8 +236,34 @@ fn connect_rdp_inner(
         KeyboardLayout::US,
         "rdp-rs",
     );
-    // Client for the "rdpdr" channel - smartcard emulation.
-    let rdpdr = rdpdr::Client::new(params.cert_der, params.key_der, pin);
+
+    let request_file_info = Box::new(
+        move |dir_id: u32, completion_id: u32, path: &str| -> Option<RdpError> {
+            match CString::new(path) {
+                Ok(c_string) => {
+                    unsafe {
+                        if sd_info_request(go_ref, dir_id, completion_id, c_string.into_raw())
+                            != CGO_OK
+                        {
+                            return Some(RdpError::TryError(String::from(
+                                "call to sd_info_request failed",
+                            )));
+                        };
+                    }
+                    return None;
+                }
+                Err(_) => {
+                    // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
+                    return Some(RdpError::TryError(String::from(format!(
+                        "path contained characters that couldn't be converted to a C string: {}",
+                        path
+                    ))));
+                }
+            }
+        },
+    );
+    // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
+    let rdpdr = rdpdr::Client::new(params.cert_der, params.key_der, pin, request_file_info);
 
     // Client for the "cliprdr" channel - clipboard sharing.
     let cliprdr = if params.allow_clipboard {
@@ -732,6 +761,12 @@ extern "C" {
     fn free_go_string(s: *mut c_char);
     fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
+    fn sd_info_request(
+        client_ref: usize,
+        dir_id: u32,
+        completion_id: u32,
+        path: *mut c_char,
+    ) -> CGOError;
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.
