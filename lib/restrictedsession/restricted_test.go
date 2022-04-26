@@ -23,7 +23,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"regexp"
@@ -36,6 +35,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -135,7 +135,7 @@ type Suite struct {
 	srcAddrs         map[int]string
 
 	// Audit events emitted by us
-	emitter             events.MockEmitter
+	emitter             eventstest.MockEmitter
 	expectedAuditEvents []apievents.AuditEvent
 }
 
@@ -193,7 +193,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	s.cgroupDir, err = ioutil.TempDir("", "cgroup-test")
+	s.cgroupDir, err = os.MkdirTemp("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 
 	// Create BPF service since we piggy-back on it

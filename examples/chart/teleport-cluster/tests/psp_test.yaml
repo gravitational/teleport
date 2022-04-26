@@ -1,0 +1,21 @@
+suite: PodSecurityPolicy
+templates:
+  - psp.yaml
+tests:
+  - it: creates a PodSecurityPolicy when enabled in values
+    set:
+      podSecurityPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 0
+        isKind:
+          of: PodSecurityPolicy
+      - documentIndex: 1
+        isKind:
+          of: Role
+      - documentIndex: 2
+        isKind:
+          of: RoleBinding
+      - matchSnapshot: {}

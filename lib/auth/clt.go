@@ -129,7 +129,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -557,14 +557,7 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
-	// If we got certs, we're done, however, we may be talking to a Teleport 9 or earlier server,
-	// which still sends back the legacy JSON format.
-	if len(certs.SSH) > 0 && len(certs.TLS) > 0 {
-		return &certs, nil
-	}
-
-	// DELETE IN 10.0.0 (zmb3)
-	return UnmarshalLegacyCerts(out.Bytes())
+	return &certs, nil
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
@@ -1042,21 +1035,6 @@ func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(context.TODO(), c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
-}
-
-// GenerateKeyPair generates SSH private/public key pair optionally protected
-// by password. If the pass parameter is an empty string, the key pair
-// is not password-protected.
-func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("keypair"), generateKeyPairReq{Password: pass})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	var kp *generateKeyPairResponse
-	if err := json.Unmarshal(out.Bytes(), &kp); err != nil {
-		return nil, nil, err
-	}
-	return kp.PrivKey, []byte(kp.PubKey), err
 }
 
 // GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
@@ -1812,11 +1790,6 @@ type IdentityService interface {
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
 	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
-
-	// GenerateKeyPair generates SSH private/public key pair optionally protected
-	// by password. If the pass parameter is an empty string, the key pair
-	// is not password-protected.
-	GenerateKeyPair(pass string) ([]byte, []byte, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the

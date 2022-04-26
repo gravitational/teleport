@@ -15,6 +15,7 @@ linters:
   enable:
     - bodyclose
     - deadcode
+    - depguard
     - goimports
     - gosimple
     - govet
@@ -27,6 +28,13 @@ linters:
     - unused
     - unconvert
     - varcheck
+
+linters-settings:
+  depguard:
+    list-type: denylist
+    include-go-root: true # check against stdlib
+    packages-with-error-message:
+    - io/ioutil: 'use "io" or "os" packages instead'
 
 output:
   uniq-by-line: false

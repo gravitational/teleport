@@ -103,7 +103,7 @@ type OnboardingConfig struct {
 	Token string `yaml:"token"`
 
 	// CAPath is an optional path to a CA certificate.
-	CAPath string
+	CAPath string `yaml:"ca_path"`
 
 	// CAPins is a list of certificate authority pins, used to validate the
 	// connection to the Teleport auth server.

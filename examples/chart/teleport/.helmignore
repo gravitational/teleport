@@ -2,3 +2,4 @@
 *.pem
 scripts
 pki
+tests

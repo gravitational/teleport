@@ -288,7 +288,7 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -358,7 +358,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
-	dialOpts := append([]grpc.DialOption{}, c.c.DialOpts...)
+	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
@@ -368,6 +368,8 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if c.tlsConfig != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 	}
+	// must come last, otherwise provided opts may get clobbered by defaults above
+	dialOpts = append(dialOpts, c.c.DialOpts...)
 
 	var err error
 	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
@@ -1145,6 +1147,12 @@ func (c *Client) DeleteAppSession(ctx context.Context, req types.DeleteAppSessio
 // DeleteAllAppSessions removes all application web sessions.
 func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllAppSessions(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteUserAppSessions deletes all user’s application sessions.
+func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	_, err := c.grpc.DeleteUserAppSessions(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -2481,6 +2489,7 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 			Labels:              req.Labels,
 			SearchKeywords:      req.SearchKeywords,
 			PredicateExpression: req.PredicateExpression,
+			UseSearchAsRoles:    req.UseSearchAsRoles,
 		})
 		if err != nil {
 			if trace.IsLimitExceeded(err) {

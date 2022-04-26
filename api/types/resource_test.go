@@ -372,3 +372,26 @@ func TestResourcesWithLabels_ToMap(t *testing.T) {
 		})
 	}
 }
+
+func TestValidLabelKey(t *testing.T) {
+	for _, tc := range []struct {
+		label string
+		valid bool
+	}{
+		{
+			label: "1x/Y*_-",
+			valid: true,
+		},
+		{
+			label: "x:y",
+			valid: true,
+		},
+		{
+			label: "x\\y",
+			valid: false,
+		},
+	} {
+		isValid := IsValidLabelKey(tc.label)
+		require.Equal(t, tc.valid, isValid)
+	}
+}

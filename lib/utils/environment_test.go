@@ -16,7 +16,6 @@ limitations under the License.
 package utils
 
 import (
-	"io/ioutil"
 	"os"
 
 	"gopkg.in/check.v1"
@@ -40,7 +39,7 @@ foo=
 `)
 
 	// create a temp file with an environment in it
-	f, err := ioutil.TempFile("", "teleport-environment-")
+	f, err := os.CreateTemp("", "teleport-environment-")
 	c.Assert(err, check.IsNil)
 	defer os.Remove(f.Name())
 	_, err = f.Write(rawenv)

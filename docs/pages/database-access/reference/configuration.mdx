@@ -14,6 +14,9 @@ appearing in `teleport.yaml` configuration file:
 
 ## Proxy configuration
 
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
 The following Proxy service configuration is relevant for Database Access:
 
 <Admonition
@@ -50,6 +53,32 @@ proxy_service:
   # Address advertised to Mongo clients. If not set, public_addr is used.
   mongo_public_addr: "mongo.teleport.example.com:443"
 ```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport Cloud automatically configures the Teleport Proxy Service with the
+following settings that are relevant to Database Access. This reference
+configuration uses `mytenant.teleport.sh` in place of your Teleport Cloud tenant
+address.
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  # PostgreSQL proxy is listening on the regular web proxy port.
+  web_listen_addr: "0.0.0.0:3080"
+  # MySQL proxy is listening on a separate port.
+  mysql_listen_addr: "0.0.0.0:3036"
+  # Database clients will connect to the Proxy Service over this hostname.
+  public_addr: "mytenant.teleport.sh:443"
+  # Address advertised to MySQL clients.
+  mysql_public_addr: "mytenant.teleport.sh:3036"
+  # Address advertised to PostgreSQL clients.
+  postgres_public_addr: "mytenant.teleport.sh:443"
+```
+
+</TabItem>
+</Tabs>
 
 ## Database resource
 

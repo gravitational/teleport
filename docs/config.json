@@ -161,8 +161,16 @@
               "slug": "/setup/guides/ec2-tags/"
             },
             {
-              "title": "Joining Nodes in AWS",
-              "slug": "/setup/guides/joining-nodes-aws/"
+              "title": "Joining Nodes via AWS IAM",
+              "slug": "/setup/guides/joining-nodes-aws-iam/"
+            },
+            {
+              "title": "Joining Nodes via AWS EC2",
+              "slug": "/setup/guides/joining-nodes-aws-ec2/"
+            },
+            {
+              "title": "Using Teleport's CA with GitHub",
+              "slug": "/setup/guides/ssh-key-extensions/"
             }
           ]
         },
@@ -205,10 +213,6 @@
             {
               "title": "Networking",
               "slug": "/setup/reference/networking/"
-            },
-            {
-              "title": "Enterprise License File",
-              "slug": "/setup/reference/license/"
             }
           ]
         }
@@ -291,6 +295,10 @@
               "slug": "/server-access/guides/openssh/"
             },
             {
+              "title": "Recording Proxy Mode",
+              "slug": "/server-access/guides/recording-proxy-mode/"
+            },
+            {
               "title": "BPF Session Recording",
               "slug": "/server-access/guides/bpf-session-recording/"
             },
@@ -317,7 +325,11 @@
         {
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
-          "entries": [
+           "entries": [
+            {
+              "title": "Local Demo Cluster",
+              "slug": "/kubernetes-access/getting-started/local/"
+            },
             {
               "title": "Cluster",
               "slug": "/kubernetes-access/getting-started/cluster/"
@@ -378,7 +390,17 @@
         },
         {
           "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/"
+          "slug": "/kubernetes-access/helm/reference/",
+          "entries": [
+            {
+              "title": "teleport-cluster",
+              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
+            },
+            {
+               "title": "teleport-kube-agent",
+               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+            }
+          ]
         },
         {
           "title": "Access Controls",
@@ -445,6 +467,10 @@
             {
               "title": "Self-Hosted Redis",
               "slug": "/database-access/guides/redis/"
+            },
+            {
+              "title": "Self-Hosted Redis Cluster",
+              "slug": "/database-access/guides/redis-cluster/"
             },
             {
               "title": "SQL Server (Preview)",
@@ -549,7 +575,7 @@
       ]
     },
     {
-      "icon": "wand",
+      "icon": "chip",
       "title": "Machine ID",
       "entries": [
         {
@@ -561,12 +587,30 @@
           "slug": "/machine-id/getting-started/"
         },
         {
+          "title": "Reference",
+          "slug": "/machine-id/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/machine-id/reference/cli/"
+            }
+          ]
+        },
+        {
           "title": "Guides",
           "slug": "/machine-id/guides/",
           "entries": [
             {
               "title": "Machine ID with Ansible",
               "slug": "/machine-id/guides/ansible/"
+            },
+            {
+              "title": "Machine ID with Jenkins",
+              "slug": "/machine-id/guides/jenkins/"
             }
           ]
         }
@@ -669,7 +713,7 @@
           "slug": "/enterprise/getting-started/"
         },
         {
-          "title": "Single sign-on (SSO)",
+          "title": "Single Sign-On (SSO)",
           "slug": "/enterprise/sso/",
           "entries": [
             {
@@ -717,6 +761,10 @@
         {
           "title": "HSM",
           "slug": "/enterprise/hsm/"
+        },
+        {
+          "title": "Enterprise License File",
+          "slug": "/enterprise/license/"
         }
       ]
     },
@@ -735,6 +783,10 @@
         {
           "title": "Architecture",
           "slug": "/cloud/architecture/"
+        },
+        {
+          "title": "Downloads",
+          "slug": "/cloud/downloads/"
         },
         {
           "title": "FAQ",
@@ -807,18 +859,16 @@
   ],
   "variables": {
     "version": "7.0",
-    "helm": {
-      "version": "3.4.2"
-    },
     "terraform": {
-      "version": "0.12.0"
+      "version": "1.0.0"
     },
     "presets": {
       "tokens": {
         "first": "abcd123-insecure-do-not-use-this",
         "second": "efgh456-insecure-do-not-use-this",
         "third": "ijkl789-insecure-do-not-use-this"
-      }
+      },
+      "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "fedramp": {
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
@@ -827,6 +877,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
+      "version": "8.3.4",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -858,10 +909,10 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "7.0.0",
-      "golang": "1.16",
+      "version": "9.0.4",
+      "golang": "1.17",
       "plugin": {
-        "version": "7.0.0"
+        "version": "9.0.4"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
@@ -1072,6 +1123,16 @@
     {
       "source": "/kubernetes-access/guides/migration/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/guides/joining-nodes-aws/",
+      "destination": "/setup/guides/joining-nodes-aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/setup/reference/license/",
+      "destination": "/docs/enterprise/license/",
       "permanent": true
     }
   ]

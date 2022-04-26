@@ -19,8 +19,6 @@ package local
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -70,9 +68,7 @@ func BenchmarkGetNodes(b *testing.B) {
 				bk, err = memory.New(memory.Config{})
 				require.NoError(b, err)
 			} else {
-				dir, err := ioutil.TempDir("", "teleport")
-				require.NoError(b, err)
-				defer os.RemoveAll(dir)
+				dir := b.TempDir()
 
 				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
 					Path: dir,

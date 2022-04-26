@@ -32,6 +32,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/net/http2"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -39,6 +41,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -64,7 +67,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
-	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 )
@@ -243,6 +245,8 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			WriteBufferSize: 1024,
 		},
 	}
+
+	fwd.router.UseRawPath = true
 
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
@@ -798,11 +802,6 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	<-party.closeC
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return nil, nil
 }
 
@@ -1515,7 +1514,11 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 
 	if sess.upgradeToHTTP2 {
-		transport = utilnet.SetTransportDefaults(transport)
+		// Upgrade transport to h2 where HTTP_PROXY and HTTPS_PROXY
+		// envs are not take into account purposely.
+		if err := http2.ConfigureTransport(transport); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	} else {
 		sess.tlsConfig.NextProtos = nil
 	}
@@ -1652,7 +1655,7 @@ func (f *Forwarder) serializedRequestClientCreds(authContext authContext) (*tls.
 
 func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	f.log.Debugf("Requesting K8s cert for %v.", ctx)
-	keyPEM, _, err := f.cfg.Keygen.GetNewKeyPairFromPool()
+	keyPEM, _, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

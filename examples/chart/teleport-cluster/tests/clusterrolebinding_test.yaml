@@ -1,0 +1,11 @@
+suite: ClusterRoleBinding
+templates:
+  - clusterrolebinding.yaml
+tests:
+  - it: creates a ClusterRoleBinding
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRoleBinding
+      - matchSnapshot: {}

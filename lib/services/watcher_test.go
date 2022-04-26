@@ -743,8 +743,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 			},
 		},
 		CertAuthorityC: make(chan []types.CertAuthority, 10),
-		WatchUserCA:    true,
-		WatchHostCA:    true,
+		WatchCertTypes: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
@@ -826,7 +825,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 
 func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
 	ta := testauthority.New()
-	priv, pub, err := ta.GenerateKeyPair("")
+	priv, pub, err := ta.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// CA for cluster1 with 1 key pair.

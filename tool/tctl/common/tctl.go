@@ -137,8 +137,10 @@ func Run(commands []CLICommand) {
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
+	utils.UpdateAppUsageTemplate(app, os.Args[1:])
 	selectedCmd, err := app.Parse(os.Args[1:])
 	if err != nil {
+		app.Usage(os.Args[1:])
 		utils.FatalError(err)
 	}
 
@@ -146,6 +148,11 @@ func Run(commands []CLICommand) {
 	if selectedCmd == ver.FullCommand() {
 		utils.PrintVersion()
 		return
+	}
+
+	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
+	if cfg.TeleportHome != "" {
+		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
 	}
 
 	// configure all commands with Teleport configuration (they share 'cfg')
@@ -336,7 +343,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
 
 	c := client.MakeDefaultConfig()
-	if err := c.LoadProfile("", proxyAddr); err != nil {
+	if err := c.LoadProfile(cfg.TeleportHome, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	keyStore, err := client.NewFSLocalKeyStore(c.KeysDir)

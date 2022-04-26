@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/stretchr/testify/require"
@@ -50,7 +51,7 @@ import (
 type passwordSuite struct {
 	bk          backend.Backend
 	a           *Server
-	mockEmitter *events.MockEmitter
+	mockEmitter *eventstest.MockEmitter
 }
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
@@ -83,7 +84,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	err = s.a.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	s.mockEmitter = &events.MockEmitter{}
+	s.mockEmitter = &eventstest.MockEmitter{}
 	s.a.emitter = s.mockEmitter
 	return &s
 }

@@ -86,7 +86,7 @@ func (s *ServicesSuite) TestCommandLabels(c *check.C) {
 	c.Assert(label.Command[0], check.Not(check.Equals), out["a"].GetCommand())
 }
 
-func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
+func TestLabelKeyValidation(t *testing.T) {
 	tts := []struct {
 		label string
 		ok    bool
@@ -96,12 +96,12 @@ func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
 		{label: "this-that", ok: true},
 		{label: "8675309", ok: true},
 		{label: "", ok: false},
-		{label: "spam:eggs", ok: false},
+		{label: "spam:eggs", ok: true},
 		{label: "cats dogs", ok: false},
 		{label: "wut?", ok: false},
 	}
 	for _, tt := range tts {
-		c.Assert(types.IsValidLabelKey(tt.label), check.Equals, tt.ok, check.Commentf("tt=%+v", tt))
+		require.Equal(t, types.IsValidLabelKey(tt.label), tt.ok)
 	}
 }
 
