@@ -489,7 +489,7 @@ func onConfigDump(flags dumpFlags) error {
 			os.Stderr, "Could not check the contents of %s: %s\nThe data directory may contain existing cluster state.\n", flags.DataDir, err.Error())
 	}
 
-	if !os.IsNotExist(err) && len(entries) != 0 {
+	if err == nil && len(entries) != 0 {
 		fmt.Fprintf(
 			os.Stderr,
 			"The data directory %s is not empty and may contain existing cluster state. Running this configuration is likely a mistake. To join a new cluster, specify an alternate --data-dir or clear the %s directory.\n",
