@@ -634,57 +634,41 @@ func TestAppAuditEvents(t *testing.T) {
 }
 
 func TestAppServersHA(t *testing.T) {
+
+	type packInfo struct {
+		clusterName    string
+		publicHTTPAddr string
+		publicWSAddr   string
+		appServers     []*service.TeleportProcess
+	}
 	testCases := map[string]struct {
-		packInfo        func(pack *pack) (cluterName, publicAddr string, appServers []*service.TeleportProcess)
+		packInfo        func(pack *pack) packInfo
 		startAppServers func(pack *pack, count int) []*service.TeleportProcess
-		makeRequest     func(pack *pack, inCookie string) (status int, err error)
 	}{
-		"RootHTTPApp": {
-			packInfo: func(pack *pack) (string, string, []*service.TeleportProcess) {
-				return pack.rootAppClusterName, pack.rootAppPublicAddr, pack.rootAppServers
+		"RootServer": {
+			packInfo: func(pack *pack) packInfo {
+				return packInfo{
+					clusterName:    pack.rootAppClusterName,
+					publicHTTPAddr: pack.rootAppPublicAddr,
+					publicWSAddr:   pack.rootWSPublicAddr,
+					appServers:     pack.rootAppServers,
+				}
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startRootAppServers(t, count, []service.App{})
 			},
-			makeRequest: func(pack *pack, inCookie string) (int, error) {
-				status, _, err := pack.makeRequest(inCookie, http.MethodGet, "/")
-				return status, err
-			},
 		},
-		"RootWebSocketApp": {
-			packInfo: func(pack *pack) (string, string, []*service.TeleportProcess) {
-				return pack.rootAppClusterName, pack.rootWSPublicAddr, pack.rootAppServers
-			},
-			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
-				return pack.startRootAppServers(t, count, []service.App{})
-			},
-			makeRequest: func(pack *pack, inCookie string) (int, error) {
-				_, err := pack.makeWebsocketRequest(inCookie, "/")
-				return 0, err
-			},
-		},
-		"LeafHTTPApp": {
-			packInfo: func(pack *pack) (string, string, []*service.TeleportProcess) {
-				return pack.leafAppClusterName, pack.leafAppPublicAddr, pack.leafAppServers
+		"LeafServer": {
+			packInfo: func(pack *pack) packInfo {
+				return packInfo{
+					clusterName:    pack.leafAppClusterName,
+					publicHTTPAddr: pack.leafAppPublicAddr,
+					publicWSAddr:   pack.leafWSPublicAddr,
+					appServers:     pack.leafAppServers,
+				}
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startLeafAppServers(t, count, []service.App{})
-			},
-			makeRequest: func(pack *pack, inCookie string) (int, error) {
-				status, _, err := pack.makeRequest(inCookie, http.MethodGet, "/")
-				return status, err
-			},
-		},
-		"LeafWebSocketApp": {
-			packInfo: func(pack *pack) (string, string, []*service.TeleportProcess) {
-				return pack.leafAppClusterName, pack.leafWSPublicAddr, pack.leafAppServers
-			},
-			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
-				return pack.startLeafAppServers(t, count, []service.App{})
-			},
-			makeRequest: func(pack *pack, inCookie string) (int, error) {
-				_, err := pack.makeWebsocketRequest(inCookie, "/")
-				return 0, err
 			},
 		},
 	}
@@ -710,41 +694,42 @@ func TestAppServersHA(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// SetTestTimeouts is explicitly called here instead of
-	// within setupWithOptions such that the tests below can
-	// be run in parallel
-	SetTestTimeouts(time.Millisecond * time.Duration(500))
+	makeRequests := func(t *testing.T, pack *pack, httpCookie, wsCookie string, responseAssertion func(*testing.T, int, error)) {
+		status, _, err := pack.makeRequest(httpCookie, http.MethodGet, "/")
+		responseAssertion(t, status, err)
+
+		_, err = pack.makeWebsocketRequest(wsCookie, "/")
+		responseAssertion(t, 0, err)
+	}
+
+	pack := setupWithOptions(t, appTestOptions{rootAppServersCount: 3})
 
 	for name, test := range testCases {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			pack := setupWithOptions(t, appTestOptions{rootAppServersCount: 3, skipSettingTimeouts: true})
-			clusterName, publicAddr, appServers := test.packInfo(pack)
+			info := test.packInfo(pack)
+			httpCookie := pack.createAppSession(t, info.publicHTTPAddr, info.clusterName)
+			wsCookie := pack.createAppSession(t, info.publicWSAddr, info.clusterName)
 
-			inCookie := pack.createAppSession(t, publicAddr, clusterName)
-			status, err := test.makeRequest(pack, inCookie)
-			responseWithoutError(t, status, err)
+			makeRequests(t, pack, httpCookie, wsCookie, responseWithoutError)
 
 			// Stop all root app servers.
-			for i, appServer := range appServers {
+			for i, appServer := range info.appServers {
 				require.NoError(t, appServer.Close())
 
-				// issue a request right after a server is gone.
-				status, err = test.makeRequest(pack, inCookie)
-				if i == len(appServers)-1 {
+				if i == len(info.appServers)-1 {
 					// fails only when the last one is closed.
-					responseWithError(t, status, err)
+					makeRequests(t, pack, httpCookie, wsCookie, responseWithError)
 				} else {
 					// otherwise the request should be handled by another
 					// server.
-					responseWithoutError(t, status, err)
+					makeRequests(t, pack, httpCookie, wsCookie, responseWithoutError)
 				}
 			}
 
 			servers := test.startAppServers(pack, 3)
-			status, err = test.makeRequest(pack, inCookie)
-			responseWithoutError(t, status, err)
+			makeRequests(t, pack, httpCookie, wsCookie, responseWithoutError)
 
 			// Start an additional app server and stop all current running
 			// ones.
@@ -752,11 +737,10 @@ func TestAppServersHA(t *testing.T) {
 			for _, appServer := range servers {
 				require.NoError(t, appServer.Close())
 
-				// Everytime a app server stops we issue a request to
+				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
 				// the remaining app servers.
-				status, err = test.makeRequest(pack, inCookie)
-				responseWithoutError(t, status, err)
+				makeRequests(t, pack, httpCookie, wsCookie, responseWithoutError)
 			}
 		})
 	}
