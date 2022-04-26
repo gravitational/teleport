@@ -127,6 +127,7 @@ message CreateGatewayRequest {
     string target_uri = 1;
     string target_user = 2;
     string local_port = 3;
+    string target_subresource_name = 4;
 }
 
 message ListGatewaysRequest { repeated string cluster_ids = 1; }
