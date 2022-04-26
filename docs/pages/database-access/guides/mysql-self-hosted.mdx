@@ -97,33 +97,9 @@ in the MySQL documentation or
 [Enabling TLS on MariaDB Server](https://mariadb.com/docs/security/encryption/in-transit/enable-tls-server/)
 in the MariaDB documentation for more details.
 
-### Create a role and user
+### Create a Teleport user
 
-Create the role that will allow a user to connect to any database using any
-database account:
-
-```code
-tctl --config=/path/to/teleport-db-role.yaml create <<EOF
-kind: role
-version: v5
-metadata:
-  name: db
-spec:
-  allow:
-    db_labels:
-      '*': '*'
-    db_names:
-    - '*'
-    db_users:
-    - '*'
-EOF
-```
-
-Create the user assigned the `db` role we've just created:
-
-```code
-$ tctl --config=/path/to/teleport-db-role.yaml users add --roles=access,db testuser
-```
+(!docs/pages/includes/database-access/create-user.mdx!)
 
 ### Start the Database Service
 
