@@ -278,16 +278,40 @@ func (c *AccessRequestCommand) Create(client auth.ClientI) error {
 }
 
 func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
+	ctx := context.TODO()
+	var approvedTokens []string
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
+		// Fetch the requests first to see if they were approved to provide the
+		// proper messaging.
+		reqs, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
+			ID: reqID,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(reqs) != 1 {
+			return trace.BadParameter("request with ID %q not found", reqID)
+		}
+		for _, req := range reqs {
+			if req.GetState().String() == "APPROVED" {
+				approvedTokens = append(approvedTokens, reqID)
+			}
+		}
+	}
+
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.DeleteAccessRequest(context.TODO(), reqID); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	fmt.Println("Requests deleted successfully.")
-	fmt.Println("If these requests had been approved, deleting the request will not remove this users access to the roles.")
-	fmt.Println("If you would also like to lock this users access you can run:")
-	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		fmt.Printf("tctl lock --access_request %s\n", reqID)
+	if len(approvedTokens) > 0 {
+		fmt.Println("\nSince this access request has already been approved, deleting the request now will NOT remove")
+		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the requested")
+		fmt.Printf("you can run:\n\n")
+		for _, reqID := range approvedTokens {
+			fmt.Printf("> tctl lock --access_request %s\n\n", reqID)
+		}
 	}
 	return nil
 }
