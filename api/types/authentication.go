@@ -522,20 +522,20 @@ func (u *U2F) Check() error {
 	// NOTE: We allow naked AppIDs without a scheme for compatibility with WebAuthn
 	//       as we rely on that behaviour to derive WebAuthn configs on-the-fly.
 	//       This is only valid if all facets are also naked however.
-	appIDUrl, err := url.Parse(u.AppID)
+	appIDURL, err := url.Parse(u.AppID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Trim the www subdomain since it's a common AppID subdomain prefix.
-	host := strings.TrimPrefix(appIDUrl.Host, "www.")
+	host := strings.TrimPrefix(appIDURL.Host, "www.")
 	domain, err := getDomain(host)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	for _, facet := range u.Facets {
-		err := validateU2FFacet(domain, appIDUrl.Scheme, facet)
+		err := validateU2FFacet(domain, appIDURL.Scheme, facet)
 		if err != nil {
 			return trace.Wrap(err)
 		}
