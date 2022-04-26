@@ -200,19 +200,19 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	s := makeSampleSSHConfig(conf, roles)
+	s := makeSampleSSHConfig(conf, roles[defaults.RoleNode])
 
 	// Auth config:
-	a := makeSampleAuthConfig(conf, flags, roles)
+	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
 
 	// sample proxy config:
-	p, err := makeSampleProxyConfig(conf, flags, roles)
+	p, err := makeSampleProxyConfig(conf, flags, roles[defaults.RoleProxy])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Apps config:
-	apps, err := makeSampleAppsConfig(conf, flags, roles)
+	apps, err := makeSampleAppsConfig(conf, flags, roles[defaults.RoleApp])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -246,9 +246,9 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *service.Config, roles map[string]bool) SSH {
+func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
 	var s SSH
-	if roles[defaults.RoleNode] {
+	if enabled {
 		s.EnabledFlag = "yes"
 		s.ListenAddress = conf.SSH.Addr.Addr
 		s.Commands = []CommandLabel{
@@ -268,9 +268,9 @@ func makeSampleSSHConfig(conf *service.Config, roles map[string]bool) SSH {
 	return s
 }
 
-func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, roles map[string]bool) Auth {
+func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
 	var a Auth
-	if roles[defaults.RoleAuthService] {
+	if enabled {
 		a.ListenAddress = conf.Auth.SSHAddr.Addr
 		a.ClusterName = ClusterName(flags.ClusterName)
 		a.EnabledFlag = "yes"
@@ -289,9 +289,9 @@ func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, roles map[str
 	return a
 }
 
-func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, roles map[string]bool) (Proxy, error) {
+func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool) (Proxy, error) {
 	var p Proxy
-	if roles[defaults.RoleProxy] {
+	if enabled {
 		p.EnabledFlag = "yes"
 		p.ListenAddress = conf.Proxy.SSHAddr.Addr
 		if flags.ACMEEnabled {
@@ -331,10 +331,10 @@ func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, roles map[st
 	return p, nil
 }
 
-func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, roles map[string]bool) (Apps, error) {
+func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
-	if roles[defaults.RoleApp] || flags.AppURI != "" || flags.AppName != "" {
+	if enabled || flags.AppURI != "" || flags.AppName != "" {
 		if flags.AppURI == "" || flags.AppName == "" {
 			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
 		}
