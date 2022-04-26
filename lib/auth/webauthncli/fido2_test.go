@@ -439,12 +439,12 @@ func TestFIDO2Login(t *testing.T) {
 		},
 		{
 			name:   "NOK cancel after PIN",
-			fido2:  newFakeFIDO2(auth1, pin1),
-			setUP:  pin1.setUP,
-			prompt: &pinCancelPrompt{pin: pin1.pin}, // cancel set on test body
+			fido2:  newFakeFIDO2(pin3, bio2),        // pin3 and bio2 have resident credentials
+			setUP:  pin3.setUP,                      // user chooses pin3, but cancels before further touches
+			prompt: &pinCancelPrompt{pin: pin3.pin}, // cancel set on test body
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = nil
+				cp.Response.AllowedCredentials = nil // passwordless forces PIN
 				cp.Response.UserVerification = protocol.VerificationRequired
 				return &cp
 			},
