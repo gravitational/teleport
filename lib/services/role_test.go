@@ -2651,6 +2651,128 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	}
 }
 
+func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	roleDevStage := &types.RoleV4{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &types.RoleV4{
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+
+	roleNoDBAccess := &types.RoleV4{
+		Metadata: types.Metadata{Name: "no_db_access", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"*"},
+				DatabaseNames: []string{"*"},
+			},
+		},
+	}
+
+	roleAllowDenySame := &types.RoleV4{
+		Metadata: types.Metadata{Name: "allow_deny_same", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name       string
+		roles      RoleSet
+		server     types.Database
+		enumResult EnumerationResult
+	}{
+		{
+			name:   "deny overrides allow",
+			roles:  RoleSet{roleAllowDenySame},
+			server: dbStage,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "developer allowed any username in stage database except superuser",
+			roles:  RoleSet{roleDevStage, roleDevProd},
+			server: dbStage,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				wildcardAllowed:  true,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "developer allowed only specific username/database in prod database",
+			roles:  RoleSet{roleDevStage, roleDevProd},
+			server: dbProd,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "there may be users disallowed from all users",
+			roles:  RoleSet{roleDevStage, roleDevProd, roleNoDBAccess},
+			server: dbProd,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": false, "superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   true,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			enumResult := tc.roles.EnumerateDatabaseUsers(tc.server)
+			require.Equal(t, tc.enumResult, enumResult)
+		})
+	}
+}
+
 func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	roleEmpty := &types.RoleV4{
 		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
