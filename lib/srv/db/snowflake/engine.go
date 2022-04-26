@@ -82,8 +82,8 @@ const (
 	privKeyPath = "/Users/jnyckowski/projects/certs/example.com+5-key.pem"
 )
 
-func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) error {
-	uri := session.Database.GetURI()
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	uri := sessionCtx.Database.GetURI()
 	uriParts := strings.Split(uri, ".")
 	if len(uriParts) != 5 {
 		return trace.BadParameter("invalid Snowflake url: %s", uri)
@@ -92,7 +92,7 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 	accountName := uriParts[0]
 
 	jwtToken, err := e.AuthClient.GenerateDatabaseJWT(ctx, types.GenerateSnowflakeJWT{
-		Username: session.DatabaseUser,
+		Username: sessionCtx.DatabaseUser,
 		Account:  accountName,
 	})
 	if err != nil {
@@ -101,13 +101,29 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 
 	e.Log.Debugf("JWT token: %s", jwtToken)
 
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		},
+	}
+
+	clientConnReader := bufio.NewReader(e.clientConn)
+
 	for {
-		req, err := http.ReadRequest(bufio.NewReader(e.clientConn))
+		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		e.Log.Debugf("%+v", req)
+
+		e.Log.Debugf("orig url: %s", req.URL.String())
+		origURLPath := req.URL.String()
 
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
@@ -194,14 +210,13 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 			}
 		}
 
-		e.Log.Debugf("old url: %s", req.URL.String())
 		req.URL.Scheme = "https"
-		req.URL.Host = session.Database.GetURI()
+		req.URL.Host = sessionCtx.Database.GetURI()
 		newUrl := req.URL.String()
 		e.Log.Debugf("new url: %s", newUrl)
 		e.Log.Debugf("method: %s", req.Method)
 
-		reqCopy, err := http.NewRequest(req.Method, newUrl, bytes.NewReader(body))
+		reqCopy, err := http.NewRequestWithContext(ctx, req.Method, newUrl, bytes.NewReader(body))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -227,8 +242,15 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 			}
 		}
 
-		c := http.Client{}
-		resp, err := c.Do(reqCopy)
+		if strings.HasPrefix(origURLPath, queryRequestPath) {
+			query, err := extractSQLStmt(bodyGzAll)
+			if err != nil {
+				return trace.Wrap(err, "failed to extract SQL query")
+			}
+			e.Audit.OnQuery(ctx, sessionCtx, common.Query{Query: query})
+		}
+
+		resp, err := httpClient.Do(reqCopy)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -241,10 +263,10 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 		e.Log.Debugf("resp: %s", string(dumpResp))
 
 		if resp.StatusCode != 200 {
-			return trace.Errorf("Not 200 response code: %d", resp.StatusCode)
+			e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
 		}
 
-		if e.connectionToken == "" {
+		if strings.HasPrefix(origURLPath, loginRequestPath) {
 			if err := e.extractToken(dumpResp); err == nil {
 				e.Log.Debugf("extracted token")
 			} else {
@@ -259,6 +281,19 @@ func (e *Engine) HandleConnection(ctx context.Context, session *common.Session) 
 	}
 
 	return nil
+}
+
+type queryRequest struct {
+	SQLText string `json:"sqlText"`
+}
+
+func extractSQLStmt(body []byte) (string, error) {
+	queryRequest := &queryRequest{}
+	if err := json.Unmarshal(body, queryRequest); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return queryRequest.SQLText, nil
 }
 
 func (e *Engine) extractToken(dumpResp []byte) error {
