@@ -20,50 +20,49 @@ import { WorkspacesState } from 'teleterm/ui/services/workspacesService';
 
 interface StatePersistenceState {
   connectionTracker: ConnectionTrackerState;
-  workspacesState?: WorkspacesState;
+  workspacesState: WorkspacesState;
 }
 
 export class StatePersistenceService {
-  state: StatePersistenceState = {
-    connectionTracker: {
-      connections: [],
-    },
-    workspacesState: {
-      workspaces: {},
-    },
-  };
+  constructor(private _fileStorage: FileStorage) {}
 
-  constructor(private _fileStorage: FileStorage) {
-    const restored = this._fileStorage.get<StatePersistenceState>('state');
-    if (restored) {
-      this.state = restored;
-    }
-  }
-
-  saveConnectionTrackerState(navigatorState: ConnectionTrackerState): void {
-    this.state.connectionTracker = navigatorState;
-    this._fileStorage.put('state', this.state);
+  saveConnectionTrackerState(connectionTracker: ConnectionTrackerState): void {
+    const newState: StatePersistenceState = {
+      ...this.getState(),
+      connectionTracker,
+    };
+    this.putState(newState);
   }
 
   getConnectionTrackerState(): ConnectionTrackerState {
-    return this.state.connectionTracker;
+    return this.getState().connectionTracker;
   }
 
-  saveWorkspaces(workspacesState: WorkspacesState): void {
-    this.state.workspacesState.rootClusterUri = workspacesState.rootClusterUri;
-    for (let w in workspacesState.workspaces) {
-      if (workspacesState.workspaces[w]) {
-        this.state.workspacesState.workspaces[w] = {
-          location: workspacesState.workspaces[w].location,
-          localClusterUri: workspacesState.workspaces[w].localClusterUri,
-          documents: workspacesState.workspaces[w].documents,
-        };
-      }
-    }
-    this._fileStorage.put('state', this.state);
+  saveWorkspacesState(workspacesState: WorkspacesState): void {
+    const newState: StatePersistenceState = {
+      ...this.getState(),
+      workspacesState,
+    };
+    this.putState(newState);
   }
 
-  getWorkspaces(): WorkspacesState {
-    return this.state.workspacesState;
+  getWorkspacesState(): WorkspacesState {
+    return this.getState().workspacesState;
+  }
+
+  private getState(): StatePersistenceState {
+    const defaultState: StatePersistenceState = {
+      connectionTracker: {
+        connections: [],
+      },
+      workspacesState: {
+        workspaces: {},
+      },
+    };
+    return this._fileStorage.get('state') || defaultState;
+  }
+
+  private putState(state: StatePersistenceState): void {
+    this._fileStorage.put('state', state);
   }
 }

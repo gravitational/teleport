@@ -55,7 +55,7 @@ export default class AppContext {
       this.modalsService,
       this.clustersService,
       this.notificationsService,
-      this.statePersistenceService,
+      this.statePersistenceService
     );
     this.terminalsService = new TerminalsService(ptyServiceClient);
 
@@ -81,9 +81,6 @@ export default class AppContext {
 
   async init(): Promise<void> {
     await this.clustersService.syncRootClusters();
-    const { rootClusterUri } = this.statePersistenceService.getWorkspaces();
-    if (rootClusterUri) {
-      this.workspacesService.setActiveWorkspace(rootClusterUri);
-    }
+    this.workspacesService.restorePersistedState();
   }
 }

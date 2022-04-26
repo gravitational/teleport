@@ -6,6 +6,7 @@ import { ClustersService } from 'teleterm/ui/services/clusters';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { isEqual } from 'lodash';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { routing } from 'teleterm/ui/uri';
 
 export interface WorkspacesState {
   rootClusterUri?: string;
@@ -107,30 +108,16 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
   setState(nextState: (draftState: WorkspacesState) => WorkspacesState | void) {
     super.setState(nextState);
-    this.statePersistenceService.saveWorkspaces(this.state);
+    this.persistState();
   }
 
   setActiveWorkspace(clusterUri: string): Promise<void> {
     const setWorkspace = () => {
       this.setState(draftState => {
+        // adding a new workspace
         if (!draftState.workspaces[clusterUri]) {
-          const persistedWorkspace =
-            this.statePersistenceService.getWorkspaces().workspaces[clusterUri];
-          const defaultDocument = this.getWorkspaceDocumentService(
-            clusterUri
-          ).createClusterDocument({ clusterUri });
-
-          draftState.workspaces[clusterUri] = {
-            localClusterUri: persistedWorkspace?.localClusterUri || clusterUri,
-            location: defaultDocument.uri,
-            documents: [defaultDocument],
-            previous: persistedWorkspace?.documents
-              ? {
-                  documents: persistedWorkspace.documents,
-                  location: persistedWorkspace.location,
-                }
-              : undefined,
-          };
+          draftState.workspaces[clusterUri] =
+            this.getWorkspaceDefaultState(clusterUri);
         }
         draftState.rootClusterUri = clusterUri;
       });
@@ -174,8 +161,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     })
       .then(() => {
         return new Promise<void>(resolve => {
-          if (!this.canReopenPreviousDocuments(this.getWorkspace(clusterUri))) {
-            this.discardPreviousDocuments(clusterUri);
+          if (!this.getWorkspace(clusterUri)?.previous) {
             return resolve();
           }
           this.modalsService.openDocumentsReopenDialog({
@@ -205,6 +191,41 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     );
   }
 
+  restorePersistedState(): void {
+    const persistedState = this.statePersistenceService.getWorkspacesState();
+    const restoredWorkspaces = this.clustersService
+      .getClusters()
+      .reduce((workspaces, cluster) => {
+        const persistedWorkspace = persistedState.workspaces[cluster.uri];
+        const workspaceDefaultState = this.getWorkspaceDefaultState(
+          persistedWorkspace?.localClusterUri || cluster.uri
+        );
+        const persistedWorkspaceDocuments = persistedWorkspace.documents;
+
+        workspaces[cluster.uri] = {
+          ...workspaceDefaultState,
+          previous: this.canReopenPreviousDocuments({
+            previousDocuments: persistedWorkspaceDocuments,
+            currentDocuments: workspaceDefaultState.documents,
+          })
+            ? {
+                location: persistedWorkspace.location,
+                documents: persistedWorkspaceDocuments,
+              }
+            : undefined,
+        };
+        return workspaces;
+      }, {});
+
+    this.setState(draftState => {
+      draftState.workspaces = restoredWorkspaces;
+    });
+
+    if (persistedState.rootClusterUri) {
+      this.setActiveWorkspace(persistedState.rootClusterUri);
+    }
+  }
+
   private reopenPreviousDocuments(clusterUri: string): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[clusterUri];
@@ -221,17 +242,47 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
-  private canReopenPreviousDocuments(workspace: Workspace): boolean {
+  private canReopenPreviousDocuments({
+    previousDocuments,
+    currentDocuments,
+  }: {
+    previousDocuments: Document[];
+    currentDocuments: Document[];
+  }): boolean {
     const removeUri = (documents: Document[]) =>
       documents.map(d => ({ ...d, uri: undefined }));
 
     return (
-      workspace.previous &&
-      workspace.previous.documents?.length &&
-      !isEqual(
-        removeUri(workspace.previous.documents),
-        removeUri(workspace.documents)
-      )
+      previousDocuments?.length &&
+      !isEqual(removeUri(previousDocuments), removeUri(currentDocuments))
     );
+  }
+
+  private getWorkspaceDefaultState(localClusterUri: string): Workspace {
+    const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
+    const defaultDocument = this.getWorkspaceDocumentService(
+      rootClusterUri
+    ).createClusterDocument({ clusterUri: localClusterUri });
+    return {
+      localClusterUri,
+      location: defaultDocument.uri,
+      documents: [defaultDocument],
+    };
+  }
+
+  private persistState(): void {
+    const stateToSave: WorkspacesState = {
+      rootClusterUri: this.state.rootClusterUri,
+      workspaces: {},
+    };
+    for (let w in this.state.workspaces) {
+      const workspace = this.state.workspaces[w];
+      stateToSave.workspaces[w] = {
+        localClusterUri: workspace.localClusterUri,
+        location: workspace.previous?.location || workspace.location,
+        documents: workspace.previous?.documents || workspace.documents,
+      };
+    }
+    this.statePersistenceService.saveWorkspacesState(stateToSave);
   }
 }

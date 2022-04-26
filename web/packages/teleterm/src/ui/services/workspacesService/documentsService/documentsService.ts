@@ -89,14 +89,16 @@ export class DocumentsService {
   }
 
   createGatewayDocument(opts: CreateGatewayDocumentOpts): DocumentGateway {
-    const { targetUri, title, targetUser } = opts;
+    const { targetUri, title, targetUser, port, gatewayUri } = opts;
     const uri = routing.getDocUri({ docId: unique() });
     return {
       uri,
       kind: 'doc.gateway',
       targetUri,
       targetUser,
+      gatewayUri,
       title,
+      port
     };
   }
 
