@@ -3169,14 +3169,14 @@ exports[`render manual tab with join token 1`] = `
             </div>
           </div>
           <div
-            class="c13"
+            class="c11"
           >
             <span
               class="c12"
             >
               Step 2
             </span>
-             - Start the Teleport agent with the following parameters
+             - Configure your teleport agent
             <div
               class="c16"
             >
@@ -3202,7 +3202,7 @@ exports[`render manual tab with join token 1`] = `
                   $
                 </div>
                 <div>
-                  teleport start --roles=node --token=some-join-token-hash --auth-server=localhost:443 
+                  teleport configure --output=$HOME/.config/node_config.yaml --roles=node --token=some-join-token-hash --auth-server=localhost:443 --data-dir=$HOME/.config
                 </div>
               </div>
               <button
@@ -3222,6 +3222,40 @@ exports[`render manual tab with join token 1`] = `
               >
                 Regenerate Token
               </a>
+            </div>
+          </div>
+          <div
+            class="c13"
+          >
+            <span
+              class="c12"
+            >
+              Step 3
+            </span>
+             - Start the Teleport agent with the configuration file
+            <div
+              class="c17"
+            >
+              <div
+                class="c18"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c19"
+                >
+                  $
+                </div>
+                <div>
+                  teleport start --config=$HOME/.config/node_config.yaml
+                </div>
+              </div>
+              <button
+                class="c20"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
             </div>
           </div>
         </div>
@@ -3676,14 +3710,14 @@ exports[`render manual tab with local user 1`] = `
             </div>
           </div>
           <div
-            class="c13"
+            class="c11"
           >
             <span
               class="c12"
             >
               Step 4
             </span>
-             - Start the Teleport agent with the following parameters
+             - Configure your teleport agent
             <div
               class="c16"
             >
@@ -3697,7 +3731,41 @@ exports[`render manual tab with local user 1`] = `
                   $
                 </div>
                 <div>
-                  teleport start --roles=node --token=[generated-join-token] --auth-server=localhost:443 
+                  teleport configure --output=$HOME/.config/node_config.yaml --roles=node --token=[generated-join-token] --auth-server=localhost:443 --data-dir=$HOME/.config
+                </div>
+              </div>
+              <button
+                class="c19"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+          <div
+            class="c13"
+          >
+            <span
+              class="c12"
+            >
+              Step 5
+            </span>
+             - Start the Teleport agent with the generated configuration file
+            <div
+              class="c16"
+            >
+              <div
+                class="c17"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c18"
+                >
+                  $
+                </div>
+                <div>
+                  teleport start --config=$HOME/.config/node_config.yaml
                 </div>
               </div>
               <button
@@ -4161,14 +4229,14 @@ exports[`render manual tab with sso user 1`] = `
             </div>
           </div>
           <div
-            class="c13"
+            class="c11"
           >
             <span
               class="c12"
             >
               Step 4
             </span>
-             - Start the Teleport agent with the following parameters
+             - Configure your teleport agent
             <div
               class="c16"
             >
@@ -4182,7 +4250,41 @@ exports[`render manual tab with sso user 1`] = `
                   $
                 </div>
                 <div>
-                  teleport start --roles=node --token=[generated-join-token] --auth-server=localhost:443 
+                  teleport configure --output=$HOME/.config/node_config.yaml --roles=node --token=[generated-join-token] --auth-server=localhost:443 --data-dir=$HOME/.config
+                </div>
+              </div>
+              <button
+                class="c19"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+          <div
+            class="c13"
+          >
+            <span
+              class="c12"
+            >
+              Step 5
+            </span>
+             - Start the Teleport agent with the generated configuration file
+            <div
+              class="c16"
+            >
+              <div
+                class="c17"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c18"
+                >
+                  $
+                </div>
+                <div>
+                  teleport start --config=$HOME/.config/node_config.yaml
                 </div>
               </div>
               <button

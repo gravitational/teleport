@@ -26,6 +26,7 @@ import {
 import { DialogContent, DialogFooter } from 'design/Dialog';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
+import cfg from 'teleport/config';
 import { State } from '../useAddApp';
 
 export default function Manually({
@@ -77,6 +78,14 @@ export default function Manually({
   );
 }
 
+const configFile = `${cfg.configDir}/app_config.yaml`;
+const startCmd = `teleport start --config=${configFile}`;
+
+function getConfigCmd(token: string, host: string) {
+  return `teleport configure --output=${configFile} --app-name=[example-app] --app-uri=http://localhost/ \
+--roles=app --token=${token} --auth-server=${host} --data-dir=${cfg.configDir}`;
+}
+
 type StepsWithoutTokenProps = {
   tshLoginCmd: string;
   host: string;
@@ -102,11 +111,18 @@ const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
       <Text bold as="span">
         Step 4
       </Text>
-      {` - Start the Teleport agent with the following parameters`}
+      {` - Configure your teleport agent`}
       <TextSelectCopy
         mt="2"
-        text={`teleport start --roles=app --app-name=[example-app] --app-uri=http://localhost/ --token=[generated-join-token] --auth-server=${host}`}
+        text={getConfigCmd('[generated-join-token]', host)}
       />
+    </Box>
+    <Box>
+      <Text bold as="span">
+        Step 5
+      </Text>
+      {` - Start the Teleport agent with the generated configuration file`}
+      <TextSelectCopy mt="2" text={startCmd} />
     </Box>
     <Box>
       {`* Note: For a self-hosted Teleport version, you may need to update DNS and obtain a TLS certificate for this application.
@@ -129,25 +145,31 @@ type StepsWithTokenProps = {
 };
 
 const StepsWithToken = ({ token, host, createToken }: StepsWithTokenProps) => (
-  <Box>
-    <Text bold as="span">
-      Step 2
-    </Text>
-    {` - Start the Teleport agent with the following parameters`}
-    <Text mt="1">
-      The token will be valid for{' '}
-      <Text bold as={'span'}>
-        {token.expiryText}.
+  <>
+    <Box mb={4}>
+      <Text bold as="span">
+        Step 2
       </Text>
-    </Text>
-    <TextSelectCopy
-      mt="2"
-      text={`teleport start --roles=app --app-name=[example-app] --app-uri=http://localhost/ --token=${token.id} --auth-server=${host}`}
-    />
-    <Box>
-      <ButtonLink onClick={createToken}>Regenerate Token</ButtonLink>
+      {` - Configure your teleport agent`}
+      <Text mt="1">
+        The token will be valid for{' '}
+        <Text bold as={'span'}>
+          {token.expiryText}.
+        </Text>
+      </Text>
+      <TextSelectCopy mt="2" text={getConfigCmd(token.id, host)} />
+      <Box>
+        <ButtonLink onClick={createToken}>Regenerate Token</ButtonLink>
+      </Box>
     </Box>
-  </Box>
+    <Box>
+      <Text bold as="span">
+        Step 3
+      </Text>
+      {` - Start the Teleport agent with the configuration file`}
+      <TextSelectCopy mt="2" text={startCmd} />
+    </Box>
+  </>
 );
 
 type Props = {
