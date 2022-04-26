@@ -927,6 +927,7 @@ type ServerCreateDriveRequest = DeviceCreateRequest;
 /// 2.2.1.4.1 Device Create Request (DR_CREATE_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e
 #[derive(Debug)]
+#[allow(dead_code)]
 struct DeviceCreateRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_CREATE.
     device_io_request: DeviceIoRequest,
@@ -977,10 +978,6 @@ impl DeviceCreateRequest {
         })
     }
 }
-
-/// 2.2.3.4.1 Client Drive Create Response (DR_DRIVE_CREATE_RSP)
-/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3afcdd13-16be-48d1-9c70-558fd3a9a84e
-type ClientDriveCreateResponse = DeviceCreateResponse;
 
 /// 2.2.1.5.1 Device Create Response (DR_CREATE_RSP)
 /// A message with this header describes a response to a Device Create Request (section 2.2.1.4.1).
@@ -1407,6 +1404,7 @@ impl DeviceCloseResponse {
 /// 2.2.3.3.11 Server Drive NotifyChange Directory Request (DR_DRIVE_NOTIFY_CHANGE_DIRECTORY_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/ed05e73d-e53e-4261-a1e1-365a70ba6512
 #[derive(Debug)]
+#[allow(dead_code)]
 struct ServerDriveNotifyChangeDirectoryRequest {
     /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_DIRECTORY_CONTROL,
     /// and the MinorFunction field MUST be set to IRP_MN_NOTIFY_CHANGE_DIRECTORY.
@@ -1438,6 +1436,7 @@ impl ServerDriveNotifyChangeDirectoryRequest {
 /// 2.2.1.4.3 Device Read Request (DR_READ_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3192516d-36a6-47c5-987a-55c214aa0441
 #[derive(Debug)]
+#[allow(dead_code)]
 struct DeviceReadRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_READ.
     device_io_request: DeviceIoRequest,
@@ -1500,6 +1499,7 @@ impl DeviceReadResponse {
 /// 2.2.3.3.10 Server Drive Query Directory Request (DR_DRIVE_QUERY_DIRECTORY_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1
 #[derive(Debug)]
+#[allow(dead_code)]
 struct ServerDriveQueryDirectoryRequest {
     /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_DIRECTORY_CONTROL,
     /// and the MinorFunction field MUST be set to IRP_MN_QUERY_DIRECTORY.

@@ -103,6 +103,7 @@ pub enum MinorFunction {
 #[derive(ToPrimitive, Debug)]
 #[repr(u32)]
 #[allow(non_camel_case_types)]
+#[allow(dead_code)]
 pub enum NTSTATUS {
     STATUS_SUCCESS = 0x00000000,
     STATUS_UNSUCCESSFUL = 0xC0000001,
