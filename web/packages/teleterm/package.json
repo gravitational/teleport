@@ -39,10 +39,11 @@
     "cross-env": "5.0.5",
     "electron": "13.6.9",
     "electron-debug": "^3.2.0",
+    "electron-notarize": "^1.2.1",
     "eslint-import-resolver-webpack": "0.13.2",
     "eslint-loader": "3.0.3",
-    "immer": "^9.0.7",
     "file-loader": "6.0.0",
+    "immer": "^9.0.7",
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
     "ts-protoc-gen": "0.15.0",
@@ -57,6 +58,7 @@
     "appId": "gravitational.teleport.connect",
     "asar": true,
     "asarUnpack": "**\\*.{node,dll}",
+    "afterSign": "notarize.js",
     "files": [
       "build/app/dist"
     ],
