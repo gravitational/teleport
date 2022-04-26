@@ -156,8 +156,6 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		}
 	} else {
 		log.Debug("No local kube credentials on proxy, will not start kubernetes_service heartbeats")
-		// Report the component as being ready.
-		cfg.OnHeartbeat(nil)
 	}
 
 	return server, nil
