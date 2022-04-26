@@ -3493,6 +3493,7 @@ func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) int {
 	}
 
 	componentCount := len(eventMapping.In)
+	cfg.Log.Debug("TeleportReadyEvent depends on %d components: %v", componentCount, eventMapping.In)
 	process.RegisterEventMapping(eventMapping)
 	return componentCount
 }
