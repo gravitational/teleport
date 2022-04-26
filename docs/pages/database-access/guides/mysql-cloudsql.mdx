@@ -110,41 +110,7 @@ Teleport Database Access for Cloud SQL MySQL is available starting from the
 
 ### Create a user
 
-Create a local Teleport user with the built-in `access` role:
-
-```code
-$ tctl users add --roles=access alice
-```
-
-The `access` role allows users to see all connected database servers, but
-allowed database users are restricted to the user's `db_users` traits. Normally,
-these traits come from the identity provider. For the local user you've just
-created you can update them manually to allow the user to connect as an `alice`
-database user.
-
-First, export the user resource:
-
-```code
-$ tctl get users/alice > alice.yaml
-```
-
-Update the resource to include the following traits:
-
-```yaml
-traits:
-  # Database account names the user will be allowed to use.
-  db_users:
-  - alice
-```
-
-Update the user:
-
-```code
-$ tctl create alice.yaml -f
-```
-
-For more detailed information about database access controls see the
-[RBAC](../rbac.mdx) documentation.
+(!docs/pages/includes/database-access/create-user.mdx!)
 
 ## Step 4/5. Set up the Teleport Database service
 
