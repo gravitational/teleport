@@ -113,9 +113,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/users/:user", srv.withAuth(srv.getUser))
 	srv.DELETE("/:version/users/:user", srv.withAuth(srv.deleteUser)) // DELETE IN: 5.2 REST method is replaced by grpc method with context.
 
-	// Generating keypairs
-	srv.POST("/:version/keypair", srv.withAuth(srv.generateKeyPair))
-
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
 	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
@@ -892,28 +889,6 @@ func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("user %q deleted", user)), nil
-}
-
-type generateKeyPairReq struct {
-	Password string `json:"password"`
-}
-
-type generateKeyPairResponse struct {
-	PrivKey []byte `json:"privkey"`
-	PubKey  string `json:"pubkey"`
-}
-
-func (s *APIServer) generateKeyPair(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateKeyPairReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	priv, pub, err := auth.GenerateKeyPair(req.Password)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &generateKeyPairResponse{PrivKey: priv, PubKey: string(pub)}, nil
 }
 
 type generateHostCertReq struct {
