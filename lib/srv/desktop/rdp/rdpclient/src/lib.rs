@@ -16,7 +16,6 @@ mod cliprdr;
 mod errors;
 mod piv;
 mod rdpdr;
-mod scard;
 mod util;
 mod vchan;
 

@@ -14,11 +14,12 @@
 
 mod consts;
 mod flags;
+mod scard;
 
 use crate::errors::{invalid_data_error, not_implemented_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
 use crate::util;
+use crate::vchan;
 use crate::Payload;
-use crate::{scard, vchan};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use consts::{
     CapabilityType, Component, DeviceType, FsInformationClassLevel, MajorFunction, MinorFunction,
@@ -78,8 +79,8 @@ impl Client {
                     self.handle_client_id_confirm(&mut payload)?
                 }
                 PacketId::PAKID_CORE_DEVICE_REPLY => self.handle_device_reply(&mut payload)?,
-                // Device IO request is where communication with the smartcard actually happens.
-                // Everything up to this point was negotiation and smartcard device registration.
+                // Device IO request is where communication with the smartcard and shared drive actually happens.
+                // Everything up to this point was negotiation (and smartcard device registration).
                 PacketId::PAKID_CORE_DEVICE_IOREQUEST => {
                     self.handle_device_io_request(&mut payload)?
                 }
