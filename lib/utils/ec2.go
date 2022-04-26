@@ -25,6 +25,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
 )
 
@@ -89,8 +91,8 @@ func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
 
 // InstanceMetadataClient is a wrapper for an imds.Client.
 type InstanceMetadataClient struct {
-	imdsClient *imds.Client
-	ctx        context.Context
+	c   *imds.Client
+	ctx context.Context
 }
 
 // NewInstanceMetadataClient creates a new instance metadata client.
@@ -100,15 +102,21 @@ func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, er
 		return nil, trace.Wrap(err)
 	}
 	return &InstanceMetadataClient{
-		imdsClient: imds.NewFromConfig(cfg), ctx: ctx,
+		c: imds.NewFromConfig(cfg), ctx: ctx,
 	}, nil
+}
+
+// IsAvailable checks if instance metadata is available.
+func (client *InstanceMetadataClient) IsAvailable() bool {
+	_, err := client.getMetadata("")
+	return err == nil
 }
 
 // getMetadata gets the raw metadata from a specified path.
 func (client *InstanceMetadataClient) getMetadata(path string) (string, error) {
-	output, err := client.imdsClient.GetMetadata(client.ctx, &imds.GetMetadataInput{Path: path})
+	output, err := client.c.GetMetadata(client.ctx, &imds.GetMetadataInput{Path: path})
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(parseMetadataClientError(err))
 	}
 	defer output.Content.Close()
 	body, err := io.ReadAll(output.Content)
@@ -134,4 +142,18 @@ func (client *InstanceMetadataClient) GetTagValue(key string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return body, nil
+}
+
+// parseMetadataClientError attempts to convert a failed imds call to a trace error.
+// If it can't, it returns the original error instead.
+func parseMetadataClientError(err error) error {
+	opError, ok := err.(*smithy.OperationError)
+	if !ok {
+		return err
+	}
+	httpErr, ok := opError.Err.(*smithyhttp.ResponseError)
+	if !ok {
+		return err
+	}
+	return trace.ReadError(httpErr.HTTPStatusCode(), nil)
 }

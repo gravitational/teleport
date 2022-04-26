@@ -98,6 +98,12 @@ type Server struct {
 	// dynamicLabels are the result of command execution.
 	dynamicLabels *labels.Dynamic
 
+	// imClient is the instance metadata client for nodes running on EC2.
+	imClient *utils.InstanceMetadataClient
+
+	// ec2Labels are the labels imported from EC2.
+	ec2Labels *labels.EC2Labels
+
 	proxyMode        bool
 	proxyTun         reversetunnel.Tunnel
 	proxyAccessPoint auth.ReadProxyAccessPoint
@@ -278,6 +284,9 @@ func (s *Server) close() {
 	if s.dynamicLabels != nil {
 		s.dynamicLabels.Close()
 	}
+	if s.ec2Labels != nil {
+		s.ec2Labels.Close()
+	}
 }
 
 // Close closes listening socket and stops accepting connections
@@ -300,6 +309,10 @@ func (s *Server) Start() error {
 	// asynchronously keep them updated.
 	if s.dynamicLabels != nil {
 		go s.dynamicLabels.Start()
+	}
+
+	if s.ec2Labels != nil {
+		s.ec2Labels.Start()
 	}
 
 	// If the server requested connections to it arrive over a reverse tunnel,
@@ -327,6 +340,10 @@ func (s *Server) Serve(l net.Listener) error {
 	// asynchronously keep them updated.
 	if s.dynamicLabels != nil {
 		go s.dynamicLabels.Start()
+	}
+
+	if s.ec2Labels != nil {
+		s.ec2Labels.Start()
 	}
 
 	go s.heartbeat.Run()
@@ -428,6 +445,18 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 		})
 		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		imClient, err := utils.NewInstanceMetadataClient(s.ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if imClient.IsAvailable() {
+			ec2Labels, err := labels.NewEC2Labels(s.ctx, nil) // default log
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			s.ec2Labels = ec2Labels
 		}
 
 		return nil
@@ -790,6 +819,24 @@ func (s *Server) getRole() types.SystemRole {
 	return types.RoleNode
 }
 
+// getNonDynamicLabels returns non-dynamic labels (static and ec2). TODO improve func name and doc
+func (s *Server) getNonDynamicLabels() map[string]string {
+	labels := make(map[string]string)
+	for k, v := range s.labels {
+		labels[k] = v
+	}
+
+	if s.ec2Labels != nil {
+		for k, v := range s.ec2Labels.Get() {
+			// Don't override a static label with an ec2 label.
+			if _, ok := labels[k]; !ok {
+				labels[k] = v
+			}
+		}
+	}
+	return labels
+}
+
 // getDynamicLabels returns all dynamic labels. If no dynamic labels are
 // defined, return an empty set.
 func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
@@ -813,7 +860,7 @@ func (s *Server) GetInfo() types.Server {
 		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),
-			Labels:    s.labels,
+			Labels:    s.getNonDynamicLabels(),
 		},
 		Spec: types.ServerSpecV2{
 			CmdLabels: s.getDynamicLabels(),
