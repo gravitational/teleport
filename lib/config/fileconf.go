@@ -1119,7 +1119,7 @@ type DatabaseAWSRDS struct {
 // DatabaseAWSElastiCache contains settings for ElastiCache databases.
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
-	ReplicationGroupID string `yaml:"replication_group_id"`
+	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.

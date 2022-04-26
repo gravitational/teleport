@@ -180,7 +180,7 @@ func describeRDSInstance(ctx context.Context, rdsClient rdsiface.RDSAPI, instanc
 		return nil, common.ConvertError(err)
 	}
 	if len(out.DBInstances) != 1 {
-		return nil, trace.BadParameter("expected 1 RDS instance for %v, got %s", instanceID, out.DBInstances)
+		return nil, trace.BadParameter("expected 1 RDS instance for %v, got %+v", instanceID, out.DBInstances)
 	}
 	return out.DBInstances[0], nil
 }
@@ -203,7 +203,7 @@ func describeRDSCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, clusterI
 		return nil, common.ConvertError(err)
 	}
 	if len(out.DBClusters) != 1 {
-		return nil, trace.BadParameter("expected 1 RDS cluster for %v, got %s", clusterID, out.DBClusters)
+		return nil, trace.BadParameter("expected 1 RDS cluster for %v, got %+v", clusterID, out.DBClusters)
 	}
 	return out.DBClusters[0], nil
 }
@@ -217,7 +217,7 @@ func describeRedshiftCluster(ctx context.Context, redshiftClient redshiftiface.R
 		return nil, common.ConvertError(err)
 	}
 	if len(out.Clusters) != 1 {
-		return nil, trace.BadParameter("expected 1 Redshift cluster for %v, got %s", clusterID, out.Clusters)
+		return nil, trace.BadParameter("expected 1 Redshift cluster for %v, got %+v", clusterID, out.Clusters)
 	}
 	return out.Clusters[0], nil
 }
@@ -232,7 +232,7 @@ func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticac
 		return nil, common.ConvertError(err)
 	}
 	if len(out.ReplicationGroups) != 1 {
-		return nil, trace.BadParameter("expected 1 ElastiCache cluster for %v, got %s", replicationGroupID, out.ReplicationGroups)
+		return nil, trace.BadParameter("expected 1 ElastiCache cluster for %v, got %+v", replicationGroupID, out.ReplicationGroups)
 	}
 	return out.ReplicationGroups[0], nil
 }
