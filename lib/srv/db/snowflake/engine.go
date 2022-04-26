@@ -31,6 +31,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -125,6 +126,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		e.Log.Debugf("orig url: %s", req.URL.String())
 		origURLPath := req.URL.String()
 
+		// TODO(jakule): Add limiter
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
 			return trace.Wrap(err)
@@ -158,24 +160,22 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			continue
 		}
 
-		var bodyGzAll []byte
 		if req.Header.Get("Content-Encoding") == "gzip" {
 			bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			bodyGzAll, err = io.ReadAll(bodyGZ)
+			body, err = io.ReadAll(bodyGZ)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-		} else {
-			bodyGzAll = body
 		}
 
-		e.Log.Debugf("%s", string(bodyGzAll))
+		e.Log.Debugf("%s", string(body))
 
-		if strings.Contains(req.Header.Get("Authorization"), "Snowflake Token") && !strings.Contains(req.Header.Get("Authorization"), "None") {
+		if strings.Contains(req.Header.Get("Authorization"), "Snowflake Token") &&
+			!strings.Contains(req.Header.Get("Authorization"), "None") {
 			e.connectionToken = req.Header.Get("Authorization")
 		}
 
@@ -183,32 +183,44 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			req.Header.Del("Authorization")
 		}
 
-		if e.connectionToken == "" {
-			if newBody, err := replaceToken(bodyGzAll, jwtToken); err == nil {
+		switch {
+		case strings.HasPrefix(origURLPath, loginRequestPath):
+			if newBody, err := replaceToken(body, jwtToken, accountName); err == nil {
 				e.Log.Debugf("new body: %s", string(newBody))
-				buf := &bytes.Buffer{}
 
-				var wr io.WriteCloser
-				if req.Header.Get("Content-Encoding") == "gzip" {
-					wr = gzip.NewWriter(buf)
-				} else {
-					wr = &MyWriteCloser{buf}
-				}
-				if _, err := wr.Write(newBody); err != nil {
-					e.Log.Error(err)
-				}
-
-				if err := wr.Close(); err != nil {
-					e.Log.Error(err)
-				}
-
-				e.Log.Debugf("newbody size: %d", buf.Len())
-
-				body = buf.Bytes()
+				body = newBody
 			} else {
 				e.Log.Errorf("failed to unmarshal login JSON: %v", err)
 			}
+
+		case strings.HasPrefix(origURLPath, queryRequestPath):
+			query, err := extractSQLStmt(body)
+			if err != nil {
+				return trace.Wrap(err, "failed to extract SQL query")
+			}
+			// TODO(jakule): Add request ID??
+			e.Audit.OnQuery(ctx, sessionCtx, common.Query{Query: query})
 		}
+
+		buf := &bytes.Buffer{}
+		var wr io.WriteCloser
+		if req.Header.Get("Content-Encoding") == "gzip" {
+			wr = gzip.NewWriter(buf)
+		} else {
+			wr = &MyWriteCloser{buf}
+		}
+
+		if _, err := wr.Write(body); err != nil {
+			e.Log.Error(err)
+		}
+
+		if err := wr.Close(); err != nil {
+			e.Log.Error(err)
+		}
+
+		e.Log.Debugf("newbody size: %d", buf.Len())
+
+		body = buf.Bytes()
 
 		req.URL.Scheme = "https"
 		req.URL.Host = sessionCtx.Database.GetURI()
@@ -221,8 +233,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err)
 		}
 
-		req.Header.Del("Content-Length")
-
 		for k, v := range req.Header {
 			if reqCopy.Header.Get(k) != "" {
 				continue
@@ -231,7 +241,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			reqCopy.Header.Set(k, strings.Join(v, ","))
 		}
 
-		//reqCopy.Header.Set("Content-Length", strconv.Itoa(len(body)))
+		reqCopy.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
 		if e.connectionToken != "" {
 			e.Log.Debugf("setting Snowflake token %s", e.connectionToken)
@@ -240,14 +250,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			} else {
 				reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
 			}
-		}
-
-		if strings.HasPrefix(origURLPath, queryRequestPath) {
-			query, err := extractSQLStmt(bodyGzAll)
-			if err != nil {
-				return trace.Wrap(err, "failed to extract SQL query")
-			}
-			e.Audit.OnQuery(ctx, sessionCtx, common.Query{Query: query})
 		}
 
 		resp, err := httpClient.Do(reqCopy)
@@ -260,7 +262,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err)
 		}
 
-		e.Log.Debugf("resp: %s", string(dumpResp))
+		//e.Log.Debugf("resp: %s", string(dumpResp))
 
 		if resp.StatusCode != 200 {
 			e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
@@ -325,14 +327,14 @@ func (e *Engine) extractToken(dumpResp []byte) error {
 	return nil
 }
 
-func replaceToken(loginReq []byte, jwtToken string) ([]byte, error) {
+func replaceToken(loginReq []byte, jwtToken string, accountName string) ([]byte, error) {
 	logReq := &LoginRequest{}
 	if err := json.Unmarshal(loginReq, logReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	logReq.Data["TOKEN"] = jwtToken
-	logReq.Data["ACCOUNT_NAME"] = "im56867"
+	logReq.Data["ACCOUNT_NAME"] = accountName
 	logReq.Data["AUTHENTICATOR"] = "SNOWFLAKE_JWT"
 
 	if _, ok := logReq.Data["PASSWORD"]; ok {
