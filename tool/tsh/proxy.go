@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
@@ -27,13 +26,11 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -353,42 +350,50 @@ func onProxyCommandApp(cf *CLIConf) error {
 	return nil
 }
 
-func loadAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
-	key, err := tc.LocalAgent().GetKey(tc.SiteName, client.WithAppCerts{})
+// onProxyCommandAWS creates local proxes for AWS apps.
+func onProxyCommandAWS(cf *CLIConf) error {
+	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	cc, ok := key.AppTLSCerts[appName]
-	if !ok {
-		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
-	}
-	cert, err := tls.X509KeyPair(cc, key.Priv)
+
+	err = awsApp.StartLocalProxies()
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	if len(cert.Certificate) < 1 {
-		return tls.Certificate{}, trace.NotFound("invalid certificate - please login to the application again. 'tsh app login'")
-	}
-	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+
+	defer func() {
+		if err := awsApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close AWS app.")
+		}
+	}()
+
+	envVars, err := awsApp.GetEnvVars()
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	if time.Until(x509cert.NotAfter) < 5*time.Second {
-		return tls.Certificate{}, trace.BadParameter(
-			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
-			appName)
+
+	templateData := map[string]interface{}{
+		"envVars": envVars,
 	}
-	return cert, nil
+
+	if len(cf.AWSCommandArgs) > 0 {
+		templateData["command"] = strings.Join(cf.AWSCommandArgs, " ")
+		err = awsProxyCommandTemplate.Execute(os.Stdout, templateData)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return awsApp.RunCommand(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
+	}
+
+	err = awsProxyTemplate.Execute(os.Stdout, templateData)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	<-cf.Context.Done()
+	return nil
 }
-
-// dbProxyTpl is the message that gets printed to a user when a database proxy is started.
-var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
-
-Use following credentials to connect to the {{.database}} proxy:
-  ca_file={{.ca}}
-  cert_file={{.cert}}
-  key_file={{.key}}
-`))
 
 func dbProtocolToText(protocol string) string {
 	switch protocol {
@@ -408,10 +413,46 @@ func dbProtocolToText(protocol string) string {
 	return ""
 }
 
-// dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
-var dbProxyAuthTpl = template.Must(template.New("").Parse(
-	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
+var (
+	// dbProxyTpl is the message that gets printed to a user when a database proxy is started.
+	dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
+
+Use following credentials to connect to the {{.database}} proxy:
+  ca_file={{.ca}}
+  cert_file={{.cert}}
+  key_file={{.key}}
+`))
+
+	// dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
+	dbProxyAuthTpl = template.Must(template.New("").Parse(
+		`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 
 Use the following command to connect to the database:
   $ {{.command}}
 `))
+
+	// awsProxyTemplate is the message that gets printed to a user when an AWS
+	// proxy is started.
+	awsProxyTemplate = template.Must(template.New("").Parse(
+		`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+{{- range $key, $value := .envVars }}
+  {{ $key }}={{ $value -}}
+{{ end }}
+`))
+
+	// awsProxyCommandTemplate is the message that gets printed to a user when
+	// a command is executed after the AWS proxy is started.
+	awsProxyCommandTemplate = template.Must(template.New("").Parse(
+		`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+
+The following environment variables are set for the command:
+{{- range $key, $value := .envVars }}
+  {{ $key }}={{ $value -}}
+{{ end }}
+
+Executing command: {{.command}}
+
+`))
+)

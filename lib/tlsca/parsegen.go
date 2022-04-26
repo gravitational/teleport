@@ -59,11 +59,12 @@ func GenerateSelfSignedCAWithSigner(signer crypto.Signer, entity pkix.Name, dnsN
 // GenerateCAConfig defines the configuration for generating
 // self-signed CA certificates
 type GenerateCAConfig struct {
-	Signer   crypto.Signer
-	Entity   pkix.Name
-	DNSNames []string
-	TTL      time.Duration
-	Clock    clockwork.Clock
+	Signer      crypto.Signer
+	Entity      pkix.Name
+	DNSNames    []string
+	IPAddresses []net.IP
+	TTL         time.Duration
+	Clock       clockwork.Clock
 }
 
 // setDefaults imposes defaults on this configuration
@@ -101,6 +102,7 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
+		IPAddresses:           config.IPAddresses,
 	}
 
 	// Sort out principals into DNS names and IP addresses.

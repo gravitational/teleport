@@ -451,9 +451,6 @@ func Run(args []string, opts ...cliOption) error {
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 
-	// TODO(greedy52) move this functionality to "tsh proxy aws".
-	aws.Flag("exec", "Execute the provided command instead of running AWS CLI").Hidden().BoolVar(&cf.LocalExec)
-
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	lsApps := apps.Command("ls", "List available applications.")
@@ -488,6 +485,10 @@ func Run(args []string, opts ...cliOption) error {
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS := proxy.Command("aws", "Start local TLS proxy for AWS access when using Teleport is single-port mode")
+	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyAWS.Flag("port", " Specifies the source port used by the proxy listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS.Arg("command", "Command to execute after starting the local proxy").StringsVar(&cf.AWSCommandArgs)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -777,6 +778,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onProxyCommandDB(&cf)
 	case proxyApp.FullCommand():
 		err = onProxyCommandApp(&cf)
+	case proxyAWS.FullCommand():
+		err = onProxyCommandAWS(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)

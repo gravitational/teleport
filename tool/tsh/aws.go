@@ -17,12 +17,10 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
+	"crypto/md5"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
+	"encoding/hex"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -30,22 +28,17 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
+	awsarn "github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	awsarn "github.com/aws/aws-sdk-go/aws/arn"
 )
 
 const (
@@ -53,234 +46,254 @@ const (
 )
 
 func onAWS(cf *CLIConf) error {
-	// create self-signed local cert AWS LocalProxy listener cert
-	// and pass CA to AWS CLI by --ca-bundle flag to enforce HTTPS
-	// protocol communication between AWS CLI <-> LocalProxy internal.
-	tmpCert, err := newTempSelfSignedLocalCert()
+	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	err = awsApp.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	defer func() {
-		if err := tmpCert.Clean(); err != nil {
-			log.WithError(err).Errorf(
-				"Failed to clean temporary self-signed local proxy cert %q.", tmpCert.getCAPath())
+		if err := awsApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close AWS app.")
 		}
 	}()
 
-	generatedAWSCred, err := generateAWSCredentials()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	return awsApp.RunCommand(awsCLIBinaryName, cf.AWSCommandArgs...)
+}
 
-	tc, err := makeClient(cf, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+// awsApp is an AWS app that can start local proxies to serve AWS APIs.
+type awsApp struct {
+	cf      *CLIConf
+	profile *client.ProfileStatus
+	appName string
 
-	lp, err := createLocalAWSCLIProxy(cf, tc, generatedAWSCred, tmpCert.getCert())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer lp.Close()
-	go func() {
-		if err := lp.StartAWSAccessProxy(cf.Context); err != nil {
-			log.WithError(err).Errorf("Failed to start local proxy.")
+	localALPNProxy    *alpnproxy.LocalProxy
+	localForwardProxy *alpnproxy.ForwardProxy
+}
+
+// newAWSApp creates a new AWS app.
+func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, appName string) (*awsApp, error) {
+	return &awsApp{
+		cf:      cf,
+		profile: profile,
+		appName: appName,
+	}, nil
+}
+
+// StartLocalProxies sets up local proxies for serving AWS clients.
+//
+// There are two ways clients can connect to the local proxies.
+//
+// 1. client can send AWS requests to our local forward proxy by configuring
+// HTTPS_PROXY (or equivalent). The API flow looks like this:
+// clients -> local forward proxy -> local ALPN proxy -> remote server
+//
+// 2. client can send AWS requests to our local ALPN proxy directly by
+// configuring AWS endpoint URLs. The API flow looks like this.
+// clients -> local ALPN proxy -> remote server
+//
+// The first method is always preferred because not only the original hostname
+// is preserved through HTTPS_PROXY but also the non-AWS requests can be
+// forwarded to their origin destinations. The second method can be used if the
+// client cannot configure the local forward proxy as HTTPS proxy.
+func (a *awsApp) StartLocalProxies() error {
+	forwardProxyListenAddress := "localhost:0"
+	alpnProxyListenAddress := "localhost:0"
+	if a.cf.LocalProxyPort != "" {
+		port, err := strconv.Atoi(a.cf.LocalProxyPort)
+		if err != nil {
+			return trace.BadParameter("invalid local proxy port %s", a.cf.LocalProxyPort)
 		}
-	}()
 
-	forwardProxy, err := createAWSForwardProxy(cf, lp)
+		forwardProxyListenAddress = fmt.Sprintf("localhost:%d", port)
+		alpnProxyListenAddress = fmt.Sprintf("localhost:%d", port+1)
+	}
+
+	if err := a.startLocalALPNProxy(alpnProxyListenAddress); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.startLocalForwardProxy(forwardProxyListenAddress); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// close makes all necessary close calls.
+func (a *awsApp) Close() error {
+	var errs []error
+	if a.localALPNProxy != nil {
+		errs = append(errs, a.localALPNProxy.Close())
+	}
+	if a.localForwardProxy != nil {
+		errs = append(errs, a.localForwardProxy.Close())
+	}
+	return trace.NewAggregate(errs...)
+}
+
+// GetAWSCredentials generates fake AWS credentials that are used for
+// signing an AWS request during AWS API calls and verified on local AWS proxy
+// side.
+func (a *awsApp) GetAWSCredentials() *credentials.Credentials {
+	// There is no specific format or value required for access key and secret,
+	// as long as the AWS clients and the local proxy are using the same
+	// credentials. The only constraint is the access key must have a length
+	// between 16 and 128. Here access key and secert are generated based on
+	// current profile and app name so same values can be recreated.
+	//
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
+	hashData := []byte(fmt.Sprintf("%v-%v-%v", a.profile.Name, a.profile.Username, a.appName))
+	md5sum := md5.Sum(hashData)
+	md5Encoded := hex.EncodeToString(md5sum[:])
+	return credentials.NewStaticCredentials(md5Encoded[:16], md5Encoded[16:], "")
+}
+
+// GetEnvVars returns required environment variables to configure the
+// clients.
+func (a *awsApp) GetEnvVars() (map[string]string, error) {
+	if a.localALPNProxy == nil || a.localForwardProxy == nil {
+		return nil, trace.NotFound("local proxies are not running")
+	}
+
+	credValues, err := a.GetAWSCredentials().Get()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return map[string]string{
+		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
+		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
+		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.appName),
+		"HTTPS_PROXY":           "http://" + a.localForwardProxy.GetAddr(),
+		"https_proxy":           "http://" + a.localForwardProxy.GetAddr(),
+	}, nil
+}
+
+// RunCommand executes provided command.
+func (a *awsApp) RunCommand(commandName string, commandArgs ...string) error {
+	environmentVariables, err := a.GetEnvVars()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer forwardProxy.Close()
-	go func() {
-		if err := forwardProxy.Start(); err != nil {
-			log.WithError(err).Errorf("Failed to start forward proxy.")
-		}
-	}()
 
-	// Setup the command to run.
-	cmd := exec.Command(awsCLIBinaryName, cf.AWSCommandArgs...)
-	if cf.LocalExec {
-		if len(cf.AWSCommandArgs) < 1 {
-			return trace.BadParameter("missing command for --exec")
-		}
-		cmd = exec.Command(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
-	}
-
-	credValues, err := generatedAWSCred.Get()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("AWS_ACCESS_KEY_ID=%s", credValues.AccessKeyID),
-		fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%s", credValues.SecretAccessKey),
-		fmt.Sprintf("AWS_CA_BUNDLE=%s", tmpCert.getCAPath()),
-		fmt.Sprintf("HTTPS_PROXY=%s", "http://"+forwardProxy.GetAddr()),
-		fmt.Sprintf("https_proxy=%s", "http://"+forwardProxy.GetAddr()),
-	)
-
+	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+	cmd.Env = os.Environ()
+	for key, value := range environmentVariables {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+	}
+
 	if err := cmd.Run(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// generateAWSCredentials generates and returns fake AWS credential that are used
-// for signing an AWS request during aws CLI call and verified on local AWS proxy side.
-func generateAWSCredentials() (*credentials.Credentials, error) {
-	id := uuid.New().String()
-	secret := uuid.New().String()
-	return credentials.NewStaticCredentials(id, secret, ""), nil
-}
-
-func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials, localCerts tls.Certificate) (*alpnproxy.LocalProxy, error) {
-	awsApp, err := pickActiveAWSApp(cf)
+// startLocalALPNProxy starts the local ALPN proxy.
+func (a *awsApp) startLocalALPNProxy(listenAddr string) error {
+	tc, err := makeClient(a.cf, false)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAWSAppCertificate(tc, awsApp)
+	appCerts, err := loadAppCertificate(tc, a.appName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
+	}
+
+	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.appName)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	address, err := utils.ParseAddr(tc.WebProxyAddr)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	listenAddr := "localhost:0"
-	if cf.LocalProxyPort != "" {
-		port, err := strconv.Atoi(cf.LocalProxyPort)
-		if err != nil {
-			return nil, trace.BadParameter("invalid local proxy port %s", cf.LocalProxyPort)
-		}
-
-		// cf.LocalProxyPort is reserved for forward proxy.
-		listenAddr = fmt.Sprintf("localhost:%d", port+1)
-	}
-
-	// Create listener for receiving AWS requests tunneled from forward proxy:
-	// client request -> forward proxy -> ALPN local proxy -> remote server
-	//
-	// The listener can also receive AWS calls directly if clients specify the
-	// listener address as endpoint URLs:
-	// client request -> ALPN local proxy -> remote server
-	//
-	// In either case, AWS clients need to verify CA by providing the self
-	// signed CA file through AWS_CA_BUNDLE.
+	// Create listener that is able to sign certificates when receiving AWS
+	// requests tunneled from the local forward proxy.
 	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
 		ListenAddr: listenAddr,
-		CA:         localCerts,
+		CA:         localCA,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+	a.localALPNProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
 		Protocol:           alpncommon.ProtocolHTTP,
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ParentContext:      cf.Context,
+		InsecureSkipVerify: a.cf.InsecureSkipVerify,
+		ParentContext:      a.cf.Context,
 		SNI:                address.Host(),
-		AWSCredentials:     cred,
+		AWSCredentials:     a.GetAWSCredentials(),
 		Certs:              []tls.Certificate{appCerts},
 	})
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
-			return nil, trace.NewAggregate(err, cerr)
+			return trace.NewAggregate(err, cerr)
 		}
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return lp, nil
+
+	go func() {
+		if err := a.localALPNProxy.StartAWSAccessProxy(a.cf.Context); err != nil {
+			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
+		}
+	}()
+	return nil
 }
 
-// createAWSForwardProxy creates a forward proxy for AWS requests.
-func createAWSForwardProxy(cf *CLIConf, lp *alpnproxy.LocalProxy) (*alpnproxy.ForwardProxy, error) {
-	listenAddr := "localhost:0"
-	if cf.LocalProxyPort != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", cf.LocalProxyPort)
-	}
-
+// startLocalForwardProxy starts the local forward proxy.
+func (a *awsApp) startLocalForwardProxy(listenAddr string) error {
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to
 	// eliminate the need to install temporary CA for various AWS clients.
-	// There is no standard in terms of specifying CA used for HTTPS_PROXY,
-	// and the temporary CA should not be installed at system level.
-	//
-	// Normally a HTTP connection is considered insecure as transport is not
-	// encrypted. Thus it is very important that the forward proxy is only used
-	// for proxying HTTPS requests, so the tunneled data is still encrypted
-	// between client and receiver (e.g. the ALPN local proxy for AWS serves
-	// HTTPS so non-HTTPS requests are rejected.). The initial "CONNECT"
-	// request before tunneling is not encrypted but it contains minimal
-	// information like host and sometimes user agent. In addition, the forward
-	// proxy and its receiver are localhost only.
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	forwardProxy, err := alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
+	a.localForwardProxy, err = alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
 		Listener:     listener,
-		CloseContext: cf.Context,
+		CloseContext: a.cf.Context,
 		Handlers: []alpnproxy.ConnectRequestHandler{
 			// Forward AWS requests to ALPN proxy.
 			alpnproxy.NewForwardToHostHandler(alpnproxy.ForwardToHostHandlerConfig{
 				MatchFunc: func(req *http.Request) bool {
 					return awsapiutils.IsAWSEndpoint(req.Host)
 				},
-				Host: lp.GetAddr(),
+				Host: a.localALPNProxy.GetAddr(),
 			}),
 
-			// Forward non AWS requests to user's system proxy, if configured.
+			// Forward non-AWS requests to user's system proxy, if configured.
 			alpnproxy.NewForwardToSystemProxyHandler(alpnproxy.ForwardToSystemProxyHandlerConfig{
-				InsecureSystemProxy: cf.InsecureSkipVerify,
+				InsecureSystemProxy: a.cf.InsecureSkipVerify,
 			}),
 
-			// Forward non AWS requests to their original hosts.
+			// Forward non-AWS requests to their original hosts.
 			alpnproxy.NewForwardToOriginalHostHandler(),
 		},
 	})
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
-			return nil, trace.NewAggregate(err, cerr)
+			return trace.NewAggregate(err, cerr)
 		}
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return forwardProxy, nil
-}
 
-func loadAWSAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
-	key, err := tc.LocalAgent().GetKey(tc.SiteName, client.WithAppCerts{})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	cc, ok := key.AppTLSCerts[appName]
-	if !ok {
-		return tls.Certificate{}, trace.NotFound("please login into AWS Console App 'tsh app login' first")
-	}
-	cert, err := tls.X509KeyPair(cc, key.Priv)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	if len(cert.Certificate) < 1 {
-		return tls.Certificate{}, trace.NotFound("invalid certificate length")
-	}
-	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	if time.Until(x509cert.NotAfter) < 5*time.Second {
-		return tls.Certificate{}, trace.BadParameter(
-			"AWS application %s certificate has expired, please re-login to the app using 'tsh app login'",
-			appName)
-	}
-	return cert, nil
+	go func() {
+		if err := a.localForwardProxy.Start(); err != nil {
+			log.WithError(err).Errorf("Failed to start local forward proxy.")
+		}
+	}()
+	return nil
 }
 
 func printArrayAs(arr []string, columnName string) {
@@ -293,7 +306,6 @@ func printArrayAs(arr []string, columnName string) {
 		t.AddRow([]string{v})
 	}
 	fmt.Println(t.AsBuffer().String())
-
 }
 
 func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {
@@ -349,109 +361,40 @@ func mapKeysToSlice(m map[string]string) []string {
 	return out
 }
 
-type tempSelfSignedLocalCert struct {
-	cert   tls.Certificate
-	caFile *os.File
-}
-
-func newTempSelfSignedLocalCert() (*tempSelfSignedLocalCert, error) {
-	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-		CommonName:   "localhost",
-		Organization: []string{"Teleport"},
-	}, []string{"localhost"}, defaults.CATTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cert, err := tls.X509KeyPair(caCert, caKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	f, err := os.CreateTemp("", "*_aws_local_proxy_cert.pem")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if _, err := io.Copy(f, bytes.NewReader(caCert)); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &tempSelfSignedLocalCert{
-		cert:   cert,
-		caFile: f,
-	}, nil
-}
-
-func (t *tempSelfSignedLocalCert) getCAPath() string {
-	return t.caFile.Name()
-}
-
-func (t *tempSelfSignedLocalCert) getCert() tls.Certificate {
-	return t.cert
-}
-
-func (t tempSelfSignedLocalCert) Clean() error {
-	if err := t.caFile.Close(); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := os.Remove(t.caFile.Name()); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func pickActiveAWSApp(cf *CLIConf) (string, error) {
+func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if len(profile.Apps) == 0 {
-		return "", trace.NotFound("Please login to AWS app using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to AWS app using 'tsh app login' first")
 	}
 	name := cf.AppName
 	if name != "" {
-		app, err := findApp(profile.Apps, name)
+		app, err := profile.FindAppByName(name)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return "", trace.NotFound("Please login to AWS app using 'tsh app login' first")
+				return nil, trace.NotFound("Please login to AWS app using 'tsh app login' first")
 			}
-			return "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if app.AWSRoleARN == "" {
-			return "", trace.BadParameter(
+			return nil, trace.BadParameter(
 				"Selected app %q is not an AWS application", name,
 			)
 		}
-		return name, nil
+		return newAWSApp(cf, profile, name)
 	}
 
-	awsApps := getAWSAppsName(profile.Apps)
+	awsApps := profile.AWSAppNames()
 	if len(awsApps) == 0 {
-		return "", trace.NotFound("Please login to AWS App using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to AWS App using 'tsh app login' first")
 	}
 	if len(awsApps) > 1 {
 		names := strings.Join(awsApps, ", ")
-		return "", trace.BadParameter(
+		return nil, trace.BadParameter(
 			"Multiple AWS apps are available (%v), please specify one using --app CLI argument", names,
 		)
 	}
-	return awsApps[0], nil
-}
-
-func findApp(apps []tlsca.RouteToApp, name string) (*tlsca.RouteToApp, error) {
-	for _, app := range apps {
-		if app.Name == name {
-			return &app, nil
-		}
-	}
-	return nil, trace.NotFound("failed to find app with %q name", name)
-}
-
-func getAWSAppsName(apps []tlsca.RouteToApp) []string {
-	var out []string
-	for _, app := range apps {
-		if app.AWSRoleARN != "" {
-			out = append(out, app.Name)
-		}
-	}
-	return out
+	return newAWSApp(cf, profile, awsApps[0])
 }

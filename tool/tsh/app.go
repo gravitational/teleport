@@ -17,16 +17,22 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -95,6 +101,7 @@ func onAppLogin(cf *CLIConf) error {
 			"awsCmd":     "s3 ls",
 		})
 	}
+
 	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster)
 	if err != nil {
 		return trace.Wrap(err)
@@ -180,6 +187,8 @@ func onAppLogout(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		removeAppLocalFiles(profile, app.Name)
 	}
 	if len(logout) == 1 {
 		fmt.Printf("Logged out of app %q\n", logout[0].Name)
@@ -306,6 +315,128 @@ func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
 		}
 	}
 	return nil, trace.NotFound("not logged into app %q", name)
+}
+
+// removeAppLocalFiles removes generated local files for the provided app.
+func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
+	for _, filePath := range []string{
+		profile.AppLocalCAPath(appName),
+	} {
+		if !utils.FileExists(filePath) {
+			continue
+		}
+
+		if err := os.Remove(filePath); err != nil {
+			log.WithError(err).Warnf("Failed to remove %v", filePath)
+		}
+	}
+}
+
+// loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
+// generate a new CA if first load fails.
+func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
+	caPath := profile.AppLocalCAPath(appName)
+	keyPath := profile.KeyPath()
+
+	localCA, err := tls.LoadX509KeyPair(caPath, keyPath)
+	if err == nil {
+		return localCA, nil
+	}
+
+	// Regenerate and load again.
+	log.WithError(err).Debugf("Failed to load certificate from %v. Regenerating local self signed CA.", caPath)
+	if err = generateAppSelfSignedCA(profile, tc, appName); err != nil {
+		return tls.Certificate{}, err
+	}
+
+	localCA, err = tls.LoadX509KeyPair(caPath, keyPath)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return localCA, nil
+}
+
+// generateAppSelfSignedCA generates a new self-signed CA for provided app and
+// saves/overwrites the local CA file in the profile directory.
+func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) error {
+	appCerts, err := loadAppCertificate(tc, appName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	expiresAt, err := getTLSCertExpireTime(appCerts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyPem, err := utils.ReadPath(profile.KeyPath())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := utils.ParsePrivateKey(keyPem)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Entity: pkix.Name{
+			CommonName:   "localhost",
+			Organization: []string{"Teleport"},
+		},
+		Signer:      key,
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
+		TTL:         time.Until(expiresAt),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// WriteFile truncates existing file before writing.
+	if err = os.WriteFile(profile.AppLocalCAPath(appName), certPem, 0600); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+// loadAppCertificate loads the app certificate for the provided app.
+func loadAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, client.WithAppCerts{})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cc, ok := key.AppTLSCerts[appName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
+	}
+	cert, err := tls.X509KeyPair(cc, key.Priv)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	expiresAt, err := getTLSCertExpireTime(cert)
+	if err != nil {
+		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh app login'")
+	}
+	if time.Until(expiresAt) < 5*time.Second {
+		return tls.Certificate{}, trace.BadParameter(
+			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
+			appName)
+	}
+	return cert, nil
+}
+
+// getTLSCertExpireTime returns the certificate NotAfter time.
+func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
+	if len(cert.Certificate) < 1 {
+		return time.Time{}, trace.NotFound("invalid certificate length")
+	}
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	return x509cert.NotAfter, nil
 }
 
 const (
