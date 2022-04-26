@@ -297,7 +297,10 @@ func New(c ServerConfig) (*Server, error) {
 	s.kexAlgorithms = c.KEXAlgorithms
 	s.macAlgorithms = c.MACAlgorithms
 
-	s.sessionRegistry, err = srv.NewSessionRegistry(s, s.authClient)
+	s.sessionRegistry, err = srv.NewSessionRegistry(srv.SessionRegistryConfig{
+		Srv:                   s,
+		SessionTrackerService: s.authClient,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

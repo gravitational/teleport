@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -68,7 +69,7 @@ var serverSessions = prometheus.NewGauge(
 // SessionRegistry holds a map of all active sessions on a given
 // SSH server
 type SessionRegistry struct {
-	mu sync.Mutex
+	SessionRegistryConfig
 
 	// log holds the structured logger
 	log *log.Entry
@@ -76,49 +77,71 @@ type SessionRegistry struct {
 	// sessions holds a map between session ID and the session object. Used to
 	// find active sessions as well as close all sessions when the registry
 	// is closing.
-	sessions map[rsession.ID]*session
+	sessions    map[rsession.ID]*session
+	sessionsMux sync.Mutex
+}
+
+type SessionRegistryConfig struct {
+	// clock is the registry's internal clock. used in testing.
+	clock clockwork.Clock
 
 	// srv refers to the upon which this session registry is created.
-	srv Server
+	Srv Server
 
 	// sessiontrackerService is used to share session activity to
 	// other teleport components through the auth server.
-	sessionTrackerService services.SessionTrackerService
+	SessionTrackerService services.SessionTrackerService
 }
 
-func NewSessionRegistry(srv Server, sts services.SessionTrackerService) (*SessionRegistry, error) {
+func (sc *SessionRegistryConfig) CheckAndSetDefaults() error {
+
+	if sc.SessionTrackerService == nil {
+		return trace.BadParameter("session tracker service is required")
+	}
+
+	if sc.Srv == nil {
+		return trace.BadParameter("server is required")
+	}
+
+	if sc.Srv.GetSessionServer() == nil {
+		return trace.BadParameter("session server is required")
+	}
+
+	if sc.clock == nil {
+		sc.clock = sc.Srv.GetClock()
+	}
+
+	return nil
+}
+
+func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err := utils.RegisterPrometheusCollectors(serverSessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if srv.GetSessionServer() == nil {
-		return nil, trace.BadParameter("session server is required")
-	}
-
-	if sts == nil {
-		return nil, trace.BadParameter("session tracker service is required")
-	}
-
 	return &SessionRegistry{
+		SessionRegistryConfig: cfg,
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, srv.Component()),
+			trace.Component: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
 		}),
-		srv:                   srv,
-		sessions:              make(map[rsession.ID]*session),
-		sessionTrackerService: sts,
+		sessions: make(map[rsession.ID]*session),
 	}, nil
 }
 
 func (s *SessionRegistry) addSession(sess *session) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.sessionsMux.Lock()
+	defer s.sessionsMux.Unlock()
 	s.sessions[sess.id] = sess
 }
 
 func (s *SessionRegistry) removeSession(sess *session) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.sessionsMux.Lock()
+	defer s.sessionsMux.Unlock()
 	delete(s.sessions, sess.id)
 }
 
@@ -128,8 +151,8 @@ func (s *SessionRegistry) findSessionLocked(id rsession.ID) (*session, bool) {
 }
 
 func (s *SessionRegistry) Close() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.sessionsMux.Lock()
+	defer s.sessionsMux.Unlock()
 
 	// End all sessions and allow session cleanup
 	// goroutines to complete.
@@ -263,8 +286,8 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: s.srv.GetNamespace(),
-			ServerHostname:  s.srv.GetInfo().GetHostname(),
+			ServerNamespace: s.Srv.GetNamespace(),
+			ServerHostname:  s.Srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: apievents.SessionMetadata{
@@ -276,7 +299,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 
 	// Report the updated window size to the event log (this is so the sessions
 	// can be replayed correctly).
-	if err := session.recorder.EmitAuditEvent(s.srv.Context(), resizeEvent); err != nil {
+	if err := session.recorder.EmitAuditEvent(s.Srv.Context(), resizeEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to emit resize audit event.")
 	}
 
@@ -321,8 +344,8 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 }
 
 func (s *SessionRegistry) broadcastResult(sid rsession.ID, r ExecResult) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.sessionsMux.Lock()
+	defer s.sessionsMux.Unlock()
 
 	sess, found := s.findSessionLocked(sid)
 	if !found {
@@ -363,12 +386,6 @@ type session struct {
 	// stopC channel is used to kill all goroutines owned
 	// by the session
 	stopC chan bool
-
-	// Linger TTL means "how long to keep session in memory after the last client
-	// disconnected". It's useful to keep it alive for a bit in case the client
-	// temporarily dropped the connection and will reconnect (or a browser-based
-	// client hits "page refresh").
-	lingerTTL time.Duration
 
 	// startTime is the time when this session was created.
 	startTime time.Time
@@ -425,7 +442,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		Created:        startTime,
 		LastActive:     startTime,
 		ServerID:       ctx.srv.ID(),
-		Namespace:      r.srv.GetNamespace(),
+		Namespace:      r.Srv.GetNamespace(),
 		ServerHostname: ctx.srv.GetInfo().GetHostname(),
 		ServerAddr:     ctx.ServerConn.LocalAddr().String(),
 		ClusterName:    ctx.ClusterName,
@@ -444,14 +461,14 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 	// get the session server where session information lives. if the recording
 	// proxy is being used and this is a node, then a discard session server will
 	// be returned here.
-	sessionServer := r.srv.GetSessionServer()
+	sessionServer := r.Srv.GetSessionServer()
 
 	err := sessionServer.CreateSession(rsess)
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
 			// if session already exists, make sure they are compatible
 			// Login matches existing login
-			existing, err := sessionServer.GetSession(r.srv.GetNamespace(), id)
+			existing, err := sessionServer.GetSession(r.Srv.GetNamespace(), id)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -475,7 +492,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 
 	sess := &session{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
+			trace.Component: teleport.Component(teleport.ComponentSession, r.Srv.Component()),
 		}),
 		id:                             id,
 		registry:                       r,
@@ -483,7 +500,6 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		participants:                   make(map[rsession.ID]*party),
 		login:                          ctx.Identity.Login,
 		stopC:                          make(chan bool),
-		lingerTTL:                      defaults.SessionIdlePeriod,
 		startTime:                      startTime,
 		serverCtx:                      ctx.srv.Context(),
 		state:                          types.SessionState_SessionStatePending,
@@ -1043,7 +1059,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 // of the passed in session.
 func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 	// Nodes discard events in cases when proxies are already recording them.
-	if s.registry.srv.Component() == teleport.ComponentNode &&
+	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return &events.DiscardStream{}, nil
 	}
@@ -1058,7 +1074,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 		Context:      ctx.srv.Context(),
 		Streamer:     streamer,
 		SessionID:    s.id,
-		Clock:        ctx.srv.GetClock(),
+		Clock:        s.registry.clock,
 		Namespace:    ctx.srv.GetNamespace(),
 		ServerID:     ctx.srv.HostUUID(),
 		RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
@@ -1266,7 +1282,7 @@ func (s *session) isStopped() bool {
 func (s *session) lingerAndDie(party *party) {
 	s.log.Debugf("Session %v has no active party members.", s.id)
 
-	s.scx.srv.GetClock().Sleep(s.lingerTTL)
+	s.registry.clock.Sleep(defaults.SessionIdlePeriod)
 	if len(s.getParties()) != 0 {
 		s.log.Infof("Session %v has become active again.", s.id)
 		return
@@ -1283,11 +1299,11 @@ func (s *session) lingerAndDie(party *party) {
 }
 
 func (s *session) getNamespace() string {
-	return s.registry.srv.GetNamespace()
+	return s.registry.Srv.GetNamespace()
 }
 
 func (s *session) getHostname() string {
-	return s.registry.srv.GetInfo().GetHostname()
+	return s.registry.Srv.GetInfo().GetHostname()
 }
 
 // exportPartyMembers exports participants in the in-memory map of party
@@ -1318,13 +1334,13 @@ func (s *session) heartbeat(ctx *ServerContext) {
 	// If sessions are being recorded at the proxy, an identical version of this
 	// goroutine is running in the proxy, which means it does not need to run here.
 	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) &&
-		s.registry.srv.Component() == teleport.ComponentNode {
+		s.registry.Srv.Component() == teleport.ComponentNode {
 		return
 	}
 
 	// If no session server (endpoint interface for active sessions) is passed in
 	// (for example Teleconsole does this) then nothing to sync.
-	sessionServer := s.registry.srv.GetSessionServer()
+	sessionServer := s.registry.Srv.GetSessionServer()
 	if sessionServer == nil {
 		return
 	}
@@ -1571,7 +1587,7 @@ func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx
 		}),
 		user:     ctx.Identity.TeleportUser,
 		login:    ctx.Identity.Login,
-		serverID: s.registry.srv.ID(),
+		serverID: s.registry.Srv.ID(),
 		site:     ctx.ServerConn.RemoteAddr().String(),
 		id:       rsession.NewID(),
 		ch:       ch,
@@ -1630,7 +1646,7 @@ func (p *party) closeUnderSessionLock() {
 
 func (s *session) trackerGet() (types.SessionTracker, error) {
 	// get the session from the registry
-	sess, err := s.registry.sessionTrackerService.GetSessionTracker(s.serverCtx, s.id.String())
+	sess, err := s.registry.SessionTrackerService.GetSessionTracker(s.serverCtx, s.id.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1660,7 +1676,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		ID:           s.id.String(),
 		Namespace:    apidefaults.Namespace,
 		Type:         string(types.KubernetesSessionKind),
-		Hostname:     s.registry.srv.GetInfo().GetHostname(),
+		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
 		Address:      s.scx.ServerConn.LocalAddr().String(),
 		ClusterName:  s.scx.ClusterName,
 		Login:        "root",
@@ -1671,14 +1687,14 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		HostPolicies: policySet,
 	}
 
-	_, err := s.registry.sessionTrackerService.CreateSessionTracker(s.serverCtx, req)
+	_, err := s.registry.SessionTrackerService.CreateSessionTracker(s.serverCtx, req)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
 
 	// Start go routine to push back session expiration while session is still active.
 	go func() {
-		ticker := s.scx.srv.GetClock().NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
+		ticker := s.registry.clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -1711,7 +1727,7 @@ func (s *session) trackerAddParticipant(participant *party) error {
 		},
 	}
 
-	err := s.registry.sessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
+	err := s.registry.SessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }
 
@@ -1726,7 +1742,7 @@ func (s *session) trackerRemoveParticipant(participantID string) error {
 		},
 	}
 
-	err := s.registry.sessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
+	err := s.registry.SessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }
 
@@ -1743,7 +1759,7 @@ func (s *session) trackerUpdateState(state types.SessionState) error {
 		},
 	}
 
-	err := s.registry.sessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
+	err := s.registry.SessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }
 
@@ -1757,6 +1773,6 @@ func (s *session) trackerUpdateExpiry(expires time.Time) error {
 		},
 	}
 
-	err := s.registry.sessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
+	err := s.registry.SessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }

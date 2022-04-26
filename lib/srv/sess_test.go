@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/trace"
@@ -112,8 +113,10 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{
-						component: teleport.ComponentNode,
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
 					},
 				},
 			},
@@ -133,8 +136,10 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{
-						component: teleport.ComponentNode,
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
 					},
 				},
 			},
@@ -154,8 +159,10 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{
-						component: teleport.ComponentNode,
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
 					},
 				},
 			},
@@ -174,8 +181,10 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{
-						component: teleport.ComponentNode,
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
 					},
 				},
 			},
@@ -194,8 +203,10 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{
-						component: teleport.ComponentNode,
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
 					},
 				},
 			},
@@ -229,13 +240,13 @@ func TestSession_newRecorder(t *testing.T) {
 // Multiple sessions are opened in parallel tests to test for
 // deadlocks between session registry, sessions, and parties.
 func TestInteractiveSession(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-
-	srv := newMockServerWithBackend(t)
-	srv.clock = clock
+	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
-	reg, err := NewSessionRegistry(srv, srv.auth)
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
@@ -248,8 +259,8 @@ func TestInteractiveSession(t *testing.T) {
 		sess.Stop()
 
 		sessionClosed := func() bool {
-			reg.mu.Lock()
-			defer reg.mu.Unlock()
+			reg.sessionsMux.Lock()
+			defer reg.sessionsMux.Unlock()
 			_, found := reg.findSessionLocked(sess.id)
 			return !found
 		}
@@ -297,13 +308,16 @@ func TestInteractiveSession(t *testing.T) {
 // TestMultiplartySession tests the party mechanisms within an interactive session,
 // including party leave, party disconnect, and lingerAndDie.
 func TestMultipartySession(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-
-	srv := newMockServerWithBackend(t)
-	srv.clock = clock
+	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
-	reg, err := NewSessionRegistry(srv, srv.auth)
+	// Use a separate clock from srv so we can use BlockUntil.
+	regClock := clockwork.NewFakeClock()
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+		clock:                 regClock,
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
@@ -332,26 +346,83 @@ func TestMultipartySession(t *testing.T) {
 	// If all parties are gone, the session should linger for a short duration.
 	sess.getParties()[0].Close()
 	require.False(t, sess.isStopped())
-	clock.BlockUntil(2)
+
+	// Wait for session to linger (time.Sleep)
+	regClock.BlockUntil(1)
 
 	// If a party connects to the lingering session, it will continue.
 	testJoinSession(t, reg, sess)
 	require.Equal(t, 1, len(sess.getParties()))
 
-	clock.Advance(sess.lingerTTL)
+	regClock.Advance(defaults.SessionIdlePeriod)
 	require.False(t, sess.isStopped())
 
 	// If no parties remain it should be closed after the duration.
 	sess.getParties()[0].Close()
 	require.False(t, sess.isStopped())
-	clock.BlockUntil(2)
 
-	clock.Advance(sess.lingerTTL)
+	// Wait for session to linger (time.Sleep)
+	regClock.BlockUntil(1)
+
+	// Session should close.
+	regClock.Advance(defaults.SessionIdlePeriod)
 	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 }
 
+// TestSessionTracker tests session tracker lifecycle
+func TestSessionTracker(t *testing.T) {
+	ctx := context.Background()
+
+	srv := newMockServer(t)
+
+	// Use a separate clock from srv so we can use BlockUntil.
+	regClock := clockwork.NewFakeClock()
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+		clock:                 regClock,
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	// Session tracker should be created for a new session
+	sess := testOpenSession(t, reg)
+	tracker, err := srv.auth.GetSessionTracker(ctx, sess.ID())
+	require.NoError(t, err)
+
+	// Session tracker's expiration should be updated on an interval
+	// while the session is active.
+	regClock.BlockUntil(1)
+	regClock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
+	srv.clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
+
+	trackerUpdated := func() bool {
+		updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.ID())
+		require.NoError(t, err)
+		return updatedTracker.Expiry().Equal(tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval))
+	}
+	require.Eventually(t, trackerUpdated, time.Second*5, time.Millisecond*500)
+
+	// Once the sesssion is closed and the last set
+	// expiration is up, the tracker should be deleted.
+	sess.Close()
+	regClock.Advance(defaults.SessionTrackerTTL)
+	srv.clock.Advance(defaults.SessionTrackerTTL)
+
+	trackerDeleted := func() bool {
+		_, err := srv.auth.GetSessionTracker(ctx, sess.ID())
+		if err == nil {
+			return false
+		}
+		require.True(t, trace.IsNotFound(err))
+		return true
+	}
+	require.Eventually(t, trackerDeleted, time.Second*5, time.Millisecond*500)
+}
+
 func testOpenSession(t *testing.T, reg *SessionRegistry) *session {
-	scx := newTestServerContext(t, reg.srv)
+	scx := newTestServerContext(t, reg.Srv)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -368,7 +439,7 @@ func testOpenSession(t *testing.T, reg *SessionRegistry) *session {
 }
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
-	scx := newTestServerContext(t, reg.srv)
+	scx := newTestServerContext(t, reg.Srv)
 	scx.setSession(sess)
 
 	// Open a new session

@@ -91,10 +91,14 @@ func newTestServerContext(t *testing.T, srv Server) *ServerContext {
 	return scx
 }
 
-func newMockServerWithBackend(t *testing.T) *mockServer {
+func newMockServer(t *testing.T) *mockServer {
 	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
 
-	bk, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clock,
+	})
 	require.NoError(t, err)
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -107,17 +111,20 @@ func newMockServerWithBackend(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 
-	authServer, err := auth.NewServer(&auth.InitConfig{
+	authCfg := &auth.InitConfig{
 		Backend:      bk,
 		Authority:    testauthority.New(),
 		ClusterName:  clusterName,
 		StaticTokens: staticTokens,
-	})
+	}
+
+	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))
 	require.NoError(t, err)
 
 	return &mockServer{
 		auth:        authServer,
 		MockEmitter: &eventstest.MockEmitter{},
+		clock:       clock,
 	}
 }
 
@@ -125,7 +132,7 @@ type mockServer struct {
 	*eventstest.MockEmitter
 	auth      *auth.Server
 	component string
-	clock     clockwork.Clock
+	clock     clockwork.FakeClock
 }
 
 // ID is the unique ID of the server.
