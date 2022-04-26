@@ -18,8 +18,10 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -37,8 +39,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -433,9 +435,17 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 func ReadHostUUID(dataDir string) (string, error) {
 	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
 	if err != nil {
-		return "", trace.Wrap(err)
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return "", err
+		}
+		return "", trace.ConvertSystemError(err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	id := strings.TrimSpace(string(out))
+	if id == "" {
+		return "", trace.NotFound("host uuid is empty")
+	}
+	return id, nil
 }
 
 // WriteHostUUID writes host UUID into a file
@@ -457,7 +467,18 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.New()
+	// Checking error instead of the usual uuid.New() in case uuid generation
+	// fails due to not enough randomness. It's been known to happen happen when
+	// Teleport starts very early in the node initialization cycle and /dev/urandom
+	// isn't ready yet.
+	rawID, err := uuid.NewRandom()
+	if err != nil {
+		return "", trace.BadParameter("" +
+			"Teleport failed to generate host UUID. " +
+			"This may happen if randomness source is not fully initialized when the node is starting up. " +
+			"Please try restarting Teleport again.")
+	}
+	id = rawID.String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}
