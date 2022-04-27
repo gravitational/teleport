@@ -453,7 +453,7 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOError {
 }
 
 //export sd_info_request
-func sd_info_request(handle C.uintptr_t, dirId C.uint32_t, completionId C.uint32_t, length C.uint32_t, path *C.char) C.CGOError {
+func sd_info_request(handle C.uintptr_t, dirId C.uint32_t, completionId C.uint32_t, path *C.char) C.CGOError {
 	return cgo.Handle(handle).Value().(*Client).sharedDirectoryInfoRequest(uint32(dirId), uint32(completionId), C.GoString(path))
 }
 
