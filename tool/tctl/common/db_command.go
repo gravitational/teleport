@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -104,7 +105,7 @@ func (c *DBCommand) ListDatabases(clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case err != nil:
-		return trace.Wrap(err)
+		return utils.PredicateError(err)
 	default:
 		servers, err = types.ResourcesWithLabels(resources).AsDatabaseServers()
 		if err != nil {
