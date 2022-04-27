@@ -3617,23 +3617,61 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 	return protoResp, nil
 }
 
+// UpsertSessionTracker creates a tracker resource for an active session.
+func (g *GRPCServer) UpsertSessionTracker(ctx context.Context, tracker *types.SessionTrackerV1) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.ServerWithRoles.UpsertSessionTracker(ctx, tracker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // CreateSessionTracker creates a tracker resource for an active session.
+// DELETE IN 11.0.0 - Deprecated in favor or UpsertSessionTracker
 func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (*types.SessionTrackerV1, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req)
+
+	spec := types.SessionTrackerSpecV1{
+		SessionID:         req.ID,
+		Kind:              req.Type,
+		State:             types.SessionState_SessionStatePending,
+		Reason:            req.Reason,
+		Invited:           req.Invited,
+		Hostname:          req.Hostname,
+		Address:           req.Address,
+		ClusterName:       req.ClusterName,
+		Login:             req.Login,
+		Participants:      []types.Participant{*req.Initiator},
+		Expires:           req.Expires,
+		KubernetesCluster: req.KubernetesCluster,
+		HostUser:          req.HostUser,
+	}
+
+	tracker, err := types.NewSessionTracker(spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	defined, ok := session.(*types.SessionTrackerV1)
-	if !ok {
-		return nil, trace.BadParameter("unexpected session type %T", session)
+	err = auth.ServerWithRoles.UpsertSessionTracker(ctx, tracker)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return defined, nil
+	v1, ok := tracker.(*types.SessionTrackerV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", tracker)
+	}
+
+	return v1, nil
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.

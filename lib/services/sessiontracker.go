@@ -18,9 +18,12 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // SessionTrackerService is a realtime session service that has information about
@@ -32,9 +35,6 @@ type SessionTrackerService interface {
 	// GetSessionTracker returns the current state of a session tracker for an active session.
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 
-	// CreateSessionTracker creates a tracker resource for an active session.
-	CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error)
-
 	// UpdateSessionTracker updates a tracker resource for an active session.
 	UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error
 
@@ -43,4 +43,100 @@ type SessionTrackerService interface {
 
 	// UpdatePresence updates the presence status of a user in a session.
 	UpdatePresence(ctx context.Context, sessionID, user string) error
+
+	// UpsertSessionTracker creates a tracker resource for an active session.
+	UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error
+}
+
+// UpdateSessionTrackerState is a helper function to add a session tracker participant.
+func AddSessionTrackerParticipant(ctx context.Context, sts SessionTrackerService, sid string, participant *types.Participant) error {
+	req := &proto.UpdateSessionTrackerRequest{
+		SessionID: sid,
+		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
+			AddParticipant: &proto.SessionTrackerAddParticipant{
+				Participant: participant,
+			},
+		},
+	}
+
+	err := sts.UpdateSessionTracker(ctx, req)
+	return trace.Wrap(err)
+}
+
+// UpdateSessionTrackerState is a helper function to remove a session tracker participant.
+func RemoveSessionTrackerParticipant(ctx context.Context, sts SessionTrackerService, sid string, participantID string) error {
+	req := &proto.UpdateSessionTrackerRequest{
+		SessionID: sid,
+		Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
+			RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
+				ParticipantID: participantID,
+			},
+		},
+	}
+
+	err := sts.UpdateSessionTracker(ctx, req)
+	return trace.Wrap(err)
+}
+
+// UpdateSessionTrackerState is a helper function to update a session tracker state.
+func UpdateSessionTrackerState(ctx context.Context, sts SessionTrackerService, sid string, state types.SessionState) error {
+	req := &proto.UpdateSessionTrackerRequest{
+		SessionID: sid,
+		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
+			UpdateState: &proto.SessionTrackerUpdateState{
+				State: state,
+			},
+		},
+	}
+
+	err := sts.UpdateSessionTracker(ctx, req)
+	return trace.Wrap(err)
+}
+
+// UpdateSessionTrackerExpiry is a helper function to update a session tracker expiry.
+func UpdateSessionTrackerExpiry(ctx context.Context, sts SessionTrackerService, sid string, expires time.Time) error {
+	req := &proto.UpdateSessionTrackerRequest{
+		SessionID: sid,
+		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
+			UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
+				Expires: &expires,
+			},
+		},
+	}
+
+	err := sts.UpdateSessionTracker(ctx, req)
+	return trace.Wrap(err)
+}
+
+// UnmarshalSessionTracker unmarshals the Session resource from JSON.
+func UnmarshalSessionTracker(bytes []byte) (types.SessionTracker, error) {
+	var session types.SessionTrackerV1
+
+	if len(bytes) == 0 {
+		return nil, trace.BadParameter("missing resource data")
+	}
+
+	if err := utils.FastUnmarshal(bytes, &session); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+
+	if err := session.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &session, nil
+}
+
+// MarshalSessionTracker marshals the Session resource to JSON.
+func MarshalSessionTracker(session types.SessionTracker) ([]byte, error) {
+	if err := session.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch session := session.(type) {
+	case *types.SessionTrackerV1:
+		return utils.FastMarshal(session)
+	default:
+		return nil, trace.BadParameter("unrecognized session version %T", session)
+	}
 }

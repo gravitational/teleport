@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -92,6 +93,19 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	defer serverConn.Close()
+
+	// Create a session tracker so that other services
+	// can track the session's lifetime.
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if err := sessionCtx.TrackSession(cancelCtx, e.EngineConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err := services.UpdateSessionTrackerState(ctx, e.EngineConfig.AuthClient, sessionCtx.ID, types.SessionState_SessionStateTerminated); err != nil {
+			e.EngineConfig.Log.WithError(err).Warningf("Failed to update session tracker state for session %v.", sessionCtx.ID)
+		}
+	}()
 
 	// Pass all flags returned by server during login back to the client.
 	err = protocol.WriteStreamResponse(e.clientConn, serverFlags)

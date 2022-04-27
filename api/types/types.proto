@@ -2983,6 +2983,12 @@ message SessionTrackerSpecV1 {
     // creation.
     repeated SessionTrackerPolicySet HostPolicies = 16
         [ (gogoproto.jsontag) = "host_roles,omitempty" ];
+
+    // DatabaseName is the database server this session belongs to.
+    string DatabaseName = 17 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+
+    // AppName is the app server this session belongs to.
+    string AppName = 18 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

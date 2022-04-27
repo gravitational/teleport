@@ -119,10 +119,6 @@ func (m *MockSessionTrackerService) GetSessionTracker(ctx context.Context, sessi
 	return nil, trace.NotFound("tracker not found")
 }
 
-func (m *MockSessionTrackerService) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	return nil, nil
-}
-
 func (m *MockSessionTrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
 	return nil
 }
@@ -132,5 +128,9 @@ func (m *MockSessionTrackerService) RemoveSessionTracker(ctx context.Context, se
 }
 
 func (m *MockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
+	return nil
+}
+
+func (m *MockSessionTrackerService) UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error {
 	return nil
 }

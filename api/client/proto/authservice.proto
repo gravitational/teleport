@@ -1525,6 +1525,7 @@ message ListResourcesResponse {
 // CreateSessionTrackerRequest is a request to create a new session.
 //
 // This is not specific to any session type. Relevant fields should be set for a given session type.
+// DELETE IN 11.0.0 - Deprecated in favor or UpsertSessionTracker
 message CreateSessionTrackerRequest {
     // Namespace is a session namespace, separating sessions from each other.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace,omitempty" ];
@@ -1650,7 +1651,11 @@ service AuthService {
     rpc MaintainSessionPresence(stream PresenceMFAChallengeSend)
         returns (stream MFAAuthenticateChallenge);
 
+    // UpsertSessionTracker upserts a new session tracker resource.
+    rpc UpsertSessionTracker(types.SessionTrackerV1) returns (google.protobuf.Empty);
+
     // CreateSessionTracker creates a new session tracker resource.
+    // DELETE IN 11.0.0 - Deprecated in favor or UpsertSessionTracker
     rpc CreateSessionTracker(CreateSessionTrackerRequest) returns (types.SessionTrackerV1);
 
     // GetSessionTracker fetches a session tracker resource.

@@ -23,6 +23,7 @@ import (
 	"net"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -166,6 +167,19 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	// Create a session tracker so that other services
+	// can track the session's lifetime.
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if err := sessionCtx.TrackSession(cancelCtx, e.EngineConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err := services.UpdateSessionTrackerState(ctx, e.EngineConfig.AuthClient, sessionCtx.ID, types.SessionState_SessionStateTerminated); err != nil {
+			e.EngineConfig.Log.WithError(err).Warningf("Failed to update session tracker state for session %v.", sessionCtx.ID)
+		}
+	}()
 
 	if err := e.process(ctx); err != nil {
 		return trace.Wrap(err)

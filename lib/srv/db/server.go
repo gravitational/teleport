@@ -679,14 +679,12 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 	defer func() {
-		// Closing the stream writer is needed to flush all recorded data
-		// and trigger upload. Do it in a goroutine since depending on
-		// session size it can take a while, and we don't want to block
-		// the client.
+		// Complete session stream in a goroutine since depending on session size
+		// it can take a while, and we don't want to block the client.
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
-			err := streamWriter.Close(s.closeContext)
+			err := streamWriter.Complete(s.closeContext)
 			if err != nil {
 				sessionCtx.Log.WithError(err).Warn("Failed to close stream writer.")
 			}

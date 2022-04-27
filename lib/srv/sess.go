@@ -29,8 +29,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -1650,7 +1648,8 @@ func (s *session) trackerGet() (types.SessionTracker, error) {
 
 func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
 	s.log.Debug("Creating tracker")
-	initator := &types.Participant{
+
+	initiator := &types.Participant{
 		ID:         teleportUser,
 		User:       teleportUser,
 		LastActive: time.Now().UTC(),
@@ -1666,22 +1665,25 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		}
 	}
 
-	req := &proto.CreateSessionTrackerRequest{
-		ID:           s.id.String(),
-		Namespace:    apidefaults.Namespace,
-		Type:         string(types.KubernetesSessionKind),
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    s.id.String(),
+		Kind:         string(types.SSHSessionKind),
+		State:        types.SessionState_SessionStatePending,
 		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
 		Address:      s.scx.ServerConn.LocalAddr().String(),
 		ClusterName:  s.scx.ClusterName,
 		Login:        "root",
-		Initiator:    initator,
-		HostUser:     initator.User,
+		Participants: []types.Participant{*initiator},
+		HostUser:     initiator.User,
 		Reason:       reason,
 		Invited:      invited,
 		HostPolicies: policySet,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
 	}
 
-	_, err := s.registry.SessionTrackerService.CreateSessionTracker(s.serverCtx, req)
+	err = s.registry.SessionTrackerService.UpsertSessionTracker(s.serverCtx, tracker)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
@@ -1707,36 +1709,20 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 
 func (s *session) trackerAddParticipant(participant *party) error {
 	s.log.Debugf("Tracking participant: %v", participant.user)
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: s.id.String(),
-		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
-			AddParticipant: &proto.SessionTrackerAddParticipant{
-				Participant: &types.Participant{
-					ID:         participant.user,
-					User:       participant.user,
-					Mode:       string(participant.mode),
-					LastActive: time.Now().UTC(),
-				},
-			},
-		},
-	}
 
-	err := s.registry.SessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
+	err := services.AddSessionTrackerParticipant(s.serverCtx, s.registry.SessionTrackerService, s.id.String(), &types.Participant{
+		ID:         participant.user,
+		User:       participant.user,
+		Mode:       string(participant.mode),
+		LastActive: time.Now().UTC(),
+	})
 	return trace.Wrap(err)
 }
 
 func (s *session) trackerRemoveParticipant(participantID string) error {
 	s.log.Debugf("Not tracking participant: %v", participantID)
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: s.id.String(),
-		Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
-			RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
-				ParticipantID: participantID,
-			},
-		},
-	}
 
-	err := s.registry.SessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
+	err := services.RemoveSessionTrackerParticipant(s.serverCtx, s.registry.SessionTrackerService, s.id.String(), participantID)
 	return trace.Wrap(err)
 }
 
@@ -1744,29 +1730,11 @@ func (s *session) trackerUpdateState(state types.SessionState) error {
 	s.state = state
 	s.stateUpdate.Broadcast()
 
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: s.id.String(),
-		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
-			UpdateState: &proto.SessionTrackerUpdateState{
-				State: state,
-			},
-		},
-	}
-
-	err := s.registry.SessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
+	err := services.UpdateSessionTrackerState(s.serverCtx, s.registry.SessionTrackerService, s.id.String(), state)
 	return trace.Wrap(err)
 }
 
 func (s *session) trackerUpdateExpiry(expires time.Time) error {
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: s.id.String(),
-		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
-			UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
-				Expires: &expires,
-			},
-		},
-	}
-
-	err := s.registry.SessionTrackerService.UpdateSessionTracker(s.serverCtx, req)
+	err := services.UpdateSessionTrackerExpiry(s.serverCtx, s.registry.SessionTrackerService, s.id.String(), expires)
 	return trace.Wrap(err)
 }

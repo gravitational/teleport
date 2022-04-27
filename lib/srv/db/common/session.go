@@ -17,11 +17,14 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
 )
@@ -56,4 +59,56 @@ type Session struct {
 func (c *Session) String() string {
 	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v]",
 		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
+}
+
+// TrackSession creates a new session tracker for the database session.
+// While ctx is open, the session tracker's expiration will be extended
+// on an interval. Once the ctx is closed, the sessiont tracker's state
+// will be updated to terminated.
+func (c *Session) TrackSession(ctx context.Context, engineCfg EngineConfig) error {
+	engineCfg.Log.Debug("Creating session tracker")
+	initiator := &types.Participant{
+		ID:   c.DatabaseUser,
+		User: c.Identity.Username,
+	}
+
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    c.ID,
+		Kind:         string(types.DatabaseSessionKind),
+		State:        types.SessionState_SessionStateRunning,
+		Hostname:     c.HostID,
+		DatabaseName: c.DatabaseName,
+		ClusterName:  c.ClusterName,
+		Login:        "root",
+		Participants: []types.Participant{*initiator},
+		HostUser:     initiator.User,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = engineCfg.AuthClient.UpsertSessionTracker(ctx, tracker)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start go routine to push back session expiration until ctx is canceled (session ends).
+	go func() {
+		ticker := engineCfg.Clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case time := <-ticker.Chan():
+				err := services.UpdateSessionTrackerExpiry(ctx, engineCfg.AuthClient, c.ID, time.Add(defaults.SessionTrackerTTL))
+				if err != nil {
+					engineCfg.Log.WithError(err).Warningf("Failed to update session tracker expiration for session %v.", c.ID)
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return nil
 }

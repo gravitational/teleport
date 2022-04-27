@@ -25,6 +25,9 @@ import (
 const (
 	SSHSessionKind        SessionKind            = "ssh"
 	KubernetesSessionKind SessionKind            = "k8s"
+	DatabaseSessionKind   SessionKind            = "db"
+	AppSessionKind        SessionKind            = "app"
+	DesktopSessionKind    SessionKind            = "dsk"
 	SessionObserverMode   SessionParticipantMode = "observer"
 	SessionModeratorMode  SessionParticipantMode = "moderator"
 	SessionPeerMode       SessionParticipantMode = "peer"
@@ -51,6 +54,9 @@ type SessionTracker interface {
 
 	// SetState sets the state of the session.
 	SetState(SessionState) error
+
+	// SetCreated sets the time at which the session was created.
+	SetCreated(time.Time)
 
 	// GetCreated returns the time at which the session was created.
 	GetCreated() time.Time
@@ -218,6 +224,11 @@ func (s *SessionTrackerV1) SetState(state SessionState) error {
 // GetCreated returns the time at which the session was created.
 func (s *SessionTrackerV1) GetCreated() time.Time {
 	return s.Spec.Created
+}
+
+// SetCreated returns the time at which the session was created.
+func (s *SessionTrackerV1) SetCreated(created time.Time) {
+	s.Spec.Created = created
 }
 
 // GetExpires return the time at which the session expires.

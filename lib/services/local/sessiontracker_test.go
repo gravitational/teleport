@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,62 +32,54 @@ func TestSessionTrackerStorage(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	id := uuid.New().String()
+	sid := uuid.New().String()
 	srv, err := NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
-	session, err := srv.CreateSessionTracker(ctx, &proto.CreateSessionTrackerRequest{
-		Namespace:   defaults.Namespace,
-		ID:          id,
-		Type:        types.KindSSHSession,
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:   sid,
+		Kind:        types.KindSSHSession,
 		Hostname:    "hostname",
 		ClusterName: "cluster",
 		Login:       "root",
-		Initiator: &types.Participant{
-			ID:   uuid.New().String(),
-			User: "eve",
-			Mode: string(types.SessionPeerMode),
+		Participants: []types.Participant{
+			{
+				ID:   uuid.New().String(),
+				User: "eve",
+				Mode: string(types.SessionPeerMode),
+			},
 		},
 		Expires: time.Now().UTC().Add(24 * time.Hour),
 	})
 	require.NoError(t, err)
 
+	err = srv.UpsertSessionTracker(ctx, tracker)
+	require.NoError(t, err)
+
 	bobID := uuid.New().String()
-	err = srv.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: id,
-		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
-			AddParticipant: &proto.SessionTrackerAddParticipant{
-				Participant: &types.Participant{
-					ID:   bobID,
-					User: "bob",
-					Mode: string(types.SessionObserverMode),
-				},
-			},
-		},
+	err = services.AddSessionTrackerParticipant(ctx, srv, sid, &types.Participant{
+		ID:   bobID,
+		User: "bob",
+		Mode: string(types.SessionObserverMode),
 	})
 	require.NoError(t, err)
 
-	err = srv.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: id,
-		Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
-			RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
-				ParticipantID: bobID,
-			},
-		},
-	})
+	err = services.RemoveSessionTrackerParticipant(ctx, srv, sid, bobID)
 	require.NoError(t, err)
 
 	sessions, err := srv.GetActiveSessionTrackers(ctx)
 	require.NoError(t, err)
 	require.Len(t, sessions, 1)
-	require.Len(t, session.GetParticipants(), 1)
+	tracker = sessions[0]
+	require.Len(t, tracker.GetParticipants(), 1)
 
-	err = srv.RemoveSessionTracker(ctx, session.GetSessionID())
+	err = srv.RemoveSessionTracker(ctx, sid)
 	require.NoError(t, err)
 
-	session, err = srv.GetSessionTracker(ctx, session.GetSessionID())
+	tracker, err = srv.GetSessionTracker(ctx, sid)
 	require.Error(t, err)
-	require.Nil(t, session)
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, tracker)
 }
 
 func TestSessionTrackerImplicitExpiry(t *testing.T) {
@@ -100,29 +92,44 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 	srv, err := NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
-	req1 := proto.CreateSessionTrackerRequest{
-		Namespace:   defaults.Namespace,
-		ID:          id,
-		Type:        types.KindSSHSession,
+	tracker1, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:   id,
+		Kind:        types.KindSSHSession,
 		Hostname:    "hostname",
 		ClusterName: "cluster",
 		Login:       "foo",
-		Initiator: &types.Participant{
-			ID:   uuid.New().String(),
-			User: "eve",
-			Mode: string(types.SessionPeerMode),
+		Participants: []types.Participant{
+			{
+				ID:   uuid.New().String(),
+				User: "eve",
+				Mode: string(types.SessionPeerMode),
+			},
 		},
 		Expires: time.Now().UTC().Add(time.Second),
-	}
-
-	req2 := req1
-	req2.ID = id2
-	req2.Expires = time.Now().UTC().Add(24 * time.Hour)
-
-	_, err = srv.CreateSessionTracker(ctx, &req1)
+	})
 	require.NoError(t, err)
 
-	_, err = srv.CreateSessionTracker(ctx, &req2)
+	err = srv.UpsertSessionTracker(ctx, tracker1)
+	require.NoError(t, err)
+
+	tracker2, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:   id2,
+		Kind:        types.KindSSHSession,
+		Hostname:    "hostname",
+		ClusterName: "cluster",
+		Login:       "foo",
+		Participants: []types.Participant{
+			{
+				ID:   uuid.New().String(),
+				User: "eve",
+				Mode: string(types.SessionPeerMode),
+			},
+		},
+		Expires: time.Now().UTC().Add(24 * time.Hour),
+	})
+	require.NoError(t, err)
+
+	err = srv.UpsertSessionTracker(ctx, tracker2)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {

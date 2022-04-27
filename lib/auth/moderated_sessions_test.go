@@ -20,11 +20,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,12 +41,15 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	srv, err := local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
-	tracker, err := srv.CreateSessionTracker(context.Background(), &proto.CreateSessionTrackerRequest{
-		ID:        "foo",
-		Initiator: &types.Participant{},
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID: "foo",
 	})
-
 	require.NoError(t, err)
+	tracker.AddParticipant(types.Participant{})
+
+	err = srv.UpsertSessionTracker(context.Background(), tracker)
+	require.NoError(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 	require.NotNil(t, tracker)
 }
 
@@ -63,9 +66,8 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	srv, err := local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
-	tracker, err := srv.CreateSessionTracker(context.Background(), &proto.CreateSessionTrackerRequest{
-		ID:        "foo",
-		Initiator: &types.Participant{},
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID: "foo",
 		HostPolicies: []*types.SessionTrackerPolicySet{
 			{
 				Name:    "foo",
@@ -78,7 +80,10 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
+	tracker.AddParticipant(types.Participant{})
 
+	err = srv.UpsertSessionTracker(context.Background(), tracker)
 	require.Error(t, err)
 	require.Nil(t, tracker)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
@@ -97,9 +102,8 @@ func TestModeratedSesssionsEnabled(t *testing.T) {
 	srv, err := local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
-	tracker, err := srv.CreateSessionTracker(context.Background(), &proto.CreateSessionTrackerRequest{
-		ID:        "foo",
-		Initiator: &types.Participant{},
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID: "foo",
 		HostPolicies: []*types.SessionTrackerPolicySet{
 			{
 				Name:    "foo",
@@ -112,7 +116,10 @@ func TestModeratedSesssionsEnabled(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
+	tracker.AddParticipant(types.Participant{})
 
+	err = srv.UpsertSessionTracker(context.Background(), tracker)
 	require.NoError(t, err)
 	require.NotNil(t, tracker)
 }

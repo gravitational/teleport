@@ -239,19 +239,31 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 	return ok
 }
 
-// CreateSessionTracker creates a tracker resource for an active session.
-func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
-		return nil, trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+// UpsertSessionTracker upserts a tracker resource for an active session.
+func (a *ServerWithRoles) UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) &&
+		!a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleApp)) && !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 
-	return a.authServer.CreateSessionTracker(ctx, req)
+	// Don't allow sessions that require moderation without the enterprise feature enabled.
+	for _, policySet := range tracker.GetHostPolicySets() {
+		if len(policySet.RequireSessionJoin) != 0 {
+			if !modules.GetModules().Features().ModeratedSessions {
+				return trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			}
+		}
+	}
+
+	err := a.authServer.UpsertSessionTracker(ctx, tracker)
+	return trace.Wrap(err)
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
 func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
-		return nil, trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) &&
+		!a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleApp)) && !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return nil, trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 
 	return a.authServer.GetSessionTracker(ctx, sessionID)
@@ -284,8 +296,9 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
-		return trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) &&
+		!a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleApp)) && !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 
 	return a.authServer.RemoveSessionTracker(ctx, sessionID)
@@ -293,8 +306,9 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
-		return trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) &&
+		!a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleApp)) && !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 
 	return a.authServer.UpdateSessionTracker(ctx, req)

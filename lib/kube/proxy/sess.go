@@ -29,17 +29,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/services"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/remotecommand"
@@ -1149,80 +1150,81 @@ func (s *session) trackerGet() (types.SessionTracker, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return sess, nil
 }
 
-func (s *session) trackerCreate(p *party, policySets []*types.SessionTrackerPolicySet) error {
+func (s *session) trackerCreate(p *party, policySet []*types.SessionTrackerPolicySet) error {
 	initiator := &types.Participant{
 		ID:         p.ID.String(),
 		User:       p.Ctx.User.GetName(),
 		LastActive: time.Now().UTC(),
 	}
 
-	req := &proto.CreateSessionTrackerRequest{
-		ID:                s.id.String(),
-		Namespace:         defaults.Namespace,
-		Type:              string(types.KubernetesSessionKind),
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:         s.id.String(),
+		Kind:              string(types.KubernetesSessionKind),
+		State:             types.SessionState_SessionStatePending,
 		Hostname:          s.podName,
-		ClusterName:       s.ctx.teleportCluster.name,
-		Initiator:         initiator,
-		Expires:           s.expires,
 		KubernetesCluster: s.ctx.kubeCluster,
-		HostUser:          initiator.User,
-		HostPolicies:      policySets,
+		ClusterName:       s.ctx.teleportCluster.name,
 		Login:             "root",
+		Participants:      []types.Participant{*initiator},
+		HostUser:          initiator.User,
+		HostPolicies:      policySet,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
 	}
 
-	_, err := s.forwarder.cfg.AuthClient.CreateSessionTracker(s.forwarder.ctx, req)
-	return trace.Wrap(err)
+	err = s.forwarder.cfg.AuthClient.UpsertSessionTracker(s.forwarder.ctx, tracker)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start go routine to push back session expiration while session is still active.
+	go func() {
+		ticker := s.forwarder.cfg.Clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case time := <-ticker.Chan():
+				if err := s.trackerUpdateExpiry(time.Add(defaults.SessionTrackerTTL)); err != nil {
+					s.log.WithError(err).Warningf("Failed to update session tracker expiration.")
+				}
+			case <-s.closeC:
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (s *session) trackerAddParticipant(participant *party) error {
 	s.log.Debugf("Tracking participant: %v", participant.ID.String())
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: s.id.String(),
-		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
-			AddParticipant: &proto.SessionTrackerAddParticipant{
-				Participant: &types.Participant{
-					ID:         participant.ID.String(),
-					User:       participant.Ctx.User.GetName(),
-					Mode:       string(participant.Mode),
-					LastActive: time.Now().UTC(),
-				},
-			},
-		},
-	}
 
-	err := s.forwarder.cfg.AuthClient.UpdateSessionTracker(s.forwarder.ctx, req)
+	err := services.AddSessionTrackerParticipant(s.forwarder.ctx, s.forwarder.cfg.AuthClient, s.id.String(), &types.Participant{
+		ID:         participant.ID.String(),
+		User:       participant.Ctx.User.GetName(),
+		Mode:       string(participant.Mode),
+		LastActive: time.Now().UTC(),
+	})
 	return trace.Wrap(err)
 }
 
 func (s *session) trackerRemoveParticipant(participantID string) error {
 	s.log.Debugf("Not tracking participant: %v", participantID)
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: s.id.String(),
-		Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
-			RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
-				ParticipantID: participantID,
-			},
-		},
-	}
 
-	err := s.forwarder.cfg.AuthClient.UpdateSessionTracker(s.forwarder.ctx, req)
+	err := services.RemoveSessionTrackerParticipant(s.forwarder.ctx, s.forwarder.cfg.AuthClient, s.id.String(), participantID)
 	return trace.Wrap(err)
 }
 
 func (s *session) trackerUpdateState(state types.SessionState) error {
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: s.id.String(),
-		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
-			UpdateState: &proto.SessionTrackerUpdateState{
-				State: state,
-			},
-		},
-	}
+	err := services.UpdateSessionTrackerState(s.forwarder.ctx, s.forwarder.cfg.AuthClient, s.id.String(), state)
+	return trace.Wrap(err)
+}
 
-	err := s.forwarder.cfg.AuthClient.UpdateSessionTracker(s.forwarder.ctx, req)
+func (s *session) trackerUpdateExpiry(expires time.Time) error {
+	err := services.UpdateSessionTrackerExpiry(s.forwarder.ctx, s.forwarder.cfg.AuthClient, s.id.String(), expires)
 	return trace.Wrap(err)
 }
