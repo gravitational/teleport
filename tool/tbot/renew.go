@@ -46,7 +46,7 @@ import (
 
 // generateKeys generates TLS and SSH keypairs.
 func generateKeys() (private, sshpub, tlspub []byte, err error) {
-	privateKey, publicKey, err := native.GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -202,7 +202,7 @@ func generateIdentity(
 	// Generate a fresh keypair for the impersonated identity. We don't care to
 	// reuse keys here: impersonated certs might not be as well-protected so
 	// constantly rotating private keys
-	privateKey, publicKey, err := native.GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -213,6 +213,10 @@
             {
               "title": "Networking",
               "slug": "/setup/reference/networking/"
+            },
+            {
+              "title": "Predicate Language",
+              "slug": "/setup/reference/predicate-language/"
             }
           ]
         }
@@ -325,7 +329,7 @@
         {
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
-           "entries": [
+          "entries": [
             {
               "title": "Local Demo Cluster",
               "slug": "/kubernetes-access/getting-started/local/"
@@ -397,8 +401,8 @@
               "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
             },
             {
-               "title": "teleport-kube-agent",
-               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+              "title": "teleport-kube-agent",
+              "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
             }
           ]
         },
