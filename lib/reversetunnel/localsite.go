@@ -314,27 +314,30 @@ func (s *localSite) tryProxyPeering(params DialParams) bool {
 }
 
 // skipDirectDial determines if a direct dial attempt should be made.
-func (s *localSite) skipDirectDial(params DialParams) bool {
-	// Never direct dial when the client is already connecting from
-	// a peer proxy.
-	if params.FromPeerProxy {
-		return true
-	}
-
+func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 	// Connections to application and database servers should never occur
 	// over a direct dial.
 	switch params.ConnType {
+	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel:
 	case types.AppTunnel, types.DatabaseTunnel:
-		return true
+		return true, nil
+	default:
+		return true, trace.BadParameter("unknown tunnel type: %s", params.ConnType)
+	}
+
+	// Never direct dial when the client is already connecting from
+	// a peer proxy.
+	if params.FromPeerProxy {
+		return true, nil
 	}
 
 	// This node can only be reached over a tunnel, don't attempt to dial
 	// remotely.
 	if params.To == nil || params.To.String() == "" {
-		return true
+		return true, nil
 	}
 
-	return false
+	return false, nil
 }
 
 func getTunnelErrorMessage(params DialParams, connStr string, err error) string {
@@ -393,7 +396,14 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 
 	// Skip direct dial when the tunnel error is not a not found error. This
 	// means the agent is tunneling but the connection failed for some reason.
-	if s.skipDirectDial(params) || !trace.IsNotFound(tunnelErr) {
+	if !trace.IsNotFound(tunnelErr) {
+		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
+	}
+
+	skip, err := s.skipDirectDial(params)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	} else if skip {
 		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
 	}
 
