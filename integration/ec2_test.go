@@ -18,6 +18,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -281,4 +282,51 @@ func TestIAMNodeJoin(t *testing.T) {
 		require.NoError(t, err)
 		return len(nodes) > 0
 	}, time.Minute, time.Second, "waiting for node to join cluster")
+}
+
+// TestLabels is an integration test which asserts that Teleport correctly picks up
+// EC2 tags when running on an EC2 instance.
+func TestLabels(t *testing.T) {
+	if os.Getenv("TELEPORT_TEST_EC2") == "" {
+		t.Skipf("Skipping TestLabels because TELEPORT_TEST_EC2 is not set")
+	}
+	storageConfig := backend.Config{
+		Type: lite.GetName(),
+		Params: backend.Params{
+			"path":               t.TempDir(),
+			"poll_stream_period": 50 * time.Millisecond,
+		},
+	}
+	tconf := service.MakeDefaultConfig()
+	tconf.DataDir = t.TempDir()
+	tconf.SSH.Enabled = true
+	tconf.Auth.Enabled = true
+	tconf.Proxy.Enabled = false
+	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.Auth.StorageConfig = storageConfig
+	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
+
+	proc, err := service.NewTeleport(tconf)
+	require.NoError(t, err)
+	require.NoError(t, proc.Start())
+
+	ctx := context.Background()
+	authServer := proc.GetAuthServer()
+	var nodes []types.Server
+	require.Eventually(t, func() bool {
+		var err error
+		nodes, err = authServer.GetNodes(ctx, tconf.SSH.Namespace)
+		require.NoError(t, err)
+		return len(nodes) == 1
+	}, 20*time.Second, time.Second)
+
+	require.Eventually(t, func() bool {
+		node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
+		require.NoError(t, err)
+		// TODO: guarantee that this (or any) tag exists
+		_, ok := node.GetAllLabels()[fmt.Sprintf("%s/Name", types.AWSNamespace)]
+		return ok
+	}, 10*time.Second, time.Second)
+
 }
