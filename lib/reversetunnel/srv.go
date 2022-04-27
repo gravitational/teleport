@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -638,7 +637,7 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// nodes it's a node dialing back.
 	val, ok := sconn.Permissions.Extensions[extCertRole]
 	if !ok {
-		log.Errorf("Failed to accept connection, missing %q extension", extCertRole)
+		s.log.Errorf("Failed to accept connection, missing %q extension", extCertRole)
 		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
 		return
 	}
@@ -662,7 +661,7 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		s.handleNewCluster(conn, sconn, nch)
 	// Unknown role.
 	default:
-		log.Errorf("Unsupported role attempting to connect: %v", val)
+		s.log.Errorf("Unsupported role attempting to connect: %v", val)
 		s.rejectRequest(nch, ssh.ConnectionFailed, fmt.Sprintf("unsupported role %v", val))
 	}
 }
@@ -670,14 +669,14 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 func (s *server) handleNewService(role types.SystemRole, conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel, connType types.TunnelType) {
 	cluster, rconn, err := s.upsertServiceConn(conn, sconn, connType)
 	if err != nil {
-		log.Errorf("Failed to upsert %s: %v.", role, err)
+		s.log.Errorf("Failed to upsert %s: %v.", role, err)
 		sconn.Close()
 		return
 	}
 
 	ch, req, err := nch.Accept()
 	if err != nil {
-		log.Errorf("Failed to accept on channel: %v.", err)
+		s.log.Errorf("Failed to accept on channel: %v.", err)
 		sconn.Close()
 		return
 	}
@@ -689,14 +688,14 @@ func (s *server) handleNewCluster(conn net.Conn, sshConn *ssh.ServerConn, nch ss
 	// add the incoming site (cluster) to the list of active connections:
 	site, remoteConn, err := s.upsertRemoteCluster(conn, sshConn)
 	if err != nil {
-		log.Error(trace.Wrap(err))
+		s.log.Error(trace.Wrap(err))
 		s.rejectRequest(nch, ssh.ConnectionFailed, "failed to accept incoming cluster connection")
 		return
 	}
 	// accept the request and start the heartbeat on it:
 	ch, req, err := nch.Accept()
 	if err != nil {
-		log.Error(trace.Wrap(err))
+		s.log.Error(trace.Wrap(err))
 		sshConn.Close()
 		return
 	}
@@ -1059,27 +1058,12 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
-	// DELETE IN: 8.0.0
-	//
-	// Check if the cluster that is connecting is a pre-v7 cluster. If it is,
-	// don't assume the newer organization of cluster configuration resources
-	// (RFD 28) because older proxy servers will reject that causing the cache
-	// to go into a re-sync loop.
-	var accessPointFunc auth.NewCachingAccessPoint
-	ok, err := isPreV7Cluster(closeContext, sconn)
+	remoteVersion, err := getRemoteAuthVersion(closeContext, sconn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if ok {
-		log.Debugf("Pre-v7 cluster connecting, loading old cache policy.")
-		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
-	} else {
-		accessPointFunc = srv.newAccessPoint
-	}
 
-	// Configure access to the cached subset of the Auth Server API of the remote
-	// cluster this remote site provides access to.
-	accessPoint, err := accessPointFunc(clt, []string{"reverse", domainName})
+	accessPoint, err := createRemoteAccessPoint(srv, clt, remoteVersion, domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1124,33 +1108,35 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	return remoteSite, nil
 }
 
-// DELETE IN: 8.0.0.
-//
-// isPreV7Cluster checks if the cluster is older than 7.0.0.
-func isPreV7Cluster(ctx context.Context, conn ssh.Conn) (bool, error) {
-	version, err := sendVersionRequest(ctx, conn)
+// createRemoteAccessPoint creates a new access point for the remote cluster.
+// Checks if the cluster that is connecting is a pre-v7 cluster. If it is,
+// don't assume the newer organization of cluster configuration resources
+// (RFD 28) because older proxy servers will reject that causing the cache
+// to go into a re-sync loop.
+func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.AccessPoint, error) {
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("7.0.0"))
 	if err != nil {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	remoteClusterVersion, err := semver.NewVersion(version)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	minClusterVersion, err := semver.NewVersion(utils.VersionBeforeAlpha("7.0.0"))
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	// Return true if the version is older than 7.0.0
-	if remoteClusterVersion.LessThan(*minClusterVersion) {
-		return true, nil
+	accessPointFunc := srv.Config.NewCachingAccessPoint
+	if !ok {
+		srv.log.Debugf("cluster %q running %q is connecting, loading old cache policy.", domainName, version)
+		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
 	}
 
-	return false, nil
+	// Configure access to the cached subset of the Auth Server API of the remote
+	// cluster this remote site provides access to.
+	accessPoint, err := accessPointFunc(clt, []string{"reverse", domainName})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessPoint, nil
 }
 
-// sendVersionRequest sends a request for the version remote Teleport cluster.
-func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (string, error) {
+// getRemoteAuthVersion sends a version request to the remote agent.
+func getRemoteAuthVersion(ctx context.Context, sconn ssh.Conn) (string, error) {
 	errorCh := make(chan error, 1)
 	versionCh := make(chan string, 1)
 
@@ -1164,6 +1150,7 @@ func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (string, error) {
 			errorCh <- trace.BadParameter("no response to %v request", versionRequest)
 			return
 		}
+
 		versionCh <- string(payload)
 	}()
 
@@ -1175,7 +1162,7 @@ func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (string, error) {
 	case <-time.After(defaults.WaitCopyTimeout):
 		return "", trace.BadParameter("timeout waiting for version")
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return "", trace.Wrap(ctx.Err())
 	}
 }
 
