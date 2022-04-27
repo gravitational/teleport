@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Indicator, ButtonPrimary } from 'design';
 import { Danger } from 'design/Alert';
 import KubeList from 'teleport/Kubes/KubeList';
@@ -26,6 +26,8 @@ import {
 import useTeleport from 'teleport/useTeleport';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import useKubes, { State } from './useKubes';
+import AddKube from './AddKube';
+import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -59,6 +61,8 @@ export function Kubes(props: State) {
     isSearchEmpty,
   } = props;
 
+  const [showAddKube, setShowAddKube] = useState(false);
+
   const hasNoKubes =
     attempt.status === 'success' && results.kubes.length === 0 && isSearchEmpty;
 
@@ -67,15 +71,13 @@ export function Kubes(props: State) {
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Kubernetes</FeatureHeaderTitle>
         {!hasNoKubes && (
-          <ButtonPrimary
-            as="a"
-            width="240px"
-            target="_blank"
-            href={DOC_URL}
-            rel="noreferrer"
-          >
-            View documentation
-          </ButtonPrimary>
+          <AgentButtonAdd
+            onClick={() => setShowAddKube(true)}
+            agent="kubernetes"
+            beginsWithVowel={false}
+            isLeafCluster={isLeafCluster}
+            canCreate={canCreate}
+          />
         )}
       </FeatureHeader>
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
@@ -111,9 +113,11 @@ export function Kubes(props: State) {
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
+          onClick={() => setShowAddKube(true)}
           emptyStateInfo={emptyStateInfo}
         />
       )}
+      {showAddKube && <AddKube onClose={() => setShowAddKube(false)} />}
     </FeatureBox>
   );
 }

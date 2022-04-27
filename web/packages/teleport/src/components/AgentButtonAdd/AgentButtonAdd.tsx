@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,17 +17,21 @@ limitations under the License.
 import React from 'react';
 import { ButtonPrimary } from 'design';
 
-export default function ButtonAdd(props: Props) {
-  const { canCreate, isLeafCluster, onClick } = props;
+export default function AgentButtonAdd(props: Props) {
+  const { canCreate, isLeafCluster, onClick, agent, beginsWithVowel } = props;
   const disabled = isLeafCluster || !canCreate;
 
   let title = '';
   if (!canCreate) {
-    title = 'You do not have access to add an application';
+    title = `You do not have access to add ${
+      beginsWithVowel ? 'an' : 'a'
+    } ${agent}`;
   }
 
   if (isLeafCluster) {
-    title = 'Adding an application to a leaf cluster is not supported';
+    title = `Adding ${
+      beginsWithVowel ? 'an' : 'a'
+    } ${agent} to a leaf cluster is not supported`;
   }
 
   return (
@@ -37,13 +41,15 @@ export default function ButtonAdd(props: Props) {
       width="240px"
       onClick={onClick}
     >
-      Add Application
+      Add {agent}
     </ButtonPrimary>
   );
 }
 
-type Props = {
+export type Props = {
   isLeafCluster: boolean;
   canCreate: boolean;
   onClick?: () => void;
+  agent: string;
+  beginsWithVowel: boolean;
 };

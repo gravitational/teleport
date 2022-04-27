@@ -29,7 +29,7 @@ import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useNodes, { State } from './useNodes';
 import AddNode from './AddNode';
-import ButtonAdd from './ButtonAdd';
+import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 export default function Container() {
   const teleCtx = useTeleport();
@@ -84,7 +84,9 @@ export function Nodes(props: State) {
         {!hasNoNodes && (
           <Flex alignItems="center">
             <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
-            <ButtonAdd
+            <AgentButtonAdd
+              agent="server"
+              beginsWithVowel={true}
               isLeafCluster={isLeafCluster}
               canCreate={canCreate}
               onClick={showAddNode}

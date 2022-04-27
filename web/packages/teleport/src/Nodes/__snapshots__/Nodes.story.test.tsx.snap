@@ -861,7 +861,8 @@ exports[`failed 1`] = `
         title=""
         width="240px"
       >
-        Add Server
+        Add 
+        server
       </button>
     </div>
   </div>
@@ -1852,7 +1853,8 @@ exports[`loaded 1`] = `
         title=""
         width="240px"
       >
-        Add Server
+        Add 
+        server
       </button>
     </div>
   </div>

@@ -849,7 +849,8 @@ exports[`failed state 1`] = `
         title=""
         width="240px"
       >
-        Add Application
+        Add 
+        application
       </button>
     </div>
     <div
@@ -1795,7 +1796,8 @@ exports[`loaded state 1`] = `
         title=""
         width="240px"
       >
-        Add Application
+        Add 
+        application
       </button>
     </div>
     <form

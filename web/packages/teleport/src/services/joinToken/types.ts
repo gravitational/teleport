@@ -20,7 +20,7 @@ export type JoinToken = {
   expiryText?: string;
 };
 
-export type Roles = 'App' | 'Node' | 'Db';
+export type Roles = 'App' | 'Node' | 'Db' | 'Kube';
 
 export type Method = 'token' | 'ec2' | 'iam';
 
