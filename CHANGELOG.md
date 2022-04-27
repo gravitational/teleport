@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.1.2
+
+This release of Teleport contains two bug fixes.
+
+* Fixed issue with Teleport pods not becoming ready on Kubernetes. [#12243](https://github.com/gravitational/teleport/pull/12243)
+* Fixed issue with Teleport processes crashing upon restart after failed host UUID generation. [#12222](https://github.com/gravitational/teleport/pull/12222)
+
 ## 9.1.1
 
 This release of Teleport contains multiple bug fixes and improvements.
