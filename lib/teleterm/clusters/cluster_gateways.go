@@ -32,6 +32,9 @@ type CreateGatewayParams struct {
 	TargetURI string
 	// TargetUser is the target user name
 	TargetUser string
+	// TargetSubresourceName points at a subresource of the remote resource, for example a database
+	// name on a database server.
+	TargetSubresourceName string
 	// LocalPort is the gateway local port
 	LocalPort string
 }
@@ -43,21 +46,22 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	if err := c.ReissueDBCerts(ctx, params.TargetUser, db); err != nil {
+	if err := c.ReissueDBCerts(ctx, params.TargetUser, params.TargetSubresourceName, db); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	gw, err := gateway.New(gateway.Config{
-		LocalPort:    params.LocalPort,
-		TargetURI:    params.TargetURI,
-		TargetUser:   params.TargetUser,
-		TargetName:   db.GetName(),
-		Protocol:     db.GetProtocol(),
-		KeyPath:      c.status.KeyPath(),
-		CertPath:     c.status.DatabaseCertPathForCluster("", db.GetName()),
-		Insecure:     c.clusterClient.InsecureSkipVerify,
-		WebProxyAddr: c.clusterClient.WebProxyAddr,
-		Log:          c.Log.WithField("gateway", params.TargetURI),
+		LocalPort:             params.LocalPort,
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetName:            db.GetName(),
+		TargetSubresourceName: params.TargetSubresourceName,
+		Protocol:              db.GetProtocol(),
+		KeyPath:               c.status.KeyPath(),
+		CertPath:              c.status.DatabaseCertPathForCluster("", db.GetName()),
+		Insecure:              c.clusterClient.InsecureSkipVerify,
+		WebProxyAddr:          c.clusterClient.WebProxyAddr,
+		Log:                   c.Log.WithField("gateway", params.TargetURI),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,6 +81,7 @@ func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
 		ServiceName: gw.TargetName,
 		Protocol:    gw.Protocol,
 		Username:    gw.TargetUser,
+		Database:    gw.TargetSubresourceName,
 	}
 
 	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb, c.URI.GetRootClusterName(),
