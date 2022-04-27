@@ -97,7 +97,7 @@ spec:
   allow:
     logins: ["root"]
     # db_labels defines which databases this role will be allowed to search
-	# for as a part of a search_as request, and also to evaluate access after
+    # for as a part of a search_as request, and also to evaluate access after
     # the request is approved.
     db_labels:
        owner: db-admins
