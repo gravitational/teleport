@@ -18,6 +18,7 @@ package services
 
 import (
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
@@ -108,7 +109,12 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 		switch match, err := parser.EvalBoolPredicate(filter.PredicateExpression); {
 		case err != nil:
-			return false, trace.Wrap(err)
+			if utils.HasTraceType(err) {
+				return false, trace.Wrap(err, "failed to parse predicate expression: ")
+			}
+			// Error returned without it wrapped in a trace type is from go/parser.
+			// We wrap it so we avoid sending error back as `rpc error code: Unknown desc`
+			return false, trace.BadParameter(`failed to parse predicate expression: %s`, err.Error())
 		case !match:
 			return false, nil
 		}
