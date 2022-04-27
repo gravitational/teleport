@@ -1705,6 +1705,11 @@ func serializeDatabases(databases []types.Database, format string) (string, erro
 }
 
 func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+	// may happen if user is unable to access the definition of their roles.
+	if roleSet == nil {
+		return "(unknown)"
+	}
+
 	dbUsers := roleSet.EnumerateDatabaseUsers(database)
 	allowed := dbUsers.Allowed()
 
