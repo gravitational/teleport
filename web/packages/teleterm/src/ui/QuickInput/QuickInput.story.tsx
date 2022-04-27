@@ -26,6 +26,17 @@ export default {
 export const Story = () => {
   const appContext = new MockAppContext();
 
+  appContext.workspacesService.state = {
+    workspaces: {
+      '/clusters/localhost': {
+        documents: [],
+        location: '',
+        localClusterUri: '/clusters/localhost',
+      },
+    },
+    rootClusterUri: '/clusters/localhost',
+  };
+
   appContext.clustersService.getClusters = () => {
     return [
       {

@@ -19,15 +19,23 @@ import styled from 'styled-components';
 import { debounce } from 'lodash';
 import { Flex } from 'design';
 import { color, height, space, width } from 'styled-system';
-import useQuickInput, { State } from './useQuickInput';
+import useQuickInput from './useQuickInput';
 import QuickInputList from './QuickInputList';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export default function Container() {
-  const state = useQuickInput();
-  return <QuickInput {...state} />;
+  const { workspacesService } = useAppContext();
+
+  workspacesService.useState();
+
+  if (!workspacesService.getRootClusterUri()) {
+    return null;
+  }
+  return <QuickInput />;
 }
 
-export function QuickInput(props: State) {
+function QuickInput() {
+  const props = useQuickInput();
   const { visible, activeSuggestion, autocompleteResult, inputValue } = props;
   const hasSuggestions =
     autocompleteResult.kind === 'autocomplete.partial-match';
