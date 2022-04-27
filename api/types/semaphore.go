@@ -32,6 +32,12 @@ import (
 // role option).
 const SemaphoreKindConnection = "connection"
 
+// SemaphoreKindConnection is the semaphore kind used by
+// the Concurrent Session Control feature to limit concurrent
+// connections for Kubernetes (corresponds to the `max_kubernetes_connections`
+// role option).
+const SemaphoreKindKubernetes = "kubernetes"
+
 // Semaphore represents distributed semaphore concept
 type Semaphore interface {
 	// Resource contains common resource values

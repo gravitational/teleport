@@ -453,6 +453,9 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if err := f.acquireConnectionLock(authContext, req.Context()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return handler(authContext, w, req, p)
 	}, f.formatResponseError)
 }
@@ -892,6 +895,34 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+func (f *Forwarder) acquireConnectionLock(identity *authContext, ctx context.Context) error {
+	user := identity.Identity.GetIdentity().Username
+	maxConnections := 10
+
+	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+		Service: f.cfg.AuthClient,
+		Expiry:  time.Hour * 24,
+		Params: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindKubernetes,
+			SemaphoreName: user,
+			MaxLeases:     10,
+			Holder:        "kube-agent",
+		},
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), teleport.MaxLeases) {
+			err = trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)",
+				user,
+				maxConnections,
+			)
+		}
+
+		return trace.Wrap(err)
+	}
+	go semLock.KeepAlive(ctx)
+	return nil
 }
 
 // exec forwards all exec requests to the target server, captures
