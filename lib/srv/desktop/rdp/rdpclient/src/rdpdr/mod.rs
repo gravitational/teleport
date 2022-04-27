@@ -172,16 +172,26 @@ impl Client {
         let device_io_request = DeviceIoRequest::decode(payload)?;
 
         match device_io_request.major_function {
-            // Used for smartcard control
             MajorFunction::IRP_MJ_DEVICE_CONTROL => {
                 let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
+                let is_smart_card_op = ioctl.header.device_id == SCARD_DEVICE_ID;
                 debug!("got: {:?}", ioctl);
-
-                let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
-                if code == SPECIAL_NO_RESPONSE {
-                    return Ok(vec![]);
-                }
-                let resp = DeviceControlResponse::new(&ioctl, code, res);
+                let resp = if is_smart_card_op {
+                    // Smart card control
+                    let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
+                    if code == SPECIAL_NO_RESPONSE {
+                        return Ok(vec![]);
+                    }
+                    DeviceControlResponse::new(&ioctl, code, res)
+                } else {
+                    // Drive redirection, mimic FreeRDP's "no-op"
+                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
+                    DeviceControlResponse::new(
+                        &ioctl,
+                        NTSTATUS::STATUS_SUCCESS.to_u32().unwrap(),
+                        vec![],
+                    )
+                };
                 debug!("replying with: {:?}", resp);
                 let resp = self.add_headers_and_chunkify(
                     PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
