@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/utils"
 
 	// Import to register MongoDB engine.
@@ -314,6 +315,10 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	// on the defined schedule.
 	if err := s.startDynamicLabels(ctx, database); err != nil {
 		return trace.Wrap(err)
+	}
+	if err := fetchMySQLVersion(ctx, database); err != nil {
+		// Log, but do not fail. We will fetch the version later.
+		s.log.Warnf("Failed to fetch the MySQL version for %s", database.GetName())
 	}
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.
@@ -775,11 +780,6 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Context:      s.closeContext,
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
-		UpdateDatabaseFn: func(ctx context.Context, database types.Database) error {
-			err := s.updateDatabase(ctx, database)
-			s.reconcileCh <- struct{}{}
-			return err
-		},
 	})
 }
 
@@ -830,4 +830,21 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		}),
 		LockTargets: authContext.LockTargets(),
 	}, nil
+}
+
+// fetchMySQLVersion tries to connect to MySQL instance, read initial handshake package and extract
+// the server version.
+func fetchMySQLVersion(ctx context.Context, database types.Database) error {
+	if database.GetProtocol() != defaults.ProtocolMySQL || database.GetMySQLServerVersion() != "" {
+		return nil
+	}
+
+	version, err := mysql.FetchMySQLVersion(ctx, database)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	database.SetMySQLServerVersion(version)
+
+	return nil
 }

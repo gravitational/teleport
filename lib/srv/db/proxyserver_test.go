@@ -261,21 +261,6 @@ func TestProxyMySQLVersion(t *testing.T) {
 
 	mysqlClient, proxy, err := testCtx.mysqlClientLocalProxy(ctx, "bob", "mysql", "bob")
 	require.NoError(t, err)
-	// The first connection returns default version
-	require.Equal(t, "8.0.0-Teleport", mysqlClient.GetServerVersion())
-
-	require.NoError(t, mysqlClient.Close())
-	require.NoError(t, proxy.Close())
-
-	// wait for the database version to be propagated
-	select {
-	case <-waitCh:
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "failed to reconcile databases")
-	}
-
-	mysqlClient, proxy, err = testCtx.mysqlClientLocalProxy(ctx, "bob", "mysql", "bob")
-	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, mysqlClient.Close())
 		require.NoError(t, proxy.Close())
