@@ -18,6 +18,7 @@ const isInsecure = dev || argv.includes('--insecure');
 
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
+  const binDir = getBinDir();
   const tshNetworkAddr = getTshNetworkAddr();
   const tshd = {
     insecure: isInsecure,
@@ -36,6 +37,7 @@ function getRuntimeSettings(): RuntimeSettings {
     dev,
     tshd,
     userDataDir,
+    binDir,
     defaultShell: getDefaultShell(),
     platform: process.platform,
   };
@@ -62,7 +64,7 @@ function getTshHomeDir() {
 
 function getTshBinaryPath() {
   if (app.isPackaged) {
-    return path.join(RESOURCES_PATH, 'tsh');
+    return path.join(getBinDir(), 'tsh');
   }
 
   const tshPath = env.TELETERM_TSH_PATH;
@@ -71,6 +73,14 @@ function getTshBinaryPath() {
   }
 
   return tshPath;
+}
+
+function getBinDir() {
+  if (!app.isPackaged) {
+    return;
+  }
+
+  return path.join(RESOURCES_PATH, 'bin');
 }
 
 function getAssetPath(...paths: string[]): string {

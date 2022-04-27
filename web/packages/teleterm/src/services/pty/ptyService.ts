@@ -68,6 +68,19 @@ async function buildOptions(
 
   switch (cmd.kind) {
     case 'pty.shell':
+      // Teleport Connect bundles a tsh binary, but the user might have one already on their system.
+      // Since we use our own TELEPORT_HOME which might differ in format with the version that the
+      // user has installed, let's prepend our bin directory to PATH.
+      //
+      // At the moment, this won't ensure that our bin dir is at the front of the path. When the
+      // shell session starts, the shell will read the rc files. This means that if the user
+      // prepends the path there, they can possibly have different version of tsh there.
+      //
+      // settings.binDir is present only in the packaged version of the app.
+      if (settings.binDir) {
+        prependBinDirToPath(env, settings);
+      }
+
       return {
         path: settings.defaultShell,
         args: [],
@@ -112,4 +125,19 @@ async function buildOptions(
     default:
       throw Error(`Unknown pty command: ${cmd}`);
   }
+}
+
+function prependBinDirToPath(
+  env: typeof process.env,
+  settings: RuntimeSettings
+) {
+  let path: string = env['PATH'] || '';
+
+  if (!path.trim()) {
+    path = settings.binDir;
+  } else {
+    path = settings.binDir + ':' + path;
+  }
+
+  env['PATH'] = path;
 }

@@ -5,6 +5,8 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 export type RuntimeSettings = {
   dev: boolean;
   userDataDir: string;
+  // Points to a directory that should be prepended to PATH. Only present in the packaged version.
+  binDir: string | undefined;
   defaultShell: string;
   platform: Platform;
   tshd: {
@@ -42,7 +44,8 @@ export interface TabContextMenuOptions {
   onDuplicatePty(): void;
 }
 
-export const TerminalContextMenuEventChannel = 'TerminalContextMenuEventChannel';
+export const TerminalContextMenuEventChannel =
+  'TerminalContextMenuEventChannel';
 export const TabContextMenuEventChannel = 'TabContextMenuEventChannel';
 export const ConfigServiceEventChannel = 'ConfigServiceEventChannel';
 export const FileStorageEventChannel = 'FileStorageEventChannel';
