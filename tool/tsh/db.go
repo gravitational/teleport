@@ -49,7 +49,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	})
 	if err != nil {
-		return utils.PredicateError(err)
+		return utils.FatalPredicateError(err)
 	}
 
 	proxy, err := tc.ConnectToProxy(cf.Context)

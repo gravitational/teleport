@@ -58,16 +58,3 @@ func IsConnectionRefused(err error) bool {
 	}
 	return false
 }
-
-// HasTraceType checks if the error was wrapped with a trace type.
-func HasTraceType(err error) bool {
-	return trace.IsNotFound(err) ||
-		trace.IsBadParameter(err) ||
-		trace.IsAlreadyExists(err) ||
-		trace.IsLimitExceeded(err) ||
-		trace.IsConnectionProblem(err) ||
-		trace.IsNotImplemented(err) ||
-		trace.IsCompareFailed(err) ||
-		trace.IsOAuth2(err) ||
-		trace.IsAccessDenied(err)
-}

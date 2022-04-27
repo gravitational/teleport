@@ -125,9 +125,9 @@ func FatalError(err error) {
 	os.Exit(1)
 }
 
-// PredicateError is similar to FatalError but also prints out doc link
+// FatalPredicateError is similar to FatalError but also prints out doc link
 // for predicate related errors.
-func PredicateError(err error) error {
+func FatalPredicateError(err error) error {
 	if strings.Contains(err.Error(), "predicate expression") {
 		fmt.Fprint(os.Stderr, UserMessageFromError(err), "Check syntax at ",
 			"https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", "\n")

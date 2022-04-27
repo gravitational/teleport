@@ -105,7 +105,7 @@ func (c *DBCommand) ListDatabases(clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case err != nil:
-		return utils.PredicateError(err)
+		return utils.FatalPredicateError(err)
 	default:
 		servers, err = types.ResourcesWithLabels(resources).AsDatabaseServers()
 		if err != nil {
