@@ -44,6 +44,7 @@ pub use consts::CHANNEL_NAME;
 pub struct Client {
     vchan: vchan::Client,
     scard: scard::Client,
+    allow_directory_sharing: bool,
     request_file_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
 
     dot_dot_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
@@ -55,11 +56,13 @@ impl Client {
         cert_der: Vec<u8>,
         key_der: Vec<u8>,
         pin: String,
+        allow_directory_sharing: bool,
         request_file_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
     ) -> Self {
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
+            allow_directory_sharing,
             request_file_info,
 
             dot_dot_sent: false,
@@ -170,8 +173,18 @@ impl Client {
 
     fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let device_io_request = DeviceIoRequest::decode(payload)?;
+        let major_function = device_io_request.major_function.clone();
 
-        match device_io_request.major_function {
+        // Smartcard control only uses IRP_MJ_DEVICE_CONTROL, any other MajorFunction is only used for directory control.
+        // Therefore if we receive any other major function when drive redirection is not allowed, something has gone wrong.
+        if major_function != MajorFunction::IRP_MJ_DEVICE_CONTROL && !self.allow_directory_sharing {
+            return Err(Error::TryError(
+                "received a drive redirection major function when drive redirection was not allowed"
+                    .to_string(),
+            ));
+        }
+
+        match major_function {
             MajorFunction::IRP_MJ_DEVICE_CONTROL => {
                 let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
                 let is_smart_card_op = ioctl.header.device_id == SCARD_DEVICE_ID;
@@ -380,7 +393,7 @@ impl Client {
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
-                &device_io_request.major_function
+                &major_function
             ))),
         }
     }

@@ -263,7 +263,13 @@ fn connect_rdp_inner(
         },
     );
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
-    let rdpdr = rdpdr::Client::new(params.cert_der, params.key_der, pin, request_file_info);
+    let rdpdr = rdpdr::Client::new(
+        params.cert_der,
+        params.key_der,
+        pin,
+        params.allow_directory_sharing,
+        request_file_info,
+    );
 
     // Client for the "cliprdr" channel - clipboard sharing.
     let cliprdr = if params.allow_clipboard {
@@ -544,7 +550,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
         match res {
             Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
             Err(e) => {
-                return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
+                return Some(format!("RDP read failed: {:?}", e));
             }
             _ => {}
         }
