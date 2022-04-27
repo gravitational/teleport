@@ -415,10 +415,14 @@ that "file" in the following context should be taken to mean "file or directory"
 
 #### 11 - Shared Directory Announce
 
-| message type (11) | completion_id uint32 | directory_id uint32 |
+| message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
 
 This message announces a new directory to be shared over TDP. `directory_id` must be a unique identifier. Attempting to share multiple different directories using
 the same `directory_id` is undefined behavior.
+
+`name_length` is the length in bytes of the `name`
+
+`name` is the name of the directory (without any path prefix)
 
 #### 12 - Shared Directory Acknowledge
 
