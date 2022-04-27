@@ -11,6 +11,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+  {{- if .Values.extraLabels.deployment }}
+    {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
+  {{- end }}
   {{- if .Values.annotations.deployment }}
   annotations:
     {{- toYaml .Values.annotations.deployment | nindent 4 }}
@@ -30,6 +33,9 @@ spec:
 {{- end }}
       labels:
         app: {{ .Release.Name }}
+{{- if .Values.extraLabels.pod }}
+  {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+{{- end }}
     spec:
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
