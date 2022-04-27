@@ -125,6 +125,19 @@ func FatalError(err error) {
 	os.Exit(1)
 }
 
+// PredicateError is similar to FatalError but also prints out doc link
+// for predicate related errors.
+func PredicateError(err error) error {
+	if strings.Contains(err.Error(), "predicate expression") {
+		fmt.Fprint(os.Stderr, UserMessageFromError(err), "Check syntax at ",
+			"https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", "\n")
+		os.Exit(1)
+	}
+
+	// Let the outer caller handle other error messages.
+	return trace.Wrap(err)
+}
+
 // GetIterations provides a simple way to add iterations to the test
 // by setting environment variable "ITERATIONS", by default it returns 1
 func GetIterations() int {
