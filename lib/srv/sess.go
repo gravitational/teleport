@@ -94,7 +94,6 @@ type SessionRegistryConfig struct {
 }
 
 func (sc *SessionRegistryConfig) CheckAndSetDefaults() error {
-
 	if sc.SessionTrackerService == nil {
 		return trace.BadParameter("session tracker service is required")
 	}
@@ -201,7 +200,6 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, ctx *ServerContext) error 
 		return trace.Wrap(err)
 	}
 	ctx.setSession(sess)
-	ctx.AddCloser(sess)
 	s.addSession(sess)
 	ctx.Infof("Creating (interactive) session %v.", sid)
 

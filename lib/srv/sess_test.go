@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -287,27 +288,11 @@ func TestInteractiveSession(t *testing.T) {
 		require.NoError(t, err)
 		require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 	})
-
-	t.Run("PartyContextClosed", func(t *testing.T) {
-		t.Parallel()
-		sess := testOpenSession(t, reg)
-
-		// Retrieve party and and close its server context
-		parties := sess.getParties()
-		require.Equal(t, 1, len(parties))
-		err := parties[0].ctx.Close()
-		require.NoError(t, err)
-
-		// Check that closing the ctx closed the party
-		parties[0].closeOnce.Do(func() {
-			t.Fatalf("party should be closed already")
-		})
-	})
 }
 
-// TestMultiplartySession tests the party mechanisms within an interactive session,
-// including party leave, party disconnect, and lingerAndDie.
-func TestMultipartySession(t *testing.T) {
+// TestParties tests the party mechanisms within an interactive session,
+// including party leave, party disconnect, and empty session lingerAndDie.
+func TestParties(t *testing.T) {
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -328,27 +313,56 @@ func TestMultipartySession(t *testing.T) {
 	require.Equal(t, 2, len(sess.getParties()))
 	testJoinSession(t, reg, sess)
 	require.Equal(t, 3, len(sess.getParties()))
+	testJoinSession(t, reg, sess)
+	require.Equal(t, 4, len(sess.getParties()))
 
 	// If a party leaves, the session should remove the party and continue.
-	sess.getParties()[0].Close()
+	p := sess.getParties()[0]
+	p.Close()
+
 	partyIsRemoved := func() bool {
+		return len(sess.getParties()) == 3 && !sess.isStopped()
+	}
+	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
+
+	fmt.Print("\n\n\n\n")
+
+	// If a party loses connection, the session should close and remove the party and continue.
+	p = sess.getParties()[0]
+	err = p.ch.Close()
+	require.NoError(t, err)
+
+	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 2 && !sess.isStopped()
 	}
 	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
 
-	// If one party loses connection, the session should remove the party and continue.
-	require.NoError(t, sess.getParties()[0].ch.Close())
+	p.closeOnce.Do(func() {
+		t.Fatalf("party should be closed already")
+	})
+
+	fmt.Print("\n\n\n\n")
+
+	// If a party's session context is closed, the party should leave the session.
+	p = sess.getParties()[0]
+	err = p.ctx.Close()
+	require.NoError(t, err)
+
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
 	}
 	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
+
+	p.closeOnce.Do(func() {
+		t.Fatalf("party should be closed already")
+	})
 
 	// If all parties are gone, the session should linger for a short duration.
 	sess.getParties()[0].Close()
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
-	regClock.BlockUntil(1)
+	regClock.BlockUntil(2)
 
 	// If a party connects to the lingering session, it will continue.
 	testJoinSession(t, reg, sess)
@@ -362,11 +376,26 @@ func TestMultipartySession(t *testing.T) {
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
-	regClock.BlockUntil(1)
+	regClock.BlockUntil(2)
 
 	// Session should close.
 	regClock.Advance(defaults.SessionIdlePeriod)
 	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+}
+
+func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
+	scx := newTestServerContext(t, reg.Srv)
+	scx.setSession(sess)
+
+	// Open a new session
+	sshChanOpen := newMockSSHChannel()
+	go func() {
+		// Consume stdout sent to the channel
+		io.ReadAll(sshChanOpen)
+	}()
+
+	err := reg.OpenSession(sshChanOpen, scx)
+	require.NoError(t, err)
 }
 
 // TestSessionTracker tests session tracker lifecycle
@@ -436,19 +465,4 @@ func testOpenSession(t *testing.T, reg *SessionRegistry) *session {
 
 	require.NotNil(t, scx.session)
 	return scx.session
-}
-
-func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
-	scx := newTestServerContext(t, reg.Srv)
-	scx.setSession(sess)
-
-	// Open a new session
-	sshChanOpen := newMockSSHChannel()
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
-
-	err := reg.OpenSession(sshChanOpen, scx)
-	require.NoError(t, err)
 }
