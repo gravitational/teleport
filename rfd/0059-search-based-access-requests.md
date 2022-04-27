@@ -160,7 +160,7 @@ Users can search by kind, labels, and keywords. The `tsh request search` command
 will output a `tsh request create` command which can be used to request access.
 
 There will also be a flag `tsh request search --create ...` which will automatically
-execute the search and create the access reqeust in a single step.
+execute the search and create the access request in a single step.
 
 ### Example Flow - On-Demand SSH
 
