@@ -14,18 +14,17 @@ export function ClusterConnectPanel() {
   return (
     <Flex
       m="auto"
-      width="400px"
+      width="370px"
       pb={6}
       flexDirection="column"
       alignItems="center"
     >
       <Image width="120px" src={clusterPng} mb={3} />
       <Text typography="h3" bold mb={2}>
-        Connect to a Cluster
+        Connect a Cluster
       </Text>
       <Text color="text.secondary" mb={3} textAlign="center">
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
-        tempor incididunt ut labore et dolore magna aliqua.
+        Connect an existing Teleport cluster <br/> to start using Teleport Connect.
       </Text>
       <ButtonPrimary size="large" onClick={handleConnect}>Connect</ButtonPrimary>
     </Flex>
