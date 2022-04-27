@@ -3181,9 +3181,15 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 		return nil
 	}
 	log.Debugf("attempting to use loopback pool for local proxy addr: %v", proxyAddr)
-	certPool := x509.NewCertPool()
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		log.Debugf("could not open system cert pool, using empty cert pool instead: %v", err)
+		certPool = x509.NewCertPool()
+	}
 
 	certPath := filepath.Join(defaults.DataDir, defaults.SelfSignedCertPath)
+	log.Debugf("reading self-signed certs from: %v", certPath)
+
 	pemByte, err := os.ReadFile(certPath)
 	if err != nil {
 		log.Debugf("could not open any path in: %v", certPath)
