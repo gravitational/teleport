@@ -1470,10 +1470,6 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			defer s.term.AddParty(-1)
 			_, err := io.Copy(s.inWriter, p)
 			s.log.Debugf("Copying from Party %v to session writer completed with error %v.", p.id, err)
-
-			// Close the party in case it isn't already closed. This may
-			// happen if the party's underying ssh connection was closed.
-			p.Close()
 		}()
 	}
 

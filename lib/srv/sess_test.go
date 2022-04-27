@@ -18,7 +18,6 @@ package srv
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -303,35 +302,15 @@ func TestParties(t *testing.T) {
 	require.Equal(t, 2, len(sess.getParties()))
 	testJoinSession(t, reg, sess)
 	require.Equal(t, 3, len(sess.getParties()))
-	testJoinSession(t, reg, sess)
-	require.Equal(t, 4, len(sess.getParties()))
 
 	// If a party leaves, the session should remove the party and continue.
 	p := sess.getParties()[0]
 	p.Close()
 
 	partyIsRemoved := func() bool {
-		return len(sess.getParties()) == 3 && !sess.isStopped()
-	}
-	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
-
-	fmt.Print("\n\n\n\n")
-
-	// If a party loses connection, the session should close and remove the party and continue.
-	p = sess.getParties()[0]
-	err = p.ch.Close()
-	require.NoError(t, err)
-
-	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 2 && !sess.isStopped()
 	}
 	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
-
-	p.closeOnce.Do(func() {
-		t.Fatalf("party should be closed already")
-	})
-
-	fmt.Print("\n\n\n\n")
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
