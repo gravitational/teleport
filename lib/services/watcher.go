@@ -1083,8 +1083,8 @@ func (c *caCollector) notifyStale() {}
 // NodeWatcherConfig is a NodeWatcher configuration.
 type NodeWatcherConfig struct {
 	ResourceWatcherConfig
-	// NodeGetter is used to directly fetch the list of active nodes.
-	NodeGetter
+	// NodesGetter is used to directly fetch the list of active nodes.
+	NodesGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -1092,12 +1092,12 @@ func (cfg *NodeWatcherConfig) CheckAndSetDefaults() error {
 	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.NodeGetter == nil {
-		getter, ok := cfg.Client.(NodeGetter)
+	if cfg.NodesGetter == nil {
+		getter, ok := cfg.Client.(NodesGetter)
 		if !ok {
-			return trace.BadParameter("missing parameter NodeGetter and Client not usable as NodeGetter")
+			return trace.BadParameter("missing parameter NodesGetter and Client not usable as NodesGetter")
 		}
-		cfg.NodeGetter = getter
+		cfg.NodesGetter = getter
 	}
 	return nil
 }
@@ -1185,7 +1185,7 @@ func (n *nodeCollector) resourceKind() string {
 // getResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
 func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	nodes, err := n.NodeGetter.GetNodes(ctx, apidefaults.Namespace)
+	nodes, err := n.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
