@@ -86,7 +86,7 @@ func tagBuildCommands(b buildType) []string {
 	if b.hasTeleportConnect() {
 		commands = append(commands,
 			`cd /go/src/github.com/gravitational/webapps`,
-			`yarn install && yarn build-term && yarn package-term`,
+			`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
 			`cd -`,
 		)
 

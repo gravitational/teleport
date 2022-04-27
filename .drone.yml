@@ -542,7 +542,7 @@ steps:
   - rustup override set $RUST_VERSION
   - make clean release OS=$OS ARCH=$ARCH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - yarn install && yarn build-term && yarn package-term
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
   environment:
     ARCH: amd64
     GOCACHE: /tmp/push-build-darwin-amd64/go/cache
@@ -2968,7 +2968,7 @@ steps:
   - rustup override set $RUST_VERSION
   - make clean release OS=$OS ARCH=$ARCH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - yarn install && yarn build-term && yarn package-term
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
   environment:
     APPLE_PASSWORD:
       from_secret: APPLE_PASSWORD
@@ -2986,11 +2986,11 @@ steps:
   - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release
-  - cp teleterm*.dmg $WORKSPACE_DIR/go/artifacts
+  - cp "Teleport Connect Preview*.dmg" $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
     $FILE > $FILE.sha256; done && ls -l
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleterm*.dmg; do shasum -a 256
-    $FILE > $FILE.sha256; done && ls -l
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in "Teleport Connect Preview*.dmg";
+    do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Upload to S3
@@ -5420,6 +5420,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: a9064b18ab5a9c71c110a91183cae5717abe85159dba447c166c679d368d8f3d
+hmac: fe3d9edcc30344020e8604ddc54d1fffef79c180ecbcf4b4ade4d54a590192a2
 
 ...
