@@ -568,7 +568,7 @@ const helpers = {
   ) {
     // delete all entries under given uri
     for (let k of map.keys()) {
-      if (k.startsWith(parentUri)) {
+      if (routing.ensureClusterUri(k) === parentUri) {
         map.delete(k);
       }
     }

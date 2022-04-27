@@ -42,6 +42,12 @@ export const routing = {
     return routing.getClusterUri({ rootClusterId });
   },
 
+  // Pass any resource URI to get back a cluster URI.
+  ensureClusterUri(uri: string) {
+    const params = routing.parseClusterUri(uri).params;
+    return routing.getClusterUri(params);
+  },
+
   parseKubeUri(uri: string) {
     return routing.parseUri(uri, paths.kube);
   },
