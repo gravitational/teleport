@@ -278,16 +278,6 @@ func TestInteractiveSession(t *testing.T) {
 		require.NoError(t, err)
 		require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 	})
-
-	t.Run("SessionContextClosed", func(t *testing.T) {
-		t.Parallel()
-		sess := testOpenSession(t, reg)
-
-		// Closing the session context should close the session
-		err := sess.scx.Close()
-		require.NoError(t, err)
-		require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
-	})
 }
 
 // TestParties tests the party mechanisms within an interactive session,
