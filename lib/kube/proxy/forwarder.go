@@ -908,12 +908,12 @@ func (f *Forwarder) acquireConnectionLock(identity *authContext, ctx context.Con
 			SemaphoreKind: types.SemaphoreKindKubernetes,
 			SemaphoreName: user,
 			MaxLeases:     10,
-			Holder:        "kube-agent",
+			Holder:        identity.teleportCluster.name,
 		},
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
-			err = trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)",
+			err = trace.AccessDenied("too many concurrent kubernetes connections for user %q (max=%d)",
 				user,
 				maxConnections,
 			)
