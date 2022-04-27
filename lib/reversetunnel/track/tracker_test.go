@@ -98,18 +98,19 @@ func (s *simpleTestProxies) ProxyLoop(tracker *Tracker, lease Lease, proxy testP
 	defer unclaim()
 
 	ticker := time.NewTicker(jitter(time.Millisecond * 100))
-	func() {
-		for {
-			select {
-			case <-ticker.C:
-				if p, ok := s.GetRandProxy(); ok {
-					tracker.TrackExpected(p.principals[0])
-				}
-			case <-timeout:
-				return
+	defer ticker.Stop()
+
+Loop:
+	for {
+		select {
+		case <-ticker.C:
+			if p, ok := s.GetRandProxy(); ok {
+				tracker.TrackExpected(p.principals[0])
 			}
+		case <-timeout:
+			break Loop
 		}
-	}()
+	}
 
 	return ok
 }
