@@ -899,15 +899,19 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 
 func (f *Forwarder) acquireConnectionLock(identity *authContext, ctx context.Context) error {
 	user := identity.Identity.GetIdentity().Username
-	maxConnections := 10
+	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
+	maxConnections := services.RoleSet(roles).MaxKubernetesConnections()
 	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: f.cfg.AuthClient,
-		Expiry:  time.Hour * 24,
+		Expiry:  sessionMaxLifetime,
 		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: types.SemaphoreKindKubernetes,
 			SemaphoreName: user,
-			MaxLeases:     10,
+			MaxLeases:     maxConnections,
 			Holder:        identity.teleportCluster.name,
 		},
 	})
