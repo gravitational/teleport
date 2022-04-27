@@ -209,6 +209,9 @@ extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
 extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
 
+/**
+ * Shared Directory Info Request
+ */
 extern CGOError sd_info_request(uintptr_t client_ref,
                                 uint32_t dir_id,
                                 uint32_t completion_id,

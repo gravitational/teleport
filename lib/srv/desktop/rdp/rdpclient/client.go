@@ -265,7 +265,6 @@ func (c *Client) start() {
 		defer c.cfg.Log.Info("TDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
-		var requestSent bool // TODO(isaiah): delete this
 		for {
 			msg, err := c.cfg.Conn.InputMessage()
 			if errors.Is(err, io.EOF) {
@@ -310,31 +309,18 @@ func (c *Client) start() {
 				default:
 					button = C.PointerButtonNone
 				}
-				if button == C.PointerButtonRight {
-					// TODO(isaiah): hack for testing
-					if !requestSent {
-						driveName := C.CString("abcdefghijklmnop")
-						defer C.free(unsafe.Pointer(driveName))
-						if err := cgoError(C.announce_drive_rdp(c.rustClient, driveName)); err != nil {
-							c.cfg.Log.Errorf("Device announce failed: %v", err)
-							return
-						}
-						requestSent = true
-					}
-				} else {
-					if err := cgoError(C.write_rdp_pointer(
-						c.rustClient,
-						C.CGOMousePointerEvent{
-							x:      C.uint16_t(mouseX),
-							y:      C.uint16_t(mouseY),
-							button: uint32(button),
-							down:   m.State == tdp.ButtonPressed,
-							wheel:  C.PointerWheelNone,
-						},
-					)); err != nil {
-						c.cfg.Log.Warningf("Failed forwarding RDP mouse button: %v", err)
-						return
-					}
+				if err := cgoError(C.write_rdp_pointer(
+					c.rustClient,
+					C.CGOMousePointerEvent{
+						x:      C.uint16_t(mouseX),
+						y:      C.uint16_t(mouseY),
+						button: uint32(button),
+						down:   m.State == tdp.ButtonPressed,
+						wheel:  C.PointerWheelNone,
+					},
+				)); err != nil {
+					c.cfg.Log.Warningf("Failed forwarding RDP mouse button: %v", err)
+					return
 				}
 			case tdp.MouseWheel:
 				var wheel C.CGOPointerWheel
@@ -388,6 +374,13 @@ func (c *Client) start() {
 					}
 				} else {
 					c.cfg.Log.Warning("Recieved an empty clipboard message")
+				}
+			case tdp.SharedDirectoryAnnounce:
+				driveName := C.CString(m.Name)
+				defer C.free(unsafe.Pointer(driveName))
+				if err := cgoError(C.announce_drive_rdp(c.rustClient, driveName)); err != nil {
+					c.cfg.Log.Errorf("Device announce failed: %v", err)
+					return
 				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)

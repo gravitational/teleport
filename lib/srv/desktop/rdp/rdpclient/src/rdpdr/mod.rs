@@ -45,7 +45,10 @@ pub struct Client {
     vchan: vchan::Client,
     scard: scard::Client,
     allow_directory_sharing: bool,
-    request_file_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
+
+    /// request_info takes a directory_id, completion_id, and path and requests
+    /// information about a file.
+    request_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
 
     dot_dot_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
     fake_file_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
@@ -57,13 +60,14 @@ impl Client {
         key_der: Vec<u8>,
         pin: String,
         allow_directory_sharing: bool,
-        request_file_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
+
+        request_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
     ) -> Self {
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
             allow_directory_sharing,
-            request_file_info,
+            request_info,
 
             dot_dot_sent: false,
             fake_file_sent: false,

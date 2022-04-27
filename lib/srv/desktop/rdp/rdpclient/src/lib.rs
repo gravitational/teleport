@@ -237,7 +237,7 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
 
-    let request_file_info = Box::new(
+    let request_info = Box::new(
         move |dir_id: u32, completion_id: u32, path: &str| -> Option<RdpError> {
             match CString::new(path) {
                 Ok(c_string) => {
@@ -268,7 +268,7 @@ fn connect_rdp_inner(
         params.key_der,
         pin,
         params.allow_directory_sharing,
-        request_file_info,
+        request_info,
     );
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -767,6 +767,8 @@ extern "C" {
     fn free_go_string(s: *mut c_char);
     fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
+
+    /// Shared Directory Info Request
     fn sd_info_request(
         client_ref: usize,
         dir_id: u32,
