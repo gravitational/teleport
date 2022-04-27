@@ -65,7 +65,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
 
-	// Set correct server version. This field can be empty is the information is not available.
+	// Set correct server version. This field can be empty if the information is not available.
 	mysqlServerVersion := p.MySQLServerVersion
 	if mysqlServerVersion == "" {
 		mysqlServerVersion = serverVersion

@@ -263,8 +263,8 @@ func (d *DatabaseV3) GetOptions() DatabaseOptions {
 	return d.Spec.Options
 }
 
-// GetMySQLServerVersion returns the MySQL server version either from configuration or
-// reported by the database.
+// GetMySQLServerVersion returns the MySQL server version reported by the database or the value from configuration
+// if the first one is not available.
 func (d *DatabaseV3) GetMySQLServerVersion() string {
 	if d.Status.MySQLServerVersion != "" {
 		return d.Status.MySQLServerVersion
@@ -402,6 +402,9 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 	if d.Spec.URI == "" {
 		return trace.BadParameter("database %q URI is empty", d.GetName())
+	}
+	if d.Spec.Options.MySQLServerVersion != "" && d.Spec.Protocol != "mysql" {
+		return trace.BadParameter("MySQLServerVersion can be only set for MySQL database")
 	}
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.

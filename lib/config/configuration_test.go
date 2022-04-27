@@ -1995,10 +1995,10 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		{
 			desc: "MySQL version",
 			inFlags: CommandLineFlags{
-				DatabaseName:       "mysql-foo",
-				DatabaseProtocol:   defaults.ProtocolMySQL,
-				DatabaseURI:        "localhost:3306",
-				MySQLServerVersion: "8.0.28",
+				DatabaseName:               "mysql-foo",
+				DatabaseProtocol:           defaults.ProtocolMySQL,
+				DatabaseURI:                "localhost:3306",
+				DatabaseMySQLServerVersion: "8.0.28",
 			},
 			outDatabase: service.Database{
 				Name:     "mysql-foo",

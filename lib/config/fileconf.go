@@ -1095,7 +1095,7 @@ type DatabaseTLS struct {
 // DatabaseOptions are an additional database options.
 type DatabaseOptions struct {
 	// MySQLServerVersion is the MySQL version reported by DB proxy instead of default Teleport string.
-	MySQLServerVersion string `yaml:"mysql_server_version"`
+	MySQLServerVersion string `yaml:"mysql_server_version,omitempty"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.

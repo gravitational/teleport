@@ -77,7 +77,41 @@ func TestDatabaseStatus(t *testing.T) {
 	require.Equal(t, awsMeta, database.GetAWS())
 }
 
+func TestMySQLVersionValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("correct config", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "mysql",
+			URI:      "localhost:5432",
+			Options: DatabaseOptions{
+				MySQLServerVersion: "8.0.18",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "8.0.18", database.GetMySQLServerVersion())
+	})
+
+	t.Run("incorrect config - wrong protocol", func(t *testing.T) {
+		_, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "Postgres",
+			URI:      "localhost:5432",
+			Options: DatabaseOptions{
+				MySQLServerVersion: "8.0.18",
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "MySQLServerVersion")
+	})
+}
+
 func TestMySQLServerVersion(t *testing.T) {
+	t.Parallel()
+
 	database, err := NewDatabaseV3(Metadata{
 		Name: "test",
 	}, DatabaseSpecV3{

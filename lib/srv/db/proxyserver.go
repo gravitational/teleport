@@ -326,8 +326,8 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	case defaults.ProtocolPostgres:
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
-		mysqlServerVersion := getMySQLVersionFromServer(proxyCtx.Servers)
-		return s.MySQLProxyNoTLS(mysqlServerVersion).HandleConnection(s.closeCtx, tlsConn)
+		version := getMySQLVersionFromServer(proxyCtx.Servers)
+		return s.MySQLProxyNoTLS(version).HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}

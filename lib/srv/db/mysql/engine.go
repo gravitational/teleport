@@ -103,6 +103,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 	}()
 
+	// Internally, updateServerVersion() updates databases only when database version
+	// is not set, or it has changed since previous call.
 	if err := e.updateServerVersion(ctx, sessionCtx, serverConn); err != nil {
 		// Log but do not fail connection if the version update fails.
 		e.Log.WithError(err).Warnf("Failed to update the MySQL server version")
@@ -137,6 +139,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) updateServerVersion(ctx context.Context, sessionCtx *common.Session, serverConn *client.Conn) error {
 	serverVersion := serverConn.GetServerVersion()
 	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
+	// Update only when needed
 	if serverVersion != statusVersion {
 		sessionCtx.Database.SetMySQLServerVersion(serverVersion)
 
