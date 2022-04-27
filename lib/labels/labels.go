@@ -169,37 +169,46 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 	l.c.Labels[name] = value
 }
 
-type EC2Labels struct {
-	mu  sync.Mutex
-	log *logrus.Entry
+type EC2LabelConfig struct {
+	Client *utils.InstanceMetadataClient
+	Log    *logrus.Entry
+}
 
-	client *utils.InstanceMetadataClient
+func (conf *EC2LabelConfig) checkAndSetDefaults() error {
+	if conf.Client == nil {
+		client, err := utils.NewInstanceMetadataClient(context.TODO())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		conf.Client = client
+	}
+	if conf.Log == nil {
+		conf.Log = logrus.NewEntry(logrus.StandardLogger())
+	}
+	return nil
+}
+
+type EC2Labels struct {
+	c      *EC2LabelConfig
+	mu     sync.Mutex
 	labels map[string]string
 
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 }
 
-func NewEC2Labels(ctx context.Context, log *logrus.Entry) (*EC2Labels, error) {
-	closeContext, closeFunc := context.WithCancel(ctx)
-
-	client, err := utils.NewInstanceMetadataClient(closeContext)
-	if err != nil {
-		closeFunc()
+func NewEC2Labels(ctx context.Context, c *EC2LabelConfig) (*EC2Labels, error) {
+	if err := c.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	closeContext, closeFunc := context.WithCancel(ctx)
 
-	l := EC2Labels{
-		log:          log,
-		client:       client,
+	return &EC2Labels{
+		c:            c,
 		labels:       make(map[string]string),
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
-	}
-	if l.log == nil {
-		l.log = logrus.NewEntry(logrus.StandardLogger())
-	}
-	return &l, nil
+	}, nil
 }
 
 // Get returns the list of updated EC2 labels.
@@ -219,16 +228,16 @@ func (l *EC2Labels) Get() map[string]string {
 func (l *EC2Labels) Sync() {
 	m := make(map[string]string)
 
-	tags, err := l.client.GetTagKeys()
+	tags, err := l.c.Client.GetTagKeys()
 	if err != nil {
-		l.log.Errorf("Error fetching EC2 tags: %v", err)
+		l.c.Log.Errorf("Error fetching EC2 tags: %v", err)
 		return
 	}
 
 	for _, t := range tags {
-		value, err := l.client.GetTagValue(t)
+		value, err := l.c.Client.GetTagValue(t)
 		if err != nil {
-			l.log.Errorf("Error fetching EC2 tags: %v", err)
+			l.c.Log.Errorf("Error fetching EC2 tags: %v", err)
 			return
 		}
 		m[t] = value

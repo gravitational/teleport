@@ -709,6 +709,21 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
+	// Check if we're on an EC2 instance, and if we should override the node's hostname.
+	imClient, err := utils.NewInstanceMetadataClient(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if imClient.IsAvailable() {
+		ec2Hostname, err := imClient.GetTagValue(types.EC2Hostname)
+		if err == nil {
+			cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2Hostname, ec2Hostname)
+			cfg.Hostname = ec2Hostname
+		} else if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// if user did not provide auth domain name, use this host's name
 	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
 		cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -1892,21 +1907,6 @@ func (process *TeleportProcess) initSSH() error {
 		})
 		if err != nil {
 			return trace.Wrap(err)
-		}
-
-		// Check if we're on an EC2 instance, and if we should override the node's hostname.
-		imClient, err := utils.NewInstanceMetadataClient(process.ExitContext())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if imClient.IsAvailable() {
-			ec2Hostname, err := imClient.GetTagValue(types.EC2Hostname)
-			if err == nil {
-				log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2Hostname, ec2Hostname)
-				cfg.Hostname = ec2Hostname
-			} else if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
 		}
 
 		s, err = regular.New(cfg.SSH.Addr,
