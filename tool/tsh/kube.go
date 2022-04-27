@@ -820,7 +820,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 				}
 				return nil
 			}
-			return trace.Wrap(err)
+			return utils.PredicateError(err)
 		}
 
 		return nil
