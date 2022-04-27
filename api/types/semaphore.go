@@ -36,7 +36,7 @@ const SemaphoreKindConnection = "connection"
 // the Concurrent Session Control feature to limit concurrent
 // connections for Kubernetes (corresponds to the `max_kubernetes_connections`
 // role option).
-const SemaphoreKindKubernetes = "kubernetes"
+const SemaphoreKindKubernetesConnection = "kubernetes_connection"
 
 // Semaphore represents distributed semaphore concept
 type Semaphore interface {

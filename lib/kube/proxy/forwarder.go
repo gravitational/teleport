@@ -909,7 +909,7 @@ func (f *Forwarder) acquireConnectionLock(identity *authContext, ctx context.Con
 		Service: f.cfg.AuthClient,
 		Expiry:  sessionMaxLifetime,
 		Params: types.AcquireSemaphoreRequest{
-			SemaphoreKind: types.SemaphoreKindKubernetes,
+			SemaphoreKind: types.SemaphoreKindKubernetesConnection,
 			SemaphoreName: user,
 			MaxLeases:     maxConnections,
 			Holder:        identity.teleportCluster.name,
