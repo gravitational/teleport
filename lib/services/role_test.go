@@ -4182,3 +4182,67 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionRecordingMode(t *testing.T) {
+	tests := map[string]struct {
+		service      constants.SessionRecordingService
+		expectedMode constants.SessionRecordingMode
+		rolesOptions []types.RoleOptions
+	}{
+		"service-specific option": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+		"service-specific multiple roles": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+		"strict service-specific multiple roles": {
+			expectedMode: constants.SessionRecordingModeStrict,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeStrict}},
+			},
+		},
+		"strict default multiple roles": {
+			expectedMode: constants.SessionRecordingModeStrict,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+			},
+		},
+		"default multiple roles": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			roles := make([]types.Role, len(test.rolesOptions))
+			for i := range roles {
+				roles[i] = &types.RoleV5{
+					Spec: types.RoleSpecV5{Options: test.rolesOptions[i]},
+				}
+			}
+
+			roleSet := RoleSet(roles)
+			require.Equal(t, test.expectedMode, roleSet.SessionRecordingMode(test.service))
+		})
+	}
+}

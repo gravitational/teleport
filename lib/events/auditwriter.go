@@ -18,6 +18,7 @@ package events
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -439,17 +440,22 @@ func (a *AuditWriter) processEvents() {
 		case event := <-a.eventsCh:
 			a.buffer = append(a.buffer, event)
 			err := a.stream.EmitAuditEvent(a.cfg.Context, event)
-			if err == nil {
-				continue
+			if err != nil {
+				if isUnrecoverableError(err) {
+					a.log.WithError(err).Debug("Failed to emit audit event.")
+					a.cancel()
+					return
+				}
+
+				a.log.WithError(err).Debug("Failed to emit audit event, attempting to recover stream.")
+				start := time.Now()
+				if err := a.recoverStream(); err != nil {
+					a.log.WithError(err).Warningf("Failed to recover stream.")
+					a.cancel()
+					return
+				}
+				a.log.Debugf("Recovered stream in %v.", time.Since(start))
 			}
-			a.log.WithError(err).Debug("Failed to emit audit event, attempting to recover stream.")
-			start := time.Now()
-			if err := a.recoverStream(); err != nil {
-				a.log.WithError(err).Warningf("Failed to recover stream.")
-				a.cancel()
-				return
-			}
-			a.log.Debugf("Recovered stream in %v.", time.Since(start))
 		case <-a.stream.Done():
 			a.log.Debugf("Stream was closed by the server, attempting to recover.")
 			if err := a.recoverStream(); err != nil {
@@ -546,6 +552,11 @@ func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 				return nil, trace.ConnectionProblem(a.closeCtx.Err(), "operation has been canceled")
 			}
 		}
+
+		if isUnrecoverableError(err) {
+			return nil, trace.ConnectionProblem(err, "stream cannot be recovered")
+		}
+
 		select {
 		case <-retry.After():
 			a.log.WithError(err).Debug("Retrying to resume stream after backoff.")
@@ -617,4 +628,9 @@ func diff(before, after time.Time) int64 {
 		return 0
 	}
 	return d
+}
+
+// isUnrecoverableError returns if the provided stream error is unrecoverable.
+func isUnrecoverableError(err error) bool {
+	return strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }

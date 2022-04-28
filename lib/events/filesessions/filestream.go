@@ -18,6 +18,7 @@ package filesessions
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
@@ -35,6 +36,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// minUploadBytes is the minimum part file size required to trigger its upload.
+const minUploadBytes = events.MaxProtoMessageSizeBytes * 2
+
 // NewStreamer creates a streamer sending uploads to disk
 func NewStreamer(dir string) (*events.ProtoStreamer, error) {
 	handler, err := NewHandler(Config{
@@ -45,7 +49,7 @@ func NewStreamer(dir string) (*events.ProtoStreamer, error) {
 	}
 	return events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       handler,
-		MinUploadBytes: events.MaxProtoMessageSizeBytes * 2,
+		MinUploadBytes: minUploadBytes,
 	})
 }
 
@@ -76,8 +80,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 		return nil, trace.Wrap(err)
 	}
 
-	partPath := h.partPath(upload, partNumber)
-	file, err := os.OpenFile(partPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	file, partPath, err := h.openUploadPart(upload, partNumber)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -262,6 +265,43 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeFile, h.uploadsPath(), string(s)),
 		SessionID: s,
 	}
+}
+
+// ReserveUploadPart reserves an upload part.
+func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	// Create a buffer with the max size that a part file can have.
+	buf := make([]byte, minUploadBytes+events.MaxProtoMessageSizeBytes)
+	_, err := rand.Read(buf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	file, partPath, err := h.openUploadPart(upload, partNumber)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	_, err = file.Write(buf)
+	if err = trace.NewAggregate(err, file.Close()); err != nil {
+		if rmErr := os.Remove(partPath); rmErr != nil {
+			h.WithError(rmErr).Warningf("Failed to remove file %q.", partPath)
+		}
+
+		return trace.ConvertSystemError(err)
+	}
+
+	return nil
+}
+
+// openUploadPart opens a upload file part.
+func (h *Handler) openUploadPart(upload events.StreamUpload, partNumber int64) (*os.File, string, error) {
+	partPath := h.partPath(upload, partNumber)
+	file, err := os.OpenFile(partPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return nil, partPath, trace.ConvertSystemError(err)
+	}
+
+	return file, partPath, nil
 }
 
 func (h *Handler) uploadsPath() string {
