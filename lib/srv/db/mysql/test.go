@@ -74,7 +74,7 @@ type TestServer struct {
 // TestServerOption allows to set test server options.
 type TestServerOption func(*TestServer)
 
-// WithServerVersion sets the test MongoDB server wire protocol version.
+// WithServerVersion sets the test MySQL server version.
 func WithServerVersion(serverVersion string) TestServerOption {
 	return func(ts *TestServer) {
 		ts.serverVersion = serverVersion
