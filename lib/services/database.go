@@ -523,6 +523,16 @@ func auroraMySQLVersion(cluster *rds.DBCluster) string {
 	return version
 }
 
+// GetLabelEngineVersion returns engine version from provided metadata labels.
+// An empty string is returned if label doesn't exist.
+func GetLabelEngineVersion(labels map[string]string) string {
+	version, ok := labels[labelEngineVersion]
+	if !ok {
+		return ""
+	}
+	return version
+}
+
 const (
 	// labelAccountID is the label key containing AWS account ID.
 	labelAccountID = "account-id"
@@ -558,7 +568,7 @@ const (
 	// RDSEndpointTypePrimary is the endpoint that specifies the connection for the primary instance of the RDS cluster.
 	RDSEndpointTypePrimary RDSEndpointType = "primary"
 	// RDSEndpointTypeReader is the endpoint that load-balances connections across the Aurora Replicas that are
-	// available in a RDS cluster.
+	// available in an RDS cluster.
 	RDSEndpointTypeReader RDSEndpointType = "reader"
 	// RDSEndpointTypeCustom is the endpoint that specifies one of the custom endpoints associated with the RDS cluster.
 	RDSEndpointTypeCustom RDSEndpointType = "custom"

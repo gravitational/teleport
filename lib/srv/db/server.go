@@ -839,6 +839,15 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 		return nil
 	}
 
+	// Try to extract the engine version for AWS metadata labels.
+	if database.IsRDS() {
+		version := services.GetLabelEngineVersion(database.GetMetadata().Labels)
+		if version != "" {
+			database.SetMySQLServerVersion(version)
+			return nil
+		}
+	}
+
 	version, err := mysql.FetchMySQLVersion(ctx, database)
 	if err != nil {
 		return trace.Wrap(err)
