@@ -287,6 +287,8 @@ type CLIConf struct {
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
+	// AWSEndpointURLPort is a port that clients can use for AWS endpoint URLs.
+	AWSEndpointURLPort string
 
 	// Reason is the reason for starting an ssh or kube session.
 	Reason string
@@ -487,8 +489,10 @@ func Run(args []string, opts ...cliOption) error {
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS := proxy.Command("aws", "Start local TLS proxy for AWS access when using Teleport is single-port mode")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
-	proxyAWS.Flag("port", " Specifies the source port used by the proxy listener").Short('p').StringVar(&cf.LocalProxyPort)
-	proxyAWS.Arg("command", "Command to execute after starting the local proxy").StringsVar(&cf.AWSCommandArgs)
+	proxyAWS.Flag("proxy-port", " Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS.Flag("endpoint-url-port", " Specifies the port used for AWS endpoint URL.").Short('e').StringVar(&cf.AWSEndpointURLPort)
+	proxyAWS.Flag("verbose", "Show proxy information when executing a command.").Short('v').BoolVar(&cf.Verbose)
+	proxyAWS.Arg("command", "Command to execute after starting the local proxy.").StringsVar(&cf.AWSCommandArgs)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")

@@ -283,7 +283,7 @@ func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
 	if certFile == "" && keyFile == "" {
 		return []tls.Certificate{}, nil
 	}
-	if certFile == "" && keyFile != "" || certFile != "" && keyFile == "" {
+	if (certFile == "" && keyFile != "") || (certFile != "" && keyFile == "") {
 		return nil, trace.BadParameter("both --cert-file and --key-file are required")
 	}
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -374,14 +374,18 @@ func onProxyCommandAWS(cf *CLIConf) error {
 	}
 
 	templateData := map[string]interface{}{
-		"envVars": envVars,
+		"envVars":     envVars,
+		"address":     awsApp.GetForwardProxyAddr(),
+		"endpointURL": awsApp.GetEndpointURL(),
 	}
 
 	if len(cf.AWSCommandArgs) > 0 {
-		templateData["command"] = strings.Join(cf.AWSCommandArgs, " ")
-		err = awsProxyCommandTemplate.Execute(os.Stdout, templateData)
-		if err != nil {
-			return trace.Wrap(err)
+		if cf.Verbose {
+			templateData["command"] = strings.Join(cf.AWSCommandArgs, " ")
+			err = awsProxyCommandTemplate.Execute(os.Stdout, templateData)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		return awsApp.RunCommand(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
 	}
@@ -437,9 +441,14 @@ Use the following command to connect to the database:
 		`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
 
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
-{{- range $key, $value := .envVars }}
-  {{ $key }}={{ $value -}}
-{{ end }}
+  AWS_ACCESS_KEY_ID={{.envVars.AWS_ACCESS_KEY_ID}}
+  AWS_SECRET_ACCESS_KEY={{.envVars.AWS_SECRET_ACCESS_KEY}}
+  AWS_CA_BUNDLE={{.envVars.AWS_CA_BUNDLE}}
+  HTTPS_PROXY={{.envVars.HTTPS_PROXY}}
+
+If HTTPS proxy setting cannot be configured for the application, try using
+"{{.endpointURL}}" as the AWS endpoint URL. See usage for details on
+fixing the port number(s).
 `))
 
 	// awsProxyCommandTemplate is the message that gets printed to a user when
@@ -451,6 +460,10 @@ The following environment variables are set for the command:
 {{- range $key, $value := .envVars }}
   {{ $key }}={{ $value -}}
 {{ end }}
+
+If HTTPS proxy setting cannot be configured for the application, try using
+"{{.endpointURL}}" as the AWS endpoint URL. See usage for details on
+fixing the port number(s).
 
 Executing command: {{.command}}
 

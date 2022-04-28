@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"sort"
-	"strconv"
 	"strings"
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
@@ -96,27 +95,13 @@ func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, appName string) (*aws
 // configuring AWS endpoint URLs. The API flow looks like this.
 // clients -> local ALPN proxy -> remote server
 //
-// The first method is always preferred because not only the original hostname
-// is preserved through HTTPS_PROXY but also the non-AWS requests can be
-// forwarded to their origin destinations. The second method can be used if the
-// client cannot configure the local forward proxy as HTTPS proxy.
+// The first method is always preferred because the original hostname is
+// preserved through HTTPS_PROXY.
 func (a *awsApp) StartLocalProxies() error {
-	forwardProxyListenAddress := "localhost:0"
-	alpnProxyListenAddress := "localhost:0"
-	if a.cf.LocalProxyPort != "" {
-		port, err := strconv.Atoi(a.cf.LocalProxyPort)
-		if err != nil {
-			return trace.BadParameter("invalid local proxy port %s", a.cf.LocalProxyPort)
-		}
-
-		forwardProxyListenAddress = fmt.Sprintf("localhost:%d", port)
-		alpnProxyListenAddress = fmt.Sprintf("localhost:%d", port+1)
-	}
-
-	if err := a.startLocalALPNProxy(alpnProxyListenAddress); err != nil {
+	if err := a.startLocalALPNProxy(); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.startLocalForwardProxy(forwardProxyListenAddress); err != nil {
+	if err := a.startLocalForwardProxy(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -172,6 +157,22 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 	}, nil
 }
 
+// GetForwardProxyAddr returns local forward proxy address.
+func (a *awsApp) GetForwardProxyAddr() string {
+	if a.localForwardProxy != nil {
+		return a.localForwardProxy.GetAddr()
+	}
+	return ""
+}
+
+// GetEndpointURL returns AWS endpoint URL that clients can use.
+func (a *awsApp) GetEndpointURL() string {
+	if a.localALPNProxy != nil {
+		return "https://" + a.localALPNProxy.GetAddr()
+	}
+	return ""
+}
+
 // RunCommand executes provided command.
 func (a *awsApp) RunCommand(commandName string, commandArgs ...string) error {
 	environmentVariables, err := a.GetEnvVars()
@@ -180,8 +181,8 @@ func (a *awsApp) RunCommand(commandName string, commandArgs ...string) error {
 	}
 
 	cmd := exec.Command(commandName, commandArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = a.cf.Stdout()
+	cmd.Stderr = a.cf.Stderr()
 	cmd.Stdin = os.Stdin
 	cmd.Env = os.Environ()
 	for key, value := range environmentVariables {
@@ -195,7 +196,7 @@ func (a *awsApp) RunCommand(commandName string, commandArgs ...string) error {
 }
 
 // startLocalALPNProxy starts the local ALPN proxy.
-func (a *awsApp) startLocalALPNProxy(listenAddr string) error {
+func (a *awsApp) startLocalALPNProxy() error {
 	tc, err := makeClient(a.cf, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -216,7 +217,12 @@ func (a *awsApp) startLocalALPNProxy(listenAddr string) error {
 		return trace.Wrap(err)
 	}
 
-	// Create listener that is able to sign certificates when receiving AWS
+	listenAddr := "localhost:0"
+	if a.cf.AWSEndpointURLPort != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", a.cf.AWSEndpointURLPort)
+	}
+
+	// Create a listener that is able to sign certificates when receiving AWS
 	// requests tunneled from the local forward proxy.
 	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
 		ListenAddr: listenAddr,
@@ -252,7 +258,12 @@ func (a *awsApp) startLocalALPNProxy(listenAddr string) error {
 }
 
 // startLocalForwardProxy starts the local forward proxy.
-func (a *awsApp) startLocalForwardProxy(listenAddr string) error {
+func (a *awsApp) startLocalForwardProxy() error {
+	listenAddr := "localhost:0"
+	if a.cf.LocalProxyPort != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", a.cf.LocalProxyPort)
+	}
+
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to
 	// eliminate the need to install temporary CA for various AWS clients.
 	listener, err := net.Listen("tcp", listenAddr)

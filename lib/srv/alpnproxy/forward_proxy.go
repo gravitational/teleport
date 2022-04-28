@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -45,7 +46,7 @@ func IsConnectRequest(req *http.Request) bool {
 // ConnectRequestHandler defines handler for handling CONNECT requests.
 type ConnectRequestHandler interface {
 	// Match returns true if this handler wants to handle the provided request.
-	Match(host *http.Request) bool
+	Match(req *http.Request) bool
 
 	// Handle handles the request with provided client connection.
 	Handle(ctx context.Context, clientConn net.Conn, req *http.Request)
@@ -112,9 +113,7 @@ func (p *ForwardProxy) GetAddr() string {
 
 // ServeHTTP serves HTTP requests. Implements http.Handler.
 func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// Clients usually send plain HTTP requests directly without CONNECT tunnel
-	// when proxying HTTP requests. These requests are rejected as only
-	// requests through CONNECT tunnel are allowed.
+	// Only allow CONNECT tunnel requests. Reject if clients send plain HTTP.
 	if !IsConnectRequest(req) {
 		rw.WriteHeader(http.StatusBadRequest)
 		return
@@ -143,19 +142,27 @@ type ForwardToHostHandlerConfig struct {
 	// Match returns true if this handler wants to handle the provided request.
 	MatchFunc func(req *http.Request) bool
 
-	// Host to forward the request to. If empty, request is forwarded to its
-	// original host.
+	// Host is the destination to forward the request to. If empty, the request
+	// is forwarded to its original host.
 	Host string
 }
 
 // SetDefaults sets default config values.
 func (c *ForwardToHostHandlerConfig) SetDefaults() {
 	if c.MatchFunc == nil {
-		// Default to match all requets.
-		c.MatchFunc = func(req *http.Request) bool {
-			return true
-		}
+		c.MatchFunc = MatchAllRequests
 	}
+}
+
+// MatchAllRequests is a MatchFunc that returns true for all requests.
+func MatchAllRequests(req *http.Request) bool {
+	return true
+}
+
+// MatchAWSRequests is a MatchFunc that returns true if request is an AWS API
+// request.
+func MatchAWSRequests(req *http.Request) bool {
+	return awsapiutils.IsAWSEndpoint(req.Host)
 }
 
 // ForwardToHostHandler is a ConnectRequestHandler that forwards requests to
@@ -171,6 +178,12 @@ func NewForwardToHostHandler(cfg ForwardToHostHandlerConfig) *ForwardToHostHandl
 	return &ForwardToHostHandler{
 		cfg: cfg,
 	}
+}
+
+// NewForwardToOriginalHostHandler creates a new CONNECT request handler that
+// forwards all requests to their original hosts.
+func NewForwardToOriginalHostHandler() *ForwardToHostHandler {
+	return NewForwardToHostHandler(ForwardToHostHandlerConfig{})
 }
 
 // Match returns true if this handler wants to handle the provided request.
@@ -193,18 +206,12 @@ func (h *ForwardToHostHandler) Handle(ctx context.Context, clientConn net.Conn, 
 	}
 	defer serverConn.Close()
 
-	// Let client know we are ready for proxying.
+	// Send OK to client to let it know the tunnel is ready.
 	if ok := writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusOK); !ok {
 		return
 	}
 
 	startForwardProxy(ctx, clientConn, serverConn, req.Host)
-}
-
-// NewForwardToOriginalHostHandler creates a new CONNECT request handler that
-// forwards all requests to their original hosts.
-func NewForwardToOriginalHostHandler() *ForwardToHostHandler {
-	return NewForwardToHostHandler(ForwardToHostHandlerConfig{})
 }
 
 // ForwardToSystemProxyHandlerConfig is the config for
@@ -254,14 +261,13 @@ func (h *ForwardToSystemProxyHandler) Match(req *http.Request) bool {
 func (h *ForwardToSystemProxyHandler) Handle(ctx context.Context, clientConn net.Conn, req *http.Request) {
 	systemProxyURL := h.getSystemProxyURL(req)
 	if systemProxyURL == nil {
-		// Should not happen assuming Match is called beforehand.
 		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadRequest)
 		return
 	}
 
 	serverConn, err := h.connectToSystemProxy(systemProxyURL)
 	if err != nil {
-		log.WithError(err).Errorf("Failed to connect to system proxy %q", systemProxyURL.Host)
+		log.WithError(err).Errorf("Failed to connect to system proxy %q.", systemProxyURL.Host)
 		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadGateway)
 		return
 	}
@@ -271,7 +277,7 @@ func (h *ForwardToSystemProxyHandler) Handle(ctx context.Context, clientConn net
 
 	// Send original CONNECT request to system proxy.
 	if err = req.WriteProxy(serverConn); err != nil {
-		log.WithError(err).Errorf("Failed to send CONNTECT request to system proxy %q", systemProxyURL.Host)
+		log.WithError(err).Errorf("Failed to send CONNTECT request to system proxy %q.", systemProxyURL.Host)
 		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadGateway)
 		return
 	}
@@ -326,7 +332,8 @@ func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, hos
 	closeContext, closeCancel := context.WithCancel(ctx)
 	defer closeCancel()
 
-	// Force close connections when close context is done.
+	// Forcefully close connections when input context is done, to make sure
+	// the stream goroutines exit.
 	go func() {
 		<-closeContext.Done()
 
@@ -341,6 +348,8 @@ func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, hos
 		if err != nil && !utils.IsOKNetworkError(err) {
 			log.WithError(err).Errorf("Failed to stream from %q to %q", reader.LocalAddr(), writer.LocalAddr())
 		}
+
+		// Close one side at a time.
 		if readerConn, ok := reader.(*net.TCPConn); ok {
 			readerConn.CloseRead()
 		}

@@ -364,7 +364,7 @@ func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportC
 		return trace.Wrap(err)
 	}
 
-	expiresAt, err := getTLSCertExpireTime(appCerts)
+	appCertsExpireAt, err := getTLSCertExpireTime(appCerts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -387,7 +387,7 @@ func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportC
 		Signer:      key,
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
-		TTL:         time.Until(expiresAt),
+		TTL:         time.Until(appCertsExpireAt),
 	})
 	if err != nil {
 		return trace.Wrap(err)

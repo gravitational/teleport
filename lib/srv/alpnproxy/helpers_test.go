@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -218,24 +217,9 @@ func mustCreateLocalListener(t *testing.T) net.Listener {
 	return l
 }
 
-func mustCreateLocalTLSListener(t *testing.T) net.Listener {
-	ca, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
-	require.NoError(t, err)
-
-	listener, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
-		Certificates: []tls.Certificate{ca},
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		listener.Close()
-	})
-	return listener
-}
-
 func mustCreateCertGenListener(t *testing.T, ca tls.Certificate) net.Listener {
 	listener, err := NewCertGenListener(CertGenListenerConfig{
-		ListenAddr: "127.0.0.1:0",
+		ListenAddr: "localhost:0",
 		CA:         ca,
 	})
 	require.NoError(t, err)

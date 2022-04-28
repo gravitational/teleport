@@ -102,16 +102,8 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
+		DNSNames:              config.DNSNames,
 		IPAddresses:           config.IPAddresses,
-	}
-
-	// Sort out principals into DNS names and IP addresses.
-	for i := range config.DNSNames {
-		if ip := net.ParseIP(config.DNSNames[i]); ip != nil {
-			template.IPAddresses = append(template.IPAddresses, ip)
-		} else {
-			template.DNSNames = append(template.DNSNames, config.DNSNames[i])
-		}
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, config.Signer.Public(), config.Signer)

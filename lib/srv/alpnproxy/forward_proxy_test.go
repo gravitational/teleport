@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -33,14 +34,13 @@ import (
 func TestForwardProxy(t *testing.T) {
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
-	}, []string{"localhost", defaults.Localhost}, defaults.CATTL)
+	}, []string{"localhost"}, defaults.CATTL)
 	require.NoError(t, err)
 
 	ca, err := tls.X509KeyPair(caCert, caKey)
 	require.NoError(t, err)
 
-	// Use a different status code for each destination for verification
-	// purpose.
+	// Use a different status code for each destination.
 	receiverCode := http.StatusAccepted
 	originalHostCode := http.StatusCreated
 
@@ -57,6 +57,7 @@ func TestForwardProxy(t *testing.T) {
 
 	// Setup a HTTPS server to simulate original host.
 	originalHostListener := mustCreateCertGenListener(t, ca)
+	originalHostAddress := strings.ReplaceAll(originalHostListener.Addr().String(), "127.0.0.1", "localhost")
 	go http.Serve(originalHostListener, httpHandlerReturnsCode(originalHostCode))
 
 	// client -> forward proxy -> receiver
@@ -75,11 +76,11 @@ func TestForwardProxy(t *testing.T) {
 	// client -> forward proxy -> original host
 	t.Run("to original host", func(t *testing.T) {
 		forwardProxy := createForwardProxy(t, receiverHandler, NewForwardToOriginalHostHandler())
-		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String(), caCert)
+		client := httpsClientWithProxyURL(forwardProxy.GetAddr(), caCert)
 
 		mustCallHTTPSServerAndReceiveCode(
 			t,
-			originalHostListener.Addr().String(),
+			originalHostAddress,
 			*client,
 			originalHostCode,
 		)
@@ -95,12 +96,12 @@ func TestForwardProxy(t *testing.T) {
 			},
 		})
 
-		forwardProxy := createForwardProxy(t, receiverHandler, forwardToSystemProxyHandler)
-		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String(), caCert)
+		forwardProxy := createForwardProxy(t, forwardToSystemProxyHandler)
+		client := httpsClientWithProxyURL(forwardProxy.GetAddr(), caCert)
 
 		mustCallHTTPSServerAndReceiveCode(
 			t,
-			originalHostListener.Addr().String(),
+			originalHostAddress,
 			*client,
 			originalHostCode,
 		)
@@ -110,7 +111,7 @@ func TestForwardProxy(t *testing.T) {
 	t.Run("to system proxy (https)", func(t *testing.T) {
 		// This test is the same as previous one except the system proxy is a
 		// HTTPS server.
-		systemProxyHTTPSServer := createSystemProxy(t, mustCreateLocalTLSListener(t))
+		systemProxyHTTPSServer := createSystemProxy(t, mustCreateCertGenListener(t, ca))
 
 		forwardToSystemProxyHandler := NewForwardToSystemProxyHandler(ForwardToSystemProxyHandlerConfig{
 			InsecureSystemProxy: true,
@@ -119,12 +120,12 @@ func TestForwardProxy(t *testing.T) {
 			},
 		})
 
-		forwardProxy := createForwardProxy(t, receiverHandler, forwardToSystemProxyHandler)
-		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String(), caCert)
+		forwardProxy := createForwardProxy(t, forwardToSystemProxyHandler)
+		client := httpsClientWithProxyURL(forwardProxy.GetAddr(), caCert)
 
 		mustCallHTTPSServerAndReceiveCode(
 			t,
-			originalHostListener.Addr().String(),
+			originalHostAddress,
 			*client,
 			originalHostCode,
 		)
@@ -149,7 +150,7 @@ func createSystemProxy(t *testing.T, listener net.Listener) *ForwardProxy {
 	})
 }
 
-// createForwardProxy creates a ForwardProxy with provided config.
+// createForwardProxyWithConfig creates a ForwardProxy with provided config.
 func createForwardProxyWithConfig(t *testing.T, config ForwardProxyConfig) *ForwardProxy {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
