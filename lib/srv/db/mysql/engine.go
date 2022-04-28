@@ -107,7 +107,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// is not set, or it has changed since previous call.
 	if err := e.updateServerVersion(sessionCtx, serverConn); err != nil {
 		// Log but do not fail connection if the version update fails.
-		e.Log.WithError(err).Warnf("Failed to update the MySQL server version")
+		e.Log.WithError(err).Warnf("Failed to update the MySQL server version.")
 	}
 
 	// Send back OK packet to indicate auth/connect success. At this point
