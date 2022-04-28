@@ -189,7 +189,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
 	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
-	t.Run("Readyz", suite.bind(testReadyz))
 	t.Run("RotateChangeSigningAlg", suite.bind(testRotateChangeSigningAlg))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
@@ -3664,45 +3663,6 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func testReadyz(t *testing.T, suite *integrationTestSuite) {
-	// TODO: test more service combinations
-
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordOff,
-	})
-	require.NoError(t, err)
-
-	tconf := suite.defaultServiceConfig()
-	tconf.Auth.Enabled = true
-	tconf.Auth.SessionRecordingConfig = recConfig
-	tconf.Proxy.Enabled = true
-	tconf.Proxy.DisableWebInterface = true
-	tconf.Proxy.Kube.Enabled = true
-	// fire up the proxy kube service
-	tconf.Proxy.Kube.ListenAddr = utils.NetAddr{
-		AddrNetwork: "tcp",
-		Addr:        "127.0.0.1:0",
-	}
-	tconf.SSH.Enabled = false
-	tconf.DiagnosticAddr = utils.NetAddr{
-		AddrNetwork: "tcp",
-		Addr:        "127.0.0.1:0",
-	}
-
-	teleport := suite.newTeleportWithConfig(t, nil, nil, tconf)
-	t.Cleanup(func() { require.NoError(t, teleport.StopAll()) })
-
-	diagAddr, err := teleport.Process.DiagnosticAddr()
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		resp, err := http.Get(fmt.Sprintf("http://%s/readyz", diagAddr))
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-		return resp.StatusCode == http.StatusOK
-	}, 5*time.Second, 500*time.Millisecond)
-}
-
 // testRotateSuccess tests full cycle cert authority rotation
 func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
@@ -4403,17 +4363,6 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
-
-	eventC := make(chan service.Event, 1)
-	svc.WaitForEvent(context.TODO(), service.TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-
-	case <-time.After(20 * time.Second):
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
-	}
-
 	return svc, nil
 }
 
