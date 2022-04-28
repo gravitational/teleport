@@ -145,12 +145,13 @@ type agent struct {
 	client SSHClient
 	// state is the internal state of an agent. Use GetState for threadsafe access.
 	state AgentState
-	// doneConnecting is closed when an agent's state will never transition to connecting.
-	doneConnecting chan struct{}
 	// once ensures doneConnecting is closed exactly once.
 	once sync.Once
 	// mu manages concurrent access to agent state.
 	mu sync.RWMutex
+	// doneConnecting is used to synchronize access to fields initialized while
+	// an agent is connecting and protects wait groups from being waited on early.
+	doneConnecting chan struct{}
 	// hbChannel is the channel heartbeats are sent over.
 	hbChannel ssh.Channel
 	// hbRequests are requests going over the heartbeat channel.
@@ -220,13 +221,11 @@ func proxyIDFromPrincipals(principals []string) (string, bool) {
 
 	// Return the uuid from the format "<uuid>.<cluster-name>".
 	split := strings.Split(id, ".")
-	id = split[0]
-
-	if id == "" {
+	if len(split) == 0 {
 		return "", false
 	}
 
-	return id, true
+	return split[0], true
 }
 
 // updateState updates the internal state of the agent returning
