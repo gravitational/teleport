@@ -1391,7 +1391,10 @@ func onListNodes(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
-		return utils.FatalPredicateError(err)
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
+		return trace.Wrap(err)
 	}
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[i].GetHostname() < nodes[j].GetHostname()
@@ -2791,7 +2794,10 @@ func onApps(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
-		return utils.FatalPredicateError(err)
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
+		return trace.Wrap(err)
 	}
 
 	// Retrieve profile to be able to show which apps user is logged into.

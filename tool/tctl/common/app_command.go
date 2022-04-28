@@ -105,7 +105,10 @@ func (c *AppsCommand) ListApps(clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case err != nil:
-		return utils.FatalPredicateError(err)
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
+		return trace.Wrap(err)
 	default:
 		servers, err = types.ResourcesWithLabels(resources).AsAppServers()
 		if err != nil {

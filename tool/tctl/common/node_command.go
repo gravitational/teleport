@@ -237,7 +237,10 @@ func (c *NodeCommand) ListActive(clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case err != nil:
-		return utils.FatalPredicateError(err)
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
+		return trace.Wrap(err)
 	default:
 		nodes, err = types.ResourcesWithLabels(resources).AsServers()
 		if err != nil {
