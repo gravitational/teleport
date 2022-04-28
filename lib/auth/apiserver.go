@@ -761,6 +761,7 @@ func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	req.Username = p.ByName("user")
+	req.ClientIP = strings.Split(r.RemoteAddr, ":")[0]
 	sess, err := auth.AuthenticateWebUser(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -774,6 +775,7 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	req.Username = p.ByName("user")
+	req.ClientIP = strings.Split(r.RemoteAddr, ":")[0]
 	return auth.AuthenticateSSHUser(req)
 }
 

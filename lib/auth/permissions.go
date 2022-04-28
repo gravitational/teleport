@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -177,6 +178,15 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if authContext.Checker.PinSourceIP() {
+		value := ctx.Value(ContextClientAddr)
+		if clientIP, ok := value.(*net.TCPAddr); ok {
+			pinnedIP := authContext.Identity.GetIdentity().ClientIP
+			if pinnedIP != clientIP.IP.String() {
+				return nil, trace.AccessDenied("client IP %s doesn't match expected %s", clientIP.IP, pinnedIP)
+			}
+		}
 	}
 	// Enforce applicable locks.
 	authPref, err := a.accessPoint.GetAuthPreference(ctx)

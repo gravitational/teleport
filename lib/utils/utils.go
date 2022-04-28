@@ -403,12 +403,11 @@ func (p *PortList) PopInt() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	l := len(p.ports)
-	if l == 0 {
+	if len(p.ports) == 0 {
 		panic("list is empty")
 	}
-	val := p.ports[l-1]
-	p.ports = p.ports[:l-1]
+	val := p.ports[0]
+	p.ports = p.ports[1:]
 	return val
 }
 

@@ -141,6 +141,8 @@ type Identity struct {
 	Renewable bool
 	// Generation counts the number of times this certificate has been renewed.
 	Generation uint64
+	// SourceIP records client IP used whe this certificate was issued
+	SourceIP string
 }
 
 // RouteToApp holds routing information for applications.

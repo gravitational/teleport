@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"net"
 	"net/url"
 	"time"
 
@@ -1812,6 +1813,10 @@ func (a *ServerWithRoles) determineDesiredRolesAndTraits(req proto.UserCertsRequ
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+	value := ctx.Value(ContextClientAddr)
+	if clientIP, ok := value.(*net.TCPAddr); ok {
+		return a.generateUserCerts(ctx, req, certRequestClientIP(clientIP.IP.String()))
+	}
 	return a.generateUserCerts(ctx, req)
 }
 

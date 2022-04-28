@@ -126,7 +126,7 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		default:
 			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
 		}
-		certs, err := a.generateInitialBotCerts(ctx, botResourceName, req.PublicSSHKey, expires, renewable)
+		certs, err := a.generateInitialBotCerts(ctx, botResourceName, req.PublicSSHKey, expires, renewable, req.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -2311,6 +2311,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		checker:        checker,
 		traits:         req.Traits,
 		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+		clientIP:       req.ClientIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

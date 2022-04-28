@@ -59,7 +59,7 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	webSession, err := s.createUserWebSession(ctx, user)
+	webSession, err := s.createUserWebSession(ctx, user, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

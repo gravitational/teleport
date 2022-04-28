@@ -43,7 +43,8 @@ type AuthenticateUserRequest struct {
 	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
-	Session *SessionCreds `json:"session,omitempty"`
+	Session  *SessionCreds `json:"session,omitempty"`
+	ClientIP string        `json:"client_ip"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -306,7 +307,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSess
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(context.TODO(), user)
+	sess, err := s.createUserWebSession(context.TODO(), user, req.ClientIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -328,6 +329,7 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+	ClientIP          string
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -458,6 +460,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		traits:            user.GetTraits(),
 		routeToCluster:    req.RouteToCluster,
 		kubernetesCluster: req.KubernetesCluster,
+		clientIP:          req.ClientIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -490,7 +493,7 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *Server) createUserWebSession(ctx context.Context, user types.User) (types.WebSession, error) {
+func (s *Server) createUserWebSession(ctx context.Context, user types.User, clientIP string) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
 	return s.createWebSession(ctx, types.NewWebSessionRequest{
@@ -498,6 +501,7 @@ func (s *Server) createUserWebSession(ctx context.Context, user types.User) (typ
 		Roles:     user.GetRoles(),
 		Traits:    user.GetTraits(),
 		LoginTime: s.clock.Now().UTC(),
+		ClientIP:  clientIP,
 	})
 }
 
