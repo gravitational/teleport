@@ -1677,12 +1677,7 @@ func testKubeConnectionLimit(t *testing.T, suite *KubeSuite) {
 
 	// Create and maintain the maximum amount of open connections
 	for i := 0; i < maxConnections; i++ {
-		go func() {
-			err := openExec()
-			if err != nil {
-				return
-			}
-		}()
+		go openExec()
 	}
 
 	// Wait for the connections to open and check for any errors
