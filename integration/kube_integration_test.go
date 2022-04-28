@@ -1643,7 +1643,7 @@ func testKubeConnectionLimit(t *testing.T, suite *KubeSuite) {
 
 	err = teleport.Start()
 	require.NoError(t, err)
-	defer teleport.StopAll()
+	t.Cleanup(func() { require.NoError(t, teleport.StopAll()) })
 
 	// set up kube configuration using proxy
 	proxyClient, proxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
