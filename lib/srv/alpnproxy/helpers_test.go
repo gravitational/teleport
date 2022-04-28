@@ -277,9 +277,3 @@ func httpsClientWithProxyURL(proxyAddr string, caPem []byte) *http.Client {
 		},
 	}
 }
-
-func httpHandlerReturnsCode(statusCode int) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.WriteHeader(statusCode)
-	})
-}

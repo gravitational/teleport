@@ -548,26 +548,6 @@ func (p *ProfileStatus) AppNames() (result []string) {
 	return result
 }
 
-// AWSAppNames returns a list of AWS app names this profile is logged into.
-func (p *ProfileStatus) AWSAppNames() (result []string) {
-	for _, app := range p.Apps {
-		if app.AWSRoleARN != "" {
-			result = append(result, app.Name)
-		}
-	}
-	return result
-}
-
-// FindAppByName finds an app by specified name.
-func (p *ProfileStatus) FindAppByName(appName string) (*tlsca.RouteToApp, error) {
-	for _, app := range p.Apps {
-		if app.Name == appName {
-			return &app, nil
-		}
-	}
-	return nil, trace.NotFound("failed to find app with %q name", appName)
-}
-
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
 // RetryWithRelogin automatically enables tc.UseStrongestAuth for Login attempts

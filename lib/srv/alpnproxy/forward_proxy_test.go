@@ -53,12 +53,16 @@ func TestForwardProxy(t *testing.T) {
 		},
 		Host: receiverListener.Addr().String(),
 	})
-	go http.Serve(receiverListener, httpHandlerReturnsCode(receiverCode))
+	go http.Serve(receiverListener, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(receiverCode)
+	}))
 
 	// Setup a HTTPS server to simulate original host.
 	originalHostListener := mustCreateCertGenListener(t, ca)
 	originalHostAddress := strings.ReplaceAll(originalHostListener.Addr().String(), "127.0.0.1", "localhost")
-	go http.Serve(originalHostListener, httpHandlerReturnsCode(originalHostCode))
+	go http.Serve(originalHostListener, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(originalHostCode)
+	}))
 
 	// client -> forward proxy -> receiver
 	t.Run("to receiver", func(t *testing.T) {

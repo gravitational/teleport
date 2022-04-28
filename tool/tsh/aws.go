@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -202,12 +203,12 @@ func (a *awsApp) startLocalALPNProxy() error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificate(tc, a.appName)
+	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.appName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.appName)
+	appCerts, err := loadAppCertificate(tc, a.appName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -382,7 +383,7 @@ func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
 	}
 	name := cf.AppName
 	if name != "" {
-		app, err := profile.FindAppByName(name)
+		app, err := findApp(profile.Apps, name)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.NotFound("Please login to AWS app using 'tsh app login' first")
@@ -397,7 +398,7 @@ func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
 		return newAWSApp(cf, profile, name)
 	}
 
-	awsApps := profile.AWSAppNames()
+	awsApps := getAWSAppsName(profile.Apps)
 	if len(awsApps) == 0 {
 		return nil, trace.NotFound("Please login to AWS App using 'tsh app login' first")
 	}
@@ -408,4 +409,23 @@ func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
 		)
 	}
 	return newAWSApp(cf, profile, awsApps[0])
+}
+
+func findApp(apps []tlsca.RouteToApp, name string) (*tlsca.RouteToApp, error) {
+	for _, app := range apps {
+		if app.Name == name {
+			return &app, nil
+		}
+	}
+	return nil, trace.NotFound("failed to find app with %q name", name)
+}
+
+func getAWSAppsName(apps []tlsca.RouteToApp) []string {
+	var out []string
+	for _, app := range apps {
+		if app.AWSRoleARN != "" {
+			out = append(out, app.Name)
+		}
+	}
+	return out
 }
