@@ -445,12 +445,27 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOError {
 	return nil
 }
 
-//export sd_info_request
-func sd_info_request(handle C.uintptr_t, dirId C.uint32_t, completionId C.uint32_t, path *C.char) C.CGOError {
-	return cgo.Handle(handle).Value().(*Client).sharedDirectoryInfoRequest(uint32(dirId), uint32(completionId), C.GoString(path))
+//export sd_acknowledge
+func sd_acknowledge(handle C.uintptr_t, directoryId C.uint32_t, succeeded C.uint8_t) C.CGOError {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryAcknowledg(uint32(directoryId), uint8(succeeded))
 }
 
-func (c *Client) sharedDirectoryInfoRequest(dirId uint32, completionId uint32, path string) C.CGOError {
+func (c *Client) sharedDirectoryAcknowledg(directoryId uint32, succeeded uint8) C.CGOError {
+	if err := c.cfg.Conn.OutputMessage(tdp.SharedDirectoryAcknowledge{
+		DirectoryId: directoryId,
+		Succeeded:   succeeded,
+	}); err != nil {
+		return C.CString(fmt.Sprintf("failed to send SharedDirectoryAcknowledge: %v", err))
+	}
+	return nil
+}
+
+//export sd_info_request
+func sd_info_request(handle C.uintptr_t, directoryId C.uint32_t, completionId C.uint32_t, path *C.char) C.CGOError {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryInfoRequest(uint32(directoryId), uint32(completionId), C.GoString(path))
+}
+
+func (c *Client) sharedDirectoryInfoRequest(directoryId uint32, completionId uint32, path string) C.CGOError {
 	// TODO(isaiah)
 	return nil
 }

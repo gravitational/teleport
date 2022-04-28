@@ -47,9 +47,12 @@ pub struct Client {
     active_device_ids: Vec<u32>,
     allow_directory_sharing: bool,
 
-    /// request_info takes a directory_id, completion_id, and path and requests
+    /// acknowledge_directory takes in a (directory_id: u32, succeeded: u8) to acknowledges
+    /// a new directory being shared. succeeded should be set to 0 for false, 1 for true.
+    acknowledge_directory: Box<dyn Fn(u32, u8) -> RdpResult<()>>,
+    /// request_info takes a (directory_id: u32, completion_id: u32, path: &str) and requests
     /// information about a file.
-    request_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
+    request_info: Box<dyn Fn(u32, u32, &str) -> RdpResult<()>>,
 
     dot_dot_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
     fake_file_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
@@ -62,13 +65,16 @@ impl Client {
         pin: String,
         allow_directory_sharing: bool,
 
-        request_info: Box<dyn Fn(u32, u32, &str) -> Option<RdpError>>,
+        acknowledge_directory: Box<dyn Fn(u32, u8) -> RdpResult<()>>,
+        request_info: Box<dyn Fn(u32, u32, &str) -> RdpResult<()>>,
     ) -> Self {
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
             active_device_ids: vec![],
             allow_directory_sharing,
+
+            acknowledge_directory,
             request_info,
 
             dot_dot_sent: false,
@@ -172,17 +178,22 @@ impl Client {
         debug!("got ServerDeviceAnnounceResponse: {:?}", req);
 
         if !self.active_device_ids.contains(&req.device_id) {
+            (self.acknowledge_directory)(req.device_id, 0)?;
             Err(invalid_data_error(&format!(
                 "got ServerDeviceAnnounceResponse for unknown device_id {}",
                 &req.device_id
             )))
         } else if req.result_code != NTSTATUS_OK {
+            (self.acknowledge_directory)(req.device_id, 0)?;
             Err(invalid_data_error(&format!(
                 "got unsuccessful ServerDeviceAnnounceResponse result code NTSTATUS({})",
                 &req.result_code
             )))
         } else {
             debug!("ServerDeviceAnnounceResponse was valid");
+            if req.device_id != self.get_scard_device_id()? {
+                (self.acknowledge_directory)(req.device_id, 1)?;
+            }
             Ok(vec![])
         }
     }

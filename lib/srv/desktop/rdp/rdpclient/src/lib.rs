@@ -237,24 +237,36 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
 
+    let acknowledge_directory =
+        Box::new(move |directory_id: u32, succeeded: u8| -> RdpResult<()> {
+            unsafe {
+                if sd_acknowledge(go_ref, directory_id, succeeded) != CGO_OK {
+                    return Err(RdpError::TryError(String::from(
+                        "call to sd_info_request failed",
+                    )));
+                }
+            }
+            Ok(())
+        });
+
     let request_info = Box::new(
-        move |dir_id: u32, completion_id: u32, path: &str| -> Option<RdpError> {
+        move |dir_id: u32, completion_id: u32, path: &str| -> RdpResult<()> {
             match CString::new(path) {
                 Ok(c_string) => {
                     unsafe {
                         if sd_info_request(go_ref, dir_id, completion_id, c_string.into_raw())
                             != CGO_OK
                         {
-                            return Some(RdpError::TryError(String::from(
+                            return Err(RdpError::TryError(String::from(
                                 "call to sd_info_request failed",
                             )));
                         };
                     }
-                    return None;
+                    return Ok(());
                 }
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    return Some(RdpError::TryError(String::from(format!(
+                    return Err(RdpError::TryError(String::from(format!(
                         "path contained characters that couldn't be converted to a C string: {}",
                         path
                     ))));
@@ -268,6 +280,7 @@ fn connect_rdp_inner(
         params.key_der,
         pin,
         params.allow_directory_sharing,
+        acknowledge_directory,
         request_info,
     );
 
@@ -775,12 +788,12 @@ extern "C" {
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
 
     /// Shared Directory Acknowledge
-    fn sd_acknowledge(completion_id: u32) -> CGOError;
+    fn sd_acknowledge(client_ref: usize, directory_id: u32, succeeded: u8) -> CGOError;
 
     /// Shared Directory Info Request
     fn sd_info_request(
         client_ref: usize,
-        dir_id: u32,
+        directory_id: u32,
         completion_id: u32,
         path: *mut c_char,
     ) -> CGOError;
