@@ -1562,6 +1562,7 @@ func TestSerializeDatabases(t *testing.T) {
           "iam_auth": false
         }
       },
+      "mysql": {},
       "gcp": {},
       "azure": {},
       "tls": {

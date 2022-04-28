@@ -3102,28 +3102,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		if alpnRouter != nil && !cfg.Proxy.DisableDatabaseProxy {
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				MatchFunc: alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolMySQL)),
-				HandlerWithConnInfo: func(ctx context.Context, conn net.Conn, info alpnproxy.ConnectionInfo) error {
-					for _, alpn := range info.ALPN {
-						if !strings.HasPrefix(alpn, string(alpncommon.ProtocolMySQL)) || alpn == string(alpncommon.ProtocolMySQL) {
-							continue
-						}
-
-						// Check if the name contains at least one character
-						// 2 = 1 ('-' char) + 1 (at least one character of version string)
-						if len(alpn) <= len(alpncommon.ProtocolMySQL)+2 {
-							continue
-						}
-						// skip the '-'
-						mysqlVersion := alpn[len(alpncommon.ProtocolMySQL)+1:]
-
-						log.Infof("mysql version from ALPN: %s", mysqlVersion)
-						ctx = context.WithValue(ctx, defaults.CtxServerVersionKey, mysqlVersion)
-						break
-					}
-
-					return dbProxyServer.MySQLProxy().HandleConnection(ctx, conn)
-				},
+				MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolMySQL)),
+				HandlerWithConnInfo: alpnproxy.MatchMySQLConn(dbProxyServer.MySQLProxy().HandleConnection),
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMySQL),

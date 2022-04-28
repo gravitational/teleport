@@ -101,6 +101,39 @@ func MatchByALPNPrefix(prefix string) MatchFunc {
 	}
 }
 
+// MatchMySQLConn return a pre-process function for MySQL connections that tries to extract MySQL server version
+// from incoming connection.
+func MatchMySQLConn(fn func(ctx context.Context, conn net.Conn) error) HandlerFuncWithInfo {
+	return func(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
+		for _, alpn := range info.ALPN {
+			if !strings.HasPrefix(alpn, string(common.ProtocolMySQL)) || alpn == string(common.ProtocolMySQL) {
+				continue
+			}
+
+			// prefix and '-' character
+			const mysqlVerStart = len(common.ProtocolMySQL) + 1
+			// Check if the name contains at least one character
+			// 2 = 1 ('-' char) + 1 (at least one character of version string)
+			if len(alpn) <= mysqlVerStart+1 {
+				continue
+			}
+			// The version should never be longer than 255 characters including
+			// the prefix, but better to be safe.
+			var versionEnd = 255
+			if len(alpn) < versionEnd {
+				versionEnd = len(alpn) - 1
+			}
+
+			mysqlVersion := alpn[mysqlVerStart:versionEnd]
+
+			ctx = context.WithValue(ctx, defaults.CtxServerVersionKey, mysqlVersion)
+			break
+		}
+
+		return fn(ctx, conn)
+	}
+}
+
 // CheckAndSetDefaults verifies the constraints for Router.
 func (r *Router) CheckAndSetDefaults() error {
 	for _, v := range r.alpnHandlers {

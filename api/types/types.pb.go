@@ -884,7 +884,7 @@ type DatabaseSpecV3 struct {
 	TLS DatabaseTLS `protobuf:"bytes,8,opt,name=TLS,proto3" json:"tls,omitempty"`
 	// AD is the Active Directory configuration for the database.
 	AD AD `protobuf:"bytes,9,opt,name=AD,proto3" json:"ad,omitempty"`
-	// MySQL is an additional MySQL database options.
+	// MySQL is an additional section with MySQL database options.
 	MySQL                MySQLOptions `protobuf:"bytes,10,opt,name=MySQL,proto3" json:"mysql,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
 	XXX_unrecognized     []byte       `json:"-"`

@@ -261,7 +261,7 @@ message DatabaseSpecV3 {
     DatabaseTLS TLS = 8 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "tls,omitempty" ];
     // AD is the Active Directory configuration for the database.
     AD AD = 9 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "ad,omitempty" ];
-    // MySQL is an additional MySQL database options.
+    // MySQL is an additional section with MySQL database options.
     MySQLOptions MySQL = 10
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "mysql,omitempty" ];
 }

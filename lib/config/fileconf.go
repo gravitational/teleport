@@ -1055,7 +1055,7 @@ type Database struct {
 	// TLS keeps an optional TLS configuration options.
 	TLS DatabaseTLS `yaml:"tls"`
 	// MySQL are additional database options.
-	MySQL DatabaseMySQL `yaml:"options"`
+	MySQL DatabaseMySQL `yaml:"mysql"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.

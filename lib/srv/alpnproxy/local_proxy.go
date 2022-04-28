@@ -260,10 +260,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	defer downstreamConn.Close()
 
 	protos := []string{string(l.cfg.Protocol)}
-
-	for _, proto := range l.cfg.ExtraProtos {
-		protos = append(protos, proto)
-	}
+	protos = append(protos, l.cfg.ExtraProtos...)
 
 	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
 		NextProtos:         protos,
