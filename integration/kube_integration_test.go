@@ -1668,7 +1668,7 @@ func testKubeConnectionLimit(t *testing.T, suite *KubeSuite) {
 			podName:      pod.Name,
 			podNamespace: pod.Namespace,
 			container:    pod.Spec.Containers[0].Name,
-			command:      []string{"/bin/sh"},
+			command:      []string{"/bin/sh -c sleep 300"},
 			stdout:       out,
 			tty:          true,
 			stdin:        term,
