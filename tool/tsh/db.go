@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 )
 
@@ -380,7 +379,7 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	opts := localProxyOpts{
 		proxyAddr: tc.WebProxyAddr,
 		listener:  listener,
-		protocol:  db.Protocol,
+		protocols: []common.Protocol{common.Protocol(db.Protocol)},
 		insecure:  cf.InsecureSkipVerify,
 	}
 
@@ -400,7 +399,7 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 
 		mysqlSeverVersionProto := mySQLVersionToProto(database)
 		if mysqlSeverVersionProto != "" {
-			opts.extraProtos = append(opts.extraProtos, mysqlSeverVersionProto)
+			opts.protocols = append(opts.protocols, common.Protocol(mysqlSeverVersionProto))
 		}
 	}
 
