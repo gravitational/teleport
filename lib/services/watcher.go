@@ -1177,6 +1177,12 @@ func (n *nodeCollector) GetNodes(fn func(n Node) bool) []types.Server {
 	return matched
 }
 
+func (n *nodeCollector) NodeCount() int {
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+	return len(n.current)
+}
+
 // resourceKind specifies the resource kind to watch.
 func (n *nodeCollector) resourceKind() string {
 	return types.KindNode

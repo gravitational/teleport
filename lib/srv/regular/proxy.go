@@ -453,9 +453,9 @@ func (t *proxySubsys) proxyToHost(
 	return nil
 }
 
-// NodeGetter is a function that retrieves a subset of nodes matching
+// NodesGetter is a function that retrieves a subset of nodes matching
 // the filter criteria.
-type NodeGetter interface {
+type NodesGetter interface {
 	GetNodes(fn func(n services.Node) bool) []types.Server
 }
 
@@ -464,7 +464,7 @@ type NodeGetter interface {
 // is types.RoutingStrategy_UNAMBIGUOUS_MATCH. When the strategy is types.RoutingStrategy_MOST_RECENT then
 // the server that has heartbeated most recently will be returned instead of an error. If no matches are found then
 // both the types.Server and error returned will be nil.
-func (t *proxySubsys) getMatchingServer(watcher NodeGetter, strategy types.RoutingStrategy) (types.Server, error) {
+func (t *proxySubsys) getMatchingServer(watcher NodesGetter, strategy types.RoutingStrategy) (types.Server, error) {
 	if watcher == nil {
 		return nil, trace.NotFound("unable to retrieve nodes matching host %s", t.host)
 	}
