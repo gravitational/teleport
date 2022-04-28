@@ -84,7 +84,7 @@ func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
 		Database:    gw.TargetSubresourceName,
 	}
 
-	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb, c.URI.GetRootClusterName(),
+	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb, c.GetActualName(),
 		dbcmd.WithLogger(gw.Log),
 		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
