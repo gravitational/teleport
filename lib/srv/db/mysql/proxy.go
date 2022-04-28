@@ -61,17 +61,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// by peeking into the first few bytes. This is needed to be able to detect
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
-
-	// Set default server version.
-	mysqlServerVersion := serverVersion
-
-	// Set correct server version. This field can be empty if the information is not available.
-	if mysqlVerCtx := ctx.Value(defaults.CtxServerVersionKey); mysqlVerCtx != nil {
-		version, ok := mysqlVerCtx.(string)
-		if ok {
-			mysqlServerVersion = version
-		}
-	}
+	mysqlServerVersion := getServerVersionFromCtx(ctx)
 
 	mysqlServer := p.makeServer(conn, mysqlServerVersion)
 	// If any error happens, make sure to send it back to the client, so it
@@ -133,6 +123,21 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// getServerVersionFromCtx tries to extract MySQL server version from the passed context.
+// The default version is returned if context doesn't have it.
+func getServerVersionFromCtx(ctx context.Context) string {
+	// Set default server version.
+	mysqlServerVersion := serverVersion
+
+	if mysqlVerCtx := ctx.Value(common.ContextMySQLServerVersion); mysqlVerCtx != nil {
+		version, ok := mysqlVerCtx.(string)
+		if ok {
+			mysqlServerVersion = version
+		}
+	}
+	return mysqlServerVersion
 }
 
 // credentialProvider is used by MySQL server created below.

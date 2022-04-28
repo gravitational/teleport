@@ -32,7 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
+	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -101,9 +102,9 @@ func MatchByALPNPrefix(prefix string) MatchFunc {
 	}
 }
 
-// MatchMySQLConn return a pre-process function for MySQL connections that tries to extract MySQL server version
+// ExtractMySQLEngineVersion returns a pre-process function for MySQL connections that tries to extract MySQL server version
 // from incoming connection.
-func MatchMySQLConn(fn func(ctx context.Context, conn net.Conn) error) HandlerFuncWithInfo {
+func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error) HandlerFuncWithInfo {
 	return func(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
 		for _, alpn := range info.ALPN {
 			if !strings.HasPrefix(alpn, string(common.ProtocolMySQL)) || alpn == string(common.ProtocolMySQL) {
@@ -126,7 +127,7 @@ func MatchMySQLConn(fn func(ctx context.Context, conn net.Conn) error) HandlerFu
 
 			mysqlVersion := alpn[mysqlVerStart:versionEnd]
 
-			ctx = context.WithValue(ctx, defaults.CtxServerVersionKey, mysqlVersion)
+			ctx = context.WithValue(ctx, dbcommon.ContextMySQLServerVersion, mysqlVersion)
 			break
 		}
 
@@ -380,7 +381,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(tlsConn.ConnectionState())
+	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
@@ -460,7 +461,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 		return trace.Wrap(err)
 	}
 
-	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(tlsConn.ConnectionState())
+	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}

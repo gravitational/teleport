@@ -775,9 +775,3 @@ const (
 	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
 	TeleportConfigVersionV2 string = "v2"
 )
-
-// ContextKey is a type used for Go's context value type.
-type ContextKey string
-
-// CtxServerVersionKey is a key used in MySQL handler to pass MySQL server version.
-const CtxServerVersionKey ContextKey = "ctx-mysql-server-version"
