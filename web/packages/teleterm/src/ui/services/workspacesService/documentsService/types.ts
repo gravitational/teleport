@@ -70,6 +70,8 @@ export interface DocumentPtySession extends DocumentBase {
   kind: 'doc.terminal_shell';
   cwd?: string;
   initCommand?: string;
+  rootClusterId?: string;
+  leafClusterId?: string;
 }
 
 export type DocumentTerminal =
@@ -95,4 +97,10 @@ export type CreateGatewayDocumentOpts = {
 
 export type CreateClusterDocumentOpts = {
   clusterUri: string;
+};
+
+export type CreateNewTerminalOpts = {
+  initCommand?: string;
+  rootClusterId: string;
+  leafClusterId?: string;
 };

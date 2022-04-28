@@ -19,6 +19,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useAsync } from 'shared/hooks/useAsync';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
+import { routing } from 'teleterm/ui/uri';
 
 export default function useGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
@@ -76,7 +77,14 @@ export default function useGateway(doc: types.DocumentGateway) {
   };
 
   const runCliCommand = () => {
-    workspaceDocumentsService.openNewTerminal(gateway.cliCommand);
+    const { rootClusterId, leafClusterId } = routing.parseClusterUri(
+      cluster.uri
+    ).params;
+    workspaceDocumentsService.openNewTerminal({
+      initCommand: gateway.cliCommand,
+      rootClusterId,
+      leafClusterId,
+    });
   };
 
   React.useEffect(() => {

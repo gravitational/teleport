@@ -20,6 +20,7 @@ import { useStore, Store } from 'shared/libs/stores';
 import { tsh } from 'teleterm/ui/services/clusters/types';
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
+import { getClusterName } from 'teleterm/ui/utils';
 
 type State = {
   navLocation: NavLocation;
@@ -107,7 +108,7 @@ class ClusterContext extends Store<State> {
 
     this._cluster = cluster;
     this.state.status = '';
-    this.state.clusterName = cluster.name;
+    this.state.clusterName = getClusterName(cluster);
     this.state.leaf = cluster.leaf;
     this.state.leafConnected = cluster.leaf && cluster.connected;
     this.setState(this.state);

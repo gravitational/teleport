@@ -18,6 +18,7 @@ import { unique } from 'teleterm/ui/utils/uid';
 import {
   CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
+  CreateNewTerminalOpts,
   Document,
   DocumentCluster,
   DocumentGateway,
@@ -124,7 +125,7 @@ export class DocumentsService {
     };
   }
 
-  openNewTerminal(initCommand?: string) {
+  openNewTerminal(opts: CreateNewTerminalOpts) {
     const doc = ((): Document => {
       const activeDocument = this.getActive();
 
@@ -132,14 +133,14 @@ export class DocumentsService {
         return {
           ...activeDocument,
           uri: routing.getDocUri({ docId: unique() }),
-          initCommand,
+          ...opts,
         };
       } else {
         return {
           uri: routing.getDocUri({ docId: unique() }),
-          initCommand,
           title: 'Terminal',
           kind: 'doc.terminal_shell',
+          ...opts,
         };
       }
     })();

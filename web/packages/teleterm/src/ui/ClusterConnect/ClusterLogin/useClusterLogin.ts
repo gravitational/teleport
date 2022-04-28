@@ -18,6 +18,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as types from 'teleterm/ui/services/clusters/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useAsync } from 'shared/hooks/useAsync';
+import { getClusterName } from 'teleterm/ui/utils';
 
 export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
@@ -91,7 +92,7 @@ export default function useClusterLogin(props: Props) {
   return {
     shouldPromptSsoStatus,
     shouldPromptHardwareKey,
-    title: cluster.name,
+    title: getClusterName(cluster),
     onLoginWithLocal,
     onLoginWithSso,
     onCloseDialog,

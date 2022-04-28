@@ -7,6 +7,7 @@ import { IdentityList } from './IdentityList/IdentityList';
 import { IdentitySelector } from './IdentitySelector/IdentitySelector';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
 import { EmptyIdentityList } from './EmptyIdentityList/EmptyIdentityList';
+import { getClusterName } from 'teleterm/ui/utils';
 
 export function Identity() {
   const selectorRef = useRef<HTMLButtonElement>();
@@ -42,6 +43,7 @@ export function Identity() {
   );
 
   const loggedInUser = activeRootCluster?.loggedInUser;
+
   return (
     <>
       <IdentitySelector
@@ -49,7 +51,7 @@ export function Identity() {
         onClick={togglePopover}
         isOpened={isPopoverOpened}
         userName={loggedInUser?.name}
-        clusterName={activeRootCluster?.name}
+        clusterName={getClusterName(activeRootCluster)}
       />
       <Popover
         open={isPopoverOpened}

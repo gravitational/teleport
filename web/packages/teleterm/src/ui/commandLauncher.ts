@@ -17,6 +17,7 @@ limitations under the License.
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
 import { tsh } from 'teleterm/ui/services/clusters/types';
+import { getClusterName } from 'teleterm/ui/utils';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
@@ -120,7 +121,7 @@ const commands = {
       ctx.modalsService.openDialog({
         kind: 'cluster-logout',
         clusterUri: cluster.uri,
-        clusterTitle: cluster.name,
+        clusterTitle: getClusterName(cluster),
       });
     },
   },

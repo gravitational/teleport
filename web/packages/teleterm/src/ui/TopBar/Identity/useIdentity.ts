@@ -1,5 +1,6 @@
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { Cluster } from 'teleterm/services/tshd/types';
+import { getClusterName } from 'teleterm/ui/utils';
 
 export function useIdentity() {
   const ctx = useAppContext();
@@ -16,7 +17,7 @@ export function useIdentity() {
   }
 
   function logout(clusterUri: string): void {
-    ctx.commandLauncher.executeCommand('cluster-logout', {clusterUri})
+    ctx.commandLauncher.executeCommand('cluster-logout', { clusterUri });
   }
 
   function getActiveRootCluster(): Cluster | undefined {
@@ -32,7 +33,7 @@ export function useIdentity() {
     .filter(c => !c.leaf)
     .map(cluster => ({
       active: cluster.uri === ctx.workspacesService.getRootClusterUri(),
-      clusterName: cluster.name,
+      clusterName: getClusterName(cluster),
       userName: cluster.loggedInUser?.name,
       uri: cluster.uri,
       connected: cluster.connected,

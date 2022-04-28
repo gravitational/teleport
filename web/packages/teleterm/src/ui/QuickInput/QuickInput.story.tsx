@@ -44,6 +44,8 @@ export const Story = () => {
         name: 'Test',
         leaf: false,
         connected: true,
+        actualName: 'Test',
+        proxyHost: 'localhost:3080',
         loggedInUser: {
           name: 'admin',
           acl: {},

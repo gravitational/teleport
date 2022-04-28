@@ -21,6 +21,7 @@ import {
   AutocompleteResult,
   AutocompletePartialMatch,
 } from 'teleterm/ui/services/quickInput/types';
+import { routing } from 'teleterm/ui/uri';
 
 export default function useQuickInput() {
   const { quickInputService, workspacesService, commandLauncher } =
@@ -66,9 +67,19 @@ export default function useQuickInput() {
   const executeCommand = (autocompleteResult: AutocompleteResult) => {
     const { command } = autocompleteResult;
 
+
     switch (command.kind) {
       case 'command.unknown': {
-        documentsService.openNewTerminal(inputValue);
+        const params = routing.parseClusterUri(
+          workspacesService.getActiveWorkspace()?.localClusterUri
+        ).params;
+        documentsService.openNewTerminal({
+          initCommand: inputValue,
+          rootClusterId: routing.parseClusterUri(
+            workspacesService.getRootClusterUri()
+          ).params.rootClusterId,
+          leafClusterId: params.leafClusterId,
+        });
         break;
       }
       case 'command.tsh-ssh': {

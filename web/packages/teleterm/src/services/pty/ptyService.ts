@@ -64,6 +64,8 @@ async function buildOptions(
     ...process.env,
     ...(await resolveShellEnvCached(settings.defaultShell)),
     TELEPORT_HOME: settings.tshd.homeDir,
+    TELEPORT_CLUSTER: cmd.actualClusterName,
+    TELEPORT_PROXY: cmd.proxyHost,
   };
 
   switch (cmd.kind) {
@@ -90,10 +92,6 @@ async function buildOptions(
       };
 
     case 'pty.tsh-kube-login':
-      if (cmd.leafClusterId) {
-        env['TELEPORT_CLUSTER'] = cmd.leafClusterId;
-      }
-
       return {
         //path: settings.tshd.binaryPath,
         path: settings.defaultShell,
@@ -109,10 +107,6 @@ async function buildOptions(
       };
 
     case 'pty.tsh-login':
-      if (cmd.leafClusterId) {
-        env['TELEPORT_CLUSTER'] = cmd.leafClusterId;
-      }
-
       const loginHost = cmd.login
         ? `${cmd.login}@${cmd.serverId}`
         : cmd.serverId;

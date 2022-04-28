@@ -31,6 +31,7 @@ import {
   TrackedConnection,
   TrackedGatewayConnection,
 } from './types';
+import { getClusterName } from 'teleterm/ui/utils';
 
 export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerState> {
   private _trackedConnectionOperationsFactory: TrackedConnectionOperationsFactory;
@@ -66,7 +67,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       const cluster = this._clusterService.findCluster(
         leafClusterUri || rootClusterUri
       );
-      return { ...connection, clusterName: cluster?.name };
+      return { ...connection, clusterName: getClusterName(cluster) };
     });
   }
 
