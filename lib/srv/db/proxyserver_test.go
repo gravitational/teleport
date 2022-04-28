@@ -248,22 +248,18 @@ func TestProxyMySQLVersion(t *testing.T) {
 		withSelfHostedMySQL("mysql", mysql.WithServerVersion("8.0.12")),
 	)
 
-	waitCh := make(chan struct{})
-
-	testCtx.server.cfg.OnReconcile = func(databases types.Databases) {
-		waitCh <- struct{}{}
-	}
-
 	go testCtx.startHandlingConnections()
 
 	// Create user/role with the requested permissions.
 	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
 
-	mysqlClient, proxy, err := testCtx.mysqlClientLocalProxy(ctx, "bob", "mysql", "bob")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, mysqlClient.Close())
-		require.NoError(t, proxy.Close())
+	t.Run("correct version when using proxy", func(t *testing.T) {
+		mysqlClient, proxy, err := testCtx.mysqlClientLocalProxy(ctx, "bob", "mysql", "bob")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, mysqlClient.Close())
+			require.NoError(t, proxy.Close())
+		})
+		require.Equal(t, "8.0.12", mysqlClient.GetServerVersion())
 	})
-	require.Equal(t, "8.0.12", mysqlClient.GetServerVersion())
 }

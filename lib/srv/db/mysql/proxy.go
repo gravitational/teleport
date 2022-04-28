@@ -52,9 +52,6 @@ type Proxy struct {
 	Log logrus.FieldLogger
 	// Limiter limits the number of active connections per client IP.
 	Limiter *limiter.Limiter
-	// MySQLServerVersion is the MySQL server version that will be reported
-	// to the client during initial handshake.
-	MySQLServerVersion string
 }
 
 // HandleConnection accepts connection from a MySQL client, authenticates
@@ -65,10 +62,15 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
 
+	// Set default server version.
+	mysqlServerVersion := serverVersion
+
 	// Set correct server version. This field can be empty if the information is not available.
-	mysqlServerVersion := p.MySQLServerVersion
-	if mysqlServerVersion == "" {
-		mysqlServerVersion = serverVersion
+	if mysqlVerCtx := ctx.Value(defaults.CtxServerVersionKey); mysqlVerCtx != nil {
+		version, ok := mysqlVerCtx.(string)
+		if ok {
+			mysqlServerVersion = version
+		}
 	}
 
 	mysqlServer := p.makeServer(conn, mysqlServerVersion)

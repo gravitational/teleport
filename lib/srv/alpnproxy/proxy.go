@@ -357,7 +357,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
 }
 
-// getTLSConfig returns HandlerDecs.TLSConfig if custom TLS configuration was set for the handler
+// getTLSConfig returns HandlerDesc.TLSConfig if custom TLS configuration was set for the handler
 // otherwise the ProxyConfig.WebTLSConfig is used.
 func (p *Proxy) getTLSConfig(desc *HandlerDecs) *tls.Config {
 	if desc.TLSConfig != nil {

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -387,6 +388,18 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	if db.Protocol == defaults.ProtocolSQLServer {
 		opts.certFile = profile.DatabaseCertPathForCluster("", db.ServiceName)
 		opts.keyFile = profile.KeyPath()
+	}
+
+	if db.Protocol == defaults.ProtocolMySQL {
+		// TODO(jakule): In some cases we may have access to the database resource already.
+		database, err := getDatabase(cf, tc, db.ServiceName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Include MySQL server version.
+		mysqlSeverVersionProto := fmt.Sprintf("%s-%s", common.ProtocolMySQL, database.GetMySQLServerVersion())
+		opts.extraProtos = append(opts.extraProtos, mysqlSeverVersionProto)
 	}
 
 	lp, err := mkLocalProxy(cf.Context, opts)
