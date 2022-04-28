@@ -149,16 +149,21 @@ impl Client {
         let req = ServerClientIdConfirm::decode(payload)?;
         debug!("got ServerClientIdConfirm {:?}", req);
 
-        // The smartcard initialization sequence that contains this message might happen multiple times at startup, so
-        // we override push_active_device_id dedup check.
-        if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
+        // The smartcard initialization sequence that contains this message happens once at session startup,
+        // and once when login succeeds. We only need to announce the smartcard once.
+        let resp = if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
             self.push_active_device_id(SCARD_DEVICE_ID)?;
-        }
-        let resp = self.add_headers_and_chunkify(
-            PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-            ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID).encode()?,
-        )?;
-        debug!("sending client device list announce request");
+            self.add_headers_and_chunkify(
+                PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
+                ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID).encode()?,
+            )?
+        } else {
+            self.add_headers_and_chunkify(
+                PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
+                ClientDeviceListAnnounceRequest::new_empty().encode()?,
+            )?
+        };
+        debug!("replying with: {:?}", resp);
         Ok(resp)
     }
 
@@ -797,6 +802,13 @@ impl ClientDeviceListAnnounceRequest {
                 device_data,
             }],
         }
+    }
+
+    fn new_empty() -> Self {
+        return Self {
+            device_count: 0,
+            device_list: vec![],
+        };
     }
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
