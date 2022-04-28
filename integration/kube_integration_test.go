@@ -1676,22 +1676,21 @@ func testKubeConnectionLimit(t *testing.T, suite *KubeSuite) {
 	}
 
 	// Create and maintain the maximum amount of open connections
-	errors := make(chan error)
 	for i := 0; i < maxConnections; i++ {
 		go func() {
 			err := openExec()
 			if err != nil {
-				errors <- err
+				return
 			}
 		}()
 	}
 
 	// Wait for the connections to open and check for any errors
-	select {
-	case <-time.After(time.Second * 10):
-	case err := <-errors:
-		require.FailNow(t, "unexpected error: %v", err)
-	}
+	require.Eventually(t, func() bool {
+		trackers, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		return len(trackers) == maxConnections
+	}, time.Second*30, time.Second)
 
 	// Open one more connection. It should fail due to the limit.
 	err = openExec()
