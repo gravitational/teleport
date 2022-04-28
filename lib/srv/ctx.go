@@ -507,8 +507,8 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	}
 
 	findSession := func() (*session, bool) {
-		reg.mu.Lock()
-		defer reg.mu.Unlock()
+		reg.sessionsMux.Lock()
+		defer reg.sessionsMux.Unlock()
 		return reg.findSessionLocked(rsession.ID(ssid))
 	}
 
