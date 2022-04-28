@@ -107,16 +107,10 @@ func MatchByALPNPrefix(prefix string) MatchFunc {
 // from incoming connection.
 func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error) HandlerFuncWithInfo {
 	return func(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
-		for _, alpn := range info.ALPN {
-			if !strings.HasPrefix(alpn, string(common.ProtocolMySQL)) || alpn == string(common.ProtocolMySQL) {
-				continue
-			}
+		const mysqlVerStart = len(common.ProtocolMySQLWithVerPrefix)
 
-			// prefix and '-' character
-			const mysqlVerStart = len(common.ProtocolMySQL) + 1
-			// Check if the name contains at least one character
-			// 2 = 1 ('-' char) + 1 (at least one character of version string)
-			if len(alpn) <= mysqlVerStart+1 || alpn[mysqlVerStart-1] != '-' {
+		for _, alpn := range info.ALPN {
+			if !strings.HasPrefix(alpn, string(common.ProtocolMySQLWithVerPrefix)) || len(alpn) == mysqlVerStart {
 				continue
 			}
 			// The version should never be longer than 255 characters including

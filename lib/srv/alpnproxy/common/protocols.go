@@ -63,6 +63,10 @@ const (
 	// ProtocolProxyGRPC is TLS ALPN protocol value used to indicate gRPC
 	// traffic intended for the Teleport proxy.
 	ProtocolProxyGRPC Protocol = "teleport-proxy-grpc"
+
+	// ProtocolMySQLWithVerPrefix is TLS ALPN prefix used by tsh to carry
+	// MySQL server version.
+	ProtocolMySQLWithVerPrefix = Protocol(string(ProtocolMySQL) + "-")
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.

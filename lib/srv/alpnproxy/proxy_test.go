@@ -451,7 +451,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 
 func TestMatchMySQLConn(t *testing.T) {
 	encodeProto := func(version string) string {
-		return string(common.ProtocolMySQL) + "-" + base64.StdEncoding.EncodeToString([]byte(version))
+		return string(common.ProtocolMySQLWithVerPrefix) + base64.StdEncoding.EncodeToString([]byte(version))
 	}
 
 	tests := []struct {

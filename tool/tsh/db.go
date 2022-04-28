@@ -439,8 +439,8 @@ func mySQLVersionToProto(database types.Database) string {
 
 	versionBase64 := base64.StdEncoding.EncodeToString([]byte(version))
 
-	// Include MySQL server version.
-	return fmt.Sprintf("%s-%s", common.ProtocolMySQL, versionBase64)
+	// Include MySQL server version
+	return string(common.ProtocolMySQLWithVerPrefix) + versionBase64
 }
 
 // onDatabaseConnect implements "tsh db connect" command.
