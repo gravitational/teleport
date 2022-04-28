@@ -90,7 +90,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	}, nil
 }
 
-// getCaAndSigner returns correct signer and CA that should be used when generating database certificate.
+// getCAandSigner returns correct signer and CA that should be used when generating database certificate.
 // This function covers the database CA rotation scenario when on rotation init phase additional/new TLS
 // key should be used to sign the database CA. Otherwise, the trust chain will break on update_clients.
 func getCAandSigner(keyStore keystore.KeyStore, databaseCA types.CertAuthority, req *proto.DatabaseCertRequest) ([]byte, crypto.Signer, error) {
