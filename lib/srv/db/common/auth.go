@@ -470,7 +470,7 @@ func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) e
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
 func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *tls.Certificate, cas [][]byte, err error) {
-	privateBytes, _, err := native.GenerateKeyPair("")
+	privateBytes, _, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

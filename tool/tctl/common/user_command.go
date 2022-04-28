@@ -41,9 +41,12 @@ type UserCommand struct {
 	login                string
 	allowedLogins        []string
 	allowedWindowsLogins []string
+	allowedKubeUsers     []string
+	allowedKubeGroups    []string
+	allowedDatabaseUsers []string
+	allowedDatabaseNames []string
+	allowedAWSRoleARNs   []string
 	createRoles          []string
-	kubeUsers            string
-	kubeGroups           string
 
 	ttl time.Duration
 
@@ -72,6 +75,12 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	u.userAdd.Flag("logins", "List of allowed SSH logins for the new user").StringsVar(&u.allowedLogins)
 	u.userAdd.Flag("windows-logins", "List of allowed Windows logins for the new user").StringsVar(&u.allowedWindowsLogins)
+	u.userAdd.Flag("kubernetes-users", "List of allowed Kubernetes users for the new user").StringsVar(&u.allowedKubeUsers)
+	u.userAdd.Flag("kubernetes-groups", "List of allowed Kubernetes groups for the new user").StringsVar(&u.allowedKubeGroups)
+	u.userAdd.Flag("db-users", "List of allowed database users for the new user").StringsVar(&u.allowedDatabaseUsers)
+	u.userAdd.Flag("db-names", "List of allowed database names for the new user").StringsVar(&u.allowedDatabaseNames)
+	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
+
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.createRoles)
 
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
@@ -200,8 +209,11 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	traits := map[string][]string{
 		teleport.TraitLogins:        u.allowedLogins,
 		teleport.TraitWindowsLogins: u.allowedWindowsLogins,
-		teleport.TraitKubeUsers:     flattenSlice([]string{u.kubeUsers}),
-		teleport.TraitKubeGroups:    flattenSlice([]string{u.kubeGroups}),
+		teleport.TraitKubeUsers:     flattenSlice(u.allowedKubeUsers),
+		teleport.TraitKubeGroups:    flattenSlice(u.allowedKubeGroups),
+		teleport.TraitDBUsers:       flattenSlice(u.allowedDatabaseUsers),
+		teleport.TraitDBNames:       flattenSlice(u.allowedDatabaseNames),
+		teleport.TraitAWSRoleARNs:   flattenSlice(u.allowedAWSRoleARNs),
 	}
 
 	user, err := types.NewUser(u.login)

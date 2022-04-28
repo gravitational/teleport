@@ -1,5 +1,4 @@
 #!/bin/bash
-# Any changes made to this script must also be made to e/lib/web/scripts/install_node.go
 set -euo pipefail
 SCRIPT_NAME="teleport-installer"
 
@@ -40,6 +39,7 @@ TELEPORT_VERSION="{{.version}}"
 TARGET_HOSTNAME="{{.hostname}}"
 TARGET_PORT="{{.port}}"
 JOIN_TOKEN="{{.token}}"
+JOIN_METHOD="{{.joinMethod}}"
 CA_PIN_HASHES="{{.caPins}}"
 ARG_CA_PIN_HASHES=""
 APP_INSTALL_MODE="{{.appInstallMode}}"
@@ -431,10 +431,11 @@ EOF
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
     CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
+    AUTH_CONFIG=$(get_node_auth_config)
     cat << EOF > ${TELEPORT_CONFIG_PATH}
 teleport:
   nodename: ${NODENAME}
-  auth_token: ${JOIN_TOKEN}
+  ${AUTH_CONFIG}
 ${CA_PINS_CONFIG}
   auth_servers:
   - ${TARGET_HOSTNAME}:${TARGET_PORT}
@@ -448,6 +449,16 @@ ssh_service:
 proxy_service:
   enabled: no
 EOF
+}
+# get the auth section of a node config
+get_node_auth_config() { 
+    if [[ ${JOIN_METHOD} == "iam" ]]; then 
+        echo "join_params:
+    token_name: ${JOIN_TOKEN}
+    method: iam
+"; 
+    else 
+        echo "auth_token: ${JOIN_TOKEN}"; fi 
 }
 # checks whether the given host is running MacOS
 is_macos_host() { if [[ ${OSTYPE} == "darwin"* ]]; then return 0; else return 1; fi }

@@ -358,6 +358,10 @@ type AuthenticationSettings struct {
 	// when various options are available.
 	// It is empty if there is nothing to suggest.
 	PreferredLocalMFA constants.SecondFactorType `json:"preferred_local_mfa,omitempty"`
+	// AllowPasswordless is true if passwordless logins are allowed.
+	AllowPasswordless bool `json:"allow_passwordless,omitempty"`
+	// Local contains settings for local authentication.
+	Local *LocalSettings `json:"local,omitempty"`
 	// Webauthn contains MFA settings for Web Authentication.
 	Webauthn *Webauthn `json:"webauthn,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.
@@ -373,6 +377,12 @@ type AuthenticationSettings struct {
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
+}
+
+// LocalSettings holds settings for local authentication.
+type LocalSettings struct {
+	// Name is the name of the local connector.
+	Name string `json:"name"`
 }
 
 // Webauthn holds MFA settings for Web Authentication.

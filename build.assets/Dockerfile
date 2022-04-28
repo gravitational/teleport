@@ -207,10 +207,14 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi && \
     cargo install cbindgen
 
-# Do a quick switch back to root and copy/setup libfido2 binaries.
-# Do this last to take better advantage of the multi-stage build.
+# Switch back to root for the remaining instructions and keep it as the default
+# user.
 USER root
+
+# Copy libfido2 libraries.
+# Do this last to take better advantage of the multi-stage build.
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
+COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib/libcbor.a \
     /usr/local/lib/libfido2.a \
@@ -221,7 +225,7 @@ RUN cd /usr/local/lib && \
     ln -s libfido2.so.1.10.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ldconfig
+COPY pkgconfig/buildbox/ /
 
-USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
