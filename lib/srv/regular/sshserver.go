@@ -446,19 +446,14 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		return nil
+	}
+}
 
-		imClient, err := utils.NewInstanceMetadataClient(s.ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if imClient.IsAvailable() {
-			ec2Labels, err := labels.NewEC2Labels(s.ctx, nil) // default log
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			s.ec2Labels = ec2Labels
-		}
-
+// SetEC2Labels sets the EC2 label service for this server.
+func SetEC2Labels(ec2Labels *labels.EC2Labels) ServerOption {
+	return func(s *Server) error {
+		s.ec2Labels = ec2Labels
 		return nil
 	}
 }

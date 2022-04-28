@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -615,6 +616,10 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	return newSrv, nil
 }
 
+type initConfig struct {
+	ec2Labels *labels.EC2Labels
+}
+
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
@@ -709,12 +714,15 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
+	initConf := initConfig{}
+
 	// Check if we're on an EC2 instance, and if we should override the node's hostname.
 	imClient, err := utils.NewInstanceMetadataClient(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if imClient.IsAvailable() {
+	ec2Available := imClient.IsAvailable()
+	if ec2Available {
 		ec2Hostname, err := imClient.GetTagValue(types.EC2Hostname)
 		if err == nil {
 			cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2Hostname, ec2Hostname)
@@ -782,6 +790,16 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic), process.log)
 	}
 
+	if ec2Available {
+		ec2Labels, err := labels.NewEC2Labels(process.ExitContext(), &labels.EC2LabelConfig{
+			Client: imClient,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		initConf.ec2Labels = ec2Labels
+	}
+
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
@@ -798,7 +816,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.SSH.Enabled {
-		if err := process.initSSH(); err != nil {
+		if err := process.initSSH(initConf); err != nil {
 			return nil, err
 		}
 		serviceStarted = true
@@ -1761,7 +1779,7 @@ func (process *TeleportProcess) newAsyncEmitter(clt apievents.Emitter) (*events.
 }
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
-func (process *TeleportProcess) initSSH() error {
+func (process *TeleportProcess) initSSH(initConf initConfig) error {
 	process.registerWithAuthServer(types.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
@@ -1922,6 +1940,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer}),
 			regular.SetSessionServer(conn.Client),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
+			regular.SetEC2Labels(initConf.ec2Labels),
 			regular.SetNamespace(namespace),
 			regular.SetPermitUserEnvironment(cfg.SSH.PermitUserEnvironment),
 			regular.SetCiphers(cfg.Ciphers),
