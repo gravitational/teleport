@@ -405,6 +405,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Rules: []types.Rule{
 						types.NewRule(types.KindNode, services.RW()),
 						types.NewRule(types.KindSSHSession, services.RW()),
+						types.NewRule(types.KindSession, services.RO()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
