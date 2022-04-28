@@ -815,8 +815,10 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 }
 
 // emitSessionEndEvent emits a session end event.
-// Must be called under session Lock.
 func (s *session) emitSessionEndEvent() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	ctx := s.scx
 	if s.endingContext != nil {
 		ctx = s.endingContext
