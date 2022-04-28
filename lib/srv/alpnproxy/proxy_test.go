@@ -264,7 +264,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 	require.NoError(t, err)
 	localProxyConfig := LocalProxyConfig{
 		RemoteProxyAddr:    suite.GetServerAddress(),
-		Protocol:           common.ProtocolPostgres,
+		Protocols:          []common.Protocol{common.ProtocolPostgres},
 		Listener:           localProxyListener,
 		SNI:                "localhost",
 		ParentContext:      context.Background(),

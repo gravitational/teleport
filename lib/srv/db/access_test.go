@@ -1614,7 +1614,7 @@ func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, telepo
 
 	proxy, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    proxyAddr,
-		Protocol:           proto,
+		Protocols:          []alpncommon.Protocol{proto},
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      ctx,
