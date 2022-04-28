@@ -21,6 +21,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"reflect"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -153,6 +154,13 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 
 	notNilCount := 0
 	for _, template := range templates {
+		// Note: this check is fragile and will fail if the templates aren't
+		// all simple pointer types. They are, though, and "correct" solution
+		// is insane, so we'll stick with this.
+		if template == nil || reflect.ValueOf(template).IsNil() {
+			continue
+		}
+
 		if template != nil {
 			if err := template.CheckAndSetDefaults(); err != nil {
 				return trace.Wrap(err)
@@ -184,9 +192,12 @@ func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
 	}
 
 	for _, template := range templates {
-		if template != nil {
-			return template, nil
+		// Note: same caveats as above.
+		if template == nil || reflect.ValueOf(template).IsNil() {
+			continue
 		}
+
+		return template, nil
 	}
 
 	return nil, trace.BadParameter("no valid config template")
