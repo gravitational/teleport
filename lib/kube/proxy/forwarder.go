@@ -453,7 +453,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := f.acquireConnectionLock(authContext, req.Context()); err != nil {
+		if err := f.acquireConnectionLock(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
@@ -897,7 +897,7 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 	return trace.Wrap(err)
 }
 
-func (f *Forwarder) acquireConnectionLock(identity *authContext, ctx context.Context) error {
+func (f *Forwarder) acquireConnectionLock(ctx context.Context, identity *authContext) error {
 	user := identity.Identity.GetIdentity().Username
 	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
 	if err != nil {
