@@ -426,9 +426,12 @@ the same `directory_id` is undefined behavior.
 
 #### 12 - Shared Directory Acknowledge
 
-| message type (12) | completion_id uint32 |
+| message type (12) | completion_id uint32 | directory_id uint32 |
 
 Acknowledges a `Shared Directory Announce` was successfully received.
+
+`directory_id` is the `directory_id` of the top level directory being shared, as specified in the `Announce Shared Directory` message this message is acknowledging.
+(Technically a client could know this via keeping track of `completion_id`, this is just added here for convenience).
 
 #### 13 - Shared Directory Error
 
