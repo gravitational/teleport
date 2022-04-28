@@ -409,7 +409,7 @@ impl Client {
         }
     }
 
-    pub fn write_drive_announce<S: Read + Write>(
+    pub fn write_client_device_list_announce<S: Read + Write>(
         &mut self,
         device_id: u32,
         drive_name: String,

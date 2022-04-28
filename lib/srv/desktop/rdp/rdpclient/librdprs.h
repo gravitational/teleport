@@ -34,14 +34,16 @@
  */
 #define CHANNEL_CHUNK_LEGNTH 1600
 
-typedef enum CGOPointerButton {
+typedef enum CGOPointerButton
+{
   PointerButtonNone,
   PointerButtonLeft,
   PointerButtonRight,
   PointerButtonMiddle,
 } CGOPointerButton;
 
-typedef enum CGOPointerWheel {
+typedef enum CGOPointerWheel
+{
   PointerWheelNone,
   PointerWheelVertical,
   PointerWheelHorizontal,
@@ -65,7 +67,8 @@ typedef struct Client Client;
  */
 typedef char *CGOError;
 
-typedef struct ClientOrError {
+typedef struct ClientOrError
+{
   struct Client *client;
   CGOError err;
 } ClientOrError;
@@ -74,7 +77,8 @@ typedef struct ClientOrError {
  * CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
  * PointerEvent is a mouse move or click update from the user.
  */
-typedef struct CGOMousePointerEvent {
+typedef struct CGOMousePointerEvent
+{
   uint16_t x;
   uint16_t y;
   enum CGOPointerButton button;
@@ -87,7 +91,8 @@ typedef struct CGOMousePointerEvent {
  * CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
  * KeyboardEvent is a keyboard update from the user.
  */
-typedef struct CGOKeyboardEvent {
+typedef struct CGOKeyboardEvent
+{
   uint16_t code;
   bool down;
 } CGOKeyboardEvent;
@@ -96,7 +101,8 @@ typedef struct CGOKeyboardEvent {
  * CGOBitmap is a CGO-compatible version of BitmapEvent that we pass back to Go.
  * BitmapEvent is a video output update from the server.
  */
-typedef struct CGOBitmap {
+typedef struct CGOBitmap
+{
   uint16_t dest_left;
   uint16_t dest_top;
   uint16_t dest_right;
@@ -144,14 +150,14 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
 CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
 
 /**
- * announce_drive_rdp announces a new drive with the name drive_name that's ready to be
+ * rdp_client_device_list_announce announces a new drive with the name drive_name that's ready to be
  * redirected over RDP.
  *
  * # Safety
  *
  * The caller must ensure that drive_name points to a valid buffer.
  */
-CGOError announce_drive_rdp(struct Client *client_ptr, uint32_t directory_id, char *drive_name);
+CGOError rdp_client_device_list_announce(struct Client *client_ptr, uint32_t directory_id, char *drive_name);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to

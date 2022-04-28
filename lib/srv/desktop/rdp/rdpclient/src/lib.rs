@@ -337,9 +337,13 @@ impl<S: Read + Write> RdpClient<S> {
         }
     }
 
-    pub fn write_drive_announce(&mut self, device_id: u32, drive_name: String) -> RdpResult<()> {
+    pub fn write_client_device_list_announce(
+        &mut self,
+        device_id: u32,
+        drive_name: String,
+    ) -> RdpResult<()> {
         self.rdpdr
-            .write_drive_announce(device_id, drive_name, &mut self.mcs)
+            .write_client_device_list_announce(device_id, drive_name, &mut self.mcs)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -461,14 +465,14 @@ pub unsafe extern "C" fn update_clipboard(
     }
 }
 
-/// announce_drive_rdp announces a new drive with the name drive_name that's ready to be
+/// rdp_client_device_list_announce announces a new drive with the name drive_name that's ready to be
 /// redirected over RDP.
 ///
 /// # Safety
 ///
 /// The caller must ensure that drive_name points to a valid buffer.
 #[no_mangle]
-pub unsafe extern "C" fn announce_drive_rdp(
+pub unsafe extern "C" fn rdp_client_device_list_announce(
     client_ptr: *mut Client,
     directory_id: u32,
     drive_name: *mut c_char,
@@ -484,7 +488,7 @@ pub unsafe extern "C" fn announce_drive_rdp(
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
 
-    match rdp_client.write_drive_announce(directory_id, drive_name) {
+    match rdp_client.write_client_device_list_announce(directory_id, drive_name) {
         Ok(()) => CGO_OK,
         Err(e) => to_cgo_error(format!("failed to announce new drive: {:?}", e)),
     }
@@ -769,6 +773,9 @@ extern "C" {
     fn free_go_string(s: *mut c_char);
     fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
+
+    /// Shared Directory Acknowledge
+    fn sd_acknowledge(completion_id: u32) -> CGOError;
 
     /// Shared Directory Info Request
     fn sd_info_request(
