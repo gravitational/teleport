@@ -19,6 +19,7 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
@@ -449,6 +450,10 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 }
 
 func TestMatchMySQLConn(t *testing.T) {
+	encodeProto := func(version string) string {
+		return string(common.ProtocolMySQL) + "-" + base64.StdEncoding.EncodeToString([]byte(version))
+	}
+
 	tests := []struct {
 		name    string
 		protos  []string
@@ -456,7 +461,7 @@ func TestMatchMySQLConn(t *testing.T) {
 	}{
 		{
 			name:    "success",
-			protos:  []string{string(common.ProtocolMySQL) + "-8.0.12"},
+			protos:  []string{encodeProto("8.0.12")},
 			version: "8.0.12",
 		},
 		{
@@ -466,17 +471,17 @@ func TestMatchMySQLConn(t *testing.T) {
 		},
 		{
 			name:    "random string",
-			protos:  []string{string(common.ProtocolMySQL) + "-MariaDB some version"},
+			protos:  []string{encodeProto("MariaDB some version")},
 			version: "MariaDB some version",
 		},
 		{
 			name:    "missing -",
-			protos:  []string{string(common.ProtocolMySQL) + "8.0.0"},
+			protos:  []string{string(common.ProtocolMySQL) + base64.StdEncoding.EncodeToString([]byte("8.0.1"))},
 			version: nil,
 		},
 		{
 			name:    "missing version returns nothing",
-			protos:  []string{string(common.ProtocolMySQL) + "-"},
+			protos:  []string{encodeProto("")},
 			version: nil,
 		},
 	}
@@ -499,5 +504,4 @@ func TestMatchMySQLConn(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-
 }
