@@ -230,10 +230,16 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 	if fileConf == nil && ccf.IdentityFilePath == "" {
 		// No config file or identity file.
 		// Try the extension loader.
-		log.Debug("No config file or identity file, loading auth config via extension.")
-		authConfig, err = loadConfigFromProfile(ccf, cfg)
-		if err != nil {
-			return nil, trace.Wrap(err)
+
+		// Do not try and load from a profile if they have provided the
+		// --auth-server flag.
+		if len(ccf.AuthServerAddr) == 0 {
+			log.Debug("No config file or identity file, loading auth config via extension.")
+			authConfig, err = loadConfigFromProfile(ccf, cfg)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 		}
 	}
 
