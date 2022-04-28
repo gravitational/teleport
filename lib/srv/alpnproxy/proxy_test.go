@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -445,4 +446,58 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			mustCloseConnection(t, conn)
 		})
 	}
+}
+
+func TestMatchMySQLConn(t *testing.T) {
+	tests := []struct {
+		name    string
+		protos  []string
+		version interface{}
+	}{
+		{
+			name:    "success",
+			protos:  []string{string(common.ProtocolMySQL) + "-8.0.12"},
+			version: "8.0.12",
+		},
+		{
+			name:    "protocol only",
+			protos:  []string{string(common.ProtocolMySQL)},
+			version: nil,
+		},
+		{
+			name:    "random string",
+			protos:  []string{string(common.ProtocolMySQL) + "-MariaDB some version"},
+			version: "MariaDB some version",
+		},
+		{
+			name:    "missing -",
+			protos:  []string{string(common.ProtocolMySQL) + "8.0.0"},
+			version: nil,
+		},
+		{
+			name:    "missing version returns nothing",
+			protos:  []string{string(common.ProtocolMySQL) + "-"},
+			version: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fn := MatchMySQLConn(func(ctx context.Context, conn net.Conn) error {
+				version := ctx.Value(defaults.CtxServerVersionKey)
+				require.Equal(t, tt.version, version)
+
+				return nil
+			})
+
+			ctx := context.Background()
+			connectionInfo := ConnectionInfo{
+				ALPN: tt.protos,
+			}
+
+			err := fn(ctx, nil, connectionInfo)
+			require.NoError(t, err)
+		})
+	}
+
 }

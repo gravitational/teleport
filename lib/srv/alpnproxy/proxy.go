@@ -114,14 +114,14 @@ func MatchMySQLConn(fn func(ctx context.Context, conn net.Conn) error) HandlerFu
 			const mysqlVerStart = len(common.ProtocolMySQL) + 1
 			// Check if the name contains at least one character
 			// 2 = 1 ('-' char) + 1 (at least one character of version string)
-			if len(alpn) <= mysqlVerStart+1 {
+			if len(alpn) <= mysqlVerStart+1 || alpn[mysqlVerStart-1] != '-' {
 				continue
 			}
 			// The version should never be longer than 255 characters including
 			// the prefix, but better to be safe.
 			var versionEnd = 255
 			if len(alpn) < versionEnd {
-				versionEnd = len(alpn) - 1
+				versionEnd = len(alpn)
 			}
 
 			mysqlVersion := alpn[mysqlVerStart:versionEnd]
