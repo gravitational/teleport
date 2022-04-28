@@ -16,7 +16,6 @@ pub const CHANNEL_NAME: &str = "rdpdr";
 
 // Each redirected device requires a unique ID.
 pub const SCARD_DEVICE_ID: u32 = 1;
-pub const DRIVE_DEVICE_ID: u32 = 2;
 
 pub const VERSION_MAJOR: u16 = 0x0001;
 pub const VERSION_MINOR: u16 = 0x000c;

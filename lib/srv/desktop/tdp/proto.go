@@ -45,17 +45,18 @@ type MessageType byte
 // For descriptions of each message type see:
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#message-types
 const (
-	TypeClientScreenSpec        = MessageType(1)
-	TypePNGFrame                = MessageType(2)
-	TypeMouseMove               = MessageType(3)
-	TypeMouseButton             = MessageType(4)
-	TypeKeyboardButton          = MessageType(5)
-	TypeClipboardData           = MessageType(6)
-	TypeClientUsername          = MessageType(7)
-	TypeMouseWheel              = MessageType(8)
-	TypeError                   = MessageType(9)
-	TypeMFA                     = MessageType(10)
-	TypeSharedDirectoryAnnounce = MessageType(11)
+	TypeClientScreenSpec           = MessageType(1)
+	TypePNGFrame                   = MessageType(2)
+	TypeMouseMove                  = MessageType(3)
+	TypeMouseButton                = MessageType(4)
+	TypeKeyboardButton             = MessageType(5)
+	TypeClipboardData              = MessageType(6)
+	TypeClientUsername             = MessageType(7)
+	TypeMouseWheel                 = MessageType(8)
+	TypeError                      = MessageType(9)
+	TypeMFA                        = MessageType(10)
+	TypeSharedDirectoryAnnounce    = MessageType(11)
+	TypeSharedDirectoryAcknowledge = MessageType(12)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -601,16 +602,16 @@ func DecodeMFAChallenge(in peekReader) (*MFA, error) {
 }
 
 type SharedDirectoryAnnounce struct {
-	completionId uint32
-	directoryId  uint32
+	CompletionId uint32
+	DirectoryId  uint32
 	Name         string
 }
 
 func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAnnounce))
-	binary.Write(buf, binary.BigEndian, s.completionId)
-	binary.Write(buf, binary.BigEndian, s.directoryId)
+	binary.Write(buf, binary.BigEndian, s.CompletionId)
+	binary.Write(buf, binary.BigEndian, s.DirectoryId)
 	if err := encodeString(buf, s.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -640,10 +641,27 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 	}
 
 	return SharedDirectoryAnnounce{
-		completionId: completionId,
-		directoryId:  directoryId,
+		CompletionId: completionId,
+		DirectoryId:  directoryId,
 		Name:         name,
 	}, nil
+}
+
+type SharedDirectoryAcknowledge struct {
+	completionId uint32
+}
+
+func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAnnounce, error) {
+	var s SharedDirectoryAnnounce
+	err := binary.Read(in, binary.BigEndian, &s)
+	return s, trace.Wrap(err)
+}
+
+func (s SharedDirectoryAcknowledge) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryAcknowledge))
+	binary.Write(buf, binary.BigEndian, s.completionId)
+	return buf.Bytes(), nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with

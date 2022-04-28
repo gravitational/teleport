@@ -337,8 +337,9 @@ impl<S: Read + Write> RdpClient<S> {
         }
     }
 
-    pub fn write_drive_announce(&mut self, drive_name: String) -> RdpResult<()> {
-        self.rdpdr.write_drive_announce(drive_name, &mut self.mcs)
+    pub fn write_drive_announce(&mut self, device_id: u32, drive_name: String) -> RdpResult<()> {
+        self.rdpdr
+            .write_drive_announce(device_id, drive_name, &mut self.mcs)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -465,10 +466,11 @@ pub unsafe extern "C" fn update_clipboard(
 ///
 /// # Safety
 ///
-/// The caller mmust ensure that drive_name points to a valid buffer.
+/// The caller must ensure that drive_name points to a valid buffer.
 #[no_mangle]
 pub unsafe extern "C" fn announce_drive_rdp(
     client_ptr: *mut Client,
+    directory_id: u32,
     drive_name: *mut c_char,
 ) -> CGOError {
     let client = match Client::from_ptr(client_ptr) {
@@ -482,7 +484,7 @@ pub unsafe extern "C" fn announce_drive_rdp(
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
 
-    match rdp_client.write_drive_announce(drive_name) {
+    match rdp_client.write_drive_announce(directory_id, drive_name) {
         Ok(()) => CGO_OK,
         Err(e) => to_cgo_error(format!("failed to announce new drive: {:?}", e)),
     }

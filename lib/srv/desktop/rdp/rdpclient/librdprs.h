@@ -9,8 +9,6 @@
 
 #define SCARD_DEVICE_ID 1
 
-#define DRIVE_DEVICE_ID 2
-
 #define VERSION_MAJOR 1
 
 #define VERSION_MINOR 12
@@ -151,9 +149,9 @@ CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len
  *
  * # Safety
  *
- * The caller mmust ensure that drive_name points to a valid buffer.
+ * The caller must ensure that drive_name points to a valid buffer.
  */
-CGOError announce_drive_rdp(struct Client *client_ptr, char *drive_name);
+CGOError announce_drive_rdp(struct Client *client_ptr, uint32_t directory_id, char *drive_name);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to

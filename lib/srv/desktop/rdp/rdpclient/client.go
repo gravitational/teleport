@@ -378,7 +378,7 @@ func (c *Client) start() {
 			case tdp.SharedDirectoryAnnounce:
 				driveName := C.CString(m.Name)
 				defer C.free(unsafe.Pointer(driveName))
-				if err := cgoError(C.announce_drive_rdp(c.rustClient, driveName)); err != nil {
+				if err := cgoError(C.announce_drive_rdp(c.rustClient, C.uint32_t(m.DirectoryId), driveName)); err != nil {
 					c.cfg.Log.Errorf("Device announce failed: %v", err)
 					return
 				}

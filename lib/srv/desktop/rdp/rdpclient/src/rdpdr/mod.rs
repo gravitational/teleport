@@ -23,8 +23,8 @@ use crate::Payload;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use consts::{
     CapabilityType, Component, DeviceType, FsInformationClassLevel, MajorFunction, MinorFunction,
-    PacketId, DRIVE_CAPABILITY_VERSION_02, DRIVE_DEVICE_ID, GENERAL_CAPABILITY_VERSION_02,
-    NTSTATUS, SCARD_DEVICE_ID, SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
+    PacketId, DRIVE_CAPABILITY_VERSION_02, GENERAL_CAPABILITY_VERSION_02, NTSTATUS,
+    SCARD_DEVICE_ID, SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
@@ -44,6 +44,7 @@ pub use consts::CHANNEL_NAME;
 pub struct Client {
     vchan: vchan::Client,
     scard: scard::Client,
+    active_device_ids: Vec<u32>,
     allow_directory_sharing: bool,
 
     /// request_info takes a directory_id, completion_id, and path and requests
@@ -66,6 +67,7 @@ impl Client {
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
+            active_device_ids: vec![],
             allow_directory_sharing,
             request_info,
 
@@ -143,13 +145,18 @@ impl Client {
         Ok(resp)
     }
 
-    fn handle_client_id_confirm(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_client_id_confirm(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerClientIdConfirm::decode(payload)?;
         debug!("got ServerClientIdConfirm {:?}", req);
 
+        // The smartcard initialization sequence that contains this message might happen multiple times at startup, so
+        // we override push_active_device_id dedup check.
+        if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
+            self.push_active_device_id(SCARD_DEVICE_ID)?;
+        }
         let resp = self.add_headers_and_chunkify(
             PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-            ClientDeviceListAnnounceRequest::new_smartcard().encode()?,
+            ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID).encode()?,
         )?;
         debug!("sending client device list announce request");
         Ok(resp)
@@ -159,7 +166,7 @@ impl Client {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
         debug!("got ServerDeviceAnnounceResponse: {:?}", req);
 
-        if req.device_id != SCARD_DEVICE_ID && req.device_id != DRIVE_DEVICE_ID {
+        if !self.active_device_ids.contains(&req.device_id) {
             Err(invalid_data_error(&format!(
                 "got ServerDeviceAnnounceResponse for unknown device_id {}",
                 &req.device_id
@@ -191,7 +198,7 @@ impl Client {
         match major_function {
             MajorFunction::IRP_MJ_DEVICE_CONTROL => {
                 let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
-                let is_smart_card_op = ioctl.header.device_id == SCARD_DEVICE_ID;
+                let is_smart_card_op = ioctl.header.device_id == self.get_scard_device_id()?;
                 debug!("got: {:?}", ioctl);
                 let resp = if is_smart_card_op {
                     // Smart card control
@@ -403,12 +410,15 @@ impl Client {
     }
 
     pub fn write_drive_announce<S: Read + Write>(
-        &self,
+        &mut self,
+        device_id: u32,
         drive_name: String,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        let new_drive = ClientDeviceListAnnounce::new_drive(drive_name);
+        self.push_active_device_id(device_id)?;
+        let new_drive = ClientDeviceListAnnounce::new_drive(device_id, drive_name);
         debug!("sending new drive for redirection: {:?}", new_drive);
+
         let responses = self.add_headers_and_chunkify(
             PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
             new_drive.encode()?,
@@ -432,6 +442,25 @@ impl Client {
         let mut inner = SharedHeader::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
         inner.extend_from_slice(&payload);
         self.vchan.add_header_and_chunkify(None, inner)
+    }
+
+    fn push_active_device_id(&mut self, device_id: u32) -> RdpResult<()> {
+        if self.active_device_ids.contains(&device_id) {
+            return Err(RdpError::TryError(format!(
+                "attempted to add a duplicate device_id {} to active_device_ids {:?}",
+                device_id, self.active_device_ids
+            )));
+        }
+        self.active_device_ids.push(device_id);
+        Ok(())
+    }
+
+    fn get_scard_device_id(&self) -> RdpResult<u32> {
+        // We always push it into the list first
+        if self.active_device_ids.len() >= 1 {
+            return Ok(self.active_device_ids[0]);
+        }
+        return Err(RdpError::TryError("no active device ids".to_string()));
     }
 }
 
@@ -732,12 +761,12 @@ type ClientDeviceListAnnounce = ClientDeviceListAnnounceRequest;
 impl ClientDeviceListAnnounceRequest {
     // We only need to announce the smartcard in this Client Device List Announce Request.
     // Drives (directories) can be announced at any time with a Client Drive Device List Announce.
-    fn new_smartcard() -> Self {
+    fn new_smartcard(device_id: u32) -> Self {
         Self {
             device_count: 1,
             device_list: vec![DeviceAnnounceHeader {
                 device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
-                device_id: SCARD_DEVICE_ID,
+                device_id: device_id,
                 // This name is a constant defined by the spec.
                 preferred_dos_name: "SCARD".to_string(),
                 device_data_length: 0,
@@ -746,7 +775,7 @@ impl ClientDeviceListAnnounceRequest {
         }
     }
 
-    fn new_drive(drive_name: String) -> Self {
+    fn new_drive(device_id: u32, drive_name: String) -> Self {
         // According to the spec:
         //
         // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
@@ -762,7 +791,7 @@ impl ClientDeviceListAnnounceRequest {
             device_count: 1,
             device_list: vec![DeviceAnnounceHeader {
                 device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
-                device_id: DRIVE_DEVICE_ID,
+                device_id: device_id,
                 preferred_dos_name: drive_name,
                 device_data_length: device_data.len() as u32,
                 device_data,
