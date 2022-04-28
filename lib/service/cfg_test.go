@@ -349,8 +349,8 @@ func TestCheckDatabase(t *testing.T) {
 				Name:     "mysql-foo",
 				Protocol: defaults.ProtocolMySQL,
 				URI:      "localhost:3306",
-				Options: DatabaseOptions{
-					MySQLServerVersion: "8.0.31",
+				MySQL: MySQLOptions{
+					ServerVersion: "8.0.31",
 				},
 			},
 			outErr: false,

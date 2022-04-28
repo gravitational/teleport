@@ -86,8 +86,8 @@ func TestMySQLVersionValidation(t *testing.T) {
 		}, DatabaseSpecV3{
 			Protocol: "mysql",
 			URI:      "localhost:5432",
-			Options: DatabaseOptions{
-				MySQLServerVersion: "8.0.18",
+			MySQL: MySQLOptions{
+				ServerVersion: "8.0.18",
 			},
 		})
 		require.NoError(t, err)
@@ -100,12 +100,12 @@ func TestMySQLVersionValidation(t *testing.T) {
 		}, DatabaseSpecV3{
 			Protocol: "Postgres",
 			URI:      "localhost:5432",
-			Options: DatabaseOptions{
-				MySQLServerVersion: "8.0.18",
+			MySQL: MySQLOptions{
+				ServerVersion: "8.0.18",
 			},
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "MySQLServerVersion")
+		require.Contains(t, err.Error(), "ServerVersion")
 	})
 }
 

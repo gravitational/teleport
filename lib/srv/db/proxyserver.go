@@ -346,7 +346,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 }
 
 // getMySQLVersionFromServer returns the MySQL version returned by an instance on last connection or
-// the MySQLServerVersion set in configuration if the first one is not available.
+// the MySQL.ServerVersion set in configuration if the first one is not available.
 // Function picks a random server each time if more than one are available.
 func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
 	count := len(servers)

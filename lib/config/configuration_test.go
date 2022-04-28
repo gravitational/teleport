@@ -2004,8 +2004,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Name:     "mysql-foo",
 				Protocol: defaults.ProtocolMySQL,
 				URI:      "localhost:3306",
-				Options: service.DatabaseOptions{
-					MySQLServerVersion: "8.0.28",
+				MySQL: service.MySQLOptions{
+					ServerVersion: "8.0.28",
 				},
 				TLS: service.DatabaseTLS{
 					Mode: service.VerifyFull,

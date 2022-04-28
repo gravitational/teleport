@@ -1084,8 +1084,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			Options: service.DatabaseOptions{
-				MySQLServerVersion: database.Options.MySQLServerVersion,
+			MySQL: service.MySQLOptions{
+				ServerVersion: database.MySQL.ServerVersion,
 			},
 			TLS: service.DatabaseTLS{
 				CACert:     caBytes,
@@ -1674,8 +1674,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			Protocol:     clf.DatabaseProtocol,
 			URI:          clf.DatabaseURI,
 			StaticLabels: staticLabels,
-			Options: service.DatabaseOptions{
-				MySQLServerVersion: clf.DatabaseMySQLServerVersion,
+			MySQL: service.MySQLOptions{
+				ServerVersion: clf.DatabaseMySQLServerVersion,
 			},
 			DynamicLabels: dynamicLabels,
 			TLS: service.DatabaseTLS{

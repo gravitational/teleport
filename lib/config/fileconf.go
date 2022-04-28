@@ -1054,8 +1054,8 @@ type Database struct {
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
 	// TLS keeps an optional TLS configuration options.
 	TLS DatabaseTLS `yaml:"tls"`
-	// Options are additional database options.
-	Options DatabaseOptions `yaml:"options"`
+	// MySQL are additional database options.
+	MySQL DatabaseMySQL `yaml:"options"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
@@ -1092,10 +1092,10 @@ type DatabaseTLS struct {
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
 }
 
-// DatabaseOptions are an additional database options.
-type DatabaseOptions struct {
-	// MySQLServerVersion is the MySQL version reported by DB proxy instead of default Teleport string.
-	MySQLServerVersion string `yaml:"mysql_server_version,omitempty"`
+// DatabaseMySQL are an additional MySQL database options.
+type DatabaseMySQL struct {
+	// ServerVersion is the MySQL version reported by DB proxy instead of default Teleport string.
+	ServerVersion string `yaml:"server_version,omitempty"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
