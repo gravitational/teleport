@@ -3,7 +3,7 @@ authors: Andrew Burke (andrew.burke@goteleport.com)
 state: draft
 ---
 
-# RFD X - Import EC2 Instance Tags
+# RFD 72 - Import EC2 Instance Tags
 
 ## What
 
