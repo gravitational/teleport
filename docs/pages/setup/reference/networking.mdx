@@ -143,7 +143,7 @@ Teleport Cloud tenant URL, e.g., `mytenant.teleport.sh`.
 | - | - | - |
 | 3023 | Proxy | SSH port clients connect to. The Proxy Service will forward this connection to port `#3022` on the destination Node. |
 | 3024 | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. |
-| 443 | Proxy | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. WebSocket traffic is used as part of the Web interaction. |
+| 443 | Proxy | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI and any WebSocket traffic.|
 | 3026 | Kubernetes | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
 | 3027 | Kubernetes | Kubernetes Service `kubernetes_service.listen_addr` |
 | 3028 | Desktop | Desktop Service `windows_desktop_service.listen_addr` |
