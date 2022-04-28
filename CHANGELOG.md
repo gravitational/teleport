@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.3.9
+
+This release of Teleport contains several improvements and bug fixes.
+
+* Fixed issue with Teleport failing to restart after failed UUID generation. [#12223](https://github.com/gravitational/teleport/pull/12223)
+* Fixed regression issue with Teleport inadvertently starting to respect `HTTP_PROXY` for reverse tunnel connections. [#11990](https://github.com/gravitational/teleport/pull/11990)
+* Added extra flags to the `teleport configure` command. [#12265](https://github.com/gravitational/teleport/pull/12265)
+* Fixed issue with Teleport pods not becoming ready when running in Kubernetes. [#12242](https://github.com/gravitational/teleport/pull/12242)
+* Fixed issue with deleting many expired audit events when using Firestore backend. [#12176](https://github.com/gravitational/teleport/pull/12176)
+* Fixed issue where remote cluster cache could become unhealthy in certain situations. [#12250](https://github.com/gravitational/teleport/pull/12250)
+
 ## 8.3.8
 
 This release of Teleport contains multiple bug fixes and stability improvements.
