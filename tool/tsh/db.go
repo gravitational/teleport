@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
@@ -397,9 +398,10 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 			return nil, trace.Wrap(err)
 		}
 
-		// Include MySQL server version.
-		mysqlSeverVersionProto := fmt.Sprintf("%s-%s", common.ProtocolMySQL, database.GetMySQLServerVersion())
-		opts.extraProtos = append(opts.extraProtos, mysqlSeverVersionProto)
+		mysqlSeverVersionProto := mySQLVersionToProto(database)
+		if mysqlSeverVersionProto != "" {
+			opts.extraProtos = append(opts.extraProtos, mysqlSeverVersionProto)
+		}
 	}
 
 	lp, err := mkLocalProxy(cf.Context, opts)
@@ -426,6 +428,20 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	return []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(cluster)),
 	}, nil
+}
+
+// mySQLVersionToProto returns base64 encoded MySQL server version with MySQL protocol prefix.
+// If version is not set in the past database an empty string is returned.
+func mySQLVersionToProto(database types.Database) string {
+	version := database.GetMySQLServerVersion()
+	if version == "" {
+		return ""
+	}
+
+	versionBase64 := base64.StdEncoding.EncodeToString([]byte(version))
+
+	// Include MySQL server version.
+	return fmt.Sprintf("%s-%s", common.ProtocolMySQL, versionBase64)
 }
 
 // onDatabaseConnect implements "tsh db connect" command.

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"io"
 	"net"
 	"strings"
@@ -125,9 +126,13 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 				versionEnd = len(alpn)
 			}
 
-			mysqlVersion := alpn[mysqlVerStart:versionEnd]
+			mysqlVersionBase64 := alpn[mysqlVerStart:versionEnd]
+			mysqlVersionBytes, err := base64.StdEncoding.DecodeString(mysqlVersionBase64)
+			if err != nil {
+				continue
+			}
 
-			ctx = context.WithValue(ctx, dbcommon.ContextMySQLServerVersion, mysqlVersion)
+			ctx = context.WithValue(ctx, dbcommon.ContextMySQLServerVersion, string(mysqlVersionBytes))
 			break
 		}
 
