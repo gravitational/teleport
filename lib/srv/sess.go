@@ -383,7 +383,7 @@ type session struct {
 
 	// stopC channel is used to kill all goroutines owned
 	// by the session
-	stopC chan bool
+	stopC chan struct{}
 
 	// startTime is the time when this session was created.
 	startTime time.Time
@@ -424,6 +424,11 @@ type session struct {
 
 	// endingContext is the server context which closed this session.
 	endingContext *ServerContext
+
+	// lingerAndDieCancel is a context cancel func which will cancel
+	// an ongoing lingerAndDie goroutine. This is used by joining parties
+	// to cancel the goroutine and prevent the session from closing prematurely.
+	lingerAndDieCancel func()
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -497,7 +502,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		parties:                        make(map[rsession.ID]*party),
 		participants:                   make(map[rsession.ID]*party),
 		login:                          ctx.Identity.Login,
-		stopC:                          make(chan bool),
+		stopC:                          make(chan struct{}),
 		startTime:                      startTime,
 		serverCtx:                      ctx.srv.Context(),
 		state:                          types.SessionState_SessionStatePending,
@@ -1257,10 +1262,13 @@ func (s *session) removeParty(p *party) error {
 	// "x-teleport-event" channel in the SSH connection.
 	s.emitSessionLeaveEvent(p.ctx)
 
-	// If the leaving party was the last one in the
-	// session, start the lingerAndDie goroutine.
+	// If the leaving party was the last one in the session, start the lingerAndDie
+	// goroutine. Parties that join during the linger duration will cancel the
+	// goroutine to prevent the session from ending with active parties.
 	if len(s.parties) == 0 && !s.isStopped() {
-		go s.lingerAndDie(p)
+		ctx, cancel := context.WithCancel(s.serverCtx)
+		s.lingerAndDieCancel = cancel
+		go s.lingerAndDie(ctx, p)
 	}
 
 	return nil
@@ -1275,25 +1283,27 @@ func (s *session) isStopped() bool {
 	}
 }
 
-// If after a short linger duration there are no active
-// parties in the session, end the session.
-func (s *session) lingerAndDie(party *party) {
+// lingerAndDie will let the party-less session linger for a short
+// duration, and then die if no parties have joined.
+func (s *session) lingerAndDie(ctx context.Context, party *party) {
 	s.log.Debugf("Session %v has no active party members.", s.id)
 
-	s.registry.clock.Sleep(defaults.SessionIdlePeriod)
-	if len(s.getParties()) != 0 {
+	select {
+	case <-s.registry.clock.After(defaults.SessionIdlePeriod):
+		s.log.Infof("Session %v will be garbage collected.", s.id)
+
+		// set closing context to the leaving party to show who ended the session.
+		s.setEndingContext(party.ctx)
+
+		// Stop the session, and let the background processes
+		// complete cleanup and close the session.
+		s.Stop()
+	case <-ctx.Done():
 		s.log.Infof("Session %v has become active again.", s.id)
 		return
+	case <-s.stopC:
+		return
 	}
-
-	s.log.Infof("Session %v will be garbage collected.", s.id)
-
-	// set closing context to the leaving party to show who ended the session.
-	s.setEndingContext(party.ctx)
-
-	// Stop the session, and let the background processes
-	// complete cleanup and close the session.
-	s.Stop()
 }
 
 func (s *session) getNamespace() string {
@@ -1441,9 +1451,16 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 		}
 	}
 
+	// Cancel lingerAndDie goroutine if one is running.
+	if s.lingerAndDieCancel != nil {
+		s.lingerAndDieCancel()
+		s.lingerAndDieCancel = nil
+	}
+
 	// Adds participant to in-memory map of party members.
 	s.parties[p.id] = p
 	s.participants[p.id] = p
+	p.ctx.AddCloser(p)
 
 	err := s.trackerAddParticipant(p)
 	if err != nil {
@@ -1458,7 +1475,6 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
-	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
 	s.BroadcastMessage("User %v joined the session.", p.user)
