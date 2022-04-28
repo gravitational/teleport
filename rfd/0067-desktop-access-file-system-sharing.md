@@ -415,7 +415,7 @@ that "file" in the following context should be taken to mean "file or directory"
 
 #### 11 - Shared Directory Announce
 
-| message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
+| message type (11) | directory_id uint32 | name_length uint32 | name []byte |
 
 This message announces a new directory to be shared over TDP. `directory_id` must be a unique identifier. Attempting to share multiple different directories using
 the same `directory_id` is undefined behavior.
@@ -426,12 +426,16 @@ the same `directory_id` is undefined behavior.
 
 #### 12 - Shared Directory Acknowledge
 
-| message type (12) | completion_id uint32 | directory_id uint32 |
+| message type (12) | directory_id uint32 | succeeded byte |
 
-Acknowledges a `Shared Directory Announce` was successfully received.
+Acknowledges a `Shared Directory Announce` was received.
 
 `directory_id` is the `directory_id` of the top level directory being shared, as specified in the `Announce Shared Directory` message this message is acknowledging.
-(Technically a client could know this via keeping track of `completion_id`, this is just added here for convenience).
+
+`succeeded` denotes whether the announce was processed successfully or not:
+
+- `0` means false
+- `1` means true
 
 #### 13 - Shared Directory Error
 
