@@ -1745,11 +1745,11 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 // GetCurrentUser returns current user as seen by the server.
 // Useful especially in the context of remote clusters which perform role and trait mapping.
 func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error) {
-	usr, ok := a.context.User.WithoutSecrets().(types.User)
-	if ok {
+	usrRes := a.context.User.WithoutSecrets()
+	if usr, ok := usrRes.(types.User); ok {
 		return usr, nil
 	}
-	return nil, trace.Errorf("internal error: unexpected type")
+	return nil, trace.BadParameter("expected types.User when fetching current user information, got %T", usrRes)
 }
 
 // DeleteUser deletes an existng user in a backend by username.

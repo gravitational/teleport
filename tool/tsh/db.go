@@ -79,7 +79,7 @@ func onListDatabases(cf *CLIConf) error {
 		roles = user.GetRoles()
 		traits = user.GetTraits()
 	} else {
-		log.Debugf("cluster.GetCurrentUser failed: %v", err)
+		log.Debugf("Failed to fetch current user information: %v.", err)
 	}
 
 	// get the role definition for all roles of user.
@@ -91,7 +91,7 @@ func onListDatabases(cf *CLIConf) error {
 	// 4. services.FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
 	roleSet, err := services.FetchRoles(roles, cluster, traits)
 	if err != nil {
-		log.Debugf("services.FetchRoles failed: %v", err)
+		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
 
 	sort.Slice(databases, func(i, j int) bool {
