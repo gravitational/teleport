@@ -1562,6 +1562,7 @@ func TestSerializeDatabases(t *testing.T) {
           "iam_auth": false
         }
       },
+      "mysql": {},
       "gcp": {},
       "azure": {},
       "tls": {
@@ -1574,6 +1575,7 @@ func TestSerializeDatabases(t *testing.T) {
       }
     },
     "status": {
+      "mysql": {},
       "aws": {
         "redshift": {},
         "rds": {
