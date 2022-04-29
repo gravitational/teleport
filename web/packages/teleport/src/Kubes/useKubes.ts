@@ -72,7 +72,7 @@ export default function useKubes(ctx: TeleportContext) {
       .then(res => {
         setResults(res);
         setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys([res.kubes[0]?.name, res.startKey]);
+        setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
       })
       .catch((err: Error) => {

@@ -88,7 +88,7 @@ export default function useDesktops(ctx: Ctx) {
       .then(res => {
         setResults(res);
         setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys([res.desktops[0]?.name, res.startKey]);
+        setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
       })
       .catch((err: Error) => {
