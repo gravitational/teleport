@@ -125,7 +125,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 					AppID: "https://myoldappid.com",
 					Facets: []string{
 						"https://myoldappid.com",
-						"https://localhost",
 					},
 				},
 				Webauthn: &types.Webauthn{
