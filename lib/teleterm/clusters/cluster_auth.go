@@ -96,8 +96,29 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn:
 		err := c.localMFALogin(ctx, user, password)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case constants.SecondFactorOn, constants.SecondFactorOptional:
+		var err error
+
+		// tsh always uses client.SSHAgentMFALogin for any `second_factor` option other than `off` and
+		// `otp`. If it's set to `on` or `optional` and it turns out the user wants to use an OTP, it
+		// bails out to stdin to ask them for it.
+		//
+		// Connect cannot do that, but it still wants to use the auth code from lib/client that it
+		// shares with tsh. So to temporarily work around this problem, we check if the OTP token was
+		// submitted. If yes, then we use client.SSHAgentLogin, which lets us provide the token and skip
+		// asking for it over stdin. If not, we use client.SSHAgentMFALogin which should handle auth
+		// methods that don't use OTP.
+		if otpToken != "" {
+			err = c.localLogin(ctx, user, password, otpToken)
+		} else {
+			err = c.localMFALogin(ctx, user, password)
+		}
+
 		if err != nil {
 			return trace.Wrap(err)
 		}
