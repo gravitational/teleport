@@ -273,7 +273,8 @@ message DatabaseStatusV3 {
     // AWS is the auto-discovered AWS cloud database metadata.
     AWS AWS = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws" ];
     // MySQL is an additional section with MySQL runtime database information.
-    MySQLOptions MySQL = 3 [ (gogoproto.jsontag) = "mysql,omitempty" ];
+    MySQLOptions MySQL = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "mysql,omitempty" ];
 }
 
 // AWS contains AWS metadata about the database.
