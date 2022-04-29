@@ -6,17 +6,26 @@ export default {
 };
 
 export const Loaded = () => {
-  return <RequestDelete {...props} attempt={{ status: '' }} />;
+  return (
+    <RequestDelete {...props} requestState="PENDING" attempt={{ status: '' }} />
+  );
 };
 
 export const Processing = () => {
-  return <RequestDelete {...props} attempt={{ status: 'processing' }} />;
+  return (
+    <RequestDelete
+      {...props}
+      requestState="PENDING"
+      attempt={{ status: 'processing' }}
+    />
+  );
 };
 
 export const Failed = () => {
   return (
     <RequestDelete
       {...props}
+      requestState="PENDING"
       attempt={{ status: 'failed', statusText: 'server error' }}
     />
   );
