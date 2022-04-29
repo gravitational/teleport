@@ -89,7 +89,7 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
       .then(res => {
         setResults(res);
         setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys([res.nodes[0]?.id, res.startKey]);
+        setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
       })
       .catch((err: Error) => {

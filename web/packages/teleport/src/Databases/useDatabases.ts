@@ -76,7 +76,7 @@ export default function useDatabases(ctx: Ctx) {
       .then(res => {
         setResults(res);
         setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys([res.databases[0]?.name, res.startKey]);
+        setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
       })
       .catch((err: Error) => {

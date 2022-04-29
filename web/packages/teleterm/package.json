@@ -1,10 +1,10 @@
 {
   "name": "@gravitational/teleterm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Teleport Connect",
   "main": "build/app/dist/main/main.js",
   "author": {
-    "name": "Teleport",
+    "name": "Gravitational, Inc.",
     "email": "support@goteleport.com",
     "url": "https://goteleport.com"
   },
@@ -107,7 +107,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "Teleport",
+      "owner": "gravitational",
       "repo": "webapps"
     }
   }

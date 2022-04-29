@@ -69,7 +69,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
       .then(({ logins, nodesRes }) => {
         setResults({ logins, ...nodesRes });
         setFetchStatus(nodesRes.startKey ? '' : 'disabled');
-        setStartKeys([nodesRes.nodes[0]?.id, nodesRes.startKey]);
+        setStartKeys(['', nodesRes.startKey]);
         setAttempt({ status: 'success' });
       })
       .catch((err: Error) => {

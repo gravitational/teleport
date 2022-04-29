@@ -82,7 +82,7 @@ export default function useApps(ctx: Ctx) {
       .then(res => {
         setResults(res);
         setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys([res.apps[0]?.id, res.startKey]);
+        setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
       })
       .catch((err: Error) => {
