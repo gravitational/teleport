@@ -3657,7 +3657,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	require.Eventually(t, func() bool {
 		_, err := svc.GetIdentity(types.RoleNode)
@@ -3708,7 +3707,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reload
 	svc, err = suite.waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
 		Login:   suite.me.Username,
@@ -3740,7 +3738,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reloaded
 	svc, err = suite.waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	// new credentials will work from this phase to others
 	newCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: suite.me.Username})
@@ -3770,7 +3767,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reloaded
 	svc, err = suite.waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	// new client still works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
@@ -3802,6 +3798,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	tconf := s.rotationConfig(true)
 	teleport := s.newTeleportInstance()
+	defer teleport.StopAll()
 	logins := []string{s.me.Username}
 	for _, login := range logins {
 		teleport.AddUser(login, []string{login})
@@ -3824,7 +3821,6 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	require.Eventually(t, func() bool {
 		_, err := svc.GetIdentity(types.RoleNode)
@@ -3872,7 +3868,6 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// wait until service reload
 	svc, err = s.waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
 		Login:   s.me.Username,
@@ -3900,7 +3895,6 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// wait until service reloaded
 	svc, err = s.waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseRollback)
 
