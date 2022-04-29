@@ -85,25 +85,25 @@ func readHandshakeServerVersion(connBuf net.Conn) (string, error) {
 
 // readHandshakeError reads and returns an error message from
 func readHandshakeError(connBuf io.Reader) (string, error) {
-	handshakePackage, err := ParsePacket(connBuf)
+	handshakePacket, err := ParsePacket(connBuf)
 	if err != nil {
 		return "", err
 	}
-	errPackage, ok := handshakePackage.(*Error)
+	errPackage, ok := handshakePacket.(*Error)
 	if !ok {
-		return "", trace.BadParameter("expected MySQL error package, got %T", handshakePackage)
+		return "", trace.BadParameter("expected MySQL error package, got %T", handshakePacket)
 	}
 	return "", trace.ConnectionProblem(errors.New("failed to fetch MySQL version"), errPackage.Error())
 }
 
-// bufferedConn is a net.Conn wrapper with additional Peek() method.
+// connReader is a net.Conn wrapper with additional Peek() method.
 type connReader struct {
 	ctx    context.Context
 	reader *bufio.Reader
 	net.Conn
 }
 
-// newBufferedConn is a bufferedConn constructor.
+// newBufferedConn is a connReader constructor.
 func newBufferedConn(ctx context.Context, conn net.Conn) connReader {
 	return connReader{
 		ctx:    ctx,
