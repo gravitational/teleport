@@ -1776,8 +1776,8 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 //
 // If there is a switchback request, the roles will switchback to user's default roles and
 // the expiration time is derived from users recently logged in time.
-func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
-	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
+	prevSession, err := a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: req.PrevSessionID,
 	})
@@ -1800,7 +1800,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 
 	accessRequests := identity.ActiveRequests
 	if req.AccessRequestID != "" {
-		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
+		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1855,20 +1855,20 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 	// Keep preserving the login time.
 	sess.SetLoginTime(prevSession.GetLoginTime())
 
-	if err := a.upsertWebSession(context.TODO(), req.User, sess); err != nil {
+	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return sess, nil
 }
 
-func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string) ([]string, time.Time, error) {
+func (a *Server) getRolesAndExpiryFromAccessRequest(ctx context.Context, user, accessRequestID string) ([]string, time.Time, error) {
 	reqFilter := types.AccessRequestFilter{
 		User: user,
 		ID:   accessRequestID,
 	}
 
-	reqs, err := a.GetAccessRequests(context.TODO(), reqFilter)
+	reqs, err := a.GetAccessRequests(ctx, reqFilter)
 	if err != nil {
 		return nil, time.Time{}, trace.Wrap(err)
 	}

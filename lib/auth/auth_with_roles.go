@@ -1314,11 +1314,11 @@ func (a *ServerWithRoles) CreateWebSession(user string) (types.WebSession, error
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
-func (a *ServerWithRoles) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
+func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
 	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(req, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(ctx, req, a.context.Identity.GetIdentity())
 }
 
 // GetWebSessionInfo returns the web session for the given user specified with sid.
@@ -1918,7 +1918,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// add any applicable access request values.
 		req.AccessRequests = apiutils.Deduplicate(req.AccessRequests)
 		for _, reqID := range req.AccessRequests {
-			newRoles, accessRequestExpiry, err := a.authServer.getRolesAndExpiryFromAccessRequest(req.Username, reqID)
+			newRoles, accessRequestExpiry, err := a.authServer.getRolesAndExpiryFromAccessRequest(ctx, req.Username, reqID)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
