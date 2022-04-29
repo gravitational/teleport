@@ -46,6 +46,9 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgcon
 	pgconnConfig.User = config.RouteToDatabase.Username
 	pgconnConfig.Database = config.RouteToDatabase.Database
 	pgconnConfig.TLSConfig, err = common.MakeTestClientTLSConfig(config)
+	if config.DialFunc != nil {
+		pgconnConfig.DialFunc = config.DialFunc
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

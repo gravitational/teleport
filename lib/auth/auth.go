@@ -828,6 +828,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		routeToCluster: routeToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
+		clientIP:       "127.0.0.1",
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -886,6 +887,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
+		clientIP:       "127.0.0.1",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -930,6 +932,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		dbProtocol:     req.RouteToDatabase.Protocol,
 		dbUser:         req.RouteToDatabase.Username,
 		dbName:         req.RouteToDatabase.Database,
+		clientIP:       "127.0.0.1",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

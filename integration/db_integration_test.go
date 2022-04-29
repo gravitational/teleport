@@ -53,6 +53,74 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+func TestMatchingPinnedIP(t *testing.T) {
+	pack := setupDatabaseTest(t, func(opts *testOptions) {
+		opts.roleConfig = append(opts.roleConfig, func(rootRole, _ types.Role) {
+			ro := rootRole.GetOptions()
+			ro.PinSourceIP = true
+			rootRole.SetOptions(ro)
+		})
+	})
+
+	// Connect to the database service in root cluster.
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+	// Disconnect.
+	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
+func TestDifferentPinnedIPAccessDenied(t *testing.T) {
+	pack := setupDatabaseTest(t, func(opts *testOptions) {
+		opts.rootConfig = func(config *service.Config) {
+			config.Proxy.EnableProxyProtocol = true
+		}
+		opts.roleConfig = append(opts.roleConfig, func(rootRole, _ types.Role) {
+			ro := rootRole.GetOptions()
+			ro.PinSourceIP = true
+			rootRole.SetOptions(ro)
+		})
+	})
+	
+	// Connect to the database service in root cluster.
+	_, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+		DialFunc: proxyDialContext(),
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "client IP 1.2.3.4 does not match the expected 127.0.0.1")
+}
+
 // TestDatabaseAccessPostgresRootCluster tests a scenario where a user connects
 // to a Postgres database running in a root cluster.
 func TestDatabaseAccessPostgresRootCluster(t *testing.T) {
@@ -879,6 +947,7 @@ type testOptions struct {
 	rootConfig        func(config *service.Config)
 	leafConfig        func(config *service.Config)
 	nodeName          string
+	roleConfig        []func(rootRole, leafRole types.Role)
 }
 
 type testOptionFunc func(*testOptions)
@@ -1022,7 +1091,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	})
 
 	// Setup users and roles on both clusters.
-	p.setupUsersAndRoles(t)
+	p.setupUsersAndRoles(t, opts.roleConfig)
 
 	// Update root's certificate authority on leaf to configure role mapping.
 	ca, err := p.leaf.cluster.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
@@ -1189,22 +1258,28 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	return p
 }
 
-func (p *databasePack) setupUsersAndRoles(t *testing.T) {
+func (p *databasePack) setupUsersAndRoles(t *testing.T, opts []func(rootRole, leafRole types.Role)) {
 	var err error
 
 	p.root.user, p.root.role, err = auth.CreateUserAndRole(p.root.cluster.Process.GetAuthServer(), "root-user", nil)
 	require.NoError(t, err)
 
-	p.root.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
-	p.root.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
-	err = p.root.cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.root.role)
-	require.NoError(t, err)
-
 	p.leaf.user, p.leaf.role, err = auth.CreateUserAndRole(p.root.cluster.Process.GetAuthServer(), "leaf-user", nil)
 	require.NoError(t, err)
 
+	p.root.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+	p.root.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
+
 	p.leaf.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 	p.leaf.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
+
+	for _, opt := range opts {
+		opt(p.root.role, p.leaf.role)
+	}
+
+	err = p.root.cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.root.role)
+	require.NoError(t, err)
+
 	err = p.leaf.cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.leaf.role)
 	require.NoError(t, err)
 }

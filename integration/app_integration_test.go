@@ -878,6 +878,8 @@ type pack struct {
 	flushAppPublicAddr  string
 	flushAppClusterName string
 	flushAppURI         string
+
+	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 type appTestOptions struct {
@@ -1456,7 +1458,7 @@ func (p *pack) assembleRootProxyURL(endpoint string) string {
 	return u.String()
 }
 
-// sendReqeust sends the request to the root cluster.
+// sendRequest sends the request to the root cluster.
 func (p *pack) sendRequest(req *http.Request, tlsConfig *tls.Config) (int, string, error) {
 	if tlsConfig == nil {
 		tlsConfig = &tls.Config{
@@ -1466,6 +1468,7 @@ func (p *pack) sendRequest(req *http.Request, tlsConfig *tls.Config) (int, strin
 
 	client := &http.Client{
 		Transport: &http.Transport{
+			DialContext:     p.dialContext,
 			TLSClientConfig: tlsConfig,
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {

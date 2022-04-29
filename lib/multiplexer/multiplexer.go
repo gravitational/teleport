@@ -315,9 +315,10 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 			}, nil
 		case ProtoPostgres:
 			return &Conn{
-				protocol: proto,
-				Conn:     conn,
-				reader:   reader,
+				protocol:  proto,
+				Conn:      conn,
+				reader:    reader,
+				proxyLine: proxyLine,
 			}, nil
 		}
 	}

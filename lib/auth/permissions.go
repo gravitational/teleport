@@ -184,7 +184,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		if clientIP, ok := value.(*net.TCPAddr); ok {
 			pinnedIP := authContext.Identity.GetIdentity().ClientIP
 			if pinnedIP != clientIP.IP.String() {
-				return nil, trace.AccessDenied("client IP %s doesn't match expected %s", clientIP.IP, pinnedIP)
+				return nil, trace.AccessDenied("client IP %s does not match the expected %s", clientIP.IP, pinnedIP)
 			}
 		}
 	}
