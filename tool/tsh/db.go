@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -32,9 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 )
 
@@ -379,7 +380,7 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	opts := localProxyOpts{
 		proxyAddr: tc.WebProxyAddr,
 		listener:  listener,
-		protocol:  db.Protocol,
+		protocols: []common.Protocol{common.Protocol(db.Protocol)},
 		insecure:  cf.InsecureSkipVerify,
 	}
 
@@ -388,6 +389,19 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	if db.Protocol == defaults.ProtocolSQLServer {
 		opts.certFile = profile.DatabaseCertPathForCluster("", db.ServiceName)
 		opts.keyFile = profile.KeyPath()
+	}
+
+	if db.Protocol == defaults.ProtocolMySQL {
+		// TODO(jakule): In some cases we may have access to the database resource already.
+		database, err := getDatabase(cf, tc, db.ServiceName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		mysqlSeverVersionProto := mySQLVersionToProto(database)
+		if mysqlSeverVersionProto != "" {
+			opts.protocols = append(opts.protocols, common.Protocol(mysqlSeverVersionProto))
+		}
 	}
 
 	lp, err := mkLocalProxy(cf.Context, opts)
@@ -414,6 +428,20 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	return []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(cluster)),
 	}, nil
+}
+
+// mySQLVersionToProto returns base64 encoded MySQL server version with MySQL protocol prefix.
+// If version is not set in the past database an empty string is returned.
+func mySQLVersionToProto(database types.Database) string {
+	version := database.GetMySQLServerVersion()
+	if version == "" {
+		return ""
+	}
+
+	versionBase64 := base64.StdEncoding.EncodeToString([]byte(version))
+
+	// Include MySQL server version
+	return string(common.ProtocolMySQLWithVerPrefix) + versionBase64
 }
 
 // onDatabaseConnect implements "tsh db connect" command.
