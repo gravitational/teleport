@@ -74,6 +74,10 @@ func readHandshakeServerVersion(connBuf net.Conn) (string, error) {
 		return "", trace.ConnectionProblem(err, "failed to read the MySQL handshake")
 	}
 
+	if len(handshake) == 0 {
+		return "", trace.Errorf("server returned empty handshake packet")
+	}
+
 	// ref: https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
 	versionLength := bytes.IndexByte(handshake[1:], 0x00)
 	if versionLength == -1 {
