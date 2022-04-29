@@ -10,6 +10,16 @@ In this guide you will:
 2. Configure mutual TLS authentication between Teleport and your MongoDB cluster.
 3. Connect to your MongoDB instance via Teleport.
 
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodb_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access MongoDB Cloud](../../../img/database-access/guides/mongodb_cloud.png)
+</ScopedBlock>
+
 ## Prerequisites
 
 - MongoDB cluster (standalone or replica set) version `(=mongodb.min_version=)` or newer.
@@ -37,6 +47,10 @@ MongoDB instances.
 ### Set up the Teleport Database service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 

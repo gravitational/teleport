@@ -292,6 +292,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
 	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
 	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
+	dump.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).ExistingDirVar(&dumpFlags.DataDir)
+	dump.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
+	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
+	dump.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
+	dump.Flag("app-name", "Name of the application to start when using app role.").StringVar(&dumpFlags.AppName)
+	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -475,6 +481,27 @@ func onConfigDump(flags dumpFlags) error {
 	configPath, err := dumpConfigFile(flags.output, sfc.DebugDumpToYAML(), sampleConfComment)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	entries, err := os.ReadDir(flags.DataDir)
+	if err != nil && !os.IsNotExist(err) {
+		fmt.Fprintf(
+			os.Stderr, "Could not check the contents of %s: %s\nThe data directory may contain existing cluster state.\n", flags.DataDir, err.Error())
+	}
+
+	if err == nil && len(entries) != 0 {
+		fmt.Fprintf(
+			os.Stderr,
+			"The data directory %s is not empty and may contain existing cluster state. Running this configuration is likely a mistake. To join a new cluster, specify an alternate --data-dir or clear the %s directory.\n",
+			flags.DataDir, flags.DataDir)
+	}
+
+	if strings.Contains(flags.Roles, defaults.RoleDatabase) {
+		fmt.Fprintln(os.Stderr, "Role db requires further configuration, db_service will be disabled")
+	}
+
+	if strings.Contains(flags.Roles, defaults.RoleWindowsDesktop) {
+		fmt.Fprintln(os.Stderr, "Role windowsdesktop requires further configuration, windows_desktop_service will be disabled")
 	}
 
 	if configPath != "" {

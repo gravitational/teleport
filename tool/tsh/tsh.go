@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -64,8 +65,6 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
-	"github.com/ghodss/yaml"
-	gops "github.com/google/gops/agent"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
@@ -176,11 +175,6 @@ type CLIConf struct {
 	BenchValueScale float64
 	// Context is a context to control execution
 	Context context.Context
-	// Gops starts gops agent on a specified address
-	// if not specified, gops won't start
-	Gops bool
-	// GopsAddr specifies to gops addr to listen on
-	GopsAddr string
 	// IdentityFileIn is an argument to -i flag (path to the private key+cert file)
 	IdentityFileIn string
 	// Compatibility flags, --compat, specifies OpenSSH compatibility flags.
@@ -362,7 +356,7 @@ const (
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
 	searchHelp  = `List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")`
-	queryHelp   = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels.key1 == "value1" && labels.key2 != "value2"')`
+	queryHelp   = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels["key1"] == "value1" && labels["key2"] != "value2"')`
 	labelHelp   = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)"
 	// proxyDefaultResolutionTimeout is how long to wait for an unknown proxy
 	// port to be resolved.
@@ -412,8 +406,6 @@ func Run(args []string, opts ...cliOption) error {
 
 	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
-	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
-	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
@@ -708,14 +700,6 @@ func Run(args []string, opts ...cliOption) error {
 		cancel()
 	}()
 	cf.Context = ctx
-
-	if cf.Gops {
-		log.Debugf("Starting gops agent.")
-		err = gops.Listen(gops.Options{Addr: cf.GopsAddr})
-		if err != nil {
-			log.Warningf("Failed to start gops agent %v.", err)
-		}
-	}
 
 	cf.executablePath, err = os.Executable()
 	if err != nil {

@@ -92,7 +92,7 @@ func newSuite(t *testing.T) *integrationTestSuite {
 	suite := &integrationTestSuite{}
 
 	var err error
-	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair("")
+	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Find AllocatePortsNum free listening ports to use.
@@ -236,6 +236,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
 		}, {
+			comment:          "recording proxy with upload to file server",
 			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
@@ -4362,17 +4363,6 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
-
-	eventC := make(chan service.Event, 1)
-	svc.WaitForEvent(context.TODO(), service.TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-
-	case <-time.After(20 * time.Second):
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
-	}
-
 	return svc, nil
 }
 
@@ -5767,7 +5757,7 @@ func dumpGoroutineProfile() {
 
 // TestWebProxyInsecure makes sure that proxy endpoint works when TLS is disabled.
 func TestWebProxyInsecure(t *testing.T) {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	rc := NewInstance(InstanceConfig{
@@ -5810,7 +5800,7 @@ func TestWebProxyInsecure(t *testing.T) {
 func TestTraitsPropagation(t *testing.T) {
 	log := utils.NewLoggerForTests()
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Create root cluster.

@@ -56,6 +56,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -193,7 +194,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, IsNil)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -240,7 +241,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		nodeDataDir,
 		"",
 		utils.NetAddr{},
-		nil,
+		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
@@ -306,7 +307,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		c.MkDir(),
 		"",
 		utils.NetAddr{},
-		nil,
+		s.proxyClient,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode(revTunServer, s.proxyClient),
 		regular.SetSessionServer(s.proxyClient),
@@ -3516,7 +3517,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
-	priv, pub, err := server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -3566,7 +3567,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		nodeDataDir,
 		"",
 		utils.NetAddr{},
-		nil,
+		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
@@ -3661,7 +3662,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-		nil,
+		client,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode(revTunServer, client),
 		regular.SetSessionServer(client),
