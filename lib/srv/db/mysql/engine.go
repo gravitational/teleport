@@ -17,13 +17,9 @@ limitations under the License.
 package mysql
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
-	"io"
 	"net"
 	"time"
 
@@ -36,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/siddontang/go-mysql/client"
-	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/packet"
 	"github.com/siddontang/go-mysql/server"
 
@@ -431,6 +426,8 @@ func newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
 	}
 }
 
+// FetchMySQLVersion connects to MySQL database and tries to read the handshake packet and return the version.
+// In case of error the message returned by the database is propagated in returned error.
 func FetchMySQLVersion(ctx context.Context, database types.Database) (string, error) {
 	var dialer client.Dialer
 
@@ -441,81 +438,7 @@ func FetchMySQLVersion(ctx context.Context, database types.Database) (string, er
 		dialer = nd.DialContext
 	}
 
-	conn, err := dialer(ctx, "tcp", database.GetURI())
-	if err != nil {
-		return "", trace.ConnectionProblem(err, "failed to connect to MySQL")
-	}
-	defer conn.Close()
-
-	connBuf := newBufferedConn(conn)
-	pkgType, err := connBuf.Peek(5)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// ref: https://dev.mysql.com/doc/internals/en/mysql-packet.html
-	//      https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
-	if pkgType[4] == mysql.ERR_HEADER {
-		return readHandshakeError(connBuf)
-	}
-
-	return readHandshakeServerVersion(connBuf)
-}
-
-// readHandshakeServerVersion reads MySQL initial handshake message and returns the server version.
-func readHandshakeServerVersion(connBuf net.Conn) (string, error) {
-	dbConn := packet.NewTLSConn(connBuf)
-
-	handshake, err := dbConn.ReadPacket()
-	if err != nil {
-		return "", trace.ConnectionProblem(err, "failed to read the MySQL handshake")
-	}
-
-	// ref: https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
-	versionLength := bytes.IndexByte(handshake[1:], 0x00)
-	if versionLength == -1 {
-		return "", trace.Errorf("failed to read the MySQL server version")
-	}
-
-	return string(handshake[1 : 1+versionLength]), nil
-}
-
-// readHandshakeError reads and returns an error message from
-func readHandshakeError(connBuf io.Reader) (string, error) {
-	handshakePackage, err := protocol.ParsePacket(connBuf)
-	if err != nil {
-		return "", err
-	}
-	errPackage, ok := handshakePackage.(*protocol.Error)
-	if !ok {
-		return "", trace.BadParameter("expected MySQL error package, got %T", handshakePackage)
-	}
-	return "", trace.ConnectionProblem(errors.New("failed to fetch MySQL version"), errPackage.Error())
-}
-
-// bufferedConn is a net.Conn wrapper with additional Peek() method.
-type connReader struct {
-	reader *bufio.Reader
-	net.Conn
-}
-
-// newBufferedConn is a bufferedConn constructor.
-func newBufferedConn(conn net.Conn) connReader {
-	return connReader{
-		reader: bufio.NewReader(conn),
-		Conn:   conn,
-	}
-}
-
-// Peek reads n bytes without advancing the reader.
-// It's basically a wrapper around (bufio.Reader).Peek()
-func (b connReader) Peek(n int) ([]byte, error) {
-	return b.reader.Peek(n)
-}
-
-// Read returns data from underlying buffer.
-func (b connReader) Read(p []byte) (int, error) {
-	return b.reader.Read(p)
+	return protocol.FetchMySQLVersionInternal(ctx, dialer, database.GetURI())
 }
 
 const (
