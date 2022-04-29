@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
@@ -104,6 +105,9 @@ func (c *AppsCommand) ListApps(clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case err != nil:
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	default:
 		servers, err = types.ResourcesWithLabels(resources).AsAppServers()
