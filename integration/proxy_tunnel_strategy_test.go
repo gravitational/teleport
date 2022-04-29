@@ -56,7 +56,9 @@ type proxyTunnelStrategy struct {
 // TestProxyTunnelStrategyAgentMesh tests the agent-mesh tunnel strategy
 func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(false)
+	})
 
 	p := &proxyTunnelStrategy{
 		cluster:  "proxy-tunnel-agent-mesh",
@@ -100,7 +102,9 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 // TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy
 func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(false)
+	})
 
 	p := &proxyTunnelStrategy{
 		cluster:  "proxy-tunnel-proxy-peer",
@@ -213,6 +217,10 @@ func (p *proxyTunnelStrategy) dialDatabase(t *testing.T) {
 
 // makeLoadBalancer bootsraps a new load balancer for proxy instances.
 func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
+	if p.lb != nil {
+		require.Fail(t, "load balancer already initialized")
+	}
+
 	lbAddr := utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
 	lb, err := utils.NewLoadBalancer(context.Background(), *lbAddr)
 	require.NoError(t, err)
@@ -224,15 +232,15 @@ func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
 
-	if p.lb == nil {
-		p.lb = lb
-	} else {
-		t.Error("load balancer already initialized")
-	}
+	p.lb = lb
 }
 
 // makeAuth bootsraps a new teleport auth instance.
 func (p *proxyTunnelStrategy) makeAuth(t *testing.T, strategy *types.TunnelStrategyV1) {
+	if p.auth != nil {
+		require.Fail(t, "auth already initialized")
+	}
+
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
 
@@ -261,11 +269,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T, strategy *types.TunnelStrat
 	})
 	require.NoError(t, auth.Start())
 
-	if p.auth == nil {
-		p.auth = auth
-	} else {
-		t.Error("auth already initialized")
-	}
+	p.auth = auth
 }
 
 // makeProxy boostraps a new teleport proxy instance.
@@ -308,6 +312,10 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 // makeNode boostraps a new teleport node instance.
 // It connects to a proxy via a reverse tunnel going through a load balancer.
 func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
+	if p.node != nil {
+		require.Fail(t, "node already initialized")
+	}
+
 	node := NewInstance(InstanceConfig{
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
@@ -331,16 +339,16 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	})
 	require.NoError(t, node.Start())
 
-	if p.node == nil {
-		p.node = node
-	} else {
-		t.Error("node already initialized")
-	}
+	p.node = node
 }
 
 // makeDatabase boostraps a new teleport db instance.
 // It connects to a proxy via a reverse tunnel going through a load balancer.
 func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
+	if p.db != nil {
+		require.Fail(t, "database already initialized")
+	}
+
 	dbAddr := net.JoinHostPort(Host, strconv.Itoa(ports.PopInt()))
 
 	// setup database service
@@ -412,11 +420,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 	go postgresDB.Serve()
 
-	if p.db == nil {
-		p.db = db
-		p.dbAuthClient = client
-		p.postgresDB = postgresDB
-	} else {
-		t.Error("database already initialized")
-	}
+	p.db = db
+	p.dbAuthClient = client
+	p.postgresDB = postgresDB
 }

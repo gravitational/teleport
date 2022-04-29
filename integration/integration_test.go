@@ -1599,8 +1599,8 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		sshErr = tc.SSH(context.TODO(), cmd, false)
 		return sshErr == nil
 	}
-	require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
-		"Timed out waiting for Site A to restart: %v", sshErr)
+	result := eventually(tcHasReconnected, 10*time.Second, 250*time.Millisecond)
+	require.True(t, result, "Timed out waiting for Site A to restart: %v", sshErr)
 
 	clientHasEvents := func(site auth.ClientI, count int) func() bool {
 		// only look for exec events
@@ -3025,7 +3025,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
 	var lastCount int
 	var lastErr error
-	require.Eventually(t, func() bool {
+	check := func() bool {
 		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
 			lastErr = err
@@ -3033,17 +3033,18 @@ func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 		}
 		lastCount = cluster.GetTunnelsCount()
 		return lastCount >= expectedCount
-	},
-		30*time.Second,
-		time.Second,
-		"Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
+	}
+
+	result := eventually(check, time.Second, 30*time.Second)
+	require.True(t, result, "Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
 }
 
-// waitForMaxActiveTunnelConnections waits for remote cluster to report a maximum number of active connections
+// waitForMaxActiveTunnelConnections fails when the tunnel's RemoteSite reports
+// a tunnel count greater than maxCount.
 func waitForMaxActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, maxCount int) {
 	var lastCount int
 	var lastErr error
-	require.Never(t, func() bool {
+	check := func() bool {
 		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
 			lastErr = err
@@ -3051,23 +3052,22 @@ func waitForMaxActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server
 		}
 		lastCount = cluster.GetTunnelsCount()
 		return lastCount > maxCount
-	},
-		15*time.Second,
-		time.Second,
-		"Connections count on %v: %v, max %v, last error: %v", clusterName, lastCount, maxCount, lastErr)
+	}
+
+	result := never(check, time.Second, 15*time.Second)
+	require.True(t, result, "Connections count on %v: %v, max expected %v, last error: %v", clusterName, lastCount, maxCount, lastErr)
 }
 
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
 func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
 	var lastCount int
-	require.Eventually(
-		t,
-		func() bool {
-			return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
-		},
-		30*time.Second,
-		time.Second,
-		"Connections count %v, expected %v.", lastCount, expectedCount)
+	check := func() bool {
+		lastCount = tunnel.GetProxyPeerClient().GetConnectionsCount()
+		return lastCount >= expectedCount
+	}
+
+	result := eventually(check, time.Second, 30*time.Second)
+	require.True(t, result, "Peer proxy connections count %v, expected %v", lastCount, expectedCount)
 }
 
 // waitForProxyCount waits a set time for the proxy count in clusterName to

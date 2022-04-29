@@ -399,6 +399,8 @@ func (c *Client) Stop() error {
 }
 
 func (c *Client) GetConnectionsCount() int {
+	c.RLock()
+	defer c.RUnlock()
 	return len(c.conns)
 }
 
