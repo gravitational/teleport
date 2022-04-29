@@ -25,6 +25,15 @@ This guide will help you to:
 - Set up access to SQL Server using Active Directory authentication.
 - Connect to SQL Server through Teleport.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access SQL Server Self-Hosted](../../../img/database-access/guides/sqlserver_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access SQL Server Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
+</ScopedBlock>
+
 This guide will focus on Amazon RDS for SQL Server using AWS-managed Active
 Directory authentication.
 
@@ -211,6 +220,10 @@ KVNO Principal
 ## Step 5/7. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 <Admonition type="note">
   Teleport Database Service must run on a Linux server joined to the same
