@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-import RecoveryCodes from 'e-teleport/components/RecoveryCodes/RecoveryCodes';
+import RecoveryCodes from 'teleport/components/RecoveryCodes';
 import useNewRecoveryCodes, { State, Props } from './useNewRecoveryCodes';
 
 export default function Container(props: Props) {

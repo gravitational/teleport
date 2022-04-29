@@ -10,7 +10,6 @@ import WaitingRoom from 'e-teleport/WaitingRoom';
 import { LicenseEnforcer } from './License';
 import Login from './Login';
 import Recovery from './Recovery';
-import Welcome from './Welcome';
 import Main from './Main';
 
 const TeleportE: React.FC<Props> = ({ history, ctx }) => {
@@ -31,18 +30,6 @@ function publicRoutes() {
       title="Login"
       path={cfg.oss.routes.login}
       component={Login}
-    />,
-    <Route
-      key="ent-2"
-      title="Invite"
-      path={cfg.oss.routes.userInvite}
-      component={Welcome}
-    />,
-    <Route
-      key="ent-3"
-      title="Password Reset"
-      path={cfg.oss.routes.userReset}
-      component={Welcome}
     />,
     <Route
       key="ent-4"
