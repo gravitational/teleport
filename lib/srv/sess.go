@@ -1217,11 +1217,11 @@ func (s *session) String() string {
 	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.parties))
 }
 
-// removeParty removes the party from the in-memory map that holds all party members
+// removePartyUnderLock removes the party from the in-memory map that holds all party members
 // and closes their underlying ssh channels. This may also trigger the session to end
 // if the party is the last in the session or has policies that dictate it to end.
 // Must be called under session Lock.
-func (s *session) removeParty(p *party) error {
+func (s *session) removePartyUnderLock(p *party) error {
 	s.log.Infof("Removing party %v from session %v", p, s.id)
 
 	// Remove participant from in-memory map of party members.
@@ -1644,12 +1644,12 @@ func (p *party) Close() error {
 }
 
 // closeUnderSessionLock closes the party, and removes it from it's session.
-// Must be called under session Lock (party.s.mu)
+// Must be called under session Lock.
 func (p *party) closeUnderSessionLock() {
 	p.closeOnce.Do(func() {
 		p.log.Infof("Closing party %v", p.id)
 		// Remove party from its session
-		if err := p.s.removeParty(p); err != nil {
+		if err := p.s.removePartyUnderLock(p); err != nil {
 			p.ctx.Errorf("Failed to remove party %v: %v", p.id, err)
 		}
 		p.ch.Close()
