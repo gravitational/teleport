@@ -58,7 +58,7 @@ type Config struct {
 	// DataDir is the path to the data directory for the server.
 	DataDir string
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient *auth.Client
+	AuthClient auth.ClientI
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.
@@ -674,6 +674,14 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if err := s.trackSession(cancelCtx, sessionCtx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -855,6 +863,61 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 	}
 
 	database.SetMySQLServerVersion(version)
+
+	return nil
+}
+
+// trackSession creates a new session tracker for the database session.
+// While ctx is open, the session tracker's expiration will be extended
+// on an interval. Once the ctx is closed, the sessiont tracker's state
+// will be updated to terminated.
+func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) error {
+	s.log.Debug("Creating session tracker")
+	initiator := &types.Participant{
+		ID:   sessionCtx.DatabaseUser,
+		User: sessionCtx.Identity.Username,
+	}
+
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    sessionCtx.ID,
+		Kind:         string(types.DatabaseSessionKind),
+		State:        types.SessionState_SessionStateRunning,
+		Hostname:     sessionCtx.HostID,
+		DatabaseName: sessionCtx.DatabaseName,
+		ClusterName:  sessionCtx.ClusterName,
+		Login:        "root",
+		Participants: []types.Participant{*initiator},
+		HostUser:     initiator.User,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.cfg.AuthClient.UpsertSessionTracker(ctx, tracker)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start go routine to push back session expiration until ctx is canceled (session ends).
+	go func() {
+		ticker := s.cfg.Clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case time := <-ticker.Chan():
+				err := services.UpdateSessionTrackerExpiry(ctx, s.cfg.AuthClient, sessionCtx.ID, time.Add(defaults.SessionTrackerTTL))
+				if err != nil {
+					s.log.WithError(err).Warningf("Failed to update session tracker expiration for session %v.", sessionCtx.ID)
+					return
+				}
+			case <-ctx.Done():
+				if err := services.UpdateSessionTrackerState(s.closeContext, s.cfg.AuthClient, sessionCtx.ID, types.SessionState_SessionStateTerminated); err != nil {
+					s.log.WithError(err).Warningf("Failed to update session tracker state for session %v.", sessionCtx.ID)
+				}
+				return
+			}
+		}
+	}()
 
 	return nil
 }

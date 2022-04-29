@@ -777,23 +777,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		log.Infof("desktop session %v will not be recorded, user %v's roles disable recording", string(sessionID), authCtx.User.GetName())
 	}
 
-	sw, err := s.newStreamWriter(recordSession, string(sessionID))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Closing the stream writer is needed to flush all recorded data
-	// and trigger the upload. Do it in a goroutine since depending on
-	// the session size it can take a while, and we don't want to block
-	// the client.
-	defer func() {
-		go func() {
-			if err := sw.Close(context.Background()); err != nil {
-				log.WithError(err).Errorf("closing stream writer for desktop session %v", sessionID.String())
-			}
-		}()
-	}()
-
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
@@ -814,9 +797,28 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
 	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
 		return trace.Wrap(err)
 	}
+
+	sw, err := s.newStreamWriter(recordSession, string(sessionID))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Closing the stream writer is needed to flush all recorded data
+	// and trigger the upload. Do it in a goroutine since depending on
+	// the session size it can take a while, and we don't want to block
+	// the client.
+	defer func() {
+		go func() {
+			if err := sw.Close(context.Background()); err != nil {
+				log.WithError(err).Errorf("closing stream writer for desktop session %v", sessionID.String())
+			}
+		}()
+	}()
 
 	delay := timer()
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())

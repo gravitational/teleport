@@ -129,16 +129,6 @@ func (u *UploadCompleter) start(ctx context.Context) {
 
 // checkUploads fetches uploads and completes any abandoned uploads
 func (u *UploadCompleter) checkUploads(ctx context.Context) error {
-	trackers, err := u.cfg.SessionTracker.GetActiveSessionTrackers(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var activeSessionIDs []string
-	for _, st := range trackers {
-		activeSessionIDs = append(activeSessionIDs, st.GetSessionID())
-	}
-
 	uploads, err := u.cfg.Uploader.ListUploads(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -153,8 +143,11 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 
 	// Complete upload for any uploads without an active session tracker
 	for _, upload := range uploads {
-		if apiutils.SliceContainsStr(activeSessionIDs, upload.SessionID.String()) {
+		_, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String())
+		if err == nil {
 			continue
+		} else if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
 		}
 
 		parts, err := u.cfg.Uploader.ListParts(ctx, upload)

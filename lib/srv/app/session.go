@@ -53,8 +53,17 @@ type session struct {
 
 // newSession creates a new session.
 func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*session, error) {
+	sess := &session{id: identity.RouteToApp.SessionID}
+
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	err := s.trackSession(sess, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the stream writer that will write this chunk to the audit log.
-	streamWriter, err := s.newStreamWriter(identity, app)
+	sess.streamWriter, err = s.newStreamWriter(identity, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,7 +82,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(s.closeContext,
 		&transportConfig{
-			w:            streamWriter,
+			w:            sess.streamWriter,
 			app:          app,
 			publicPort:   s.proxyPort,
 			cipherSuites: s.c.CipherSuites,
@@ -85,7 +94,8 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fwd, err := forward.New(
+
+	sess.fwd, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
@@ -96,21 +106,9 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 		return nil, trace.Wrap(err)
 	}
 
-	sess := &session{
-		id:           identity.RouteToApp.SessionID,
-		fwd:          fwd,
-		streamWriter: streamWriter,
-	}
-
-	// Create a session tracker so that other services, such as
-	// the session upload completer, can track the session's lifetime.
-	if err := s.trackSession(sess, identity); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Put the session in the cache so the next request can use it for 5 minutes
 	// or the time until the certificate expires, whichever comes first.
-	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
+	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Second)
 	err = s.cache.set(sess, ttl)
 	if err != nil {
 		return nil, trace.Wrap(err)

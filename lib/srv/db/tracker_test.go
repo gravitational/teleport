@@ -18,119 +18,113 @@ package db
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
-// TestSessiontTracker tests session tracker lifecycle for database sessions.
 func TestSessionTracker(t *testing.T) {
 	ctx := context.Background()
+	log := logrus.New()
+	log.SetOutput(io.Discard)
+	clock := clockwork.NewFakeClockAt(time.Now())
 
-	for _, tc := range []struct {
-		desc         string
-		withDatabase withDatabaseOption
-		openFunc     func(t *testing.T, testCtx *testContext) (closeFunc func(t *testing.T))
-	}{
-		{
-			desc:         "postgres",
-			withDatabase: withSelfHostedPostgres("postgres"),
-			openFunc: func(t *testing.T, testCtx *testContext) (closeFunc func(t *testing.T)) {
-				psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "admin", "admin")
-				require.NoError(t, err)
-				return func(t *testing.T) {
-					require.NoError(t, psql.Close(ctx))
-				}
-			},
-		}, {
-			desc:         "mysql",
-			withDatabase: withSelfHostedMySQL("mysql"),
-			openFunc: func(t *testing.T, testCtx *testContext) (closeFunc func(t *testing.T)) {
-				mysql, err := testCtx.mysqlClient("alice", "mysql", "admin")
-				require.NoError(t, err)
-				return func(t *testing.T) {
-					require.NoError(t, mysql.Close())
-				}
-			},
-		}, {
-			desc:         "mongo",
-			withDatabase: withSelfHostedMongo("mongo"),
-			openFunc: func(t *testing.T, testCtx *testContext) (closeFunc func(t *testing.T)) {
-				mongoClient, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
-				require.NoError(t, err)
-				return func(t *testing.T) {
-					require.NoError(t, mongoClient.Disconnect(ctx))
-				}
-			},
-		}, {
-			desc:         "redis",
-			withDatabase: withSelfHostedRedis("redis"),
-			openFunc: func(t *testing.T, testCtx *testContext) (closeFunc func(t *testing.T)) {
-				redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
-				require.NoError(t, err)
-				return func(t *testing.T) {
-					require.NoError(t, redisClient.Close())
-				}
-			},
-		}, {
-			desc:         "sqlserver",
-			withDatabase: withSQLServer("sqlserver"),
-			openFunc: func(t *testing.T, testCtx *testContext) (closeFunc func(t *testing.T)) {
-				conn, proxy, err := testCtx.sqlServerClient(ctx, "alice", "sqlserver", "admin", "master")
-				require.NoError(t, err)
-				return func(t *testing.T) {
-					require.NoError(t, conn.Close())
-					require.NoError(t, proxy.Close())
-				}
-			},
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			t.Parallel()
-
-			testCtx := setupTestContext(ctx, t, tc.withDatabase)
-			go testCtx.startHandlingConnections()
-			testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{"admin"})
-
-			// Session tracker should be created for new connection
-			closeFunc := tc.openFunc(t, testCtx)
-
-			var tracker types.SessionTracker
-			trackerCreated := func() bool {
-				trackers, err := testCtx.authClient.GetActiveSessionTrackers(ctx)
-				require.NoError(t, err)
-				// Note: mongo test creates 3 sessions (unrelated bug?), we just test the first one.
-				if len(trackers) > 0 {
-					tracker = trackers[0]
-					require.Equal(t, types.SessionState_SessionStateTerminated, tracker.GetState())
-					return true
-				}
-				return false
-			}
-			require.Eventually(t, trackerCreated, time.Second*15, time.Second)
-			require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetState())
-
-			// The session tracker expiration should be extended while the session is active
-			testCtx.clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
-			trackerUpdated := func() bool {
-				updatedTracker, err := testCtx.authClient.GetSessionTracker(ctx, tracker.GetSessionID())
-				require.NoError(t, err)
-				return updatedTracker.Expiry().Equal(tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval))
-			}
-			require.Eventually(t, trackerUpdated, time.Second*15, time.Second)
-
-			// Closing connection should trigger session tracker state to be terminated.
-			closeFunc(t)
-
-			trackerTerminated := func() bool {
-				tracker, err := testCtx.authClient.GetSessionTracker(ctx, tracker.GetSessionID())
-				require.NoError(t, err)
-				return tracker.GetState() == types.SessionState_SessionStateTerminated
-			}
-			require.Eventually(t, trackerTerminated, time.Second*15, time.Second)
-		})
+	mockAuthClient := &mockSessiontrackerService{
+		clock:    clock,
+		trackers: make(map[string]types.SessionTracker),
 	}
+
+	s := &Server{
+		closeContext: ctx,
+		log:          logrus.NewEntry(log),
+		cfg: Config{
+			Clock:      clock,
+			AuthClient: mockAuthClient,
+		},
+	}
+
+	sessionCtx := &common.Session{
+		ID:           "sessionID",
+		DatabaseUser: "user",
+		Identity: tlsca.Identity{
+			Username: "teleportUser",
+		},
+		HostID:       "hostname",
+		DatabaseName: "dbName",
+		ClusterName:  "clusterName",
+	}
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	err := s.trackSession(cancelCtx, sessionCtx)
+	require.NoError(t, err)
+
+	// Tracker should be created
+	tracker, ok := mockAuthClient.trackers["sessionID"]
+	require.True(t, ok)
+	require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetState())
+
+	// The session tracker expiration should be extended while the session is active
+	clock.BlockUntil(1)
+	expectedExpiry := tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval)
+	clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
+
+	trackerExpiryUpdated := func() bool {
+		return tracker.Expiry() == expectedExpiry
+	}
+	require.Eventually(t, trackerExpiryUpdated, time.Second*5, time.Second)
+
+	// Closing ctx should trigger session tracker state to be terminated.
+	cancel()
+	trackerTerminated := func() bool {
+		return tracker.GetState() == types.SessionState_SessionStateTerminated
+	}
+	require.Eventually(t, trackerTerminated, time.Second*5, time.Second)
+}
+
+type mockSessiontrackerService struct {
+	auth.ClientI
+	clock    clockwork.Clock
+	trackers map[string]types.SessionTracker
+}
+
+func (m *mockSessiontrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	return nil, nil
+}
+
+func (m *mockSessiontrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	return nil, nil
+}
+
+func (m *mockSessiontrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	switch update := req.Update.(type) {
+	case *proto.UpdateSessionTrackerRequest_UpdateExpiry:
+		m.trackers[req.SessionID].SetExpiry(*update.UpdateExpiry.Expires)
+	case *proto.UpdateSessionTrackerRequest_UpdateState:
+		m.trackers[req.SessionID].SetState(update.UpdateState.State)
+	}
+	return nil
+}
+
+func (m *mockSessiontrackerService) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	return nil
+}
+
+func (m *mockSessiontrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
+	return nil
+}
+
+func (m *mockSessiontrackerService) UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error {
+	tracker.SetExpiry(m.clock.Now().Add(defaults.SessionTrackerTTL))
+	m.trackers[tracker.GetSessionID()] = tracker
+	return nil
 }

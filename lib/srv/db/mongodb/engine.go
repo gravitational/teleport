@@ -88,14 +88,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
-	// Create a session tracker so that other services, such as
-	// the session upload completer, can track the session's lifetime.
-	cancelCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	if err := sessionCtx.TrackSession(cancelCtx, e.EngineConfig); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Start reading client messages and sending them to server.
 	for {
 		clientMessage, err := protocol.ReadMessage(e.clientConn)
