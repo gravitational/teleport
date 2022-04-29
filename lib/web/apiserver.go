@@ -955,7 +955,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			Providers:          authProviders,
 			SecondFactor:       cap.GetSecondFactor(),
 			LocalAuthEnabled:   cap.GetAllowLocalAuth(),
-			PwdlessEnabled:     cap.GetAllowPasswordless(),
+			AllowPasswordless:  cap.GetAllowPasswordless(),
 			AuthType:           authType,
 			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
 			LocalConnectorName: localConnectorName,
