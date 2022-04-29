@@ -1575,6 +1575,7 @@ func TestSerializeDatabases(t *testing.T) {
       }
     },
     "status": {
+      "mysql": {},
       "aws": {
         "redshift": {},
         "rds": {
