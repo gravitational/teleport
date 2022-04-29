@@ -381,12 +381,6 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 	}
 
 	deviceName := req.GetNewDeviceName()
-
-	// DELETE IN 11.0.0, we should require device names to be defined.
-	// Starting v10, the UI forms will require users to enter a device name.
-	//
-	// Proxy version less than 10 will serve UI where the reset/invite
-	// forms does not allow user to enter their own device names.
 	// Using default values here is safe since we don't expect users to have
 	// any devices at this point.
 	if deviceName == "" {

@@ -491,20 +491,18 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, devs, 1)
 
-				// Test custom device name setting.
+				// Test device name setting.
 				dev := devs[0]
-				if validReq.NewDeviceName != "" {
-					require.Equal(t, validReq.NewDeviceName, dev.GetName())
-					return
+				var wantName string
+				switch {
+				case validReq.NewDeviceName != "":
+					wantName = validReq.NewDeviceName
+				case dev.GetTotp() != nil:
+					wantName = "otp"
+				case dev.GetWebauthn() != nil:
+					wantName = "webauthn"
 				}
-
-				// Test default device name setting.
-				switch dev.Device.(type) {
-				case *types.MFADevice_Totp:
-					require.Equal(t, "otp", dev.GetName())
-				case *types.MFADevice_Webauthn:
-					require.Equal(t, "webauthn", dev.GetName())
-				}
+				require.Equal(t, wantName, dev.GetName(), "device name mismatch")
 			}
 		})
 	}
