@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -44,27 +46,16 @@ type ServerConfig struct {
 	Log           logrus.FieldLogger
 
 	// getConfigForClient gets the client tls config.
+	// configurable for testing purposes.
 	getConfigForClient func(*tls.ClientHelloInfo) (*tls.Config, error)
+
+	// service is a custom ProxyServiceServer
+	// configurable for testing purposes.
+	service proto.ProxyServiceServer
 }
 
 // checkAndSetDefaults checks and sets default values
 func (c *ServerConfig) checkAndSetDefaults() error {
-	if c.AccessCache == nil {
-		return trace.BadParameter("missing access cache")
-	}
-	if c.Listener == nil {
-		return trace.BadParameter("missing listener")
-	}
-	if c.ClusterDialer == nil {
-		return trace.BadParameter("missing cluster dialer server")
-	}
-
-	if c.TLSConfig == nil {
-		return trace.BadParameter("missing tls config")
-	}
-	if len(c.TLSConfig.Certificates) == 0 {
-		return trace.BadParameter("missing tls certificate")
-	}
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
@@ -73,22 +64,48 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
 
+	if c.AccessCache == nil {
+		return trace.BadParameter("missing access cache")
+	}
+
+	if c.Listener == nil {
+		return trace.BadParameter("missing listener")
+	}
+
+	if c.ClusterDialer == nil {
+		return trace.BadParameter("missing cluster dialer server")
+	}
+
+	if c.TLSConfig == nil {
+		return trace.BadParameter("missing tls config")
+	}
+
+	if len(c.TLSConfig.Certificates) == 0 {
+		return trace.BadParameter("missing tls certificate")
+	}
+
 	c.TLSConfig = c.TLSConfig.Clone()
 	c.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	if c.getConfigForClient == nil {
 		c.getConfigForClient = getConfigForClient(c.TLSConfig, c.AccessCache, c.Log)
 	}
-
 	c.TLSConfig.GetConfigForClient = c.getConfigForClient
+
+	if c.service == nil {
+		c.service = &proxyService{
+			c.ClusterDialer,
+			c.Log,
+		}
+	}
 
 	return nil
 }
 
 // Server is a proxy service server using grpc and tls.
 type Server struct {
-	server *grpc.Server
 	config ServerConfig
+	server *grpc.Server
 }
 
 // NewServer creates a new proxy server instance.
@@ -98,15 +115,18 @@ func NewServer(config ServerConfig) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	service := &proxyService{
-		config.ClusterDialer,
-		config.Log,
+	metrics, err := newServerMetrics()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	reporter := newReporter(metrics)
 
 	transportCreds := newProxyCredentials(credentials.NewTLS(config.TLSConfig))
 	server := grpc.NewServer(
 		grpc.Creds(transportCreds),
-		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, errorStreamInterceptor),
+		grpc.StatsHandler(newStatsHandler(reporter)),
+		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, utils.GRPCServerStreamErrorInterceptor),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			Time:    peerKeepAlive,
 			Timeout: peerTimeout,
@@ -116,18 +136,21 @@ func NewServer(config ServerConfig) (*Server, error) {
 			PermitWithoutStream: true,
 		}),
 	)
-	proto.RegisterProxyServiceServer(server, service)
+
+	proto.RegisterProxyServiceServer(server, config.service)
 
 	return &Server{
-		server: server,
 		config: config,
+		server: server,
 	}, nil
 }
 
 // Serve starts the proxy server.
 func (s *Server) Serve() error {
-	err := s.server.Serve(s.config.Listener)
-	return trace.Wrap(err)
+	if err := s.server.Serve(s.config.Listener); err != nil && err != grpc.ErrServerStopped {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // Close closes the proxy server immediately.
