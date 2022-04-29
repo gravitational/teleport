@@ -54,7 +54,7 @@ import (
 func TestReadIdentity(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	a := testauthority.NewWithClock(clock)
-	priv, pub, err := a.GenerateKeyPair("")
+	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestReadIdentity(t *testing.T) {
 
 func TestBadIdentity(t *testing.T) {
 	a := testauthority.New()
-	priv, pub, err := a.GenerateKeyPair("")
+	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
@@ -1004,10 +1004,10 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	conf := setupConfig(t)
 
 	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
-	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
-	privHost, _, err := keygen.GenerateKeyPair("")
+	keygen := native.New(context.TODO())
+	privHost, _, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
-	privUser, _, err := keygen.GenerateKeyPair("")
+	privUser, _, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 
 	hostCA := suite.NewTestCA(types.HostCA, "me.localhost", privHost)

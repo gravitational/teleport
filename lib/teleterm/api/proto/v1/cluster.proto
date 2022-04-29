@@ -22,15 +22,26 @@ option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 message Cluster {
     // uri is the cluster resource URI
     string uri = 1;
-    // name is the cluster name
+    // name is used throughout the Teleport Connect codebase as the cluster name.
+    // Unfortunately, we made a mistake where instead of taking the name of the cluster from the key,
+    // we take it from the hostname part of the proxy service. These two are not always equal.
+    // And actually there are places in tsh code where it needs the name of the cluster from the key,
+    // not the hostname of the proxy service (like in the `TELEPORT_CLUSTER` env var).
+    // Since this identifier is so widely used, we didn't have time to change it before the preview release.
+    // In the future we plan to fix the value sent under name to the name from the key and get rid of the `actual_name` field.
     string name = 2;
+    // actual_name is a temporary field that stores the cluster name taken from the key.
+    // See the comment for the name field for an explanation as to why we added this field.
+    string actual_name = 3;
+    // proxy address (only for root clusters)
+    string proxy_host = 4;
     // connected indicates if connection to the cluster can be established, that is if we have a
     // cert for the cluster that hasn't expired
-    bool connected = 3;
+    bool connected = 5;
     // leaf indicates if this is a leaf cluster
-    bool leaf = 4;
+    bool leaf = 6;
     // User is the cluster access control list of the logged-in user
-    LoggedInUser logged_in_user = 5;
+    LoggedInUser logged_in_user = 7;
 }
 
 // LoggedInUser describes a logged-in user

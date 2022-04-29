@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -50,7 +51,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	_, pub, err := srv.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	start := srv.AuthServer.Clock().Now()
@@ -157,7 +158,7 @@ func TestBotCertificateGenerationCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := native.GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)
@@ -210,7 +211,7 @@ func TestBotCertificateGenerationStolen(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := native.GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)
@@ -273,7 +274,7 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := srv.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -430,7 +431,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := srv.Auth().GenerateKeyPair("")
+			_, pub, err := native.GenerateKeyPair()
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -526,7 +527,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Generate cert with a role request.
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	priv, pub, err := srv.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Request certs for only the `foo` role.
@@ -624,7 +625,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 
 	// Generate CSR once for speed sake.
-	priv, _, err := srv.Auth().GenerateKeyPair("")
+	priv, _, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)
@@ -2073,6 +2074,94 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	require.Len(t, resp.Resources, 2)
 	require.NotEmpty(t, resp.NextKey)
 	require.Empty(t, resp.TotalCount)
+}
+
+func TestListResources_SearchAsRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	const numTestNodes = 2
+	for i := 0; i < numTestNodes; i++ {
+		name := fmt.Sprintf("node%d", i)
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, numTestNodes)
+
+	// create user and client
+	user, role, err := CreateUserAndRole(srv.Auth(), "user", []string{"user"})
+	require.NoError(t, err)
+
+	// only allow user to see first node
+	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
+
+	// create a new role which can see second node
+	searchAsRole := services.RoleForUser(user)
+	searchAsRole.SetName("test_search_role")
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"user"})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, searchAsRole))
+
+	role.SetSearchAsRoles([]string{searchAsRole.GetName()})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Regular ListResources returns first node, which user normally has
+	// permission for
+	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Limit:        int32(len(testNodes)),
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Equal(t, resp.Resources[0].GetName(), testNodes[0].GetName())
+
+	// ListResources with UseSearchAsRoles returns both nodes
+	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType:     types.KindNode,
+		Limit:            int32(len(testNodes)),
+		UseSearchAsRoles: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testNodes))
+	var expectedNodes []string
+	for _, node := range testNodes {
+		expectedNodes = append(expectedNodes, node.GetName())
+	}
+	var gotNodes []string
+	for _, node := range resp.Resources {
+		gotNodes = append(gotNodes, node.GetName())
+	}
+	require.ElementsMatch(t, expectedNodes, gotNodes)
+
+	// make sure an audit event is logged for the search
+	auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", nil, 10, 0, "")
+	require.NoError(t, err)
+	foundAuditEvent := false
+	for _, event := range auditEvents {
+		if searchEvent, ok := event.(*apievents.AccessRequestResourceSearch); ok {
+			foundAuditEvent = true
+			require.ElementsMatch(t,
+				[]string{role.GetName(), searchAsRole.GetName()},
+				searchEvent.SearchAsRoles)
+		}
+	}
+	require.True(t, foundAuditEvent)
 }
 
 func TestGetAndList_WindowsDesktops(t *testing.T) {
