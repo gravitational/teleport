@@ -106,7 +106,7 @@ func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.F
 			return nil, nil
 		}
 
-		pool, err := auth.ClientCertPool(ap, clusterName.GetClusterName())
+		pool, _, err := auth.ClientCertPool(ap, clusterName.GetClusterName())
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return nil, nil

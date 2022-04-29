@@ -77,6 +77,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessRequestCreate{}
 	case AccessRequestUpdateEvent:
 		e = &events.AccessRequestCreate{}
+	case AccessRequestResourceSearch:
+		e = &events.AccessRequestResourceSearch{}
 	case BillingCardCreateEvent:
 		e = &events.BillingCardCreate{}
 	case BillingCardUpdateEvent:
@@ -179,6 +181,20 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MySQLStatementFetch{}
 	case DatabaseSessionMySQLStatementBulkExecuteEvent:
 		e = &events.MySQLStatementBulkExecute{}
+	case DatabaseSessionMySQLInitDBEvent:
+		e = &events.MySQLInitDB{}
+	case DatabaseSessionMySQLCreateDBEvent:
+		e = &events.MySQLCreateDB{}
+	case DatabaseSessionMySQLDropDBEvent:
+		e = &events.MySQLDropDB{}
+	case DatabaseSessionMySQLShutDownEvent:
+		e = &events.MySQLShutDown{}
+	case DatabaseSessionMySQLProcessKillEvent:
+		e = &events.MySQLProcessKill{}
+	case DatabaseSessionMySQLDebugEvent:
+		e = &events.MySQLDebug{}
+	case DatabaseSessionMySQLRefreshEvent:
+		e = &events.MySQLRefresh{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
