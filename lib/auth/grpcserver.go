@@ -35,7 +35,9 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -292,6 +294,52 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 // logInterval is used to log stats after this many events
 const logInterval = 10000
 
+type watcher struct {
+	groups  []string
+	dns     []string
+	cluster string
+}
+
+func (w watcher) String() string {
+	if len(w.dns) > 0 {
+		return fmt.Sprintf("%s.%s", w.dns[0], w.cluster)
+	}
+
+	return fmt.Sprintf("Cluster: %s, DNS: %v, Groups: %v", w.cluster, w.dns, w.groups)
+}
+
+func watcherIdentity(ctx context.Context) (*watcher, error) {
+	peerInfo, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trace.AccessDenied("missing authentication")
+	}
+	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return nil, trace.AccessDenied("missing authentication")
+	}
+
+	peers := tlsInfo.State.PeerCertificates
+	if len(peers) > 1 {
+		return nil, trace.AccessDenied("missing authentication")
+	}
+
+	if len(peers) == 0 {
+		return nil, trace.AccessDenied("missing authentication")
+	}
+
+	clientCert := peers[0]
+	identity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &watcher{
+		groups:  identity.Groups,
+		cluster: identity.TeleportCluster,
+		dns:     clientCert.DNSNames,
+	}, nil
+}
+
 // WatchEvents returns a new stream of cluster events
 func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_WatchEventsServer) error {
 	auth, err := g.authenticate(stream.Context())
@@ -326,6 +374,15 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 			out, err := eventToGRPC(stream.Context(), event)
 			if err != nil {
 				return trace.Wrap(err)
+			}
+
+			watchIdentity := ""
+			if event.Type == types.OpInit {
+				identity, err := watcherIdentity(stream.Context())
+				if err == nil {
+					watchIdentity = identity.String()
+					g.Infof("Sending Init to %s.", watchIdentity)
+				}
 			}
 
 			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
