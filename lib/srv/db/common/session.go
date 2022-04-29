@@ -105,6 +105,9 @@ func (c *Session) TrackSession(ctx context.Context, engineCfg EngineConfig) erro
 					return
 				}
 			case <-ctx.Done():
+				if err := services.UpdateSessionTrackerState(engineCfg.Context, engineCfg.AuthClient, c.ID, types.SessionState_SessionStateTerminated); err != nil {
+					engineCfg.Log.WithError(err).Warningf("Failed to update session tracker state for session %v.", c.ID)
+				}
 				return
 			}
 		}
