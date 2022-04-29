@@ -212,7 +212,7 @@ extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t
 /**
  * Shared Directory Acknowledge
  */
-extern CGOError sd_acknowledge(uintptr_t client_ref, uint32_t directory_id, uint8_t succeeded);
+extern CGOError sd_acknowledge(uintptr_t client_ref, uint32_t err, uint32_t directory_id);
 
 /**
  * Shared Directory Info Request

@@ -446,14 +446,14 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOError {
 }
 
 //export sd_acknowledge
-func sd_acknowledge(handle C.uintptr_t, directoryId C.uint32_t, succeeded C.uint8_t) C.CGOError {
-	return cgo.Handle(handle).Value().(*Client).sharedDirectoryAcknowledg(uint32(directoryId), uint8(succeeded))
+func sd_acknowledge(handle C.uintptr_t, err C.uint32_t, directoryId C.uint32_t) C.CGOError {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryAcknowledg(uint32(err), uint32(directoryId))
 }
 
-func (c *Client) sharedDirectoryAcknowledg(directoryId uint32, succeeded uint8) C.CGOError {
+func (c *Client) sharedDirectoryAcknowledg(err, directoryId uint32) C.CGOError {
 	if err := c.cfg.Conn.OutputMessage(tdp.SharedDirectoryAcknowledge{
+		Err:         err,
 		DirectoryId: directoryId,
-		Succeeded:   succeeded,
 	}); err != nil {
 		return C.CString(fmt.Sprintf("failed to send SharedDirectoryAcknowledge: %v", err))
 	}

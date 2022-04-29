@@ -237,17 +237,17 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
 
-    let acknowledge_directory =
-        Box::new(move |directory_id: u32, succeeded: u8| -> RdpResult<()> {
-            unsafe {
-                if sd_acknowledge(go_ref, directory_id, succeeded) != CGO_OK {
-                    return Err(RdpError::TryError(String::from(
-                        "call to sd_info_request failed",
-                    )));
-                }
+    let acknowledge_directory = Box::new(move |err: u32, directory_id: u32| -> RdpResult<()> {
+        println!("sending err = {}, directory_id = {}", err, directory_id);
+        unsafe {
+            if sd_acknowledge(go_ref, err, directory_id) != CGO_OK {
+                return Err(RdpError::TryError(String::from(
+                    "call to sd_info_request failed",
+                )));
             }
-            Ok(())
-        });
+        }
+        Ok(())
+    });
 
     let request_info = Box::new(
         move |dir_id: u32, completion_id: u32, path: &str| -> RdpResult<()> {
@@ -788,7 +788,7 @@ extern "C" {
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
 
     /// Shared Directory Acknowledge
-    fn sd_acknowledge(client_ref: usize, directory_id: u32, succeeded: u8) -> CGOError;
+    fn sd_acknowledge(client_ref: usize, err: u32, directory_id: u32) -> CGOError;
 
     /// Shared Directory Info Request
     fn sd_info_request(

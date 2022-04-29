@@ -645,22 +645,29 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 }
 
 type SharedDirectoryAcknowledge struct {
+	Err         uint32
 	DirectoryId uint32
-	// Succeeded should be set to 0 for false, 1 for true
-	Succeeded byte
 }
 
-func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAnnounce, error) {
-	var s SharedDirectoryAnnounce
-	err := binary.Read(in, binary.BigEndian, &s)
+func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAcknowledge, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryAcknowledge{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryAcknowledge) {
+		return SharedDirectoryAcknowledge{}, trace.BadParameter("got message type %v, expected SharedDirectoryAcknowledge(%v)", t, TypeSharedDirectoryAnnounce)
+	}
+
+	var s SharedDirectoryAcknowledge
+	err = binary.Read(in, binary.BigEndian, &s)
 	return s, trace.Wrap(err)
 }
 
 func (s SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAcknowledge))
+	binary.Write(buf, binary.BigEndian, s.Err)
 	binary.Write(buf, binary.BigEndian, s.DirectoryId)
-	buf.WriteByte(s.Succeeded)
 	return buf.Bytes(), nil
 }
 
