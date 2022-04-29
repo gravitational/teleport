@@ -49,6 +49,9 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	})
 	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	}
 
@@ -71,7 +74,7 @@ func onListDatabases(cf *CLIConf) error {
 
 	roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
 	if err != nil {
-		return trace.Wrap(err)
+		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
 
 	sort.Slice(databases, func(i, j int) bool {

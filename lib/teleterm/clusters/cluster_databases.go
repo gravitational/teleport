@@ -97,7 +97,17 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 		return trace.BadParameter("please provide the database user name using --db-user flag")
 	}
 
+	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+		RouteToCluster: c.clusterClient.SiteName,
+		AccessRequests: c.status.ActiveRequests.AccessRequests,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Fetch the certs for the database.
+	err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToDatabase: proto.RouteToDatabase{
 			ServiceName: db.GetName(),
