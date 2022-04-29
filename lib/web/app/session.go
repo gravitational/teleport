@@ -69,7 +69,12 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	// server (in cases where there are no healthy servers). This process might
 	// take an additional time to execute, but since it is cached, only a few
 	// requests need to perform it.
-	servers, err := Match(ctx, accessPoint, MatchAll(MatchHealthy(h.c.ProxyClient, identity), MatchPublicAddr(identity.RouteToApp.PublicAddr)))
+	servers, err := Match(ctx, accessPoint, MatchAll(
+		MatchPublicAddr(identity.RouteToApp.PublicAddr),
+		// NOTE: Try to leave this matcher as the last one to dial only the
+		// application servers that match the requested application.
+		MatchHealthy(h.c.ProxyClient, identity),
+	))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

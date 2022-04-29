@@ -46,6 +46,8 @@ import (
 	utilexec "k8s.io/client-go/util/exec"
 )
 
+const sessionRecorderID = "session-recorder"
+
 const PresenceVerifyInterval = time.Second * 15
 const PresenceMaxDifference = time.Minute
 
@@ -465,6 +467,12 @@ func (s *session) launch() error {
 	s.io.OnWriteError = func(idString string, err error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+
+		if idString == sessionRecorderID {
+			s.log.Error("Failed to write to session recorder, closing session.")
+			s.Close()
+		}
+
 		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
 		id, _ := uuid.Parse(idString)
 		if s.parties[id] != nil {
@@ -656,7 +664,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			return nil, trace.Wrap(err)
 		}
 
-		s.io.AddWriter("recorder", recorder)
+		s.io.AddWriter(sessionRecorderID, recorder)
 	} else if !s.sess.noAuditEvents {
 		s.emitter = s.forwarder.cfg.StreamEmitter
 	}
@@ -952,11 +960,7 @@ func (s *session) join(p *party) error {
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) {
 	if s.accessEvaluator.IsModerated() && s.tty {
-		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
-
-		if err != nil {
-			s.log.Debugf("Failed to broadcast message: %v", err)
-		}
+		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 }
 
