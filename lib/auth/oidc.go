@@ -267,21 +267,25 @@ type oidcAuthResponse struct {
 
 func checkEmailVerifiedClaim(claims jose.Claims) error {
 	claimName := "email_verified"
-	unverified := func() error { return trace.AccessDenied("email not verified by OIDC provider") }
+	unverifiedErr := trace.AccessDenied("email not verified by OIDC provider")
 
 	emailVerified, hasEmailVerifiedClaim, _ := claims.StringClaim(claimName)
 	if hasEmailVerifiedClaim && emailVerified == "false" {
-		return unverified()
-	} else {
-		data, ok := claims[claimName]
-		if !ok {
-			return nil
-		}
+		return unverifiedErr
+	}
 
-		emailVerified, ok := data.(bool)
-		if ok && !emailVerified {
-			return unverified()
-		}
+	data, ok := claims[claimName]
+	if !ok {
+		return nil
+	}
+
+	emailVerifiedBool, ok := data.(bool)
+	if !ok {
+		return trace.BadParameter("unable to parse oidc claim: %q, must be a string or bool", claimName)
+	}
+
+	if !emailVerifiedBool {
+		return unverifiedErr
 	}
 
 	return nil
