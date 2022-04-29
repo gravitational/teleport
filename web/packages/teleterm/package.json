@@ -4,7 +4,7 @@
   "description": "Teleport Connect",
   "main": "build/app/dist/main/main.js",
   "author": {
-    "name": "Teleport",
+    "name": "Gravitational, Inc.",
     "email": "support@goteleport.com",
     "url": "https://goteleport.com"
   },
@@ -107,7 +107,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "Teleport",
+      "owner": "gravitational",
       "repo": "webapps"
     }
   }
