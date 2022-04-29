@@ -495,24 +495,27 @@ func readHandshakeError(connBuf io.Reader) (string, error) {
 
 // bufferedConn is a net.Conn wrapper with additional Peek() method.
 type connReader struct {
-	r *bufio.Reader
+	reader *bufio.Reader
 	net.Conn
 }
 
 // newBufferedConn is a bufferedConn constructor.
-func newBufferedConn(c net.Conn) connReader {
-	return connReader{bufio.NewReader(c), c}
+func newBufferedConn(conn net.Conn) connReader {
+	return connReader{
+		reader: bufio.NewReader(conn),
+		Conn:   conn,
+	}
 }
 
 // Peek reads n bytes without advancing the reader.
 // It's basically a wrapper around (bufio.Reader).Peek()
 func (b connReader) Peek(n int) ([]byte, error) {
-	return b.r.Peek(n)
+	return b.reader.Peek(n)
 }
 
 // Read returns data from underlying buffer.
 func (b connReader) Read(p []byte) (int, error) {
-	return b.r.Read(p)
+	return b.reader.Read(p)
 }
 
 const (
