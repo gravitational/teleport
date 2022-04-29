@@ -3,8 +3,20 @@ title: Database Access with Self-Hosted PostgreSQL
 description: How to configure Teleport Database Access with self-hosted PostgreSQL.
 ---
 
-This guide will show you how to access a self-hosted PostgreSQL database using
-the Teleport Database Service.
+This guide will help you to:
+
+- Install Teleport `(=teleport.version=)`.
+- Set up Teleport to access your self-hosted PostgreSQL.
+- Connect to your databases through Teleport.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access PostgreSQL Self-Hosted](../../../img/database-access/guides/postgresqlselfhosted_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access PostgreSQL Cloud](../../../img/database-access/guides/postgresqlselfhosted_cloud.png)
+</ScopedBlock>
 
 ## Prerequisites
 
@@ -25,33 +37,13 @@ release.
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-### Create a role and user
+Install Teleport on the host where you will run the Teleport Database Service:
 
-Create a role that will allow a user to connect to any database using any
-database account:
+(!docs/pages/includes/install-linux.mdx!)
 
-```code
-tctl --config=/path/to/teleport.yaml create <<EOF
-kind: role
-version: v5
-metadata:
-  name: db
-spec:
-  allow:
-    db_labels:
-      '*': '*'
-    db_names:
-    - '*'
-    db_users:
-    - '*'
-EOF
-```
+### Create a Teleport user
 
-Create the user assigned the `db` role we've just created:
-
-```code
-$ tctl --config=/path/to/teleport.yaml users add --roles=access,db testuser
-```
+(!docs/pages/includes/database-access/create-user.mdx!)
 
 ## Step 2/5. Create a certificate/key pair
 
