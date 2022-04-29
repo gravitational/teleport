@@ -95,7 +95,7 @@ chart.
 
 |Chart|Included Services|Values Reference|
 |-|-|-|
-|`teleport-cluster`|Auth Service<br/>Proxy Service|[Reference](kubernetes-access/helm/reference/teleport-cluster.mdx)
+|`teleport-cluster`|Auth Service<br/>Proxy Service<br/>Other Teleport services if using a custom configuration|[Reference](kubernetes-access/helm/reference/teleport-cluster.mdx)
 |`teleport-kube-agent`|Kubernetes Service<br/>Application Service<br/>Database Service|[Reference](kubernetes-access/helm/reference/teleport-kube-agent.mdx)|
 
 
@@ -129,9 +129,15 @@ chart.
 
   <TabItem label="Homebrew">
 
+  <Notice type="danger">
+
   The Teleport package in Homebrew is not maintained by Teleport and we can't
   guarantee its reliability or security. We recommend the use of our [official
   Teleport packages](https://goteleport.com/teleport/download?os=mac).
+
+  </Notice>
+
+    Run the following command:
 
     ```code
     $ brew install teleport
