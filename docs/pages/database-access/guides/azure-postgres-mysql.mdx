@@ -20,6 +20,15 @@ This guide will help you to:
 - Set up access to Azure Database for PostgreSQL or Azure Database for MySQL.
 - Connect to the database server through Teleport.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access Azure PostgreSQL/MySQL Self-Hosted](../../../img/database-access/guides/azure_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access Azure PostgreSQL/MySQL Cloud](../../../img/database-access/guides/azure_cloud.png)
+</ScopedBlock>
+
 <Admonition type="note">
     Teleport uses Azure Active Directory authentication with Azure PostgreSQL
     and MySQL databases which at the moment of this writing is only supported
@@ -46,6 +55,10 @@ This guide will help you to:
 ### Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
