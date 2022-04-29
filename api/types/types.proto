@@ -261,6 +261,9 @@ message DatabaseSpecV3 {
     DatabaseTLS TLS = 8 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "tls,omitempty" ];
     // AD is the Active Directory configuration for the database.
     AD AD = 9 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "ad,omitempty" ];
+    // MySQL is an additional section with MySQL database options.
+    MySQLOptions MySQL = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "mysql,omitempty" ];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -269,6 +272,9 @@ message DatabaseStatusV3 {
     string CACert = 1 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
     // AWS is the auto-discovered AWS cloud database metadata.
     AWS AWS = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws" ];
+    // MySQL is an additional section with MySQL runtime database information.
+    MySQLOptions MySQL = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "mysql,omitempty" ];
 }
 
 // AWS contains AWS metadata about the database.
@@ -349,6 +355,13 @@ message DatabaseTLS {
     // ServerName allows to provide custom hostname. This value will override the
     // servername/hostname on a certificate during validation.
     string ServerName = 3 [ (gogoproto.jsontag) = "server_name,omitempty" ];
+}
+
+// MySQLOptions are additional MySQL database options.
+message MySQLOptions {
+    // ServerVersion is the server version reported by DB proxy if the runtime information is
+    // not available.
+    string ServerVersion = 1 [ (gogoproto.jsontag) = "server_version,omitempty" ];
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
