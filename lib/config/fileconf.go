@@ -149,6 +149,18 @@ type SampleFlags struct {
 	KeyFile string
 	// CertFile is a TLS Certificate file
 	CertFile string
+	// DataDir is a path to a directory where Teleport keep its data
+	DataDir string
+	// AuthToken is a token to register with an auth server
+	AuthToken string
+	// Roles is a list of comma-separated roles to create a config file with
+	Roles string
+	// AuthServer is the address of the auth server
+	AuthServer string
+	// AppName is the name of the application to start
+	AppName string
+	// AppURI is the internal address of the application to proxy
+	AppURI string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -174,80 +186,188 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.Logger.Format.Output = "text"
-	g.DataDir = defaults.DataDir
+
+	g.DataDir = flags.DataDir
+	if g.DataDir == "" {
+		g.DataDir = defaults.DataDir
+	}
+
+	g.AuthToken = flags.AuthToken
+	if flags.AuthServer != "" {
+		g.AuthServers = []string{flags.AuthServer}
+	}
+
+	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	var s SSH
-	s.EnabledFlag = "yes"
-	s.ListenAddress = conf.SSH.Addr.Addr
-	s.Commands = []CommandLabel{
-		{
-			Name:    "hostname",
-			Command: []string{"hostname"},
-			Period:  time.Minute,
-		},
-	}
-	s.Labels = map[string]string{
-		"env": "example",
-	}
+	s := makeSampleSSHConfig(conf, roles[defaults.RoleNode])
 
 	// Auth config:
-	var a Auth
-	a.ListenAddress = conf.Auth.SSHAddr.Addr
-	a.ClusterName = ClusterName(flags.ClusterName)
-	a.EnabledFlag = "yes"
-
-	if flags.LicensePath != "" {
-		a.LicenseFile = flags.LicensePath
-	}
-
-	if flags.Version == defaults.TeleportConfigVersionV2 {
-		a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
-	}
+	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
 
 	// sample proxy config:
-	var p Proxy
-	p.EnabledFlag = "yes"
-	p.ListenAddress = conf.Proxy.SSHAddr.Addr
-	if flags.ACMEEnabled {
-		p.ACME.EnabledFlag = "yes"
-		p.ACME.Email = flags.ACMEEmail
-		// ACME uses TLS-ALPN-01 challenge that requires port 443
-		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
-		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
-		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+	p, err := makeSampleProxyConfig(conf, flags, roles[defaults.RoleProxy])
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if flags.PublicAddr != "" {
-		// default to 443 if port is not specified
-		publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		p.PublicAddr = apiutils.Strings{publicAddr.String()}
 
-		// use same port for web addr
-		webPort := publicAddr.Port(teleport.StandardHTTPSPort)
-		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+	// Apps config:
+	apps, err := makeSampleAppsConfig(conf, flags, roles[defaults.RoleApp])
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if flags.KeyFile != "" && flags.CertFile != "" {
-		if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
-			return nil, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
-		}
 
-		p.KeyPairs = append(p.KeyPairs, KeyPair{
-			PrivateKey:  flags.KeyFile,
-			Certificate: flags.CertFile,
-		})
+	// DB config:
+	var dbs Databases
+	if roles[defaults.RoleDatabase] {
+		// keep it disable since `teleport configure` don't have all the necessary flags
+		// for this kind of resource
+		dbs.EnabledFlag = "no"
+	}
+
+	// WindowsDesktop config:
+	var d WindowsDesktopService
+	if roles[defaults.RoleWindowsDesktop] {
+		// keep it disable since `teleport configure` don't have all the necessary flags
+		// for this kind of resource
+		d.EnabledFlag = "no"
 	}
 
 	fc = &FileConfig{
-		Version: flags.Version,
-		Global:  g,
-		Proxy:   p,
-		SSH:     s,
-		Auth:    a,
+		Version:        flags.Version,
+		Global:         g,
+		Proxy:          p,
+		SSH:            s,
+		Auth:           a,
+		Apps:           apps,
+		Databases:      dbs,
+		WindowsDesktop: d,
 	}
 	return fc, nil
+}
+
+func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
+	var s SSH
+	if enabled {
+		s.EnabledFlag = "yes"
+		s.ListenAddress = conf.SSH.Addr.Addr
+		s.Commands = []CommandLabel{
+			{
+				Name:    "hostname",
+				Command: []string{"hostname"},
+				Period:  time.Minute,
+			},
+		}
+		s.Labels = map[string]string{
+			"env": "example",
+		}
+	} else {
+		s.EnabledFlag = "no"
+	}
+
+	return s
+}
+
+func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
+	var a Auth
+	if enabled {
+		a.ListenAddress = conf.Auth.SSHAddr.Addr
+		a.ClusterName = ClusterName(flags.ClusterName)
+		a.EnabledFlag = "yes"
+
+		if flags.LicensePath != "" {
+			a.LicenseFile = flags.LicensePath
+		}
+
+		if flags.Version == defaults.TeleportConfigVersionV2 {
+			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
+		}
+	} else {
+		a.EnabledFlag = "no"
+	}
+
+	return a
+}
+
+func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool) (Proxy, error) {
+	var p Proxy
+	if enabled {
+		p.EnabledFlag = "yes"
+		p.ListenAddress = conf.Proxy.SSHAddr.Addr
+		if flags.ACMEEnabled {
+			p.ACME.EnabledFlag = "yes"
+			p.ACME.Email = flags.ACMEEmail
+			// ACME uses TLS-ALPN-01 challenge that requires port 443
+			// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
+			p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+		}
+		if flags.PublicAddr != "" {
+			// default to 443 if port is not specified
+			publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
+			if err != nil {
+				return Proxy{}, trace.Wrap(err)
+			}
+			p.PublicAddr = apiutils.Strings{publicAddr.String()}
+
+			// use same port for web addr
+			webPort := publicAddr.Port(teleport.StandardHTTPSPort)
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+		}
+		if flags.KeyFile != "" && flags.CertFile != "" {
+			if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
+				return Proxy{}, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
+			}
+
+			p.KeyPairs = append(p.KeyPairs, KeyPair{
+				PrivateKey:  flags.KeyFile,
+				Certificate: flags.CertFile,
+			})
+		}
+	} else {
+		p.EnabledFlag = "no"
+	}
+
+	return p, nil
+}
+
+func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, enabled bool) (Apps, error) {
+	var apps Apps
+	// assume users want app role if they added app name and/or uri but didn't add app role
+	if enabled || flags.AppURI != "" || flags.AppName != "" {
+		if flags.AppURI == "" || flags.AppName == "" {
+			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
+		}
+
+		apps.EnabledFlag = "yes"
+		apps.Apps = []*App{
+			{
+				Name: flags.AppName,
+				URI:  flags.AppURI,
+			},
+		}
+	}
+
+	return apps, nil
+}
+
+func roleMapFromFlags(flags SampleFlags) map[string]bool {
+	// if no roles are provided via CLI, return the default roles
+	if flags.Roles == "" {
+		return map[string]bool{
+			defaults.RoleProxy:       true,
+			defaults.RoleNode:        true,
+			defaults.RoleAuthService: true,
+		}
+	}
+
+	roles := splitRoles(flags.Roles)
+	m := make(map[string]bool)
+	for _, r := range roles {
+		m[r] = true
+	}
+
+	return m
 }
 
 // DebugDumpToYAML allows for quick YAML dumping of the config

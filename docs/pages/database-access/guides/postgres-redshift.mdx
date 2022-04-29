@@ -4,6 +4,21 @@ description: How to configure Teleport Database Access with AWS Redshift Postgre
 videoBanner: UFhT52d5bYg
 ---
 
+This guide will help you to:
+
+- Install Teleport `(=teleport.version=)`.
+- Set up Teleport to access your AWS Redshift instances.
+- Connect to your databases through Teleport.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access Redshift Self-Hosted](../../../img/database-access/guides/redshift_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access Redshift Cloud](../../../img/database-access/guides/redshift_cloud.png)
+</ScopedBlock>
+
 ## Prerequisites
 
 - AWS account with a Redshift cluster and permissions to create and attach IAM
@@ -26,6 +41,10 @@ videoBanner: UFhT52d5bYg
 ## Step 3/6. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 On the node that is running the Database Service, create a configuration file:
 
