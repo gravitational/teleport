@@ -139,7 +139,7 @@ func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *cli
 	serverVersion := serverConn.GetServerVersion()
 	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
 	// Update only when needed
-	if serverVersion != statusVersion {
+	if serverVersion != "" && serverVersion != statusVersion {
 		sessionCtx.Database.SetMySQLServerVersion(serverVersion)
 	}
 
