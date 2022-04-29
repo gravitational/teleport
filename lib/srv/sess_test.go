@@ -18,16 +18,15 @@ package srv
 
 import (
 	"context"
+	"io"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
-	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -76,103 +75,6 @@ func TestParseAccessRequestIDs(t *testing.T) {
 
 }
 
-type mockServer struct {
-	events.StreamEmitter
-}
-
-// ID is the unique ID of the server.
-func (m *mockServer) ID() string {
-	return "test"
-}
-
-// HostUUID is the UUID of the underlying host. For the forwarding
-// server this is the proxy the forwarding server is running in.
-func (m *mockServer) HostUUID() string {
-	return "test"
-}
-
-// GetNamespace returns the namespace the server was created in.
-func (m *mockServer) GetNamespace() string {
-	return "test"
-}
-
-// AdvertiseAddr is the publicly addressable address of this server.
-func (m *mockServer) AdvertiseAddr() string {
-	return "test"
-}
-
-// Component is the type of server, forwarding or regular.
-func (m *mockServer) Component() string {
-	return teleport.ComponentNode
-}
-
-// PermitUserEnvironment returns if reading environment variables upon
-// startup is allowed.
-func (m *mockServer) PermitUserEnvironment() bool {
-	return false
-}
-
-// GetAccessPoint returns an AccessPoint for this cluster.
-func (m *mockServer) GetAccessPoint() AccessPoint {
-	return nil
-}
-
-// GetSessionServer returns a session server.
-func (m *mockServer) GetSessionServer() rsession.Service {
-	return nil
-}
-
-// GetDataDir returns data directory of the server
-func (m *mockServer) GetDataDir() string {
-	return "test"
-}
-
-// GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() (*pam.Config, error) {
-	return nil, nil
-}
-
-// GetClock returns a clock setup for the server
-func (m *mockServer) GetClock() clockwork.Clock {
-	return clockwork.NewRealClock()
-}
-
-// GetInfo returns a services.Server that represents this server.
-func (m *mockServer) GetInfo() types.Server {
-	return nil
-}
-
-// UseTunnel used to determine if this node has connected to this cluster
-// using reverse tunnel.
-func (m *mockServer) UseTunnel() bool {
-	return false
-}
-
-// GetBPF returns the BPF service used for enhanced session recording.
-func (m *mockServer) GetBPF() bpf.BPF {
-	return nil
-}
-
-// GetRestrictedSessionManager returns the manager for restricting user activity
-func (m *mockServer) GetRestrictedSessionManager() restricted.Manager {
-	return nil
-}
-
-// Context returns server shutdown context
-func (m *mockServer) Context() context.Context {
-	return context.Background()
-}
-
-// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *mockServer) GetUtmpPath() (utmp, wtmp string) {
-	return "test", "test"
-}
-
-// GetLockWatcher gets the server's lock watcher.
-func (m *mockServer) GetLockWatcher() *services.LockWatcher {
-	return nil
-}
-
 func TestSession_newRecorder(t *testing.T) {
 	proxyRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
@@ -211,7 +113,11 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
@@ -230,7 +136,11 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
@@ -249,12 +159,18 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: nodeRecording,
-				srv:                    &mockServer{},
+				srv: &mockServer{
+					component: teleport.ComponentNode,
+				},
 			},
 			errAssertion: require.Error,
 			recAssertion: require.Nil,
@@ -265,12 +181,18 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: nodeRecordingSync,
-				srv:                    &mockServer{},
+				srv: &mockServer{
+					component: teleport.ComponentNode,
+				},
 			},
 			errAssertion: require.Error,
 			recAssertion: require.Nil,
@@ -281,14 +203,18 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
 				ClusterName:            "test",
 				SessionRecordingConfig: nodeRecordingSync,
 				srv: &mockServer{
-					StreamEmitter: &events.DiscardEmitter{},
+					MockEmitter: &eventstest.MockEmitter{},
 				},
 			},
 			errAssertion: require.NoError,
@@ -308,4 +234,204 @@ func TestSession_newRecorder(t *testing.T) {
 			tt.recAssertion(t, rec)
 		})
 	}
+}
+
+// TestInteractiveSession tests interaction session lifecycles.
+// Multiple sessions are opened in parallel tests to test for
+// deadlocks between session registry, sessions, and parties.
+func TestInteractiveSession(t *testing.T) {
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	t.Run("Stop", func(t *testing.T) {
+		t.Parallel()
+		sess := testOpenSession(t, reg)
+
+		// Stopping the session should trigger the session
+		// to end and cleanup in the background
+		sess.Stop()
+
+		sessionClosed := func() bool {
+			reg.sessionsMux.Lock()
+			defer reg.sessionsMux.Unlock()
+			_, found := reg.findSessionLocked(sess.id)
+			return !found
+		}
+		require.Eventually(t, sessionClosed, time.Second*5, time.Millisecond*500)
+	})
+
+	t.Run("BrokenRecorder", func(t *testing.T) {
+		t.Parallel()
+		sess := testOpenSession(t, reg)
+
+		// The recorder might be closed in the case of an error downstream.
+		// Closing the session recorder should result in the session ending.
+		err := sess.recorder.Close(context.Background())
+		require.NoError(t, err)
+		require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+	})
+}
+
+// TestParties tests the party mechanisms within an interactive session,
+// including party leave, party disconnect, and empty session lingerAndDie.
+func TestParties(t *testing.T) {
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	// Use a separate clock from srv so we can use BlockUntil.
+	regClock := clockwork.NewFakeClock()
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+		clock:                 regClock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	// Create a session with 3 parties
+	sess := testOpenSession(t, reg)
+	require.Equal(t, 1, len(sess.getParties()))
+	testJoinSession(t, reg, sess)
+	require.Equal(t, 2, len(sess.getParties()))
+	testJoinSession(t, reg, sess)
+	require.Equal(t, 3, len(sess.getParties()))
+
+	// If a party leaves, the session should remove the party and continue.
+	p := sess.getParties()[0]
+	p.Close()
+
+	partyIsRemoved := func() bool {
+		return len(sess.getParties()) == 2 && !sess.isStopped()
+	}
+	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
+
+	// If a party's session context is closed, the party should leave the session.
+	p = sess.getParties()[0]
+	err = p.ctx.Close()
+	require.NoError(t, err)
+
+	partyIsRemoved = func() bool {
+		return len(sess.getParties()) == 1 && !sess.isStopped()
+	}
+	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
+
+	p.closeOnce.Do(func() {
+		t.Fatalf("party should be closed already")
+	})
+
+	// If all parties are gone, the session should linger for a short duration.
+	sess.getParties()[0].Close()
+	require.False(t, sess.isStopped())
+
+	// Wait for session to linger (time.Sleep)
+	regClock.BlockUntil(2)
+
+	// If a party connects to the lingering session, it will continue.
+	testJoinSession(t, reg, sess)
+	require.Equal(t, 1, len(sess.getParties()))
+
+	regClock.Advance(defaults.SessionIdlePeriod)
+	require.False(t, sess.isStopped())
+
+	// If no parties remain it should be closed after the duration.
+	sess.getParties()[0].Close()
+	require.False(t, sess.isStopped())
+
+	// Wait for session to linger (time.Sleep)
+	regClock.BlockUntil(2)
+
+	// Session should close.
+	regClock.Advance(defaults.SessionIdlePeriod)
+	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+}
+
+func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
+	scx := newTestServerContext(t, reg.Srv)
+	scx.setSession(sess)
+
+	// Open a new session
+	sshChanOpen := newMockSSHChannel()
+	go func() {
+		// Consume stdout sent to the channel
+		io.ReadAll(sshChanOpen)
+	}()
+
+	err := reg.OpenSession(sshChanOpen, scx)
+	require.NoError(t, err)
+}
+
+// TestSessionTracker tests session tracker lifecycle
+func TestSessionTracker(t *testing.T) {
+	ctx := context.Background()
+
+	srv := newMockServer(t)
+
+	// Use a separate clock from srv so we can use BlockUntil.
+	regClock := clockwork.NewFakeClock()
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+		clock:                 regClock,
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	// Session tracker should be created for a new session
+	sess := testOpenSession(t, reg)
+	tracker, err := srv.auth.GetSessionTracker(ctx, sess.ID())
+	require.NoError(t, err)
+
+	// Session tracker's expiration should be updated on an interval
+	// while the session is active.
+	regClock.BlockUntil(1)
+	regClock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
+	srv.clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
+
+	trackerUpdated := func() bool {
+		updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.ID())
+		require.NoError(t, err)
+		return updatedTracker.Expiry().Equal(tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval))
+	}
+	require.Eventually(t, trackerUpdated, time.Second*5, time.Millisecond*500)
+
+	// Once the sesssion is closed and the last set
+	// expiration is up, the tracker should be deleted.
+	sess.Close()
+	regClock.Advance(defaults.SessionTrackerTTL)
+	srv.clock.Advance(defaults.SessionTrackerTTL)
+
+	trackerDeleted := func() bool {
+		_, err := srv.auth.GetSessionTracker(ctx, sess.ID())
+		if err == nil {
+			return false
+		}
+		require.True(t, trace.IsNotFound(err))
+		return true
+	}
+	require.Eventually(t, trackerDeleted, time.Second*5, time.Millisecond*500)
+}
+
+func testOpenSession(t *testing.T, reg *SessionRegistry) *session {
+	scx := newTestServerContext(t, reg.Srv)
+
+	// Open a new session
+	sshChanOpen := newMockSSHChannel()
+	go func() {
+		// Consume stdout sent to the channel
+		io.ReadAll(sshChanOpen)
+	}()
+
+	err := reg.OpenSession(sshChanOpen, scx)
+	require.NoError(t, err)
+
+	require.NotNil(t, scx.session)
+	return scx.session
 }

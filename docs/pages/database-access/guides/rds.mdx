@@ -10,6 +10,15 @@ This guide will help you to:
 - Set up Teleport to access your RDS instances and Aurora clusters.
 - Connect to your databases through Teleport.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds_cloud.png)
+</ScopedBlock>
+
 <Admonition type="note" title="Supported versions">
     The following products are not compatible with Database Access as they don't support IAM authentication:
     - Aurora Serverless.
@@ -38,6 +47,10 @@ This guide will help you to:
 ## Step 3/7. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 Create the Database Service configuration:
 
