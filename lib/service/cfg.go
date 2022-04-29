@@ -365,6 +365,9 @@ type ProxyConfig struct {
 	// MongoAddr is address of Mongo proxy.
 	MongoAddr utils.NetAddr
 
+	// PeerAddr is the proxy peering address.
+	PeerAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises

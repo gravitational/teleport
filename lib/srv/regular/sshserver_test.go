@@ -1280,8 +1280,13 @@ func TestProxyDirectAccess(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
+<<<<<<< HEAD
+		nil,
+		SetProxyMode("", reverseTunnelServer, proxyClient),
+=======
 		proxyClient,
 		SetProxyMode(reverseTunnelServer, proxyClient),
+>>>>>>> david/proxy-peering
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),

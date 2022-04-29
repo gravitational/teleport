@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -2485,6 +2486,7 @@ type proxyListeners struct {
 	kube          net.Listener
 	db            dbListeners
 	alpn          net.Listener
+	proxy         net.Listener
 	grpc          net.Listener
 }
 
@@ -2544,10 +2546,13 @@ func (l *proxyListeners) Close() {
 	if l.grpc != nil {
 		l.grpc.Close()
 	}
+	if l.proxy != nil {
+		l.proxy.Close()
+	}
 }
 
 // setupProxyListeners sets up web proxy listeners based on the configuration
-func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
+func (process *TeleportProcess) setupProxyListeners(networkingConfig types.ClusterNetworkingConfig) (*proxyListeners, error) {
 	cfg := process.Config
 	process.log.Debugf("Setup Proxy: Web Proxy Address: %v, Reverse Tunnel Proxy Address: %v", cfg.Proxy.WebAddr.Addr, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	var err error
@@ -2585,6 +2590,25 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.db.mongo = listener
+	}
+
+	tunnelStrategy, err := networkingConfig.GetTunnelStrategyType()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {
+		addr, err := peerAddr(&process.Config.Proxy.PeerAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		listener, err := process.importOrCreateListener(listenerProxyPeer, addr.String())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		listeners.proxy = listener
 	}
 
 	switch {
@@ -2753,7 +2777,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	listeners, err := process.setupProxyListeners()
+	clusterNetworkConfig, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	listeners, err := process.setupProxyListeners(clusterNetworkConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2949,6 +2978,41 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log.Info("Web UI is disabled.")
 	}
 
+	var peerAddr string
+	var proxyServer *proxy.Server
+	if listeners.proxy != nil {
+		peerAddr = listeners.proxy.Addr().String()
+		proxyServer, err = proxy.NewServer(proxy.ServerConfig{
+			AccessCache:   accessPoint,
+			Listener:      listeners.proxy,
+			TLSConfig:     serverTLSConfig,
+			ClusterDialer: proxy.NewClusterDialer(tsrv),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		eventC := make(chan Event)
+		process.WaitForEvent(process.ExitContext(), ProxyReverseTunnelReady, eventC)
+
+		process.RegisterCriticalFunc("proxy.peer", func() error {
+			select {
+			case <-process.ExitContext().Done():
+				log.Debugf("Process exiting: failed to start peer proxy service waiting for reverse tunnel server")
+				return nil
+			case <-eventC:
+			}
+
+			log.Infof("Peer proxy service is starting on %s", listeners.proxy.Addr().String())
+			err := proxyServer.Serve()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			return nil
+		})
+	}
+
 	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -2958,7 +3022,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.proxyPublicAddr(),
 		conn.Client,
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(tsrv, accessPoint),
+		regular.SetProxyMode(peerAddr, tsrv, accessPoint),
 		regular.SetSessionServer(conn.Client),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
@@ -2983,11 +3047,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.BroadcastEvent(Event{Name: ProxySSHReady, Payload: nil})
 		return nil
 	})
-
-	clusterNetworkConfig, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	rcWatchLog := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
@@ -3244,6 +3303,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if tsrv != nil {
 				warnOnErr(tsrv.Close(), log)
 			}
+			if proxyServer != nil {
+				warnOnErr(proxyServer.Close(), log)
+			}
 			if webServer != nil {
 				warnOnErr(webServer.Close(), log)
 			}
@@ -3266,6 +3328,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			warnOnErr(sshProxy.Shutdown(ctx), log)
 			if tsrv != nil {
 				warnOnErr(tsrv.Shutdown(ctx), log)
+			}
+			if proxyServer != nil {
+				warnOnErr(proxyServer.Shutdown(), log)
 			}
 			if webServer != nil {
 				warnOnErr(webServer.Shutdown(ctx), log)
@@ -3302,6 +3367,29 @@ func kubeDialAddr(config ProxyConfig, mode types.ProxyListenerMode) utils.NetAdd
 		return config.WebAddr
 	}
 	return config.Kube.ListenAddr
+}
+
+func peerAddr(addr *utils.NetAddr) (*utils.NetAddr, error) {
+	if addr.IsEmpty() {
+		addr = defaults.ProxyPeeringListenAddr()
+	}
+
+	if !addr.IsHostUnspecified() {
+		return addr, nil
+	}
+
+	ip, err := utils.GuessHostIP()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	port := addr.Port(defaults.ProxyPeeringListenPort)
+	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return addr, nil
 }
 
 func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {

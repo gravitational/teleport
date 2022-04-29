@@ -77,6 +77,10 @@ type Server interface {
 	GetKubernetesClusters() []*KubernetesCluster
 	// SetKubeClusters sets the kubernetes clusters handled by this server.
 	SetKubernetesClusters([]*KubernetesCluster)
+	// GetPeerAddr returns the peer address of the server.
+	GetPeerAddr() string
+	// SetPeerAddr sets the peer address of the server.
+	SetPeerAddr(string)
 	// MatchAgainst takes a map of labels and returns True if this server
 	// has ALL of them
 	//
@@ -308,6 +312,16 @@ func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.
 // SetKubernetesClusters sets the kubernetes clusters handled by this server.
 func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
 	s.Spec.KubernetesClusters = clusters
+}
+
+// GetPeerAddr returns the peer address of the server.
+func (s *ServerV2) GetPeerAddr() string {
+	return s.Spec.PeerAddr
+}
+
+// SetPeerAddr sets the peer address of the server.
+func (s *ServerV2) SetPeerAddr(addr string) {
+	s.Spec.PeerAddr = addr
 }
 
 // MatchAgainst takes a map of labels and returns True if this server
