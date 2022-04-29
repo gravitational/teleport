@@ -332,7 +332,7 @@ const (
 	// EC2LabelUpdatePeriod is the period for updating EC2 labels.
 	EC2LabelUpdatePeriod = time.Hour
 	// EC2Hostname is the name of the EC2 tag used to override a node's hostname.
-	EC2Hostname = "Hostname"
+	EC2Hostname = "TeleportHostname"
 )
 
 // OriginValues lists all possible origin values.

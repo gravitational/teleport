@@ -84,6 +84,8 @@ type Config struct {
 	AWSMatchers []services.AWSMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
+
+	EC2Labels *labels.EC2Labels
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 	// OnReconcile is called after each database resource reconciliation.
@@ -456,9 +458,23 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, database := range s.proxiedDatabases {
-		databases = append(databases, database)
+		databases = append(databases, s.injectEC2Labels(database))
 	}
 	return databases
+}
+
+func (s *Server) injectEC2Labels(database types.Database) types.Database {
+	copy := database.Copy()
+	labels := copy.GetStaticLabels()
+	if s.cfg.EC2Labels != nil {
+		for k, v := range s.cfg.EC2Labels.Get() {
+			if _, ok := labels[k]; !ok {
+				labels[k] = v
+			}
+		}
+	}
+	copy.SetStaticLabels(labels)
+	return copy
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.
@@ -581,6 +597,10 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		s.cfg.OnHeartbeat(nil)
 	}
 
+	if s.cfg.EC2Labels != nil {
+		s.cfg.EC2Labels.Start()
+	}
+
 	return nil
 }
 
@@ -599,6 +619,9 @@ func (s *Server) Close() error {
 	// Stop the database resource watcher.
 	if s.watcher != nil {
 		s.watcher.Close()
+	}
+	if s.cfg.EC2Labels != nil {
+		s.cfg.EC2Labels.Close()
 	}
 	// Close all cloud clients.
 	errors = append(errors, s.cfg.Auth.Close())

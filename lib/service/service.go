@@ -834,7 +834,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.Kube.Enabled {
-		process.initKubernetes()
+		process.initKubernetes(initConf)
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentKube), process.log)
@@ -842,14 +842,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	// If this process is proxying applications, start application access server.
 	if cfg.Apps.Enabled {
-		process.initApps()
+		process.initApps(initConf)
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp), process.log)
 	}
 
 	if cfg.Databases.Enabled {
-		process.initDatabases()
+		process.initDatabases(initConf)
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDatabase), process.log)
@@ -3526,7 +3526,7 @@ var appDependEvents = []string{
 	ProxyReverseTunnelReady,
 }
 
-func (process *TeleportProcess) initApps() {
+func (process *TeleportProcess) initApps(initConf initConfig) {
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".
@@ -3696,6 +3696,7 @@ func (process *TeleportProcess) initApps() {
 			Hostname:         process.Config.Hostname,
 			GetRotation:      process.getRotation,
 			Apps:             applications,
+			EC2Labels:        initConf.ec2Labels,
 			ResourceMatchers: process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:      process.onHeartbeat(teleport.ComponentApp),
 		})

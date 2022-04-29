@@ -191,6 +191,7 @@ func (conf *EC2LabelConfig) checkAndSetDefaults() error {
 type EC2Labels struct {
 	c      *EC2LabelConfig
 	mu     sync.Mutex
+	once   sync.Once
 	labels map[string]string
 
 	closeContext context.Context
@@ -250,19 +251,21 @@ func (l *EC2Labels) Sync() {
 
 // Start will start a loop that continually keeps EC2 labels updated.
 func (l *EC2Labels) Start() {
-	go func() {
-		ticker := time.NewTicker(types.EC2LabelUpdatePeriod)
-		defer ticker.Stop()
+	l.once.Do(func() { go l.periodicUpdateLabels() })
+}
 
-		for {
-			l.Sync()
-			select {
-			case <-ticker.C:
-			case <-l.closeContext.Done():
-				return
-			}
+func (l *EC2Labels) periodicUpdateLabels() {
+	ticker := time.NewTicker(types.EC2LabelUpdatePeriod)
+	defer ticker.Stop()
+
+	for {
+		l.Sync()
+		select {
+		case <-ticker.C:
+		case <-l.closeContext.Done():
+			return
 		}
-	}()
+	}
 }
 
 // Close will free up all resources and stop keeping EC2 labels updated.

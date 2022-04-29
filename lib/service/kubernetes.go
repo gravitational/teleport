@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func (process *TeleportProcess) initKubernetes() {
+func (process *TeleportProcess) initKubernetes(initConf initConfig) {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentKube, process.id),
 	})
@@ -59,7 +59,7 @@ func (process *TeleportProcess) initKubernetes() {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
 
-		err := process.initKubernetesService(log, conn)
+		err := process.initKubernetesService(log, conn, initConf.ec2Labels)
 		if err != nil {
 			warnOnErr(conn.Close(), log)
 			return trace.Wrap(err)
@@ -68,7 +68,7 @@ func (process *TeleportProcess) initKubernetes() {
 	})
 }
 
-func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *Connector) (retErr error) {
+func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *Connector, ec2Labels *labels.EC2Labels) (retErr error) {
 	// clean up unused descriptors passed for proxy, but not used by it
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentKube); err != nil {
@@ -170,12 +170,20 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		}
 		dynLabels.Sync()
 		go dynLabels.Start()
-		defer func() {
-			if retErr != nil {
+	}
+	if ec2Labels != nil {
+		ec2Labels.Start()
+	}
+	defer func() {
+		if retErr != nil {
+			if dynLabels != nil {
 				dynLabels.Close()
 			}
-		}()
-	}
+			if ec2Labels != nil {
+				ec2Labels.Close()
+			}
+		}
+	}()
 
 	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
@@ -242,6 +250,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			Component:                     teleport.ComponentKube,
 			StaticLabels:                  cfg.Kube.StaticLabels,
 			DynamicLabels:                 dynLabels,
+			EC2Labels:                     ec2Labels,
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,

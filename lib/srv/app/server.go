@@ -87,6 +87,10 @@ type Config struct {
 	// Apps is a list of statically registered apps this agent proxies.
 	Apps types.Apps
 
+	// EC2Labels is a service that imports labels from EC2. The labels are shared
+	// between all apps.
+	EC2Labels *labels.EC2Labels
+
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 
@@ -468,9 +472,23 @@ func (s *Server) getApps() (apps types.Apps) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, app := range s.apps {
-		apps = append(apps, app)
+		apps = append(apps, s.injectEC2Labels(app))
 	}
 	return apps
+}
+
+func (s *Server) injectEC2Labels(app types.Application) types.Application {
+	copy := app.Copy()
+	labels := copy.GetStaticLabels()
+	if s.c.EC2Labels != nil {
+		for k, v := range s.c.EC2Labels.Get() {
+			if _, ok := labels[k]; !ok {
+				labels[k] = v
+			}
+		}
+	}
+	copy.SetStaticLabels(labels)
+	return copy
 }
 
 // Start starts proxying all registered apps.
@@ -493,7 +511,9 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
+	if s.c.EC2Labels != nil {
+		s.c.EC2Labels.Start()
+	}
 	return nil
 }
 
@@ -519,6 +539,10 @@ func (s *Server) Close() error {
 	// Stop the database resource watcher.
 	if s.watcher != nil {
 		s.watcher.Close()
+	}
+
+	if s.c.EC2Labels != nil {
+		s.c.EC2Labels.Close()
 	}
 
 	return trace.NewAggregate(errs...)
