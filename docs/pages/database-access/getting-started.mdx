@@ -12,6 +12,15 @@ Here's an overview of what we will do:
 2. Join the Aurora database to your Teleport cluster.
 3. Connect to the Aurora database via the Teleport Database Service.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access RDS Self-Hosted](../../img/database-access/guides/rds_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access RDS Cloud](../../img/database-access/guides/rds_cloud.png)
+</ScopedBlock>
+
 ## Prerequisites
 
 <Admonition type="note" title="Supported versions">
@@ -99,6 +108,9 @@ see the AWS [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGui
 
 (!docs/pages/includes/database-access/token.mdx!)
 
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
