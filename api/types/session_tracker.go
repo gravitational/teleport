@@ -23,14 +23,14 @@ import (
 )
 
 const (
-	SSHSessionKind        SessionKind            = "ssh"
-	KubernetesSessionKind SessionKind            = "k8s"
-	DatabaseSessionKind   SessionKind            = "db"
-	AppSessionKind        SessionKind            = "app"
-	DesktopSessionKind    SessionKind            = "dsk"
-	SessionObserverMode   SessionParticipantMode = "observer"
-	SessionModeratorMode  SessionParticipantMode = "moderator"
-	SessionPeerMode       SessionParticipantMode = "peer"
+	SSHSessionKind            SessionKind            = "ssh"
+	KubernetesSessionKind     SessionKind            = "k8s"
+	DatabaseSessionKind       SessionKind            = "db"
+	AppSessionKind            SessionKind            = "app"
+	WindowsDesktopSessionKind SessionKind            = "win"
+	SessionObserverMode       SessionParticipantMode = "observer"
+	SessionModeratorMode      SessionParticipantMode = "moderator"
+	SessionPeerMode           SessionParticipantMode = "peer"
 )
 
 // SessionKind is a type of session.

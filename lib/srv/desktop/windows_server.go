@@ -814,6 +814,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
 	delay := timer()
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
@@ -1249,6 +1253,60 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 	certBlock, _ := pem.Decode(genResp.Cert)
 	certDER = certBlock.Bytes
 	return certDER, keyDER, nil
+}
+
+// trackSession creates a session tracker for the given sessionID and
+// attributes, and starts a goroutine to continually extend the tracker
+// expiration while the session is active. Once the given ctx is closed,
+// the tracker will be marked as terminated.
+func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, windowsUser string, sessionID string, desktop types.WindowsDesktop) error {
+	s.cfg.Log.Debug("Creating session tracker")
+	initiator := &types.Participant{
+		User: id.Username,
+	}
+
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    sessionID,
+		Kind:         string(types.WindowsDesktopSessionKind),
+		State:        types.SessionState_SessionStateRunning,
+		Hostname:     s.cfg.Hostname,
+		Address:      desktop.GetAddr(),
+		ClusterName:  s.clusterName,
+		Login:        "root",
+		Participants: []types.Participant{*initiator},
+		HostUser:     initiator.User,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.cfg.AuthClient.UpsertSessionTracker(ctx, tracker)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start go routine to push back session expiration until ctx is canceled (session ends).
+	go func() {
+		ticker := s.cfg.Clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case time := <-ticker.Chan():
+				err := services.UpdateSessionTrackerExpiry(ctx, s.cfg.AuthClient, sessionID, time.Add(defaults.SessionTrackerTTL))
+				if err != nil {
+					s.cfg.Log.WithError(err).Warningf("Failed to update session tracker expiration for session %v.", sessionID)
+					return
+				}
+			case <-ctx.Done():
+				if err := services.UpdateSessionTrackerState(s.closeCtx, s.cfg.AuthClient, sessionID, types.SessionState_SessionStateTerminated); err != nil {
+					s.cfg.Log.WithError(err).Warningf("Failed to update session tracker state for session %v.", sessionID)
+				}
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
 // The following vars contain the various object identifiers required for smartcard
