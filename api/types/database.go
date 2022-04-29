@@ -266,8 +266,8 @@ func (d *DatabaseV3) GetMySQL() MySQLOptions {
 // GetMySQLServerVersion returns the MySQL server version reported by the database or the value from configuration
 // if the first one is not available.
 func (d *DatabaseV3) GetMySQLServerVersion() string {
-	if d.Status.MySQLServerVersion != "" {
-		return d.Status.MySQLServerVersion
+	if d.Status.MySQL.ServerVersion != "" {
+		return d.Status.MySQL.ServerVersion
 	}
 
 	return d.Spec.MySQL.ServerVersion
@@ -275,7 +275,7 @@ func (d *DatabaseV3) GetMySQLServerVersion() string {
 
 // SetMySQLServerVersion sets the runtime MySQL server version.
 func (d *DatabaseV3) SetMySQLServerVersion(version string) {
-	d.Status.MySQLServerVersion = version
+	d.Status.MySQL.ServerVersion = version
 }
 
 // IsEmpty returns true if AWS metadata is empty.
