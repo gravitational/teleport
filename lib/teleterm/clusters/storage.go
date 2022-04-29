@@ -161,19 +161,19 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	}
 
 	clusterNameForKey := profileName
-	if leafClusterName != "" {
-		clusterNameForKey = leafClusterName
-	}
+	clusterURI := uri.NewClusterURI(profileName)
 
 	cfg := client.MakeDefaultConfig()
 	if err := cfg.LoadProfile(s.Dir, profileName); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	cfg.KeysDir = s.Dir
 	cfg.HomePath = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
+
 	if leafClusterName != "" {
+		clusterNameForKey = leafClusterName
+		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
 		cfg.SiteName = leafClusterName
 	}
 
@@ -204,10 +204,6 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		return nil, trace.Wrap(err)
 	}
 
-	clusterURI := uri.NewClusterURI(profileName)
-	if leafClusterName != "" {
-		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
-	}
 	return &Cluster{
 		URI: clusterURI,
 		// TODO(ravicious): This should probably use leafClusterName if available, but at this point I'm
