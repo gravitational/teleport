@@ -329,9 +329,8 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 			return
 		}
 
-		// Requests forwarded from forward proxy have original hostnames
-		// instead of localhost. Set appropriate header to keep this
-		// information.
+		// Requests from forward proxy have original hostnames instead of
+		// localhost. Set appropriate header to keep this information.
 		if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
 			req.Header.Set("X-Forwarded-Host", req.Host)
 		}

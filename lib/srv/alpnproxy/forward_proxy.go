@@ -89,7 +89,7 @@ func NewForwardProxy(cfg ForwardProxyConfig) (*ForwardProxy, error) {
 	}, nil
 }
 
-// Start starts serving requests.
+// Start starts serving on the listener.
 func (p *ForwardProxy) Start() error {
 	err := http.Serve(p.cfg.Listener, p)
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
@@ -165,7 +165,7 @@ func MatchAWSRequests(req *http.Request) bool {
 	return awsapiutils.IsAWSEndpoint(req.Host)
 }
 
-// ForwardToHostHandler is a ConnectRequestHandler that forwards requests to
+// ForwardToHostHandler is a CONNECT request handler that forwards requests to
 // designated host.
 type ForwardToHostHandler struct {
 	cfg ForwardToHostHandlerConfig
@@ -232,13 +232,22 @@ func (c *ForwardToSystemProxyHandlerConfig) SetDefaults() {
 	if c.TunnelProtocol == "" {
 		c.TunnelProtocol = "https"
 	}
+
+	// By default, use the HTTPS_PROXY etc. settings from environment where our
+	// server is run.
 	if c.SystemProxyFunc == nil {
 		c.SystemProxyFunc = httpproxy.FromEnvironment().ProxyFunc()
 	}
 }
 
-// ForwardToSystemProxyHandler is a ConnectRequestHandler that forwards
-// requests to system proxy.
+// ForwardToSystemProxyHandler is a CONNECT request handler that forwards
+// requests to existing system or corporate forward proxies where our server is
+// run.
+//
+// Here "system" is used to differentiate the forward proxy users have outside
+// Teleport from our own forward proxy server. The purpose of this handler is
+// to honor "system" proxy settings so the requests are forwarded to "system"
+// proxies as intended instead of going to their original hosts.
 type ForwardToSystemProxyHandler struct {
 	cfg ForwardToSystemProxyHandlerConfig
 }

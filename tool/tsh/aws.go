@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -73,6 +74,8 @@ type awsApp struct {
 
 	localALPNProxy    *alpnproxy.LocalProxy
 	localForwardProxy *alpnproxy.ForwardProxy
+	credentials       *credentials.Credentials
+	credentialsOnce   sync.Once
 }
 
 // newAWSApp creates a new AWS app.
@@ -96,8 +99,8 @@ func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, appName string) (*aws
 // configuring AWS endpoint URLs. The API flow looks like this.
 // clients -> local ALPN proxy -> remote server
 //
-// The first method is always preferred because the original hostname is
-// preserved through HTTPS_PROXY.
+// The first method is always preferred as the original hostname is preserved
+// through forward proxy.
 func (a *awsApp) StartLocalProxies() error {
 	if err := a.startLocalALPNProxy(); err != nil {
 		return trace.Wrap(err)
@@ -128,13 +131,17 @@ func (a *awsApp) GetAWSCredentials() *credentials.Credentials {
 	// as long as the AWS clients and the local proxy are using the same
 	// credentials. The only constraint is the access key must have a length
 	// between 16 and 128. Here access key and secert are generated based on
-	// current profile and app name so same values can be recreated.
+	// current profile and app name so the same values can be recreated.
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
-	hashData := []byte(fmt.Sprintf("%v-%v-%v", a.profile.Name, a.profile.Username, a.appName))
-	md5sum := md5.Sum(hashData)
-	md5Encoded := hex.EncodeToString(md5sum[:])
-	return credentials.NewStaticCredentials(md5Encoded[:16], md5Encoded[16:], "")
+	a.credentialsOnce.Do(func() {
+		hashData := []byte(fmt.Sprintf("%v-%v-%v", a.profile.Name, a.profile.Username, a.appName))
+		md5sum := md5.Sum(hashData)
+		md5Encoded := hex.EncodeToString(md5sum[:])
+		a.credentials = credentials.NewStaticCredentials(md5Encoded[:16], md5Encoded[16:], "")
+	})
+
+	return a.credentials
 }
 
 // GetEnvVars returns required environment variables to configure the
@@ -149,12 +156,24 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	caPath := a.profile.AppLocalCAPath(a.appName)
 	return map[string]string{
+		// AWS CLI and SDKs can load credentials through environment variables.
+		//
+		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
-		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.appName),
-		"HTTPS_PROXY":           "http://" + a.localForwardProxy.GetAddr(),
-		"https_proxy":           "http://" + a.localForwardProxy.GetAddr(),
+		"AWS_CA_BUNDLE":         caPath,
+
+		// Required for GO SDK to use AWS_CA_BUNDLE properly.
+		"AWS_SDK_LOAD_CONFIG": "true",
+
+		// Required for JavaScript SDK to use correct CA.
+		"NODE_EXTRA_CA_CERTS": caPath,
+
+		// Set proxy settings.
+		"HTTPS_PROXY": "http://" + a.localForwardProxy.GetAddr(),
+		"https_proxy": "http://" + a.localForwardProxy.GetAddr(),
 	}, nil
 }
 

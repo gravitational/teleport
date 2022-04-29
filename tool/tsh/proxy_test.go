@@ -363,7 +363,13 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 	}
 }
 
-func TestTSHProxyAWSCommand(t *testing.T) {
+// TestProxyAWSCommand tests launching a command under tsh AWS proxy.
+//
+// "curl" is run under the tsh proxy to send a request to a local test server,
+// and the test verifies the request is forwarded by our proxy then the local
+// test server receives it. Note that AWS requests are not tested to avoid app
+// server sends out test requests to AWS.
+func TestProxyAWSCommand(t *testing.T) {
 	_, err := exec.LookPath("curl")
 	if err != nil {
 		t.Skip("Skipping. No external curl binary found.")

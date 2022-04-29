@@ -18,7 +18,6 @@ package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
 	"net"
@@ -342,8 +341,8 @@ func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClien
 		return localCA, nil
 	}
 
-	// Regenerate and load again.
-	log.WithError(err).Debugf("Failed to load certificate from %v. Regenerating local self signed CA.", caPath)
+	// Generate and load again.
+	log.WithError(err).Debugf("Failed to load certificate from %v. Generating local self signed CA.", caPath)
 	if err = generateAppSelfSignedCA(profile, tc, appName); err != nil {
 		return tls.Certificate{}, err
 	}
@@ -397,45 +396,6 @@ func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportC
 		return trace.ConvertSystemError(err)
 	}
 	return nil
-}
-
-// loadAppCertificate loads the app certificate for the provided app.
-func loadAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
-	key, err := tc.LocalAgent().GetKey(tc.SiteName, client.WithAppCerts{})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	cc, ok := key.AppTLSCerts[appName]
-	if !ok {
-		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
-	}
-	cert, err := tls.X509KeyPair(cc, key.Priv)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	expiresAt, err := getTLSCertExpireTime(cert)
-	if err != nil {
-		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh app login'")
-	}
-	if time.Until(expiresAt) < 5*time.Second {
-		return tls.Certificate{}, trace.BadParameter(
-			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
-			appName)
-	}
-	return cert, nil
-}
-
-// getTLSCertExpireTime returns the certificate NotAfter time.
-func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	if len(cert.Certificate) < 1 {
-		return time.Time{}, trace.NotFound("invalid certificate length")
-	}
-	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
-	if err != nil {
-		return time.Time{}, trace.Wrap(err)
-	}
-	return x509cert.NotAfter, nil
 }
 
 const (

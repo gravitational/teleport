@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
@@ -26,11 +27,13 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -293,55 +296,6 @@ func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
 	return []tls.Certificate{cert}, nil
 }
 
-// onProxyCommandAWS creates local proxes for AWS apps.
-func onProxyCommandAWS(cf *CLIConf) error {
-	awsApp, err := pickActiveAWSApp(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsApp.StartLocalProxies()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	defer func() {
-		if err := awsApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close AWS app.")
-		}
-	}()
-
-	envVars, err := awsApp.GetEnvVars()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	templateData := map[string]interface{}{
-		"envVars":     envVars,
-		"address":     awsApp.GetForwardProxyAddr(),
-		"endpointURL": awsApp.GetEndpointURL(),
-	}
-
-	if len(cf.AWSCommandArgs) > 0 {
-		if cf.Verbose {
-			templateData["command"] = strings.Join(cf.AWSCommandArgs, " ")
-			err = awsProxyCommandTemplate.Execute(os.Stdout, templateData)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		return awsApp.RunCommand(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
-	}
-
-	err = awsProxyTemplate.Execute(os.Stdout, templateData)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	<-cf.Context.Done()
-	return nil
-}
-
 func onProxyCommandApp(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -399,6 +353,94 @@ func onProxyCommandApp(cf *CLIConf) error {
 	return nil
 }
 
+// onProxyCommandAWS creates local proxes for AWS apps.
+func onProxyCommandAWS(cf *CLIConf) error {
+	awsApp, err := pickActiveAWSApp(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = awsApp.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := awsApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close AWS app.")
+		}
+	}()
+
+	envVars, err := awsApp.GetEnvVars()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	templateData := map[string]interface{}{
+		"envVars":     envVars,
+		"address":     awsApp.GetForwardProxyAddr(),
+		"endpointURL": awsApp.GetEndpointURL(),
+	}
+
+	if len(cf.AWSCommandArgs) > 0 {
+		if cf.Verbose {
+			templateData["command"] = strings.Join(cf.AWSCommandArgs, " ")
+			err = awsProxyCommandTemplate.Execute(os.Stdout, templateData)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return awsApp.RunCommand(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
+	}
+
+	err = awsProxyTemplate.Execute(os.Stdout, templateData)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	<-cf.Context.Done()
+	return nil
+}
+
+// loadAppCertificate loads the app certificate for the provided app.
+func loadAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, client.WithAppCerts{})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cc, ok := key.AppTLSCerts[appName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
+	}
+	cert, err := tls.X509KeyPair(cc, key.Priv)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	expiresAt, err := getTLSCertExpireTime(cert)
+	if err != nil {
+		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh app login'")
+	}
+	if time.Until(expiresAt) < 5*time.Second {
+		return tls.Certificate{}, trace.BadParameter(
+			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
+			appName)
+	}
+	return cert, nil
+}
+
+// getTLSCertExpireTime returns the certificate NotAfter time.
+func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
+	if len(cert.Certificate) < 1 {
+		return time.Time{}, trace.NotFound("invalid certificate length")
+	}
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	return x509cert.NotAfter, nil
+}
+
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
 var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
 
@@ -446,8 +488,7 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   HTTPS_PROXY={{.envVars.HTTPS_PROXY}}
 
 If HTTPS proxy setting cannot be configured for the application, try using
-"{{.endpointURL}}" as the AWS endpoint URL. See usage for details on
-fixing the port number(s).
+"{{.endpointURL}}" as the AWS endpoint URL.
 `))
 
 // awsProxyCommandTemplate is the message that gets printed to a user when a
@@ -461,8 +502,7 @@ The following environment variables are set for the command:
 {{ end }}
 
 If HTTPS proxy setting cannot be configured for the application, try using
-"{{.endpointURL}}" as the AWS endpoint URL. See usage for details on
-fixing the port number(s).
+"{{.endpointURL}}" as the AWS endpoint URL.
 
 Executing command: {{.command}}
 

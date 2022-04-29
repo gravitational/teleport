@@ -149,8 +149,8 @@ func (c *CertGenListenerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CertGenListener is a HTTPS listener that generates TLS certificates based on
-// SNI during HTTPS handshake.
+// CertGenListener is a HTTPS listener that can generate TLS certificates based
+// on SNI during HTTPS handshake.
 type CertGenListener struct {
 	net.Listener
 
@@ -193,8 +193,8 @@ func NewCertGenListener(config CertGenListenerConfig) (*CertGenListener, error) 
 	return r, nil
 }
 
-// GetCertificate return TLS certificate based on SNI. Implements
-// tls.Config.GetCertificate.
+// GetCertificate generates and returns TLS certificate for incoming
+// connection. Implements tls.Config.GetCertificate.
 func (r *CertGenListener) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	// Requests to IPs have no server names. Default to CA.
 	if clientHello.ServerName == "" {
@@ -216,7 +216,7 @@ func (r *CertGenListener) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls
 		return &r.cfg.CA, nil
 	}
 
-	return cert, err
+	return cert, nil
 }
 
 // generateCertFor generates a new certificate for the specified host.

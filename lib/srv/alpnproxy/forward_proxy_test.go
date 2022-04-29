@@ -69,12 +69,7 @@ func TestForwardProxy(t *testing.T) {
 		forwardProxy := createForwardProxy(t, receiverHandler, NewForwardToOriginalHostHandler())
 		client := httpsClientWithProxyURL(forwardProxy.GetAddr(), caCert)
 
-		mustCallHTTPSServerAndReceiveCode(
-			t,
-			"receiver.wanted.com:443",
-			*client,
-			receiverCode,
-		)
+		mustCallHTTPSServerAndReceiveCode(t, "receiver.wanted.com:443", *client, receiverCode)
 	})
 
 	// client -> forward proxy -> original host
@@ -82,12 +77,7 @@ func TestForwardProxy(t *testing.T) {
 		forwardProxy := createForwardProxy(t, receiverHandler, NewForwardToOriginalHostHandler())
 		client := httpsClientWithProxyURL(forwardProxy.GetAddr(), caCert)
 
-		mustCallHTTPSServerAndReceiveCode(
-			t,
-			originalHostAddress,
-			*client,
-			originalHostCode,
-		)
+		mustCallHTTPSServerAndReceiveCode(t, originalHostAddress, *client, originalHostCode)
 	})
 
 	// client -> forward proxy -> system proxy -> original host
@@ -103,16 +93,11 @@ func TestForwardProxy(t *testing.T) {
 		forwardProxy := createForwardProxy(t, forwardToSystemProxyHandler)
 		client := httpsClientWithProxyURL(forwardProxy.GetAddr(), caCert)
 
-		mustCallHTTPSServerAndReceiveCode(
-			t,
-			originalHostAddress,
-			*client,
-			originalHostCode,
-		)
+		mustCallHTTPSServerAndReceiveCode(t, originalHostAddress, *client, originalHostCode)
 	})
 
-	// client -> forward proxy -> system proxy (https) -> original host
-	t.Run("to system proxy (https)", func(t *testing.T) {
+	// client -> forward proxy -> system proxy (HTTPS) -> original host
+	t.Run("to system proxy (HTTPS)", func(t *testing.T) {
 		// This test is the same as previous one except the system proxy is a
 		// HTTPS server.
 		systemProxyHTTPSServer := createSystemProxy(t, mustCreateCertGenListener(t, ca))
@@ -127,12 +112,7 @@ func TestForwardProxy(t *testing.T) {
 		forwardProxy := createForwardProxy(t, forwardToSystemProxyHandler)
 		client := httpsClientWithProxyURL(forwardProxy.GetAddr(), caCert)
 
-		mustCallHTTPSServerAndReceiveCode(
-			t,
-			originalHostAddress,
-			*client,
-			originalHostCode,
-		)
+		mustCallHTTPSServerAndReceiveCode(t, originalHostAddress, *client, originalHostCode)
 	})
 }
 
