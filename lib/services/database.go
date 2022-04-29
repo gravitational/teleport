@@ -523,9 +523,13 @@ func auroraMySQLVersion(cluster *rds.DBCluster) string {
 	return version
 }
 
-// GetLabelEngineVersion returns engine version from provided metadata labels.
+// GetMySQLEngineVersion returns MySQL engine version from provided metadata labels.
 // An empty string is returned if label doesn't exist.
-func GetLabelEngineVersion(labels map[string]string) string {
+func GetMySQLEngineVersion(labels map[string]string) string {
+	if engine, ok := labels[labelEngine]; !ok || engine != RDSEngineMySQL {
+		return ""
+	}
+
 	version, ok := labels[labelEngineVersion]
 	if !ok {
 		return ""
