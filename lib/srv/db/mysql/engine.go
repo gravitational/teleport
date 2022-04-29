@@ -17,10 +17,13 @@ limitations under the License.
 package mysql
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -33,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/siddontang/go-mysql/client"
+	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/packet"
 	"github.com/siddontang/go-mysql/server"
 
@@ -194,7 +198,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			return nil, trace.Wrap(err)
 		}
 	case sessionCtx.Database.IsCloudSQL():
-		// For Cloud SQL MySQL there is no IAM auth so we use one-time passwords
+		// For Cloud SQL MySQL there is no IAM auth, so we use one-time passwords
 		// by resetting the database user password for each connection. Thus,
 		// acquire a lock to make sure all connection attempts to the same
 		// database and user are serialized.
@@ -327,7 +331,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
 		case *protocol.StatementExecutePacket:
 			// TODO(greedy52) Number of parameters is required to parse
-			// paremeters out of the packet. Parameter definitions are required
+			// parameters out of the packet. Parameter definitions are required
 			// to properly format the parameters for including in the audit
 			// log. Both number of parameters and parameter definitions can be
 			// obtained from the response of COM_STMT_PREPARE.
@@ -441,21 +445,74 @@ func FetchMySQLVersion(ctx context.Context, database types.Database) (string, er
 	if err != nil {
 		return "", trace.ConnectionProblem(err, "failed to connect to MySQL")
 	}
+	defer conn.Close()
 
-	dbConn := packet.NewTLSConn(conn)
-	defer dbConn.Close()
+	connBuf := newBufferedConn(conn)
+	pkgType, err := connBuf.Peek(5)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// ref: https://dev.mysql.com/doc/internals/en/mysql-packet.html
+	//      https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
+	if pkgType[4] == mysql.ERR_HEADER {
+		return readHandshakeError(connBuf)
+	}
+
+	return readHandshakeServerVersion(connBuf)
+}
+
+// readHandshakeServerVersion reads MySQL initial handshake message and returns the server version.
+func readHandshakeServerVersion(connBuf net.Conn) (string, error) {
+	dbConn := packet.NewTLSConn(connBuf)
 
 	handshake, err := dbConn.ReadPacket()
 	if err != nil {
 		return "", trace.ConnectionProblem(err, "failed to read the MySQL handshake")
 	}
 
+	// ref: https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
 	versionLength := bytes.IndexByte(handshake[1:], 0x00)
 	if versionLength == -1 {
 		return "", trace.Errorf("failed to read the MySQL server version")
 	}
 
 	return string(handshake[1 : 1+versionLength]), nil
+}
+
+// readHandshakeError reads and returns an error message from
+func readHandshakeError(connBuf io.Reader) (string, error) {
+	handshakePackage, err := protocol.ParsePacket(connBuf)
+	if err != nil {
+		return "", err
+	}
+	errPackage, ok := handshakePackage.(*protocol.Error)
+	if !ok {
+		return "", trace.BadParameter("expected MySQL error package, got %T", handshakePackage)
+	}
+	return "", trace.ConnectionProblem(errors.New("failed to fetch MySQL version"), errPackage.Error())
+}
+
+// bufferedConn is a net.Conn wrapper with additional Peek() method.
+type connReader struct {
+	r *bufio.Reader
+	net.Conn
+}
+
+// newBufferedConn is a bufferedConn constructor.
+func newBufferedConn(c net.Conn) connReader {
+	return connReader{bufio.NewReader(c), c}
+}
+
+// Peek reads n bytes without advancing the reader.
+// It's basically a wrapper around (bufio.Reader).Peek()
+func (b connReader) Peek(n int) ([]byte, error) {
+	return b.r.Peek(n)
+}
+
+// Read returns data from underlying buffer.
+func (b connReader) Read(p []byte) (int, error) {
+	return b.r.Read(p)
 }
 
 const (
