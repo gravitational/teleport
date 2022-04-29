@@ -343,17 +343,21 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
 func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string, dnsNames []string, rotation types.Rotation) (*auth.Identity, error) {
-	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
-		return auth.GenerateIdentity(process.localAuth, conn.ClientIdentity.ID, additionalPrincipals, dnsNames)
+	id := conn.ClientIdentity.ID
+	if id.NodeName == "" {
+		id.NodeName = process.Config.Hostname
+	}
+	if id.Role == types.RoleAdmin || id.Role == types.RoleAuth {
+		return auth.GenerateIdentity(process.localAuth, id, additionalPrincipals, dnsNames)
 	}
 	const reason = "re-register"
-	keyPair, err := process.generateKeyPair(conn.ClientIdentity.ID.Role, reason)
+	keyPair, err := process.generateKeyPair(id.Role, reason)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity, err := auth.ReRegister(auth.ReRegisterParams{
 		Client:               conn.Client,
-		ID:                   conn.ClientIdentity.ID,
+		ID:                   id,
 		AdditionalPrincipals: additionalPrincipals,
 		PrivateKey:           keyPair.PrivateKey,
 		PublicTLSKey:         keyPair.PublicTLSKey,
@@ -364,7 +368,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.deleteKeyPair(conn.ClientIdentity.ID.Role, reason)
+	process.deleteKeyPair(id.Role, reason)
 	return identity, nil
 }
 
