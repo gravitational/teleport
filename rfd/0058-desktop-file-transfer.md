@@ -16,8 +16,8 @@ options and select a path forward.
 
 ## Required Approvers
 
-* Engineering: @zmb3 && (@probakowski || @LKozlowski)
-* Product: (@klizhentas || @xinding33)
+- Engineering: @zmb3 && (@probakowski || @LKozlowski)
+- Product: (@klizhentas || @xinding33)
 
 ## Overview
 
@@ -252,7 +252,7 @@ In this section, we'll summarize the combinations of options available to us.
 - Option 2a: Pair RDP virtual file system extension with native browser upload/download
 - Option 2b: Pair RDP virtual file system extension with browser's file system access API
 
-### Option 1a: Pair RDP clipboard with native browser upload and download
+### Option 1a: Pair RDP clipboard with native browser upload and download (rejected)
 
 With this option, the user uploads a file by:
 
@@ -272,7 +272,7 @@ the "out of band" issues on the technical implementation.
 
 This option is **NOT** selected.
 
-### Option 1b: Pair RDP clipboard with browser's file system access API
+### Option 1b: Pair RDP clipboard with browser's file system access API (rejected)
 
 With this option, the user uploads a file by:
 
@@ -293,7 +293,7 @@ access API.
 
 This option is **NOT** selected.
 
-### Option 2a: Pair RDP virtual file system extension with native browser upload/download
+### Option 2a: Pair RDP virtual file system extension with native browser upload/download (rejected)
 
 With this option, the user uploads a file by:
 
@@ -320,7 +320,7 @@ same service where those files are present. Lastly, care must be taken to ensure
 that shared files do not exceed the disk on the Windows Desktop Service and are
 appropriately cleaned up.
 
-### Option 2b: Pair RDP virtual file system extension with browser's file system access API
+### Option 2b: Pair RDP virtual file system extension with browser's file system access API (accepted)
 
 With this option, the user uploads a file by:
 
@@ -351,4 +351,4 @@ The primary disadvantages of this approach are:
 
 https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/77b4e4ae-c25a-4aad-bd93-8c9b1f35291b
 
-This option is the **preferred approach** for implementation in Teleport 10.
+This option is the **accepted approach** and will be implemented in an upcoming Teleport release.
