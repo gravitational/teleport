@@ -574,14 +574,14 @@ func validateU2FFacet(appIDDomain string, appIDScheme string, facet string) erro
 		// Facet is naked, only allowed for localhost domains (checked later).
 		facetHost = facet
 	} else {
-		// Facet is a full URL that specifies a scheme.
-		facetUrl, err := url.Parse(facet)
+		// FacetURL is a full URL that specifies a scheme.
+		facetURL, err := url.Parse(facet)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		facetScheme = facetUrl.Scheme
-		facetHost = facetUrl.Host
+		facetScheme = facetURL.Scheme
+		facetHost = facetURL.Host
 	}
 
 	facetDomain, err := getDomain(facetHost)
