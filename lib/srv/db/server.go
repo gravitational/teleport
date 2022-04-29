@@ -848,6 +848,9 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 		}
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+	defer cancel()
+
 	version, err := mysql.FetchMySQLVersion(ctx, database)
 	if err != nil {
 		return trace.Wrap(err)

@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
@@ -129,5 +130,58 @@ func TestFetchMySQLVersion(t *testing.T) {
 			tt.assertFn(t, version, err)
 			require.NoError(t, <-errs)
 		})
+	}
+}
+
+func TestFetchMySQLVersionDoesntBlock(t *testing.T) {
+	t.Parallel()
+
+	fakeMySQL, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, fakeMySQL.Close())
+	})
+
+	serverWait := make(chan struct{})
+	t.Cleanup(func() {
+		close(serverWait)
+	})
+
+	go func() {
+		conn, err := fakeMySQL.Accept()
+		if err == nil {
+			t.Cleanup(func() {
+				conn.Close()
+			})
+		}
+
+		// accept connection and just wait for timeout.
+		<-serverWait
+	}()
+
+	srvAddr := fakeMySQL.Addr().String()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	t.Cleanup(cancel)
+
+	fetchVerErrs := make(chan error)
+
+	go func() {
+		// Passed context should be canceled and i/o timeout should be returned.
+		_, err := FetchMySQLVersion(ctx, &types.DatabaseV3{
+			Spec: types.DatabaseSpecV3{
+				URI: srvAddr,
+			},
+		})
+
+		fetchVerErrs <- err
+	}()
+
+	select {
+	case err := <-fetchVerErrs:
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "i/o timeout")
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "connection should return before")
 	}
 }

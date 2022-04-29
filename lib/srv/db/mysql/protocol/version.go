@@ -43,7 +43,14 @@ func FetchMySQLVersionInternal(ctx context.Context, dialer client.Dialer, databa
 	}
 	defer conn.Close()
 
-	connBuf := newBufferedConn(conn)
+	// Set connection deadline if passed context has it.
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetReadDeadline(deadline); err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
+	connBuf := newBufferedConn(ctx, conn)
 	pkgType, err := connBuf.Peek(5)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -91,13 +98,15 @@ func readHandshakeError(connBuf io.Reader) (string, error) {
 
 // bufferedConn is a net.Conn wrapper with additional Peek() method.
 type connReader struct {
+	ctx    context.Context
 	reader *bufio.Reader
 	net.Conn
 }
 
 // newBufferedConn is a bufferedConn constructor.
-func newBufferedConn(conn net.Conn) connReader {
+func newBufferedConn(ctx context.Context, conn net.Conn) connReader {
 	return connReader{
+		ctx:    ctx,
 		reader: bufio.NewReader(conn),
 		Conn:   conn,
 	}
@@ -106,10 +115,16 @@ func newBufferedConn(conn net.Conn) connReader {
 // Peek reads n bytes without advancing the reader.
 // It's basically a wrapper around (bufio.Reader).Peek()
 func (b connReader) Peek(n int) ([]byte, error) {
+	if err := b.ctx.Err(); err != nil {
+		return nil, err
+	}
 	return b.reader.Peek(n)
 }
 
 // Read returns data from underlying buffer.
 func (b connReader) Read(p []byte) (int, error) {
+	if err := b.ctx.Err(); err != nil {
+		return 0, err
+	}
 	return b.reader.Read(p)
 }
