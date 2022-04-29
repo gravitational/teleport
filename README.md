@@ -144,7 +144,7 @@ also need `cargo` and `rustc`. The current versions of these tools can be found
 in `build.assets/Makefile`.
 
 Note that the `master` branch is the current development branch.  If you plan to
-use the build in your infrastructure get a released branch listed at https://goteleport.com/download/. 
+use the build in your infrastructure get a released tag listed at https://goteleport.com/download/. 
 For example `git clone https://github.com/gravitational/teleport.gi -b v9.1.2` gets release v9.1.2.  
 
 ```bash
