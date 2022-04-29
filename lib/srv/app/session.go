@@ -30,19 +30,21 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
-	session_pkg "github.com/gravitational/teleport/lib/session"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
 // session holds a request forwarder and audit log for this chunk.
 type session struct {
+	// id is the session's uuid
+	id string
 	// fwd can rewrite and forward requests to the target application.
 	fwd *forward.Forwarder
 	// streamWriter can emit events to the audit log.
@@ -94,10 +96,37 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 		return nil, trace.Wrap(err)
 	}
 
-	return &session{
+	sess := &session{
+		id:           identity.RouteToApp.SessionID,
 		fwd:          fwd,
 		streamWriter: streamWriter,
-	}, nil
+	}
+
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	if err := s.trackSession(sess, identity); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Put the session in the cache so the next request can use it for 5 minutes
+	// or the time until the certificate expires, whichever comes first.
+	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
+	err = s.cache.set(sess, ttl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
+}
+
+func (s *Server) closeSession(sess *session) {
+	if err := sess.streamWriter.Close(s.closeContext); err != nil {
+		s.log.Debugf("Failed to close stream writer: %v.", err)
+	}
+
+	if err := services.UpdateSessionTrackerState(s.closeContext, s.c.AuthClient, sess.id, types.SessionState_SessionStateTerminated); err != nil {
+		s.log.WithError(err).Warningf("Failed to update session tracker state for session %v.", sess.id)
+	}
 }
 
 // newStreamWriter creates a streamer that will be used to stream the
@@ -113,13 +142,8 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application
 		return nil, trace.Wrap(err)
 	}
 
-	// Each chunk has its own ID. Create a new UUID for this chunk which will be
-	// emitted in a new event to the audit log that can be use to aggregate all
-	// chunks for a particular session.
-	chunkID := uuid.New().String()
-
 	// Create a sync or async streamer depending on configuration of cluster.
-	streamer, err := s.newStreamer(s.closeContext, chunkID, recConfig)
+	streamer, err := s.newStreamer(s.closeContext, identity.RouteToApp.SessionID, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,7 +153,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application
 		Context:      s.closeContext,
 		Streamer:     streamer,
 		Clock:        s.c.Clock,
-		SessionID:    session_pkg.ID(chunkID),
+		SessionID:    rsession.ID(identity.RouteToApp.SessionID),
 		Namespace:    apidefaults.Namespace,
 		ServerID:     s.c.HostID,
 		RecordOutput: recConfig.GetMode() != types.RecordOff,
@@ -161,7 +185,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application
 			AppPublicAddr: app.GetPublicAddr(),
 			AppName:       app.GetName(),
 		},
-		SessionChunkID: chunkID,
+		SessionChunkID: identity.RouteToApp.SessionID,
 	}
 	if err := s.c.AuthClient.EmitAuditEvent(s.closeContext, appSessionChunkEvent); err != nil {
 		return nil, trace.Wrap(err)
@@ -192,34 +216,59 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig ty
 	return fileStreamer, nil
 }
 
+// trackSession creates a new session tracker for the app session.
+func (s *Server) trackSession(sess *session, identity *tlsca.Identity) error {
+	s.log.Debug("Creating session tracker")
+	initiator := &types.Participant{
+		User: identity.Username,
+	}
+
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    sess.id,
+		Kind:         string(types.AppSessionKind),
+		State:        types.SessionState_SessionStateRunning,
+		Hostname:     s.c.HostID,
+		AppName:      identity.RouteToApp.Name,
+		ClusterName:  identity.RouteToApp.ClusterName,
+		Login:        "root",
+		Participants: []types.Participant{*initiator},
+		HostUser:     initiator.User,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.c.AuthClient.UpsertSessionTracker(s.closeContext, tracker)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // sessionCache holds a cache of sessions that are used to forward requests.
 type sessionCache struct {
+	srv *Server
+
 	mu    sync.Mutex
 	cache *ttlmap.TTLMap
-
-	closeContext context.Context
-
-	log *logrus.Entry
 }
 
 // newSessionCache creates a new session cache.
-func newSessionCache(ctx context.Context, log *logrus.Entry) (*sessionCache, error) {
-	var err error
-
-	s := &sessionCache{
-		closeContext: ctx,
-		log:          log,
-	}
+func (s *Server) newSessionCache() (*sessionCache, error) {
+	sessionCache := &sessionCache{srv: s}
 
 	// Cache of request forwarders. Set an expire function that can be used to
 	// close and upload the stream of events to the Audit Log.
-	s.cache, err = ttlmap.New(defaults.ClientCacheSize, ttlmap.CallOnExpire(s.expire))
+	var err error
+	sessionCache.cache, err = ttlmap.New(defaults.ClientCacheSize, ttlmap.CallOnExpire(sessionCache.expire), ttlmap.Clock(s.c.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go s.expireSessions()
 
-	return s, nil
+	go sessionCache.expireSessions()
+
+	return sessionCache, nil
 }
 
 // get will fetch the session from the cache.
@@ -237,11 +286,11 @@ func (s *sessionCache) get(key string) (*session, error) {
 }
 
 // set will add the session to the cache.
-func (s *sessionCache) set(key string, value *session, ttl time.Duration) error {
+func (s *sessionCache) set(value *session, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.cache.Set(key, value, ttl); err != nil {
+	if err := s.cache.Set(value.id, value, ttl); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -249,25 +298,20 @@ func (s *sessionCache) set(key string, value *session, ttl time.Duration) error 
 
 // expire will close the stream writer.
 func (s *sessionCache) expire(key string, el interface{}) {
-	session, ok := el.(*session)
-	if !ok {
-		s.log.Debugf("Invalid type stored in cache: %T.", el)
-		return
-	}
-
-	// Closing the stream writer may trigger a flush operation which could be
+	// Closing the session stream writer may trigger a flush operation which could be
 	// time-consuming. Launch in another goroutine since this occurs under a
 	// lock and expire can get called during a "get" operation on the ttlmap.
-	go s.closeStreamWriter(s.closeContext, session)
-
-	s.log.Debugf("Closing expired stream %v.", key)
+	go s.closeSession(el)
+	s.srv.log.Debugf("Closing expired stream %v.", key)
 }
 
-// closeStreamWriter will close the stream writer. This could be a
-// time-consuming operation.
-func (s *sessionCache) closeStreamWriter(ctx context.Context, session *session) {
-	if err := session.streamWriter.Close(ctx); err != nil {
-		s.log.Debugf("Failed to close stream writer: %v.", err)
+// expire will close the stream writer.
+func (s *sessionCache) closeSession(el interface{}) {
+	switch sess := el.(type) {
+	case *session:
+		s.srv.closeSession(sess)
+	default:
+		s.srv.log.Debugf("Invalid type stored in cache: %T.", el)
 	}
 }
 
@@ -280,7 +324,7 @@ func (s *sessionCache) expireSessions() {
 		select {
 		case <-ticker.C:
 			s.expiredSessions()
-		case <-s.closeContext.Done():
+		case <-s.srv.closeContext.Done():
 			return
 		}
 	}
@@ -292,4 +336,13 @@ func (s *sessionCache) expiredSessions() {
 	defer s.mu.Unlock()
 
 	s.cache.RemoveExpired(10)
+}
+
+// closeAllSessions will remove and close all sessions in the cache.
+func (s *sessionCache) closeAllSessions() {
+	_, el, cont := s.cache.Pop()
+	for cont {
+		s.closeSession(el)
+		_, el, cont = s.cache.Pop()
+	}
 }

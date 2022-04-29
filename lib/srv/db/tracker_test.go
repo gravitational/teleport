@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSessiontTracker verifies session tracker functionality for database sessions.
+// TestSessiontTracker tests session tracker lifecycle for database sessions.
 func TestSessionTracker(t *testing.T) {
 	ctx := context.Background()
 
@@ -105,6 +105,7 @@ func TestSessionTracker(t *testing.T) {
 				// Note: mongo test creates 3 sessions (unrelated bug?), we just test the first one.
 				if len(trackers) > 0 {
 					tracker = trackers[0]
+					require.Equal(t, types.SessionState_SessionStateTerminated, tracker.GetState())
 					return true
 				}
 				return false

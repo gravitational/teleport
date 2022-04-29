@@ -253,7 +253,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
-	s.cache, err = newSessionCache(s.closeContext, s.log)
+	s.cache, err = s.newSessionCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -513,6 +513,11 @@ func (s *Server) Close() error {
 		errs = append(errs, err)
 	}
 
+	// Close the session cache and its remaining sessions. sessions
+	// use server.closeContext to complete cleanup, so we must wait
+	// for sessions to finish closing before closing the context.
+	s.cache.closeAllSessions()
+
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()
 
@@ -691,14 +696,6 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app t
 
 	// Create a new session with a recorder and forwarder in it.
 	session, err = s.newSession(ctx, identity, app)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Put the session in the cache so the next request can use it for 5 minutes
-	// or the time until the certificate expires, whichever comes first.
-	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
-	err = s.cache.set(identity.RouteToApp.SessionID, session, ttl)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

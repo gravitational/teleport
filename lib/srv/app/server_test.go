@@ -543,6 +543,38 @@ func TestRequestAuditEvents(t *testing.T) {
 	))
 }
 
+// TestSessionTracker tests session tracker lifecycle for app sessions.
+func TestSessionTracker(t *testing.T) {
+	ctx := context.Background()
+	s := SetUpSuite(t)
+
+	var tracker types.SessionTracker
+	s.checkHTTPResponse(t, s.clientCertificate, func(r *http.Response) {
+		// wait until request events are generated before closing the server.
+		trackerCreated := func() bool {
+			trackers, err := s.authClient.GetActiveSessionTrackers(ctx)
+			require.NoError(t, err)
+			if len(trackers) == 1 {
+				tracker = trackers[0]
+				require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetState())
+				return true
+			}
+			return false
+		}
+		require.Eventually(t, trackerCreated, time.Second*5, 500*time.Millisecond)
+	})
+
+	// Trigger session expiration from session cache
+	s.clock.Advance(time.Minute * 5)
+
+	trackerTerminated := func() bool {
+		tracker, err := s.authClient.GetSessionTracker(ctx, tracker.GetSessionID())
+		require.NoError(t, err)
+		return tracker.GetState() == types.SessionState_SessionStateTerminated
+	}
+	require.Eventually(t, trackerTerminated, time.Second*5, 500*time.Millisecond)
+}
+
 // checkHTTPResponse checks expected HTTP response.
 func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, checkResp func(*http.Response)) {
 	pr, pw := net.Pipe()

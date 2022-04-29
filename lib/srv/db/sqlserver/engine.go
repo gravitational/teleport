@@ -94,8 +94,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 	defer serverConn.Close()
 
-	// Create a session tracker so that other services
-	// can track the session's lifetime.
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
 	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if err := sessionCtx.TrackSession(cancelCtx, e.EngineConfig); err != nil {
