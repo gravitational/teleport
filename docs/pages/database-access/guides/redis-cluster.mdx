@@ -21,6 +21,15 @@ This guide will help you to:
 - Configure mutual TLS authentication between Teleport and Redis Cluster.
 - Connect to Redis through Teleport.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access Redis Cluster Self-Hosted](../../../img/database-access/guides/rediscluster_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access Redis Cluster Cloud](../../../img/database-access/guides/rediscluster_cloud.png)
+</ScopedBlock>
+
 ## Prerequisites
 
 - Redis version `6.0` or newer.
@@ -47,6 +56,10 @@ This guide will help you to:
 ### Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
