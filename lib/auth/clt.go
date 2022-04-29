@@ -88,6 +88,8 @@ var _ ClientI = &Client{}
 // functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	cfg.DialInBackground = true
+	// Deliberately ignore HTTP proxies for backwards compatibility.
+	cfg.IgnoreHTTPProxy = true
 	apiClient, err := client.New(context.TODO(), cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -129,8 +131,12 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		// Deliberately ignore HTTP proxies for backwards compatibility.
-		contextDialer := client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		var contextDialer client.ContextDialer
+		if cfg.IgnoreHTTPProxy {
+			contextDialer = client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		} else {
+			contextDialer = client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		}
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
