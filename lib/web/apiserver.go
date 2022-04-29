@@ -944,12 +944,21 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AuthType:         constants.Local,
 		}
 	} else {
+		authType := cap.GetType()
+		var localConnectorName string
+
+		if authType == constants.Local {
+			localConnectorName = cap.GetConnectorName()
+		}
+
 		authSettings = webclient.WebConfigAuthSettings{
-			Providers:         authProviders,
-			SecondFactor:      cap.GetSecondFactor(),
-			LocalAuthEnabled:  cap.GetAllowLocalAuth(),
-			AuthType:          cap.GetType(),
-			PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+			Providers:          authProviders,
+			SecondFactor:       cap.GetSecondFactor(),
+			LocalAuthEnabled:   cap.GetAllowLocalAuth(),
+			AllowPasswordless:  cap.GetAllowPasswordless(),
+			AuthType:           authType,
+			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
+			LocalConnectorName: localConnectorName,
 		}
 	}
 
