@@ -109,6 +109,15 @@ typedef struct CGOBitmap {
   uintptr_t data_cap;
 } CGOBitmap;
 
+/**
+ * CGOSharedDirectoryAcknowledge is a CGO-compatible version of
+ * the TDP Shared Directory Knowledge message that we pass back to Go.
+ */
+typedef struct CGOSharedDirectoryAcknowledge {
+  uint32_t err;
+  uint32_t directory_id;
+} CGOSharedDirectoryAcknowledge;
+
 void init(void);
 
 /**
@@ -212,7 +221,7 @@ extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t
 /**
  * Shared Directory Acknowledge
  */
-extern CGOError sd_acknowledge(uintptr_t client_ref, uint32_t err, uint32_t directory_id);
+extern CGOError sd_acknowledge(uintptr_t client_ref, struct CGOSharedDirectoryAcknowledge *ack);
 
 /**
  * Shared Directory Info Request

@@ -19,7 +19,7 @@ mod scard;
 use crate::errors::{invalid_data_error, not_implemented_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
 use crate::util;
 use crate::vchan;
-use crate::Payload;
+use crate::{Payload, SharedDirectoryAcknowledge};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use consts::{
     CapabilityType, Component, DeviceType, FsInformationClassLevel, MajorFunction, MinorFunction,
@@ -49,7 +49,7 @@ pub struct Client {
 
     /// acknowledge_directory takes in a (err: u32, directory_id: u32) to acknowledges
     /// a new directory being shared.
-    acknowledge_directory: Box<dyn Fn(u32, u32) -> RdpResult<()>>,
+    acknowledge_directory: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
     /// request_info takes a (directory_id: u32, completion_id: u32, path: &str) and requests
     /// information about a file.
     request_info: Box<dyn Fn(u32, u32, &str) -> RdpResult<()>>,
@@ -65,7 +65,7 @@ impl Client {
         pin: String,
         allow_directory_sharing: bool,
 
-        acknowledge_directory: Box<dyn Fn(u32, u32) -> RdpResult<()>>,
+        acknowledge_directory: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
         request_info: Box<dyn Fn(u32, u32, &str) -> RdpResult<()>>,
     ) -> Self {
         Client {
@@ -178,13 +178,19 @@ impl Client {
         debug!("got ServerDeviceAnnounceResponse: {:?}", req);
 
         if !self.active_device_ids.contains(&req.device_id) {
-            (self.acknowledge_directory)(1, req.device_id)?;
+            (self.acknowledge_directory)(SharedDirectoryAcknowledge {
+                err: 1,
+                directory_id: req.device_id,
+            })?;
             Err(invalid_data_error(&format!(
                 "got ServerDeviceAnnounceResponse for unknown device_id {}",
                 &req.device_id
             )))
         } else if req.result_code != NTSTATUS_OK {
-            (self.acknowledge_directory)(1, req.device_id)?;
+            (self.acknowledge_directory)(SharedDirectoryAcknowledge {
+                err: 1,
+                directory_id: req.device_id,
+            })?;
             Err(invalid_data_error(&format!(
                 "got unsuccessful ServerDeviceAnnounceResponse result code NTSTATUS({})",
                 &req.result_code
@@ -192,7 +198,10 @@ impl Client {
         } else {
             debug!("ServerDeviceAnnounceResponse was valid");
             if req.device_id != self.get_scard_device_id()? {
-                (self.acknowledge_directory)(0, req.device_id)?;
+                (self.acknowledge_directory)(SharedDirectoryAcknowledge {
+                    err: 0,
+                    directory_id: req.device_id,
+                })?;
             }
             Ok(vec![])
         }

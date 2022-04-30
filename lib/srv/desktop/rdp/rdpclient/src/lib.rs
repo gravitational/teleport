@@ -237,10 +237,9 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
 
-    let acknowledge_directory = Box::new(move |err: u32, directory_id: u32| -> RdpResult<()> {
-        println!("sending err = {}, directory_id = {}", err, directory_id);
+    let acknowledge_directory = Box::new(move |ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
         unsafe {
-            if sd_acknowledge(go_ref, err, directory_id) != CGO_OK {
+            if sd_acknowledge(go_ref, &mut CGOSharedDirectoryAcknowledge::from(ack)) != CGO_OK {
                 return Err(RdpError::TryError(String::from(
                     "call to sd_info_request failed",
                 )));
@@ -780,6 +779,29 @@ unsafe fn from_cgo_error(e: CGOError) -> String {
     s
 }
 
+pub struct SharedDirectoryAcknowledge {
+    pub err: u32,
+    pub directory_id: u32,
+}
+
+/// CGOSharedDirectoryAcknowledge is a CGO-compatible version of
+/// the TDP Shared Directory Knowledge message that we pass back to Go.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct CGOSharedDirectoryAcknowledge {
+    pub err: u32,
+    pub directory_id: u32,
+}
+
+impl From<SharedDirectoryAcknowledge> for CGOSharedDirectoryAcknowledge {
+    fn from(ack: SharedDirectoryAcknowledge) -> CGOSharedDirectoryAcknowledge {
+        CGOSharedDirectoryAcknowledge {
+            err: ack.err,
+            directory_id: ack.directory_id,
+        }
+    }
+}
+
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
@@ -788,7 +810,7 @@ extern "C" {
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
 
     /// Shared Directory Acknowledge
-    fn sd_acknowledge(client_ref: usize, err: u32, directory_id: u32) -> CGOError;
+    fn sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge) -> CGOError;
 
     /// Shared Directory Info Request
     fn sd_info_request(
