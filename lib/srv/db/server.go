@@ -893,7 +893,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		return trace.Wrap(err)
 	}
 
-	err = s.cfg.AuthClient.UpsertSessionTracker(ctx, tracker)
+	_, err = s.cfg.AuthClient.CreateSessionTracker(ctx, tracker)
 	if err != nil {
 		return trace.Wrap(err)
 	}

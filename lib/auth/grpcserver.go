@@ -3617,51 +3617,40 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 	return protoResp, nil
 }
 
-// UpsertSessionTracker creates a tracker resource for an active session.
-func (g *GRPCServer) UpsertSessionTracker(ctx context.Context, tracker *types.SessionTrackerV1) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.ServerWithRoles.UpsertSessionTracker(ctx, tracker)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &empty.Empty{}, nil
-}
-
 // CreateSessionTracker creates a tracker resource for an active session.
-// DELETE IN 11.0.0 - Deprecated in favor or UpsertSessionTracker
 func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (*types.SessionTrackerV1, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	spec := types.SessionTrackerSpecV1{
-		SessionID:         req.ID,
-		Kind:              req.Type,
-		State:             types.SessionState_SessionStatePending,
-		Reason:            req.Reason,
-		Invited:           req.Invited,
-		Hostname:          req.Hostname,
-		Address:           req.Address,
-		ClusterName:       req.ClusterName,
-		Login:             req.Login,
-		Participants:      []types.Participant{*req.Initiator},
-		Expires:           req.Expires,
-		KubernetesCluster: req.KubernetesCluster,
-		HostUser:          req.HostUser,
+	var createTracker types.SessionTracker = req.SessionTracker
+
+	// DELETE IN 11.0.0
+	// Early v9 versions use a flattened out types.SessionTrackerV1
+	if createTracker == nil {
+		spec := types.SessionTrackerSpecV1{
+			SessionID:         req.ID,
+			Kind:              req.Type,
+			State:             types.SessionState_SessionStatePending,
+			Reason:            req.Reason,
+			Invited:           req.Invited,
+			Hostname:          req.Hostname,
+			Address:           req.Address,
+			ClusterName:       req.ClusterName,
+			Login:             req.Login,
+			Participants:      []types.Participant{*req.Initiator},
+			Expires:           req.Expires,
+			KubernetesCluster: req.KubernetesCluster,
+			HostUser:          req.HostUser,
+		}
+		createTracker, err = types.NewSessionTracker(spec)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	tracker, err := types.NewSessionTracker(spec)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.ServerWithRoles.UpsertSessionTracker(ctx, tracker)
+	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req.SessionTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

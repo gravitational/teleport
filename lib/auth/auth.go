@@ -2919,8 +2919,8 @@ func (a *Server) GetApp(ctx context.Context, name string) (types.Application, er
 	return a.GetCache().GetApp(ctx, name)
 }
 
-// UpsertSessionTracker upserts a tracker resource for an active session.
-func (a *Server) UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error {
+// CreateSessionTracker creates a tracker resource for an active session.
+func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
 	if tracker.GetCreated().IsZero() {
 		tracker.SetCreated(a.GetClock().Now())
 	}
@@ -2934,7 +2934,7 @@ func (a *Server) UpsertSessionTracker(ctx context.Context, tracker types.Session
 		tracker.SetExpiry(expiry)
 	}
 
-	return a.SessionTrackerService.UpsertSessionTracker(ctx, tracker)
+	return a.SessionTrackerService.CreateSessionTracker(ctx, tracker)
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.

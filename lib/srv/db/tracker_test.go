@@ -123,8 +123,8 @@ func (m *mockSessiontrackerService) UpdatePresence(ctx context.Context, sessionI
 	return nil
 }
 
-func (m *mockSessiontrackerService) UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error {
+func (m *mockSessiontrackerService) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
 	tracker.SetExpiry(m.clock.Now().Add(defaults.SessionTrackerTTL))
 	m.trackers[tracker.GetSessionID()] = tracker
-	return nil
+	return nil, nil
 }

@@ -47,7 +47,7 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	err = srv.UpsertSessionTracker(context.Background(), tracker)
+	_, err = srv.CreateSessionTracker(context.Background(), tracker)
 	require.NoError(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 	require.NotNil(t, tracker)
@@ -83,7 +83,7 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	err = srv.UpsertSessionTracker(context.Background(), tracker)
+	_, err = srv.CreateSessionTracker(context.Background(), tracker)
 	require.Error(t, err)
 	require.Nil(t, tracker)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
@@ -119,7 +119,7 @@ func TestModeratedSesssionsEnabled(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	err = srv.UpsertSessionTracker(context.Background(), tracker)
+	_, err = srv.CreateSessionTracker(context.Background(), tracker)
 	require.NoError(t, err)
 	require.NotNil(t, tracker)
 }

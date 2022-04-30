@@ -239,24 +239,28 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 	return ok
 }
 
-// UpsertSessionTracker upserts a tracker resource for an active session.
-func (a *ServerWithRoles) UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error {
+// CreateSessionTracker creates a tracker resource for an active session.
+func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
 	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) &&
 		!a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleApp)) && !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
-		return trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
+		return nil, trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 
 	// Don't allow sessions that require moderation without the enterprise feature enabled.
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
 			if !modules.GetModules().Features().ModeratedSessions {
-				return trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+				return nil, trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
 			}
 		}
 	}
 
-	err := a.authServer.UpsertSessionTracker(ctx, tracker)
-	return trace.Wrap(err)
+	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tracker, nil
+
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.

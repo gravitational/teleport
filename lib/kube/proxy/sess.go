@@ -1176,7 +1176,7 @@ func (s *session) trackerCreate(p *party, policySet []*types.SessionTrackerPolic
 		return trail.FromGRPC(err)
 	}
 
-	err = s.forwarder.cfg.AuthClient.UpsertSessionTracker(s.forwarder.ctx, tracker)
+	_, err = s.forwarder.cfg.AuthClient.CreateSessionTracker(s.forwarder.ctx, tracker)
 	if err != nil {
 		return trace.Wrap(err)
 	}

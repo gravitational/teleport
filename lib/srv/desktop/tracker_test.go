@@ -116,6 +116,12 @@ func (m *mockSessiontrackerService) GetActiveSessionTrackers(ctx context.Context
 	return nil, nil
 }
 
+func (m *mockSessiontrackerService) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	tracker.SetExpiry(m.clock.Now().Add(defaults.SessionTrackerTTL))
+	m.trackers[tracker.GetSessionID()] = tracker
+	return nil, nil
+}
+
 func (m *mockSessiontrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	return nil, nil
 }
@@ -135,11 +141,5 @@ func (m *mockSessiontrackerService) RemoveSessionTracker(ctx context.Context, se
 }
 
 func (m *mockSessiontrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
-	return nil
-}
-
-func (m *mockSessiontrackerService) UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error {
-	tracker.SetExpiry(m.clock.Now().Add(defaults.SessionTrackerTTL))
-	m.trackers[tracker.GetSessionID()] = tracker
 	return nil
 }

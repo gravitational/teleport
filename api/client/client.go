@@ -2517,43 +2517,37 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 	return resources, nil
 }
 
-// UpsertSessionTracker upserts a tracker resource for an active session.
-func (c *Client) UpsertSessionTracker(ctx context.Context, st types.SessionTracker) error {
+// CreateSessionTracker creates a tracker resource for an active session.
+func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
 	v1, ok := st.(*types.SessionTrackerV1)
 	if !ok {
-		return trace.BadParameter("invalid type %T, expected *types.SessionTrackerV1", st)
+		return nil, trace.BadParameter("invalid type %T, expected *types.SessionTrackerV1", st)
 	}
 
-	_, err := c.grpc.UpsertSessionTracker(ctx, v1, c.callOpts...)
+	req := &proto.CreateSessionTrackerRequest{SessionTracker: v1}
 
-	// UpsertSessionTracker is not implemented before v9.1.4, fallback
-	// in case auth and proxy/node versions are not alligned.
 	// DELETE IN 11.0.0
-	if trace.IsNotImplemented(err) {
-		req := &proto.CreateSessionTrackerRequest{
-			ID:                v1.Spec.SessionID,
-			Type:              v1.Spec.Kind,
-			Reason:            v1.Spec.Reason,
-			Invited:           v1.Spec.Invited,
-			Hostname:          v1.Spec.Hostname,
-			Address:           v1.Spec.Address,
-			ClusterName:       v1.Spec.ClusterName,
-			Login:             v1.Spec.Login,
-			Expires:           v1.Spec.Expires,
-			KubernetesCluster: v1.Spec.KubernetesCluster,
-			HostUser:          v1.Spec.HostUser,
-		}
-
-		if len(v1.Spec.Participants) > 0 {
-			req.Initiator = &v1.Spec.Participants[0]
-		}
-
-		_, err = c.grpc.CreateSessionTracker(ctx, req, c.callOpts...)
-		return trail.FromGRPC(err)
+	// Early v9 versions use a flattened out types.SessionTrackerV1
+	req.ID = v1.Spec.SessionID
+	req.Type = v1.Spec.Kind
+	req.Reason = v1.Spec.Reason
+	req.Invited = v1.Spec.Invited
+	req.Hostname = v1.Spec.Hostname
+	req.Address = v1.Spec.Address
+	req.ClusterName = v1.Spec.ClusterName
+	req.Login = v1.Spec.Login
+	req.Expires = v1.Spec.Expires
+	req.KubernetesCluster = v1.Spec.KubernetesCluster
+	req.HostUser = v1.Spec.HostUser
+	if len(v1.Spec.Participants) > 0 {
+		req.Initiator = &v1.Spec.Participants[0]
 	}
 
-	return trail.FromGRPC(err)
-
+	tracker, err := c.grpc.CreateSessionTracker(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return tracker, nil
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.

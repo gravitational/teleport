@@ -167,11 +167,11 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 	return sessions, nil
 }
 
-// UpsertSessionTracker upserts a tracker resource for an active session.
-func (s *sessionTracker) UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error {
+// CreateSessionTracker creates a tracker resource for an active session.
+func (s *sessionTracker) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
 	json, err := services.MarshalSessionTracker(tracker)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
@@ -181,10 +181,10 @@ func (s *sessionTracker) UpsertSessionTracker(ctx context.Context, tracker types
 	}
 	_, err = s.bk.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	return tracker, nil
 }
 
 // UpdateSessionTracker updates a tracker resource for an active session.

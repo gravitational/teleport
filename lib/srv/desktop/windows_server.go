@@ -1282,7 +1282,7 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		return trace.Wrap(err)
 	}
 
-	err = s.cfg.AuthClient.UpsertSessionTracker(ctx, tracker)
+	_, err = s.cfg.AuthClient.CreateSessionTracker(ctx, tracker)
 	if err != nil {
 		return trace.Wrap(err)
 	}

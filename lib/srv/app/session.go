@@ -236,7 +236,7 @@ func (s *Server) trackSession(sess *session, identity *tlsca.Identity) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.c.AuthClient.UpsertSessionTracker(s.closeContext, tracker)
+	_, err = s.c.AuthClient.CreateSessionTracker(s.closeContext, tracker)
 	if err != nil {
 		return trace.Wrap(err)
 	}

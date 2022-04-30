@@ -53,7 +53,7 @@ func TestSessionTrackerStorage(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = srv.UpsertSessionTracker(ctx, tracker)
+	_, err = srv.CreateSessionTracker(ctx, tracker)
 	require.NoError(t, err)
 
 	bobID := uuid.New().String()
@@ -109,7 +109,7 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = srv.UpsertSessionTracker(ctx, tracker1)
+	_, err = srv.CreateSessionTracker(ctx, tracker1)
 	require.NoError(t, err)
 
 	tracker2, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
@@ -129,7 +129,7 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = srv.UpsertSessionTracker(ctx, tracker2)
+	_, err = srv.CreateSessionTracker(ctx, tracker2)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {

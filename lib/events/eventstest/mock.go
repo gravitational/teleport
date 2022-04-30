@@ -98,6 +98,10 @@ type MockSessionTrackerService struct {
 	MockTrackers []types.SessionTracker
 }
 
+func (m *MockSessionTrackerService) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	return nil, nil
+}
+
 func (m *MockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
 	var trackers []types.SessionTracker
 	for _, tracker := range m.MockTrackers {
@@ -128,9 +132,5 @@ func (m *MockSessionTrackerService) RemoveSessionTracker(ctx context.Context, se
 }
 
 func (m *MockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
-	return nil
-}
-
-func (m *MockSessionTrackerService) UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error {
 	return nil
 }

@@ -32,6 +32,9 @@ type SessionTrackerService interface {
 	// GetActiveSessionTrackers returns a list of active session trackers.
 	GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error)
 
+	// CreateSessionTracker creates a tracker resource for an active session.
+	CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error)
+
 	// GetSessionTracker returns the current state of a session tracker for an active session.
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 
@@ -43,9 +46,6 @@ type SessionTrackerService interface {
 
 	// UpdatePresence updates the presence status of a user in a session.
 	UpdatePresence(ctx context.Context, sessionID, user string) error
-
-	// UpsertSessionTracker creates a tracker resource for an active session.
-	UpsertSessionTracker(ctx context.Context, tracker types.SessionTracker) error
 }
 
 // UpdateSessionTrackerState is a helper function to add a session tracker participant.

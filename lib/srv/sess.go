@@ -1683,7 +1683,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		return trail.FromGRPC(err)
 	}
 
-	err = s.registry.SessionTrackerService.UpsertSessionTracker(s.serverCtx, tracker)
+	_, err = s.registry.SessionTrackerService.CreateSessionTracker(s.serverCtx, tracker)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
