@@ -53,7 +53,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func TestMatchingPinnedIP(t *testing.T) {
+func TestDatabaseAccessMatchingPinnedIP(t *testing.T) {
 	pack := setupDatabaseTest(t, func(opts *testOptions) {
 		opts.roleConfig = append(opts.roleConfig, func(rootRole, _ types.Role) {
 			ro := rootRole.GetOptions()
@@ -90,7 +90,7 @@ func TestMatchingPinnedIP(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDifferentPinnedIPAccessDenied(t *testing.T) {
+func TestDatabaseAccessDifferentPinnedIPAccessDenied(t *testing.T) {
 	pack := setupDatabaseTest(t, func(opts *testOptions) {
 		opts.rootConfig = func(config *service.Config) {
 			config.Proxy.EnableProxyProtocol = true
@@ -101,7 +101,7 @@ func TestDifferentPinnedIPAccessDenied(t *testing.T) {
 			rootRole.SetOptions(ro)
 		})
 	})
-	
+
 	// Connect to the database service in root cluster.
 	_, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),

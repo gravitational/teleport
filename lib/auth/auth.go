@@ -828,7 +828,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		routeToCluster: routeToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
-		clientIP:       "127.0.0.1",
+		clientIP:       "1.2.3.4",
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

@@ -62,6 +62,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAppAccessDifferentPinnedIPAccessDenied(t *testing.T) {
+	// Create cluster, user, sessions, and credentials package.
+	pack := setupWithOptions(t, appTestOptions{pinIP: true})
+
+	_, err := pack.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    pack.user.GetName(),
+		PublicAddr:  pack.rootAppPublicAddr,
+		ClusterName: pack.rootAppClusterName,
+	})
+	require.Error(t, err)
+}
+
 // TestAppAccessForward tests that requests get forwarded to the target application
 // within a single cluster and trusted cluster.
 func TestAppAccessForward(t *testing.T) {
@@ -891,6 +903,7 @@ type appTestOptions struct {
 	leafClusterPorts    *InstancePorts
 	rootAppServersCount int
 	leafAppServersCount int
+	pinIP               bool
 
 	rootConfig func(config *service.Config)
 	leafConfig func(config *service.Config)
@@ -1155,6 +1168,11 @@ func (p *pack) initUser(t *testing.T, opts appTestOptions) {
 		role.SetLogins(types.Allow, opts.userLogins)
 	} else {
 		role.SetLogins(types.Allow, []string{p.username})
+	}
+	if opts.pinIP {
+		ro := role.GetOptions()
+		ro.PinSourceIP = true
+		role.SetOptions(ro)
 	}
 	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
