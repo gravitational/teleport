@@ -189,7 +189,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
 	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
-	t.Run("Readyz", suite.bind(testReadyz))
 	t.Run("RotateChangeSigningAlg", suite.bind(testRotateChangeSigningAlg))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
@@ -3705,45 +3704,6 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func testReadyz(t *testing.T, suite *integrationTestSuite) {
-	// TODO: test more service combinations
-
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordOff,
-	})
-	require.NoError(t, err)
-
-	tconf := suite.defaultServiceConfig()
-	tconf.Auth.Enabled = true
-	tconf.Auth.SessionRecordingConfig = recConfig
-	tconf.Proxy.Enabled = true
-	tconf.Proxy.DisableWebInterface = true
-	tconf.Proxy.Kube.Enabled = true
-	// fire up the proxy kube service
-	tconf.Proxy.Kube.ListenAddr = utils.NetAddr{
-		AddrNetwork: "tcp",
-		Addr:        "127.0.0.1:0",
-	}
-	tconf.SSH.Enabled = false
-	tconf.DiagnosticAddr = utils.NetAddr{
-		AddrNetwork: "tcp",
-		Addr:        "127.0.0.1:0",
-	}
-
-	teleport := suite.newTeleportWithConfig(t, nil, nil, tconf)
-	t.Cleanup(func() { require.NoError(t, teleport.StopAll()) })
-
-	diagAddr, err := teleport.Process.DiagnosticAddr()
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		resp, err := http.Get(fmt.Sprintf("http://%s/readyz", diagAddr))
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-		return resp.StatusCode == http.StatusOK
-	}, 5*time.Second, 500*time.Millisecond)
-}
-
 // testRotateSuccess tests full cycle cert authority rotation
 func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
@@ -3783,7 +3743,20 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
+
+	require.Eventually(t, func() bool {
+		_, err := svc.GetIdentity(types.RoleNode)
+		return err == nil
+	}, 5*time.Second, 500*time.Millisecond)
+	checkSSHPrincipals := func(svc *service.TeleportProcess) {
+		id, err := svc.GetIdentity(types.RoleNode)
+		require.NoError(t, err)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname+"."+Site)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID+"."+Site)
+	}
+	checkSSHPrincipals(svc)
 
 	// Setup user in the cluster
 	err = SetupUser(svc, suite.me.Username, nil)
@@ -3820,7 +3793,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reload
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
 		Login:   suite.me.Username,
@@ -3834,6 +3806,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// client works as is before servers have been rotated
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
@@ -3851,7 +3824,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reloaded
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	// new credentials will work from this phase to others
 	newCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: suite.me.Username})
@@ -3863,6 +3835,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// new client works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
@@ -3880,11 +3853,11 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reloaded
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	// new client still works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Rotation has completed. Shutting down service.")
 
@@ -3911,6 +3884,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	tconf := s.rotationConfig(true)
 	teleport := s.newTeleportInstance()
+	defer teleport.StopAll()
 	logins := []string{s.me.Username}
 	for _, login := range logins {
 		teleport.AddUser(login, []string{login})
@@ -3933,6 +3907,20 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		_, err := svc.GetIdentity(types.RoleNode)
+		return err == nil
+	}, 5*time.Second, 500*time.Millisecond)
+	checkSSHPrincipals := func(svc *service.TeleportProcess) {
+		id, err := svc.GetIdentity(types.RoleNode)
+		require.NoError(t, err)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname+"."+Site)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID+"."+Site)
+	}
+	checkSSHPrincipals(svc)
 
 	// Setup user in the cluster
 	err = SetupUser(svc, s.me.Username, nil)
@@ -3979,6 +3967,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// client works as is before servers have been rotated
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseUpdateServers)
 
@@ -4009,6 +3998,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// old client works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Log("Service reloaded. Rotation has completed. Shuttting down service.")
 
@@ -4444,17 +4434,6 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
-
-	eventC := make(chan service.Event, 1)
-	svc.WaitForEvent(context.TODO(), service.TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-
-	case <-time.After(20 * time.Second):
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
-	}
-
 	return svc, nil
 }
 
