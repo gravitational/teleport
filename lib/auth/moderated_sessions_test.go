@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,10 +36,14 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 		ModeratedSessions: false, // Explicily turn off moderated sessions.
 	}})
 
+	srv := &Server{
+		clock: clockwork.NewRealClock(),
+	}
+
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	srv, err := local.NewSessionTrackerService(bk)
+	srv.Services.SessionTrackerService, err = local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
 	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
@@ -49,7 +54,6 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 
 	_, err = srv.CreateSessionTracker(context.Background(), tracker)
 	require.NoError(t, err)
-	require.True(t, trace.IsAccessDenied(err))
 	require.NotNil(t, tracker)
 }
 
@@ -60,10 +64,14 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 		ModeratedSessions: false, // Explicily turn off moderated sessions.
 	}})
 
+	srv := &Server{
+		clock: clockwork.NewRealClock(),
+	}
+
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	srv, err := local.NewSessionTrackerService(bk)
+	srv.Services.SessionTrackerService, err = local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
 	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
@@ -83,8 +91,9 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	_, err = srv.CreateSessionTracker(context.Background(), tracker)
+	tracker, err = srv.CreateSessionTracker(context.Background(), tracker)
 	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, tracker)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
 }
@@ -96,10 +105,14 @@ func TestModeratedSesssionsEnabled(t *testing.T) {
 		ModeratedSessions: true,
 	}})
 
+	srv := &Server{
+		clock: clockwork.NewRealClock(),
+	}
+
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	srv, err := local.NewSessionTrackerService(bk)
+	srv.Services.SessionTrackerService, err = local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
 	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{

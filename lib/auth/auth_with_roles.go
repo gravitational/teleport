@@ -246,15 +246,6 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 		return nil, trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 
-	// Don't allow sessions that require moderation without the enterprise feature enabled.
-	for _, policySet := range tracker.GetHostPolicySets() {
-		if len(policySet.RequireSessionJoin) != 0 {
-			if !modules.GetModules().Features().ModeratedSessions {
-				return nil, trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
-			}
-		}
-	}
-
 	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
 	if err != nil {
 		return nil, trace.Wrap(err)

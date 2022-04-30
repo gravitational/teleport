@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -2498,4 +2499,25 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	sessions, err = srv.Auth().GetAppSessions(ctx)
 	require.NoError(t, err)
 	require.Len(t, sessions, 0)
+}
+
+// TestUnmoderatedSessionsAllowed tests that we allow creating unmoderated sessions even if the
+// moderated sessions feature is disabled via modules.
+func TestUnmoderatedSessionsAlloweda(t *testing.T) {
+	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
+
+	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		ModeratedSessions: false, // Explicily turn off moderated sessions.
+	}})
+
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID: "foo",
+	})
+	require.NoError(t, err)
+	tracker.AddParticipant(types.Participant{})
+
+	_, err = srv.Auth().CreateSessionTracker(context.Background(), tracker)
+	require.NoError(t, err)
+	require.NotNil(t, tracker)
 }

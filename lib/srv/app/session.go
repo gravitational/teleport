@@ -338,6 +338,8 @@ func (s *sessionCache) expiredSessions() {
 
 // closeAllSessions will remove and close all sessions in the cache.
 func (s *sessionCache) closeAllSessions() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	_, el, cont := s.cache.Pop()
 	for cont {
 		s.closeSession(el)

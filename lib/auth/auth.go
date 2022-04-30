@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -2921,6 +2922,15 @@ func (a *Server) GetApp(ctx context.Context, name string) (types.Application, er
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	// Don't allow sessions that require moderation without the enterprise feature enabled.
+	for _, policySet := range tracker.GetHostPolicySets() {
+		if len(policySet.RequireSessionJoin) != 0 {
+			if !modules.GetModules().Features().ModeratedSessions {
+				return nil, trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			}
+		}
+	}
+
 	if tracker.GetCreated().IsZero() {
 		tracker.SetCreated(a.GetClock().Now())
 	}

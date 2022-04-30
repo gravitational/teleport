@@ -19,6 +19,7 @@ package desktop
 import (
 	"context"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -94,6 +95,8 @@ func TestSessionTracker(t *testing.T) {
 	clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
 
 	trackerExpiryUpdated := func() bool {
+		mockAuthClient.Lock()
+		defer mockAuthClient.Unlock()
 		return tracker.Expiry() == expectedExpiry
 	}
 	require.Eventually(t, trackerExpiryUpdated, time.Second*5, time.Second)
@@ -101,6 +104,8 @@ func TestSessionTracker(t *testing.T) {
 	// Closing ctx should trigger session tracker state to be terminated.
 	cancel()
 	trackerTerminated := func() bool {
+		mockAuthClient.Lock()
+		defer mockAuthClient.Unlock()
 		return tracker.GetState() == types.SessionState_SessionStateTerminated
 	}
 	require.Eventually(t, trackerTerminated, time.Second*5, time.Second)
@@ -108,6 +113,8 @@ func TestSessionTracker(t *testing.T) {
 
 type mockSessiontrackerService struct {
 	auth.ClientI
+
+	sync.Mutex
 	clock    clockwork.Clock
 	trackers map[string]types.SessionTracker
 }
@@ -127,6 +134,8 @@ func (m *mockSessiontrackerService) GetSessionTracker(ctx context.Context, sessi
 }
 
 func (m *mockSessiontrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	m.Lock()
+	defer m.Unlock()
 	switch update := req.Update.(type) {
 	case *proto.UpdateSessionTrackerRequest_UpdateExpiry:
 		m.trackers[req.SessionID].SetExpiry(*update.UpdateExpiry.Expires)
