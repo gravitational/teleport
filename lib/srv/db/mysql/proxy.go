@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -131,7 +132,7 @@ func getServerVersionFromCtx(ctx context.Context) string {
 	// Set default server version.
 	mysqlServerVersion := serverVersion
 
-	if mysqlVerCtx := ctx.Value(common.ContextMySQLServerVersion); mysqlVerCtx != nil {
+	if mysqlVerCtx := ctx.Value(dbutils.ContextMySQLServerVersion); mysqlVerCtx != nil {
 		version, ok := mysqlVerCtx.(string)
 		if ok {
 			mysqlServerVersion = version
