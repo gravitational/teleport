@@ -186,14 +186,28 @@ func onProxyCommandDB(cf *CLIConf) error {
 		keyFile = profile.KeyPath()
 	}
 
-	lp, err := mkLocalProxy(cf.Context, localProxyOpts{
+	proxyOpts := localProxyOpts{
 		proxyAddr: client.WebProxyAddr,
 		protocols: []alpncommon.Protocol{alpncommon.Protocol(database.Protocol)},
 		listener:  listener,
 		insecure:  cf.InsecureSkipVerify,
 		certFile:  certFile,
 		keyFile:   keyFile,
-	})
+	}
+
+	if database.Protocol == defaults.ProtocolMySQL {
+		database, err := getDatabase(cf, client, database.ServiceName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		mysqlSeverVersionProto := mySQLVersionToProto(database)
+		if mysqlSeverVersionProto != "" {
+			proxyOpts.protocols = append(proxyOpts.protocols, alpncommon.Protocol(mysqlSeverVersionProto))
+		}
+	}
+
+	lp, err := mkLocalProxy(cf.Context, proxyOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
