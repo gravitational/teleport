@@ -15,29 +15,58 @@ limitations under the License.
 */
 
 import React from 'react';
-import Form, { Expired } from 'teleport/components/FormNewCredentials';
+import RecoveryCodes from 'teleport/components/RecoveryCodes';
+import Form from './FormNewCredentials';
+import Expired from './FormNewCredentials/Expired';
 import useToken, { State } from './useToken';
 
-export default function Container({ tokenId = '', title, submitBtnText }) {
+export default function Container({
+  tokenId = '',
+  title = '',
+  submitBtnText = '',
+  resetMode = false,
+}) {
   const state = useToken(tokenId);
   return (
-    <NewCredentials {...state} title={title} submitBtnText={submitBtnText} />
+    <NewCredentials
+      {...state}
+      title={title}
+      submitBtnText={submitBtnText}
+      resetMode={resetMode}
+    />
   );
 }
 
 export function NewCredentials(props: Props) {
-  const { submitAttempt, fetchAttempt, passwordToken, ...rest } = props;
+  const {
+    submitAttempt,
+    fetchAttempt,
+    passwordToken,
+    recoveryCodes,
+    resetMode,
+    redirect,
+    ...rest
+  } = props;
 
   if (fetchAttempt.status === 'failed') {
-    return <Expired />;
+    return <Expired resetMode={resetMode} />;
   }
 
   if (fetchAttempt.status !== 'success') {
     return null;
   }
 
-  const { user, qrCode } = passwordToken;
+  if (recoveryCodes) {
+    return (
+      <RecoveryCodes
+        recoveryCodes={recoveryCodes}
+        redirect={redirect}
+        isNewCodes={resetMode}
+      />
+    );
+  }
 
+  const { user, qrCode } = passwordToken;
   return <Form user={user} qr={qrCode} attempt={submitAttempt} {...rest} />;
 }
 

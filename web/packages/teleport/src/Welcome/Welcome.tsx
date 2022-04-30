@@ -19,12 +19,11 @@ import { Route, Switch, useParams } from 'teleport/components/Router';
 import history from 'teleport/services/history';
 import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
-import NewCredentials, { Props as NewCredentialsProps } from './NewCredentials';
+import NewCredentials from './NewCredentials';
 import CardWelcome from './CardWelcome';
 
-export default function Welcome(props: Props) {
+export default function Welcome() {
   const { tokenId } = useParams<{ tokenId: string }>();
-  const Form = props.CustomForm ? props.CustomForm : NewCredentials;
 
   const handleOnInviteContinue = () => {
     history.push(cfg.getUserInviteTokenContinueRoute(tokenId));
@@ -55,14 +54,14 @@ export default function Welcome(props: Props) {
           />
         </Route>
         <Route path={cfg.routes.userInviteContinue}>
-          <Form
+          <NewCredentials
             tokenId={tokenId}
             title="Welcome to Teleport"
             submitBtnText="Create Account"
           />
         </Route>
         <Route path={cfg.routes.userResetContinue}>
-          <Form
+          <NewCredentials
             resetMode={true}
             tokenId={tokenId}
             title="Reset Password"
@@ -73,7 +72,3 @@ export default function Welcome(props: Props) {
     </>
   );
 }
-
-type Props = {
-  CustomForm?: React.FC<Partial<NewCredentialsProps>>;
-};

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,15 +18,19 @@ import React from 'react';
 import styled from 'styled-components';
 import { Card, Text } from 'design';
 
-export default function Expired() {
+export default function Expired({ resetMode = false }) {
+  const titleCodeTxt = resetMode ? 'Reset' : 'Invitation';
+  const paraCodeTxt = resetMode ? 'reset' : 'invite';
+
   return (
     <Card width="540px" color="text.onLight" p={6} bg="light" mt={6} mx="auto">
       <Text typography="h1" textAlign="center" fontSize={8} color="text" mb={3}>
-        Invitation Code Expired
+        {titleCodeTxt} Code Expired
       </Text>
       <Text typography="paragraph" mb="2">
-        It appears that your invite code isn't valid any more. Please contact
-        your account administrator and request another invite.
+        It appears that your {paraCodeTxt} code isn't valid any more. Please
+        contact your account administrator and request another {paraCodeTxt}{' '}
+        link.
       </Text>
       <Text typography="paragraph">
         If you believe this is an issue with the product, please create a

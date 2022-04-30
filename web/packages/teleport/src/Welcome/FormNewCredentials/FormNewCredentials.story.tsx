@@ -18,7 +18,7 @@ import React from 'react';
 import FormNewCredentials, { Props } from './FormNewCredentials';
 
 export default {
-  title: 'Teleport/FormNewCredentials',
+  title: 'Teleport/Welcome/FormNewCredentials',
   component: FormNewCredentials,
 };
 

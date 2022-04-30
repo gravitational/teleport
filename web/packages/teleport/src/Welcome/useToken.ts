@@ -18,10 +18,11 @@ import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
-import auth from 'teleport/services/auth';
+import auth, { RecoveryCodes } from 'teleport/services/auth';
 
 export default function useToken(tokenId: string) {
   const [passwordToken, setPswToken] = useState<ResetToken>();
+  const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
   const auth2faType = cfg.getAuth2faType();
@@ -38,7 +39,13 @@ export default function useToken(tokenId: string) {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
       .resetPassword(tokenId, password, otpToken)
-      .then(redirect)
+      .then(recoveryCodes => {
+        if (recoveryCodes.createdDate) {
+          setRecoveryCodes(recoveryCodes);
+        } else {
+          redirect();
+        }
+      })
       .catch(submitAttempt.handleError);
   }
 
@@ -46,7 +53,13 @@ export default function useToken(tokenId: string) {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
       .resetPasswordWithWebauthn(tokenId, password)
-      .then(redirect)
+      .then(recoveryCodes => {
+        if (recoveryCodes.createdDate) {
+          setRecoveryCodes(recoveryCodes);
+        } else {
+          redirect();
+        }
+      })
       .catch(submitAttempt.handleError);
   }
 
@@ -67,6 +80,8 @@ export default function useToken(tokenId: string) {
     onSubmit,
     onSubmitWithWebauthn,
     passwordToken,
+    recoveryCodes,
+    redirect,
   };
 }
 

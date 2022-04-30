@@ -23,7 +23,6 @@ import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
 import Welcome from './Welcome';
-import { AuthMfaOn, AuthMfaOptional } from './Welcome.story';
 
 const invitePath = '/web/invite/5182';
 const inviteContinuePath = '/web/invite/5182/continue';
@@ -201,24 +200,6 @@ describe('teleport/components/Welcome', () => {
     });
 
     expect(screen.getByText('server_error')).toBeDefined();
-  });
-
-  it('auth type "on" should render form with hardware key as first option in dropdown', () => {
-    const { container } = render(
-      <MemoryRouter initialEntries={[inviteContinuePath]}>
-        <AuthMfaOn />
-      </MemoryRouter>
-    );
-    expect(container).toMatchSnapshot();
-  });
-
-  it('auth type "optional" should render form with hardware key as first option in dropdown', () => {
-    const { container } = render(
-      <MemoryRouter initialEntries={[inviteContinuePath]}>
-        <AuthMfaOptional />
-      </MemoryRouter>
-    );
-    expect(container).toMatchSnapshot();
   });
 });
 
