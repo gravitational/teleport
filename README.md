@@ -1,4 +1,4 @@
-<div align="center">
+<div align="center"> 
    <img src="https://goteleport.com/blog/images/2020/gravitational-is-teleport-header.png" width=750/>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/docs/">
