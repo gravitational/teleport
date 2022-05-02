@@ -39,8 +39,7 @@ func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 		return m
 	}
 
-	var out DatabaseSessionQuery
-	out = *m
+	out := *m
 	out.DatabaseQuery = ""
 	out.DatabaseQueryParameters = nil
 
@@ -51,10 +50,10 @@ func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	// Check how many custom fields are set.
 	customFieldsCount := 0
 	if m.DatabaseQuery != "" {
-		customFieldsCount += 1
+		customFieldsCount++
 	}
 	for range m.DatabaseQueryParameters {
-		customFieldsCount += 1
+		customFieldsCount++
 	}
 
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
