@@ -216,7 +216,7 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig ty
 
 // createTracker creates a new session tracker for the app session.
 func (s *Server) createTracker(sess *session, identity *tlsca.Identity) error {
-	s.log.Debug("Creating tracker for session %v", sess.id)
+	s.log.Debugf("Creating tracker for session %v", sess.id)
 	initiator := &types.Participant{
 		ID:   identity.Username,
 		User: identity.Username,

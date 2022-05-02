@@ -519,7 +519,7 @@ type monitorConnConfig struct {
 	identity     tlsca.Identity
 	clock        clockwork.Clock
 	serverID     string
-	authClient   auth.ClientI
+	authClient   *auth.Client
 	teleportUser string
 	emitter      events.Emitter
 	log          logrus.FieldLogger

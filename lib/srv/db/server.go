@@ -58,7 +58,7 @@ type Config struct {
 	// DataDir is the path to the data directory for the server.
 	DataDir string
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient auth.ClientI
+	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.

@@ -70,7 +70,7 @@ type Auth interface {
 // AuthConfig is the database access authenticator configuration.
 type AuthConfig struct {
 	// AuthClient is the cluster auth client.
-	AuthClient libauth.ClientI
+	AuthClient *libauth.Client
 	// Clients provides interface for obtaining cloud provider clients.
 	Clients CloudClients
 	// Clock is the clock implementation.

@@ -400,7 +400,7 @@ type session struct {
 
 	access auth.SessionAccessEvaluator
 
-	tracker *sessionTrackerWithCond
+	tracker *sessionTrackerServiceWithCond
 
 	initiator string
 
@@ -1642,7 +1642,7 @@ func (p *party) closeUnderSessionLock() {
 func (s *session) trackSession(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
 	s.log.Debugf("Starting session tracker for session %v", s.id)
 
-	s.tracker = &sessionTrackerWithCond{
+	s.tracker = &sessionTrackerServiceWithCond{
 		sess:                  s,
 		SessionTrackerService: s.registry.SessionTrackerService,
 		state:                 types.SessionState_SessionStatePending,
@@ -1695,17 +1695,18 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 	return nil
 }
 
-type sessionTrackerWithCond struct {
-	sess *session
+// extends SessionTrackerService using a sync.Cond to control state updates.
+type sessionTrackerServiceWithCond struct {
 	services.SessionTrackerService
 
+	sess        *session
 	state       types.SessionState
 	stateUpdate *sync.Cond
 }
 
 // UpdateSessionTracker updates the session tracker, locking
 // on the stateUpdate condition for state updates.
-func (s *sessionTrackerWithCond) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+func (s *sessionTrackerServiceWithCond) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
 	if req.GetUpdateState() != nil {
 		s.stateUpdate.L.Lock()
 		defer s.stateUpdate.L.Unlock()
@@ -1715,14 +1716,14 @@ func (s *sessionTrackerWithCond) UpdateSessionTracker(ctx context.Context, req *
 	return s.SessionTrackerService.UpdateSessionTracker(ctx, req)
 }
 
-func (s *sessionTrackerWithCond) get() (types.SessionTracker, error) {
+func (s *sessionTrackerServiceWithCond) get() (types.SessionTracker, error) {
 	sess, err := s.GetSessionTracker(s.sess.serverCtx, s.sess.id.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
 }
-func (s *sessionTrackerWithCond) addParty(p *party) error {
+func (s *sessionTrackerServiceWithCond) addParty(p *party) error {
 	s.sess.log.Debugf("Tracking participant: %v", p.user)
 	err := services.AddSessionTrackerParticipant(s.sess.serverCtx, s, s.sess.id.String(), &types.Participant{
 		ID:         p.user,
@@ -1733,19 +1734,19 @@ func (s *sessionTrackerWithCond) addParty(p *party) error {
 	return trace.Wrap(err)
 }
 
-func (s *sessionTrackerWithCond) removeParty(partyID string) error {
+func (s *sessionTrackerServiceWithCond) removeParty(partyID string) error {
 	s.sess.log.Debugf("Not tracking participant: %v", partyID)
 	err := services.RemoveSessionTrackerParticipant(s.sess.serverCtx, s, s.sess.id.String(), partyID)
 	return trace.Wrap(err)
 }
 
-func (s *sessionTrackerWithCond) updateState(state types.SessionState) error {
+func (s *sessionTrackerServiceWithCond) updateState(state types.SessionState) error {
 	err := services.UpdateSessionTrackerState(s.sess.serverCtx, s, s.sess.id.String(), state)
 	return trace.Wrap(err)
 }
 
 // updateStateUnderLock Must be called under stateUpdate lock
-func (s *sessionTrackerWithCond) updateStateUnderLock(state types.SessionState) error {
+func (s *sessionTrackerServiceWithCond) updateStateUnderLock(state types.SessionState) error {
 	s.state = state
 	s.stateUpdate.Broadcast()
 
