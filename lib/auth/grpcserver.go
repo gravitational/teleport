@@ -3625,10 +3625,9 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.Create
 	}
 
 	var createTracker types.SessionTracker = req.SessionTracker
-
 	// DELETE IN 11.0.0
 	// Early v9 versions use a flattened out types.SessionTrackerV1
-	if createTracker == nil {
+	if req.SessionTracker == nil {
 		spec := types.SessionTrackerSpecV1{
 			SessionID:         req.ID,
 			Kind:              req.Type,
@@ -3650,7 +3649,7 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.Create
 		}
 	}
 
-	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req.SessionTracker)
+	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, createTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

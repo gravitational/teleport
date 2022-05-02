@@ -1137,6 +1137,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 	s.log.Debugf("Starting tracker for session %v", s.id.String())
 
 	s.tracker = &sessionTrackerWithCond{
+		sess:                  s,
 		SessionTrackerService: s.forwarder.cfg.AuthClient,
 		state:                 types.SessionState_SessionStatePending,
 		stateUpdate:           sync.NewCond(&sync.Mutex{}),

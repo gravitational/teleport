@@ -1625,6 +1625,7 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 	s.log.Debugf("Starting session tracker for session %v", s.id)
 
 	s.tracker = &sessionTrackerWithCond{
+		sess:                  s,
 		SessionTrackerService: s.registry.SessionTrackerService,
 		state:                 types.SessionState_SessionStatePending,
 		stateUpdate:           sync.NewCond(&sync.Mutex{}),
