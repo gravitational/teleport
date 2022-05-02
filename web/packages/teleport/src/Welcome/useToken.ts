@@ -35,10 +35,10 @@ export default function useToken(tokenId: string) {
     );
   }, []);
 
-  function onSubmit(password: string, otpToken: string) {
+  function onSubmit(password: string, otpCode: string, deviceName = '') {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
-      .resetPassword(tokenId, password, otpToken)
+      .resetPassword({ tokenId, password, otpCode, deviceName })
       .then(recoveryCodes => {
         if (recoveryCodes.createdDate) {
           setRecoveryCodes(recoveryCodes);
@@ -49,10 +49,10 @@ export default function useToken(tokenId: string) {
       .catch(submitAttempt.handleError);
   }
 
-  function onSubmitWithWebauthn(password?: string) {
+  function onSubmitWithWebauthn(password?: string, deviceName = '') {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
-      .resetPasswordWithWebauthn(tokenId, password)
+      .resetPasswordWithWebauthn({ tokenId, password, deviceName })
       .then(recoveryCodes => {
         if (recoveryCodes.createdDate) {
           setRecoveryCodes(recoveryCodes);

@@ -25,7 +25,7 @@ import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
 } from './makeMfa';
-import { UserCredentials } from './types';
+import { UserCredentials, NewCredentialRequest } from './types';
 
 const auth = {
   checkWebauthnSupport() {
@@ -81,11 +81,11 @@ const auth = {
       .then(makeMfaAuthenticateChallenge);
   },
 
-  login(userId: string, password: string, token: string) {
+  login(userId: string, password: string, otpCode: string) {
     const data = {
       user: userId,
       pass: password,
-      second_factor_token: token,
+      second_factor_token: otpCode,
     };
 
     return api.post(cfg.api.sessionPath, data);
@@ -118,14 +118,14 @@ const auth = {
   // resetPasswordWithWebauthn either sets a new password and a new webauthn device,
   // or if passwordless is requested (indicated by empty password param),
   // skips setting a new password and only sets a passwordless device.
-  resetPasswordWithWebauthn(tokenId: string, password?: string) {
+  resetPasswordWithWebauthn(req: NewCredentialRequest) {
     return auth
       .checkWebauthnSupport()
       .then(() =>
         auth.createMfaRegistrationChallenge(
-          tokenId,
+          req.tokenId,
           'webauthn',
-          password ? 'mfa' : 'passwordless'
+          req.password ? 'mfa' : 'passwordless'
         )
       )
       .then(res =>
@@ -135,8 +135,8 @@ const auth = {
       )
       .then(res => {
         const request = {
-          token: tokenId,
-          password: password ? base64EncodeUnicode(password) : null,
+          token: req.tokenId,
+          password: req.password ? base64EncodeUnicode(req.password) : null,
           webauthnCreationResponse: makeWebauthnCreationResponse(res),
         };
 
@@ -145,8 +145,14 @@ const auth = {
       .then(makeRecoveryCodes);
   },
 
-  resetPassword(tokenId: string, password: string, hotpToken: string) {
-    return this._resetPassword(tokenId, password, hotpToken);
+  resetPassword(req: NewCredentialRequest) {
+    const request = {
+      password: base64EncodeUnicode(req.password),
+      second_factor_token: req.otpCode,
+      token: req.tokenId,
+    };
+
+    return api.put(cfg.getPasswordTokenUrl(), request).then(makeRecoveryCodes);
   },
 
   changePassword(oldPass: string, newPass: string, token: string) {
@@ -205,16 +211,6 @@ const auth = {
 
   createRestrictedPrivilegeToken() {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
-  },
-
-  _resetPassword(tokenId: string, psw: string, hotpToken: string) {
-    const request = {
-      password: base64EncodeUnicode(psw),
-      second_factor_token: hotpToken,
-      token: tokenId,
-    };
-
-    return api.put(cfg.getPasswordTokenUrl(), request).then(makeRecoveryCodes);
   },
 };
 

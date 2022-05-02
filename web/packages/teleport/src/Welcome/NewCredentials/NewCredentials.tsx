@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2022 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,34 +16,74 @@ limitations under the License.
 
 import React, { useState, useMemo } from 'react';
 import { Text, Card, ButtonPrimary, Flex, Box } from 'design';
-import * as Alerts from 'design/Alert';
-import { Auth2faType, PreferredMfaType } from 'shared/services';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { Danger } from 'design/Alert';
+import Validation, { Validator } from 'shared/components/Validation';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import FieldSelect from 'shared/components/FieldSelect';
 import FieldInput from 'shared/components/FieldInput';
-import Validation, { Validator } from 'shared/components/Validation';
 import {
   requiredToken,
   requiredPassword,
   requiredConfirmedPassword,
 } from 'shared/components/Validation/rules';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import RecoveryCodes from 'teleport/components/RecoveryCodes';
+import useToken, { State } from '../useToken';
+import Expired from './Expired';
 import TwoFAData from './TwoFaInfo';
 
-export default function FormNewCredentials(props: Props) {
+export default function Container({
+  tokenId = '',
+  title = '',
+  submitBtnText = '',
+  resetMode = false,
+}) {
+  const state = useToken(tokenId);
+  return (
+    <NewCredentials
+      {...state}
+      title={title}
+      submitBtnText={submitBtnText}
+      resetMode={resetMode}
+    />
+  );
+}
+
+export function NewCredentials(props: Props) {
   const {
+    fetchAttempt,
+    submitAttempt,
+    clearSubmitAttempt,
+    passwordToken,
+    recoveryCodes,
+    resetMode,
+    redirect,
     auth2faType,
     preferredMfaType,
-    onSubmitWithWebauthn,
     onSubmit,
-    attempt,
-    clearSubmitAttempt,
-    user,
-    qr,
-    title = '',
-    submitBtnText = 'Submit',
+    onSubmitWithWebauthn,
+    title,
+    submitBtnText,
   } = props;
 
+  if (fetchAttempt.status === 'failed') {
+    return <Expired resetMode={resetMode} />;
+  }
+
+  if (fetchAttempt.status !== 'success') {
+    return null;
+  }
+
+  if (recoveryCodes) {
+    return (
+      <RecoveryCodes
+        recoveryCodes={recoveryCodes}
+        redirect={redirect}
+        isNewCodes={resetMode}
+      />
+    );
+  }
+
+  const { user, qrCode } = passwordToken;
   const [password, setPassword] = useState('');
   const [passwordConfirmed, setPasswordConfirmed] = useState('');
   const [token, setToken] = useState('');
@@ -99,8 +139,8 @@ export default function FormNewCredentials(props: Props) {
               <Text typography="h2" mb={3} textAlign="center" color="light">
                 {title}
               </Text>
-              {attempt.status === 'failed' && (
-                <Alerts.Danger children={attempt.statusText} />
+              {submitAttempt.status === 'failed' && (
+                <Danger children={submitAttempt.statusText} />
               )}
               <Text typography="h4" breakAll mb={3}>
                 {user}
@@ -137,7 +177,7 @@ export default function FormNewCredentials(props: Props) {
                       onSetMfaOption(opt as MfaOption, validator)
                     }
                     mr={3}
-                    isDisabled={attempt.status === 'processing'}
+                    isDisabled={submitAttempt.status === 'processing'}
                   />
                   {mfaType.value === 'otp' && (
                     <FieldInput
@@ -156,7 +196,7 @@ export default function FormNewCredentials(props: Props) {
               <ButtonPrimary
                 width="100%"
                 mt={3}
-                disabled={attempt.status === 'processing'}
+                disabled={submitAttempt.status === 'processing'}
                 size="large"
                 onClick={e => onBtnClick(e, validator)}
               >
@@ -171,7 +211,7 @@ export default function FormNewCredentials(props: Props) {
                 borderTopRightRadius={3}
                 borderBottomRightRadius={3}
               >
-                <TwoFAData auth2faType={mfaType.value} qr={qr} />
+                <TwoFAData auth2faType={mfaType.value} qr={qrCode} />
               </Box>
             )}
           </Flex>
@@ -181,15 +221,8 @@ export default function FormNewCredentials(props: Props) {
   );
 }
 
-export type Props = {
-  title?: string;
-  submitBtnText?: string;
-  user: string;
-  qr: string;
-  auth2faType: Auth2faType;
-  preferredMfaType: PreferredMfaType;
-  attempt: Attempt;
-  clearSubmitAttempt: () => void;
-  onSubmitWithWebauthn(password: string): void;
-  onSubmit(password: string, optToken: string): void;
+export type Props = State & {
+  submitBtnText: string;
+  title: string;
+  resetMode?: boolean;
 };

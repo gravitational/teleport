@@ -39,3 +39,10 @@ export type RecoveryCodes = {
   codes?: string[];
   createdDate: Date;
 };
+
+export type NewCredentialRequest = {
+  tokenId: string;
+  password?: string;
+  otpCode?: string;
+  deviceName?: string;
+};

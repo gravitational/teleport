@@ -30,18 +30,18 @@ describe('services/auth', () => {
   const email = 'user@example.com';
 
   test('login()', async () => {
-    jest.spyOn(api, 'post').mockResolvedValue();
+    jest.spyOn(api, 'post').mockResolvedValue({});
 
-    await auth.login(email, password);
+    await auth.login(email, password, '');
     expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, {
       user: email,
       pass: password,
-      second_factor_token: undefined,
+      second_factor_token: '',
     });
   });
 
   test('login() OTP', async () => {
-    jest.spyOn(api, 'post').mockResolvedValue();
+    jest.spyOn(api, 'post').mockResolvedValue({});
     const data = {
       user: email,
       pass: password,
@@ -53,14 +53,18 @@ describe('services/auth', () => {
   });
 
   test('resetPassword()', async () => {
-    jest.spyOn(api, 'put').mockResolvedValue();
+    jest.spyOn(api, 'put').mockResolvedValue({});
     const submitData = {
       token: 'tokenId',
       second_factor_token: '2fa_token',
       password: 'c2FtcGxlX3Bhc3M=',
     };
 
-    await auth.resetPassword('tokenId', password, '2fa_token');
+    await auth.resetPassword({
+      tokenId: 'tokenId',
+      password,
+      otpCode: '2fa_token',
+    });
     expect(api.put).toHaveBeenCalledWith(cfg.getPasswordTokenUrl(), submitData);
   });
 });

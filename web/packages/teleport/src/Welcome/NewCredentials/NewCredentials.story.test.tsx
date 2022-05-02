@@ -16,29 +16,29 @@ limitations under the License.
 
 import React from 'react';
 import { render } from 'design/utils/testing';
-import * as story from './FormNewCredentials.story';
+import * as story from './NewCredentials.story';
 
 test('story.off', () => {
-  const { container } = render(<story.Off />);
+  const { container } = render(<story.MfaOff />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('story.Otp', () => {
-  const { container } = render(<story.Otp />);
+  const { container } = render(<story.MfaOtp />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('story.OtpError', () => {
-  const { container } = render(<story.OtpError />);
+  const { container } = render(<story.MfaOtpError />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('story.Webauthn', () => {
-  const { container } = render(<story.Webauthn />);
+  const { container } = render(<story.MfaWebauthn />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('story.Webauthn Error', () => {
-  const { container } = render(<story.WebauthnError />);
+  const { container } = render(<story.MfaWebauthnError />);
   expect(container.firstChild).toMatchSnapshot();
 });

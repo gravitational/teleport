@@ -125,7 +125,12 @@ describe('teleport/components/Welcome', () => {
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
     fireEvent.click(screen.getByRole('button'));
 
-    expect(auth.resetPassword).toHaveBeenCalledWith('5182', 'pwd_value', '');
+    expect(auth.resetPassword).toHaveBeenCalledWith({
+      tokenId: '5182',
+      password: 'pwd_value',
+      otpCode: '',
+      deviceName: '',
+    });
   });
 
   it('reset password with otp', async () => {
@@ -146,11 +151,12 @@ describe('teleport/components/Welcome', () => {
     fireEvent.change(otpField, { target: { value: '2222' } });
     fireEvent.click(screen.getByRole('button'));
 
-    expect(auth.resetPassword).toHaveBeenCalledWith(
-      '5182',
-      'pwd_value',
-      '2222'
-    );
+    expect(auth.resetPassword).toHaveBeenCalledWith({
+      tokenId: '5182',
+      password: 'pwd_value',
+      otpCode: '2222',
+      deviceName: '',
+    });
   });
 
   it('reset password with webauthn', async () => {
@@ -171,10 +177,11 @@ describe('teleport/components/Welcome', () => {
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
     fireEvent.click(screen.getByRole('button'));
 
-    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith(
-      '5182',
-      'pwd_value'
-    );
+    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith({
+      tokenId: '5182',
+      password: 'pwd_value',
+      deviceName: '',
+    });
   });
 
   it('reset password error', async () => {
