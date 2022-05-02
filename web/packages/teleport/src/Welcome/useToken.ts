@@ -49,7 +49,7 @@ export default function useToken(tokenId: string) {
       .catch(submitAttempt.handleError);
   }
 
-  function onSubmitWithWebauthn(password: string) {
+  function onSubmitWithWebauthn(password?: string) {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
       .resetPasswordWithWebauthn(tokenId, password)

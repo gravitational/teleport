@@ -16,6 +16,7 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 import makePasswordToken from './makePasswordToken';
 import { makeRecoveryCodes } from './makeRecoveryCodes';
 import {
@@ -24,7 +25,7 @@ import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
 } from './makeMfa';
-import { DeviceType } from './types';
+import { UserCredentials } from './types';
 
 const auth = {
   checkWebauthnSupport() {
@@ -39,10 +40,15 @@ const auth = {
     );
   },
 
-  createMfaRegistrationChallenge(tokenId: string, deviceType: DeviceType) {
+  createMfaRegistrationChallenge(
+    tokenId: string,
+    deviceType: DeviceType,
+    deviceUsage: DeviceUsage = 'mfa'
+  ) {
     return api
       .post(cfg.getMfaCreateRegistrationChallengeUrl(tokenId), {
         deviceType,
+        deviceUsage,
       })
       .then(makeMfaRegistrationChallenge);
   },
@@ -54,11 +60,15 @@ const auth = {
   },
 
   // mfaLoginBegin retrieves users mfa challenges for their
-  // registered devices after verifying given username and password
-  // at login.
-  mfaLoginBegin(user: string, pass: string) {
+  // registered devices. Empty creds indicates request for passwordless challenges.
+  // Otherwise non-passwordless challenges requires creds to be verified.
+  mfaLoginBegin(creds?: UserCredentials) {
     return api
-      .post(cfg.api.mfaLoginBegin, { user, pass })
+      .post(cfg.api.mfaLoginBegin, {
+        passwordless: !creds,
+        user: creds?.username,
+        pass: creds?.password,
+      })
       .then(makeMfaAuthenticateChallenge);
   },
 
@@ -81,10 +91,10 @@ const auth = {
     return api.post(cfg.api.sessionPath, data);
   },
 
-  loginWithWebauthn(user: string, pass: string) {
+  loginWithWebauthn(creds?: UserCredentials) {
     return auth
       .checkWebauthnSupport()
-      .then(() => auth.mfaLoginBegin(user, pass))
+      .then(() => auth.mfaLoginBegin(creds))
       .then(res =>
         navigator.credentials.get({
           publicKey: res.webauthnPublicKey,
@@ -92,7 +102,7 @@ const auth = {
       )
       .then(res => {
         const request = {
-          user,
+          user: creds?.username,
           webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
         };
 
@@ -105,10 +115,19 @@ const auth = {
     return api.get(path).then(makePasswordToken);
   },
 
-  resetPasswordWithWebauthn(tokenId: string, password: string) {
+  // resetPasswordWithWebauthn either sets a new password and a new webauthn device,
+  // or if passwordless is requested (indicated by empty password param),
+  // skips setting a new password and only sets a passwordless device.
+  resetPasswordWithWebauthn(tokenId: string, password?: string) {
     return auth
       .checkWebauthnSupport()
-      .then(() => auth.createMfaRegistrationChallenge(tokenId, 'webauthn'))
+      .then(() =>
+        auth.createMfaRegistrationChallenge(
+          tokenId,
+          'webauthn',
+          password ? 'mfa' : 'passwordless'
+        )
+      )
       .then(res =>
         navigator.credentials.create({
           publicKey: res.webauthnPublicKey,
@@ -117,7 +136,7 @@ const auth = {
       .then(res => {
         const request = {
           token: tokenId,
-          password: base64EncodeUnicode(password),
+          password: password ? base64EncodeUnicode(password) : null,
           webauthnCreationResponse: makeWebauthnCreationResponse(res),
         };
 

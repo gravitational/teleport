@@ -88,7 +88,10 @@ test('auth2faType: webauthn', async () => {
   });
 
   fireEvent.click(getByText(/login/i));
-  expect(onLoginWithWebauthn).toHaveBeenCalledWith('username', '123');
+  expect(onLoginWithWebauthn).toHaveBeenCalledWith({
+    username: 'username',
+    password: '123',
+  });
 });
 
 test('input validation error handling', async () => {

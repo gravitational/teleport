@@ -18,6 +18,8 @@ export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
 export type Auth2faType = 'otp' | 'off' | 'optional' | 'on' | 'webauthn';
 
+export type AuthType = 'local' | 'github' | 'oidc' | 'saml';
+
 // PreferredMfaType is used to determine which MFA option
 // is preferred when more than one option can be available
 // and only one should be preferred.

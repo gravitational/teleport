@@ -28,6 +28,7 @@ import {
   requiredField,
 } from 'shared/components/Validation/rules';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import { UserCredentials } from 'teleport/services/auth';
 import SSOButtonList from './SsoButtons';
 
 export default function LoginForm(props: Props) {
@@ -78,7 +79,7 @@ export default function LoginForm(props: Props) {
 
     switch (mfaType?.value) {
       case 'webauthn':
-        onLoginWithWebauthn(user, pass);
+        onLoginWithWebauthn({ username: user, password: pass });
         break;
       default:
         onLogin(user, pass, token);
@@ -278,6 +279,6 @@ export type Props = {
   onRecover?: (isRecoverPassword: boolean) => void;
   clearAttempt?: () => void;
   onLoginWithSso(provider: AuthProvider): void;
-  onLoginWithWebauthn(username: string, password: string): void;
+  onLoginWithWebauthn(creds: UserCredentials): void;
   onLogin(username: string, password: string, token: string): void;
 };

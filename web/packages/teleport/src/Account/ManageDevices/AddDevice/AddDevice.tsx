@@ -64,7 +64,7 @@ export function AddDevice({
   const [otpToken, setOtpToken] = useState('');
   const [deviceName, setDeviceName] = useState('');
 
-  const mfaOptions = useMemo<MfaOption[]>(
+  const mfaOptions = useMemo(
     () =>
       createMfaOptions({
         auth2faType: auth2faType,
@@ -74,7 +74,7 @@ export function AddDevice({
     []
   );
 
-  const [mfaOption, setMfaOption] = useState<MfaOption>(mfaOptions[0]);
+  const [mfaOption, setMfaOption] = useState(mfaOptions[0]);
 
   function onSetMfaOption(option: MfaOption) {
     setOtpToken('');
@@ -86,7 +86,7 @@ export function AddDevice({
     e.preventDefault();
 
     if (mfaOption.value === 'webauthn') {
-      addWebauthnDevice(deviceName);
+      addWebauthnDevice(deviceName, 'mfa');
     }
     if (mfaOption.value === 'otp') {
       addTotpDevice(otpToken, deviceName);

@@ -100,7 +100,10 @@ test('login with password and webauthn', async () => {
 
   // test login pathways
   await waitFor(() => fireEvent.click(getByText(/login/i)));
-  expect(auth.loginWithWebauthn).toHaveBeenCalledWith('username', '123');
+  expect(auth.loginWithWebauthn).toHaveBeenCalledWith({
+    username: 'username',
+    password: '123',
+  });
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
 

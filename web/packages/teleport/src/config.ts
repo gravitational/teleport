@@ -16,7 +16,12 @@ limitations under the License.
 
 import { generatePath } from 'react-router';
 import { merge } from 'lodash';
-import { AuthProvider, Auth2faType, PreferredMfaType } from 'shared/services';
+import {
+  AuthProvider,
+  Auth2faType,
+  AuthType,
+  PreferredMfaType,
+} from 'shared/services';
 import { RecordingType } from 'teleport/services/recordings';
 import { SortType } from './components/ServersideSearchPanel/useServerSideSearchPanel';
 import generateResourcePath from './generateResourcePath';
@@ -34,7 +39,7 @@ const cfg = {
     localAuthEnabled: true,
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
-    authType: 'local',
+    authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
   },
 

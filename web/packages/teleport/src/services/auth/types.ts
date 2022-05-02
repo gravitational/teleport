@@ -16,8 +16,6 @@
 
 export type Base64urlString = string;
 
-export type DeviceType = 'totp' | 'webauthn';
-
 export type UserCredentials = {
   username: string;
   password: string;

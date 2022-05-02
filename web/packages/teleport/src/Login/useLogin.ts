@@ -17,7 +17,7 @@
 import { useAttempt } from 'shared/hooks';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
-import auth from 'teleport/services/auth';
+import auth, { UserCredentials } from 'teleport/services/auth';
 import { AuthProvider } from 'shared/services';
 
 export default function useLogin() {
@@ -36,10 +36,10 @@ export default function useLogin() {
       });
   }
 
-  function onLoginWithWebauthn(name, password) {
+  function onLoginWithWebauthn(creds?: UserCredentials) {
     attemptActions.start();
     auth
-      .loginWithWebauthn(name, password)
+      .loginWithWebauthn(creds)
       .then(onSuccess)
       .catch(err => {
         attemptActions.error(err);
