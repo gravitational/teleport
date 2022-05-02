@@ -316,7 +316,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	if err := fetchMySQLVersion(ctx, database); err != nil {
 		// Log, but do not fail. We will fetch the version later.
-		s.log.Warnf("Failed to fetch the MySQL version for %s", database.GetName())
+		s.log.Warnf("Failed to fetch the MySQL version for %s: %v", database.GetName(), err)
 	}
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.
