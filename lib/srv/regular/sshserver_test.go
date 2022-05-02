@@ -1157,7 +1157,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode(reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -1272,13 +1272,8 @@ func TestProxyDirectAccess(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-<<<<<<< HEAD
-		nil,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
-=======
 		proxyClient,
-		SetProxyMode(reverseTunnelServer, proxyClient),
->>>>>>> david/proxy-peering
+		SetProxyMode("", reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
