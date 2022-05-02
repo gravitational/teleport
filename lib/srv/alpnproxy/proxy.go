@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"io"
 	"net"
 	"strings"
@@ -32,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -98,6 +99,37 @@ func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
 func MatchByALPNPrefix(prefix string) MatchFunc {
 	return func(sni, alpn string) bool {
 		return strings.HasPrefix(alpn, prefix)
+	}
+}
+
+// ExtractMySQLEngineVersion returns a pre-process function for MySQL connections that tries to extract MySQL server version
+// from incoming connection.
+func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error) HandlerFuncWithInfo {
+	return func(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
+		const mysqlVerStart = len(common.ProtocolMySQLWithVerPrefix)
+
+		for _, alpn := range info.ALPN {
+			if !strings.HasPrefix(alpn, string(common.ProtocolMySQLWithVerPrefix)) || len(alpn) == mysqlVerStart {
+				continue
+			}
+			// The version should never be longer than 255 characters including
+			// the prefix, but better to be safe.
+			var versionEnd = 255
+			if len(alpn) < versionEnd {
+				versionEnd = len(alpn)
+			}
+
+			mysqlVersionBase64 := alpn[mysqlVerStart:versionEnd]
+			mysqlVersionBytes, err := base64.StdEncoding.DecodeString(mysqlVersionBase64)
+			if err != nil {
+				continue
+			}
+
+			ctx = context.WithValue(ctx, dbutils.ContextMySQLServerVersion, string(mysqlVersionBytes))
+			break
+		}
+
+		return fn(ctx, conn)
 	}
 }
 
@@ -347,7 +379,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(tlsConn.ConnectionState())
+	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
@@ -357,7 +389,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
 }
 
-// getTLSConfig returns HandlerDecs.TLSConfig if custom TLS configuration was set for the handler
+// getTLSConfig returns HandlerDesc.TLSConfig if custom TLS configuration was set for the handler
 // otherwise the ProxyConfig.WebTLSConfig is used.
 func (p *Proxy) getTLSConfig(desc *HandlerDecs) *tls.Config {
 	if desc.TLSConfig != nil {
@@ -427,7 +459,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 		return trace.Wrap(err)
 	}
 
-	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(tlsConn.ConnectionState())
+	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}

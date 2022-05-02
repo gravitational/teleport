@@ -240,6 +240,8 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 
 // TestCA tests certificate authorities
 func TestCA(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 	ctx := context.Background()
@@ -275,6 +277,8 @@ func TestCA(t *testing.T) {
 // verifies that all watchers of the cache will be closed
 // if the underlying watcher to the target backend is closed
 func TestWatchers(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -387,6 +391,8 @@ func TestWatchers(t *testing.T) {
 }
 
 func TestNodeCAFiltering(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	p := newTestPack(t, ForAuth)
@@ -543,6 +549,8 @@ func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, s
 // TestCompletenessInit verifies that flaky backends don't cause
 // the cache to return partial results during init.
 func TestCompletenessInit(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const caCount = 100
 	const inits = 20
@@ -614,6 +622,8 @@ func TestCompletenessInit(t *testing.T) {
 // TestCompletenessReset verifies that flaky backends don't cause
 // the cache to return partial results during reset.
 func TestCompletenessReset(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const caCount = 100
 	const resets = 20
@@ -677,6 +687,8 @@ func TestCompletenessReset(t *testing.T) {
 // TestInitStrategy verifies that cache uses expected init strategy
 // of serving backend state when init is taking too long.
 func TestInitStrategy(t *testing.T) {
+	t.Parallel()
+
 	for i := 0; i < utils.GetIterations(); i++ {
 		initStrategy(t)
 	}
@@ -784,6 +796,8 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 // TestListResources_NodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
 func TestListResources_NodesTTLVariant(t *testing.T) {
+	t.Parallel()
+
 	const nodeCount = 100
 	const pageSize = 10
 	var err error
@@ -974,6 +988,8 @@ func initStrategy(t *testing.T) {
 
 // TestRecovery tests error recovery scenario
 func TestRecovery(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
@@ -1016,6 +1032,8 @@ func TestRecovery(t *testing.T) {
 
 // TestTokens tests static and dynamic tokens
 func TestTokens(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1080,6 +1098,8 @@ func TestTokens(t *testing.T) {
 }
 
 func TestAuthPreference(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1108,6 +1128,8 @@ func TestAuthPreference(t *testing.T) {
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1136,6 +1158,8 @@ func TestClusterNetworkingConfig(t *testing.T) {
 }
 
 func TestSessionRecordingConfig(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1164,6 +1188,8 @@ func TestSessionRecordingConfig(t *testing.T) {
 }
 
 func TestClusterAuditConfig(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1191,6 +1217,8 @@ func TestClusterAuditConfig(t *testing.T) {
 }
 
 func TestClusterName(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
@@ -1218,6 +1246,8 @@ func TestClusterName(t *testing.T) {
 
 // TestNamespaces tests caching of namespaces
 func TestNamespaces(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1278,6 +1308,8 @@ func TestNamespaces(t *testing.T) {
 
 // TestUsers tests caching of users
 func TestUsers(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
@@ -1338,6 +1370,8 @@ func TestUsers(t *testing.T) {
 
 // TestRoles tests caching of roles
 func TestRoles(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
@@ -1407,6 +1441,8 @@ func TestRoles(t *testing.T) {
 
 // TestReverseTunnels tests reverse tunnels caching
 func TestReverseTunnels(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1472,6 +1508,8 @@ func TestReverseTunnels(t *testing.T) {
 
 // TestTunnelConnections tests tunnel connections caching
 func TestTunnelConnections(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1546,6 +1584,8 @@ func TestTunnelConnections(t *testing.T) {
 
 // TestNodes tests nodes cache
 func TestNodes(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	p := newPackForProxy(t)
@@ -1637,6 +1677,8 @@ func TestNodes(t *testing.T) {
 
 // TestProxies tests proxies cache
 func TestProxies(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1704,6 +1746,8 @@ func TestProxies(t *testing.T) {
 
 // TestAuthServers tests auth servers cache
 func TestAuthServers(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1771,6 +1815,8 @@ func TestAuthServers(t *testing.T) {
 
 // TestRemoteClusters tests remote clusters caching
 func TestRemoteClusters(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
@@ -1844,6 +1890,8 @@ func TestRemoteClusters(t *testing.T) {
 // TestAppServers tests that CRUD operations are replicated from the backend to
 // the cache.
 func TestAppServers(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
@@ -1929,6 +1977,8 @@ func TestAppServers(t *testing.T) {
 // TestApplicationServers tests that CRUD operations on app servers are
 // replicated from the backend to the cache.
 func TestApplicationServers(t *testing.T) {
+	t.Parallel()
+
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
@@ -2011,6 +2061,8 @@ func TestApplicationServers(t *testing.T) {
 // TestApps tests that CRUD operations on application resources are
 // replicated from the backend to the cache.
 func TestApps(t *testing.T) {
+	t.Parallel()
+
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
@@ -2095,6 +2147,8 @@ func TestApps(t *testing.T) {
 // TestDatabaseServers tests that CRUD operations on database servers are
 // replicated from the backend to the cache.
 func TestDatabaseServers(t *testing.T) {
+	t.Parallel()
+
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
@@ -2182,6 +2236,8 @@ func TestDatabaseServers(t *testing.T) {
 // TestDatabases tests that CRUD operations on database resources are
 // replicated from the backend to the cache.
 func TestDatabases(t *testing.T) {
+	t.Parallel()
+
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
@@ -2265,6 +2321,8 @@ func TestDatabases(t *testing.T) {
 }
 
 func TestRelativeExpiry(t *testing.T) {
+	t.Parallel()
+
 	const checkInterval = time.Second
 	const nodeCount = int64(100)
 
@@ -2428,6 +2486,8 @@ func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
 }
 
 func TestCache_Backoff(t *testing.T) {
+	t.Parallel()
+
 	clock := clockwork.NewFakeClock()
 	p := newTestPack(t, func(c Config) Config {
 		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
@@ -2519,6 +2579,8 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 // While this test will ensure that there are no issues for the current release, it does not guarantee
 // that this issue won't arise across releases.
 func TestCacheWatchKindExistsInEvents(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]Config{
 		"ForAuth":           ForAuth(Config{}),
 		"ForProxy":          ForProxy(Config{}),

@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -1542,63 +1541,6 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	response, err = strconv.ParseBool(string(responseBytes))
 	require.NoError(t, err)
 	require.True(t, response)
-}
-
-// TestSessionTracker tests session tracker lifecycle
-func TestSessionTracker(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	f := newFixture(t)
-
-	se, err := f.ssh.clt.NewSession()
-	require.NoError(t, err)
-	t.Cleanup(func() { se.Close() })
-
-	// start interactive SSH session (new shell):
-	err = se.Shell()
-	require.NoError(t, err)
-
-	// session tracker should be created
-	var tracker types.SessionTracker
-	trackerFound := func() bool {
-		trackers, err := f.testSrv.Auth().GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
-
-		if len(trackers) == 1 {
-			tracker = trackers[0]
-			return true
-		}
-		return false
-	}
-	require.Eventually(t, trackerFound, time.Second*5, time.Second)
-
-	// Advance the clock to trigger the session tracker expiration to be extended
-	f.clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
-
-	// The session's expiration should be updated
-	trackerUpdated := func() bool {
-		updatedTracker, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
-		require.NoError(t, err)
-		return updatedTracker.Expiry().Equal(tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval))
-	}
-	require.Eventually(t, trackerUpdated, time.Second*5, time.Millisecond*1000)
-
-	// Close the session from the client side
-	err = se.Close()
-	require.NoError(t, err)
-
-	f.clock.BlockUntil(3)
-	f.clock.Advance(defaults.SessionIdlePeriod)
-
-	// Once the session is closed, the tracker should be termianted.
-	// Once the last set expiration is up, the tracker should be delted.
-	f.clock.Advance(defaults.SessionTrackerTTL)
-
-	trackerExpired := func() bool {
-		_, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
-		return trace.IsNotFound(err)
-	}
-	require.Eventually(t, trackerExpired, time.Second*5, time.Millisecond*100)
 }
 
 // rawNode is a basic non-teleport node which holds a

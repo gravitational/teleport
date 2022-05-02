@@ -253,7 +253,7 @@ func (a *awsApp) startLocalALPNProxy() error {
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpncommon.ProtocolHTTP,
+		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolHTTP},
 		InsecureSkipVerify: a.cf.InsecureSkipVerify,
 		ParentContext:      a.cf.Context,
 		SNI:                address.Host(),

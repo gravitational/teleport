@@ -111,6 +111,26 @@ spec:
     ...
     -----END CERTIFICATE-----
 
+  # MySQL only options.
+  mysql:
+    # The MySQL server version reported by the Teleport Proxy Service.
+    # Teleport uses this string when reporting the server version to a 
+    # connecting client.
+    #
+    # When this option is not set, the Database Service will try to connect to
+    # a MySQL instance on startup and fetch the server version. Otherwise, 
+    # it will use the provided value without connecting to a database. 
+    #
+    # In both cases, the MySQL server version reported to a client will be 
+    # updated on the first successful connection made by a user.
+    # Teleport uses that string instead of default '8.0.0-Teleport' version when reporting
+    # the server version to a connecting client. When this option is not set, the Database Service will try
+    # to connect to MySQL instance on startup and fetch the server version.
+    # Otherwise, it will use the provided value without connecting to a database.
+    # In both cases MySQL server version reported to a client will be updated on the first successful
+    # connection made by a user.
+    server_version: 8.0.28
+
   # Optional AWS configuration for RDS/Aurora/Redshift. Can be auto-detected from the endpoint.
   aws:
     # Region the database is deployed in.

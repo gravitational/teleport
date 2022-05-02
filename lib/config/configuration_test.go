@@ -1992,9 +1992,36 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
+		{
+			desc: "MySQL version",
+			inFlags: CommandLineFlags{
+				DatabaseName:               "mysql-foo",
+				DatabaseProtocol:           defaults.ProtocolMySQL,
+				DatabaseURI:                "localhost:3306",
+				DatabaseMySQLServerVersion: "8.0.28",
+			},
+			outDatabase: service.Database{
+				Name:     "mysql-foo",
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				MySQL: service.MySQLOptions{
+					ServerVersion: "8.0.28",
+				},
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
 	}
+
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+
 			config := service.MakeDefaultConfig()
 			err := Configure(&tt.inFlags, config)
 			if tt.outError != "" {
