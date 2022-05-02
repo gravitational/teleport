@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 
 	"github.com/stretchr/testify/require"
 )
@@ -218,4 +219,16 @@ func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *t
 	netConfig.SetClientIdleTimeout(timeout)
 	err = auth.SetClusterNetworkingConfig(ctx, netConfig)
 	require.NoError(t, err)
+}
+
+func TestExtractMySQLVersion(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql", mysql.WithServerVersion("8.0.25")))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
+
+	version, err := mysql.FetchMySQLVersion(ctx, testCtx.server.proxiedDatabases["mysql"])
+	require.NoError(t, err)
+	require.Equal(t, "8.0.25", version)
 }
