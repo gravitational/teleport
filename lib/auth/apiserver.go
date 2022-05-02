@@ -17,11 +17,9 @@ limitations under the License.
 package auth
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -40,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/form"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
@@ -174,7 +171,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.deleteSession))
 	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
-	srv.POST("/:version/namespaces/:namespace/sessions/:id/recording", srv.withAuth(srv.uploadSessionRecording))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
 
@@ -1793,64 +1789,6 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 		err = auth.EmitAuditEventLegacy(events.Event{Name: req.Type}, req.Fields)
 	}
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// HTTP POST /:version/sessions/:id/recording
-func (s *APIServer) uploadSessionRecording(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var files form.Files
-	var namespace, sid string
-
-	err := form.Parse(r,
-		form.FileSlice("recording", &files),
-		form.String("namespace", &namespace, form.Required()),
-		form.String("sid", &sid, form.Required()),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if r.MultipartForm != nil {
-		defer r.MultipartForm.RemoveAll()
-	}
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	if len(files) != 1 {
-		return nil, trace.BadParameter("expected a single file parameter but got %d", len(files))
-	}
-	defer files[0].Close()
-	_, err = session.ParseID(sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Make a copy of the archive because it needs to be read twice: once to
-	// validate it and then again to upload it.
-	var buf bytes.Buffer
-	recording := io.TeeReader(files[0], &buf)
-
-	// Validate namespace and serverID fields in the archive match namespace and
-	// serverID of the authenticated client. This check makes sure nodes can
-	// only submit recordings for themselves.
-	serverID, err := s.getServerID(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = events.ValidateArchive(recording, serverID)
-	if err != nil {
-		log.Warnf("Rejecting session recording from %v: %v. System may be under attack, a "+
-			"node is attempting to submit events for an identity other than its own.",
-			serverID, err)
-		return nil, trace.BadParameter("failed to validate archive")
-	}
-
-	if err = auth.UploadSessionRecording(events.SessionRecording{
-		SessionID: session.ID(sid),
-		Namespace: namespace,
-		Recording: &buf,
-	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil

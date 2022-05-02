@@ -1278,24 +1278,6 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 	return response.Bytes(), nil
 }
 
-// UploadSessionRecording uploads session recording to the audit server
-func (c *Client) UploadSessionRecording(r events.SessionRecording) error {
-	file := roundtrip.File{
-		Name:     "recording",
-		Filename: "recording",
-		Reader:   r.Recording,
-	}
-	values := url.Values{
-		"sid":       []string{string(r.SessionID)},
-		"namespace": []string{r.Namespace},
-	}
-	_, err := c.PostForm(context.TODO(), c.Endpoint("namespaces", r.Namespace, "sessions", string(r.SessionID), "recording"), values, file)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // Returns events that happen during a session sorted by time
 // (oldest first).
 //

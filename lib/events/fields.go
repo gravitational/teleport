@@ -17,11 +17,6 @@ limitations under the License.
 package events
 
 import (
-	"archive/tar"
-	"bufio"
-	"compress/gzip"
-	"io"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
@@ -81,54 +76,6 @@ func ValidateEvent(f EventFields, serverID string) error {
 	}
 	if f.HasField(EventNamespace) && !types.IsValidNamespace(f.GetString(EventNamespace)) {
 		return trace.BadParameter("invalid namespace %v", f.GetString(EventNamespace))
-	}
-
-	return nil
-}
-
-// ValidateArchive validates namespace and serverID fields within all events
-// in the archive.
-func ValidateArchive(reader io.Reader, serverID string) error {
-	tarball := tar.NewReader(reader)
-
-	for {
-		header, err := tarball.Next()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Skip over any file in the archive that doesn't contain session events.
-		if !strings.HasSuffix(header.Name, eventsSuffix) {
-			_, err = io.Copy(io.Discard, tarball)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			continue
-		}
-
-		zip, err := gzip.NewReader(tarball)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer zip.Close()
-
-		scanner := bufio.NewScanner(zip)
-		for scanner.Scan() {
-			var f EventFields
-			err := utils.FastUnmarshal(scanner.Bytes(), &f)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			err = ValidateEvent(f, serverID)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		if err := scanner.Err(); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	return nil

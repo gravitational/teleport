@@ -384,10 +384,6 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 	return nil
 }
 
-func (l *Log) UploadSessionRecording(events.SessionRecording) error {
-	return trace.NotImplemented("UploadSessionRecording not implemented for firestore backend")
-}
-
 // GetSessionChunk returns a reader which can be used to read a byte stream
 // of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 // beginning) up to maxBytes bytes.

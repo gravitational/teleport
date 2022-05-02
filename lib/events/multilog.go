@@ -75,15 +75,6 @@ func (m *MultiLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return trace.NewAggregate(errors...)
 }
 
-// UploadSessionRecording uploads session recording to the audit server
-func (m *MultiLog) UploadSessionRecording(rec SessionRecording) error {
-	var errors []error
-	for _, log := range m.loggers {
-		errors = append(errors, log.UploadSessionRecording(rec))
-	}
-	return trace.NewAggregate(errors...)
-}
-
 // GetSessionChunk returns a reader which can be used to read a byte stream
 // of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 // beginning) up to maxBytes bytes.

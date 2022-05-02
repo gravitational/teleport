@@ -395,10 +395,6 @@ func (l *FileLog) WaitForDelivery(context.Context) error {
 	return nil
 }
 
-func (l *FileLog) UploadSessionRecording(SessionRecording) error {
-	return trace.NotImplemented("not implemented")
-}
-
 func (l *FileLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	return nil, trace.NotImplemented("not implemented")
 }

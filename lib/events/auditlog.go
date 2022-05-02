@@ -31,7 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -293,58 +292,6 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 
 func (l *AuditLog) WaitForDelivery(context.Context) error {
 	return nil
-}
-
-// SessionRecording is a recording of a live session
-type SessionRecording struct {
-	// Namespace is a session namespace
-	Namespace string
-	// SessionID is a session ID
-	SessionID session.ID
-	// Recording is a packaged tarball recording
-	Recording io.Reader
-}
-
-// CheckAndSetDefaults checks and sets default parameters
-func (l *SessionRecording) CheckAndSetDefaults() error {
-	if l.Recording == nil {
-		return trace.BadParameter("missing parameter Recording")
-	}
-	if l.SessionID.IsZero() {
-		return trace.BadParameter("missing parameter session ID")
-	}
-	if l.Namespace == "" {
-		l.Namespace = apidefaults.Namespace
-	}
-	return nil
-}
-
-// UploadSessionRecording persists the session recording locally or to third
-// party storage.
-// TODO(zmb3): I don't think this is ever called anymore - remove it
-func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
-	if err := r.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Upload session recording to endpoint defined in file configuration. Like S3.
-	start := time.Now()
-	url, err := l.UploadHandler.Upload(context.TODO(), r.SessionID, r.Recording)
-	if err != nil {
-		l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
-		return trace.Wrap(err)
-	}
-	l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
-	return l.EmitAuditEvent(context.TODO(), &apievents.SessionUpload{
-		Metadata: apievents.Metadata{
-			Index: SessionUploadIndex,
-			ID:    uuid.New().String(),
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(r.SessionID),
-		},
-		SessionURL: url,
-	})
 }
 
 func getAuthServers(dataDir string) ([]string, error) {
