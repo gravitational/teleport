@@ -23,9 +23,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSanitizeMessageSize(t *testing.T) {
-	type sanitizer interface {
-		Sanitize(n int) AuditEvent
+func TestTrimToMaxSize(t *testing.T) {
+	type messageSizeTrimmer interface {
+		TrimToMaxSize(int) AuditEvent
 	}
 
 	testCases := []struct {
@@ -92,10 +92,10 @@ func TestSanitizeMessageSize(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			sr, ok := tc.in.(sanitizer)
+			sr, ok := tc.in.(messageSizeTrimmer)
 			require.True(t, ok)
 
-			got := sr.Sanitize(tc.maxSize)
+			got := sr.TrimToMaxSize(tc.maxSize)
 
 			require.Empty(t, cmp.Diff(got, tc.want))
 			require.Less(t, got.Size(), tc.maxSize)

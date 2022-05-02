@@ -525,7 +525,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 }
 
 func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID string, in apievents.AuditEvent) error {
-	if se, ok := sanatizeEvent(in); ok {
+	if se, ok := trimEventSize(in); ok {
 		if err := l.putAuditEvent(ctx, sessionID, se); err != nil {
 			return trace.BadParameter(err.Error())
 		}
@@ -551,12 +551,12 @@ func isAWSValidationError(err error) bool {
 	return errors.Is(trace.Unwrap(err), errAWSValidation)
 }
 
-func sanatizeEvent(event apievents.AuditEvent) (apievents.AuditEvent, bool) {
-	s, ok := event.(sanatizer)
+func trimEventSize(event apievents.AuditEvent) (apievents.AuditEvent, bool) {
+	m, ok := event.(messageSizeTrimmer)
 	if !ok {
 		return nil, false
 	}
-	return s.Sanitize(maxItemSize), true
+	return m.TrimToMaxSize(maxItemSize), true
 }
 
 func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.AuditEvent) error {
@@ -593,8 +593,8 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 	}, nil
 }
 
-type sanatizer interface {
-	Sanitize(int) apievents.AuditEvent
+type messageSizeTrimmer interface {
+	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 // EmitAuditEventLegacy emits audit event

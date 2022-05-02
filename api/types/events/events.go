@@ -39,9 +39,9 @@ func maxSizePerField(maxLength, customFields int) int {
 	return maxLength / customFields
 }
 
-func (m *DatabaseSessionQuery) Sanitize(maxLength int) AuditEvent {
+func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
-	if size <= maxLength {
+	if size <= maxSize {
 		return m
 	}
 
@@ -51,8 +51,8 @@ func (m *DatabaseSessionQuery) Sanitize(maxLength int) AuditEvent {
 	out.DatabaseQueryParameters = nil
 
 	// Use 10% max size ballast + message size without custom fields.
-	sizeBallast := maxLength/10 + out.Size()
-	maxLength -= sizeBallast
+	sizeBallast := maxSize/10 + out.Size()
+	maxSize -= sizeBallast
 
 	// Check how many custom fields are set.
 	customFieldsCount := 0
@@ -63,7 +63,7 @@ func (m *DatabaseSessionQuery) Sanitize(maxLength int) AuditEvent {
 		customFieldsCount += 1
 	}
 
-	maxFieldsSize := maxSizePerField(maxLength, customFieldsCount)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.DatabaseQuery = trimN(m.DatabaseQuery, maxFieldsSize)
 	if m.DatabaseQueryParameters != nil {

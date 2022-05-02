@@ -130,7 +130,6 @@ type FileLog struct {
 func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	l.rw.RLock()
 	defer l.rw.RUnlock()
-	//  TODO sanatize event
 
 	// see if the log needs to be rotated
 	if l.mightNeedRotation() {
@@ -164,8 +163,8 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 
 	if len(line) > l.MaxScanTokenSize {
 		switch {
-		case isEventSanitizable(event):
-			line, err = l.sanatizeAndMarshal(event)
+		case canReduceMessageSize(event):
+			line, err = l.trimSizeAndMarshal(event)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -180,17 +179,17 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 	return trace.ConvertSystemError(err)
 }
 
-func isEventSanitizable(event apievents.AuditEvent) bool {
-	_, ok := event.(sanatizer)
+func canReduceMessageSize(event apievents.AuditEvent) bool {
+	_, ok := event.(messageSizeTrimmer)
 	return ok
 }
 
-func (l *FileLog) sanatizeAndMarshal(event apievents.AuditEvent) ([]byte, error) {
-	s, ok := event.(sanatizer)
+func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error) {
+	s, ok := event.(messageSizeTrimmer)
 	if !ok {
 		return nil, trace.BadParameter("event not ")
 	}
-	sEvent := s.Sanitize(l.MaxScanTokenSize)
+	sEvent := s.TrimToMaxSize(l.MaxScanTokenSize)
 	line, err := utils.FastMarshal(sEvent)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -201,8 +200,8 @@ func (l *FileLog) sanatizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 	return line, nil
 }
 
-type sanatizer interface {
-	Sanitize(int) apievents.AuditEvent
+type messageSizeTrimmer interface {
+	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 // EmitAuditEventLegacy adds a new event to the log. Part of auth.IFileLog interface.
