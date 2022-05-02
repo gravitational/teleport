@@ -1306,7 +1306,7 @@ func TestDatabaseAccessLargeQuery(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	query := fmt.Sprintf("select %s", stringN(100*1024))
+	query := fmt.Sprintf("select %s", strings.Repeat("A", 100*1024))
 	result, err := client.Execute(query)
 	require.NoError(t, err)
 	require.Equal(t, mysql.TestQueryResponse, result)

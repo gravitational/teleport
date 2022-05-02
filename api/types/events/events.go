@@ -16,19 +16,13 @@ limitations under the License.
 
 package events
 
-import (
-	"fmt"
-)
-
 func trimN(s string, n int) string {
 	if n <= 0 {
 		return s
 	}
 	if len(s) > n {
-		fmt.Println(len(s[:n]))
 		return s[:n]
 	}
-	fmt.Println(len(s))
 	return s
 }
 

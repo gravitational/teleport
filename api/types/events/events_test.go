@@ -17,6 +17,7 @@ limitations under the License.
 package events
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -38,27 +39,27 @@ func TestTrimToMaxSize(t *testing.T) {
 			name:    "Query exceeds max limit size",
 			maxSize: 6000,
 			in: &DatabaseSessionQuery{
-				DatabaseQuery: stringN(7000),
+				DatabaseQuery: strings.Repeat("A", 7000),
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: stringN(5377),
+				DatabaseQuery: strings.Repeat("A", 5377),
 			},
 		},
 		{
 			name:    "Query with query params exceeds max size",
 			maxSize: 2000,
 			in: &DatabaseSessionQuery{
-				DatabaseQuery: stringN(2000),
+				DatabaseQuery: strings.Repeat("A", 2000),
 				DatabaseQueryParameters: []string{
-					stringN(89),
-					stringN(89),
+					strings.Repeat("A", 89),
+					strings.Repeat("A", 89),
 				},
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: stringN(592),
+				DatabaseQuery: strings.Repeat("A", 592),
 				DatabaseQueryParameters: []string{
-					stringN(89),
-					stringN(89),
+					strings.Repeat("A", 89),
+					strings.Repeat("A", 89),
 				},
 			},
 		},
@@ -67,24 +68,24 @@ func TestTrimToMaxSize(t *testing.T) {
 			maxSize: 3000,
 			in: &DatabaseSessionQuery{
 				Metadata: Metadata{
-					ClusterName: stringN(2000),
+					ClusterName: strings.Repeat("A", 2000),
 					Index:       1,
 				},
-				DatabaseQuery: stringN(2000),
+				DatabaseQuery: strings.Repeat("A", 2000),
 				DatabaseQueryParameters: []string{
-					stringN(89),
-					stringN(89),
+					strings.Repeat("A", 89),
+					strings.Repeat("A", 89),
 				},
 			},
 			want: &DatabaseSessionQuery{
 				Metadata: Metadata{
-					ClusterName: stringN(2000),
+					ClusterName: strings.Repeat("A", 2000),
 					Index:       1,
 				},
-				DatabaseQuery: stringN(223),
+				DatabaseQuery: strings.Repeat("A", 223),
 				DatabaseQueryParameters: []string{
-					stringN(89),
-					stringN(89),
+					strings.Repeat("A", 89),
+					strings.Repeat("A", 89),
 				},
 			},
 		},
@@ -101,9 +102,4 @@ func TestTrimToMaxSize(t *testing.T) {
 			require.Less(t, got.Size(), tc.maxSize)
 		})
 	}
-}
-
-func stringN(n int) string {
-	s := string(make([]byte, n))
-	return s
 }

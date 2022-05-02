@@ -91,7 +91,6 @@ func (cfg *FileLogConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.MaxScanTokenSize == 0 {
 		cfg.MaxScanTokenSize = bufio.MaxScanTokenSize
-
 	}
 	return nil
 }

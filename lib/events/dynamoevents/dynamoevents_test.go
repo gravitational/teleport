@@ -369,7 +369,7 @@ func (s *DynamoeventsLargeTableSuite) TestEmitAuditEventForLargeEvents(c *check.
 			Time: s.Clock.Now(),
 			Type: events.DatabaseSessionQueryEvent,
 		},
-		DatabaseQuery: stringN(maxItemSize),
+		DatabaseQuery: strings.Repeat("A", maxItemSize),
 	}
 	err := s.Log.EmitAuditEvent(ctx, dbQueryEvent)
 	c.Assert(err, check.IsNil)
@@ -390,17 +390,8 @@ func (s *DynamoeventsLargeTableSuite) TestEmitAuditEventForLargeEvents(c *check.
 			Time: s.Clock.Now(),
 			Type: events.AppSessionRequestEvent,
 		},
-		Path: stringN(maxItemSize),
+		Path: strings.Repeat("A", maxItemSize),
 	}
 	err = s.Log.EmitAuditEvent(ctx, appReqEvent)
 	c.Check(trace.Unwrap(err), check.FitsTypeOf, errAWSValidation)
-}
-
-func stringN(n int) string {
-	var sb strings.Builder
-	sb.Grow(n)
-	for i := 0; i < n; i++ {
-		sb.WriteByte('A')
-	}
-	return sb.String()
 }

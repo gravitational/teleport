@@ -196,7 +196,7 @@ func TestLargeEvent(t *testing.T) {
 			name: "event should be trimmed",
 			in: []events.AuditEvent{
 				makeQueryEvent("1", "select 1"),
-				makeQueryEvent("2", stringN(bufio.MaxScanTokenSize)),
+				makeQueryEvent("2", strings.Repeat("A", bufio.MaxScanTokenSize)),
 				makeQueryEvent("3", "select 3"),
 			},
 			checks: []check{
@@ -208,7 +208,7 @@ func TestLargeEvent(t *testing.T) {
 			name: "large event should not be emitted",
 			in: []events.AuditEvent{
 				makeQueryEvent("1", "select 1"),
-				makeAccessRequestEvent("2", stringN(bufio.MaxScanTokenSize)),
+				makeAccessRequestEvent("2", strings.Repeat("A", bufio.MaxScanTokenSize)),
 				makeQueryEvent("3", "select 3"),
 				makeQueryEvent("4", "select 4"),
 			},
@@ -244,15 +244,6 @@ func TestLargeEvent(t *testing.T) {
 			}
 		})
 	}
-}
-
-func stringN(n int) string {
-	var sb strings.Builder
-	sb.Grow(n)
-	for i := 0; i < n; i++ {
-		sb.WriteByte('A')
-	}
-	return sb.String()
 }
 
 func makeQueryEvent(id string, query string) *events.DatabaseSessionQuery {

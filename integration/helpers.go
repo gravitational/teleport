@@ -1863,11 +1863,3 @@ func getLocalIP() (string, error) {
 	}
 	return "", trace.NotFound("No non-loopback local IP address found")
 }
-
-func stringN(n int) string {
-	var sb strings.Builder
-	for i := 0; i < n; i++ {
-		sb.WriteString("A")
-	}
-	return sb.String()
-}
