@@ -1698,7 +1698,7 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 }
 
 // sessionTrackerServiceWithCond is a tracker service for a specific session.
-// state updates are controled with a sync.Cond.
+// state updates are controlled with a sync.Cond.
 type sessionTrackerServiceWithCond struct {
 	services.SessionTrackerService
 
