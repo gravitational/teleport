@@ -67,7 +67,7 @@ func main() {
 }
 
 func setupLogger(config *Config) {
-	if config.logJson {
+	if config.logJSON {
 		log.SetFormatter(&log.JSONFormatter{})
 	} else {
 		log.SetFormatter(&log.TextFormatter{})

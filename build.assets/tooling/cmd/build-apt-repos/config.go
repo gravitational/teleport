@@ -33,7 +33,7 @@ type Config struct {
 	majorVersion    string
 	releaseChannel  string
 	logLevel        uint
-	logJson         bool
+	logJSON         bool
 }
 
 // Parses and validates the provided flags, returning the parsed arguments in a struct.
@@ -45,7 +45,7 @@ func ParseFlags() (*Config, error) {
 		majorVersion:    *flag.String("artifact-major-version", "", "The major version of the artifacts that will be added to the APT repos"),
 		releaseChannel:  *flag.String("artifact-release-channel", "", "The release channel of the APT repos that the artifacts should be added to"),
 		logLevel:        *flag.Uint("log-level", uint(logrus.InfoLevel), "Log level from 0 to 6, 6 being the most verbose"),
-		logJson:         *flag.Bool("log-json", false, "True if the log entries should use JSON format, false for text logging"),
+		logJSON:         *flag.Bool("log-json", false, "True if the log entries should use JSON format, false for text logging"),
 	}
 
 	flag.Parse()

@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -298,13 +297,13 @@ func (a *Aptly) GetRootDir() (string, error) {
 		return "", trace.Wrap(err, "failed retrieve Aptly config info")
 	}
 
-	var outputJson map[string]interface{}
-	err = json.Unmarshal([]byte(output), &outputJson)
+	var outputJSON map[string]interface{}
+	err = json.Unmarshal([]byte(output), &outputJSON)
 	if err != nil {
 		return "", trace.Wrap(err, "failed to unmarshal `%s` output JSON into map", output)
 	}
 
-	if rootDirValue, ok := outputJson["rootDir"]; !ok {
+	if rootDirValue, ok := outputJSON["rootDir"]; !ok {
 		return "", trace.Errorf("Failed to find `rootDir` key in `%s` output JSON", output)
 	} else {
 		if rootDirString, ok := rootDirValue.(string); !ok {
@@ -420,7 +419,7 @@ func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][
 
 func getSubdirectories(basePath string) ([]string, error) {
 	logrus.Debugf("Getting subdirectories of %q\n...", basePath)
-	files, err := ioutil.ReadDir(basePath)
+	files, err := os.ReadDir(basePath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to read directory %q", basePath)
 	}

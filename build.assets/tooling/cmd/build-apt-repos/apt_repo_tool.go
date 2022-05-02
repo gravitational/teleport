@@ -29,7 +29,7 @@ import (
 type AptRepoTool struct {
 	config       *Config
 	aptly        *Aptly
-	s3Manager    *s3manager
+	s3Manager    *S3manager
 	supportedOSs map[string][]string
 }
 

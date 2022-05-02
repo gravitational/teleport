@@ -26,18 +26,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type s3manager struct {
+type S3manager struct {
 	syncManager *s3sync.Manager
 	bucketName  string
 	bucketPath  string
 }
 
-func NewS3Manager(bucketName string) *s3manager {
+func NewS3Manager(bucketName string) *S3manager {
 	// Right now the AWS session is only used by this manager, but if it ends
 	// up being needed elsewhere then it should probably be moved to an arg
 	awsSession := session.Must(session.NewSession())
 
-	manager := &s3manager{
+	manager := &S3manager{
 		syncManager: s3sync.New(awsSession),
 		bucketName:  bucketName,
 		bucketPath:  fmt.Sprintf("s3://%s", bucketName),
@@ -48,7 +48,7 @@ func NewS3Manager(bucketName string) *s3manager {
 	return manager
 }
 
-func (s *s3manager) DownloadExistingRepo(localPath string) error {
+func (s *S3manager) DownloadExistingRepo(localPath string) error {
 	err := ensureDirectoryExists(localPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to ensure path %q exists", localPath)
@@ -62,7 +62,7 @@ func (s *s3manager) DownloadExistingRepo(localPath string) error {
 	return nil
 }
 
-func (s *s3manager) UploadBuiltRepo(localPath string) error {
+func (s *S3manager) UploadBuiltRepo(localPath string) error {
 	err := s.sync(localPath, false)
 
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *s3manager) UploadBuiltRepo(localPath string) error {
 	return nil
 }
 
-func (s *s3manager) sync(localPath string, download bool) error {
+func (s *S3manager) sync(localPath string, download bool) error {
 	var src, dest string
 	if download {
 		src = s.bucketPath
