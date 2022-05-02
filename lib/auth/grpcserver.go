@@ -27,7 +27,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
@@ -39,6 +38,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -280,7 +280,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			err = eventStream.EmitAuditEvent(stream.Context(), event)
 			if err != nil {
 				switch {
-				case isPermanentEmitError(err):
+				case events.IsPermanentEmitError(err):
 					g.WithError(err).Error("Failed to EmitAuditEvent due to a permanent error")
 					continue
 				default:
@@ -306,25 +306,6 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			return trace.BadParameter("unsupported stream request")
 		}
 	}
-}
-
-func isPermanentEmitError(err error) bool {
-	if trace.IsBadParameter(err) {
-		return true
-	}
-	if !trace.IsAggregate(err) {
-		return false
-	}
-	agg, ok := trace.Unwrap(err).(trace.Aggregate)
-	if !ok {
-		return false
-	}
-	for _, err := range agg.Errors() {
-		if !trace.IsBadParameter(err) && !isPermanentEmitError(err) {
-			return false
-		}
-	}
-	return true
 }
 
 // logInterval is used to log stats after this many events

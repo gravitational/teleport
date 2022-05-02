@@ -442,7 +442,7 @@ func (a *AuditWriter) processEvents() {
 			if err == nil {
 				continue
 			}
-			if isPermanentEmitError(err) {
+			if IsPermanentEmitError(err) {
 				continue
 			}
 			a.log.WithError(err).Debug("Failed to emit audit event, attempting to recover stream.")
@@ -467,7 +467,7 @@ func (a *AuditWriter) processEvents() {
 	}
 }
 
-func isPermanentEmitError(err error) bool {
+func IsPermanentEmitError(err error) bool {
 	if trace.IsBadParameter(err) {
 		return true
 	}
@@ -479,7 +479,7 @@ func isPermanentEmitError(err error) bool {
 		return false
 	}
 	for _, err := range agg.Errors() {
-		if !trace.IsBadParameter(err) && !isPermanentEmitError(err) {
+		if !trace.IsBadParameter(err) && !IsPermanentEmitError(err) {
 			return false
 		}
 	}
