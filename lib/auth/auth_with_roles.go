@@ -244,7 +244,7 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 	return ok
 }
 
-var sessionTrackerRoles = []types.SystemRole{types.RoleKube, types.RoleNode, types.RoleProxy, types.RoleDatabase, types.RoleApp, types.RoleWindowsDesktop}
+var sessionTrackerRoles = []types.SystemRole{types.RoleKube, types.RoleNode, types.RoleAuth, types.RoleProxy, types.RoleDatabase, types.RoleApp, types.RoleWindowsDesktop}
 
 const sessionTrackerAccessDeniedMessage = "this request can only be executed by a node, proxy, kube, db, app, or windows desktop service"
 
@@ -273,6 +273,10 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 
 // GetActiveSessionTrackers returns a list of active session trackers.
 func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	if !a.hasBuiltinRole(sessionTrackerRoles...) {
+		return nil, trace.AccessDenied(sessionTrackerAccessDeniedMessage)
+	}
+
 	sessions, err := a.authServer.GetActiveSessionTrackers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
