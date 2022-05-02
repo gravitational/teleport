@@ -598,10 +598,6 @@ func (l *Log) setExpiry(e *event) {
 	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod.Value()).Unix())
 }
 
-func (l *Log) UploadSessionRecording(events.SessionRecording) error {
-	return trace.BadParameter("not supported")
-}
-
 // GetSessionChunk returns a reader which can be used to read a byte stream
 // of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 // beginning) up to maxBytes bytes.

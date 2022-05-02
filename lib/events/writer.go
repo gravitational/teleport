@@ -72,11 +72,6 @@ func (w *WriterLog) EmitAuditEventLegacy(event Event, fields EventFields) error 
 	return trace.ConvertSystemError(err)
 }
 
-// UploadSessionRecording uploads session recording to the audit server
-func (w *WriterLog) UploadSessionRecording(r SessionRecording) error {
-	return trace.NotImplemented("not implemented")
-}
-
 // GetSessionChunk returns a reader which can be used to read a byte stream
 // of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 // beginning) up to maxBytes bytes.

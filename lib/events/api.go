@@ -691,9 +691,6 @@ type IAuditLog interface {
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, apievents.AuditEvent) error
 
-	// UploadSessionRecording uploads session recording to the audit server
-	UploadSessionRecording(r SessionRecording) error
-
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 	// beginning) up to maxBytes bytes.

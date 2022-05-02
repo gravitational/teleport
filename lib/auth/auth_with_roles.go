@@ -2553,16 +2553,6 @@ func (a *ServerWithRoles) EmitAuditEventLegacy(event events.Event, fields events
 	return a.alog.EmitAuditEventLegacy(event, fields)
 }
 
-func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) error {
-	if err := r.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(r.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.UploadSessionRecording(r)
-}
-
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
 		return nil, trace.Wrap(err)
