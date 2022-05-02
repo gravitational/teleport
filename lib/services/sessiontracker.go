@@ -131,7 +131,6 @@ func TrackSession(ctx context.Context, sts SessionTrackerService, tracker types.
 			return trace.Wrap(err)
 		}
 	}
-
 }
 
 // UnmarshalSessionTracker unmarshals the Session resource from JSON.
