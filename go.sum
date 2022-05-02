@@ -496,8 +496,8 @@ github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70 h1:To76nCJtM3DI
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70/go.mod h1:88hFR45MpUd23d2vNWE/dYtesU50jKsbz0I9kH7UaBY=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0 h1:DC+S+j/tBs/0MnQCC5j7GWWbMGcR3ca5v75ksAU1LJM=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0/go.mod h1:iiK0YP1ZeepvmBQk/QpLEhhTNJgfzrpArPY/aFvc9yU=
-github.com/gravitational/go-mysql v1.1.1-teleport.2 h1:XZ36BZ7BgslA5ZCyCHjpc1wilFITThIH7cLcbLWKWzM=
-github.com/gravitational/go-mysql v1.1.1-teleport.2/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
+github.com/gravitational/go-mysql v1.1.1-teleport.3 h1:7tf9m9EjaDiZy8OZFmPMEyxmEYDswI8CfyhZzh5lH6E=
+github.com/gravitational/go-mysql v1.1.1-teleport.3/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
 github.com/gravitational/go-oidc v0.0.6 h1:DCllahGYxDAvxWsq8UILgO+/i1EheQRxcNzS+D+wP5I=
 github.com/gravitational/go-oidc v0.0.6/go.mod h1:SevmOUNdOB0aD9BAIgjptZ6oHkKxMZZgA70nwPfgU/w=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8FcGwRACSHortU1UxCSo9nF0t34rPWjk9Nef3j2Ic=

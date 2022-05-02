@@ -57,12 +57,13 @@ func MakeTestClient(config common.TestClientConfig) (*client.Conn, error) {
 // TestServer is a test MySQL server used in functional database
 // access tests.
 type TestServer struct {
-	cfg       common.TestServerConfig
-	listener  net.Listener
-	port      string
-	tlsConfig *tls.Config
-	log       logrus.FieldLogger
-	handler   *testHandler
+	cfg           common.TestServerConfig
+	listener      net.Listener
+	port          string
+	tlsConfig     *tls.Config
+	log           logrus.FieldLogger
+	handler       *testHandler
+	serverVersion string
 
 	// serverConnsMtx is a mutex that guards serverConns.
 	serverConnsMtx sync.Mutex
@@ -70,8 +71,18 @@ type TestServer struct {
 	serverConns []*server.Conn
 }
 
+// TestServerOption allows to set test server options.
+type TestServerOption func(*TestServer)
+
+// WithServerVersion sets the test MySQL server version.
+func WithServerVersion(serverVersion string) TestServerOption {
+	return func(ts *TestServer) {
+		ts.serverVersion = serverVersion
+	}
+}
+
 // NewTestServer returns a new instance of a test MySQL server.
-func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	address := "localhost:0"
 	if config.Address != "" {
 		address = config.Address
@@ -106,6 +117,9 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 	}
 	if !config.ListenTLS {
 		server.tlsConfig = tlsConfig
+	}
+	for _, o := range opts {
+		o(server)
 	}
 	return server, nil
 }
@@ -148,7 +162,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	serverConn, err := server.NewCustomizedConn(
 		conn,
 		server.NewServer(
-			serverVersion,
+			s.serverVersion,
 			mysql.DEFAULT_COLLATION_ID,
 			mysql.AUTH_NATIVE_PASSWORD,
 			nil,
