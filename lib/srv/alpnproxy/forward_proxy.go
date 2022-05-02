@@ -40,7 +40,7 @@ import (
 //
 // https://datatracker.ietf.org/doc/html/rfc7231#section-4.3.6
 func IsConnectRequest(req *http.Request) bool {
-	return req.Method == "CONNECT"
+	return req.Method == http.MethodConnect
 }
 
 // ConnectRequestHandler defines handler for handling CONNECT requests.
@@ -200,7 +200,7 @@ func (h *ForwardToHostHandler) Handle(ctx context.Context, clientConn net.Conn, 
 
 	serverConn, err := net.Dial("tcp", host)
 	if err != nil {
-		log.WithError(err).Errorf("Failed to connect to host %q", host)
+		log.WithError(err).Errorf("Failed to connect to host %q.", host)
 		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusInternalServerError)
 		return
 	}
@@ -335,8 +335,8 @@ func (h *ForwardToSystemProxyHandler) connectToSystemProxy(systemProxyURL *url.U
 
 // startForwardProxy starts streaming between client and server.
 func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, host string) {
-	log.Debugf("Started forwarding request for %q", host)
-	defer log.Debugf("Stopped forwarding request for %q", host)
+	log.Debugf("Started forwarding request for %q.", host)
+	defer log.Debugf("Stopped forwarding request for %q.", host)
 
 	closeContext, closeCancel := context.WithCancel(ctx)
 	defer closeCancel()
@@ -355,7 +355,7 @@ func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, hos
 	stream := func(reader, writer net.Conn) {
 		_, err := io.Copy(reader, writer)
 		if err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Errorf("Failed to stream from %q to %q", reader.LocalAddr(), writer.LocalAddr())
+			log.WithError(err).Errorf("Failed to stream from %q to %q.", reader.LocalAddr(), writer.LocalAddr())
 		}
 
 		// Close one side at a time.
@@ -388,7 +388,7 @@ func writeHeaderToHijackedConnection(conn net.Conn, protocol string, statusCode 
 	formatted := fmt.Sprintf("%s %d %s\r\n\r\n", protocol, statusCode, http.StatusText(statusCode))
 	_, err := conn.Write([]byte(formatted))
 	if err != nil && !utils.IsOKNetworkError(err) {
-		log.WithError(err).Errorf("Failed to write status code %d to client connection", statusCode)
+		log.WithError(err).Errorf("Failed to write status code %d to client connection.", statusCode)
 		return false
 	}
 	return true

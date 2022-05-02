@@ -489,7 +489,7 @@ func Run(args []string, opts ...cliOption) error {
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS := proxy.Command("aws", "Start local HTTPS proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
-	proxyAWS.Flag("proxy-port", " Specifies the source port used by the HTTPS proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS.Flag("port", " Specifies the source port used by the HTTPS proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url-port", " Specifies the port used for AWS endpoint URL.").Short('e').StringVar(&cf.AWSEndpointURLPort)
 	proxyAWS.Flag("verbose", "Show proxy information when executing a command.").Short('v').BoolVar(&cf.Verbose)
 	proxyAWS.Arg("command", "Command to execute after starting the local proxy.").StringsVar(&cf.AWSCommandArgs)

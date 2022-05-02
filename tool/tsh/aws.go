@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"sort"
@@ -33,7 +32,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 
-	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -297,10 +295,8 @@ func (a *awsApp) startLocalForwardProxy() error {
 		Handlers: []alpnproxy.ConnectRequestHandler{
 			// Forward AWS requests to ALPN proxy.
 			alpnproxy.NewForwardToHostHandler(alpnproxy.ForwardToHostHandlerConfig{
-				MatchFunc: func(req *http.Request) bool {
-					return awsapiutils.IsAWSEndpoint(req.Host)
-				},
-				Host: a.localALPNProxy.GetAddr(),
+				MatchFunc: alpnproxy.MatchAWSRequests,
+				Host:      a.localALPNProxy.GetAddr(),
 			}),
 
 			// Forward non-AWS requests to user's system proxy, if configured.
