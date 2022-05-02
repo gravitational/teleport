@@ -190,8 +190,8 @@ type Log struct {
 	// for event queries.
 	readyForQuery *atomic.Bool
 
-	// isProvisioned tracks if the table has provisioned capacity or not.
-	isProvisioned bool
+	// isBillingModeProvisioned tracks if the table has provisioned capacity or not.
+	isBillingModeProvisioned bool
 }
 
 type event struct {
@@ -304,7 +304,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 		return nil, trace.Wrap(err)
 	}
 
-	b.isProvisioned, err = b.getIsProvisioned(ctx)
+	b.isBillingModeProvisioned, err = b.getBillingModeIsProvisioned(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1166,7 +1166,7 @@ func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus
 	return tableStatusOK, nil
 }
 
-func (l *Log) getIsProvisioned(ctx context.Context) (bool, error) {
+func (l *Log) getBillingModeIsProvisioned(ctx context.Context) (bool, error) {
 	table, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(l.Tablename),
 	})
@@ -1215,7 +1215,7 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 	}
 
 	var provisionedThroughput *dynamodb.ProvisionedThroughput
-	if l.isProvisioned {
+	if l.isBillingModeProvisioned {
 		provisionedThroughput = &dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
 			WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
