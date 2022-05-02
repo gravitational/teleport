@@ -1198,6 +1198,15 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			InsecureSkipVerify: application.InsecureSkipVerify,
 		}
 		if application.Rewrite != nil {
+			// Parse http rewrite substitutions if there are any.
+			var substitutions []service.Substitution
+			for _, substitution := range application.Rewrite.Substitutions {
+				substitutions = append(substitutions,
+					service.Substitution{
+						Find:    substitution.Find,
+						Replace: substitution.Replace,
+					})
+			}
 			// Parse http rewrite headers if there are any.
 			headers, err := service.ParseHeaders(application.Rewrite.Headers)
 			if err != nil {
@@ -1205,8 +1214,9 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 					application.Name)
 			}
 			app.Rewrite = &service.Rewrite{
-				Redirect: application.Rewrite.Redirect,
-				Headers:  headers,
+				Redirect:      application.Rewrite.Redirect,
+				Substitutions: substitutions,
+				Headers:       headers,
 			}
 		}
 		if err := app.CheckAndSetDefaults(); err != nil {

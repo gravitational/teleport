@@ -510,9 +510,20 @@ message Rewrite {
     // Redirect defines a list of hosts which will be rewritten to the public
     // address of the application if they occur in the "Location" header.
     repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect,omitempty" ];
+    // Substitutions is a list of strings which will be rewritten
+    // if they occur in the response body.
+    repeated Substitution Substitutions = 2 [ (gogoproto.jsontag) = "substitutions,omitempty" ];
     // Headers is a list of headers to inject when passing the request over
     // to the application.
-    repeated Header Headers = 2 [ (gogoproto.jsontag) = "headers,omitempty" ];
+    repeated Header Headers = 3 [ (gogoproto.jsontag) = "headers,omitempty" ];
+}
+
+// Substitution represents a single response body substitution.
+message Substitution {
+    // Value to be searched for in the response body.
+    string Find = 1 [ (gogoproto.jsontag) = "find" ];
+    // Value that will replace all found occurrences.
+    string Replace = 2 [ (gogoproto.jsontag) = "replace" ];
 }
 
 // Header represents a single http header passed over to the proxied application.

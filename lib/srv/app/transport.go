@@ -17,12 +17,17 @@ limitations under the License.
 package app
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -242,13 +247,89 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 // rewriteResponse applies any rewriting rules to the response before returning it.
 func (t *transport) rewriteResponse(resp *http.Response) error {
 	switch {
-	case t.c.app.GetRewrite() != nil && len(t.c.app.GetRewrite().Redirect) > 0:
-		err := t.rewriteRedirect(resp)
-		if err != nil {
-			return trace.Wrap(err)
+	case t.c.app.GetRewrite() != nil:
+		if len(t.c.app.GetRewrite().Redirect) > 0 {
+			err := t.rewriteRedirect(resp)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if len(t.c.app.GetRewrite().Substitutions) > 0 {
+			err := t.rewriteSubstitutions(resp)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	default:
 	}
+	return nil
+}
+
+// isResponseBodyGzipped returns true if the body of the provided response is gzipped, false otherwise.
+func isResponseBodyGzipped(r *http.Response) bool {
+	switch r.Header.Get("Content-Encoding") {
+	case "gzip":
+		return true
+	default:
+		return false
+	}
+}
+
+// readBodyBytes reads all body bytes from the provided response, gunzipping if requested.
+func readBodyBytes(t *transport, r *http.Response, useGzip bool) ([]byte, error) {
+	// Read all body
+	bodyBytes, readErr := ioutil.ReadAll(r.Body)
+	if readErr != nil {
+		return nil, readErr
+	}
+	defer r.Body.Close()
+
+	// Gunzip, if requested to do so
+	if useGzip {
+		r, gzErr := gzip.NewReader(ioutil.NopCloser(bytes.NewBuffer(bodyBytes)))
+		if gzErr != nil {
+			return nil, gzErr
+		}
+		defer r.Close()
+
+		bb, err2 := ioutil.ReadAll(r)
+		if err2 != nil {
+			return nil, err2
+		}
+		return bb, nil
+	} else {
+		return bodyBytes, nil
+	}
+}
+
+// gzipFast compresses the provided byte array and returns the gzipped version of it.
+func gzipFast(a *[]byte) ([]byte, error) {
+	var b bytes.Buffer
+	gz := gzip.NewWriter(&b)
+	if _, err := gz.Write(*a); err != nil {
+		gz.Close()
+		return nil, err
+	}
+	gz.Close()
+	return b.Bytes(), nil
+}
+
+// writeBodyBytes writes the provided bytes into the response body, updating the response content length too.
+func writeBodyBytes(t *transport, r *http.Response, useGzip bool, body *[]byte) error {
+	if useGzip {
+		bodyBytes, err := gzipFast(body)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		r.Body = ioutil.NopCloser(bytes.NewReader(bodyBytes))
+		r.ContentLength = int64(len(bodyBytes))
+		r.Header.Set("Content-Length", fmt.Sprint(len(bodyBytes)))
+	} else {
+		r.Body = ioutil.NopCloser(bytes.NewReader(*body))
+		r.ContentLength = int64(len(*body))
+		r.Header.Set("Content-Length", fmt.Sprint(len(*body)))
+	}
+
 	return nil
 }
 
@@ -269,6 +350,31 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 		}
 		resp.Header.Set("Location", u.String())
 	}
+	return nil
+}
+
+// rewriteSubstitutions applies substitution rules to the response.
+func (t *transport) rewriteSubstitutions(resp *http.Response) error {
+
+	// Read response body first (and un-gzip it, if needed)
+	body, err := readBodyBytes(t, resp, isResponseBodyGzipped(resp))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Prepare new response body for substitutions
+	var newBody string
+	newBody = string(body)
+
+	// Perform all substitutions
+	for _, substitution := range t.c.app.GetRewrite().Substitutions {
+		newBody = strings.ReplaceAll(newBody, substitution.Find, substitution.Replace)
+	}
+
+	// Re-encode the new response body (and gzip it, if needed)
+	newBodyBytes := []byte(newBody)
+	writeBodyBytes(t, resp, isResponseBodyGzipped(resp), &newBodyBytes)
+
 	return nil
 }
 
