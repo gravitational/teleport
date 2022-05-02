@@ -394,6 +394,9 @@ emulate.
 Extends the TDP protocol, the rest of which is specified [here](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md). Note
 that "file" in the following context should be taken to mean "file or directory".
 
+Each `* Request` and `* Response` message contains a `completion_id` field, with `* Request`s being responsible for generating the `completion_id`s, and `* Response`s being responsible for
+including the correct `completion_id` to signify which `* Request` the response is intended for.
+
 #### 11 - Shared Directory Announce
 
 ```
