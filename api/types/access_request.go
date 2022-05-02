@@ -90,17 +90,28 @@ type AccessRequest interface {
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
 	SetSuggestedReviewers([]string)
+	// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
+	GetRequestedResourceIDs() []string
+	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
+	SetRequestedResourceIDs([]string)
 }
 
-// NewAccessRequest assembled an AccessRequest resource.
+// NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
+	return NewAccessRequestWithResources(name, user, roles, nil)
+}
+
+// NewAccessRequestWithResources assembles an AccessRequest resource with
+// requested resources.
+func NewAccessRequestWithResources(name string, user string, roles []string, resourceIDs []string) (AccessRequest, error) {
 	req := AccessRequestV3{
 		Metadata: Metadata{
 			Name: name,
 		},
 		Spec: AccessRequestSpecV3{
-			User:  user,
-			Roles: roles,
+			User:                 user,
+			Roles:                utils.CopyStrings(roles),
+			RequestedResourceIDs: utils.CopyStrings(resourceIDs),
 		},
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -288,8 +299,8 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	if r.GetUser() == "" {
 		return trace.BadParameter("access request user name not set")
 	}
-	if len(r.GetRoles()) < 1 {
-		return trace.BadParameter("access request does not specify any roles")
+	if len(r.GetRoles()) < 1 && len(r.GetRequestedResourceIDs()) < 1 {
+		return trace.BadParameter("access request does not specify any roles or resources")
 	}
 
 	// dedupe and sort roles to simplify comparing role lists
@@ -352,6 +363,16 @@ func (r *AccessRequestV3) GetResourceID() int64 {
 // SetResourceID sets ResourceID
 func (r *AccessRequestV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
+}
+
+// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
+func (r *AccessRequestV3) GetRequestedResourceIDs() []string {
+	return r.Spec.RequestedResourceIDs
+}
+
+// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
+func (r *AccessRequestV3) SetRequestedResourceIDs(ids []string) {
+	r.Spec.RequestedResourceIDs = ids
 }
 
 // String returns a text representation of this AccessRequest
