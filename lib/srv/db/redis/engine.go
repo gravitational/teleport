@@ -23,6 +23,7 @@ import (
 	"net"
 
 	"github.com/go-redis/redis/v8"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -195,7 +196,16 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
-		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, username, password)
+		var onConnect onClientConnectFunc
+		switch {
+		case password != "": // Higher priority if password is provided.
+			onConnect = authWithPasswordOnConnect(username, password)
+
+		case apiutils.SliceContainsStr(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
+			onConnect = fetchUserPasswordOnConnect(sessionCtx, e.Users)
+		}
+
+		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, onConnect)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

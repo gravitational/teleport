@@ -275,6 +275,8 @@ message DatabaseStatusV3 {
     // MySQL is an additional section with MySQL runtime database information.
     MySQLOptions MySQL = 3
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "mysql,omitempty" ];
+    // ManagedUsers is a list of database users that are managed by Teleport.
+    repeated string ManagedUsers = 4 [ (gogoproto.jsontag) = "managed_users,omitempty" ];
 }
 
 // AWS contains AWS metadata about the database.
@@ -291,6 +293,19 @@ message AWS {
     // ElastiCache contains AWS ElastiCache Redis specific metadata.
     ElastiCache ElastiCache = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "elasticache,omitempty" ];
+    // SecretStore contains secret store configurations.
+    SecretStore SecretStore = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "secret_store,omitempty" ];
+}
+
+// SecretStore contains secret store configurations.
+message SecretStore {
+    // Region specifies the AWS cloud region for AWS Secrets Manager.
+    string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
+    // KeyPrefix specifies the secret key prefix.
+    string KeyPrefix = 2 [ (gogoproto.jsontag) = "key_prefix,omitempty" ];
+    // KMSKeyID specifies the AWS KMS key for encryption.
+    string KMSKeyID = 3 [ (gogoproto.jsontag) = "kms_key_id,omitempty" ];
 }
 
 // Redshift contains AWS Redshift specific database metadata.

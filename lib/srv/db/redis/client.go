@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/trace"
 )
@@ -89,7 +90,7 @@ type clusterClient struct {
 
 // newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
-func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsConfig *tls.Config, username, password string) (redis.UniversalClient, error) {
+func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsConfig *tls.Config, onConnect onClientConnectFunc) (redis.UniversalClient, error) {
 	connectionAddr := net.JoinHostPort(connectionOptions.address, connectionOptions.port)
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch connectionOptions.mode {
@@ -97,16 +98,14 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 		return redis.NewClient(&redis.Options{
 			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
-			Username:  username,
-			Password:  password,
+			OnConnect: onConnect,
 		}), nil
 	case Cluster:
 		client := &clusterClient{
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
 				Addrs:     []string{connectionAddr},
 				TLSConfig: tlsConfig,
-				Username:  username,
-				Password:  password,
+				OnConnect: onConnect,
 			}),
 		}
 		// Load cluster information.
@@ -116,6 +115,49 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 	default:
 		// We've checked that while validating the config, but checking again can help with regression.
 		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
+	}
+}
+
+// authConnection is a helper function that sends "auth" command to provided
+// Redis connection with provided username and password.
+func authConnection(ctx context.Context, conn *redis.Conn, username, password string) error {
+	// Copied from redis.baseClient.initConn.
+	_, err := conn.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		if password != "" {
+			if username != "" {
+				pipe.AuthACL(ctx, username, password)
+			} else {
+				pipe.Auth(ctx, password)
+			}
+		}
+		return nil
+	})
+	return trace.Wrap(err)
+}
+
+// onClientConnectFunc is a callback function that performs setups after Redis
+// client makes a new connection. Providing this callback to Redis client
+// options allows using "dynamic" passwords for "auth".
+type onClientConnectFunc func(context.Context, *redis.Conn) error
+
+// authWithPasswordOnConnect is a onClientConnectFunc that sends "auth" with
+// provided username and password.
+func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
+	return func(ctx context.Context, conn *redis.Conn) error {
+		return authConnection(ctx, conn, username, password)
+	}
+}
+
+// fetchUserPasswordOnConnect is a onClientConnectFunc that fetches user
+// password on the fly then uses it for "auth".
+func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users) onClientConnectFunc {
+	return func(ctx context.Context, conn *redis.Conn) error {
+		username := sessionCtx.DatabaseUser
+		password, err := users.GetPassword(ctx, sessionCtx.Database, username)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return authConnection(ctx, conn, username, password)
 	}
 }
 

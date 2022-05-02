@@ -34,6 +34,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"google.golang.org/grpc/credentials/insecure"
@@ -54,6 +56,8 @@ type CloudClients interface {
 	GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error)
 	// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
 	GetAWSElastiCacheClient(region string) (elasticacheiface.ElastiCacheAPI, error)
+	// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
+	GetAWSSecretsManagerClient(region string) (secretsmanageriface.SecretsManagerAPI, error)
 	// GetAWSIAMClient returns AWS IAM client for the specified region.
 	GetAWSIAMClient(region string) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
@@ -126,6 +130,15 @@ func (c *cloudClients) GetAWSElastiCacheClient(region string) (elasticacheiface.
 	return elasticache.New(session), nil
 }
 
+// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
+func (c *cloudClients) GetAWSSecretsManagerClient(region string) (secretsmanageriface.SecretsManagerAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return secretsmanager.New(session), nil
+}
+
 // GetAWSIAMClient returns AWS IAM client for the specified region.
 func (c *cloudClients) GetAWSIAMClient(region string) (iamiface.IAMAPI, error) {
 	session, err := c.GetAWSSession(region)
@@ -177,7 +190,7 @@ func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	return c.initAzureCredential()
 }
 
-// Close closes all initialized clients.
+// Closes closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -255,13 +268,14 @@ func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS          rdsiface.RDSAPI
-	RDSPerRegion map[string]rdsiface.RDSAPI
-	Redshift     redshiftiface.RedshiftAPI
-	ElastiCache  elasticacheiface.ElastiCacheAPI
-	IAM          iamiface.IAMAPI
-	STS          stsiface.STSAPI
-	GCPSQL       GCPSQLAdminClient
+	RDS            rdsiface.RDSAPI
+	RDSPerRegion   map[string]rdsiface.RDSAPI
+	Redshift       redshiftiface.RedshiftAPI
+	ElastiCache    elasticacheiface.ElastiCacheAPI
+	SecretsManager secretsmanageriface.SecretsManagerAPI
+	IAM            iamiface.IAMAPI
+	STS            stsiface.STSAPI
+	GCPSQL         GCPSQLAdminClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -285,6 +299,11 @@ func (c *TestCloudClients) GetAWSRedshiftClient(region string) (redshiftiface.Re
 // GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
 func (c *TestCloudClients) GetAWSElastiCacheClient(region string) (elasticacheiface.ElastiCacheAPI, error) {
 	return c.ElastiCache, nil
+}
+
+// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
+func (c *TestCloudClients) GetAWSSecretsManagerClient(region string) (secretsmanageriface.SecretsManagerAPI, error) {
+	return c.SecretsManager, nil
 }
 
 // GetAWSIAMClient returns AWS IAM client for the specified region.
