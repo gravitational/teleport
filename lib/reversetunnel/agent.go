@@ -265,8 +265,8 @@ func (a *agent) updateState(state AgentState) (AgentState, error) {
 	a.state = state
 	a.log.Debugf("Changing state %s -> %s.", prevState, state)
 
-	if a.stateCallback != nil {
-		go a.stateCallback(a.state)
+	if a.agentConfig.stateCallback != nil {
+		go a.agentConfig.stateCallback(a.state)
 	}
 
 	return prevState, nil

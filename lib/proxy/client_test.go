@@ -154,7 +154,7 @@ func TestCAChange(t *testing.T) {
 		Groups: []string{string(types.RoleProxy)},
 	})
 
-	*serverTLSConfig = *newServerTLSConfig
+	*serverTLSConfig = *newServerTLSConfig.Clone()
 
 	// existing connection should still be working
 	ogStream, cached, err = client.dial([]string{"s1"})
@@ -192,7 +192,7 @@ func TestCAChange(t *testing.T) {
 		Groups: []string{string(types.RoleProxy)},
 	})
 
-	*clientTLSConfig = *newClientTLSConfig
+	*clientTLSConfig = *newClientTLSConfig.Clone()
 
 	// new connection should fail because server tls config still references old
 	// ClientCAs.

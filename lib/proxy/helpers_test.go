@@ -93,7 +93,7 @@ func (s *mockProxyService) DialNode(stream clientapi.ProxyService_DialNodeServer
 		for {
 			err := stream.Send(&clientapi.Frame{
 				Message: &clientapi.Frame_Data{
-					&clientapi.Data{Bytes: []byte("pong")},
+					Data: &clientapi.Data{Bytes: []byte("pong")},
 				},
 			})
 			if err != nil {
@@ -256,7 +256,7 @@ func sendDialRequest(t *testing.T, stream clientapi.ProxyService_DialNodeClient)
 func sendMsg(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {
 	err := stream.Send(&clientapi.Frame{
 		Message: &clientapi.Frame_Data{
-			&clientapi.Data{Bytes: []byte("ping")},
+			Data: &clientapi.Data{Bytes: []byte("ping")},
 		},
 	})
 	require.NoError(t, err)

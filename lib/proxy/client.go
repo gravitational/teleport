@@ -537,6 +537,7 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 	)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err, "Error dialing proxy %+v", id)
 	}
 

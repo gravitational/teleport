@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	"google.golang.org/grpc/credentials/insecure"
 	pb "google.golang.org/grpc/examples/features/proto/echo"
 )
 
@@ -102,7 +103,7 @@ func TestGRPCErrorWrapping(t *testing.T) {
 
 	conn, err := grpc.Dial(
 		listener.Addr().String(),
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithChainUnaryInterceptor(GRPCClientUnaryErrorInterceptor),
 		grpc.WithChainStreamInterceptor(GRPCClientStreamErrorInterceptor),
 	)
@@ -123,7 +124,7 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	err = stream.Send(&pb.EchoRequest{Message: "Hi!"})
 	require.NoError(t, err)
 
-	resp, err = stream.Recv()
+	_, err = stream.Recv()
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Equal(t, err.Error(), "already exists")
 }
