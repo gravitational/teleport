@@ -51,6 +51,7 @@ export const events = [
     dst_port: '3000',
     version: 4,
     time: '2019-04-22T19:39:26.676Z',
+    action: 1,
   },
   {
     code: 'T4001I',
@@ -1135,6 +1136,7 @@ export const eventsSample = [
     dst_port: '3000',
     version: 4,
     time: '2019-04-22T19:39:26.676Z',
+    action: 0,
   },
   {
     code: 'T4001I',

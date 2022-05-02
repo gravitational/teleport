@@ -56,8 +56,12 @@ export const formatters: Formatters = {
   [eventCodes.SESSION_NETWORK]: {
     type: 'session.network',
     desc: 'Session Network Connection',
-    format: ({ sid, program, src_addr, dst_addr, dst_port }) =>
-      `Program [${program}] opened a connection [${src_addr} <-> ${dst_addr}:${dst_port}] within a session [${sid}]`,
+    format: ({ action, sid, program, src_addr, dst_addr, dst_port }) => {
+      const a = action === 1 ? '[DENY]' : '[ALLOW]';
+      const desc =
+        action === 1 ? 'was prevented from opening' : 'successfully opened';
+      return `${a} Program [${program}] ${desc} a connection [${src_addr} <-> ${dst_addr}:${dst_port}] within a session [${sid}]`;
+    },
   },
   [eventCodes.SESSION_PROCESS_EXIT]: {
     type: 'session.process_exit',
@@ -445,7 +449,14 @@ export const formatters: Formatters = {
   [eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA]: {
     type: 'db.session.mysql.statements.send_long_data',
     desc: 'MySQL Statement Send Long Data',
-    format: ({ user, db_service, db_name, statement_id, parameter_id, data_size }) =>
+    format: ({
+      user,
+      db_service,
+      db_name,
+      statement_id,
+      parameter_id,
+      data_size,
+    }) =>
       `User [${user}] has sent ${data_size} bytes of data to parameter [${parameter_id}] of statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_CLOSE]: {
@@ -631,20 +642,21 @@ export const formatters: Formatters = {
     format: ({ server_addr }) => `Session connected to [${server_addr}]`,
   },
   [eventCodes.CERTIFICATE_CREATED]: {
-    type: "cert.create",
-    desc: "Certificate Issued",
+    type: 'cert.create',
+    desc: 'Certificate Issued',
     format: ({ cert_type, identity: { user } }) => {
       if (cert_type === 'user') {
-        return `User certificate issued for [${user}]`
+        return `User certificate issued for [${user}]`;
       }
-      return `Certificate of type [${cert_type}] issued for [${user}]`
-    }
+      return `Certificate of type [${cert_type}] issued for [${user}]`;
+    },
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
-    format: ({ unknown_type, unknown_code }) => `Unknown '${unknown_type}' event (${unknown_code})`,
-  }
+    format: ({ unknown_type, unknown_code }) =>
+      `Unknown '${unknown_type}' event (${unknown_code})`,
+  },
 };
 
 const unknownFormatter = {

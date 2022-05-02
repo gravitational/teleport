@@ -3271,7 +3271,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          Program [bash] opened a connection [10.217.136.161 &lt;-&gt; 190.58.129.4:3000] within a session [44c6cea8-362f-11ea-83aa-125400432324]
+          [DENY] Program [bash] was prevented from opening a connection [10.217.136.161 &lt;-&gt; 190.58.129.4:3000] within a session [44c6cea8-362f-11ea-83aa-125400432324]
         </td>
         <td
           style="min-width: 120px;"
@@ -4310,7 +4310,7 @@ exports[`loaded audit log screen 1`] = `
         <td
           style="word-break: break-word;"
         >
-          Program [bash] opened a connection [10.217.136.161 &lt;-&gt; 190.58.129.4:3000] within a session [44c6cea8-362f-11ea-83aa-125400432324]
+          [ALLOW] Program [bash] successfully opened a connection [10.217.136.161 &lt;-&gt; 190.58.129.4:3000] within a session [44c6cea8-362f-11ea-83aa-125400432324]
         </td>
         <td
           style="min-width: 120px;"
