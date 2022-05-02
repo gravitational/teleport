@@ -183,6 +183,9 @@ type Server struct {
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
+
+	// nodeWatcher is the server's node watcher.
+	nodeWatcher *services.NodeWatcher
 }
 
 // GetClock returns server clock implementation
@@ -545,6 +548,14 @@ func SetAllowTCPForwarding(allow bool) ServerOption {
 func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	return func(s *Server) error {
 		s.lockWatcher = lockWatcher
+		return nil
+	}
+}
+
+// SetNodeWatcher sets the server's node watcher.
+func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
+	return func(s *Server) error {
+		s.nodeWatcher = nodeWatcher
 		return nil
 	}
 }
