@@ -356,7 +356,7 @@ const (
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
 	searchHelp  = `List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")`
-	queryHelp   = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels.key1 == "value1" && labels.key2 != "value2"')`
+	queryHelp   = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels["key1"] == "value1" && labels["key2"] != "value2"')`
 	labelHelp   = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)"
 	// proxyDefaultResolutionTimeout is how long to wait for an unknown proxy
 	// port to be resolved.
@@ -1391,6 +1391,9 @@ func onListNodes(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	}
 	sort.Slice(nodes, func(i, j int) bool {
@@ -1705,6 +1708,11 @@ func serializeDatabases(databases []types.Database, format string) (string, erro
 }
 
 func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+	// may happen if fetching the role set failed for any reason.
+	if roleSet == nil {
+		return "(unknown)"
+	}
+
 	dbUsers := roleSet.EnumerateDatabaseUsers(database)
 	allowed := dbUsers.Allowed()
 
@@ -2791,6 +2799,9 @@ func onApps(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	}
 
