@@ -380,11 +380,16 @@ func (t *proxySubsys) proxyToHost(
 
 	// Resolve the IP address to dial to because the hostname may not be
 	// DNS resolvable.
-	var serverAddr string
+	var (
+		serverAddr string
+		proxyIDs   []string
+	)
+
 	if server != nil {
 		// Add hostUUID.clusterName to list of principals.
 		serverID = fmt.Sprintf("%v.%v", server.GetName(), t.clusterName)
 		principals = append(principals, serverID)
+		proxyIDs = server.GetProxyIDs()
 
 		// Add IP address (if it exists) of the node to list of principals.
 		serverAddr = server.GetAddr()
@@ -420,7 +425,7 @@ func (t *proxySubsys) proxyToHost(
 		GetUserAgent: t.ctx.StartAgentChannel,
 		Address:      t.host,
 		ServerID:     serverID,
-		ProxyIDs:     server.GetProxyIDs(),
+		ProxyIDs:     proxyIDs,
 		Principals:   principals,
 		ConnType:     types.NodeTunnel,
 	})
