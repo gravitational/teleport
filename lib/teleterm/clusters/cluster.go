@@ -82,6 +82,17 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 	}
 }
 
+// GetActualName returns name of the cluster taken from the key
+// (see an explanation for the field `actual_name` in cluster.proto)
+func (c *Cluster) GetActualName() string {
+	return c.clusterClient.SiteName
+}
+
+// GetProxyHost returns proxy address (host:port) of the cluster
+func (c *Cluster) GetProxyHost() string {
+	return c.status.ProxyURL.Host
+}
+
 // LoggedInUser is the currently logged-in user
 type LoggedInUser struct {
 	// Name is the user name

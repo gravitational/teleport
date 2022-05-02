@@ -3,8 +3,20 @@ title: Database Access with Self-Hosted MySQL/MariaDB
 description: How to configure Teleport Database Access with self-hosted MySQL/MariaDB.
 ---
 
-This guide will show you how to access a self-hosted MySQL or MariaDB database
-using the Teleport Database Service.
+This guide will help you to:
+
+- Install Teleport `(=teleport.version=)`.
+- Set up Teleport to access your MySQL or MariaDB database.
+- Connect to your databases through Teleport.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access MySQL Self-Hosted](../../../img/database-access/guides/mysql_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access MySQL Cloud](../../../img/database-access/guides/mysql_cloud.png)
+</ScopedBlock>
 
 ## Prerequisites
 
@@ -24,6 +36,10 @@ Teleport Database Access for MySQL is available starting from Teleport version
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 ## Step 2/4. Create a certificate/key pair
 
