@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -61,7 +62,9 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// by peeking into the first few bytes. This is needed to be able to detect
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
-	server := p.makeServer(conn)
+	mysqlServerVersion := getServerVersionFromCtx(ctx)
+
+	mysqlServer := p.makeServer(conn, mysqlServerVersion)
 	// If any error happens, make sure to send it back to the client, so it
 	// has a chance to close the connection from its side.
 	defer func() {
@@ -70,14 +73,14 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 			err = trace.BadParameter("failed to handle MySQL client connection")
 		}
 		if err != nil {
-			if writeErr := server.WriteError(err); writeErr != nil {
+			if writeErr := mysqlServer.WriteError(err); writeErr != nil {
 				p.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
 			}
 		}
 	}()
 	// Perform first part of the handshake, up to the point where client sends
 	// us certificate and connection upgrades to TLS.
-	tlsConn, err := p.performHandshake(conn, server)
+	tlsConn, err := p.performHandshake(conn, mysqlServer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,8 +97,8 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	defer releaseConn()
 
 	proxyCtx, err := p.Service.Authorize(ctx, tlsConn, common.ConnectParams{
-		User:     server.GetUser(),
-		Database: server.GetDatabase(),
+		User:     mysqlServer.GetUser(),
+		Database: mysqlServer.GetDatabase(),
 		ClientIP: clientIP,
 	})
 	if err != nil {
@@ -110,7 +113,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// Before replying OK to the client which would make the client consider
 	// auth completed, wait for OK packet from db service indicating auth
 	// success.
-	err = p.waitForOK(server, serviceConn)
+	err = p.waitForOK(mysqlServer, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -123,6 +126,21 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	return nil
 }
 
+// getServerVersionFromCtx tries to extract MySQL server version from the passed context.
+// The default version is returned if context doesn't have it.
+func getServerVersionFromCtx(ctx context.Context) string {
+	// Set default server version.
+	mysqlServerVersion := serverVersion
+
+	if mysqlVerCtx := ctx.Value(dbutils.ContextMySQLServerVersion); mysqlVerCtx != nil {
+		version, ok := mysqlVerCtx.(string)
+		if ok {
+			mysqlServerVersion = version
+		}
+	}
+	return mysqlServerVersion
+}
+
 // credentialProvider is used by MySQL server created below.
 //
 // It's a no-op because authentication is done via mTLS.
@@ -133,7 +151,7 @@ func (p *credentialProvider) GetCredential(_ string) (string, bool, error) { ret
 
 // makeServer creates a MySQL server from the accepted client connection that
 // provides access to various parts of the handshake.
-func (p *Proxy) makeServer(clientConn net.Conn) *server.Conn {
+func (p *Proxy) makeServer(clientConn net.Conn, serverVersion string) *server.Conn {
 	return server.MakeConn(
 		clientConn,
 		server.NewServer(
@@ -170,7 +188,7 @@ func (p *Proxy) performHandshake(conn *multiplexer.Conn, server *server.Conn) (*
 		return nil, trace.Wrap(err)
 	}
 	// First part of the handshake completed and the connection has been
-	// upgraded to TLS so now we can look at the client certificate and
+	// upgraded to TLS, so now we can look at the client certificate and
 	// see which database service to route the connection to.
 	switch c := server.Conn.Conn.(type) {
 	case *tls.Conn:

@@ -337,6 +337,7 @@ func TestParties(t *testing.T) {
 	testJoinSession(t, reg, sess)
 	require.Equal(t, 1, len(sess.getParties()))
 
+	// andvance clock and give lingerAndDie goroutine a second to complete.
 	regClock.Advance(defaults.SessionIdlePeriod)
 	require.False(t, sess.isStopped())
 
