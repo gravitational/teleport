@@ -1292,7 +1292,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	new, err := web.ExtendWebSession(WebSessionReq{
+	new, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1309,7 +1309,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
-	_, err = web.ExtendWebSession(WebSessionReq{
+	_, err = web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1363,7 +1363,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	err = clt.CreateAccessRequest(context.Background(), accessReq)
 	c.Assert(err, check.IsNil)
 
-	sess1, err := web.ExtendWebSession(WebSessionReq{
+	sess1, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
@@ -1405,7 +1405,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(certRequests(sess1.GetTLSCert()), check.DeepEquals, []string{accessReq.GetName()})
 
 	// Test switch back to default role and expiry.
-	sess2, err := web.ExtendWebSession(WebSessionReq{
+	sess2, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
