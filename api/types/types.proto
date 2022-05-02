@@ -1600,6 +1600,11 @@ message RoleOptions {
     // CertExtensions specifies the key/values
     repeated CertExtension CertExtensions = 17
         [ (gogoproto.jsontag) = "cert_extensions,omitempty" ];
+
+    // MaxKubernetesConnections defines the maximum number of concurrent
+    // Kubernetes sessions a user may hold.
+    int64 MaxKubernetesConnections = 18
+        [ (gogoproto.jsontag) = "max_kubernetes_connections,omitempty" ];
 }
 
 message RecordSession {
