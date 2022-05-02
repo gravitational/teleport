@@ -547,49 +547,6 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	return nil
 }
 
-// EmitAuditEventLegacy emits audit event
-func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) error {
-	sessionID := fields.GetString(events.SessionEventID)
-	eventIndex := fields.GetInt(events.EventIndex)
-	// no session id - global event gets a random uuid to get a good partition
-	// key distribution
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
-	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-	}
-	created := fields.GetTime(events.EventTime)
-	if created.IsZero() {
-		created = l.Clock.Now().UTC()
-	}
-	e := event{
-		SessionID:      sessionID,
-		EventIndex:     int64(eventIndex),
-		EventType:      fields.GetString(events.EventType),
-		EventNamespace: apidefaults.Namespace,
-		CreatedAt:      created.Unix(),
-		FieldsMap:      fields,
-		CreatedAtDate:  created.Format(iso8601DateFormat),
-	}
-	l.setExpiry(&e)
-	av, err := dynamodbattribute.MarshalMap(e)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	input := dynamodb.PutItemInput{
-		Item:      av,
-		TableName: aws.String(l.Tablename),
-	}
-	_, err = l.svc.PutItem(&input)
-	err = convertError(err)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 func (l *Log) setExpiry(e *event) {
 	if l.RetentionPeriod.Value() == 0 {
 		return

@@ -2546,13 +2546,6 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	return s.stream.EmitAuditEvent(ctx, event)
 }
 
-func (a *ServerWithRoles) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
-	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.EmitAuditEventLegacy(event, fields)
-}
-
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
 		return nil, trace.Wrap(err)

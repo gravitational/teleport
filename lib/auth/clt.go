@@ -1246,20 +1246,6 @@ func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 	return &response, nil
 }
 
-// EmitAuditEventLegacy sends an auditable event to the auth server (part of events.IAuditLog interface)
-func (c *Client) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
-	_, err := c.PostJSON(context.TODO(), c.Endpoint("events"), &auditEventReq{
-		Event:  event,
-		Fields: fields,
-		// Send "type" as well for backwards compatibility.
-		Type: event.Name,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
 // session stream, starting from 'offset', up to 'max' in length. The upper bound
 // of 'max' is set to events.MaxChunkBytes

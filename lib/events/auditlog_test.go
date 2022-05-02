@@ -19,7 +19,6 @@ package events
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -94,26 +92,6 @@ func (a *AuditTestSuite) TestNew(c *check.C) {
 	// close twice:
 	c.Assert(alog.Close(), check.IsNil)
 	c.Assert(alog.Close(), check.IsNil)
-}
-
-func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
-	// create audit log, write a couple of events into it, close it
-	clock := clockwork.NewFakeClock()
-	alog, err := a.makeLogWithClock(c, a.dataDir, clock)
-	c.Assert(err, check.IsNil)
-
-	// emit regular event:
-	err = alog.EmitAuditEventLegacy(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
-	c.Assert(err, check.IsNil)
-	logfile := alog.localLog.file.Name()
-	c.Assert(alog.Close(), check.IsNil)
-
-	// read back what's been written:
-	bytes, err := os.ReadFile(logfile)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(bytes), check.Equals,
-		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n",
-			clock.Now().Format(time.RFC3339), fixtures.UUID))
 }
 
 // TestLogRotation makes sure that logs are rotated

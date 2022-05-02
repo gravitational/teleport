@@ -684,10 +684,6 @@ type IAuditLog interface {
 	// Closer releases connection and resources associated with log if any
 	io.Closer
 
-	// EmitAuditEventLegacy emits audit in legacy format
-	// DELETE IN: 5.0.0
-	EmitAuditEventLegacy(Event, EventFields) error
-
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, apievents.AuditEvent) error
 
