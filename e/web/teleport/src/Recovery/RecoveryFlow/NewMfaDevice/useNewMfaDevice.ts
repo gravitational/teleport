@@ -11,12 +11,12 @@ export default function useNewMfaDevice({
   const { attempt, setAttempt, handleError } = useAttempt('');
   const auth2faType = cfg.oss.getAuth2faType();
 
-  function setNewTotpDevice(secondFactorToken: string, deviceName: string) {
+  function setNewTotpDevice(otpCode: string, deviceName: string) {
     setAttempt({ status: 'processing' });
     recoveryService
       .setNewTotpDeviceOrPassword({
         tokenId,
-        secondFactorToken,
+        otpCode,
         deviceName,
       })
       .then(onNext)

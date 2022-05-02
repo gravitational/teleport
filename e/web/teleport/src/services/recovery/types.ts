@@ -11,13 +11,6 @@ export type VerifyUserRequest = {
   secondFactorToken?: string;
 };
 
-export type NewCredentialRequest = {
-  tokenId: string;
-  password?: string;
-  secondFactorToken?: string;
-  deviceName?: string;
-};
-
 export type RecoveryToken = {
   id: string;
   username: string;

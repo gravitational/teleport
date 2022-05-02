@@ -238,7 +238,7 @@ describe('all recovery flows should show correct screens', () => {
       RecoveryService.prototype.setNewTotpDeviceOrPassword
     ).toHaveBeenCalledWith({
       tokenId: approvedToken.id,
-      secondFactorToken: '321321',
+      otpCode: '321321',
       deviceName: 'backup',
     });
 

@@ -3,14 +3,11 @@ import auth, {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
   makeRecoveryCodes,
+  NewCredentialRequest,
 } from 'teleport/services/auth';
 import cfg from 'e-teleport/config';
 import makeRecoveryToken from './makeRecoveryToken';
-import {
-  StartRecoveryRequest,
-  VerifyUserRequest,
-  NewCredentialRequest,
-} from './types';
+import { StartRecoveryRequest, VerifyUserRequest } from './types';
 
 class RecoveryService {
   // startRecovery validates the recovery code and sends the email
