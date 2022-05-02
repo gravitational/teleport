@@ -45,9 +45,6 @@ func (d *DiscardAuditLog) Close() error {
 func (d *DiscardAuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
-func (d *DiscardAuditLog) PostSessionSlice(SessionSlice) error {
-	return nil
-}
 func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	return make([]byte, 0), nil
 }

@@ -384,42 +384,6 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 	return nil
 }
 
-// PostSessionSlice sends chunks of recorded session to the event log
-func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
-	batch := l.svc.Batch()
-	for _, chunk := range slice.Chunks {
-		// if legacy event with no type or print event, skip it
-		if chunk.EventType == events.SessionPrintEvent || chunk.EventType == "" {
-			continue
-		}
-		fields, err := events.EventFromChunk(slice.SessionID, chunk)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		data, err := json.Marshal(fields)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		event := event{
-			SessionID:      slice.SessionID,
-			EventNamespace: apidefaults.Namespace,
-			EventType:      chunk.EventType,
-			EventIndex:     chunk.EventIndex,
-			CreatedAt:      time.Unix(0, chunk.Time).In(time.UTC).Unix(),
-			Fields:         string(data),
-		}
-		batch.Create(l.svc.Collection(l.CollectionName).Doc(l.getDocIDForEvent(event)), event)
-	}
-	start := time.Now()
-	_, err := batch.Commit(l.svcContext)
-	batchWriteLatencies.Observe(time.Since(start).Seconds())
-	batchWriteRequests.Inc()
-	if err != nil {
-		return firestorebk.ConvertGRPCError(err)
-	}
-	return nil
-}
-
 func (l *Log) UploadSessionRecording(events.SessionRecording) error {
 	return trace.NotImplemented("UploadSessionRecording not implemented for firestore backend")
 }

@@ -347,42 +347,6 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	})
 }
 
-// PostSessionSlice submits slice of session chunks to the audit log server.
-func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
-	if slice.Namespace == "" {
-		return trace.BadParameter("missing parameter Namespace")
-	}
-	if len(slice.Chunks) == 0 {
-		return trace.BadParameter("missing session chunks")
-	}
-	if l.ExternalLog != nil {
-		return l.ExternalLog.PostSessionSlice(slice)
-	}
-	if slice.Version < V3 {
-		return trace.BadParameter("audit log rejected %v log entry, upgrade your components.", slice.Version)
-	}
-	// V3 API does not write session log to local session directory,
-	// instead it writes locally, this internal method captures
-	// non-print events to the global audit log
-	return l.processSlice(nil, &slice)
-}
-
-func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
-	for _, chunk := range slice.Chunks {
-		if chunk.EventType == SessionPrintEvent || chunk.EventType == "" {
-			continue
-		}
-		fields, err := EventFromChunk(slice.SessionID, chunk)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := l.EmitAuditEventLegacy(Event{Name: chunk.EventType}, fields); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 func getAuthServers(dataDir string) ([]string, error) {
 	// scan the log directory:
 	df, err := os.Open(dataDir)
