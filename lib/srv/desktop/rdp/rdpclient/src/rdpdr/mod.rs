@@ -19,7 +19,11 @@ mod scard;
 use crate::errors::{invalid_data_error, not_implemented_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
 use crate::util;
 use crate::vchan;
-use crate::{Payload, SharedDirectoryAcknowledge};
+use crate::{
+    FileSystemObject, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
+    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
+};
+
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use consts::{
     CapabilityType, Component, DeviceType, FsInformationClassLevel, MajorFunction, MinorFunction,
@@ -32,6 +36,7 @@ use rdp::core::tpkt;
 use rdp::model::data::Message;
 use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
+use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::io::{Read, Write};
 
@@ -44,15 +49,19 @@ pub use consts::CHANNEL_NAME;
 pub struct Client {
     vchan: vchan::Client,
     scard: scard::Client,
-    active_device_ids: Vec<u32>,
+
     allow_directory_sharing: bool,
 
-    /// acknowledge_directory takes in a (err: u32, directory_id: u32) to acknowledges
-    /// a new directory being shared.
-    acknowledge_directory: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
-    /// request_info takes a (directory_id: u32, completion_id: u32, path: &str) and requests
-    /// information about a file.
-    request_info: Box<dyn Fn(u32, u32, &str) -> RdpResult<()>>,
+    // Functions for sending tdp messages to the browser client.
+    tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
+    tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
+    tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
+
+    next_completion_id: u32,
+    active_device_ids: Vec<u32>,
+    /// completion_id indexed cache of handlers for handling TDP Shared Directory Info Response's.
+    pending_sd_info_resp_handlers:
+        HashMap<u32, Box<dyn FnOnce(SharedDirectoryInfoResponse) -> RdpResult<()>>>,
 
     dot_dot_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
     fake_file_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
@@ -65,18 +74,23 @@ impl Client {
         pin: String,
         allow_directory_sharing: bool,
 
-        acknowledge_directory: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
-        request_info: Box<dyn Fn(u32, u32, &str) -> RdpResult<()>>,
+        tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
+        tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
     ) -> Self {
+        // TODO(isaiah)
+        let tdp_sd_create_request =
+            Box::new(|req: SharedDirectoryCreateRequest| -> RdpResult<()> { Ok(()) });
+
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
             active_device_ids: vec![],
+            next_completion_id: 0,
+            pending_sd_info_resp_handlers: HashMap::new(),
             allow_directory_sharing,
-
-            acknowledge_directory,
-            request_info,
-
+            tdp_sd_acknowledge,
+            tdp_sd_info_request,
+            tdp_sd_create_request,
             dot_dot_sent: false,
             fake_file_sent: false,
         }
@@ -178,7 +192,7 @@ impl Client {
         debug!("got ServerDeviceAnnounceResponse: {:?}", req);
 
         if !self.active_device_ids.contains(&req.device_id) {
-            (self.acknowledge_directory)(SharedDirectoryAcknowledge {
+            (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
                 err: 1,
                 directory_id: req.device_id,
             })?;
@@ -187,7 +201,7 @@ impl Client {
                 &req.device_id
             )))
         } else if req.result_code != NTSTATUS_OK {
-            (self.acknowledge_directory)(SharedDirectoryAcknowledge {
+            (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
                 err: 1,
                 directory_id: req.device_id,
             })?;
@@ -198,7 +212,7 @@ impl Client {
         } else {
             debug!("ServerDeviceAnnounceResponse was valid");
             if req.device_id != self.get_scard_device_id()? {
-                (self.acknowledge_directory)(SharedDirectoryAcknowledge {
+                (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
                     err: 0,
                     directory_id: req.device_id,
                 })?;
@@ -211,8 +225,10 @@ impl Client {
         let device_io_request = DeviceIoRequest::decode(payload)?;
         let major_function = device_io_request.major_function.clone();
 
-        // Smartcard control only uses IRP_MJ_DEVICE_CONTROL, any other MajorFunction is only used for directory control.
-        // Therefore if we receive any other major function when drive redirection is not allowed, something has gone wrong.
+        // Smartcard control only uses IRP_MJ_DEVICE_CONTROL; directory control uses IRP_MJ_DEVICE_CONTROL along with
+        // all the other MajorFunctions supported by this Client. Therefore if we receive any major function when drive
+        // redirection is not allowed, something has gone wrong. In such a case, we return an error as a security measure
+        // to ensure directories are never shared when RBAC doesn't permit it.
         if major_function != MajorFunction::IRP_MJ_DEVICE_CONTROL && !self.allow_directory_sharing {
             return Err(Error::TryError(
                 "received a drive redirection major function when drive redirection was not allowed"
@@ -225,6 +241,13 @@ impl Client {
                 let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
                 let is_smart_card_op = ioctl.header.device_id == self.get_scard_device_id()?;
                 debug!("got: {:?}", ioctl);
+
+                // IRP_MJ_DEVICE_CONTROL is the one major function used by both the smartcard controller (always enabled)
+                // and shared directory controller (potentially disabled by RBAC). Here we check that directory sharing
+                // is enabled here before proceeding with any shared directory controls as an additional security measure.
+                if !is_smart_card_op && !self.allow_directory_sharing {
+                    return Err(Error::TryError("received a drive redirection major function when drive redirection was not allowed".to_string()));
+                }
                 let resp = if is_smart_card_op {
                     // Smart card control
                     let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
@@ -250,24 +273,81 @@ impl Client {
                 Ok(resp)
             }
             // Drive create request. This is sent to us by the server in response to
-            // a ClientDeviceListAnnounce::new_drive, and TODO(isaiah).
+            // a ClientDeviceListAnnounce::new_drive.
             MajorFunction::IRP_MJ_CREATE => {
-                let server_create_drive_request =
-                    ServerCreateDriveRequest::decode(device_io_request, payload)?;
-                debug!("got: {:?}", server_create_drive_request);
+                let rdp_req = ServerCreateDriveRequest::decode(device_io_request, payload)?;
+                debug!("got: {:?}", rdp_req);
+
+                // Send a TDP Shared Directory Info Request
+                let completion_id = self.get_completion_id();
+                // TODO(isaiah): SharedDirectoryInfoRequest::from(ServerCreateDriveRequest)
+                (self.tdp_sd_info_request)(SharedDirectoryInfoRequest {
+                    completion_id: completion_id,
+                    directory_id: rdp_req.device_io_request.device_id,
+                    path: rdp_req.path.clone(),
+                })?;
+
+                // Add a TDP Shared Directory Info Response handler to the handler cache.
+                // When we receive a TDP Shared Directory Info Response with this completion_id,
+                // this handler will be called.
+                self.pending_sd_info_resp_handlers.insert(
+                    completion_id,
+                    Box::new(|res: SharedDirectoryInfoResponse| -> RdpResult<()> {
+                        let rdp_req = rdp_req;
+
+                        if res.err == 2 {
+                            // "resource does not exist"
+                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
+                            let is_dir = rdp_req
+                                .create_options
+                                .contains(flags::CreateOptions::FILE_DIRECTORY_FILE);
+
+                            if is_dir {
+                                if rdp_req
+                                    .create_disposition
+                                    .contains(flags::CreateDisposition::FILE_OPEN_IF)
+                                    || rdp_req
+                                        .create_disposition
+                                        .contains(flags::CreateDisposition::FILE_CREATE)
+                                {
+                                    let completion_id = self.get_completion_id();
+                                    (self.tdp_sd_create_request)(SharedDirectoryCreateRequest {
+                                        completion_id,
+                                        directory_id: rdp_req.device_io_request.device_id,
+                                        file_type: 1, // TODO(isaiah) make this a const
+                                        path: "todo!()".to_string(),
+                                    })?;
+                                }
+                            }
+                        }
+                        Ok(())
+                    }),
+                );
+
+                // self.pending_tdp_sd_info_requests.insert(completion_id, |res: SharedDirectoryInfoResponse|);
+                //
+
+                // let device_id = server_create_drive_request.device_io_request.device_id;
+                // let completion_id = server_create_drive_request.device_io_request.completion_id;
+                // let path = &server_create_drive_request.path; // TODO(isaiah): path needs to be converted from windows style path
+                // self.send_tdp_sd_info_request(server_create_drive_request, device_id, path)?;
+                // Ok(vec![])
+
                 // TODO(isaiah) assumes we only receive this after the initial ClientDeviceListAnnounce::new_drive,
                 // which will always be a "success". Will need to have logic for creating files/dirs over TDP
                 // and responding based on failure/success.
-                let resp = DeviceCreateResponse::new(
-                    &server_create_drive_request,
-                    NTSTATUS::STATUS_SUCCESS,
-                );
-                debug!("replying with: {:?}", resp);
-                let resp = self.add_headers_and_chunkify(
-                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                    resp.encode()?,
-                )?;
-                Ok(resp)
+                // let resp = DeviceCreateResponse::new(
+                //     &server_create_drive_request,
+                //     NTSTATUS::STATUS_SUCCESS,
+                // );
+                // debug!("replying with: {:?}", resp);
+                // let resp = self.add_headers_and_chunkify(
+                //     PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                //     resp.encode()?,
+                // )?;
+                // Ok(resp)
+
+                Ok(vec![])
             }
             MajorFunction::IRP_MJ_QUERY_INFORMATION => {
                 let req = ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
@@ -454,6 +534,20 @@ impl Client {
         }
 
         Ok(())
+    }
+
+    fn handle_shared_directory_info_response(
+        &self,
+        completion_id: u32,
+        err: u32,
+        fso: FileSystemObject,
+    ) -> RdpResult<()> {
+        Ok(())
+    }
+
+    fn get_completion_id(&self) -> u32 {
+        self.next_completion_id = self.next_completion_id.wrapping_add(1);
+        self.next_completion_id
     }
 
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
