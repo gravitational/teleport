@@ -66,15 +66,6 @@ func (m *MultiLog) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
-// EmitAuditEventLegacy emits audit event
-func (m *MultiLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	var errors []error
-	for _, log := range m.loggers {
-		errors = append(errors, log.EmitAuditEventLegacy(event, fields))
-	}
-	return trace.NewAggregate(errors...)
-}
-
 // GetSessionChunk returns a reader which can be used to read a byte stream
 // of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 // beginning) up to maxBytes bytes.

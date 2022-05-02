@@ -345,45 +345,6 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	return nil
 }
 
-// EmitAuditEventLegacy emits audit event
-func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) error {
-	sessionID := fields.GetString(events.SessionEventID)
-	eventIndex := fields.GetInt(events.EventIndex)
-	// no session id - global event gets a random uuid to get a good partition
-	// key distribution
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
-	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-	}
-	created := fields.GetTime(events.EventTime)
-	if created.IsZero() {
-		created = l.Clock.Now().UTC()
-	}
-	data, err := json.Marshal(fields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	event := event{
-		SessionID:      sessionID,
-		EventIndex:     int64(eventIndex),
-		EventType:      fields.GetString(events.EventType),
-		EventNamespace: apidefaults.Namespace,
-		CreatedAt:      created.Unix(),
-		Fields:         string(data),
-	}
-	start := time.Now()
-	_, err = l.svc.Collection(l.CollectionName).Doc(l.getDocIDForEvent(event)).Create(l.svcContext, event)
-	writeLatencies.Observe(time.Since(start).Seconds())
-	writeRequests.Inc()
-	if err != nil {
-		return firestorebk.ConvertGRPCError(err)
-	}
-	return nil
-}
-
 // GetSessionChunk returns a reader which can be used to read a byte stream
 // of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 // beginning) up to maxBytes bytes.

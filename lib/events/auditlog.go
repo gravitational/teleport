@@ -857,25 +857,6 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEven
 	return nil
 }
 
-// EmitAuditEventLegacy adds a new event to the log.
-func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	// If an external logger has been set, use it as the emitter, otherwise
-	// fallback to the local disk based emitter.
-	var emitAuditEvent func(event Event, fields EventFields) error
-	if l.ExternalLog != nil {
-		emitAuditEvent = l.ExternalLog.EmitAuditEventLegacy
-	} else {
-		emitAuditEvent = l.getLocalLog().EmitAuditEventLegacy
-	}
-
-	err := emitAuditEvent(event, fields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // auditDirs returns directories used for audit log storage
 func (l *AuditLog) auditDirs() ([]string, error) {
 	authServers, err := getAuthServers(l.DataDir)

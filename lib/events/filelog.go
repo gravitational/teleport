@@ -158,47 +158,6 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 	return trace.ConvertSystemError(err)
 }
 
-// EmitAuditEventLegacy adds a new event to the log. Part of auth.IFileLog interface.
-func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	l.rw.RLock()
-	defer l.rw.RUnlock()
-
-	// see if the log needs to be rotated
-	if l.mightNeedRotation() {
-		// log might need rotation; switch to write-lock
-		// to avoid rotating during concurrent event emission.
-		l.rw.RUnlock()
-		l.rw.Lock()
-
-		// perform rotation if still necessary (rotateLog rechecks the
-		// requirements internally, since rotation may have been performed
-		// during our switch from read to write locks)
-		err := l.rotateLog()
-
-		// switch back to read lock
-		l.rw.Unlock()
-		l.rw.RLock()
-		if err != nil {
-			log.Error(err)
-		}
-	}
-
-	err := UpdateEventFields(event, fields, l.Clock, l.UIDGenerator)
-	if err != nil {
-		log.Error(err)
-	}
-	// line is the text to be logged
-	line, err := json.Marshal(fields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// log it to the main log file:
-	if l.file != nil {
-		fmt.Fprintln(l.file, string(line))
-	}
-	return nil
-}
-
 // SearchEvents is a flexible way to find events.
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
