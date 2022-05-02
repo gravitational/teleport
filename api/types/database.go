@@ -61,6 +61,13 @@ type Database interface {
 	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
 	SetStatusCA(string)
+	// GetMySQL returns the database options from spec.
+	GetMySQL() MySQLOptions
+	// GetMySQLServerVersion returns the MySQL server version either from configuration or
+	// reported by the database.
+	GetMySQLServerVersion() string
+	// SetMySQLServerVersion sets the runtime MySQL server version.
+	SetMySQLServerVersion(version string)
 	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
@@ -251,6 +258,26 @@ func (d *DatabaseV3) SetStatusCA(ca string) {
 	d.Status.CACert = ca
 }
 
+// GetMySQL returns the MySQL options from spec.
+func (d *DatabaseV3) GetMySQL() MySQLOptions {
+	return d.Spec.MySQL
+}
+
+// GetMySQLServerVersion returns the MySQL server version reported by the database or the value from configuration
+// if the first one is not available.
+func (d *DatabaseV3) GetMySQLServerVersion() string {
+	if d.Status.MySQL.ServerVersion != "" {
+		return d.Status.MySQL.ServerVersion
+	}
+
+	return d.Spec.MySQL.ServerVersion
+}
+
+// SetMySQLServerVersion sets the runtime MySQL server version.
+func (d *DatabaseV3) SetMySQLServerVersion(version string) {
+	d.Status.MySQL.ServerVersion = version
+}
+
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
 	return cmp.Equal(a, AWS{})
@@ -375,6 +402,9 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 	if d.Spec.URI == "" {
 		return trace.BadParameter("database %q URI is empty", d.GetName())
+	}
+	if d.Spec.MySQL.ServerVersion != "" && d.Spec.Protocol != "mysql" {
+		return trace.BadParameter("MySQL ServerVersion can be only set for MySQL database")
 	}
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
