@@ -762,7 +762,7 @@ func Transport() (*http.Transport, error) {
 
 	// Set IdleConnTimeout on the transport. This defines the maximum amount of
 	// time before idle connections are closed. Leaving this unset will lead to
-	// connections open forever and will cause memory leaks in a long running
+	// connections open forever and will cause memory leaks in a long-running
 	// process.
 	tr.IdleConnTimeout = HTTPIdleTimeout
 

@@ -99,6 +99,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					ServerName: db.TLS.ServerName,
 					Mode:       db.TLS.Mode.ToProto(),
 				},
+				MySQL: types.MySQLOptions{
+					ServerVersion: db.MySQL.ServerVersion,
+				},
 				AWS: types.AWS{
 					Region: db.AWS.Region,
 					Redshift: types.Redshift{

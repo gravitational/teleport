@@ -3,8 +3,20 @@ title: Database Access with MySQL on GCP Cloud SQL
 description: How to configure Teleport Database Access with GCP Cloud SQL MySQL.
 ---
 
-In this guide, we will show you how to use Teleport Database Access with MySQL
-on Google Cloud SQL.
+This guide will help you to:
+
+- Install Teleport `(=teleport.version=)`.
+- Set up Teleport to access your MySQL on Google Cloud SQL.
+- Connect to your databases through Teleport.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access CloudSQL Self-Hosted](../../../img/database-access/guides/cloudsql_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access CloudSQL Cloud](../../../img/database-access/guides/cloudsql_cloud.png)
+</ScopedBlock>
 
 ## Prerequisites
 
@@ -108,43 +120,13 @@ Teleport Database Access for Cloud SQL MySQL is available starting from the
 
 (!docs/pages/includes/database-access/token.mdx!)
 
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
 ### Create a user
 
-Create a local Teleport user with the built-in `access` role:
-
-```code
-$ tctl users add --roles=access alice
-```
-
-The `access` role allows users to see all connected database servers, but
-allowed database users are restricted to the user's `db_users` traits. Normally,
-these traits come from the identity provider. For the local user you've just
-created you can update them manually to allow the user to connect as an `alice`
-database user.
-
-First, export the user resource:
-
-```code
-$ tctl get users/alice > alice.yaml
-```
-
-Update the resource to include the following traits:
-
-```yaml
-traits:
-  # Database account names the user will be allowed to use.
-  db_users:
-  - alice
-```
-
-Update the user:
-
-```code
-$ tctl create alice.yaml -f
-```
-
-For more detailed information about database access controls see the
-[RBAC](../rbac.mdx) documentation.
+(!docs/pages/includes/database-access/create-user.mdx!)
 
 ## Step 4/5. Set up the Teleport Database service
 

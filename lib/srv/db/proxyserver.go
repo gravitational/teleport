@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
@@ -326,7 +327,10 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	case defaults.ProtocolPostgres:
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
-		return s.MySQLProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
+		version := getMySQLVersionFromServer(proxyCtx.Servers)
+		// Set the version in the context to match a behaviour in other handlers.
+		ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
+		return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
@@ -340,6 +344,15 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// getMySQLVersionFromServer returns the MySQL version returned by an instance on last connection or
+// the MySQL.ServerVersion set in configuration if the first one is not available.
+// Function picks a random server each time if more than one are available.
+func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
+	count := len(servers)
+	db := servers[rand.Intn(count)].GetDatabase()
+	return db.GetMySQLServerVersion()
 }
 
 // PostgresProxy returns a new instance of the Postgres protocol aware proxy.
