@@ -88,8 +88,6 @@ var _ ClientI = &Client{}
 // functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	cfg.DialInBackground = true
-	// Deliberately ignore HTTP proxies for backwards compatibility.
-	cfg.IgnoreHTTPProxy = true
 	apiClient, err := client.New(context.TODO(), cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -122,6 +120,7 @@ type HTTPClient struct {
 
 // NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
 func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	fmt.Printf("NewHTTPClient(ignoreHTTPProxy=%v)\n", cfg.IgnoreHTTPProxy)
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, err
 	}
