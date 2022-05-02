@@ -523,6 +523,10 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitAWSRoleARNs is the name of the role variable used to store
+	// allowed AWS role ARNs.
+	TraitAWSRoleARNs = "aws_role_arns"
+
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
 	TraitTeams = "github_teams"
@@ -550,6 +554,10 @@ const (
 	// TraitInternalDBUsersVariable is the variable used to store allowed
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
+
+	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
+	// role ARNs for local accounts.
+	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
 )
 
 // SCP is Secure Copy.
@@ -638,12 +646,6 @@ const (
 
 	// KubeConfigFile is a default filename where k8s stores its user local config
 	KubeConfigFile = "config"
-
-	// EnvHome is home environment variable
-	EnvHome = "HOME"
-
-	// EnvUserProfile is the home directory environment variable on Windows.
-	EnvUserProfile = "USERPROFILE"
 
 	// KubeRunTests turns on kubernetes tests
 	KubeRunTests = "TEST_KUBE"

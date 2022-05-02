@@ -447,9 +447,6 @@ type uploaderPack struct {
 
 func (u *uploaderPack) Close(t *testing.T) {
 	u.cancel()
-
-	err := u.uploader.Close()
-	require.NoError(t, err)
 }
 
 func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {

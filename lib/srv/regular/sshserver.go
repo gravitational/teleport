@@ -639,7 +639,10 @@ func New(addr utils.NetAddr,
 		trace.ComponentFields: logrus.Fields{},
 	})
 
-	s.reg, err = srv.NewSessionRegistry(s, auth)
+	s.reg, err = srv.NewSessionRegistry(srv.SessionRegistryConfig{
+		Srv:                   s,
+		SessionTrackerService: auth,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -808,7 +808,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 			Labels:              tc.Labels,
 		})
 		if err != nil {
-			// ListResources for kube service not availalbe, provide fallback.
+			// ListResources for kube service not available, provide fallback.
 			// Fallback does not support filters, so if users
 			// provide them, it does nothing.
 			//
@@ -819,6 +819,9 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 					return trace.Wrap(err)
 				}
 				return nil
+			}
+			if utils.IsPredicateError(err) {
+				return trace.Wrap(utils.PredicateError{Err: err})
 			}
 			return trace.Wrap(err)
 		}
