@@ -2354,6 +2354,65 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Len(t, sessions, 0)
 }
 
+func TestGetWebConfig(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	// Set auth preference with passwordless.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:          constants.Local,
+		SecondFactor:  constants.SecondFactorOptional,
+		ConnectorName: constants.PasswordlessConnector,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Add a test connector.
+	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateGithubConnector(github)
+	require.NoError(t, err)
+
+	expectedCfg := webclient.WebConfig{
+		Auth: webclient.WebConfigAuthSettings{
+			SecondFactor: constants.SecondFactorOptional,
+			Providers: []webclient.WebConfigAuthProvider{{
+				Name:      "test-github",
+				Type:      constants.Github,
+				WebAPIURL: webclient.WebConfigAuthProviderGitHubURL,
+			}},
+			LocalAuthEnabled:   true,
+			AllowPasswordless:  true,
+			AuthType:           constants.Local,
+			PreferredLocalMFA:  constants.SecondFactorWebauthn,
+			LocalConnectorName: constants.PasswordlessConnector,
+		},
+		CanJoinSessions:  true,
+		ProxyClusterName: env.server.ClusterName(),
+		IsCloud:          false,
+	}
+
+	// Make a request.
+	clt := env.proxies[0].newClient(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+	require.Equal(t, expectedCfg, cfg)
+}
+
 func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
