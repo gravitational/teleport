@@ -1448,7 +1448,7 @@ $ tsh ls --search=staging,mac
 
 # List nodes using predicate language. This query searches for nodes with labels
 # with key `env` equal to `staging` and key `os` equal to `mac`.
-$ tsh ls --query='labels.env == "staging" && equals(labels.os, "mac")'
+$ tsh ls --query='labels["env"] == "staging" && equals(labels["os"], "mac")'
 ```
 
 ## Experimental features

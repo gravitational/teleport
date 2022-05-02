@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
@@ -31,9 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 )
 
@@ -49,6 +50,9 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	})
 	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	}
 
@@ -71,7 +75,7 @@ func onListDatabases(cf *CLIConf) error {
 
 	roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
 	if err != nil {
-		return trace.Wrap(err)
+		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
 
 	sort.Slice(databases, func(i, j int) bool {
@@ -363,7 +367,8 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 // maybeStartLocalProxy starts local TLS ALPN proxy if needed depending on the
 // connection scenario and returns a list of options to use in the connect
 // command.
-func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, cluster string) ([]dbcmd.ConnectCommandFunc, error) {
+func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
+	database types.Database, cluster string) ([]dbcmd.ConnectCommandFunc, error) {
 	// Local proxy is started if TLS routing is enabled, or if this is a SQL
 	// Server connection which always requires a local proxy.
 	if !tc.TLSRoutingEnabled && db.Protocol != defaults.ProtocolSQLServer {
@@ -375,18 +380,15 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 		return nil, trace.Wrap(err)
 	}
 
-	opts := localProxyOpts{
-		proxyAddr: tc.WebProxyAddr,
-		listener:  listener,
-		protocol:  db.Protocol,
-		insecure:  cf.InsecureSkipVerify,
-	}
-
-	// For SQL Server connections, local proxy must be configured with the
-	// client certificate that will be used to route connections.
-	if db.Protocol == defaults.ProtocolSQLServer {
-		opts.certFile = profile.DatabaseCertPathForCluster("", db.ServiceName)
-		opts.keyFile = profile.KeyPath()
+	opts, err := prepareLocalProxyOptions(&localProxyConfig{
+		cliConf:         cf,
+		teleportClient:  tc,
+		profile:         profile,
+		routeToDatabase: db,
+		database:        database,
+		listener:        listener})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	lp, err := mkLocalProxy(cf.Context, opts)
@@ -415,6 +417,78 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	}, nil
 }
 
+// localProxyConfig is an argument pack used in prepareLocalProxyOptions().
+type localProxyConfig struct {
+	cliConf         *CLIConf
+	teleportClient  *client.TeleportClient
+	profile         *client.ProfileStatus
+	routeToDatabase *tlsca.RouteToDatabase
+	database        types.Database
+	listener        net.Listener
+}
+
+// prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
+func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
+	// If user requested no client auth, open an authenticated tunnel using
+	// client cert/key of the database.
+	certFile := arg.cliConf.LocalProxyCertFile
+	if certFile == "" && arg.cliConf.LocalProxyTunnel {
+		certFile = arg.profile.DatabaseCertPathForCluster(arg.cliConf.SiteName, arg.routeToDatabase.ServiceName)
+	}
+	keyFile := arg.cliConf.LocalProxyKeyFile
+	if keyFile == "" && arg.cliConf.LocalProxyTunnel {
+		keyFile = arg.profile.KeyPath()
+	}
+
+	opts := localProxyOpts{
+		proxyAddr: arg.teleportClient.WebProxyAddr,
+		listener:  arg.listener,
+		protocols: []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
+		insecure:  arg.cliConf.InsecureSkipVerify,
+		certFile:  certFile,
+		keyFile:   keyFile,
+	}
+
+	// For SQL Server connections, local proxy must be configured with the
+	// client certificate that will be used to route connections.
+	if arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer {
+		opts.certFile = arg.profile.DatabaseCertPathForCluster("", arg.routeToDatabase.ServiceName)
+		opts.keyFile = arg.profile.KeyPath()
+	}
+
+	// To set correct MySQL server version DB proxy needs additional protocol.
+	if !arg.cliConf.LocalProxyTunnel && arg.routeToDatabase.Protocol == defaults.ProtocolMySQL {
+		if arg.database == nil {
+			var err error
+			arg.database, err = getDatabase(arg.cliConf, arg.teleportClient, arg.routeToDatabase.ServiceName)
+			if err != nil {
+				return localProxyOpts{}, trace.Wrap(err)
+			}
+		}
+
+		mysqlServerVersionProto := mySQLVersionToProto(arg.database)
+		if mysqlServerVersionProto != "" {
+			opts.protocols = append(opts.protocols, common.Protocol(mysqlServerVersionProto))
+		}
+	}
+
+	return opts, nil
+}
+
+// mySQLVersionToProto returns base64 encoded MySQL server version with MySQL protocol prefix.
+// If version is not set in the past database an empty string is returned.
+func mySQLVersionToProto(database types.Database) string {
+	version := database.GetMySQLServerVersion()
+	if version == "" {
+		return ""
+	}
+
+	versionBase64 := base64.StdEncoding.EncodeToString([]byte(version))
+
+	// Include MySQL server version
+	return string(common.ProtocolMySQLWithVerPrefix) + versionBase64
+}
+
 // onDatabaseConnect implements "tsh db connect" command.
 func onDatabaseConnect(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
@@ -425,17 +499,17 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
+	routeToDatabase, database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Check is cert is still valid or DB connection requires MFA. If yes trigger db login logic.
-	relogin, err := needRelogin(cf, tc, database, profile)
+	relogin, err := needRelogin(cf, tc, routeToDatabase, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if relogin {
-		if err := databaseLogin(cf, tc, *database, true); err != nil {
+		if err := databaseLogin(cf, tc, *routeToDatabase, true); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -449,12 +523,12 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	opts, err := maybeStartLocalProxy(cf, tc, profile, database, rootClusterName)
+	opts, err := maybeStartLocalProxy(cf, tc, profile, routeToDatabase, database, rootClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	opts = append(opts, dbcmd.WithLogger(log))
-	cmd, err := dbcmd.NewCmdBuilder(tc, profile, database, rootClusterName, opts...).GetConnectCommand()
+	cmd, err := dbcmd.NewCmdBuilder(tc, profile, routeToDatabase, rootClusterName, opts...).GetConnectCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -471,24 +545,24 @@ func onDatabaseConnect(cf *CLIConf) error {
 
 // getDatabaseInfo fetches information about the database from tsh profile is DB is active in profile. Otherwise,
 // the ListDatabases endpoint is called.
-func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, error) {
+func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, types.Database, error) {
 	database, err := pickActiveDatabase(cf)
 	if err == nil {
-		return database, nil
+		return database, nil, nil
 	}
 	if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	db, err := getDatabase(cf, tc, dbName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	return &tlsca.RouteToDatabase{
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
-	}, nil
+	}, db, nil
 }
 
 func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.Database, error) {
@@ -552,7 +626,7 @@ func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteTo
 	return mfaRequired, nil
 }
 
-// dbInfoHasChanged checks if cf.DatabaseUser or cf.DatabaseName info has changed in the user database certificate.
+// dbInfoHasChanged checks if cliConf.DatabaseUser or cliConf.DatabaseName info has changed in the user database certificate.
 func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 	if cf.DatabaseUser == "" && cf.DatabaseName == "" {
 		return false, nil

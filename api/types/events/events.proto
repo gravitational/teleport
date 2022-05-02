@@ -761,6 +761,10 @@ message AccessRequestCreate {
     // ProposedState is the state proposed by a review (only used in the access_request.review event
     // variant).
     string ProposedState = 11 [ (gogoproto.jsontag) = "proposed_state,omitempty" ];
+
+    // RequestedResourceIDs is a list of resources to which access is being
+    // requested.
+    repeated string RequestedResourceIDs = 12 [ (gogoproto.jsontag) = "resource_ids,omitempty" ];
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
