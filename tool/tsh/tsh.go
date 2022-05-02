@@ -88,6 +88,9 @@ type CLIConf struct {
 	SuggestedReviewers string
 	// NoWait can be used with an access request to exit without waiting for a request resolution.
 	NoWait bool
+	// RequestedResourceIDs is a list of resources to request access to
+	// separated by commas.
+	RequestedResourceIDs string
 	// RequestID is an access request ID
 	RequestID string
 	// ReviewReason indicates the reason for an access review.
@@ -634,10 +637,13 @@ func Run(args []string, opts ...cliOption) error {
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	reqCreate := req.Command("new", "Create a new access request").Alias("create")
-	reqCreate.Flag("roles", "Roles to be requested").Required().StringVar(&cf.DesiredRoles)
+	reqCreate.Flag("roles", "Roles to be requested").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
+	// TODO(nic): unhide this command when the rest of search-based access
+	// requests is implemented (#10887)
+	reqCreate.Flag("resources", "List of resources to request access to separated by commas").Hidden().StringVar(&cf.RequestedResourceIDs)
 
 	reqReview := req.Command("review", "Review an access request")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -1421,8 +1427,8 @@ func onListNodes(cf *CLIConf) error {
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" && cf.RequestID == "" {
-		return trace.BadParameter("at least one role or a request ID must be specified")
+	if cf.DesiredRoles == "" && cf.RequestID == "" && cf.RequestedResourceIDs == "" {
+		return trace.BadParameter("at least one role or resource or a request ID must be specified")
 	}
 	if cf.Username == "" {
 		cf.Username = tc.Username
@@ -1459,7 +1465,8 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	} else {
 		roles := utils.SplitIdentifiers(cf.DesiredRoles)
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-		req, err = services.NewAccessRequest(cf.Username, roles...)
+		resourceIDs := utils.SplitIdentifiers(cf.RequestedResourceIDs)
+		req, err = services.NewAccessRequestWithResources(cf.Username, roles, resourceIDs)
 		if err != nil {
 			return trace.Wrap(err)
 		}

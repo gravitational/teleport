@@ -390,9 +390,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	if len(resourceIDs) > 0 {
 		fmt.Fprintf(os.Stdout, "\nTo request access to these resources, run\n")
-		fmt.Fprintf(os.Stdout, "> tsh request create --id %s\n", strings.Join(resourceIDs, " --id "))
-		// TODO(nic): delete this line when tsh request create is implemented (#10887)
-		fmt.Fprintf(os.Stdout, "(tsh request create is not yet implemented)\n")
+		fmt.Fprintf(os.Stdout, "> tsh request create --resources %s --reason <request reason>\n\n", strings.Join(resourceIDs, ","))
 	}
 
 	return nil
