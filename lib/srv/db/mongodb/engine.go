@@ -87,7 +87,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	defer closeFn()
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
-
 	// Start reading client messages and sending them to server.
 	for {
 		clientMessage, err := protocol.ReadMessage(e.clientConn)

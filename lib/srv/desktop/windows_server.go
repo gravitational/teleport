@@ -1262,8 +1262,9 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 // expiration while the session is active. Once the given ctx is closed,
 // the tracker will be marked as terminated.
 func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, windowsUser string, sessionID string, desktop types.WindowsDesktop) error {
-	s.cfg.Log.Debug("Creating session tracker")
+	s.cfg.Log.Debugf("Starting tracker for session %v", sessionID)
 	initiator := &types.Participant{
+		ID:   id.Username,
 		User: id.Username,
 	}
 
@@ -1274,9 +1275,10 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		Hostname:     s.cfg.Hostname,
 		Address:      desktop.GetAddr(),
 		ClusterName:  s.clusterName,
-		Login:        "root",
+		Login:        windowsUser,
 		Participants: []types.Participant{*initiator},
 		HostUser:     initiator.User,
+		Created:      s.cfg.Clock.Now(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1287,24 +1289,11 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		return trace.Wrap(err)
 	}
 
-	// Start go routine to push back session expiration until ctx is canceled (session ends).
 	go func() {
 		ticker := s.cfg.Clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
 		defer ticker.Stop()
-		for {
-			select {
-			case time := <-ticker.Chan():
-				err := services.UpdateSessionTrackerExpiry(ctx, s.cfg.AuthClient, sessionID, time.Add(defaults.SessionTrackerTTL))
-				if err != nil {
-					s.cfg.Log.WithError(err).Warningf("Failed to update session tracker expiration for session %v.", sessionID)
-					return
-				}
-			case <-ctx.Done():
-				if err := services.UpdateSessionTrackerState(s.closeCtx, s.cfg.AuthClient, sessionID, types.SessionState_SessionStateTerminated); err != nil {
-					s.cfg.Log.WithError(err).Warningf("Failed to update session tracker state for session %v.", sessionID)
-				}
-				return
-			}
+		if err := services.TrackSession(s.closeCtx, s.cfg.AuthClient, tracker, ticker, ctx.Done()); err != nil {
+			s.cfg.Log.Debugf("Error tracking session state for session %v", sessionID)
 		}
 	}()
 

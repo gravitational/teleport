@@ -57,7 +57,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 
 	// Create a session tracker so that other services, such as
 	// the session upload completer, can track the session's lifetime.
-	err := s.trackSession(sess, identity)
+	err := s.createTracker(sess, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -214,10 +214,11 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig ty
 	return fileStreamer, nil
 }
 
-// trackSession creates a new session tracker for the app session.
-func (s *Server) trackSession(sess *session, identity *tlsca.Identity) error {
-	s.log.Debug("Creating session tracker")
+// createTracker creates a new session tracker for the app session.
+func (s *Server) createTracker(sess *session, identity *tlsca.Identity) error {
+	s.log.Debug("Creating tracker for session %v", sess.id)
 	initiator := &types.Participant{
+		ID:   identity.Username,
 		User: identity.Username,
 	}
 
@@ -228,20 +229,17 @@ func (s *Server) trackSession(sess *session, identity *tlsca.Identity) error {
 		Hostname:     s.c.HostID,
 		AppName:      identity.RouteToApp.Name,
 		ClusterName:  identity.RouteToApp.ClusterName,
-		Login:        "root",
+		Login:        identity.GetUserMetadata().Login,
 		Participants: []types.Participant{*initiator},
 		HostUser:     initiator.User,
+		Created:      s.c.Clock.Now(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.c.AuthClient.CreateSessionTracker(s.closeContext, tracker)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(err)
 }
 
 // sessionCache holds a cache of sessions that are used to forward requests.

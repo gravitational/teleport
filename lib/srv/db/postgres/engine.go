@@ -129,7 +129,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// messages: this is where psql prompt appears on the other side.
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
-
 	// Reconstruct pgconn.PgConn from hijacked connection for easier access
 	// to its utility methods (such as Close).
 	serverConn, err := pgconn.Construct(hijackedConn)

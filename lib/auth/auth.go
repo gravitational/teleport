@@ -2931,19 +2931,6 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 		}
 	}
 
-	if tracker.GetCreated().IsZero() {
-		tracker.SetCreated(a.GetClock().Now())
-	}
-
-	if tracker.Expiry().IsZero() {
-		// By default, resource expiration should match session expiration.
-		expiry := tracker.GetExpires()
-		if expiry.IsZero() {
-			expiry = a.GetClock().Now().Add(defaults.SessionTrackerTTL)
-		}
-		tracker.SetExpiry(expiry)
-	}
-
 	return a.SessionTrackerService.CreateSessionTracker(ctx, tracker)
 }
 

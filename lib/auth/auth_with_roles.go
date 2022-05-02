@@ -201,6 +201,17 @@ func (a *ServerWithRoles) hasBuiltinRole(name string) bool {
 	return HasBuiltinRole(a.context.Checker, name)
 }
 
+// hasBuildinRoleInList checks that the attached checker is a BuiltinRoleSet
+// and whether any of the given roles match the role set.
+func (a *ServerWithRoles) hasBuiltinRoleInList(roles ...types.SystemRole) bool {
+	for _, role := range roles {
+		if HasBuiltinRole(a.context.Checker, string(role)) {
+			return true
+		}
+	}
+	return false
+}
+
 // HasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
 func HasBuiltinRole(checker services.AccessChecker, name string) bool {
@@ -241,8 +252,7 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) &&
-		!a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleApp)) && !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+	if a.hasBuiltinRoleInList(types.RoleKube, types.RoleNode, types.RoleProxy, types.RoleDatabase, types.RoleApp, types.RoleWindowsDesktop) {
 		return nil, trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 
@@ -256,8 +266,7 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
 func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) &&
-		!a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleApp)) && !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+	if a.hasBuiltinRoleInList(types.RoleKube, types.RoleNode, types.RoleProxy, types.RoleDatabase, types.RoleApp, types.RoleWindowsDesktop) {
 		return nil, trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 
@@ -291,8 +300,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) &&
-		!a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleApp)) && !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+	if a.hasBuiltinRoleInList(types.RoleKube, types.RoleNode, types.RoleProxy, types.RoleDatabase, types.RoleApp, types.RoleWindowsDesktop) {
 		return trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 
@@ -301,8 +309,7 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) &&
-		!a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleApp)) && !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+	if a.hasBuiltinRoleInList(types.RoleKube, types.RoleNode, types.RoleProxy, types.RoleDatabase, types.RoleApp, types.RoleWindowsDesktop) {
 		return trace.AccessDenied("this request can be only executed by a node, proxy, kube, db, app, or windows desktop service")
 	}
 

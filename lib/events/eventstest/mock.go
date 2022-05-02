@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
@@ -98,10 +99,6 @@ type MockSessionTrackerService struct {
 	MockTrackers []types.SessionTracker
 }
 
-func (m *MockSessionTrackerService) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	return nil, nil
-}
-
 func (m *MockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
 	var trackers []types.SessionTracker
 	for _, tracker := range m.MockTrackers {
@@ -121,6 +118,10 @@ func (m *MockSessionTrackerService) GetSessionTracker(ctx context.Context, sessi
 		}
 	}
 	return nil, trace.NotFound("tracker not found")
+}
+
+func (m *MockSessionTrackerService) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	return nil, nil
 }
 
 func (m *MockSessionTrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {

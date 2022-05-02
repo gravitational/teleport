@@ -21,9 +21,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // SessionTrackerService is a realtime session service that has information about
@@ -32,11 +35,11 @@ type SessionTrackerService interface {
 	// GetActiveSessionTrackers returns a list of active session trackers.
 	GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error)
 
-	// CreateSessionTracker creates a tracker resource for an active session.
-	CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error)
-
 	// GetSessionTracker returns the current state of a session tracker for an active session.
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
+
+	// CreateSessionTracker creates a tracker resource for an active session.
+	CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error)
 
 	// UpdateSessionTracker updates a tracker resource for an active session.
 	UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error
@@ -106,6 +109,29 @@ func UpdateSessionTrackerExpiry(ctx context.Context, sts SessionTrackerService, 
 
 	err := sts.UpdateSessionTracker(ctx, req)
 	return trace.Wrap(err)
+}
+
+// TrackSession creates the given session tracker. The session tracker's expiration
+// will be extended on each tick from the given ticker until a termiante signal is
+// received. Then the tracker's state will be updated to terminated.
+func TrackSession(ctx context.Context, sts SessionTrackerService, tracker types.SessionTracker, ticker clockwork.Ticker, terminate <-chan struct{}) error {
+	if _, err := sts.CreateSessionTracker(ctx, tracker); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		select {
+		case time := <-ticker.Chan():
+			expiry := time.Add(apidefaults.SessionTrackerTTL)
+			if err := UpdateSessionTrackerExpiry(ctx, sts, tracker.GetSessionID(), expiry); err != nil {
+				return trace.Wrap(err)
+			}
+		case <-terminate:
+			err := UpdateSessionTrackerState(ctx, sts, tracker.GetSessionID(), types.SessionState_SessionStateTerminated)
+			return trace.Wrap(err)
+		}
+	}
+
 }
 
 // UnmarshalSessionTracker unmarshals the Session resource from JSON.

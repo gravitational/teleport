@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -405,8 +406,8 @@ func TestSessionTracker(t *testing.T) {
 	// Once the sesssion is closed and the last set
 	// expiration is up, the tracker should be deleted.
 	sess.Close()
-	regClock.Advance(defaults.SessionTrackerTTL)
-	srv.clock.Advance(defaults.SessionTrackerTTL)
+	regClock.Advance(apidefaults.SessionTrackerTTL)
+	srv.clock.Advance(apidefaults.SessionTrackerTTL)
 
 	trackerDeleted := func() bool {
 		_, err := srv.auth.GetSessionTracker(ctx, sess.ID())

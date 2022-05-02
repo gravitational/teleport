@@ -19,6 +19,8 @@ package types
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
+
 	"github.com/gravitational/trace"
 )
 
@@ -190,6 +192,19 @@ func (s *SessionTrackerV1) CheckAndSetDefaults() error {
 
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if s.GetCreated().IsZero() {
+		s.SetCreated(time.Now())
+	}
+
+	if s.Expiry().IsZero() {
+		// By default, resource expiration should match session expiration.
+		expiry := s.GetExpires()
+		if expiry.IsZero() {
+			expiry = s.GetCreated().Add(defaults.SessionTrackerTTL)
+		}
+		s.SetExpiry(expiry)
 	}
 
 	return nil

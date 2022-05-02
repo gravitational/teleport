@@ -27,8 +27,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -39,6 +39,8 @@ import (
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/julienschmidt/httprouter"
@@ -275,10 +277,7 @@ type session struct {
 
 	terminalSizeQueue *multiResizeQueue
 
-	state types.SessionState
-
-	// stateUpdate is used to notify listeners about state updates
-	stateUpdate *sync.Cond
+	tracker *sessionTrackerWithCond
 
 	accessEvaluator auth.SessionAccessEvaluator
 
@@ -343,7 +342,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		partiesHistorical:              make(map[uuid.UUID]*party),
 		log:                            log,
 		io:                             io,
-		state:                          types.SessionState_SessionStatePending,
 		accessEvaluator:                accessEvaluator,
 		emitter:                        events.NewDiscardEmitter(),
 		tty:                            tty,
@@ -354,7 +352,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		initiator:                      initiator.ID,
 		expires:                        time.Now().UTC().Add(sessionMaxLifetime),
 		PresenceEnabled:                ctx.Identity.GetIdentity().MFAVerified != "",
-		stateUpdate:                    sync.NewCond(&sync.Mutex{}),
 		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
 	}
 
@@ -370,8 +367,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		}
 	}()
 
-	err = s.trackerCreate(initiator, policySets)
-	if err != nil {
+	if err := s.trackSession(initiator, policySets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -384,12 +380,12 @@ func (s *session) waitOnAccess() {
 	s.io.Off()
 	s.BroadcastMessage("Session paused, Waiting for required participants...")
 
-	s.stateUpdate.L.Lock()
-	defer s.stateUpdate.L.Unlock()
+	s.tracker.stateUpdate.L.Lock()
+	defer s.tracker.stateUpdate.L.Unlock()
 
 outer:
 	for {
-		switch s.state {
+		switch s.tracker.state {
 		case types.SessionState_SessionStatePending:
 			continue
 		case types.SessionState_SessionStateTerminated:
@@ -398,7 +394,7 @@ outer:
 			break outer
 		}
 
-		s.stateUpdate.Wait()
+		s.tracker.stateUpdate.Wait()
 	}
 
 	s.BroadcastMessage("Resuming session...")
@@ -411,7 +407,7 @@ func (s *session) checkPresence() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sess, err := s.trackerGet()
+	sess, err := s.tracker.get()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -549,8 +545,7 @@ func (s *session) launch() error {
 		}
 	}()
 
-	err = s.trackerUpdateState(types.SessionState_SessionStateRunning)
-	if err != nil {
+	if err := s.tracker.updateState(types.SessionState_SessionStateRunning); err != nil {
 		s.log.Warn("Failed to set tracker state to running")
 	}
 
@@ -850,15 +845,15 @@ func (s *session) join(p *party) error {
 		}
 	}
 
-	s.stateUpdate.L.Lock()
-	state := s.state
-	s.stateUpdate.L.Unlock()
+	s.tracker.stateUpdate.L.Lock()
+	state := s.tracker.state
+	s.tracker.stateUpdate.L.Unlock()
 
 	if state == types.SessionState_SessionStateTerminated {
 		return trace.AccessDenied("The requested session is not active")
 	}
 
-	err := s.trackerAddParticipant(p)
+	err := s.tracker.addParty(p)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -968,10 +963,10 @@ func (s *session) BroadcastMessage(format string, args ...interface{}) {
 
 // leave removes a party from the session.
 func (s *session) leave(id uuid.UUID) error {
-	s.stateUpdate.L.Lock()
-	defer s.stateUpdate.L.Unlock()
+	s.tracker.stateUpdate.L.Lock()
+	defer s.tracker.stateUpdate.L.Unlock()
 
-	if s.state == types.SessionState_SessionStateTerminated {
+	if s.tracker.state == types.SessionState_SessionStateTerminated {
 		return nil
 	}
 
@@ -1012,7 +1007,7 @@ func (s *session) leave(id uuid.UUID) error {
 		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 
-	err := s.trackerRemoveParticipant(party.ID.String())
+	err := s.tracker.removeParty(party.ID.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1048,13 +1043,9 @@ func (s *session) leave(id uuid.UUID) error {
 				}
 			}()
 		} else {
-			s.state = types.SessionState_SessionStatePending
-			s.stateUpdate.Broadcast()
-			err := s.trackerUpdateState(types.SessionState_SessionStateRunning)
-			if err != nil {
+			if err := s.tracker.updateStateUnderLock(types.SessionState_SessionStateRunning); err != nil {
 				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 			}
-
 			go s.waitOnAccess()
 		}
 	}
@@ -1104,21 +1095,13 @@ func (s *session) Close() error {
 
 	s.closeOnce.Do(func() {
 		s.BroadcastMessage("Closing session...")
-		s.stateUpdate.L.Lock()
-		defer s.stateUpdate.L.Unlock()
-		s.state = types.SessionState_SessionStateTerminated
+
 		s.io.Close()
-		s.stateUpdate.Broadcast()
-		err := s.trackerUpdateState(types.SessionState_SessionStateTerminated)
-		if err != nil {
-			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateTerminated)
-		}
 
 		s.log.Debugf("Closing session %v.", s.id.String())
 		close(s.closeC)
 		for id, party := range s.parties {
-			err = party.Close()
-			if err != nil {
+			if err := party.Close(); err != nil {
 				s.log.WithError(err).Errorf("Failed to disconnect party %v", id.String())
 			}
 		}
@@ -1146,15 +1129,19 @@ func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, err
 	return roles, nil
 }
 
-func (s *session) trackerGet() (types.SessionTracker, error) {
-	sess, err := s.forwarder.cfg.AuthClient.GetSessionTracker(s.forwarder.ctx, s.id.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
-}
+// trackSession creates a new session tracker for the kube session.
+// While ctx is open, the session tracker's expiration will be extended
+// on an interval. Once the ctx is closed, the sessiont tracker's state
+// will be updated to terminated.
+func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicySet) error {
+	s.log.Debugf("Starting tracker for session %v", s.id.String())
 
-func (s *session) trackerCreate(p *party, policySet []*types.SessionTrackerPolicySet) error {
+	s.tracker = &sessionTrackerWithCond{
+		SessionTrackerService: s.forwarder.cfg.AuthClient,
+		state:                 types.SessionState_SessionStatePending,
+		stateUpdate:           sync.NewCond(&sync.Mutex{}),
+	}
+
 	initiator := &types.Participant{
 		ID:         p.ID.String(),
 		User:       p.Ctx.User.GetName(),
@@ -1166,66 +1153,83 @@ func (s *session) trackerCreate(p *party, policySet []*types.SessionTrackerPolic
 		Kind:              string(types.KubernetesSessionKind),
 		State:             types.SessionState_SessionStatePending,
 		Hostname:          s.podName,
-		KubernetesCluster: s.ctx.kubeCluster,
 		ClusterName:       s.ctx.teleportCluster.name,
-		Login:             "root",
 		Participants:      []types.Participant{*initiator},
+		KubernetesCluster: s.ctx.kubeCluster,
 		HostUser:          initiator.User,
 		HostPolicies:      policySet,
+		Login:             "root",
+		Created:           time.Now(),
 	})
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
 
-	_, err = s.forwarder.cfg.AuthClient.CreateSessionTracker(s.forwarder.ctx, tracker)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Start go routine to push back session expiration while session is still active.
 	go func() {
 		ticker := s.forwarder.cfg.Clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
 		defer ticker.Stop()
-		for {
-			select {
-			case time := <-ticker.Chan():
-				if err := s.trackerUpdateExpiry(time.Add(defaults.SessionTrackerTTL)); err != nil {
-					s.log.WithError(err).Warningf("Failed to update session tracker expiration.")
-				}
-			case <-s.closeC:
-				return
-			}
+		if err := services.TrackSession(s.forwarder.ctx, s.tracker, tracker, ticker, s.closeC); err != nil {
+			s.log.Debugf("Error tracking session state for session %v", s.id)
 		}
 	}()
 
 	return nil
 }
 
-func (s *session) trackerAddParticipant(participant *party) error {
-	s.log.Debugf("Tracking participant: %v", participant.ID.String())
+type sessionTrackerWithCond struct {
+	sess *session
+	services.SessionTrackerService
 
-	err := services.AddSessionTrackerParticipant(s.forwarder.ctx, s.forwarder.cfg.AuthClient, s.id.String(), &types.Participant{
-		ID:         participant.ID.String(),
-		User:       participant.Ctx.User.GetName(),
-		Mode:       string(participant.Mode),
+	state       types.SessionState
+	stateUpdate *sync.Cond
+}
+
+// UpdateSessionTracker updates the session tracker, locking
+// on the stateUpdate condition for state updates.
+func (s *sessionTrackerWithCond) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	if req.GetUpdateState() != nil {
+		s.stateUpdate.L.Lock()
+		defer s.stateUpdate.L.Unlock()
+		s.state = req.GetUpdateState().GetState()
+		s.stateUpdate.Broadcast()
+	}
+	return s.SessionTrackerService.UpdateSessionTracker(ctx, req)
+}
+
+func (s *sessionTrackerWithCond) get() (types.SessionTracker, error) {
+	sess, err := s.GetSessionTracker(s.sess.forwarder.ctx, s.sess.id.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+func (s *sessionTrackerWithCond) addParty(p *party) error {
+	s.sess.log.Debugf("Tracking participant: %s", p.ID)
+	err := services.AddSessionTrackerParticipant(s.sess.forwarder.ctx, s, s.sess.id.String(), &types.Participant{
+		ID:         p.ID.String(),
+		User:       p.Ctx.User.GetName(),
+		Mode:       string(p.Mode),
 		LastActive: time.Now().UTC(),
 	})
 	return trace.Wrap(err)
 }
 
-func (s *session) trackerRemoveParticipant(participantID string) error {
-	s.log.Debugf("Not tracking participant: %v", participantID)
-
-	err := services.RemoveSessionTrackerParticipant(s.forwarder.ctx, s.forwarder.cfg.AuthClient, s.id.String(), participantID)
+func (s *sessionTrackerWithCond) removeParty(partyID string) error {
+	s.sess.log.Debugf("Not tracking participant: %s", partyID)
+	err := services.RemoveSessionTrackerParticipant(s.sess.forwarder.ctx, s, s.sess.id.String(), partyID)
 	return trace.Wrap(err)
 }
 
-func (s *session) trackerUpdateState(state types.SessionState) error {
-	err := services.UpdateSessionTrackerState(s.forwarder.ctx, s.forwarder.cfg.AuthClient, s.id.String(), state)
+func (s *sessionTrackerWithCond) updateState(state types.SessionState) error {
+	err := services.UpdateSessionTrackerState(s.sess.forwarder.ctx, s, s.sess.id.String(), state)
 	return trace.Wrap(err)
 }
 
-func (s *session) trackerUpdateExpiry(expires time.Time) error {
-	err := services.UpdateSessionTrackerExpiry(s.forwarder.ctx, s.forwarder.cfg.AuthClient, s.id.String(), expires)
+// updateStateUnderLock Must be called under stateUpdate lock
+func (s *sessionTrackerWithCond) updateStateUnderLock(state types.SessionState) error {
+	s.state = state
+	s.stateUpdate.Broadcast()
+
+	err := services.UpdateSessionTrackerState(s.sess.forwarder.ctx, s.sess.forwarder.cfg.AuthClient, s.sess.id.String(), state)
 	return trace.Wrap(err)
 }

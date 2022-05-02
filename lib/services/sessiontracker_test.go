@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,93 +14,83 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package db
+package services
 
 import (
 	"context"
-	"io"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
-func TestSessionTracker(t *testing.T) {
+func TestTrackSession(t *testing.T) {
 	ctx := context.Background()
-	log := logrus.New()
-	log.SetOutput(io.Discard)
 	clock := clockwork.NewFakeClockAt(time.Now())
 
-	mockAuthClient := &mockSessiontrackerService{
-		clock:    clock,
+	mockSessionTrackerService := &mockSessiontrackerService{
 		trackers: make(map[string]types.SessionTracker),
 	}
+	sessID := "sessionID"
 
-	s := &Server{
-		closeContext: ctx,
-		log:          logrus.NewEntry(log),
-		cfg: Config{
-			Clock:      clock,
-			AuthClient: mockAuthClient,
-		},
+	// Create a ticker and begin tracking the fake session
+	ticker := clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
+	closeCtx, cancel := context.WithCancel(ctx)
+	doneTracking := make(chan struct{})
+	go func() {
+		defer close(doneTracking)
+
+		// Prepare a fake session tracker, expiry should automatically be set
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: sessID,
+			Created:   clock.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, tracker.GetCreated().Add(apidefaults.SessionTrackerTTL), tracker.Expiry())
+
+		err = TrackSession(ctx, mockSessionTrackerService, tracker, ticker, closeCtx.Done())
+		require.NoError(t, err)
+	}()
+
+	// tracker should be created
+	var tracker types.SessionTracker
+	trackerCreated := func() bool {
+		mockSessionTrackerService.Lock()
+		defer mockSessionTrackerService.Unlock()
+		tracker = mockSessionTrackerService.trackers[sessID]
+		return tracker != nil
 	}
+	require.Eventually(t, trackerCreated, time.Second, time.Millisecond*100)
 
-	sessionCtx := &common.Session{
-		ID:           "sessionID",
-		DatabaseUser: "user",
-		Identity: tlsca.Identity{
-			Username: "teleportUser",
-		},
-		HostID:       "hostname",
-		DatabaseName: "dbName",
-		ClusterName:  "clusterName",
-	}
-
-	cancelCtx, cancel := context.WithCancel(ctx)
-	err := s.trackSession(cancelCtx, sessionCtx)
-	require.NoError(t, err)
-
-	// Tracker should be created
-	tracker, ok := mockAuthClient.trackers["sessionID"]
-	require.True(t, ok)
-	require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetState())
-
-	// The session tracker expiration should be extended while the session is active
-	clock.BlockUntil(1)
+	// The session tracker expiration should be extended while ticker is ticking
 	expectedExpiry := tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval)
 	clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
 
 	trackerExpiryUpdated := func() bool {
-		mockAuthClient.Lock()
-		defer mockAuthClient.Unlock()
+		mockSessionTrackerService.Lock()
+		defer mockSessionTrackerService.Unlock()
 		return tracker.Expiry() == expectedExpiry
 	}
-	require.Eventually(t, trackerExpiryUpdated, time.Second*5, time.Second)
+	require.Eventually(t, trackerExpiryUpdated, time.Second, time.Millisecond*100)
 
-	// Closing ctx should trigger session tracker state to be terminated.
+	// Stopping ctx should stop the tracker and update the state to terminated
 	cancel()
-	trackerTerminated := func() bool {
-		mockAuthClient.Lock()
-		defer mockAuthClient.Unlock()
-		return tracker.GetState() == types.SessionState_SessionStateTerminated
+	select {
+	case <-doneTracking:
+	case <-time.After(time.Second * 1):
+		t.Fatal("timeout waiting for tracking to end")
 	}
-	require.Eventually(t, trackerTerminated, time.Second*5, time.Second)
+	require.Equal(t, types.SessionState_SessionStateTerminated, tracker.GetState())
 }
 
 type mockSessiontrackerService struct {
-	auth.ClientI
-
 	sync.Mutex
-	clock    clockwork.Clock
 	trackers map[string]types.SessionTracker
 }
 
@@ -119,8 +109,6 @@ func (m *mockSessiontrackerService) UpdateSessionTracker(ctx context.Context, re
 		defer m.Unlock()
 		m.trackers[req.SessionID].SetExpiry(*update.UpdateExpiry.Expires)
 	case *proto.UpdateSessionTrackerRequest_UpdateState:
-		m.Lock()
-		defer m.Unlock()
 		m.trackers[req.SessionID].SetState(update.UpdateState.State)
 	}
 	return nil
@@ -135,7 +123,8 @@ func (m *mockSessiontrackerService) UpdatePresence(ctx context.Context, sessionI
 }
 
 func (m *mockSessiontrackerService) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	tracker.SetExpiry(m.clock.Now().Add(defaults.SessionTrackerTTL))
+	m.Lock()
+	defer m.Unlock()
 	m.trackers[tracker.GetSessionID()] = tracker
-	return nil, nil
+	return tracker, nil
 }

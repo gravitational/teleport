@@ -872,9 +872,10 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 // on an interval. Once the ctx is closed, the sessiont tracker's state
 // will be updated to terminated.
 func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) error {
-	s.log.Debug("Creating session tracker")
+	s.log.Debugf("Starting tracker for session %v", sessionCtx.ID)
+
 	initiator := &types.Participant{
-		ID:   sessionCtx.DatabaseUser,
+		ID:   sessionCtx.Identity.Username,
 		User: sessionCtx.Identity.Username,
 	}
 
@@ -885,37 +886,20 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		Hostname:     sessionCtx.HostID,
 		DatabaseName: sessionCtx.DatabaseName,
 		ClusterName:  sessionCtx.ClusterName,
-		Login:        "root",
+		Login:        sessionCtx.Identity.GetUserMetadata().Login,
 		Participants: []types.Participant{*initiator},
 		HostUser:     initiator.User,
+		Created:      s.cfg.Clock.Now(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = s.cfg.AuthClient.CreateSessionTracker(ctx, tracker)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Start go routine to push back session expiration until ctx is canceled (session ends).
 	go func() {
 		ticker := s.cfg.Clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
 		defer ticker.Stop()
-		for {
-			select {
-			case time := <-ticker.Chan():
-				err := services.UpdateSessionTrackerExpiry(ctx, s.cfg.AuthClient, sessionCtx.ID, time.Add(defaults.SessionTrackerTTL))
-				if err != nil {
-					s.log.WithError(err).Warningf("Failed to update session tracker expiration for session %v.", sessionCtx.ID)
-					return
-				}
-			case <-ctx.Done():
-				if err := services.UpdateSessionTrackerState(s.closeContext, s.cfg.AuthClient, sessionCtx.ID, types.SessionState_SessionStateTerminated); err != nil {
-					s.log.WithError(err).Warningf("Failed to update session tracker state for session %v.", sessionCtx.ID)
-				}
-				return
-			}
+		if err := services.TrackSession(s.closeContext, s.cfg.AuthClient, tracker, ticker, ctx.Done()); err != nil {
+			s.log.Debugf("Error tracking session state for session %v", sessionCtx.ID)
 		}
 	}()
 
