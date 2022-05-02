@@ -247,9 +247,9 @@ func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) *clie
 		TLSCert:   ident.TLSCertBytes,
 		TrustedCA: auth.AuthoritiesToTrustedCerts(hostCAs),
 
-		// TODO: configure these? we have a 1:1 mapping of destination
-		// -> app/db/kube cert so this should be knowable, but are these ever
-		// used by identityfile?
+		// Note: these fields are never used or persisted with identity files,
+		// so we won't bother to set them. (They may need to be reconstituted
+		// on tsh's end based on cert fields, though.)
 		KubeTLSCerts: make(map[string][]byte),
 		DBTLSCerts:   make(map[string][]byte),
 	}
