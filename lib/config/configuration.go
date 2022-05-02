@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"crypto/x509"
 	"io"
+	stdlog "log"
 	"net"
 	"net/url"
 	"os"
@@ -32,8 +33,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-
-	stdlog "log"
 
 	"golang.org/x/crypto/ssh"
 
@@ -150,6 +149,9 @@ type CommandLineFlags struct {
 	DatabaseADDomain string
 	// DatabaseADSPN is the database Service Principal Name.
 	DatabaseADSPN string
+	// DatabaseMySQLServerVersion is the MySQL server version reported to a client
+	// if the value cannot be obtained from the database.
+	DatabaseMySQLServerVersion string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -1082,6 +1084,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
+			MySQL: service.MySQLOptions{
+				ServerVersion: database.MySQL.ServerVersion,
+			},
 			TLS: service.DatabaseTLS{
 				CACert:     caBytes,
 				ServerName: database.TLS.ServerName,
@@ -1664,11 +1669,14 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			}
 		}
 		db := service.Database{
-			Name:          clf.DatabaseName,
-			Description:   clf.DatabaseDescription,
-			Protocol:      clf.DatabaseProtocol,
-			URI:           clf.DatabaseURI,
-			StaticLabels:  staticLabels,
+			Name:         clf.DatabaseName,
+			Description:  clf.DatabaseDescription,
+			Protocol:     clf.DatabaseProtocol,
+			URI:          clf.DatabaseURI,
+			StaticLabels: staticLabels,
+			MySQL: service.MySQLOptions{
+				ServerVersion: clf.DatabaseMySQLServerVersion,
+			},
 			DynamicLabels: dynamicLabels,
 			TLS: service.DatabaseTLS{
 				CACert: caBytes,

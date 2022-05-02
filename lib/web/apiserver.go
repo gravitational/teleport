@@ -944,12 +944,21 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AuthType:         constants.Local,
 		}
 	} else {
+		authType := cap.GetType()
+		var localConnectorName string
+
+		if authType == constants.Local {
+			localConnectorName = cap.GetConnectorName()
+		}
+
 		authSettings = webclient.WebConfigAuthSettings{
-			Providers:         authProviders,
-			SecondFactor:      cap.GetSecondFactor(),
-			LocalAuthEnabled:  cap.GetAllowLocalAuth(),
-			AuthType:          cap.GetType(),
-			PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+			Providers:          authProviders,
+			SecondFactor:       cap.GetSecondFactor(),
+			LocalAuthEnabled:   cap.GetAllowLocalAuth(),
+			AllowPasswordless:  cap.GetAllowPasswordless(),
+			AuthType:           authType,
+			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
+			LocalConnectorName: localConnectorName,
 		}
 	}
 
@@ -1570,6 +1579,8 @@ type changeUserAuthenticationRequest struct {
 	SecondFactorToken string `json:"second_factor_token"`
 	// TokenID is the ID of a reset or invite token.
 	TokenID string `json:"token"`
+	// DeviceName is the name of new mfa or passwordless device.
+	DeviceName string `json:"deviceName"`
 	// Password is user password string converted to bytes.
 	Password []byte `json:"password"`
 	// WebauthnCreationResponse is the signed credential creation response.
@@ -1583,8 +1594,9 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	protoReq := &proto.ChangeUserAuthenticationRequest{
-		TokenID:     req.TokenID,
-		NewPassword: req.Password,
+		TokenID:       req.TokenID,
+		NewPassword:   req.Password,
+		NewDeviceName: req.DeviceName,
 	}
 	switch {
 	case req.WebauthnCreationResponse != nil:

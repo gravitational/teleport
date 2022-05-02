@@ -477,7 +477,7 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 	require.NoError(t, err)
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
-		Protocol:           protocol,
+		Protocols:          []alpncommon.Protocol{protocol},
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      context.Background(),

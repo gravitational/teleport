@@ -500,8 +500,8 @@ github.com/gravitational/go-libfido2 v1.5.3-0.20220420140227-d3cb2f4b1e16 h1:eJt
 github.com/gravitational/go-libfido2 v1.5.3-0.20220420140227-d3cb2f4b1e16/go.mod h1:P0V19qHwJNY0htZwZDe9Ilvs/nokGhdFX7faKFyZ6+U=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0 h1:DC+S+j/tBs/0MnQCC5j7GWWbMGcR3ca5v75ksAU1LJM=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0/go.mod h1:iiK0YP1ZeepvmBQk/QpLEhhTNJgfzrpArPY/aFvc9yU=
-github.com/gravitational/go-mysql v1.1.1-teleport.2 h1:XZ36BZ7BgslA5ZCyCHjpc1wilFITThIH7cLcbLWKWzM=
-github.com/gravitational/go-mysql v1.1.1-teleport.2/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
+github.com/gravitational/go-mysql v1.1.1-teleport.3 h1:7tf9m9EjaDiZy8OZFmPMEyxmEYDswI8CfyhZzh5lH6E=
+github.com/gravitational/go-mysql v1.1.1-teleport.3/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
 github.com/gravitational/go-oidc v0.0.6 h1:DCllahGYxDAvxWsq8UILgO+/i1EheQRxcNzS+D+wP5I=
 github.com/gravitational/go-oidc v0.0.6/go.mod h1:SevmOUNdOB0aD9BAIgjptZ6oHkKxMZZgA70nwPfgU/w=
 github.com/gravitational/gosaml2 v0.0.0-20220318224559-f06932032ae2 h1:8z1D1fehTDV20wkiGX+JTnlevvEUeVEh4LCygvOrFBs=
