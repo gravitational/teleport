@@ -19,7 +19,6 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -134,7 +133,7 @@ func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadRequest)
+	writeHeaderToHijackedConnection(clientConn, req, http.StatusBadRequest)
 }
 
 // ForwardToHostHandlerConfig is the config for ForwardToHostHandler.
@@ -201,13 +200,13 @@ func (h *ForwardToHostHandler) Handle(ctx context.Context, clientConn net.Conn, 
 	serverConn, err := net.Dial("tcp", host)
 	if err != nil {
 		log.WithError(err).Errorf("Failed to connect to host %q.", host)
-		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusInternalServerError)
+		writeHeaderToHijackedConnection(clientConn, req, http.StatusInternalServerError)
 		return
 	}
 	defer serverConn.Close()
 
 	// Send OK to client to let it know the tunnel is ready.
-	if ok := writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusOK); !ok {
+	if ok := writeHeaderToHijackedConnection(clientConn, req, http.StatusOK); !ok {
 		return
 	}
 
@@ -270,14 +269,14 @@ func (h *ForwardToSystemProxyHandler) Match(req *http.Request) bool {
 func (h *ForwardToSystemProxyHandler) Handle(ctx context.Context, clientConn net.Conn, req *http.Request) {
 	systemProxyURL := h.getSystemProxyURL(req)
 	if systemProxyURL == nil {
-		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadRequest)
+		writeHeaderToHijackedConnection(clientConn, req, http.StatusBadRequest)
 		return
 	}
 
 	serverConn, err := h.connectToSystemProxy(systemProxyURL)
 	if err != nil {
 		log.WithError(err).Errorf("Failed to connect to system proxy %q.", systemProxyURL.Host)
-		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadGateway)
+		writeHeaderToHijackedConnection(clientConn, req, http.StatusBadGateway)
 		return
 	}
 
@@ -287,7 +286,7 @@ func (h *ForwardToSystemProxyHandler) Handle(ctx context.Context, clientConn net
 	// Send original CONNECT request to system proxy.
 	if err = req.WriteProxy(serverConn); err != nil {
 		log.WithError(err).Errorf("Failed to send CONNTECT request to system proxy %q.", systemProxyURL.Host)
-		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadGateway)
+		writeHeaderToHijackedConnection(clientConn, req, http.StatusBadGateway)
 		return
 	}
 
@@ -384,9 +383,14 @@ func hijackClientConnection(rw http.ResponseWriter) net.Conn {
 }
 
 // writeHeaderToHijackedConnection writes HTTP status to hijacked connection.
-func writeHeaderToHijackedConnection(conn net.Conn, protocol string, statusCode int) bool {
-	formatted := fmt.Sprintf("%s %d %s\r\n\r\n", protocol, statusCode, http.StatusText(statusCode))
-	_, err := conn.Write([]byte(formatted))
+func writeHeaderToHijackedConnection(conn net.Conn, req *http.Request, statusCode int) bool {
+	resp := http.Response{
+		StatusCode: statusCode,
+		Proto:      req.Proto,
+		ProtoMajor: req.ProtoMajor,
+		ProtoMinor: req.ProtoMinor,
+	}
+	err := resp.Write(conn)
 	if err != nil && !utils.IsOKNetworkError(err) {
 		log.WithError(err).Errorf("Failed to write status code %d to client connection.", statusCode)
 		return false
