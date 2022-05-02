@@ -303,17 +303,19 @@ func (a *Aptly) GetRootDir() (string, error) {
 		return "", trace.Wrap(err, "failed to unmarshal `%s` output JSON into map", output)
 	}
 
-	if rootDirValue, ok := outputJSON["rootDir"]; !ok {
+	rootDirValue, ok := outputJSON["rootDir"]
+	if !ok {
 		return "", trace.Errorf("Failed to find `rootDir` key in `%s` output JSON", output)
-	} else {
-		rootDirString, ok := rootDirValue.(string)
-		if !ok {
-			return "", trace.Errorf("The `rootDir` key in `%s` output JSON is not of type `string`", output)
-		}
-
-		logrus.Debugf("Found Aptly root directory at %q\n", rootDirString)
-		return rootDirString, nil
 	}
+
+	rootDirString, ok := rootDirValue.(string)
+	if !ok {
+		return "", trace.Errorf("The `rootDir` key in `%s` output JSON is not of type `string`", output)
+	}
+
+	logrus.Debugf("Found Aptly root directory at %q\n", rootDirString)
+	return rootDirString, nil
+
 }
 
 // Creates Aptly repos from a local path that has previously published Apt repos created by this tool.
