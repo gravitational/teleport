@@ -306,12 +306,13 @@ func (a *Aptly) GetRootDir() (string, error) {
 	if rootDirValue, ok := outputJSON["rootDir"]; !ok {
 		return "", trace.Errorf("Failed to find `rootDir` key in `%s` output JSON", output)
 	} else {
-		if rootDirString, ok := rootDirValue.(string); !ok {
+		rootDirString, ok := rootDirValue.(string)
+		if !ok {
 			return "", trace.Errorf("The `rootDir` key in `%s` output JSON is not of type `string`", output)
-		} else {
-			logrus.Debugf("Found Aptly root directory at %q\n", rootDirString)
-			return rootDirString, nil
 		}
+
+		logrus.Debugf("Found Aptly root directory at %q\n", rootDirString)
+		return rootDirString, nil
 	}
 }
 
