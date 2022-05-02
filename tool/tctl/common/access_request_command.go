@@ -307,7 +307,7 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 	fmt.Println("Requests deleted successfully.")
 	if len(approvedTokens) > 0 {
 		fmt.Println("\nSince this access request has already been approved, deleting the request now will NOT remove")
-		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the requested")
+		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the requested roles")
 		fmt.Printf("you can run:\n\n")
 		for _, reqID := range approvedTokens {
 			fmt.Printf("> tctl lock --access_request %s\n\n", reqID)
