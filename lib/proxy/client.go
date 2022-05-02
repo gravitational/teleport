@@ -216,6 +216,9 @@ func (c *Client) sync() {
 			Client:    c.config.AccessPoint,
 			Log:       c.config.Log,
 		},
+		ProxyDiffer: func(old, new types.Server) bool {
+			return old.GetPeerAddr() != new.GetPeerAddr()
+		},
 	})
 	if err != nil {
 		c.config.Log.Errorf("Error initializing proxy peer watcher: %+v.", err)
@@ -442,6 +445,10 @@ func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient,
 // The boolean returned in the second argument is intended for testing purposes,
 // to indicates whether the connection was cached or newly established.
 func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) {
+	if len(proxyIDs) == 0 {
+		return nil, false, trace.BadParameter("failed to dial: no proxy ids given")
+	}
+
 	ids := make(map[string]struct{})
 	var conns []*clientConn
 

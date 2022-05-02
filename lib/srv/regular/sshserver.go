@@ -188,6 +188,9 @@ type Server struct {
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
+
+	// connectedProxyGetter gets the proxies teleport is connected to.
+	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
 }
 
 // GetClock returns server clock implementation
@@ -564,6 +567,14 @@ func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	}
 }
 
+// SetConnectedProxyGetter sets the ConnectedProxyGetter.
+func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
+	return func(s *Server) error {
+		s.connectedProxyGetter = getter
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -627,6 +638,10 @@ func New(addr utils.NetAddr,
 
 	if s.lockWatcher == nil {
 		return nil, trace.BadParameter("setup valid LockWatcher parameter using SetLockWatcher")
+	}
+
+	if s.connectedProxyGetter == nil {
+		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	var component string
@@ -826,6 +841,7 @@ func (s *Server) GetInfo() types.Server {
 			Hostname:  s.hostname,
 			UseTunnel: s.useTunnel,
 			Version:   teleport.Version,
+			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
 		},
 	}
 }
@@ -842,6 +858,7 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 			server.SetRotation(*rotation)
 		}
 	}
+
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
 	server.SetPeerAddr(s.peerAddr)

@@ -291,6 +291,9 @@ type ProxyWatcherConfig struct {
 	ResourceWatcherConfig
 	// ProxyGetter is used to directly fetch the list of active proxies.
 	ProxyGetter
+	// ProxyDiffer is used to decide whether a put operation on an existing proxy should
+	// trigger a event.
+	ProxyDiffer func(old, new types.Server) bool
 	// ProxiesC is a channel used to report the current proxy set. It receives
 	// a fresh list at startup and subsequently a list of all known proxies
 	// whenever an addition or deletion is detected.
@@ -401,10 +404,9 @@ func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event
 			p.Log.Warningf("Unexpected type %T.", event.Resource)
 			return
 		}
-		_, known := p.current[server.GetName()]
+		current, exists := p.current[server.GetName()]
 		p.current[server.GetName()] = server
-		// Broadcast only creation of new proxies (not known before).
-		if !known {
+		if !exists || (p.ProxyDiffer != nil && p.ProxyDiffer(current, server)) {
 			p.broadcastUpdate(ctx)
 		}
 	default:

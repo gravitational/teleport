@@ -1175,46 +1175,37 @@ func TestProxyRoundRobin(t *testing.T) {
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	// start agent and load balance requests
-	eventsC := make(chan string, 2)
-	rsAgent, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
-		Context:     ctx,
-		Addr:        reverseTunnelAddress,
-		ClusterName: "remote",
-		Username:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
-		Signer:      f.signer,
-		Client:      proxyClient,
-		AccessPoint: proxyClient,
-		EventsC:     eventsC,
-		Log:         logger,
-	})
-	require.NoError(t, err)
-	rsAgent.Start()
-
-	rsAgent2, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
-		Context:     ctx,
-		Addr:        reverseTunnelAddress,
-		ClusterName: "remote",
-		Username:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
-		Signer:      f.signer,
-		Client:      proxyClient,
-		AccessPoint: proxyClient,
-		EventsC:     eventsC,
-		Log:         logger,
-	})
-	require.NoError(t, err)
-	rsAgent2.Start()
-	defer rsAgent2.Close()
-
-	timeout := time.After(time.Second)
-	for i := 0; i < 2; i++ {
-		select {
-		case event := <-eventsC:
-			require.Equal(t, reversetunnel.ConnectedEvent, event)
-		case <-timeout:
-			require.FailNow(t, "timeout waiting for clusters to connect")
-		}
+	resolver := func() (*utils.NetAddr, error) {
+		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, nil
 	}
+
+	pool1, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
+		Resolver:    resolver,
+		Client:      proxyClient,
+		AccessPoint: proxyClient,
+		HostSigner:  f.signer,
+		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
+		Cluster:     "remote",
+	})
+	require.NoError(t, err)
+
+	err = pool1.Start()
+	require.NoError(t, err)
+	defer pool1.Stop()
+
+	pool2, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
+		Resolver:    resolver,
+		Client:      proxyClient,
+		AccessPoint: proxyClient,
+		HostSigner:  f.signer,
+		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
+		Cluster:     "remote",
+	})
+	require.NoError(t, err)
+
+	err = pool2.Start()
+	require.NoError(t, err)
+	defer pool2.Stop()
 
 	sshConfig := &ssh.ClientConfig{
 		User:            f.user,
@@ -1228,8 +1219,9 @@ func TestProxyRoundRobin(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
 	}
+
 	// close first connection, and test it again
-	rsAgent.Close()
+	pool1.Stop()
 
 	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)

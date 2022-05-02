@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -69,7 +69,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		AddrNetwork: dial.Destination.Network,
 	}
 
-	nodeConn, err := s.clusterDialer.Dial(clusterName, reversetunnel.DialParams{
+	nodeConn, err := s.clusterDialer.Dial(clusterName, DialParams{
 		From:     source,
 		To:       destination,
 		ServerID: dial.NodeID,
@@ -107,28 +107,12 @@ func splitServerID(address string) (string, string, error) {
 
 // ClusterDialer dials a node in the given cluster.
 type ClusterDialer interface {
-	Dial(clusterName string, request reversetunnel.DialParams) (net.Conn, error)
+	Dial(clusterName string, request DialParams) (net.Conn, error)
 }
 
-// clusterDialerFunc is a function that implements ClusterDialer.
-type clusterDialerFunc func(clusterName string, request reversetunnel.DialParams) (net.Conn, error)
-
-func (f clusterDialerFunc) Dial(clusterName string, request reversetunnel.DialParams) (net.Conn, error) {
-	return f(clusterName, request)
-}
-
-// NewClusterDialer implements ClusterDialer for a reverse tunnel server.
-func NewClusterDialer(server reversetunnel.Server) ClusterDialer {
-	return clusterDialerFunc(func(clusterName string, request reversetunnel.DialParams) (net.Conn, error) {
-		site, err := server.GetSite(clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		conn, err := site.Dial(request)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return conn, nil
-	})
+type DialParams struct {
+	From     *utils.NetAddr
+	To       *utils.NetAddr
+	ServerID string
+	ConnType types.TunnelType
 }

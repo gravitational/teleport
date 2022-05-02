@@ -287,6 +287,7 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType: types.WindowsDesktopTunnel,
 		ServerID: service.GetName() + "." + clusterName,
+		ProxyIDs: service.GetProxyIDs(),
 	})
 }
 
