@@ -437,6 +437,9 @@ const (
 	// CertExtensionGeneration counts the number of times a certificate has
 	// been renewed.
 	CertExtensionGeneration = "generation"
+	// CertExtensionAllowedResources lists the resources which this certificate
+	// should be allowed to access
+	CertExtensionAllowedResources = "allowed-resources"
 )
 
 const (

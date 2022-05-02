@@ -1284,6 +1284,9 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 }
 
 func ResourceIDsToString(ids []types.ResourceID) (string, error) {
+	if len(ids) == 0 {
+		return "", nil
+	}
 	bytes, err := utils.FastMarshal(ids)
 	if err != nil {
 		return "", trace.BadParameter("failed to marshal resource IDs to JSON: %v", err)
@@ -1292,6 +1295,9 @@ func ResourceIDsToString(ids []types.ResourceID) (string, error) {
 }
 
 func ResourceIDsFromString(raw string) ([]types.ResourceID, error) {
+	if raw == "" {
+		return nil, nil
+	}
 	resourceIDs := []types.ResourceID{}
 	if err := utils.FastUnmarshal([]byte(raw), &resourceIDs); err != nil {
 		return nil, trace.BadParameter("failed to parse resource IDs from JSON: %v", err)
