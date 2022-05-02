@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"strconv"
@@ -70,6 +71,11 @@ func New(cfg Config) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	cert, err := tls.LoadX509KeyPair(cfg.CertPath, cfg.KeyPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
 		InsecureSkipVerify: cfg.Insecure,
 		RemoteProxyAddr:    cfg.WebProxyAddr,
@@ -77,6 +83,7 @@ func New(cfg Config) (*Gateway, error) {
 		Listener:           listener,
 		ParentContext:      closeContext,
 		SNI:                address.Host(),
+		Certs:              []tls.Certificate{cert},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
