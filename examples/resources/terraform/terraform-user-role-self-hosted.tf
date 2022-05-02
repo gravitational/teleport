@@ -59,7 +59,7 @@ resource "teleport_role" "terraform-test" {
 
       node_labels = {
          key = ["example"]
-         value = ["yes"]
+         alabel = ["with", "multiple", "values"]
       }
     }
 
