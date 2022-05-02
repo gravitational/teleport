@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,27 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package bot
 
 import (
-	"strings"
-	"unicode"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-// Capitalize returns a copy of the string
-// with first rune converted to capital letter
-func Capitalize(s string) string {
-	// Use a closure here to remember state.
-	// Hackish but effective. Depends on Map scanning in order and calling
-	// the closure once per rune.
-	done := false
-	return strings.Map(
-		func(r rune) rune {
-			if done {
-				return r
-			}
-			done = true
-			return unicode.ToTitle(r)
-		},
-		s)
+func TestFindBranches(t *testing.T) {
+	branches := findBranches([]string{
+		"backport/branch/v7",
+		"backport/branchv8",
+		"backport/master",
+		"backport/foo",
+		"branch/v9",
+	})
+	require.ElementsMatch(t, branches, []string{
+		"branch/v7",
+		"master",
+	})
 }

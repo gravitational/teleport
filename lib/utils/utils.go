@@ -387,29 +387,26 @@ func OpaqueAccessDenied(err error) error {
 }
 
 // PortList is a list of TCP port
-type PortList struct {
-	ports []int
-	mu    sync.Mutex
-}
+type PortList []string
 
 // Pop returns a value from the list, it panics if the value is not there
 func (p *PortList) Pop() string {
-	return strconv.Itoa(p.PopInt())
+	if len(*p) == 0 {
+		panic("list is empty")
+	}
+	val := (*p)[len(*p)-1]
+	*p = (*p)[:len(*p)-1]
+	return val
 }
 
 // PopInt returns a value from the list, it panics if not enough values
 // were allocated
 func (p *PortList) PopInt() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	l := len(p.ports)
-	if l == 0 {
-		panic("list is empty")
+	i, err := strconv.Atoi(p.Pop())
+	if err != nil {
+		panic(err)
 	}
-	val := p.ports[l-1]
-	p.ports = p.ports[:l-1]
-	return val
+	return i
 }
 
 // PopIntSlice returns a slice of values from the list, it panics if not enough
@@ -427,15 +424,15 @@ const PortStartingNumber = 20000
 
 // GetFreeTCPPorts returns n ports starting from port 20000.
 func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
-	list := make([]int, 0, n)
+	list := make(PortList, 0, n)
 	start := PortStartingNumber
 	if len(offset) != 0 {
 		start = offset[0]
 	}
 	for i := start; i < start+n; i++ {
-		list = append(list, i)
+		list = append(list, strconv.Itoa(i))
 	}
-	return PortList{ports: list}, nil
+	return list, nil
 }
 
 // ReadHostUUID reads host UUID from the file in the data dir
@@ -446,9 +443,13 @@ func ReadHostUUID(dataDir string) (string, error) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
 			return "", err
 		}
-		return "", trace.Wrap(err)
+		return "", trace.ConvertSystemError(err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	id := strings.TrimSpace(string(out))
+	if id == "" {
+		return "", trace.NotFound("host uuid is empty")
+	}
+	return id, nil
 }
 
 // WriteHostUUID writes host UUID into a file
@@ -474,7 +475,18 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.New().String()
+	// Checking error instead of the usual uuid.New() in case uuid generation
+	// fails due to not enough randomness. It's been known to happen happen when
+	// Teleport starts very early in the node initialization cycle and /dev/urandom
+	// isn't ready yet.
+	rawID, err := uuid.NewRandom()
+	if err != nil {
+		return "", trace.BadParameter("" +
+			"Teleport failed to generate host UUID. " +
+			"This may happen if randomness source is not fully initialized when the node is starting up. " +
+			"Please try restarting Teleport again.")
+	}
+	id = rawID.String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -19,6 +19,16 @@ This guide will help you to:
 2. Configure mutual TLS authentication between Teleport and your CockroachDB cluster.
 3. Connect to your CockroachDB cluster via Teleport.
 
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access CockroachDB Self-Hosted](../../../img/database-access/guides/cockroachdb_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access CockroachDB Cloud](../../../img/database-access/guides/cockroachdb_cloud.png)
+</ScopedBlock>
+
 ## Prerequisites
 
 - CockroachDB cluster.
@@ -38,6 +48,12 @@ This guide will help you to:
 ### Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+
 <Tabs>
 <TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
 Start the Teleport Database Service, pointing the `--auth-server` flag to the address of your Teleport Proxy Service:

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -93,7 +94,7 @@ func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHos
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpncommon.ProtocolProxySSH,
+		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolProxySSH},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
@@ -187,7 +188,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	lp, err := mkLocalProxy(cf.Context, localProxyOpts{
 		proxyAddr: client.WebProxyAddr,
-		protocol:  database.Protocol,
+		protocols: []alpncommon.Protocol{alpncommon.Protocol(database.Protocol)},
 		listener:  listener,
 		insecure:  cf.InsecureSkipVerify,
 		certFile:  certFile,
@@ -206,9 +207,11 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cmd, err := newCmdBuilder(client, profile, database, cf.SiteName,
-			WithLocalProxy("localhost", addr.Port(0), ""),
-			WithNoTLS()).getConnectCommand()
+		cmd, err := dbcmd.NewCmdBuilder(client, profile, database, cf.SiteName,
+			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
+			dbcmd.WithNoTLS(),
+			dbcmd.WithLogger(log),
+		).GetConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -245,14 +248,22 @@ func onProxyCommandDB(cf *CLIConf) error {
 type localProxyOpts struct {
 	proxyAddr string
 	listener  net.Listener
-	protocol  string
+	protocols []alpncommon.Protocol
 	insecure  bool
 	certFile  string
 	keyFile   string
 }
 
+// protocol returns the first protocol or string if configuration doesn't contain any protocols.
+func (l *localProxyOpts) protocol() string {
+	if len(l.protocols) == 0 {
+		return ""
+	}
+	return string(l.protocols[0])
+}
+
 func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol)
+	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -267,7 +278,7 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		InsecureSkipVerify: opts.insecure,
 		RemoteProxyAddr:    opts.proxyAddr,
-		Protocol:           alpnProtocol,
+		Protocols:          append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...),
 		Listener:           opts.listener,
 		ParentContext:      ctx,
 		SNI:                address.Host(),
@@ -322,7 +333,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpncommon.ProtocolHTTP,
+		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolHTTP},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),

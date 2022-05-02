@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"strconv"
 
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -78,7 +79,7 @@ func New(cfg Config) (*Gateway, error) {
 	localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
 		InsecureSkipVerify: cfg.Insecure,
 		RemoteProxyAddr:    cfg.WebProxyAddr,
-		Protocol:           protocol,
+		Protocols:          []alpncommon.Protocol{protocol},
 		Listener:           listener,
 		ParentContext:      closeContext,
 		SNI:                address.Host(),
@@ -119,9 +120,21 @@ func (g *Gateway) Open() {
 	}()
 }
 
+// LocalPortInt returns the port of a gateway as an integer rather than a string.
+func (g *Gateway) LocalPortInt() int {
+	// Ignoring the error here as Teleterm doesn't allow the user to pick the value for the port, so
+	// it'll always be a random integer value, not a service name that needs actual lookup.
+	// For more details, see https://stackoverflow.com/questions/47992477/why-is-port-a-string-and-not-an-integer
+	port, _ := strconv.Atoi(g.LocalPort)
+	return port
+}
+
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
 type Gateway struct {
 	Config
+	// Set by the cluster when running clusters.Cluster.CreateGateway.
+	// We can't set here inside New as dbcmd.NewCmdBuilder needs info from the cluster.
+	CLICommand string
 
 	localProxy *alpn.LocalProxy
 	// closeContext and closeCancel are used to signal to any waiting goroutines

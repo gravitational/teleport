@@ -146,6 +146,28 @@ Loop:
 	return lockTargets
 }
 
+// UseSearchAsRoles extends the roles of the Checker on the current Context with
+// the set of roles the user is allowed to search as.
+func (c *Context) UseSearchAsRoles(access services.RoleGetter) error {
+	var newRoleNames []string
+	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
+	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
+	newRoleSet, err := services.FetchRoles(newRoleNames, access, c.User.GetTraits())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, ok := c.Checker.(LocalUserRoleSet); ok {
+		c.Checker = LocalUserRoleSet{newRoleSet}
+	} else if _, ok := c.Checker.(RemoteUserRoleSet); ok {
+		c.Checker = RemoteUserRoleSet{newRoleSet}
+	} else {
+		// builtin roles should not be searching
+		return trace.AccessDenied("unexpected checker of type %T attempting UseSearchAsRoles", c.Checker)
+	}
+	c.User.SetRoles(newRoleNames)
+	return nil
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
@@ -383,6 +405,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Rules: []types.Rule{
 						types.NewRule(types.KindNode, services.RW()),
 						types.NewRule(types.KindSSHSession, services.RW()),
+						types.NewRule(types.KindSession, services.RO()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),

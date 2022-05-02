@@ -485,3 +485,46 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 		require.True(t, trace.IsBadParameter(err), "Expected trace.BadParameter, got %v", err)
 	})
 }
+
+func TestGetLabelEngineVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		labels map[string]string
+		want   string
+	}{
+		{
+			name: "mysql-8.0.0",
+			labels: map[string]string{
+				labelEngine:        RDSEngineMySQL,
+				labelEngineVersion: "8.0.0",
+			},
+			want: "8.0.0",
+		},
+		{
+			name: "mariadb returns nothing",
+			labels: map[string]string{
+				labelEngine:        RDSEngineMariaDB,
+				labelEngineVersion: "10.6.7",
+			},
+			want: "",
+		},
+		{
+			name:   "missing labels",
+			labels: map[string]string{},
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := GetMySQLEngineVersion(tt.labels); got != tt.want {
+				t.Errorf("GetMySQLEngineVersion() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
