@@ -495,6 +495,9 @@ func (p *AgentPool) Wait() {
 
 // Stop stops the pool and waits for all resources to be released.
 func (p *AgentPool) Stop() {
+	if p == nil {
+		return
+	}
 	p.cancel()
 	p.wg.Wait()
 }
