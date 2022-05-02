@@ -72,14 +72,6 @@ func (w *WriterLog) EmitAuditEventLegacy(event Event, fields EventFields) error 
 	return trace.ConvertSystemError(err)
 }
 
-// DELETE IN: 2.7.0
-// This method is no longer necessary as nodes and proxies >= 2.7.0
-// use UploadSessionRecording method.
-// PostSessionSlice sends chunks of recorded session to the event log
-func (w *WriterLog) PostSessionSlice(SessionSlice) error {
-	return trace.NotImplemented("not implemented")
-}
-
 // UploadSessionRecording uploads session recording to the audit server
 func (w *WriterLog) UploadSessionRecording(r SessionRecording) error {
 	return trace.NotImplemented("not implemented")

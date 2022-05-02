@@ -174,7 +174,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.deleteSession))
 	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
-	srv.POST("/:version/namespaces/:namespace/sessions/:id/slice", srv.withAuth(srv.postSessionSlice))
 	srv.POST("/:version/namespaces/:namespace/sessions/:id/recording", srv.withAuth(srv.uploadSessionRecording))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
@@ -1794,44 +1793,6 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 		err = auth.EmitAuditEventLegacy(events.Event{Name: req.Type}, req.Fields)
 	}
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// HTTP POST /:version/sessions/:id/slice
-func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var slice events.SessionSlice
-	if err := slice.Unmarshal(data); err != nil {
-		return nil, trace.BadParameter("failed to unmarshal %v", err)
-	}
-
-	// Validate serverID field in event matches server ID from x509 identity. This
-	// check makes sure nodes can only submit events for themselves.
-	serverID, err := s.getServerID(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, v := range slice.GetChunks() {
-		var f events.EventFields
-		err = utils.FastUnmarshal(v.GetData(), &f)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		err := events.ValidateEvent(f, serverID)
-		if err != nil {
-			log.Warnf("Rejecting audit event %v from %v: %v. System may be under attack, a "+
-				"node is attempting to submit events for an identity other than its own.",
-				f.GetType(), serverID, err)
-			return nil, trace.AccessDenied("failed to validate event")
-		}
-	}
-
-	if err := auth.PostSessionSlice(slice); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil

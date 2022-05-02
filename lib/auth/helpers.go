@@ -177,7 +177,7 @@ type TestAuthServer struct {
 	AuthServer *Server
 	// AuditLog is an event audit log
 	AuditLog events.IAuditLog
-	// SessionLogger is a session logger
+	// SessionServer is a session service
 	SessionServer session.Service
 	// Backend is a backend for auth server
 	Backend backend.Backend
