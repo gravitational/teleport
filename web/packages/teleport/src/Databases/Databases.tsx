@@ -16,7 +16,6 @@ limitations under the License.
 
 import React from 'react';
 import { Indicator, Box } from 'design';
-import { Danger } from 'design/Alert';
 import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
@@ -24,6 +23,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import DatabaseList from './DatabaseList';
 import useDatabases, { State } from './useDatabases';
 import ButtonAdd from './ButtonAdd';
@@ -86,7 +86,9 @@ export function Databases(props: State) {
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
+      {attempt.status === 'failed' && (
+        <ErrorMessage message={attempt.statusText} />
+      )}
       {attempt.status !== 'processing' && !hasNoDatabases && (
         <>
           <DatabaseList

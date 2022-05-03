@@ -783,7 +783,9 @@ exports[`failed 1`] = `
     class="c4"
     kind="danger"
   >
-    server error
+    <div>
+      server error
+    </div>
   </div>
   <form
     class="c5"

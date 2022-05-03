@@ -15,7 +15,6 @@
  */
 
 import React from 'react';
-import { Danger } from 'design/Alert';
 import { Indicator, Box } from 'design';
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -24,6 +23,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import AppList from './AppList';
 import AddApp from './AddApp';
 import useApps, { State } from './useApps';
@@ -82,7 +82,9 @@ export function Apps(props: State) {
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
+      {attempt.status === 'failed' && (
+        <ErrorMessage message={attempt.statusText} />
+      )}
       {attempt.status !== 'processing' && !hasNoApps && (
         <AppList
           apps={results.apps}

@@ -16,7 +16,6 @@ limitations under the License.
 
 import React from 'react';
 import { Indicator, Box, Flex } from 'design';
-import { Danger } from 'design/Alert';
 import {
   FeatureBox,
   FeatureHeader,
@@ -25,6 +24,7 @@ import {
 import QuickLaunch from 'teleport/components/QuickLaunch';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import NodeList from 'teleport/components/NodeList';
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useNodes, { State } from './useNodes';
@@ -94,7 +94,9 @@ export function Nodes(props: State) {
           </Flex>
         )}
       </FeatureHeader>
-      {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
+      {attempt.status === 'failed' && (
+        <ErrorMessage message={attempt.statusText} />
+      )}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />

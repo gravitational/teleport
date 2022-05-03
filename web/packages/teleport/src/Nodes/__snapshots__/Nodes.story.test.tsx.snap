@@ -870,8 +870,9 @@ exports[`failed 1`] = `
     class="c8"
     kind="danger"
   >
-    some error message
-     
+    <div>
+      some error message
+    </div>
   </div>
   <form
     class="c9"

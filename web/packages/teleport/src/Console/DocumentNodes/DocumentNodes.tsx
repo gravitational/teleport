@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Indicator, Flex, Box } from 'design';
-import * as Alerts from 'design/Alert';
 import NodeList from 'teleport/components/NodeList';
 import QuickLaunch from 'teleport/components/QuickLaunch';
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import Document from 'teleport/Console/Document';
 import ClusterSelector from './ClusterSelector';
 import useNodes from './useNodes';
@@ -98,7 +98,7 @@ export default function DocumentNodes(props: Props) {
             </Box>
           )}
           {attempt.status === 'failed' && (
-            <Alerts.Danger>{attempt.statusText}</Alerts.Danger>
+            <ErrorMessage message={attempt.statusText} />
           )}
           {attempt.status !== 'processing' && (
             <NodeList

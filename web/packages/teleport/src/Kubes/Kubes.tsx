@@ -16,15 +16,15 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import { Box, Indicator, ButtonPrimary } from 'design';
-import { Danger } from 'design/Alert';
 import KubeList from 'teleport/Kubes/KubeList';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
+import useTeleport from 'teleport/useTeleport';
 import useKubes, { State } from './useKubes';
 import AddKube from './AddKube';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
@@ -80,7 +80,9 @@ export function Kubes(props: State) {
           />
         )}
       </FeatureHeader>
-      {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
+      {attempt.status === 'failed' && (
+        <ErrorMessage message={attempt.statusText} />
+      )}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />

@@ -857,8 +857,9 @@ exports[`failed state 1`] = `
       class="c4"
       kind="danger"
     >
-      some error message
-       
+      <div>
+        some error message
+      </div>
     </div>
     <form
       class="c5"
