@@ -30,7 +30,7 @@ export function RequestDelete({
     <Dialog
       dialogCss={() => ({ maxWidth: '550px', width: '100%' })}
       disableEscapeKeyDown={false}
-      onClose={close}
+      onClose={onClose}
       open={true}
     >
       <DialogHeader>
