@@ -16,7 +16,7 @@ limitations under the License.
 
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
-import { FetchStatus } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
 import getResourceUrlQueryParams, {
@@ -25,7 +25,8 @@ import getResourceUrlQueryParams, {
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import history from 'teleport/services/history';
 import { DatabasesResponse } from 'teleport/services/databases';
-import { SortType } from 'teleport/components/ServersideSearchPanel';
+import labelClick from 'teleport/labelClick';
+import { AgentLabel } from 'teleport/services/resources';
 
 export default function useDatabases(ctx: Ctx) {
   const { search, pathname } = useLocation();
@@ -141,6 +142,9 @@ export default function useDatabases(ctx: Ctx) {
     setIsAddDialogVisible(true);
   };
 
+  const onLabelClick = (label: AgentLabel) =>
+    labelClick(label, params, setParams, pathname, replaceHistory);
+
   return {
     attempt,
     canCreate,
@@ -167,6 +171,7 @@ export default function useDatabases(ctx: Ctx) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   };
 }
 

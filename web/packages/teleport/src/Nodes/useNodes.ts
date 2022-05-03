@@ -16,7 +16,7 @@ limitations under the License.
 
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
-import { FetchStatus } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import history from 'teleport/services/history';
 import Ctx from 'teleport/teleportContext';
@@ -27,7 +27,8 @@ import { openNewTab } from 'teleport/lib/util';
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
-import { SortType } from 'teleport/components/ServersideSearchPanel';
+import labelClick from 'teleport/labelClick';
+import { AgentLabel } from 'teleport/services/resources';
 
 export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const { isLeafCluster, clusterId } = stickyCluster;
@@ -154,6 +155,9 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     setIsAddNodeVisible(true);
   };
 
+  const onLabelClick = (label: AgentLabel) =>
+    labelClick(label, params, setParams, pathname, replaceHistory);
+
   return {
     canCreate,
     attempt,
@@ -178,6 +182,7 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   };
 }
 

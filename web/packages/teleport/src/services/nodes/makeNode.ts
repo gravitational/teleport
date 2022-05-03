@@ -23,7 +23,7 @@ export default function makeNode(json): Node {
     id,
     clusterId: siteId,
     hostname,
-    tags: tags.map(tag => `${tag.name}: ${tag.value}`),
+    labels: tags,
     addr,
     tunnel,
   };

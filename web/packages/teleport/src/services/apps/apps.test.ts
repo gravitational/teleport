@@ -31,7 +31,7 @@ test('correct formatting of apps fetch response', async () => {
         description: 'some description',
         uri: 'http://localhost:3001',
         publicAddr: 'app-name.example.com',
-        tags: ['env: dev'],
+        labels: [{ name: 'env', value: 'dev' }],
         clusterId: 'cluster-id',
         fqdn: 'app-name.example.com',
         launchUrl:
@@ -65,7 +65,7 @@ test('null labels field in apps fetch response', async () => {
     search: 'does-not-matter',
   });
 
-  expect(response.apps[0].tags).toEqual([]);
+  expect(response.apps[0].labels).toEqual([]);
 });
 
 const mockResponse = {

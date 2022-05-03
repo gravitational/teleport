@@ -1,4 +1,3 @@
-import { SortType } from 'teleport/components/ServersideSearchPanel/useServerSideSearchPanel';
 import { MatchCallback } from 'design/utils/match';
 
 export type TableProps<T> = {
@@ -59,6 +58,11 @@ type TableColumnWithAltKey<T> = TableColumnBase<T> & {
 
 type InitialSort<T> = {
   key: Extract<keyof T, string>;
+  dir: SortDir;
+};
+
+export type SortType = {
+  fieldName: string;
   dir: SortDir;
 };
 

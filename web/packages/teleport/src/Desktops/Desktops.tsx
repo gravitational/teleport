@@ -58,6 +58,7 @@ export function Desktops(props: State) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   } = props;
 
   const hasNoDesktops =
@@ -109,6 +110,7 @@ export function Desktops(props: State) {
           setSort={setSort}
           pathname={pathname}
           replaceHistory={replaceHistory}
+          onLabelClick={onLabelClick}
         />
       )}
       {hasNoDesktops && (

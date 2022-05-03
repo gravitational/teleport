@@ -9,6 +9,6 @@ export default function makeDesktop(json): Desktop {
     os,
     name,
     addr,
-    tags: labels.map(label => `${label.name}: ${label.value}`),
+    labels,
   };
 }

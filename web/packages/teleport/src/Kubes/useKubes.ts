@@ -16,7 +16,7 @@ limitations under the License.
 
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
-import { FetchStatus } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import history from 'teleport/services/history';
 import { KubesResponse } from 'teleport/services/kube';
@@ -25,7 +25,8 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
-import { SortType } from 'teleport/components/ServersideSearchPanel';
+import labelClick from 'teleport/labelClick';
+import { AgentLabel } from 'teleport/services/resources';
 
 export default function useKubes(ctx: TeleportContext) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
@@ -128,6 +129,9 @@ export default function useKubes(ctx: TeleportContext) {
       });
   };
 
+  const onLabelClick = (label: AgentLabel) =>
+    labelClick(label, params, setParams, pathname, replaceHistory);
+
   return {
     attempt,
     username,
@@ -149,6 +153,7 @@ export default function useKubes(ctx: TeleportContext) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   };
 }
 

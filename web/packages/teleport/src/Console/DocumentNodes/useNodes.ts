@@ -16,16 +16,17 @@ limitations under the License.
 
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
-import { FetchStatus } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import history from 'teleport/services/history';
 import { NodesResponse } from 'teleport/services/nodes';
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
-import { SortType } from 'teleport/components/ServersideSearchPanel';
 import { useConsoleContext } from './../consoleContextProvider';
 import * as stores from './../stores';
+import labelClick from 'teleport/labelClick';
+import { AgentLabel } from 'teleport/services/resources';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();
@@ -155,6 +156,9 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
     }));
   }
 
+  const onLabelClick = (label: AgentLabel) =>
+    labelClick(label, params, setParams, pathname, replaceHistory);
+
   return {
     attempt,
     createSshSession,
@@ -173,5 +177,6 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
     pathname,
     replaceHistory,
     fetchStatus,
+    onLabelClick,
   };
 }

@@ -26,7 +26,7 @@ export default function makeDatabase(json): Database {
     description: desc,
     title: formatDatabaseInfo(type, protocol).title,
     protocol,
-    tags: labels.map(label => `${label.name}: ${label.value}`),
+    labels,
   };
 }
 

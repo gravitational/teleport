@@ -426,23 +426,6 @@ exports[`failed 1`] = `
   font-size: 16px;
 }
 
-.c23 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-bottom: 4px;
-  margin-right: 4px;
-}
-
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -633,6 +616,24 @@ exports[`failed 1`] = `
   background: #222C59;
   border-bottom-right-radius: 8px;
   border-bottom-left-radius: 8px;
+}
+
+.c23 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-bottom: 4px;
+  margin-right: 4px;
+  cursor: pointer;
 }
 
 .c28 {
@@ -958,13 +959,13 @@ exports[`failed 1`] = `
             class="c23"
             kind="secondary"
           >
-            cluster: env
+            cluster: root
           </div>
           <div
             class="c23"
             kind="secondary"
           >
-            value: gcp
+            env: gcp
           </div>
         </td>
         <td
@@ -1169,23 +1170,6 @@ exports[`open source loaded 1`] = `
   font-size: 16px;
 }
 
-.c22 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-bottom: 4px;
-  margin-right: 4px;
-}
-
 .c16 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1376,6 +1360,24 @@ exports[`open source loaded 1`] = `
   background: #222C59;
   border-bottom-right-radius: 8px;
   border-bottom-left-radius: 8px;
+}
+
+.c22 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-bottom: 4px;
+  margin-right: 4px;
+  cursor: pointer;
 }
 
 .c27 {
@@ -1693,13 +1695,13 @@ exports[`open source loaded 1`] = `
             class="c22"
             kind="secondary"
           >
-            cluster: env
+            cluster: root
           </div>
           <div
             class="c22"
             kind="secondary"
           >
-            value: gcp
+            env: gcp
           </div>
         </td>
         <td

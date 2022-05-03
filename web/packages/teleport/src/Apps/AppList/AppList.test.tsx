@@ -32,7 +32,20 @@ test('correct launch url is generated for a selected role', () => {
           name: 'aws-console-1',
           uri: 'https://console.aws.amazon.com/ec2/v2/home',
           publicAddr: 'awsconsole-1.teleport-proxy.com',
-          tags: ['aws_account_id: A1234', 'env: dev', 'cluster: two'],
+          labels: [
+            {
+              name: 'aws_account_id',
+              value: 'A1234',
+            },
+            {
+              name: 'env',
+              value: 'dev',
+            },
+            {
+              name: 'cluster',
+              value: 'two',
+            },
+          ],
           description: 'This is an AWS Console app',
           awsConsole: true,
           awsRoles: [

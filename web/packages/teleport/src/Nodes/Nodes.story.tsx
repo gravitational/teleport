@@ -85,4 +85,5 @@ const props: State = {
   pathname: '',
   replaceHistory: () => null,
   isSearchEmpty: false,
+  onLabelClick: () => null,
 };

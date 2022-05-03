@@ -16,7 +16,7 @@ limitations under the License.
 
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
-import { FetchStatus } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
@@ -27,7 +27,8 @@ import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
 import { openNewTab } from 'teleport/lib/util';
-import { SortType } from 'teleport/components/ServersideSearchPanel';
+import labelClick from 'teleport/labelClick';
+import { AgentLabel } from 'teleport/services/resources';
 
 export default function useDesktops(ctx: Ctx) {
   const { attempt, setAttempt } = useAttempt('processing');
@@ -144,6 +145,9 @@ export default function useDesktops(ctx: Ctx) {
       });
   };
 
+  const onLabelClick = (label: AgentLabel) =>
+    labelClick(label, params, setParams, pathname, replaceHistory);
+
   return {
     attempt,
     username,
@@ -166,6 +170,7 @@ export default function useDesktops(ctx: Ctx) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   };
 }
 

@@ -17,7 +17,8 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Flex, Text, ButtonBorder } from 'design';
-import Table, { Cell, LabelCell } from 'design/DataTable';
+import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
+import { SortType } from 'design/DataTable/types';
 import {
   pink,
   teal,
@@ -32,9 +33,8 @@ import {
 } from 'design/theme/palette';
 import { AmazonAws } from 'design/Icon';
 import { App } from 'teleport/services/apps';
-import ServersideSearchPanel, {
-  SortType,
-} from 'teleport/components/ServersideSearchPanel';
+import { AgentLabel } from 'teleport/services/resources';
+import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 import AwsLaunchButton from './AwsLaunchButton';
 
@@ -54,6 +54,7 @@ export default function AppList(props: Props) {
     setSort,
     pathname,
     replaceHistory,
+    onLabelClick,
   } = props;
 
   return (
@@ -80,9 +81,11 @@ export default function AppList(props: Props) {
           render: renderAddressCell,
         },
         {
-          key: 'tags',
+          key: 'labels',
           headerText: 'Labels',
-          render: ({ tags }) => <LabelCell data={tags} />,
+          render: ({ labels }) => (
+            <ClickableLabelCell labels={labels} onClick={onLabelClick} />
+          ),
         },
         {
           altKey: 'launch-btn',
@@ -214,6 +217,7 @@ type Props = {
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
+  onLabelClick: (label: AgentLabel) => void;
 };
 
 const StyledTable = styled(Table)`

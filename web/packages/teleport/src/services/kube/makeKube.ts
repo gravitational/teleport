@@ -22,6 +22,6 @@ export default function makeKube(json): Kube {
 
   return {
     name,
-    tags: labels.map(label => `${label.name}: ${label.value}`),
+    labels,
   };
 }

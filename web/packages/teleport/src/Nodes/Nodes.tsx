@@ -63,6 +63,7 @@ export function Nodes(props: State) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   } = props;
 
   function onLoginSelect(e: React.MouseEvent, login: string, serverId: string) {
@@ -121,6 +122,7 @@ export function Nodes(props: State) {
             setSort={setSort}
             pathname={pathname}
             replaceHistory={replaceHistory}
+            onLabelClick={onLabelClick}
           />
         </>
       )}

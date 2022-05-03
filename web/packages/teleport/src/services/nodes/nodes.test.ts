@@ -28,7 +28,7 @@ test('correct formatting of nodes fetch response', async () => {
         id: '00a53f99-993b-40bc-af51-5ba259af4e43',
         clusterId: 'im-a-cluster-name',
         hostname: 'im-a-nodename',
-        tags: ['env: dev'],
+        labels: [{ name: 'env', value: 'dev' }],
         addr: '192.168.86.132:3022',
         tunnel: false,
       },
@@ -56,7 +56,7 @@ test('null labels field in nodes fetch response', async () => {
   jest.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
   const response = await nodesService.fetchNodes('does-not-matter');
 
-  expect(response.nodes[0].tags).toEqual([]);
+  expect(response.nodes[0].labels).toEqual([]);
 });
 
 const mockResponse = {

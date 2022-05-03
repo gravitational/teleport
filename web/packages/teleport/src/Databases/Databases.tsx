@@ -62,6 +62,7 @@ export function Databases(props: State) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   } = props;
 
   const hasNoDatabases =
@@ -109,6 +110,7 @@ export function Databases(props: State) {
             setSort={setSort}
             pathname={pathname}
             replaceHistory={replaceHistory}
+            onLabelClick={onLabelClick}
           />
         </>
       )}

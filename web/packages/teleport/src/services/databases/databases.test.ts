@@ -32,7 +32,10 @@ test('correct formatting of database fetch response', async () => {
         description: 'PostgreSQL 11.6: AWS Aurora',
         title: 'RDS PostgreSQL',
         protocol: 'postgres',
-        tags: ['cluster: root', 'env: aws'],
+        labels: [
+          { name: 'cluster', value: 'root' },
+          { name: 'env', value: 'aws' },
+        ],
       },
     ],
     startKey: mockResponse.startKey,
@@ -90,7 +93,7 @@ test('null labels field in database fetch response', async () => {
     search: 'does-not-matter',
   });
 
-  expect(response.databases[0].tags).toEqual([]);
+  expect(response.databases[0].labels).toEqual([]);
 });
 
 const mockResponse = {

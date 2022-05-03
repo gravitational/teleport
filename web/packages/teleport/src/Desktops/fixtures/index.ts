@@ -21,18 +21,21 @@ export const desktops: Desktop[] = [
     os: 'windows',
     name: 'bb8411a4-ba50-537c-89b3-226a00447bc6',
     addr: 'host.com',
-    tags: ['foo: bar'],
+    labels: [{ name: 'foo', value: 'bar' }],
   },
   {
     os: 'windows',
     name: 'd96e7dd6-26b6-56d5-8259-778f943f90f2',
     addr: 'another.com',
-    tags: [],
+    labels: [],
   },
   {
     os: 'windows',
     name: '18cd6652-2f9a-5475-8138-2a56d44e1645',
     addr: 'yetanother.com',
-    tags: ['bar: foo', 'foo: bar'],
+    labels: [
+      { name: 'bar', value: 'foo' },
+      { name: 'foo', value: 'bar' },
+    ],
   },
 ];

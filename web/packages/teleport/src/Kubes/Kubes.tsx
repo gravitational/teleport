@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
-import { Box, Indicator, ButtonPrimary } from 'design';
+import { Box, Indicator } from 'design';
 import KubeList from 'teleport/Kubes/KubeList';
 import {
   FeatureBox,
@@ -59,6 +59,7 @@ export function Kubes(props: State) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   } = props;
 
   const [showAddKube, setShowAddKube] = useState(false);
@@ -108,6 +109,7 @@ export function Kubes(props: State) {
             setSort={setSort}
             pathname={pathname}
             replaceHistory={replaceHistory}
+            onLabelClick={onLabelClick}
           />
         </>
       )}

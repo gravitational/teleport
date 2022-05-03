@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { AgentLabel } from 'teleport/services/resources';
+
 export interface Database {
   name: string;
   description: string;
   title: string;
   protocol: DbProtocol;
-  tags: string[];
+  labels: AgentLabel[];
 }
 
 export type DbType = 'redshift' | 'rds' | 'gcp' | 'self-hosted';

@@ -1,6 +1,12 @@
 import Table from './Table';
-import { Cell, TextCell, DateCell, LabelCell } from './Cells';
+import {
+  Cell,
+  TextCell,
+  DateCell,
+  LabelCell,
+  ClickableLabelCell,
+} from './Cells';
 import { StyledPanel } from './StyledTable';
 
-export { Cell, TextCell, DateCell, LabelCell, StyledPanel };
+export { Cell, TextCell, DateCell, LabelCell, ClickableLabelCell, StyledPanel };
 export default Table;

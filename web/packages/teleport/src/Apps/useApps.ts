@@ -16,7 +16,7 @@
 
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
-import { FetchStatus } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { AppsResponse } from 'teleport/services/apps';
 import history from 'teleport/services/history';
@@ -25,7 +25,8 @@ import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { SortType } from 'teleport/components/ServersideSearchPanel';
+import labelClick from 'teleport/labelClick';
+import { AgentLabel } from 'teleport/services/resources';
 
 export default function useApps(ctx: Ctx) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
@@ -138,6 +139,9 @@ export default function useApps(ctx: Ctx) {
       });
   };
 
+  const onLabelClick = (label: AgentLabel) =>
+    labelClick(label, params, setParams, pathname, replaceHistory);
+
   return {
     clusterId,
     isLeafCluster,
@@ -161,6 +165,7 @@ export default function useApps(ctx: Ctx) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   };
 }
 

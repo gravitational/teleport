@@ -15,13 +15,13 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
-import Table, { Cell, LabelCell } from 'design/DataTable';
 import { ButtonBorder } from 'design';
+import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
+import { SortType } from 'design/DataTable/types';
 import { Kube } from 'teleport/services/kube';
 import { AuthType } from 'teleport/services/user';
-import ServersideSearchPanel, {
-  SortType,
-} from 'teleport/components/ServersideSearchPanel';
+import { AgentLabel } from 'teleport/services/resources';
+import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 import ConnectDialog from '../ConnectDialog';
 
@@ -44,6 +44,7 @@ function KubeList(props: Props) {
     setSort,
     pathname,
     replaceHistory,
+    onLabelClick,
   } = props;
 
   const [kubeConnectName, setKubeConnectName] = useState('');
@@ -59,9 +60,11 @@ function KubeList(props: Props) {
             isSortable: true,
           },
           {
-            key: 'tags',
+            key: 'labels',
             headerText: 'Labels',
-            render: ({ tags }) => <LabelCell data={tags} />,
+            render: ({ labels }) => (
+              <ClickableLabelCell labels={labels} onClick={onLabelClick} />
+            ),
           },
           {
             altKey: 'connect-btn',
@@ -137,6 +140,7 @@ type Props = {
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
+  onLabelClick: (label: AgentLabel) => void;
 };
 
 export default KubeList;

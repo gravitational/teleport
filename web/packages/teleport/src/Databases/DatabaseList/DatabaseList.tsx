@@ -16,13 +16,13 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
-import Table, { Cell, LabelCell } from 'design/DataTable';
+import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
+import { SortType } from 'design/DataTable/types';
 import { AuthType } from 'teleport/services/user';
 import { Database, DbProtocol } from 'teleport/services/databases';
+import { AgentLabel } from 'teleport/services/resources';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
-import ServersideSearchPanel, {
-  SortType,
-} from 'teleport/components/ServersideSearchPanel';
+import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 
 function DatabaseList(props: Props) {
@@ -44,6 +44,7 @@ function DatabaseList(props: Props) {
     setSort,
     pathname,
     replaceHistory,
+    onLabelClick,
   } = props;
 
   const [dbConnectInfo, setDbConnectInfo] = useState<{
@@ -71,9 +72,11 @@ function DatabaseList(props: Props) {
             headerText: 'Type',
           },
           {
-            key: 'tags',
+            key: 'labels',
             headerText: 'Labels',
-            render: ({ tags }) => <LabelCell data={tags} />,
+            render: ({ labels }) => (
+              <ClickableLabelCell labels={labels} onClick={onLabelClick} />
+            ),
           },
           {
             altKey: 'connect-btn',
@@ -160,6 +163,7 @@ type Props = {
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
+  onLabelClick: (label: AgentLabel) => void;
 };
 
 export default DatabaseList;

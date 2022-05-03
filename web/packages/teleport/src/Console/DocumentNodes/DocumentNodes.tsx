@@ -51,6 +51,7 @@ export default function DocumentNodes(props: Props) {
     createSshSession,
     changeCluster,
     getNodeSshLogins,
+    onLabelClick,
   } = useNodes(doc);
 
   function onLoginMenuSelect(
@@ -118,6 +119,7 @@ export default function DocumentNodes(props: Props) {
               setSort={setSort}
               pathname={pathname}
               replaceHistory={replaceHistory}
+              onLabelClick={onLabelClick}
             />
           )}
         </Container>

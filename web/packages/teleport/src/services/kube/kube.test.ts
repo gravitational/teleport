@@ -29,7 +29,10 @@ test('correct processed fetch response formatting', async () => {
     kubes: [
       {
         name: 'tele.logicoma.dev-prod',
-        tags: ['kernal: 4.15.0-51-generic', 'env: prod'],
+        labels: [
+          { name: 'kernal', value: '4.15.0-51-generic' },
+          { name: 'env', value: 'prod' },
+        ],
       },
     ],
     startKey: mockApiResponse.startKey,
@@ -62,7 +65,7 @@ test('handling of null labels', async () => {
     search: 'does-not-matter',
   });
 
-  expect(response.kubes).toEqual([{ name: 'test', tags: [] }]);
+  expect(response.kubes).toEqual([{ name: 'test', labels: [] }]);
 });
 
 const mockApiResponse = {

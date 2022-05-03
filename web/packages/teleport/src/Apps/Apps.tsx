@@ -58,6 +58,7 @@ export function Apps(props: State) {
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    onLabelClick,
   } = props;
 
   const hasNoApps =
@@ -101,6 +102,7 @@ export function Apps(props: State) {
           setSort={setSort}
           pathname={pathname}
           replaceHistory={replaceHistory}
+          onLabelClick={onLabelClick}
         />
       )}
       {hasNoApps && (

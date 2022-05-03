@@ -16,6 +16,7 @@ limitations under the License.
 
 import { generatePath } from 'react-router';
 import { merge } from 'lodash';
+import { SortType } from 'design/DataTable/types';
 import {
   AuthProvider,
   Auth2faType,
@@ -23,7 +24,6 @@ import {
   PreferredMfaType,
 } from 'shared/services';
 import { RecordingType } from 'teleport/services/recordings';
-import { SortType } from './components/ServersideSearchPanel/useServerSideSearchPanel';
 import generateResourcePath from './generateResourcePath';
 
 const cfg = {
