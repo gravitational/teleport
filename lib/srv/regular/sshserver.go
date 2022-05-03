@@ -98,9 +98,6 @@ type Server struct {
 	// dynamicLabels are the result of command execution.
 	dynamicLabels *labels.Dynamic
 
-	// imClient is the instance metadata client for nodes running on EC2.
-	imClient *utils.InstanceMetadataClient
-
 	// ec2Labels are the labels imported from EC2.
 	ec2Labels *labels.EC2Labels
 

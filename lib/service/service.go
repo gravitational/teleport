@@ -3527,6 +3527,7 @@ var appDependEvents = []string{
 }
 
 func (process *TeleportProcess) initApps(initConf initConfig) {
+	fmt.Println("initApps")
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".

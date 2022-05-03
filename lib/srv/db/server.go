@@ -458,23 +458,23 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, database := range s.proxiedDatabases {
-		databases = append(databases, s.injectEC2Labels(database))
+		copy := database.Copy()
+		s.injectEC2Labels(copy)
+		databases = append(databases, copy)
 	}
 	return databases
 }
 
-func (s *Server) injectEC2Labels(database types.Database) types.Database {
-	copy := database.Copy()
-	labels := copy.GetStaticLabels()
+func (s *Server) injectEC2Labels(database types.Database) {
 	if s.cfg.EC2Labels != nil {
+		labels := database.GetStaticLabels()
 		for k, v := range s.cfg.EC2Labels.Get() {
 			if _, ok := labels[k]; !ok {
 				labels[k] = v
 			}
 		}
+		database.SetStaticLabels(labels)
 	}
-	copy.SetStaticLabels(labels)
-	return copy
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.
@@ -538,6 +538,9 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	labels := s.getDynamicLabels(copy.GetName())
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
+	}
+	if s.cfg.EC2Labels != nil {
+		s.injectEC2Labels(copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewDatabaseServerV3(types.Metadata{

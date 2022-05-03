@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -404,6 +405,9 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
+	if s.c.EC2Labels != nil {
+		s.injectEC2Labels(copy)
+	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -431,6 +435,7 @@ func (s *Server) getRotationState() types.Rotation {
 
 // registerApp starts proxying the app.
 func (s *Server) registerApp(ctx context.Context, app types.Application) error {
+	fmt.Printf("registerApp: %s\n", app.GetName())
 	if err := s.startApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
@@ -472,23 +477,26 @@ func (s *Server) getApps() (apps types.Apps) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, app := range s.apps {
-		apps = append(apps, s.injectEC2Labels(app))
+		copy := app.Copy()
+		s.injectEC2Labels(copy)
+		apps = append(apps, copy)
 	}
 	return apps
 }
 
-func (s *Server) injectEC2Labels(app types.Application) types.Application {
-	copy := app.Copy()
-	labels := copy.GetStaticLabels()
+func (s *Server) injectEC2Labels(app types.Application) {
 	if s.c.EC2Labels != nil {
+		labels := app.GetStaticLabels()
+		if labels == nil {
+			labels = make(map[string]string)
+		}
 		for k, v := range s.c.EC2Labels.Get() {
 			if _, ok := labels[k]; !ok {
 				labels[k] = v
 			}
 		}
+		app.SetStaticLabels(labels)
 	}
-	copy.SetStaticLabels(labels)
-	return copy
 }
 
 // Start starts proxying all registered apps.
