@@ -283,7 +283,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 				ruleCtx := &services.Context{User: a.context.User}
 				ruleCtx.SSHSession = &session.Session{
 					ID:             session.ID(sess.GetSessionID()),
-					Namespace:      "default",
+					Namespace:      apidefaults.Namespace,
 					Login:          sess.GetLogin(),
 					Created:        sess.GetCreated(),
 					LastActive:     a.authServer.GetClock().Now(),
@@ -301,7 +301,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 				}
 
 				// Skip past it if there's a deny rule in place blocking access.
-				if err := a.context.Checker.CheckAccessToRule(ruleCtx, "default", types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
+				if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
 					continue
 				}
 			}
