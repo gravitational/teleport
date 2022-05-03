@@ -659,8 +659,8 @@ func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (
 }
 
 // GetReverseTunnels returns the list of created reverse tunnels
-func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("reversetunnels"), url.Values{})
+func (c *Client) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+	out, err := c.Get(ctx, c.Endpoint("reversetunnels"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

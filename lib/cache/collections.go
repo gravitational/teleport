@@ -446,7 +446,7 @@ func (c *reverseTunnel) erase(ctx context.Context) error {
 }
 
 func (c *reverseTunnel) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Presence.GetReverseTunnels()
+	resources, err := c.Presence.GetReverseTunnels(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

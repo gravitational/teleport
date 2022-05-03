@@ -567,7 +567,7 @@ func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 
 // getReverseTunnels returns a list of reverse tunnels
 func (s *APIServer) getReverseTunnels(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	reverseTunnels, err := auth.GetReverseTunnels()
+	reverseTunnels, err := auth.GetReverseTunnels(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

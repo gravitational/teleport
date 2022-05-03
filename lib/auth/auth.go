@@ -2231,8 +2231,8 @@ func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesReques
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation
-func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	return a.GetCache().GetReverseTunnels(opts...)
+func (a *Server) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+	return a.GetCache().GetReverseTunnels(ctx, opts...)
 }
 
 // GetProxies is a part of auth.AccessPoint implementation

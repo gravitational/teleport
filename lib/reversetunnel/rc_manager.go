@@ -167,7 +167,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	// Fetch desired reverse tunnels and convert them to a set of
 	// remoteClusterKeys.
-	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels()
+	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

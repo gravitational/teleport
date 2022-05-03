@@ -804,14 +804,14 @@ func (a *ServerWithRoles) GetReverseTunnel(name string, opts ...services.Marshal
 	return a.authServer.GetReverseTunnel(name, opts...)
 }
 
-func (a *ServerWithRoles) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (a *ServerWithRoles) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetReverseTunnels(opts...)
+	return a.authServer.GetReverseTunnels(ctx, opts...)
 }
 
 func (a *ServerWithRoles) DeleteReverseTunnel(domainName string) error {

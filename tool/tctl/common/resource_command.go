@@ -843,7 +843,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		return &githubCollection{connectors}, nil
 	case types.KindReverseTunnel:
 		if rc.ref.Name == "" {
-			tunnels, err := client.GetReverseTunnels()
+			tunnels, err := client.GetReverseTunnels(context.Background())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
