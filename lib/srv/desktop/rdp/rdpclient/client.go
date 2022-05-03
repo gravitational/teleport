@@ -378,7 +378,10 @@ func (c *Client) start() {
 			case tdp.SharedDirectoryAnnounce:
 				driveName := C.CString(m.Name)
 				defer C.free(unsafe.Pointer(driveName))
-				if err := cgoError(C.rdp_client_device_list_announce(c.rustClient, C.uint32_t(m.DirectoryId), driveName)); err != nil {
+				if err := cgoError(C.handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
+					directory_id: C.uint32_t(m.DirectoryId),
+					name:         driveName,
+				})); err != nil {
 					c.cfg.Log.Errorf("Device announce failed: %v", err)
 					return
 				}
@@ -457,16 +460,6 @@ func (c *Client) sharedDirectoryAcknowledg(ack tdp.SharedDirectoryAcknowledge) C
 	if err := c.cfg.Conn.OutputMessage(ack); err != nil {
 		return C.CString(fmt.Sprintf("failed to send SharedDirectoryAcknowledge: %v", err))
 	}
-	return nil
-}
-
-//export tdp_sd_info_request
-func tdp_sd_info_request(handle C.uintptr_t, completionId, directoryId C.uint32_t, path *C.char) C.CGOError {
-	return cgo.Handle(handle).Value().(*Client).sharedDirectoryInfoRequest(uint32(completionId), uint32(directoryId), C.GoString(path))
-}
-
-func (c *Client) sharedDirectoryInfoRequest(completionId uint32, directoryId uint32, path string) C.CGOError {
-	// TODO(isaiah)
 	return nil
 }
 

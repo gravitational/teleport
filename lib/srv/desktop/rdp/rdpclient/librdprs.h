@@ -34,16 +34,14 @@
  */
 #define CHANNEL_CHUNK_LEGNTH 1600
 
-typedef enum CGOPointerButton
-{
+typedef enum CGOPointerButton {
   PointerButtonNone,
   PointerButtonLeft,
   PointerButtonRight,
   PointerButtonMiddle,
 } CGOPointerButton;
 
-typedef enum CGOPointerWheel
-{
+typedef enum CGOPointerWheel {
   PointerWheelNone,
   PointerWheelVertical,
   PointerWheelHorizontal,
@@ -67,29 +65,21 @@ typedef struct Client Client;
  */
 typedef char *CGOError;
 
-typedef struct ClientOrError
-{
+typedef struct ClientOrError {
   struct Client *client;
   CGOError err;
 } ClientOrError;
 
-/**
- * CGOFileSystemObject is a CGO-compatible version of TDP's File System Object (fso) that we're passed from Go.
- */
-typedef struct CGOFileSystemObject
-{
-  uint32_t last_modified;
-  uint64_t size;
-  uint32_t file_type;
-  char *path;
-} CGOFileSystemObject;
+typedef struct CGOSharedDirectoryAnnounce {
+  uint32_t directory_id;
+  char *name;
+} CGOSharedDirectoryAnnounce;
 
 /**
  * CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
  * PointerEvent is a mouse move or click update from the user.
  */
-typedef struct CGOMousePointerEvent
-{
+typedef struct CGOMousePointerEvent {
   uint16_t x;
   uint16_t y;
   enum CGOPointerButton button;
@@ -102,8 +92,7 @@ typedef struct CGOMousePointerEvent
  * CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
  * KeyboardEvent is a keyboard update from the user.
  */
-typedef struct CGOKeyboardEvent
-{
+typedef struct CGOKeyboardEvent {
   uint16_t code;
   bool down;
 } CGOKeyboardEvent;
@@ -112,8 +101,7 @@ typedef struct CGOKeyboardEvent
  * CGOBitmap is a CGO-compatible version of BitmapEvent that we pass back to Go.
  * BitmapEvent is a video output update from the server.
  */
-typedef struct CGOBitmap
-{
+typedef struct CGOBitmap {
   uint16_t dest_left;
   uint16_t dest_top;
   uint16_t dest_right;
@@ -130,18 +118,10 @@ typedef struct CGOBitmap
  * CGOSharedDirectoryAcknowledge is a CGO-compatible version of
  * the TDP Shared Directory Knowledge message that we pass back to Go.
  */
-typedef struct CGOSharedDirectoryAcknowledge
-{
+typedef struct CGOSharedDirectoryAcknowledge {
   uint32_t err;
   uint32_t directory_id;
 } CGOSharedDirectoryAcknowledge;
-
-typedef struct SharedDirectoryInfoRequest
-{
-  uint32_t completion_id;
-  uint32_t directory_id;
-  char *path;
-} SharedDirectoryInfoRequest;
 
 void init(void);
 
@@ -178,28 +158,15 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
 CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
 
 /**
- * rdp_client_device_list_announce announces a new drive with the name drive_name that's ready to be
+ * handle_tdp_sd_announce announces a new drivethat's ready to be
  * redirected over RDP.
  *
  * # Safety
  *
  * The caller must ensure that drive_name points to a valid buffer.
  */
-CGOError rdp_client_device_list_announce(struct Client *client_ptr,
-                                         uint32_t directory_id,
-                                         char *drive_name);
-
-/**
- * rdp_client_shared_directory_info_response passes a TDP Shared Directory Info Response
- * back to the RDP client for processing.
- * # Safety
- *
- * TODO(isaiah)
- */
-CGOError rdp_client_shared_directory_info_response(struct Client *client_ptr,
-                                                   uint32_t completion_id,
-                                                   uint32_t err,
-                                                   struct CGOFileSystemObject fso);
+CGOError handle_tdp_sd_announce(struct Client *client_ptr,
+                                struct CGOSharedDirectoryAnnounce sd_announce);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
@@ -259,9 +226,3 @@ extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t
  * Shared Directory Acknowledge
  */
 extern CGOError tdp_sd_acknowledge(uintptr_t client_ref, struct CGOSharedDirectoryAcknowledge *ack);
-
-/**
- * Shared Directory Info Request
- */
-extern CGOError tdp_sd_info_request(uintptr_t client_ref,
-                                    struct CGOSharedDirectoryInfoRequest *req);

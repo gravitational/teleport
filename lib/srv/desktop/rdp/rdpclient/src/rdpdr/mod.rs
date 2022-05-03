@@ -19,10 +19,7 @@ mod scard;
 use crate::errors::{invalid_data_error, not_implemented_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
 use crate::util;
 use crate::vchan;
-use crate::{
-    FileSystemObject, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
-    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
-};
+use crate::{Payload, SharedDirectoryAcknowledge};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use consts::{
@@ -36,7 +33,6 @@ use rdp::core::tpkt;
 use rdp::model::data::Message;
 use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
-use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::io::{Read, Write};
 
@@ -51,20 +47,10 @@ pub struct Client {
     scard: scard::Client,
 
     allow_directory_sharing: bool,
+    active_device_ids: Vec<u32>,
 
     // Functions for sending tdp messages to the browser client.
     tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
-    tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
-    tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
-
-    next_completion_id: u32,
-    active_device_ids: Vec<u32>,
-    /// completion_id indexed cache of handlers for handling TDP Shared Directory Info Response's.
-    pending_sd_info_resp_handlers:
-        HashMap<u32, Box<dyn FnOnce(SharedDirectoryInfoResponse) -> RdpResult<()>>>,
-
-    dot_dot_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
-    fake_file_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
 }
 
 impl Client {
@@ -75,24 +61,13 @@ impl Client {
         allow_directory_sharing: bool,
 
         tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
-        tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
     ) -> Self {
-        // TODO(isaiah)
-        let tdp_sd_create_request =
-            Box::new(|req: SharedDirectoryCreateRequest| -> RdpResult<()> { Ok(()) });
-
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
             active_device_ids: vec![],
-            next_completion_id: 0,
-            pending_sd_info_resp_handlers: HashMap::new(),
             allow_directory_sharing,
             tdp_sd_acknowledge,
-            tdp_sd_info_request,
-            tdp_sd_create_request,
-            dot_dot_sent: false,
-            fake_file_sent: false,
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
@@ -272,240 +247,6 @@ impl Client {
                 debug!("sending device IO response");
                 Ok(resp)
             }
-            // Drive create request. This is sent to us by the server in response to
-            // a ClientDeviceListAnnounce::new_drive.
-            MajorFunction::IRP_MJ_CREATE => {
-                let rdp_req = ServerCreateDriveRequest::decode(device_io_request, payload)?;
-                debug!("got: {:?}", rdp_req);
-
-                // Send a TDP Shared Directory Info Request
-                let completion_id = self.get_completion_id();
-                // TODO(isaiah): SharedDirectoryInfoRequest::from(ServerCreateDriveRequest)
-                (self.tdp_sd_info_request)(SharedDirectoryInfoRequest {
-                    completion_id: completion_id,
-                    directory_id: rdp_req.device_io_request.device_id,
-                    path: rdp_req.path.clone(),
-                })?;
-
-                // Add a TDP Shared Directory Info Response handler to the handler cache.
-                // When we receive a TDP Shared Directory Info Response with this completion_id,
-                // this handler will be called.
-                self.pending_sd_info_resp_handlers.insert(
-                    completion_id,
-                    Box::new(|res: SharedDirectoryInfoResponse| -> RdpResult<()> {
-                        let rdp_req = rdp_req;
-
-                        if res.err == 2 {
-                            // "resource does not exist"
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
-                            let is_dir = rdp_req
-                                .create_options
-                                .contains(flags::CreateOptions::FILE_DIRECTORY_FILE);
-
-                            if is_dir {
-                                if rdp_req
-                                    .create_disposition
-                                    .contains(flags::CreateDisposition::FILE_OPEN_IF)
-                                    || rdp_req
-                                        .create_disposition
-                                        .contains(flags::CreateDisposition::FILE_CREATE)
-                                {
-                                    let completion_id = self.get_completion_id();
-                                    (self.tdp_sd_create_request)(SharedDirectoryCreateRequest {
-                                        completion_id,
-                                        directory_id: rdp_req.device_io_request.device_id,
-                                        file_type: 1, // TODO(isaiah) make this a const
-                                        path: "todo!()".to_string(),
-                                    })?;
-                                }
-                            }
-                        }
-                        Ok(())
-                    }),
-                );
-
-                // self.pending_tdp_sd_info_requests.insert(completion_id, |res: SharedDirectoryInfoResponse|);
-                //
-
-                // let device_id = server_create_drive_request.device_io_request.device_id;
-                // let completion_id = server_create_drive_request.device_io_request.completion_id;
-                // let path = &server_create_drive_request.path; // TODO(isaiah): path needs to be converted from windows style path
-                // self.send_tdp_sd_info_request(server_create_drive_request, device_id, path)?;
-                // Ok(vec![])
-
-                // TODO(isaiah) assumes we only receive this after the initial ClientDeviceListAnnounce::new_drive,
-                // which will always be a "success". Will need to have logic for creating files/dirs over TDP
-                // and responding based on failure/success.
-                // let resp = DeviceCreateResponse::new(
-                //     &server_create_drive_request,
-                //     NTSTATUS::STATUS_SUCCESS,
-                // );
-                // debug!("replying with: {:?}", resp);
-                // let resp = self.add_headers_and_chunkify(
-                //     PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                //     resp.encode()?,
-                // )?;
-                // Ok(resp)
-
-                Ok(vec![])
-            }
-            MajorFunction::IRP_MJ_QUERY_INFORMATION => {
-                let req = ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
-                debug!("got: {:?}", req);
-
-                // TODO(isaiah): send back NTSTATUS::STATUS_NOT_IMPLEMENTED rather than propagating an error.
-                let resp =
-                    ClientDriveQueryInformationResponse::new(&req, NTSTATUS::STATUS_SUCCESS)?;
-                debug!("replying with: {:?}", resp);
-                let resp = self.add_headers_and_chunkify(
-                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                    resp.encode()?,
-                )?;
-                Ok(resp)
-            }
-            MajorFunction::IRP_MJ_CLOSE => {
-                let req = DeviceCloseRequest::decode(device_io_request);
-                debug!("got: {:?}", req);
-                // TODO(isaiah) here is where you would tell the client to close the file.
-                let resp = DeviceCloseResponse::new(req, NTSTATUS::STATUS_SUCCESS);
-                debug!("replying with: {:?}", resp);
-                let resp = self.add_headers_and_chunkify(
-                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                    resp.encode()?,
-                )?;
-                Ok(resp)
-            }
-            MajorFunction::IRP_MJ_DIRECTORY_CONTROL => {
-                match device_io_request.minor_function {
-                    MinorFunction::IRP_MN_NOTIFY_CHANGE_DIRECTORY => {
-                        let req = ServerDriveNotifyChangeDirectoryRequest::decode(
-                            device_io_request,
-                            payload,
-                        )?;
-                        debug!("got: {:?}", req);
-                        debug!("replying with: nothing, we ignore IRP_MN_NOTIFY_CHANGE_DIRECTORY");
-                        // Ignored by FreeRDP at the time of writing, we will ignore this as well:
-                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L660
-                        // TODO(isaiah): perhaps we want to send back an empty Client Drive NotifyChange Directory Response
-                        // like they show in 4.33 Client Drive NotifyChange Directory Response (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/21b1036b-ebbb-49d9-bafd-cd5cd0c7ba06)
-                        // to at least free up the CompletionId.
-                        Ok(vec![])
-                    }
-                    MinorFunction::IRP_MN_QUERY_DIRECTORY => {
-                        let req =
-                            ServerDriveQueryDirectoryRequest::decode(device_io_request, payload)?;
-                        debug!("got: {:?}", req);
-                        let mut next_handle: Option<FileHandle> = None;
-                        if req.initial_query > 0 {
-                            // TODO(isaiah): RDP is asking for directory information of a directory specified by
-                            // req.device_io_request.device_id + req.device_io_request.file_id (device_id is irrelevant
-                            // to us so long as we only support sharing 1 directory). Here, we will ask the client for
-                            // the contents of the requested directory, and save it in a field on the client (some structure
-                            // mapped by file_id like {file_id: [file_struct, file_struct, ...]}), and send back the first item.
-                            // Here, we simulate sending back the "." directory. It's TBD whether the browser provides us with
-                            // ., .., or other hidden directories.
-                            //
-                            // The spec says:
-                            // "If the value [of initial_query] is non-zero and such a file does not exist, the client MUST complete
-                            // this request with STATUS_NO_SUCH_FILE in the IoStatus field of the Client Drive I/O Response".
-                            self.dot_dot_sent = false;
-                            self.fake_file_sent = false;
-                            next_handle = Some(FileHandle {
-                                name: String::from("."),
-                                last_modified: 1,
-                                size: 64, // size of an empty dir on MacOS, apparently according to print statements from FreeRDP
-                                is_dir: true,
-                            });
-                        } else if req.initial_query == 0 {
-                            // TODO(isaiah): The request is for the next file in the directory that was specified in a
-                            // previous Server Drive Query Directory Request. If such a file does not exist, the client
-                            // MUST complete this request with STATUS_NO_MORE_FILES in the IoStatus field of the
-                            // Client Drive I/O Response packet (section 2.2.3.4).
-                            if !self.dot_dot_sent {
-                                next_handle = Some(FileHandle {
-                                    name: String::from(".."),
-                                    last_modified: 1,
-                                    size: 64, // size of an empty dir on MacOS, apparently according to print statements from FreeRDP
-                                    is_dir: true,
-                                });
-                                self.dot_dot_sent = true;
-                            } else if !self.fake_file_sent {
-                                next_handle = Some(FileHandle {
-                                    name: String::from("ExtremelyFakeFile.txt"),
-                                    last_modified: 1,
-                                    size: 64000000, // size of an empty dir on MacOS, apparently according to print statements from FreeRDP
-                                    is_dir: false,
-                                });
-                                self.fake_file_sent = true;
-                            } else {
-                                next_handle = None;
-                            }
-                        }
-                        match next_handle {
-                            Some(file_handle) => {
-                                match req.fs_information_class_lvl {
-                            FsInformationClassLevel::FileBothDirectoryInformation => {
-                                let buffer = FsInformationClass::FileBothDirectoryInformation(FileBothDirectoryInformation::from(file_handle));
-                                let resp = ClientDriveQueryDirectoryResponse::new(
-                                    &req,
-                                    NTSTATUS::STATUS_SUCCESS,
-                                    Some(buffer),
-                                )?;
-                                debug!("replying with: {:?}", resp);
-                                let resp = self.add_headers_and_chunkify(
-                                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                                    resp.encode()?,
-                                )?;
-                                Ok(resp)
-                            }
-                            FsInformationClassLevel::FileDirectoryInformation
-                            | FsInformationClassLevel::FileFullDirectoryInformation
-                            | FsInformationClassLevel::FileNamesInformation => {
-                                Err(not_implemented_error(&format!("support for ServerDriveQueryDirectoryRequest with fs_information_class_lvl = {:?} is not implemented", req.fs_information_class_lvl)))
-                            }
-                            _ => {
-                                // This should never happen, as we check that fs_information_class_lvl is on of the supported types in ServerDriveQueryDirectoryRequest::decode
-                                Err(invalid_data_error(&format!("received invalid FsInformationClassLevel in ServerDriveQueryDirectoryRequest")))
-                            }
-                        }
-                            }
-                            None => {
-                                let resp = ClientDriveQueryDirectoryResponse::new(
-                                    &req,
-                                    NTSTATUS::STATUS_NO_MORE_FILES,
-                                    None,
-                                )?;
-                                debug!("replying with: {:?}", resp);
-                                let resp = self.add_headers_and_chunkify(
-                                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                                    resp.encode()?,
-                                )?;
-                                Ok(resp)
-                            }
-                        }
-                    }
-                    _ => {
-                        Err(invalid_data_error(&format!(
-                            // TODO(isaiah): send back a not implemented response(?)
-                            // see https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L663
-                            "got unsupported minor_function in DeviceIoRequest: {:?}",
-                            &device_io_request.minor_function
-                        )))
-                    }
-                }
-            }
-            MajorFunction::IRP_MJ_READ => {
-                let req = DeviceReadRequest::decode(device_io_request, payload)?;
-                debug!("got: {:?}", req);
-                // TODO(isaiah): this is where we would actually try to read the file from the client
-                let resp = DeviceReadResponse::new(&req, NTSTATUS::STATUS_SUCCESS, vec![]);
-                debug!("replying with: {:?}", resp);
-                let resp = self.add_headers_and_chunkify(
-                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                    resp.encode()?,
-                )?;
-                Ok(resp)
-            }
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
@@ -516,38 +257,20 @@ impl Client {
 
     pub fn write_client_device_list_announce<S: Read + Write>(
         &mut self,
-        device_id: u32,
-        drive_name: String,
+        req: ClientDeviceListAnnounce,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        self.push_active_device_id(device_id)?;
-        let new_drive = ClientDeviceListAnnounce::new_drive(device_id, drive_name);
-        debug!("sending new drive for redirection: {:?}", new_drive);
+        self.push_active_device_id(req.device_list[0].device_id)?;
+        debug!("sending new drive for redirection: {:?}", req);
 
-        let responses = self.add_headers_and_chunkify(
-            PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-            new_drive.encode()?,
-        )?;
+        let responses =
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, req.encode()?)?;
         let chan = &CHANNEL_NAME.to_string();
         for resp in responses {
             mcs.write(chan, resp)?;
         }
 
         Ok(())
-    }
-
-    fn handle_shared_directory_info_response(
-        &self,
-        completion_id: u32,
-        err: u32,
-        fso: FileSystemObject,
-    ) -> RdpResult<()> {
-        Ok(())
-    }
-
-    fn get_completion_id(&self) -> u32 {
-        self.next_completion_id = self.next_completion_id.wrapping_add(1);
-        self.next_completion_id
     }
 
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
@@ -870,12 +593,12 @@ impl GeneralCapabilitySet {
 type ClientCoreCapabilityResponse = ServerCoreCapabilityRequest;
 
 #[derive(Debug)]
-struct ClientDeviceListAnnounceRequest {
+pub struct ClientDeviceListAnnounceRequest {
     device_count: u32,
     device_list: Vec<DeviceAnnounceHeader>,
 }
 
-type ClientDeviceListAnnounce = ClientDeviceListAnnounceRequest;
+pub type ClientDeviceListAnnounce = ClientDeviceListAnnounceRequest;
 
 impl ClientDeviceListAnnounceRequest {
     // We only need to announce the smartcard in this Client Device List Announce Request.
@@ -894,7 +617,7 @@ impl ClientDeviceListAnnounceRequest {
         }
     }
 
-    fn new_drive(device_id: u32, drive_name: String) -> Self {
+    pub fn new_drive(device_id: u32, drive_name: String) -> Self {
         // According to the spec:
         //
         // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
@@ -1111,10 +834,6 @@ impl DeviceControlResponse {
         Ok(w)
     }
 }
-
-/// 2.2.3.3.1 Server Create Drive Request (DR_DRIVE_CREATE_REQ)
-/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/95b16fd0-d530-407c-a310-adedc85e9897
-type ServerCreateDriveRequest = DeviceCreateRequest;
 
 /// 2.2.1.4.1 Device Create Request (DR_CREATE_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e
@@ -1417,25 +1136,6 @@ struct FileBothDirectoryInformation {
 /// Note that file_name's size should be calculated as if it were a Unicode string.
 /// 5 u32's (including FileAttributesFlags) + 6 i64's + 1 i8 + 24 bytes
 const FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE: u32 = (5 * 4) + (6 * 8) + 1 + 24; // 93
-
-impl From<FileHandle> for FileBothDirectoryInformation {
-    fn from(handle: FileHandle) -> Self {
-        let file_attributes = if handle.is_dir {
-            flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
-        } else {
-            flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
-        };
-        return FileBothDirectoryInformation::new(
-            handle.last_modified,
-            handle.last_modified,
-            handle.last_modified,
-            handle.last_modified,
-            handle.size,
-            file_attributes,
-            handle.name,
-        );
-    }
-}
 
 impl FileBothDirectoryInformation {
     fn new(
@@ -1835,12 +1535,4 @@ impl ClientDriveQueryDirectoryResponse {
 
         Ok(w)
     }
-}
-
-/// Fields based on what will be available to us from the browser https://developer.mozilla.org/en-US/docs/Web/API/File.
-struct FileHandle {
-    name: String,
-    last_modified: i64,
-    size: i64,
-    is_dir: bool,
 }

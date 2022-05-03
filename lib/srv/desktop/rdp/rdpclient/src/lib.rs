@@ -248,35 +248,6 @@ fn connect_rdp_inner(
         Ok(())
     });
 
-    let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
-        match CString::new(req.path.clone()) {
-            Ok(c_string) => {
-                unsafe {
-                    if tdp_sd_info_request(
-                        go_ref,
-                        CGOSharedDirectoryInfoRequest {
-                            completion_id: req.completion_id,
-                            directory_id: req.directory_id,
-                            path: c_string.into_raw(),
-                        },
-                    ) != CGO_OK
-                    {
-                        return Err(RdpError::TryError(String::from(
-                            "call to tdp_sd_info_request failed",
-                        )));
-                    };
-                }
-                return Ok(());
-            }
-            Err(_) => {
-                // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                return Err(RdpError::TryError(String::from(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
-                    req.path
-                ))));
-            }
-        }
-    });
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(
         params.cert_der,
@@ -284,7 +255,6 @@ fn connect_rdp_inner(
         pin,
         params.allow_directory_sharing,
         tdp_sd_acknowledge,
-        tdp_sd_info_request,
     );
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -355,21 +325,10 @@ impl<S: Read + Write> RdpClient<S> {
 
     pub fn write_client_device_list_announce(
         &mut self,
-        device_id: u32,
-        drive_name: String,
+        req: rdpdr::ClientDeviceListAnnounce,
     ) -> RdpResult<()> {
         self.rdpdr
-            .write_client_device_list_announce(device_id, drive_name, &mut self.mcs)
-    }
-
-    pub fn handle_shared_directory_info_response(
-        &self,
-        completion_id: u32,
-        err: u32,
-        fso: FileSystemObject,
-    ) -> RdpResult<()> {
-        //TODO(isaiah)
-        Ok(())
+            .write_client_device_list_announce(req, &mut self.mcs)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -491,17 +450,16 @@ pub unsafe extern "C" fn update_clipboard(
     }
 }
 
-/// rdp_client_device_list_announce announces a new drive with the name drive_name that's ready to be
+/// handle_tdp_sd_announce announces a new drivethat's ready to be
 /// redirected over RDP.
 ///
 /// # Safety
 ///
 /// The caller must ensure that drive_name points to a valid buffer.
 #[no_mangle]
-pub unsafe extern "C" fn rdp_client_device_list_announce(
+pub unsafe extern "C" fn handle_tdp_sd_announce(
     client_ptr: *mut Client,
-    directory_id: u32,
-    drive_name: *mut c_char,
+    sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOError {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
@@ -510,74 +468,14 @@ pub unsafe extern "C" fn rdp_client_device_list_announce(
         }
     };
 
-    let drive_name = from_go_string(drive_name);
+    let drive_name = from_go_string(sd_announce.name);
+    let new_drive =
+        rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, drive_name);
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
-
-    match rdp_client.write_client_device_list_announce(directory_id, drive_name) {
+    match rdp_client.write_client_device_list_announce(new_drive) {
         Ok(()) => CGO_OK,
         Err(e) => to_cgo_error(format!("failed to announce new drive: {:?}", e)),
-    }
-}
-
-/// rdp_client_shared_directory_info_response passes a TDP Shared Directory Info Response
-/// back to the RDP client for processing.
-/// # Safety
-///
-/// TODO(isaiah)
-#[no_mangle]
-pub unsafe extern "C" fn rdp_client_shared_directory_info_response(
-    client_ptr: *mut Client,
-    completion_id: u32,
-    err: u32,
-    fso: CGOFileSystemObject,
-) -> CGOError {
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let fso = FileSystemObject::from(fso);
-    let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_shared_directory_info_response(completion_id, err, fso) {
-        Ok(()) => CGO_OK,
-        Err(e) => to_cgo_error(format!(
-            "failed while handling Shared Directory Info Response: {:?}",
-            e
-        )),
-    }
-}
-
-/// CGOFileSystemObject is a CGO-compatible version of TDP's File System Object (fso) that we're passed from Go.
-#[repr(C)]
-pub struct CGOFileSystemObject {
-    pub last_modified: u32,
-    pub size: u64,
-    pub file_type: u32,
-    pub path: *mut c_char,
-}
-
-/// TDP File System Object
-pub struct FileSystemObject {
-    pub last_modified: u32,
-    pub size: u64,
-    pub file_type: u32,
-    pub path: String,
-}
-
-impl From<CGOFileSystemObject> for FileSystemObject {
-    fn from(cgo_fso: CGOFileSystemObject) -> FileSystemObject {
-        unsafe {
-            let path = from_go_string(cgo_fso.path);
-            return FileSystemObject {
-                last_modified: cgo_fso.last_modified,
-                size: cgo_fso.size,
-                file_type: cgo_fso.file_type,
-                path,
-            };
-        }
     }
 }
 
@@ -854,6 +752,12 @@ unsafe fn from_cgo_error(e: CGOError) -> String {
     s
 }
 
+#[repr(C)]
+pub struct CGOSharedDirectoryAnnounce {
+    pub directory_id: u32,
+    pub name: *mut c_char,
+}
+
 pub struct SharedDirectoryAcknowledge {
     pub err: u32,
     pub directory_id: u32,
@@ -876,43 +780,6 @@ impl From<SharedDirectoryAcknowledge> for CGOSharedDirectoryAcknowledge {
     }
 }
 
-pub struct SharedDirectoryInfoRequest {
-    completion_id: u32,
-    directory_id: u32,
-    path: String,
-}
-
-pub struct CGOSharedDirectoryInfoRequest {
-    pub completion_id: u32,
-    pub directory_id: u32,
-    pub path: *mut c_char,
-}
-
-struct SharedDirectoryInfoResponse {
-    completion_id: u32,
-    err: u32,
-    fso: FileSystemObject,
-}
-
-// TODO(isaiah)
-pub struct CGOSharedDirectoryInfoResponse {
-    pub completion_id: u32,
-    pub directory_id: u32,
-    pub path: *mut c_char,
-}
-
-pub struct SharedDirectoryCreateRequest {
-    completion_id: u32,
-    directory_id: u32,
-    file_type: u32,
-    path: String,
-}
-
-struct SharedDirectoryCreateResponse {
-    completion_id: u32,
-    err: u32,
-}
-
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
@@ -922,9 +789,6 @@ extern "C" {
 
     /// Shared Directory Acknowledge
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge) -> CGOError;
-
-    /// Shared Directory Info Request
-    fn tdp_sd_info_request(client_ref: usize, req: CGOSharedDirectoryInfoRequest) -> CGOError;
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.
