@@ -373,6 +373,25 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"mydb"},
 		},
 		{
+			name:         "mongosh",
+			dbProtocol:   defaults.ProtocolMongoDB,
+			databaseName: "mydb",
+			opts: []ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, "/tmp/keys/example.com/cas/example.com.pem")},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"mongosh": []byte("1.1.6"),
+				},
+			},
+			cmd: []string{"mongosh",
+				"--host", "localhost",
+				"--port", "12345",
+				"--tls",
+				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
+				"--tlsCAFile", "/tmp/keys/example.com/cas/example.com.pem",
+				"mydb"},
+		},
+		{
 			name:         "mongosh no TLS",
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",

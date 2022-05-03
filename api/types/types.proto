@@ -1407,6 +1407,9 @@ message AccessRequestSpecV3 {
     // that is not a requirement.
     repeated string SuggestedReviewers = 13
         [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
+
+    // RequestedResourceIDs is a list of resources to which access is being requested.
+    repeated string RequestedResourceIDs = 14 [ (gogoproto.jsontag) = "resource_ids,omitempty" ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.

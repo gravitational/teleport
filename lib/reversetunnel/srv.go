@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -205,6 +206,9 @@ type Config struct {
 
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+
+	// NodeWatcher is a node watcher.
+	NodeWatcher *services.NodeWatcher
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -255,6 +259,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	})
 	if cfg.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
+	}
+	if cfg.NodeWatcher == nil {
+		return trace.BadParameter("missing parameter NodeWatcher")
 	}
 	return nil
 }
@@ -895,7 +902,7 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 	// treat first connection as a registered heartbeat,
 	// otherwise the connection information will appear after initial
 	// heartbeat delay
-	go site.registerHeartbeat(time.Now())
+	go site.registerHeartbeat(s.Clock.Now())
 	return site, remoteConn, nil
 }
 
@@ -1028,7 +1035,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		types.TunnelConnectionSpecV2{
 			ClusterName:   domainName,
 			ProxyName:     srv.ID,
-			LastHeartbeat: time.Now().UTC(),
+			LastHeartbeat: srv.Clock.Now().UTC(),
 		},
 	)
 	if err != nil {
@@ -1060,27 +1067,42 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 
 	clt, _, err := remoteSite.getRemoteClient()
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteClient = clt
 
 	remoteVersion, err := getRemoteAuthVersion(closeContext, sconn)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	accessPoint, err := createRemoteAccessPoint(srv, clt, remoteVersion, domainName)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteAccessPoint = accessPoint
-
+	nodeWatcher, err := services.NewNodeWatcher(closeContext, services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: srv.Component,
+			Client:    accessPoint,
+			Log:       srv.Log,
+		},
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+	remoteSite.nodeWatcher = nodeWatcher
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
 	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.certificateCache = certificateCache
@@ -1093,7 +1115,8 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		return nil, err
+		cancel()
+		return nil, trace.Wrap(err)
 	}
 
 	go remoteSite.updateCertAuthorities(caRetry)
@@ -1106,7 +1129,8 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		return nil, err
+		cancel()
+		return nil, trace.Wrap(err)
 	}
 
 	go remoteSite.updateLocks(lockRetry)

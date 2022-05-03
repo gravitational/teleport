@@ -191,6 +191,9 @@ type Server struct {
 
 	// connectedProxyGetter gets the proxies teleport is connected to.
 	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
+
+	// nodeWatcher is the server's node watcher.
+	nodeWatcher *services.NodeWatcher
 }
 
 // GetClock returns server clock implementation
@@ -555,6 +558,14 @@ func SetAllowTCPForwarding(allow bool) ServerOption {
 func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	return func(s *Server) error {
 		s.lockWatcher = lockWatcher
+		return nil
+	}
+}
+
+// SetNodeWatcher sets the server's node watcher.
+func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
+	return func(s *Server) error {
+		s.nodeWatcher = nodeWatcher
 		return nil
 	}
 }
