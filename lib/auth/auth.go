@@ -2766,8 +2766,8 @@ func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourc
 }
 
 // GetReverseTunnels returns reverse tunnels from the cache
-func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	return a.GetCache().GetReverseTunnels(opts...)
+func (a *Server) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+	return a.GetCache().GetReverseTunnels(ctx, opts...)
 }
 
 // GetProxies returns proxies from the cache
