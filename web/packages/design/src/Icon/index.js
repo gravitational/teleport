@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,6 +25,8 @@ import Icon, {
   AppRollback,
   Archive,
   ArrowDown,
+  ArrowForward,
+  ArrowBack,
   ArrowLeft,
   ArrowRight,
   ArrowsVertical,
@@ -94,6 +96,7 @@ import Icon, {
   Graph,
   Home,
   Info,
+  Key,
   Keypair,
   Kubernetes,
   Label,
@@ -188,6 +191,8 @@ export {
   AppRollback,
   Archive,
   ArrowDown,
+  ArrowForward,
+  ArrowBack,
   ArrowLeft,
   ArrowRight,
   ArrowsVertical,
@@ -257,6 +262,7 @@ export {
   Graph,
   Home,
   Info,
+  Key,
   Keypair,
   Kubernetes,
   Label,

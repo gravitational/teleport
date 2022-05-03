@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.AppRollback} text="AppRollback" />
     <IconBox IconCmpt={Icon.Archive} text="Archive" />
     <IconBox IconCmpt={Icon.ArrowDown} text="ArrowDown" />
+    <IconBox IconCmpt={Icon.ArrowForward} text="ArrowForward" />
+    <IconBox IconCmpt={Icon.ArrowBack} text="ArrowBack" />
     <IconBox IconCmpt={Icon.ArrowLeft} text="ArrowLeft" />
     <IconBox IconCmpt={Icon.ArrowRight} text="ArrowRight" />
     <IconBox IconCmpt={Icon.ArrowsVertical} text="ArrowsVertical" />
@@ -101,6 +103,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.Google} text="Google" />
     <IconBox IconCmpt={Icon.Graph} text="Graph" />
     <IconBox IconCmpt={Icon.Home} text="Home" />
+    <IconBox IconCmpt={Icon.Key} text="Key" />
     <IconBox IconCmpt={Icon.Keypair} text="Keypair" />
     <IconBox IconCmpt={Icon.Kubernetes} text="Kubernetes" />
     <IconBox IconCmpt={Icon.Label} text="Label" />
