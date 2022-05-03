@@ -284,7 +284,9 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	// Cleanup, when process is exiting.
 	process.OnExit("kube.shutdown", func(payload interface{}) {
-		warnOnErr(listener.Close(), log)
+		if asyncEmitter != nil {
+			warnOnErr(asyncEmitter.Close(), log)
+		}
 		// Clean up items in reverse order from their initialization.
 		if payload != nil {
 			// Graceful shutdown.
@@ -296,8 +298,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			warnOnErr(kubeServer.Close(), log)
 			agentPool.Stop()
 		}
-
-		warnOnErr(asyncEmitter.Close(), log)
+		warnOnErr(listener.Close(), log)
 		warnOnErr(conn.Close(), log)
 
 		if dynLabels != nil {

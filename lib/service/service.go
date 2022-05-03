@@ -3247,6 +3247,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// execute this when process is asked to exit:
 	process.OnExit("proxy.shutdown", func(payload interface{}) {
+		// Close the listeners at the beginning of shutdown, because we are not
+		// really guaranteed to be capable to serve new requests if we're
+		// halfway through a shutdown, and double closing a listener is fine.
 		listeners.Close()
 		rcWatcher.Close()
 		if payload == nil {
