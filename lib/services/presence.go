@@ -108,7 +108,7 @@ type Presence interface {
 	GetReverseTunnel(name string, opts ...MarshalOption) (types.ReverseTunnel, error)
 
 	// GetReverseTunnels returns a list of registered servers
-	GetReverseTunnels(opts ...MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context, opts ...MarshalOption) ([]types.ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(domainName string) error
