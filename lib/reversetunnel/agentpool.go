@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -60,6 +61,10 @@ type AgentPool struct {
 
 	// runtimeConfig contains dynamic configuration values.
 	runtimeConfig *agentPoolRuntimeConfig
+
+	// remoteTLSRoutingEnabled caches a remote clusters tls routing setting.
+	remoteTLSRoutingEnabled bool
+
 	// events receives agent state change events.
 	events chan Agent
 
@@ -108,8 +113,10 @@ type AgentPoolConfig struct {
 	FIPS bool
 	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
 	ConnectedProxyGetter *ConnectedProxyGetter
-	// IgnoreTunnelStrategy ignores the tunnel strategy and connects to all proxies.
-	IgnoreTunnelStrategy bool
+	// IsRemoteCluster indicates the agent pool is connecting to a remote cluster.
+	// This means the tunnel strategy should be ignored and tls routing is determined
+	// by the remote cluster.
+	IsRemoteCluster bool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -180,7 +187,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		runtimeConfig: newAgentPoolRuntimeConfig(),
 	}
 
-	pool.runtimeConfig.ignoreTunnelStrategy = pool.IgnoreTunnelStrategy
+	pool.runtimeConfig.isRemoteCluster = pool.IsRemoteCluster
 
 	pool.ctx, pool.cancel = context.WithCancel(ctx)
 	pool.tracker, err = track.New(pool.ctx, track.Config{ClusterName: pool.Cluster})
@@ -439,6 +446,10 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		return nil, trace.Wrap(err)
 	}
 
+	if p.IsRemoteCluster {
+		p.runtimeConfig.useRemoteTLSRouting = p.getRemoteTLSRoutingFunc(ctx, addr)
+	}
+
 	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
 	if p.runtimeConfig.useALPNRouting() {
 		tlsConfig := &tls.Config{
@@ -512,6 +523,26 @@ func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
 	return pong.ServerVersion, nil
 }
 
+// getRemoteALPNRoutingFunc returns a function to get a remote clusters tls routing setting.
+func (p *AgentPool) getRemoteTLSRoutingFunc(ctx context.Context, addr *utils.NetAddr) func() bool {
+	return func() bool {
+		resp, err := webclient.Find(&webclient.Config{
+			Context:         ctx,
+			ProxyAddr:       addr.Addr,
+			Insecure:        lib.IsInsecureDevMode(),
+			IgnoreHTTPProxy: true,
+		})
+		if err != nil {
+			// If TLS Routing is disabled the address is the proxy reverse tunnel
+			// address the ping call will always fail.
+			p.log.Infof("Failed to ping web proxy %q addr: %v", addr.Addr, err)
+		} else {
+			p.remoteTLSRoutingEnabled = resp.Proxy.TLSRoutingEnabled
+		}
+		return p.remoteTLSRoutingEnabled
+	}
+}
+
 // transport creates a new transport instance.
 func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn ssh.Conn) *transport {
 	return &transport{
@@ -541,23 +572,25 @@ type agentPoolRuntimeConfig struct {
 	connectionCount int
 	// keepAliveInterval is the interval agents will send heartbeats at.
 	keepAliveInterval time.Duration
-	// ignoreTunnelStrategy forces the agent pool to connect to all proxies
+	// isRemoteCluster forces the agent pool to connect to all proxies
 	// regardless of the configured tunnel strategy.
-	ignoreTunnelStrategy bool
+	isRemoteCluster     bool
+	useRemoteTLSRouting func() bool
 }
 
 func newAgentPoolRuntimeConfig() *agentPoolRuntimeConfig {
 	return &agentPoolRuntimeConfig{
-		tunnelStrategyType: types.AgentMesh,
-		connectionCount:    defaultAgentConnectionCount,
-		proxyListenerMode:  types.ProxyListenerMode_Separate,
-		keepAliveInterval:  defaults.KeepAliveInterval(),
+		tunnelStrategyType:  types.AgentMesh,
+		connectionCount:     defaultAgentConnectionCount,
+		proxyListenerMode:   types.ProxyListenerMode_Separate,
+		keepAliveInterval:   defaults.KeepAliveInterval(),
+		useRemoteTLSRouting: func() bool { return false },
 	}
 }
 
 // reportConnectedProxies returns true if the connected proxies should be reported.
 func (c *agentPoolRuntimeConfig) reportConnectedProxies() bool {
-	if c.ignoreTunnelStrategy {
+	if c.isRemoteCluster {
 		return false
 	}
 	return c.tunnelStrategyType == types.ProxyPeering
@@ -565,7 +598,7 @@ func (c *agentPoolRuntimeConfig) reportConnectedProxies() bool {
 
 // reportConnectedProxies returns true if the the number of agents should be restricted.
 func (c *agentPoolRuntimeConfig) restrictConnectionCount() bool {
-	if c.ignoreTunnelStrategy {
+	if c.isRemoteCluster {
 		return false
 	}
 	return c.tunnelStrategyType == types.ProxyPeering
@@ -573,7 +606,7 @@ func (c *agentPoolRuntimeConfig) restrictConnectionCount() bool {
 
 // useReverseTunnelV2 returns true if reverse tunnel should be used.
 func (c *agentPoolRuntimeConfig) useReverseTunnelV2() bool {
-	if c.ignoreTunnelStrategy {
+	if c.isRemoteCluster {
 		return false
 	}
 	return c.tunnelStrategyType == types.ProxyPeering
@@ -581,6 +614,10 @@ func (c *agentPoolRuntimeConfig) useReverseTunnelV2() bool {
 
 // useALPNRouting returns true agents should connect using alpn routing.
 func (c *agentPoolRuntimeConfig) useALPNRouting() bool {
+	if c.isRemoteCluster {
+		return c.useRemoteTLSRouting()
+	}
+
 	return c.proxyListenerMode == types.ProxyListenerMode_Multiplex
 }
 
