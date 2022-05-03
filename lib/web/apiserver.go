@@ -1946,12 +1946,12 @@ func (h *Handler) siteNodeConnect(
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	clt, err := ctx.GetUserClient(site)
+	watcher, err := site.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	term, err := NewTerminal(r.Context(), *req, clt, ctx)
+	term, err := NewTerminal(*req, watcher, ctx)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -1975,11 +1975,6 @@ type siteSessionGenerateResponse struct {
 // siteSessionCreate generates a new site session that can be used by UI
 // The ServerID from request can be in the form of hostname, uuid, or ip address.
 func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var req *siteSessionGenerateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1987,12 +1982,12 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 
 	namespace := apidefaults.Namespace
 	if req.Session.ServerID != "" {
-		servers, err := clt.GetNodes(r.Context(), namespace)
+		watcher, err := site.NodeWatcher()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		hostname, _, err := resolveServerHostPort(req.Session.ServerID, servers)
+		hostname, _, err := resolveServerHostPort(req.Session.ServerID, watcher)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
