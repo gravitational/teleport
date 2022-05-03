@@ -1628,7 +1628,7 @@ func testKubeConnectionLimit(t *testing.T, suite *KubeSuite) {
 	hostUsername := suite.me.Username
 	kubeGroups := []string{testImpersonationGroup}
 	kubeUsers := []string{"alice@example.com"}
-	role, err := types.NewRoleV3("kubemaster", types.RoleSpecV5{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{hostUsername},
 			KubeGroups: kubeGroups,
