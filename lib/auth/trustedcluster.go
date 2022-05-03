@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
@@ -582,7 +583,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
-			Transport: tr,
+			Transport: otelhttp.NewTransport(tr),
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

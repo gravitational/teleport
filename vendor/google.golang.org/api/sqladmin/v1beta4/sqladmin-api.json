@@ -3,7 +3,7 @@
     "oauth2": {
       "scopes": {
         "https://www.googleapis.com/auth/cloud-platform": {
-          "description": "View and manage your data across Google Cloud Platform services"
+          "description": "See, edit, configure, and delete your Google Cloud Platform data"
         },
         "https://www.googleapis.com/auth/sqlservice.admin": {
           "description": "Manage your Google SQL Service instances"
@@ -18,14 +18,15 @@
   "description": "API for Cloud SQL database instance management",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/cloud-sql/",
+  "fullyEncodeReservedExpansion": true,
   "icons": {
     "x16": "http://www.google.com/images/icons/product/search-16.gif",
     "x32": "http://www.google.com/images/icons/product/search-32.gif"
   },
-  "id": "sql:v1beta4",
+  "id": "sqladmin:v1beta4",
   "kind": "discovery#restDescription",
   "mtlsRootUrl": "https://sqladmin.mtls.googleapis.com/",
-  "name": "sql",
+  "name": "sqladmin",
   "ownerDomain": "google.com",
   "ownerName": "Google",
   "parameters": {
@@ -121,7 +122,7 @@
           ],
           "parameters": {
             "id": {
-              "description": "The ID of the Backup Run to delete. To find a Backup Run ID, use the \u003ca\nhref=\"/sql/docs/db_path/admin-api/rest/v1beta4/backupRuns/list\"\u003elist\u003c/a\u003e\nmethod.",
+              "description": "The ID of the Backup Run to delete. To find a Backup Run ID, use the list method.",
               "format": "int64",
               "location": "path",
               "required": true,
@@ -190,7 +191,7 @@
           ]
         },
         "insert": {
-          "description": "Creates a new backup run on demand. This method is applicable only to\nSecond Generation instances.",
+          "description": "Creates a new backup run on demand. This method is applicable only to Second Generation instances.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/backupRuns",
           "httpMethod": "POST",
           "id": "sql.backupRuns.insert",
@@ -225,7 +226,7 @@
           ]
         },
         "list": {
-          "description": "Lists all backup runs associated with a given instance and configuration in\nthe reverse chronological order of the backup initiation time.",
+          "description": "Lists all backup runs associated with a given instance and configuration in the reverse chronological order of the backup initiation time.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/backupRuns",
           "httpMethod": "GET",
           "id": "sql.backupRuns.list",
@@ -247,7 +248,7 @@
               "type": "integer"
             },
             "pageToken": {
-              "description": "A previously-returned page token representing part of the larger set of\nresults to view.",
+              "description": "A previously-returned page token representing part of the larger set of results to view.",
               "location": "query",
               "type": "string"
             },
@@ -311,7 +312,7 @@
           ]
         },
         "get": {
-          "description": "Retrieves a resource containing information about a database inside a Cloud\nSQL instance.",
+          "description": "Retrieves a resource containing information about a database inside a Cloud SQL instance.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/databases/{database}",
           "httpMethod": "GET",
           "id": "sql.databases.get",
@@ -350,7 +351,7 @@
           ]
         },
         "insert": {
-          "description": "Inserts a resource containing information about a database inside a Cloud\nSQL instance.",
+          "description": "Inserts a resource containing information about a database inside a Cloud SQL instance.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/databases",
           "httpMethod": "POST",
           "id": "sql.databases.insert",
@@ -417,7 +418,7 @@
           ]
         },
         "patch": {
-          "description": "Partially updates a resource containing information about a database inside\na Cloud SQL instance. This method supports patch semantics.",
+          "description": "Partially updates a resource containing information about a database inside a Cloud SQL instance. This method supports patch semantics.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/databases/{database}",
           "httpMethod": "PATCH",
           "id": "sql.databases.patch",
@@ -459,7 +460,7 @@
           ]
         },
         "update": {
-          "description": "Updates a resource containing information about a database inside a Cloud\nSQL instance.",
+          "description": "Updates a resource containing information about a database inside a Cloud SQL instance.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/databases/{database}",
           "httpMethod": "PUT",
           "id": "sql.databases.update",
@@ -512,7 +513,7 @@
           "parameterOrder": [],
           "parameters": {
             "databaseVersion": {
-              "description": "Database type and version you want to retrieve flags for. By default, this\nmethod returns flags for all database types and versions.",
+              "description": "Database type and version you want to retrieve flags for. By default, this method returns flags for all database types and versions.",
               "location": "query",
               "type": "string"
             }
@@ -531,7 +532,7 @@
     "instances": {
       "methods": {
         "addServerCa": {
-          "description": "Add a new trusted Certificate Authority (CA) version for the specified\ninstance. Required to prepare for a certificate rotation. If a CA version\nwas previously added but never used in a certificate rotation, this\noperation replaces that version. There cannot be more than one CA version\nwaiting to be rotated in.",
+          "description": "Add a new trusted Certificate Authority (CA) version for the specified instance. Required to prepare for a certificate rotation. If a CA version was previously added but never used in a certificate rotation, this operation replaces that version. There cannot be more than one CA version waiting to be rotated in.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/addServerCa",
           "httpMethod": "POST",
           "id": "sql.instances.addServerCa",
@@ -563,7 +564,7 @@
           ]
         },
         "clone": {
-          "description": "Creates a Cloud SQL instance as a clone of the source instance. Using this\noperation might cause your instance to restart.",
+          "description": "Creates a Cloud SQL instance as a clone of the source instance. Using this operation might cause your instance to restart.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/clone",
           "httpMethod": "POST",
           "id": "sql.instances.clone",
@@ -573,7 +574,7 @@
           ],
           "parameters": {
             "instance": {
-              "description": "The ID of the Cloud SQL instance to be cloned (source). This does not\ninclude the project ID.",
+              "description": "The ID of the Cloud SQL instance to be cloned (source). This does not include the project ID.",
               "location": "path",
               "required": true,
               "type": "string"
@@ -630,7 +631,7 @@
           ]
         },
         "demoteMaster": {
-          "description": "Demotes the stand-alone instance to be a Cloud SQL read replica for an\nexternal database server.",
+          "description": "Demotes the stand-alone instance to be a Cloud SQL read replica for an external database server.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/demoteMaster",
           "httpMethod": "POST",
           "id": "sql.instances.demoteMaster",
@@ -665,7 +666,7 @@
           ]
         },
         "export": {
-          "description": "Exports data from a Cloud SQL instance to a Cloud Storage bucket as a SQL\ndump or CSV file.",
+          "description": "Exports data from a Cloud SQL instance to a Cloud Storage bucket as a SQL dump or CSV file.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/export",
           "httpMethod": "POST",
           "id": "sql.instances.export",
@@ -699,7 +700,7 @@
           ]
         },
         "failover": {
-          "description": "Failover the instance to its failover replica instance. Using this\noperation might cause your instance to restart.",
+          "description": "Failover the instance to its failover replica instance. Using this operation might cause your instance to restart.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/failover",
           "httpMethod": "POST",
           "id": "sql.instances.failover",
@@ -766,7 +767,7 @@
           ]
         },
         "import": {
-          "description": "Imports data into a Cloud SQL instance from a SQL dump  or CSV file in\nCloud Storage.",
+          "description": "Imports data into a Cloud SQL instance from a SQL dump or CSV file in Cloud Storage.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/import",
           "httpMethod": "POST",
           "id": "sql.instances.import",
@@ -809,7 +810,7 @@
           ],
           "parameters": {
             "project": {
-              "description": "Project ID of the project to which the newly created Cloud SQL instances\nshould belong.",
+              "description": "Project ID of the project to which the newly created Cloud SQL instances should belong.",
               "location": "path",
               "required": true,
               "type": "string"
@@ -837,7 +838,7 @@
           ],
           "parameters": {
             "filter": {
-              "description": "A filter expression that filters resources listed in the response.\nThe expression is in the form of field:value. For example,\n'instanceType:CLOUD_SQL_INSTANCE'. Fields can be nested as needed as per\ntheir JSON representation, such as 'settings.userLabels.auto_start:true'.\n\nMultiple filter queries are space-separated. For example.\n'state:RUNNABLE instanceType:CLOUD_SQL_INSTANCE'. By default, each\nexpression is an AND expression. However, you can include AND and OR\nexpressions explicitly.",
+              "description": "A filter expression that filters resources listed in the response. The expression is in the form of field:value. For example, 'instanceType:CLOUD_SQL_INSTANCE'. Fields can be nested as needed as per their JSON representation, such as 'settings.userLabels.auto_start:true'. Multiple filter queries are space-separated. For example. 'state:RUNNABLE instanceType:CLOUD_SQL_INSTANCE'. By default, each expression is an AND expression. However, you can include AND and OR expressions explicitly.",
               "location": "query",
               "type": "string"
             },
@@ -848,7 +849,7 @@
               "type": "integer"
             },
             "pageToken": {
-              "description": "A previously-returned page token representing part of the larger set of\nresults to view.",
+              "description": "A previously-returned page token representing part of the larger set of results to view.",
               "location": "query",
               "type": "string"
             },
@@ -869,7 +870,7 @@
           ]
         },
         "listServerCas": {
-          "description": "Lists all of the trusted Certificate Authorities (CAs) for the specified\ninstance. There can be up to three CAs listed: the CA that was used to sign\nthe certificate that is currently in use, a CA that has been added but not\nyet used to sign a certificate, and a CA used to sign a certificate that\nhas previously rotated out.",
+          "description": "Lists all of the trusted Certificate Authorities (CAs) for the specified instance. There can be up to three CAs listed: the CA that was used to sign the certificate that is currently in use, a CA that has been added but not yet used to sign a certificate, and a CA used to sign a certificate that has previously rotated out.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/listServerCas",
           "httpMethod": "GET",
           "id": "sql.instances.listServerCas",
@@ -901,7 +902,7 @@
           ]
         },
         "patch": {
-          "description": "Updates settings of a Cloud SQL instance.\nThis method supports patch semantics.",
+          "description": "Updates settings of a Cloud SQL instance. This method supports patch semantics.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}",
           "httpMethod": "PATCH",
           "id": "sql.instances.patch",
@@ -936,7 +937,7 @@
           ]
         },
         "promoteReplica": {
-          "description": "Promotes the read replica instance to be a stand-alone Cloud SQL instance.\nUsing this operation might cause your instance to restart.",
+          "description": "Promotes the read replica instance to be a stand-alone Cloud SQL instance. Using this operation might cause your instance to restart.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/promoteReplica",
           "httpMethod": "POST",
           "id": "sql.instances.promoteReplica",
@@ -968,7 +969,7 @@
           ]
         },
         "resetSslConfig": {
-          "description": "Deletes all client certificates and generates a new server SSL certificate\nfor the instance.",
+          "description": "Deletes all client certificates and generates a new server SSL certificate for the instance.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/resetSslConfig",
           "httpMethod": "POST",
           "id": "sql.instances.resetSslConfig",
@@ -1032,7 +1033,7 @@
           ]
         },
         "restoreBackup": {
-          "description": "Restores a backup of a Cloud SQL instance. Using this operation might cause\nyour instance to restart.",
+          "description": "Restores a backup of a Cloud SQL instance. Using this operation might cause your instance to restart.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/restoreBackup",
           "httpMethod": "POST",
           "id": "sql.instances.restoreBackup",
@@ -1067,7 +1068,7 @@
           ]
         },
         "rotateServerCa": {
-          "description": "Rotates the server certificate to one signed by the Certificate Authority\n(CA) version previously added with the addServerCA method.",
+          "description": "Rotates the server certificate to one signed by the Certificate Authority (CA) version previously added with the addServerCA method.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/rotateServerCa",
           "httpMethod": "POST",
           "id": "sql.instances.rotateServerCa",
@@ -1166,7 +1167,7 @@
           ]
         },
         "truncateLog": {
-          "description": "Truncate MySQL general and slow query log tables",
+          "description": "Truncate MySQL general and slow query log tables MySQL only.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/truncateLog",
           "httpMethod": "POST",
           "id": "sql.instances.truncateLog",
@@ -1201,7 +1202,7 @@
           ]
         },
         "update": {
-          "description": "Updates settings of a Cloud SQL instance. Using this operation might cause\nyour instance to restart.",
+          "description": "Updates settings of a Cloud SQL instance. Using this operation might cause your instance to restart.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}",
           "httpMethod": "PUT",
           "id": "sql.instances.update",
@@ -1272,7 +1273,7 @@
           ]
         },
         "list": {
-          "description": "Lists all instance operations that have been performed on the given Cloud\nSQL instance in the reverse chronological order of the start time.",
+          "description": "Lists all instance operations that have been performed on the given Cloud SQL instance in the reverse chronological order of the start time.",
           "flatPath": "sql/v1beta4/projects/{project}/operations",
           "httpMethod": "GET",
           "id": "sql.operations.list",
@@ -1292,7 +1293,7 @@
               "type": "integer"
             },
             "pageToken": {
-              "description": "A previously-returned page token representing part of the larger set of\nresults to view.",
+              "description": "A previously-returned page token representing part of the larger set of results to view.",
               "location": "query",
               "type": "string"
             },
@@ -1354,7 +1355,7 @@
               ]
             },
             "startExternalSync": {
-              "description": "Start External master migration.",
+              "description": "Start External primary instance migration.",
               "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/startExternalSync",
               "httpMethod": "POST",
               "id": "sql.projects.instances.startExternalSync",
@@ -1370,17 +1371,27 @@
                   "type": "string"
                 },
                 "project": {
-                  "description": "ID of the project that contains the first generation instance.",
+                  "description": "ID of the project that contains the instance.",
                   "location": "path",
                   "required": true,
                   "type": "string"
                 },
+                "skipVerification": {
+                  "description": "Whether to skip the verification step (VESS).",
+                  "location": "query",
+                  "type": "boolean"
+                },
                 "syncMode": {
-                  "description": "External sync mode",
+                  "description": "External sync mode.",
                   "enum": [
                     "EXTERNAL_SYNC_MODE_UNSPECIFIED",
                     "ONLINE",
                     "OFFLINE"
+                  ],
+                  "enumDescriptions": [
+                    "Unknown external sync mode, will be defaulted to ONLINE mode",
+                    "Online external sync will set up replication after initial data external sync",
+                    "Offline external sync only dumps and loads a one-time snapshot of the primary instance's data"
                   ],
                   "location": "query",
                   "type": "string"
@@ -1396,7 +1407,7 @@
               ]
             },
             "verifyExternalSyncSettings": {
-              "description": "Verify External master external sync settings.",
+              "description": "Verify External primary instance external sync settings.",
               "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/verifyExternalSyncSettings",
               "httpMethod": "POST",
               "id": "sql.projects.instances.verifyExternalSyncSettings",
@@ -1424,6 +1435,11 @@
                     "ONLINE",
                     "OFFLINE"
                   ],
+                  "enumDescriptions": [
+                    "Unknown external sync mode, will be defaulted to ONLINE mode",
+                    "Online external sync will set up replication after initial data external sync",
+                    "Offline external sync only dumps and loads a one-time snapshot of the primary instance's data"
+                  ],
                   "location": "query",
                   "type": "string"
                 },
@@ -1449,7 +1465,7 @@
     "sslCerts": {
       "methods": {
         "createEphemeral": {
-          "description": "Generates a short-lived X509 certificate containing the provided public key\nand signed by a private key specific to the target instance. Users may use\nthe certificate to authenticate as themselves when connecting to the\ndatabase.",
+          "description": "Generates a short-lived X509 certificate containing the provided public key and signed by a private key specific to the target instance. Users may use the certificate to authenticate as themselves when connecting to the database.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/createEphemeral",
           "httpMethod": "POST",
           "id": "sql.sslCerts.createEphemeral",
@@ -1484,7 +1500,7 @@
           ]
         },
         "delete": {
-          "description": "Deletes the SSL certificate. For First Generation instances, the\ncertificate remains valid until the instance is restarted.",
+          "description": "Deletes the SSL certificate. For First Generation instances, the certificate remains valid until the instance is restarted.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/sslCerts/{sha1Fingerprint}",
           "httpMethod": "DELETE",
           "id": "sql.sslCerts.delete",
@@ -1523,7 +1539,7 @@
           ]
         },
         "get": {
-          "description": "Retrieves a particular SSL certificate.  Does not include the private key\n(required for usage).  The private key must be saved from the response to\ninitial creation.",
+          "description": "Retrieves a particular SSL certificate. Does not include the private key (required for usage). The private key must be saved from the response to initial creation.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/sslCerts/{sha1Fingerprint}",
           "httpMethod": "GET",
           "id": "sql.sslCerts.get",
@@ -1562,7 +1578,7 @@
           ]
         },
         "insert": {
-          "description": "Creates an SSL certificate and returns it along with the private key and\nserver certificate authority.  The new certificate will not be usable until\nthe instance is restarted.",
+          "description": "Creates an SSL certificate and returns it along with the private key and server certificate authority. The new certificate will not be usable until the instance is restarted.",
           "flatPath": "sql/v1beta4/projects/{project}/instances/{instance}/sslCerts",
           "httpMethod": "POST",
           "id": "sql.sslCerts.insert",
@@ -1633,7 +1649,7 @@
     "tiers": {
       "methods": {
         "list": {
-          "description": "Lists all available machine types (tiers) for Cloud SQL, for example,\ndb-n1-standard-1. For related information, see \u003ca\nhref=\"/sql/pricing\"\u003ePricing\u003c/a\u003e.",
+          "description": "Lists all available machine types (tiers) for Cloud SQL, for example, db-n1-standard-1. For related information, see Pricing.",
           "flatPath": "sql/v1beta4/projects/{project}/tiers",
           "httpMethod": "GET",
           "id": "sql.tiers.list",
@@ -1818,7 +1834,7 @@
       }
     }
   },
-  "revision": "20200518",
+  "revision": "20210310",
   "rootUrl": "https://sqladmin.googleapis.com/",
   "schemas": {
     "AclEntry": {
@@ -1826,12 +1842,12 @@
       "id": "AclEntry",
       "properties": {
         "expirationTime": {
-          "description": "The time when this access control entry expires in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "The time when this access control entry expires in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#aclEntry\u003c/code\u003e.",
+          "description": "This is always *sql#aclEntry*.",
           "type": "string"
         },
         "name": {
@@ -1839,7 +1855,7 @@
           "type": "string"
         },
         "value": {
-          "description": "The whitelisted value for the access control list.",
+          "description": "The allowlisted value for the access control list.",
           "type": "string"
         }
       },
@@ -1857,12 +1873,16 @@
           ],
           "enumDescriptions": [
             "An unknown or unset warning type from Cloud SQL API.",
-            "Warning when one or more regions are not reachable.  The returned result\nset may be incomplete."
+            "Warning when one or more regions are not reachable. The returned result set may be incomplete."
           ],
           "type": "string"
         },
         "message": {
           "description": "The warning message.",
+          "type": "string"
+        },
+        "region": {
+          "description": "The region name for REGION_UNREACHABLE warning.",
           "type": "string"
         }
       },
@@ -1872,8 +1892,12 @@
       "description": "Database instance backup configuration.",
       "id": "BackupConfiguration",
       "properties": {
+        "backupRetentionSettings": {
+          "$ref": "BackupRetentionSettings",
+          "description": "Backup retention settings."
+        },
         "binaryLogEnabled": {
-          "description": "(MySQL only) Whether binary log is enabled. If backup configuration is\ndisabled, binarylog must be disabled as well.",
+          "description": "(MySQL only) Whether binary log is enabled. If backup configuration is disabled, binarylog must be disabled as well.",
           "type": "boolean"
         },
         "enabled": {
@@ -1881,7 +1905,7 @@
           "type": "boolean"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#backupConfiguration\u003c/code\u003e.",
+          "description": "This is always *sql#backupConfiguration*.",
           "type": "string"
         },
         "location": {
@@ -1897,7 +1921,52 @@
           "type": "boolean"
         },
         "startTime": {
-          "description": "Start time for the daily backup configuration in UTC timezone in the 24\nhour format - \u003ccode\u003eHH:MM\u003c/code\u003e.",
+          "description": "Start time for the daily backup configuration in UTC timezone in the 24 hour format - *HH:MM*.",
+          "type": "string"
+        },
+        "transactionLogRetentionDays": {
+          "description": "The number of days of transaction logs we retain for point in time restore, from 1-7.",
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "BackupContext": {
+      "description": "Backup context.",
+      "id": "BackupContext",
+      "properties": {
+        "backupId": {
+          "description": "The identifier of the backup.",
+          "format": "int64",
+          "type": "string"
+        },
+        "kind": {
+          "description": "This is always *sql#backupContext*.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "BackupRetentionSettings": {
+      "description": "We currently only support backup retention by specifying the number of backups we will retain.",
+      "id": "BackupRetentionSettings",
+      "properties": {
+        "retainedBackups": {
+          "description": "Depending on the value of retention_unit, this is used to determine if a backup needs to be deleted. If retention_unit is 'COUNT', we will retain this many backups.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "retentionUnit": {
+          "description": "The unit that 'retained_backups' represents.",
+          "enum": [
+            "RETENTION_UNIT_UNSPECIFIED",
+            "COUNT"
+          ],
+          "enumDescriptions": [
+            "Backup retention unit is unspecified, will be treated as COUNT.",
+            "Retention will be by count, eg. \"retain the most recent 7 backups\"."
+          ],
           "type": "string"
         }
       },
@@ -1907,34 +1976,48 @@
       "description": "A BackupRun resource.",
       "id": "BackupRun",
       "properties": {
+        "backupKind": {
+          "description": "Specifies the kind of backup, PHYSICAL or DEFAULT_SNAPSHOT.",
+          "enum": [
+            "SQL_BACKUP_KIND_UNSPECIFIED",
+            "SNAPSHOT",
+            "PHYSICAL"
+          ],
+          "enumDescriptions": [
+            "This is an unknown BackupKind.",
+            "The snapshot based backups",
+            "Physical backups"
+          ],
+          "type": "string"
+        },
         "description": {
           "description": "The description of this run, only applicable to on-demand backups.",
           "type": "string"
         },
         "diskEncryptionConfiguration": {
           "$ref": "DiskEncryptionConfiguration",
-          "description": "Encryption configuration specific to a backup.\nApplies only to Second Generation instances."
+          "description": "Encryption configuration specific to a backup. Applies only to Second Generation instances."
         },
         "diskEncryptionStatus": {
           "$ref": "DiskEncryptionStatus",
-          "description": "Encryption status specific to a backup.\nApplies only to Second Generation instances."
+          "description": "Encryption status specific to a backup. Applies only to Second Generation instances."
         },
         "endTime": {
-          "description": "The time the backup operation completed in UTC timezone in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "The time the backup operation completed in UTC timezone in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         },
         "enqueuedTime": {
-          "description": "The time the run was enqueued in UTC timezone in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "The time the run was enqueued in UTC timezone in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         },
         "error": {
           "$ref": "OperationError",
-          "description": "Information about why the backup operation failed. This is only present if\nthe run has the FAILED status."
+          "description": "Information about why the backup operation failed. This is only present if the run has the FAILED status."
         },
         "id": {
-          "description": "The identifier for this backup run. Unique only for a specific Cloud SQL\ninstance.",
+          "description": "The identifier for this backup run. Unique only for a specific Cloud SQL instance.",
           "format": "int64",
           "type": "string"
         },
@@ -1943,7 +2026,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#backupRun\u003c/code\u003e.",
+          "description": "This is always *sql#backupRun*.",
           "type": "string"
         },
         "location": {
@@ -1955,7 +2038,7 @@
           "type": "string"
         },
         "startTime": {
-          "description": "The time the backup operation actually started in UTC timezone in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "The time the backup operation actually started in UTC timezone in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         },
@@ -1976,11 +2059,11 @@
           "enumDescriptions": [
             "The status of the run is unknown.",
             "The backup operation was enqueued.",
-            "The backup is overdue across a given backup window. Indicates a\nproblem. Example: Long-running operation in progress during\nthe whole window.",
+            "The backup is overdue across a given backup window. Indicates a problem. Example: Long-running operation in progress during the whole window.",
             "The backup is in progress.",
             "The backup failed.",
             "The backup was successful.",
-            "The backup was skipped (without problems) for a given backup\nwindow. Example: Instance was idle.",
+            "The backup was skipped (without problems) for a given backup window. Example: Instance was idle.",
             "The backup is about to be deleted.",
             "The backup deletion failed.",
             "The backup has been deleted."
@@ -1988,7 +2071,7 @@
           "type": "string"
         },
         "type": {
-          "description": "The type of this run; can be either \"AUTOMATED\" or \"ON_DEMAND\".",
+          "description": "The type of this run; can be either \"AUTOMATED\" or \"ON_DEMAND\". This field defaults to \"ON_DEMAND\" and is ignored, when specified for insert requests.",
           "enum": [
             "SQL_BACKUP_RUN_TYPE_UNSPECIFIED",
             "AUTOMATED",
@@ -2002,7 +2085,7 @@
           "type": "string"
         },
         "windowStartTime": {
-          "description": "The start time of the backup window during which this the backup was\nattempted in \u003ca href=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e\nformat, for example \u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "The start time of the backup window during which this the backup was attempted in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         }
@@ -2021,11 +2104,11 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#backupRunsList\u003c/code\u003e.",
+          "description": "This is always *sql#backupRunsList*.",
           "type": "string"
         },
         "nextPageToken": {
-          "description": "The continuation token, used to page through large result sets. Provide\nthis value in a subsequent request to return the next page of results.",
+          "description": "The continuation token, used to page through large result sets. Provide this value in a subsequent request to return the next page of results.",
           "type": "string"
         }
       },
@@ -2045,7 +2128,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#binLogCoordinates\u003c/code\u003e.",
+          "description": "This is always *sql#binLogCoordinates*.",
           "type": "string"
         }
       },
@@ -2057,14 +2140,14 @@
       "properties": {
         "binLogCoordinates": {
           "$ref": "BinLogCoordinates",
-          "description": "Binary log coordinates, if specified, identify the position up to which the\nsource instance should be cloned. If not specified, the source instance is\ncloned up to the most recent binary log coordinates."
+          "description": "Binary log coordinates, if specified, identify the position up to which the source instance is cloned. If not specified, the source instance is cloned up to the most recent binary log coordinates."
         },
         "destinationInstanceName": {
           "description": "Name of the Cloud SQL instance to be created as a clone.",
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#cloneContext\u003c/code\u003e.",
+          "description": "This is always *sql#cloneContext*.",
           "type": "string"
         },
         "pitrTimestampMs": {
@@ -2085,15 +2168,15 @@
       "id": "Database",
       "properties": {
         "charset": {
-          "description": "The MySQL charset value.",
+          "description": "The Cloud SQL charset value.",
           "type": "string"
         },
         "collation": {
-          "description": "The MySQL collation value.",
+          "description": "The Cloud SQL collation value.",
           "type": "string"
         },
         "etag": {
-          "description": "This field is deprecated and will be removed from a future version of the\nAPI.",
+          "description": "This field is deprecated and will be removed from a future version of the API.",
           "type": "string"
         },
         "instance": {
@@ -2101,15 +2184,15 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#database\u003c/code\u003e.",
+          "description": "This is always *sql#database*.",
           "type": "string"
         },
         "name": {
-          "description": "The name of the database in the Cloud SQL instance. This does not include\nthe project ID or instance name.",
+          "description": "The name of the database in the Cloud SQL instance. This does not include the project ID or instance name.",
           "type": "string"
         },
         "project": {
-          "description": "The project ID of the project containing the Cloud SQL database. The Google\napps domain is prefixed if applicable.",
+          "description": "The project ID of the project containing the Cloud SQL database. The Google apps domain is prefixed if applicable.",
           "type": "string"
         },
         "selfLink": {
@@ -2127,11 +2210,11 @@
       "id": "DatabaseFlags",
       "properties": {
         "name": {
-          "description": "The name of the flag. These flags are passed at instance startup, so\ninclude both server options and system variables for MySQL. Flags should be\nspecified with underscores, not hyphens. For more information, see \u003ca\nhref=\"/sql/docs/mysql/flags\"\u003eConfiguring Database Flags\u003c/a\u003e in the Cloud\nSQL documentation.",
+          "description": "The name of the flag. These flags are passed at instance startup, so include both server options and system variables for MySQL. Flags are specified with underscores, not hyphens. For more information, see Configuring Database Flags in the Cloud SQL documentation.",
           "type": "string"
         },
         "value": {
-          "description": "The value of the flag. Booleans should be set to \u003ccode\u003eon\u003c/code\u003e for true\nand \u003ccode\u003eoff\u003c/code\u003e for false. This field must be omitted if the flag\ndoesn't take a value.",
+          "description": "The value of the flag. Booleans are set to *on* for true and *off* for false. This field must be omitted if the flag doesn't take a value.",
           "type": "string"
         }
       },
@@ -2142,7 +2225,7 @@
       "id": "DatabaseInstance",
       "properties": {
         "backendType": {
-          "description": "\u003ccode\u003eFIRST_GEN\u003c/code\u003e: First Generation instance. MySQL only. \u003cbr\n/\u003e\u003ccode\u003eSECOND_GEN\u003c/code\u003e: Second Generation instance or PostgreSQL\ninstance. \u003cbr /\u003e\u003ccode\u003eEXTERNAL\u003c/code\u003e: A database server that is not\nmanaged by Google. \u003cbr\u003eThis property is read-only; use the\n\u003ccode\u003etier\u003c/code\u003e property in the \u003ccode\u003esettings\u003c/code\u003e object to determine\nthe database type and Second or First Generation.",
+          "description": " *SECOND_GEN*: Cloud SQL database instance. *EXTERNAL*: A database server that is not managed by Google. This property is read-only; use the *tier* property in the *settings* object to determine the database type.",
           "enum": [
             "SQL_BACKEND_TYPE_UNSPECIFIED",
             "FIRST_GEN",
@@ -2162,12 +2245,12 @@
           "type": "string"
         },
         "currentDiskSize": {
-          "description": "The current disk usage of the instance in bytes. This property has been\ndeprecated. Users should use the\n\"cloudsql.googleapis.com/database/disk/bytes_used\" metric in Cloud\nMonitoring API instead. Please see \u003ca\nhref=\"https://groups.google.com/d/msg/google-cloud-sql-announce/I_7-F9EBhT0/BtvFtdFeAgAJ\"\u003ethis\nannouncement\u003c/a\u003e for details.",
+          "description": "The current disk usage of the instance in bytes. This property has been deprecated. Use the \"cloudsql.googleapis.com/database/disk/bytes_used\" metric in Cloud Monitoring API instead. Please see this announcement for details.",
           "format": "int64",
           "type": "string"
         },
         "databaseVersion": {
-          "description": "The database engine type and version. The \u003ccode\u003edatabaseVersion\u003c/code\u003e\nfield can not be changed after instance creation.  MySQL Second Generation\ninstances: \u003ccode\u003eMYSQL_5_7\u003c/code\u003e (default) or \u003ccode\u003eMYSQL_5_6\u003c/code\u003e.\nPostgreSQL instances: \u003ccode\u003ePOSTGRES_9_6\u003c/code\u003e (default) or\n\u003ccode\u003ePOSTGRES_11 Beta\u003c/code\u003e MySQL First Generation\ninstances: \u003ccode\u003eMYSQL_5_6\u003c/code\u003e (default) or \u003ccode\u003eMYSQL_5_5\u003c/code\u003e",
+          "description": "The database engine type and version. The *databaseVersion* field cannot be changed after instance creation. MySQL instances: *MYSQL_8_0*, *MYSQL_5_7* (default), or *MYSQL_5_6*. PostgreSQL instances: *POSTGRES_9_6*, *POSTGRES_10*, *POSTGRES_11* or *POSTGRES_12* (default). SQL Server instances: *SQLSERVER_2017_STANDARD* (default), *SQLSERVER_2017_ENTERPRISE*, *SQLSERVER_2017_EXPRESS*, or *SQLSERVER_2017_WEB*.",
           "enum": [
             "SQL_DATABASE_VERSION_UNSPECIFIED",
             "MYSQL_5_1",
@@ -2182,7 +2265,8 @@
             "SQLSERVER_2017_WEB",
             "POSTGRES_10",
             "POSTGRES_12",
-            "MYSQL_8_0"
+            "MYSQL_8_0",
+            "POSTGRES_13"
           ],
           "enumDescriptions": [
             "This is an unknown database version.",
@@ -2198,42 +2282,43 @@
             "The database version is SQL Server 2017 Web.",
             "The database version is PostgreSQL 10.",
             "The database version is PostgreSQL 12.",
-            "The database version is MySQL 8."
+            "The database version is MySQL 8.",
+            "The database version is PostgreSQL 13."
           ],
           "type": "string"
         },
         "diskEncryptionConfiguration": {
           "$ref": "DiskEncryptionConfiguration",
-          "description": "Disk encryption configuration specific to an instance.\nApplies only to Second Generation instances."
+          "description": "Disk encryption configuration specific to an instance. Applies only to Second Generation instances."
         },
         "diskEncryptionStatus": {
           "$ref": "DiskEncryptionStatus",
-          "description": "Disk encryption status specific to an instance.\nApplies only to Second Generation instances."
+          "description": "Disk encryption status specific to an instance. Applies only to Second Generation instances."
         },
         "etag": {
-          "description": "This field is deprecated and will be removed from a future version of the\nAPI. Use the \u003ccode\u003esettings.settingsVersion\u003c/code\u003e field instead.",
+          "description": "This field is deprecated and will be removed from a future version of the API. Use the *settings.settingsVersion* field instead.",
           "type": "string"
         },
         "failoverReplica": {
-          "description": "The name and status of the failover replica. This property is applicable\nonly to Second Generation instances.",
+          "description": "The name and status of the failover replica. This property is applicable only to Second Generation instances.",
           "properties": {
             "available": {
-              "description": "The availability status of the failover replica. A false status indicates\nthat the failover replica is out of sync. The master can only failover to\nthe failover replica when the status is true.",
+              "description": "The availability status of the failover replica. A false status indicates that the failover replica is out of sync. The primary instance can only failover to the failover replica when the status is true.",
               "type": "boolean"
             },
             "name": {
-              "description": "The name of the failover replica. If specified at instance creation, a\nfailover replica is created for the instance. The name\ndoesn't include the project ID. This property is applicable only to\nSecond Generation instances.",
+              "description": "The name of the failover replica. If specified at instance creation, a failover replica is created for the instance. The name doesn't include the project ID. This property is applicable only to Second Generation instances.",
               "type": "string"
             }
           },
           "type": "object"
         },
         "gceZone": {
-          "description": "The Compute Engine zone that the instance is currently serving from. This\nvalue could be different from the zone that was specified when the instance\nwas created if the instance has failed over to its secondary zone.",
+          "description": "The Compute Engine zone that the instance is currently serving from. This value could be different from the zone that was specified when the instance was created if the instance has failed over to its secondary zone.",
           "type": "string"
         },
         "instanceType": {
-          "description": "The instance type. This can be one of the following.\n\u003cbr\u003e\u003ccode\u003eCLOUD_SQL_INSTANCE\u003c/code\u003e: A Cloud SQL instance that is not\nreplicating from a master. \u003cbr\u003e\u003ccode\u003eON_PREMISES_INSTANCE\u003c/code\u003e: An\ninstance running on the\ncustomer's premises. \u003cbr\u003e\u003ccode\u003eREAD_REPLICA_INSTANCE\u003c/code\u003e: A Cloud SQL\ninstance configured as a read-replica.",
+          "description": "The instance type. This can be one of the following. *CLOUD_SQL_INSTANCE*: A Cloud SQL instance that is not replicating from a primary instance. *ON_PREMISES_INSTANCE*: An instance running on the customer's premises. *READ_REPLICA_INSTANCE*: A Cloud SQL instance configured as a read-replica.",
           "enum": [
             "SQL_INSTANCE_TYPE_UNSPECIFIED",
             "CLOUD_SQL_INSTANCE",
@@ -2243,7 +2328,7 @@
           "enumDescriptions": [
             "This is an unknown Cloud SQL instance type.",
             "A regular Cloud SQL instance.",
-            "An instance running on the customer's premises that is not managed by\nCloud SQL.",
+            "An instance running on the customer's premises that is not managed by Cloud SQL.",
             "A Cloud SQL instance acting as a read-replica."
           ],
           "type": "string"
@@ -2256,15 +2341,15 @@
           "type": "array"
         },
         "ipv6Address": {
-          "description": "The IPv6 address assigned to the instance. This property is applicable only\nto First Generation instances.",
+          "description": "The IPv6 address assigned to the instance. (Deprecated) This property was applicable only to First Generation instances.",
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#instance\u003c/code\u003e.",
+          "description": "This is always *sql#instance*.",
           "type": "string"
         },
         "masterInstanceName": {
-          "description": "The name of the instance which will act as master in the replication setup.",
+          "description": "The name of the instance which will act as primary in the replication setup.",
           "type": "string"
         },
         "maxDiskSize": {
@@ -2281,11 +2366,11 @@
           "description": "Configuration specific to on-premises instances."
         },
         "project": {
-          "description": "The project ID of the project containing the Cloud SQL instance. The Google\napps domain is prefixed if applicable.",
+          "description": "The project ID of the project containing the Cloud SQL instance. The Google apps domain is prefixed if applicable.",
           "type": "string"
         },
         "region": {
-          "description": "The geographical region. Can be \u003ccode\u003eus-central\u003c/code\u003e\n(\u003ccode\u003eFIRST_GEN\u003c/code\u003e instances only), \u003ccode\u003eus-central1\u003c/code\u003e\n(\u003ccode\u003eSECOND_GEN\u003c/code\u003e instances only), \u003ccode\u003easia-east1\u003c/code\u003e or\n\u003ccode\u003eeurope-west1\u003c/code\u003e. Defaults to \u003ccode\u003eus-central\u003c/code\u003e or\n\u003ccode\u003eus-central1\u003c/code\u003e depending on the instance type (First Generation\nor Second Generation). The region can not be changed after instance\ncreation.",
+          "description": "The geographical region. Can be *us-central* (*FIRST_GEN* instances only) *us-central1* (*SECOND_GEN* instances only) *asia-east1* or *europe-west1*. Defaults to *us-central* or *us-central1* depending on the instance type. The region cannot be changed after instance creation.",
           "type": "string"
         },
         "replicaConfiguration": {
@@ -2303,9 +2388,17 @@
           "description": "Initial root password. Use only on creation.",
           "type": "string"
         },
+        "satisfiesPzs": {
+          "description": "The status indicating if instance satisfiesPzs. Reserved for future use.",
+          "type": "boolean"
+        },
         "scheduledMaintenance": {
           "$ref": "SqlScheduledMaintenance",
           "description": "The start time of any upcoming scheduled maintenance for this instance."
+        },
+        "secondaryGceZone": {
+          "description": "The Compute Engine zone that the failover instance is currently serving from for a regional instance. This value could be different from the zone that was specified when the instance was created if the instance has failed over to its secondary/failover zone. Reserved for future use.",
+          "type": "string"
         },
         "selfLink": {
           "description": "The URI of this resource.",
@@ -2316,7 +2409,7 @@
           "description": "SSL configuration."
         },
         "serviceAccountEmailAddress": {
-          "description": "The service account email address assigned to the instance. This property\nis applicable only to Second Generation instances.",
+          "description": "The service account email address assigned to the instance. This property is applicable only to Second Generation instances.",
           "type": "string"
         },
         "settings": {
@@ -2324,7 +2417,7 @@
           "description": "The user settings."
         },
         "state": {
-          "description": "The current serving state of the Cloud SQL instance. This can be one of the\nfollowing. \u003cbr\u003e\u003ccode\u003eRUNNABLE\u003c/code\u003e: The instance is running, or is ready\nto run when accessed. \u003cbr\u003e\u003ccode\u003eSUSPENDED\u003c/code\u003e: The instance is not\navailable, for example due to problems with billing.\n\u003cbr\u003e\u003ccode\u003ePENDING_CREATE\u003c/code\u003e: The instance is being created.\n\u003cbr\u003e\u003ccode\u003eMAINTENANCE\u003c/code\u003e: The instance is down for maintenance.\n\u003cbr\u003e\u003ccode\u003eFAILED\u003c/code\u003e: The instance creation failed.\n\u003cbr\u003e\u003ccode\u003eUNKNOWN_STATE\u003c/code\u003e: The state of the instance is unknown.",
+          "description": "The current serving state of the Cloud SQL instance. This can be one of the following. *SQL_INSTANCE_STATE_UNSPECIFIED*: The state of the instance is unknown. *RUNNABLE*: The instance is running, or has been stopped by owner. *SUSPENDED*: The instance is not available, for example due to problems with billing. *PENDING_DELETE*: The instance is being deleted. *PENDING_CREATE*: The instance is being created. *MAINTENANCE*: The instance is down for maintenance. *FAILED*: The instance creation failed.",
           "enum": [
             "SQL_INSTANCE_STATE_UNSPECIFIED",
             "RUNNABLE",
@@ -2336,24 +2429,17 @@
           ],
           "enumDescriptions": [
             "The state of the instance is unknown.",
-            "The instance is running.",
-            "The instance is currently offline, but it may run again in the future.",
+            "The instance is running, or has been stopped by owner.",
+            "The instance is not available, for example due to problems with billing.",
             "The instance is being deleted.",
             "The instance is being created.",
             "The instance is down for maintenance.",
-            "The instance failed to be created."
+            "The creation of the instance failed or a fatal error occurred during maintenance."
           ],
           "type": "string"
         },
         "suspensionReason": {
           "description": "If the instance state is SUSPENDED, the reason for the suspension.",
-          "enumDescriptions": [
-            "This is an unknown suspension reason.",
-            "The instance is suspended due to billing issues (e.g., GCP account issue)",
-            "The instance is suspended due to illegal content (e.g., child pornography,\ncopyrighted material, etc.).",
-            "The instance is causing operational issues (e.g., causing the database\nto crash).",
-            "The KMS key used by the instance is either revoked or denied access to"
-          ],
           "items": {
             "enum": [
               "SQL_SUSPENSION_REASON_UNSPECIFIED",
@@ -2361,6 +2447,13 @@
               "LEGAL_ISSUE",
               "OPERATIONAL_ISSUE",
               "KMS_KEY_ISSUE"
+            ],
+            "enumDescriptions": [
+              "This is an unknown suspension reason.",
+              "The instance is suspended due to billing issues (for example:, GCP account issue)",
+              "The instance is suspended due to illegal content (for example:, child pornography, copyrighted material, etc.).",
+              "The instance is causing operational issues (for example:, causing the database to crash).",
+              "The KMS key used by the instance is either revoked or denied access to"
             ],
             "type": "string"
           },
@@ -2381,45 +2474,45 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#databasesList\u003c/code\u003e.",
+          "description": "This is always *sql#databasesList*.",
           "type": "string"
         }
       },
       "type": "object"
     },
     "DemoteMasterConfiguration": {
-      "description": "Read-replica configuration for connecting to the on-premises master.",
+      "description": "Read-replica configuration for connecting to the on-premises primary instance.",
       "id": "DemoteMasterConfiguration",
       "properties": {
         "kind": {
-          "description": "This is always \u003ccode\u003esql#demoteMasterConfiguration\u003c/code\u003e.",
+          "description": "This is always *sql#demoteMasterConfiguration*.",
           "type": "string"
         },
         "mysqlReplicaConfiguration": {
           "$ref": "DemoteMasterMySqlReplicaConfiguration",
-          "description": "MySQL specific configuration when replicating from a MySQL on-premises\nmaster. Replication configuration information such as the username,\npassword, certificates, and keys are not stored in the instance metadata.\nThe configuration information is used only to set up the replication\nconnection and is stored by MySQL in a file named \u003ccode\u003emaster.info\u003c/code\u003e\nin the data directory."
+          "description": "MySQL specific configuration when replicating from a MySQL on-premises primary instance. Replication configuration information such as the username, password, certificates, and keys are not stored in the instance metadata. The configuration information is used only to set up the replication connection and is stored by MySQL in a file named *master.info* in the data directory."
         }
       },
       "type": "object"
     },
     "DemoteMasterContext": {
-      "description": "Database instance demote master context.",
+      "description": "Database instance demote primary instance context.",
       "id": "DemoteMasterContext",
       "properties": {
         "kind": {
-          "description": "This is always \u003ccode\u003esql#demoteMasterContext\u003c/code\u003e.",
+          "description": "This is always *sql#demoteMasterContext*.",
           "type": "string"
         },
         "masterInstanceName": {
-          "description": "The name of the instance which will act as on-premises master in the\nreplication setup.",
+          "description": "The name of the instance which will act as on-premises primary instance in the replication setup.",
           "type": "string"
         },
         "replicaConfiguration": {
           "$ref": "DemoteMasterConfiguration",
-          "description": "Configuration specific to read-replicas replicating from the on-premises\nmaster."
+          "description": "Configuration specific to read-replicas replicating from the on-premises primary instance."
         },
         "verifyGtidConsistency": {
-          "description": "Verify GTID consistency for demote operation. Default value:\n\u003ccode\u003eTrue\u003c/code\u003e. Second Generation instances only.  Setting this flag to\nfalse enables you to bypass GTID consistency check between on-premises\nmaster and Cloud SQL instance during the demotion operation but also\nexposes you to the risk of future replication failures. Change the value\nonly if you know the reason for the GTID divergence and are confident that\ndoing so will not cause any replication issues.",
+          "description": "Verify GTID consistency for demote operation. Default value: *True*. Second Generation instances only. Setting this flag to false enables you to bypass GTID consistency check between on-premises primary instance and Cloud SQL instance during the demotion operation but also exposes you to the risk of future replication failures. Change the value only if you know the reason for the GTID divergence and are confident that doing so will not cause any replication issues.",
           "type": "boolean"
         }
       },
@@ -2434,15 +2527,15 @@
           "type": "string"
         },
         "clientCertificate": {
-          "description": "PEM representation of the slave's x509 certificate.",
+          "description": "PEM representation of the replica's x509 certificate.",
           "type": "string"
         },
         "clientKey": {
-          "description": "PEM representation of the slave's private key. The corresponsing public key\nis encoded in the client's certificate. The format of the slave's private\nkey can be either PKCS #1 or PKCS #8.",
+          "description": "PEM representation of the replica's private key. The corresponsing public key is encoded in the client's certificate. The format of the replica's private key can be either PKCS #1 or PKCS #8.",
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#demoteMasterMysqlReplicaConfiguration\u003c/code\u003e.",
+          "description": "This is always *sql#demoteMasterMysqlReplicaConfiguration*.",
           "type": "string"
         },
         "password": {
@@ -2456,12 +2549,31 @@
       },
       "type": "object"
     },
+    "DenyMaintenancePeriod": {
+      "description": "Deny Maintenance Periods. This specifies a date range during when all CSA rollout will be denied.",
+      "id": "DenyMaintenancePeriod",
+      "properties": {
+        "endDate": {
+          "description": "\"deny maintenance period\" end date. If the year of the end date is empty, the year of the start date also must be empty. In this case, it means the deny maintenance period recurs every year. The date is in format yyyy-mm-dd i.e., 2020-11-01, or mm-dd, i.e., 11-01",
+          "type": "string"
+        },
+        "startDate": {
+          "description": "\"deny maintenance period\" start date. If the year of the start date is empty, the year of the end date also must be empty. In this case, it means the deny maintenance period recurs every year. The date is in format yyyy-mm-dd i.e., 2020-11-01, or mm-dd, i.e., 11-01",
+          "type": "string"
+        },
+        "time": {
+          "description": "Time in UTC when the \"deny maintenance period\" starts on start_date and ends on end_date. The time is in format: HH:mm:SS, i.e., 00:00:00",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "DiskEncryptionConfiguration": {
       "description": "Disk encryption configuration for an instance.",
       "id": "DiskEncryptionConfiguration",
       "properties": {
         "kind": {
-          "description": "This is always \u003ccode\u003esql#diskEncryptionConfiguration\u003c/code\u003e.",
+          "description": "This is always *sql#diskEncryptionConfiguration*.",
           "type": "string"
         },
         "kmsKeyName": {
@@ -2476,7 +2588,7 @@
       "id": "DiskEncryptionStatus",
       "properties": {
         "kind": {
-          "description": "This is always \u003ccode\u003esql#diskEncryptionStatus\u003c/code\u003e.",
+          "description": "This is always *sql#diskEncryptionStatus*.",
           "type": "string"
         },
         "kmsKeyVersionName": {
@@ -2491,7 +2603,7 @@
       "id": "ExportContext",
       "properties": {
         "csvExportOptions": {
-          "description": "Options for exporting data as CSV.",
+          "description": "Options for exporting data as CSV. *MySQL* and *PostgreSQL* instances only.",
           "properties": {
             "selectQuery": {
               "description": "The select query used to extract the data.",
@@ -2501,14 +2613,14 @@
           "type": "object"
         },
         "databases": {
-          "description": "Databases to be exported. \u003cbr /\u003e \u003cb\u003eMySQL instances:\u003c/b\u003e If\n\u003ccode\u003efileType\u003c/code\u003e is \u003ccode\u003eSQL\u003c/code\u003e and no database is specified, all\ndatabases are exported, except for the \u003ccode\u003emysql\u003c/code\u003e system database.\nIf \u003ccode\u003efileType\u003c/code\u003e is \u003ccode\u003eCSV\u003c/code\u003e, you can specify one database,\neither by using this property or by using the\n\u003ccode\u003ecsvExportOptions.selectQuery\u003c/code\u003e property, which takes precedence\nover this property. \u003cbr /\u003e \u003cb\u003ePostgreSQL instances:\u003c/b\u003e You must specify\none database to be exported. If \u003ccode\u003efileType\u003c/code\u003e is \u003ccode\u003eCSV\u003c/code\u003e,\nthis database must match the one specified in the\n\u003ccode\u003ecsvExportOptions.selectQuery\u003c/code\u003e property.",
+          "description": "Databases to be exported. *MySQL instances:* If *fileType* is *SQL* and no database is specified, all databases are exported, except for the *mysql* system database. If *fileType* is *CSV*, you can specify one database, either by using this property or by using the *csvExportOptions.selectQuery* property, which takes precedence over this property. *PostgreSQL instances:* You must specify one database to be exported. If *fileType* is *CSV*, this database must match the one specified in the *csvExportOptions.selectQuery* property. *SQL Server instances:* You must specify one database to be exported, and the *fileType* must be *BAK*.",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
         "fileType": {
-          "description": "The file type for the specified uri. \u003cbr\u003e\u003ccode\u003eSQL\u003c/code\u003e: The file\ncontains SQL statements. \u003cbr\u003e\u003ccode\u003eCSV\u003c/code\u003e: The file contains CSV data.",
+          "description": "The file type for the specified uri. *SQL*: The file contains SQL statements. *CSV*: The file contains CSV data. *BAK*: The file contains backup data for a SQL Server instance.",
           "enum": [
             "SQL_FILE_TYPE_UNSPECIFIED",
             "SQL",
@@ -2524,7 +2636,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#exportContext\u003c/code\u003e.",
+          "description": "This is always *sql#exportContext*.",
           "type": "string"
         },
         "offload": {
@@ -2538,7 +2650,7 @@
               "description": "Options for exporting from MySQL.",
               "properties": {
                 "masterData": {
-                  "description": "Option to include SQL statement required to set up replication.\nIf set to \u003ccode\u003e1\u003c/code\u003e, the dump file includes\n a CHANGE MASTER TO statement with the binary log coordinates.\nIf set to \u003ccode\u003e2\u003c/code\u003e, the CHANGE MASTER TO statement is written as\n a SQL comment, and has no effect.\nAll other values are ignored.",
+                  "description": "Option to include SQL statement required to set up replication. If set to *1*, the dump file includes a CHANGE MASTER TO statement with the binary log coordinates, and --set-gtid-purged is set to ON. If set to *2*, the CHANGE MASTER TO statement is written as a SQL comment and has no effect. If set to any value other than *1*, --set-gtid-purged is set to OFF.",
                   "format": "int32",
                   "type": "integer"
                 }
@@ -2550,7 +2662,7 @@
               "type": "boolean"
             },
             "tables": {
-              "description": "Tables to export, or that were exported, from the specified database. If\nyou specify tables, specify one and only one database. For PostgreSQL\ninstances, you can specify only one table.",
+              "description": "Tables to export, or that were exported, from the specified database. If you specify tables, specify one and only one database. For PostgreSQL instances, you can specify only one table.",
               "items": {
                 "type": "string"
               },
@@ -2560,7 +2672,7 @@
           "type": "object"
         },
         "uri": {
-          "description": "The path to the file in Google Cloud Storage where the export will be\nstored. The URI is in the form \u003ccode\u003egs:\n//bucketName/fileName\u003c/code\u003e. If the file already exists, the requests\n// succeeds, but the operation fails. If \u003ccode\u003efileType\u003c/code\u003e is\n// \u003ccode\u003eSQL\u003c/code\u003e and the filename ends with .gz, the contents are\n// compressed.",
+          "description": "The path to the file in Google Cloud Storage where the export will be stored. The URI is in the form *gs://bucketName/fileName*. If the file already exists, the request succeeds, but the operation fails. If *fileType* is *SQL* and the filename ends with .gz, the contents are compressed.",
           "type": "string"
         }
       },
@@ -2571,11 +2683,11 @@
       "id": "FailoverContext",
       "properties": {
         "kind": {
-          "description": "This is always \u003ccode\u003esql#failoverContext\u003c/code\u003e.",
+          "description": "This is always *sql#failoverContext*.",
           "type": "string"
         },
         "settingsVersion": {
-          "description": "The current settings version of this instance. Request will be rejected if\nthis version doesn't match the current settings version.",
+          "description": "The current settings version of this instance. Request will be rejected if this version doesn't match the current settings version.",
           "format": "int64",
           "type": "string"
         }
@@ -2587,7 +2699,7 @@
       "id": "Flag",
       "properties": {
         "allowedIntValues": {
-          "description": "Use this field if only certain integers are accepted. Can be combined\nwith min_value and max_value to add additional values.",
+          "description": "Use this field if only certain integers are accepted. Can be combined with min_value and max_value to add additional values.",
           "items": {
             "format": "int64",
             "type": "string"
@@ -2595,30 +2707,14 @@
           "type": "array"
         },
         "allowedStringValues": {
-          "description": "For \u003ccode\u003eSTRING\u003c/code\u003e flags, a list of strings that the value can be set\nto.",
+          "description": "For *STRING* flags, a list of strings that the value can be set to.",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
         "appliesTo": {
-          "description": "The database version this flag applies to. Can be \u003ccode\u003eMYSQL_5_5\u003c/code\u003e,\n\u003ccode\u003eMYSQL_5_6\u003c/code\u003e, or \u003ccode\u003eMYSQL_5_7\u003c/code\u003e. \u003ccode\u003eMYSQL_5_7\u003c/code\u003e\nis applicable only to Second Generation instances.",
-          "enumDescriptions": [
-            "This is an unknown database version.",
-            "The database version is MySQL 5.1.",
-            "The database version is MySQL 5.5.",
-            "The database version is MySQL 5.6.",
-            "The database version is MySQL 5.7.",
-            "The database version is PostgreSQL 9.6.",
-            "The database version is PostgreSQL 11.",
-            "The database version is SQL Server 2017 Standard.",
-            "The database version is SQL Server 2017 Enterprise.",
-            "The database version is SQL Server 2017 Express.",
-            "The database version is SQL Server 2017 Web.",
-            "The database version is PostgreSQL 10.",
-            "The database version is PostgreSQL 12.",
-            "The database version is MySQL 8."
-          ],
+          "description": "The database version this flag applies to. Can be *MYSQL_8_0*, *MYSQL_5_6*, or *MYSQL_5_7*.",
           "items": {
             "enum": [
               "SQL_DATABASE_VERSION_UNSPECIFIED",
@@ -2634,7 +2730,25 @@
               "SQLSERVER_2017_WEB",
               "POSTGRES_10",
               "POSTGRES_12",
-              "MYSQL_8_0"
+              "MYSQL_8_0",
+              "POSTGRES_13"
+            ],
+            "enumDescriptions": [
+              "This is an unknown database version.",
+              "The database version is MySQL 5.1.",
+              "The database version is MySQL 5.5.",
+              "The database version is MySQL 5.6.",
+              "The database version is MySQL 5.7.",
+              "The database version is PostgreSQL 9.6.",
+              "The database version is PostgreSQL 11.",
+              "The database version is SQL Server 2017 Standard.",
+              "The database version is SQL Server 2017 Enterprise.",
+              "The database version is SQL Server 2017 Express.",
+              "The database version is SQL Server 2017 Web.",
+              "The database version is PostgreSQL 10.",
+              "The database version is PostgreSQL 12.",
+              "The database version is MySQL 8.",
+              "The database version is PostgreSQL 13."
             ],
             "type": "string"
           },
@@ -2645,29 +2759,29 @@
           "type": "boolean"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#flag\u003c/code\u003e.",
+          "description": "This is always *sql#flag*.",
           "type": "string"
         },
         "maxValue": {
-          "description": "For \u003ccode\u003eINTEGER\u003c/code\u003e flags, the maximum allowed value.",
+          "description": "For *INTEGER* flags, the maximum allowed value.",
           "format": "int64",
           "type": "string"
         },
         "minValue": {
-          "description": "For \u003ccode\u003eINTEGER\u003c/code\u003e flags, the minimum allowed value.",
+          "description": "For *INTEGER* flags, the minimum allowed value.",
           "format": "int64",
           "type": "string"
         },
         "name": {
-          "description": "This is the name of the flag. Flag names always use underscores, not\nhyphens, e.g. \u003ccode\u003emax_allowed_packet\u003c/code\u003e",
+          "description": "This is the name of the flag. Flag names always use underscores, not hyphens, for example: *max_allowed_packet*",
           "type": "string"
         },
         "requiresRestart": {
-          "description": "Indicates whether changing this flag will trigger a database restart. Only\napplicable to Second Generation instances.",
+          "description": "Indicates whether changing this flag will trigger a database restart. Only applicable to Second Generation instances.",
           "type": "boolean"
         },
         "type": {
-          "description": "The type of the flag. Flags are typed to being \u003ccode\u003eBOOLEAN\u003c/code\u003e,\n\u003ccode\u003eSTRING\u003c/code\u003e, \u003ccode\u003eINTEGER\u003c/code\u003e or \u003ccode\u003eNONE\u003c/code\u003e.\n\u003ccode\u003eNONE\u003c/code\u003e is used for flags which do not take a value, such as\n\u003ccode\u003eskip_grant_tables\u003c/code\u003e.",
+          "description": "The type of the flag. Flags are typed to being *BOOLEAN*, *STRING*, *INTEGER* or *NONE*. *NONE* is used for flags which do not take a value, such as *skip_grant_tables*.",
           "enum": [
             "SQL_FLAG_TYPE_UNSPECIFIED",
             "BOOLEAN",
@@ -2684,7 +2798,7 @@
             "String type flag.",
             "Integer type flag.",
             "Flag type used for a server startup option.",
-            "Type introduced specically for MySQL TimeZone offset. Accept a string value\nwith the format [-12:59, 13:00].",
+            "Type introduced specically for MySQL TimeZone offset. Accept a string value with the format [-12:59, 13:00].",
             "Float type flag.",
             "Comma-separated list of the strings in a SqlFlagType enum."
           ],
@@ -2705,7 +2819,7 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#flagsList\u003c/code\u003e.",
+          "description": "This is always *sql#flagsList*.",
           "type": "string"
         }
       },
@@ -2721,7 +2835,7 @@
             "encryptionOptions": {
               "properties": {
                 "certPath": {
-                  "description": "Path to the Certificate (.cer) in Cloud Storage, in the form\n\u003ccode\u003egs://bucketName/fileName\u003c/code\u003e. The instance must have\nwrite permissions to the bucket and read access to the file.",
+                  "description": "Path to the Certificate (.cer) in Cloud Storage, in the form *gs://bucketName/fileName*. The instance must have write permissions to the bucket and read access to the file.",
                   "type": "string"
                 },
                 "pvkPassword": {
@@ -2729,7 +2843,7 @@
                   "type": "string"
                 },
                 "pvkPath": {
-                  "description": "Path to the Certificate Private Key (.pvk)  in Cloud Storage, in the\nform \u003ccode\u003egs://bucketName/fileName\u003c/code\u003e. The instance must have\nwrite permissions to the bucket and read access to the file.",
+                  "description": "Path to the Certificate Private Key (.pvk) in Cloud Storage, in the form *gs://bucketName/fileName*. The instance must have write permissions to the bucket and read access to the file.",
                   "type": "string"
                 }
               },
@@ -2742,7 +2856,7 @@
           "description": "Options for importing data as CSV.",
           "properties": {
             "columns": {
-              "description": "The columns to which CSV data is imported. If not specified, all columns\nof the database table are loaded with CSV data.",
+              "description": "The columns to which CSV data is imported. If not specified, all columns of the database table are loaded with CSV data.",
               "items": {
                 "type": "string"
               },
@@ -2756,11 +2870,11 @@
           "type": "object"
         },
         "database": {
-          "description": "The target database for the import. If \u003ccode\u003efileType\u003c/code\u003e is\n\u003ccode\u003eSQL\u003c/code\u003e, this field is required only if the import file does not\nspecify a database, and is overridden by any database specification in the\nimport file. If \u003ccode\u003efileType\u003c/code\u003e is \u003ccode\u003eCSV\u003c/code\u003e, one database\nmust be specified.",
+          "description": "The target database for the import. If *fileType* is *SQL*, this field is required only if the import file does not specify a database, and is overridden by any database specification in the import file. If *fileType* is *CSV*, one database must be specified.",
           "type": "string"
         },
         "fileType": {
-          "description": "The file type for the specified uri. \u003cbr\u003e\u003ccode\u003eSQL\u003c/code\u003e: The file\ncontains SQL statements. \u003cbr\u003e\u003ccode\u003eCSV\u003c/code\u003e: The file contains CSV data.",
+          "description": "The file type for the specified uri. *SQL*: The file contains SQL statements. *CSV*: The file contains CSV data.",
           "enum": [
             "SQL_FILE_TYPE_UNSPECIFIED",
             "SQL",
@@ -2780,12 +2894,36 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#importContext\u003c/code\u003e.",
+          "description": "This is always *sql#importContext*.",
           "type": "string"
         },
         "uri": {
-          "description": "Path to the import file in Cloud Storage, in the form\n\u003ccode\u003egs:\n//bucketName/fileName\u003c/code\u003e. Compressed gzip files (.gz) are supported\n// when \u003ccode\u003efileType\u003c/code\u003e is \u003ccode\u003eSQL\u003c/code\u003e. The instance must have\n// write permissions to the bucket and read access to the file.",
+          "description": "Path to the import file in Cloud Storage, in the form *gs://bucketName/fileName*. Compressed gzip files (.gz) are supported when *fileType* is *SQL*. The instance must have write permissions to the bucket and read access to the file.",
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "InsightsConfig": {
+      "description": "Insights configuration. This specifies when Cloud SQL Insights feature is enabled and optional configuration.",
+      "id": "InsightsConfig",
+      "properties": {
+        "queryInsightsEnabled": {
+          "description": "Whether Query Insights feature is enabled.",
+          "type": "boolean"
+        },
+        "queryStringLength": {
+          "description": "Maximum query length stored in bytes. Default value: 1024 bytes. Range: 256-4500 bytes. Query length more than this field value will be truncated to this value. When unset, query length will be the default value. Changing query length will restart the database.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "recordApplicationTags": {
+          "description": "Whether Query Insights will record application tags from query when enabled.",
+          "type": "boolean"
+        },
+        "recordClientAddress": {
+          "description": "Whether Query Insights will record client address when enabled.",
+          "type": "boolean"
         }
       },
       "type": "object"
@@ -2802,7 +2940,7 @@
       "type": "object"
     },
     "InstancesDemoteMasterRequest": {
-      "description": "Database demote master request.",
+      "description": "Database demote primary instance request.",
       "id": "InstancesDemoteMasterRequest",
       "properties": {
         "demoteMasterContext": {
@@ -2857,11 +2995,11 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#instancesList\u003c/code\u003e.",
+          "description": "This is always *sql#instancesList*.",
           "type": "string"
         },
         "nextPageToken": {
-          "description": "The continuation token, used to page through large result sets. Provide\nthis value in a subsequent request to return the next page of results.",
+          "description": "The continuation token, used to page through large result sets. Provide this value in a subsequent request to return the next page of results.",
           "type": "string"
         },
         "warnings": {
@@ -2889,7 +3027,7 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#instancesListServerCas\u003c/code\u003e.",
+          "description": "This is always *sql#instancesListServerCas*.",
           "type": "string"
         }
       },
@@ -2933,22 +3071,22 @@
       "id": "IpConfiguration",
       "properties": {
         "authorizedNetworks": {
-          "description": "The list of external networks that are allowed to connect to the instance\nusing the IP. In \u003ca\nhref=\"http://en.wikipedia.org/wiki/CIDR_notation#CIDR_notation\"\u003eCIDR\nnotation\u003c/a\u003e, also known as 'slash' notation (e.g.\n\u003ccode\u003e192.168.100.0/24\u003c/code\u003e).",
+          "description": "The list of external networks that are allowed to connect to the instance using the IP. In 'CIDR' notation, also known as 'slash' notation (for example: *192.168.100.0/24*).",
           "items": {
             "$ref": "AclEntry"
           },
           "type": "array"
         },
         "ipv4Enabled": {
-          "description": "Whether the instance should be assigned an IP address or not.",
+          "description": "Whether the instance is assigned a public IP address or not.",
           "type": "boolean"
         },
         "privateNetwork": {
-          "description": "The resource link for the VPC network from which the Cloud SQL instance is\naccessible for private IP. For example,\n\u003ccode\u003e/projects/myProject/global/networks/default\u003c/code\u003e. This setting can\nbe updated, but it cannot be removed after it is set.",
+          "description": "The resource link for the VPC network from which the Cloud SQL instance is accessible for private IP. For example, */projects/myProject/global/networks/default*. This setting can be updated, but it cannot be removed after it is set.",
           "type": "string"
         },
         "requireSsl": {
-          "description": "Whether SSL connections over IP should be enforced or not.",
+          "description": "Whether SSL connections over IP are enforced or not.",
           "type": "boolean"
         }
       },
@@ -2963,12 +3101,12 @@
           "type": "string"
         },
         "timeToRetire": {
-          "description": "The due time for this IP to be retired in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e. This field is only available when\nthe IP is scheduled to be retired.",
+          "description": "The due time for this IP to be retired in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*. This field is only available when the IP is scheduled to be retired.",
           "format": "google-datetime",
           "type": "string"
         },
         "type": {
-          "description": "The type of this IP address. A \u003ccode\u003ePRIMARY\u003c/code\u003e address is a public\naddress that can accept incoming connections. A \u003ccode\u003ePRIVATE\u003c/code\u003e\naddress is a private address that can accept incoming connections. An\n\u003ccode\u003eOUTGOING\u003c/code\u003e address is the source address of connections\noriginating from the instance, if supported.",
+          "description": "The type of this IP address. A *PRIMARY* address is a public address that can accept incoming connections. A *PRIVATE* address is a private address that can accept incoming connections. An *OUTGOING* address is the source address of connections originating from the instance, if supported.",
           "enum": [
             "SQL_IP_ADDRESS_TYPE_UNSPECIFIED",
             "PRIMARY",
@@ -2978,10 +3116,10 @@
           ],
           "enumDescriptions": [
             "This is an unknown IP address type.",
-            "IP address the customer is supposed to connect to. Usually this is the\nload balancer's IP address",
-            "Source IP address of the connection a read replica establishes to its\nexternal master. This IP address can be whitelisted by the customer\nin case it has a firewall that filters incoming connection to its\non premises master.",
+            "IP address the customer is supposed to connect to. Usually this is the load balancer's IP address",
+            "Source IP address of the connection a read replica establishes to its external primary instance. This IP address can be allowlisted by the customer in case it has a firewall that filters incoming connection to its on premises primary instance.",
             "Private IP used when using private IPs and network peering.",
-            "V1 IP of a migrated instance. We want the user to\ndecommission this IP as soon as the migration is complete.\nNote: V1 instances with V1 ip addresses will be counted as PRIMARY."
+            "V1 IP of a migrated instance. We want the user to decommission this IP as soon as the migration is complete. Note: V1 instances with V1 ip addresses will be counted as PRIMARY."
           ],
           "type": "string"
         }
@@ -2989,26 +3127,30 @@
       "type": "object"
     },
     "LocationPreference": {
-      "description": "Preferred location. This specifies where a Cloud SQL instance should\npreferably be located, either in a specific Compute Engine zone, or\nco-located with an App Engine application. Note that if the preferred\nlocation is not available, the instance will be located as close as possible\nwithin the region. Only one location may be specified.",
+      "description": "Preferred location. This specifies where a Cloud SQL instance is located, either in a specific Compute Engine zone, or co-located with an App Engine application. Note that if the preferred location is not available, the instance will be located as close as possible within the region. Only one location may be specified.",
       "id": "LocationPreference",
       "properties": {
         "followGaeApplication": {
-          "description": "The AppEngine application to follow, it must be in the same region as the\nCloud SQL instance.",
+          "description": "The App Engine application to follow, it must be in the same region as the Cloud SQL instance.",
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#locationPreference\u003c/code\u003e.",
+          "description": "This is always *sql#locationPreference*.",
+          "type": "string"
+        },
+        "secondaryZone": {
+          "description": "The preferred Compute Engine zone for the secondary/failover (for example: us-central1-a, us-central1-b, etc.). Reserved for future use.",
           "type": "string"
         },
         "zone": {
-          "description": "The preferred Compute Engine zone (e.g. us-central1-a, us-central1-b,\netc.).",
+          "description": "The preferred Compute Engine zone (for example: us-central1-a, us-central1-b, etc.).",
           "type": "string"
         }
       },
       "type": "object"
     },
     "MaintenanceWindow": {
-      "description": "Maintenance window. This specifies when a v2 Cloud SQL instance should\npreferably be restarted for system maintenance purposes.",
+      "description": "Maintenance window. This specifies when a Cloud SQL instance is restarted for system maintenance purposes.",
       "id": "MaintenanceWindow",
       "properties": {
         "day": {
@@ -3022,11 +3164,11 @@
           "type": "integer"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#maintenanceWindow\u003c/code\u003e.",
+          "description": "This is always *sql#maintenanceWindow*.",
           "type": "string"
         },
         "updateTrack": {
-          "description": "Maintenance timing setting: \u003ccode\u003ecanary\u003c/code\u003e (Earlier) or\n\u003ccode\u003estable\u003c/code\u003e (Later). \u003cbr /\u003e\u003ca\nhref=\"/sql/docs/db_path/instance-settings#maintenance-timing-2ndgen\"\u003e\nLearn more\u003c/a\u003e.",
+          "description": "Maintenance timing setting: *canary* (Earlier) or *stable* (Later). Learn more.",
           "enum": [
             "SQL_UPDATE_TRACK_UNSPECIFIED",
             "canary",
@@ -3034,8 +3176,8 @@
           ],
           "enumDescriptions": [
             "This is an unknown maintenance timing preference.",
-            "For instance update that requires a restart, this update track indicates\nyour instance prefer to restart for new version early in maintenance\nwindow.",
-            "For instance update that requires a restart, this update track indicates\nyour instance prefer to let Cloud SQL choose the timing of restart (within\nits Maintenance window, if applicable)."
+            "For instance update that requires a restart, this update track indicates your instance prefer to restart for new version early in maintenance window.",
+            "For instance update that requires a restart, this update track indicates your instance prefer to let Cloud SQL choose the timing of restart (within its Maintenance window, if applicable)."
           ],
           "type": "string"
         }
@@ -3051,11 +3193,11 @@
           "type": "string"
         },
         "clientCertificate": {
-          "description": "PEM representation of the slave's x509 certificate.",
+          "description": "PEM representation of the replica's x509 certificate.",
           "type": "string"
         },
         "clientKey": {
-          "description": "PEM representation of the slave's private key. The corresponsing public key\nis encoded in the client's certificate.",
+          "description": "PEM representation of the replica's private key. The corresponsing public key is encoded in the client's certificate.",
           "type": "string"
         },
         "connectRetryInterval": {
@@ -3064,11 +3206,11 @@
           "type": "integer"
         },
         "dumpFilePath": {
-          "description": "Path to a SQL dump file in Google Cloud Storage from which the slave\ninstance is to be created. The URI is in the form gs:\n//bucketName/fileName. Compressed gzip files (.gz) are also supported.\n// Dumps should have the binlog co-ordinates from which replication should\n// begin. This can be accomplished by setting --master-data to 1 when using\n// mysqldump.",
+          "description": "Path to a SQL dump file in Google Cloud Storage from which the replica instance is to be created. The URI is in the form gs://bucketName/fileName. Compressed gzip files (.gz) are also supported. Dumps have the binlog co-ordinates from which replication begins. This can be accomplished by setting --master-data to 1 when using mysqldump.",
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#mysqlReplicaConfiguration\u003c/code\u003e.",
+          "description": "This is always *sql#mysqlReplicaConfiguration*.",
           "type": "string"
         },
         "masterHeartbeatPeriod": {
@@ -3089,7 +3231,7 @@
           "type": "string"
         },
         "verifyServerCertificate": {
-          "description": "Whether or not to check the master's Common Name value in the certificate\nthat it sends during the SSL handshake.",
+          "description": "Whether or not to check the primary instance's Common Name value in the certificate that it sends during the SSL handshake.",
           "type": "boolean"
         }
       },
@@ -3104,11 +3246,11 @@
           "type": "string"
         },
         "clientCertificate": {
-          "description": "PEM representation of the slave's x509 certificate.",
+          "description": "PEM representation of the replica's x509 certificate.",
           "type": "string"
         },
         "clientKey": {
-          "description": "PEM representation of the slave's private key. The corresponsing public key\nis encoded in the client's certificate.",
+          "description": "PEM representation of the replica's private key. The corresponsing public key is encoded in the client's certificate.",
           "type": "string"
         },
         "dumpFilePath": {
@@ -3120,7 +3262,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#onPremisesConfiguration\u003c/code\u003e.",
+          "description": "This is always *sql#onPremisesConfiguration*.",
           "type": "string"
         },
         "password": {
@@ -3135,17 +3277,21 @@
       "type": "object"
     },
     "Operation": {
-      "description": "An Operation resource.\u0026nbsp;For successful operations that return an\nOperation resource, only the fields relevant to the operation are populated\nin the resource.",
+      "description": "An Operation resource. For successful operations that return an Operation resource, only the fields relevant to the operation are populated in the resource.",
       "id": "Operation",
       "properties": {
+        "backupContext": {
+          "$ref": "BackupContext",
+          "description": "The context for backup operation, if applicable."
+        },
         "endTime": {
-          "description": "The time this operation finished in UTC timezone in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "The time this operation finished in UTC timezone in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         },
         "error": {
           "$ref": "OperationErrors",
-          "description": "If errors occurred during processing of this operation, this field will be\npopulated."
+          "description": "If errors occurred during processing of this operation, this field will be populated."
         },
         "exportContext": {
           "$ref": "ExportContext",
@@ -3156,20 +3302,20 @@
           "description": "The context for import operation, if applicable."
         },
         "insertTime": {
-          "description": "The time this operation was enqueued in UTC timezone in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "The time this operation was enqueued in UTC timezone in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#operation\u003c/code\u003e.",
+          "description": "This is always *sql#operation*.",
           "type": "string"
         },
         "name": {
-          "description": "An identifier that uniquely identifies the operation. You can use this\nidentifier to retrieve the Operations resource that has information about\nthe operation.",
+          "description": "An identifier that uniquely identifies the operation. You can use this identifier to retrieve the Operations resource that has information about the operation.",
           "type": "string"
         },
         "operationType": {
-          "description": "The type of the operation. Valid values are \u003ccode\u003eCREATE\u003c/code\u003e,\n\u003ccode\u003eDELETE\u003c/code\u003e, \u003ccode\u003eUPDATE\u003c/code\u003e, \u003ccode\u003eRESTART\u003c/code\u003e,\n\u003ccode\u003eIMPORT\u003c/code\u003e, \u003ccode\u003eEXPORT\u003c/code\u003e, \u003ccode\u003eBACKUP_VOLUME\u003c/code\u003e,\n\u003ccode\u003eRESTORE_VOLUME\u003c/code\u003e, \u003ccode\u003eCREATE_USER\u003c/code\u003e,\n\u003ccode\u003eDELETE_USER\u003c/code\u003e, \u003ccode\u003eCREATE_DATABASE\u003c/code\u003e,\n\u003ccode\u003eDELETE_DATABASE\u003c/code\u003e .",
+          "description": "The type of the operation. Valid values are: *CREATE* *DELETE* *UPDATE* *RESTART* *IMPORT* *EXPORT* *BACKUP_VOLUME* *RESTORE_VOLUME* *CREATE_USER* *DELETE_USER* *CREATE_DATABASE* *DELETE_DATABASE*",
           "enum": [
             "SQL_OPERATION_TYPE_UNSPECIFIED",
             "IMPORT",
@@ -3210,7 +3356,7 @@
           "enumDescriptions": [
             "Unknown operation type.",
             "Imports data into a Cloud SQL instance.",
-            "Exports data from a Cloud SQL instance to a Cloud Storage\nbucket.",
+            "Exports data from a Cloud SQL instance to a Cloud Storage bucket.",
             "Creates a new Cloud SQL instance.",
             "Updates the settings of a Cloud SQL instance.",
             "Deletes a Cloud SQL instance.",
@@ -3232,17 +3378,17 @@
             "Creates a database in the Cloud SQL instance.",
             "Deletes a database in the Cloud SQL instance.",
             "Updates a database in the Cloud SQL instance.",
-            "Performs failover of an HA-enabled Cloud SQL\nfailover replica.",
+            "Performs failover of an HA-enabled Cloud SQL failover replica.",
             "Deletes the backup taken by a backup run.",
             "",
             "Truncates a general or slow log table in MySQL.",
-            "Demotes the stand-alone instance to be a Cloud SQL\nread replica for an external database server.",
-            "Indicates that the instance is currently in maintenance. Maintenance\ntypically causes the instance to be unavailable for 1-3 minutes.",
+            "Demotes the stand-alone instance to be a Cloud SQL read replica for an external database server.",
+            "Indicates that the instance is currently in maintenance. Maintenance typically causes the instance to be unavailable for 1-3 minutes.",
             "This field is deprecated, and will be removed in future version of API.",
             "",
             "Creates clone instance.",
             "Reschedule maintenance to another time.",
-            "Starts external sync of a Cloud SQL EM replica to an external master."
+            "Starts external sync of a Cloud SQL EM replica to an external primary instance."
           ],
           "type": "string"
         },
@@ -3251,12 +3397,12 @@
           "type": "string"
         },
         "startTime": {
-          "description": "The time this operation actually started in UTC timezone in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "The time this operation actually started in UTC timezone in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         },
         "status": {
-          "description": "The status of an operation. Valid values are \u003ccode\u003ePENDING\u003c/code\u003e,\n\u003ccode\u003eRUNNING\u003c/code\u003e, \u003ccode\u003eDONE\u003c/code\u003e,\n\u003ccode\u003eSQL_OPERATION_STATUS_UNSPECIFIED\u003c/code\u003e.",
+          "description": "The status of an operation. Valid values are: *PENDING* *RUNNING* *DONE* *SQL_OPERATION_STATUS_UNSPECIFIED*",
           "enum": [
             "SQL_OPERATION_STATUS_UNSPECIFIED",
             "PENDING",
@@ -3298,7 +3444,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#operationError\u003c/code\u003e.",
+          "description": "This is always *sql#operationError*.",
           "type": "string"
         },
         "message": {
@@ -3320,7 +3466,7 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#operationErrors\u003c/code\u003e.",
+          "description": "This is always *sql#operationErrors*.",
           "type": "string"
         }
       },
@@ -3338,31 +3484,31 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#operationsList\u003c/code\u003e.",
+          "description": "This is always *sql#operationsList*.",
           "type": "string"
         },
         "nextPageToken": {
-          "description": "The continuation token, used to page through large result sets. Provide\nthis value in a subsequent request to return the next page of results.",
+          "description": "The continuation token, used to page through large result sets. Provide this value in a subsequent request to return the next page of results.",
           "type": "string"
         }
       },
       "type": "object"
     },
     "ReplicaConfiguration": {
-      "description": "Read-replica configuration for connecting to the master.",
+      "description": "Read-replica configuration for connecting to the primary instance.",
       "id": "ReplicaConfiguration",
       "properties": {
         "failoverTarget": {
-          "description": "Specifies if the replica is the failover target. If the field is set to\n\u003ccode\u003etrue\u003c/code\u003e the replica will be designated as a failover replica. In\ncase the master instance fails, the replica instance will be promoted as\nthe new master instance.  \u003cp\u003eOnly one replica can be specified as failover\ntarget, and the replica has to be in different zone with the master\ninstance.",
+          "description": "Specifies if the replica is the failover target. If the field is set to *true* the replica will be designated as a failover replica. In case the primary instance fails, the replica instance will be promoted as the new primary instance. Only one replica can be specified as failover target, and the replica has to be in different zone with the primary instance.",
           "type": "boolean"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#replicaConfiguration\u003c/code\u003e.",
+          "description": "This is always *sql#replicaConfiguration*.",
           "type": "string"
         },
         "mysqlReplicaConfiguration": {
           "$ref": "MySqlReplicaConfiguration",
-          "description": "MySQL specific configuration when replicating from a MySQL on-premises\nmaster. Replication configuration information such as the username,\npassword, certificates, and keys are not stored in the instance metadata.\nThe configuration information is used only to set up the replication\nconnection and is stored by MySQL in a file named \u003ccode\u003emaster.info\u003c/code\u003e\nin the data directory."
+          "description": "MySQL specific configuration when replicating from a MySQL on-premises primary instance. Replication configuration information such as the username, password, certificates, and keys are not stored in the instance metadata. The configuration information is used only to set up the replication connection and is stored by MySQL in a file named *master.info* in the data directory."
         }
       },
       "type": "object"
@@ -3381,13 +3527,13 @@
           "enumDescriptions": [
             "",
             "If the user wants to schedule the maintenance to happen now.",
-            "If the user wants to use the existing maintenance policy to find the\nnext available window.",
+            "If the user wants to use the existing maintenance policy to find the next available window.",
             "If the user wants to reschedule the maintenance to a specific time."
           ],
           "type": "string"
         },
         "scheduleTime": {
-          "description": "Optional. Timestamp when the maintenance shall be rescheduled to if\nreschedule_type=SPECIFIC_TIME, in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for\nexample \u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "Optional. Timestamp when the maintenance shall be rescheduled to if reschedule_type=SPECIFIC_TIME, in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         }
@@ -3395,7 +3541,7 @@
       "type": "object"
     },
     "RestoreBackupContext": {
-      "description": "Database instance restore from backup context.\nBackup context contains source instance id and project id.",
+      "description": "Database instance restore from backup context. Backup context contains source instance id and project id.",
       "id": "RestoreBackupContext",
       "properties": {
         "backupRunId": {
@@ -3408,7 +3554,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#restoreBackupContext\u003c/code\u003e.",
+          "description": "This is always *sql#restoreBackupContext*.",
           "type": "string"
         },
         "project": {
@@ -3423,11 +3569,11 @@
       "id": "RotateServerCaContext",
       "properties": {
         "kind": {
-          "description": "This is always \u003ccode\u003esql#rotateServerCaContext\u003c/code\u003e.",
+          "description": "This is always *sql#rotateServerCaContext*.",
           "type": "string"
         },
         "nextVersion": {
-          "description": "The fingerprint of the next version to be rotated to. If left unspecified,\nwill be rotated to the most recently added server CA version.",
+          "description": "The fingerprint of the next version to be rotated to. If left unspecified, will be rotated to the most recently added server CA version.",
           "type": "string"
         }
       },
@@ -3438,7 +3584,7 @@
       "id": "Settings",
       "properties": {
         "activationPolicy": {
-          "description": "The activation policy specifies when the instance is activated; it is\napplicable only when the instance state is \u003ccode\u003eRUNNABLE\u003c/code\u003e. Valid\nvalues: \u003cbr\u003e\u003ccode\u003eALWAYS\u003c/code\u003e: The instance is on, and remains so even in\nthe absence of connection requests. \u003cbr\u003e\u003ccode\u003eNEVER\u003c/code\u003e: The instance is\noff; it is not activated, even if a connection request arrives.\n\u003cbr\u003e\u003ccode\u003eON_DEMAND\u003c/code\u003e: First Generation instances only. The instance\nresponds to incoming requests, and turns itself off when not in use.\nInstances with \u003ccode\u003ePER_USE\u003c/code\u003e pricing turn off after 15 minutes of\ninactivity. Instances with \u003ccode\u003ePER_PACKAGE\u003c/code\u003e pricing turn off after\n12 hours of inactivity.",
+          "description": "The activation policy specifies when the instance is activated; it is applicable only when the instance state is RUNNABLE. Valid values: *ALWAYS*: The instance is on, and remains so even in the absence of connection requests. *NEVER*: The instance is off; it is not activated, even if a connection request arrives.",
           "enum": [
             "SQL_ACTIVATION_POLICY_UNSPECIFIED",
             "ALWAYS",
@@ -3448,20 +3594,24 @@
           "enumDescriptions": [
             "Unknown activation plan.",
             "The instance is always up and running.",
-            "The instance should never spin up.",
-            "The instance spins up upon receiving requests."
+            "The instance never starts.",
+            "The instance starts upon receiving requests."
           ],
           "type": "string"
         },
+        "activeDirectoryConfig": {
+          "$ref": "SqlActiveDirectoryConfig",
+          "description": "Active Directory configuration, relevant only for Cloud SQL for SQL Server."
+        },
         "authorizedGaeApplications": {
-          "description": "The App Engine app IDs that can access this instance. First Generation\ninstances only.",
+          "description": "The App Engine app IDs that can access this instance. (Deprecated) Applied to First Generation instances only.",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
         "availabilityType": {
-          "description": "Availability type (PostgreSQL and MySQL instances only). Potential values:\n\u003cbr\u003e\u003ccode\u003eZONAL\u003c/code\u003e: The instance serves data from only one zone.\nOutages in that zone affect data accessibility. \u003cbr\u003e\u003ccode\u003eREGIONAL\u003c/code\u003e:\nThe instance can serve data from more than one zone in a region (it is\nhighly available). \u003cbr\u003eFor more information, see \u003ca\nhref=\"https://cloud.google.com/sql/docs/postgres/high-availability\"\u003eOverview\nof the High Availability Configuration\u003c/a\u003e.",
+          "description": "Availability type. Potential values: *ZONAL*: The instance serves data from only one zone. Outages in that zone affect data accessibility. *REGIONAL*: The instance can serve data from more than one zone in a region (it is highly available). For more information, see Overview of the High Availability Configuration.",
           "enum": [
             "SQL_AVAILABILITY_TYPE_UNSPECIFIED",
             "ZONAL",
@@ -3478,17 +3628,21 @@
           "$ref": "BackupConfiguration",
           "description": "The daily backup configuration for the instance."
         },
+        "collation": {
+          "description": "The name of server Instance collation.",
+          "type": "string"
+        },
         "crashSafeReplicationEnabled": {
-          "description": "Configuration specific to read replica instances. Indicates whether\ndatabase flags for crash-safe replication are enabled. This property is\nonly applicable to First Generation instances.",
+          "description": "Configuration specific to read replica instances. Indicates whether database flags for crash-safe replication are enabled. This property was only applicable to First Generation instances.",
           "type": "boolean"
         },
         "dataDiskSizeGb": {
-          "description": "The size of data disk, in GB. The data disk size minimum is 10GB. Not used\nfor First Generation instances.",
+          "description": "The size of data disk, in GB. The data disk size minimum is 10GB.",
           "format": "int64",
           "type": "string"
         },
         "dataDiskType": {
-          "description": "The type of data disk: \u003ccode\u003ePD_SSD\u003c/code\u003e (default) or\n\u003ccode\u003ePD_HDD\u003c/code\u003e. Not used for First Generation instances.",
+          "description": "The type of data disk: PD_SSD (default) or PD_HDD. Not used for First Generation instances.",
           "enum": [
             "SQL_DATA_DISK_TYPE_UNSPECIFIED",
             "PD_SSD",
@@ -3499,7 +3653,7 @@
             "This is an unknown data disk type.",
             "An SSD data disk.",
             "An HDD data disk.",
-            "This field is deprecated and will be removed from a future version of the\nAPI."
+            "This field is deprecated and will be removed from a future version of the API."
           ],
           "type": "string"
         },
@@ -3511,27 +3665,38 @@
           "type": "array"
         },
         "databaseReplicationEnabled": {
-          "description": "Configuration specific to read replica instances. Indicates whether\nreplication is enabled or not.",
+          "description": "Configuration specific to read replica instances. Indicates whether replication is enabled or not.",
           "type": "boolean"
+        },
+        "denyMaintenancePeriods": {
+          "description": "Deny maintenance periods",
+          "items": {
+            "$ref": "DenyMaintenancePeriod"
+          },
+          "type": "array"
+        },
+        "insightsConfig": {
+          "$ref": "InsightsConfig",
+          "description": "Insights configuration, for now relevant only for Postgres."
         },
         "ipConfiguration": {
           "$ref": "IpConfiguration",
-          "description": "The settings for IP Management. This allows to enable or disable the\ninstance IP and manage which external networks can connect to the instance.\nThe IPv4 address cannot be disabled for Second Generation instances."
+          "description": "The settings for IP Management. This allows to enable or disable the instance IP and manage which external networks can connect to the instance. The IPv4 address cannot be disabled for Second Generation instances."
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#settings\u003c/code\u003e.",
+          "description": "This is always *sql#settings*.",
           "type": "string"
         },
         "locationPreference": {
           "$ref": "LocationPreference",
-          "description": "The location preference settings. This allows the instance to be located as\nnear as possible to either an App Engine app or Compute Engine zone for\nbetter performance. App Engine co-location is only applicable to First\nGeneration instances."
+          "description": "The location preference settings. This allows the instance to be located as near as possible to either an App Engine app or Compute Engine zone for better performance. App Engine co-location was only applicable to First Generation instances."
         },
         "maintenanceWindow": {
           "$ref": "MaintenanceWindow",
-          "description": "The maintenance window for this instance. This specifies when the instance\ncan be restarted for maintenance purposes. Not used for First Generation\ninstances."
+          "description": "The maintenance window for this instance. This specifies when the instance can be restarted for maintenance purposes."
         },
         "pricingPlan": {
-          "description": "The pricing plan for this instance. This can be either \u003ccode\u003ePER_USE\u003c/code\u003e\nor \u003ccode\u003ePACKAGE\u003c/code\u003e. Only \u003ccode\u003ePER_USE\u003c/code\u003e is supported for Second\nGeneration instances.",
+          "description": "The pricing plan for this instance. This can be either *PER_USE* or *PACKAGE*. Only *PER_USE* is supported for Second Generation instances.",
           "enum": [
             "SQL_PRICING_PLAN_UNSPECIFIED",
             "PACKAGE",
@@ -3545,7 +3710,7 @@
           "type": "string"
         },
         "replicationType": {
-          "description": "The type of replication this instance uses. This can be either\n\u003ccode\u003eASYNCHRONOUS\u003c/code\u003e or \u003ccode\u003eSYNCHRONOUS\u003c/code\u003e. This property is\nonly applicable to First Generation instances.",
+          "description": "The type of replication this instance uses. This can be either *ASYNCHRONOUS* or *SYNCHRONOUS*. (Deprecated_ This property was only applicable to First Generation instances.",
           "enum": [
             "SQL_REPLICATION_TYPE_UNSPECIFIED",
             "SYNCHRONOUS",
@@ -3553,41 +3718,56 @@
           ],
           "enumDescriptions": [
             "This is an unknown replication type for a Cloud SQL instance.",
-            "The synchronous replication mode for First Generation instances. It is the\ndefault value.",
-            "The asynchronous replication mode for First Generation instances. It\nprovides a slight performance gain, but if an outage occurs while this\noption is set to asynchronous, you can lose up to a few seconds of updates\nto your data."
+            "The synchronous replication mode for First Generation instances. It is the default value.",
+            "The asynchronous replication mode for First Generation instances. It provides a slight performance gain, but if an outage occurs while this option is set to asynchronous, you can lose up to a few seconds of updates to your data."
           ],
           "type": "string"
         },
         "settingsVersion": {
-          "description": "The version of instance settings. This is a required field for update\nmethod to make sure concurrent updates are handled properly. During update,\nuse the most recent settingsVersion value for this instance and do not try\nto update this value.",
+          "description": "The version of instance settings. This is a required field for update method to make sure concurrent updates are handled properly. During update, use the most recent settingsVersion value for this instance and do not try to update this value.",
           "format": "int64",
           "type": "string"
         },
         "storageAutoResize": {
-          "description": "Configuration to increase storage size automatically. The default value is\ntrue. Not used for First Generation instances.",
+          "description": "Configuration to increase storage size automatically. The default value is true.",
           "type": "boolean"
         },
         "storageAutoResizeLimit": {
-          "description": "The maximum size to which storage capacity can be automatically increased.\nThe default value is 0, which specifies that there is no limit. Not used\nfor First Generation instances.",
+          "description": "The maximum size to which storage capacity can be automatically increased. The default value is 0, which specifies that there is no limit.",
           "format": "int64",
           "type": "string"
         },
         "tier": {
-          "description": "The tier (or machine type) for this instance, for example\n\u003ccode\u003edb-n1-standard-1\u003c/code\u003e (MySQL instances) or\n\u003ccode\u003edb-custom-1-3840\u003c/code\u003e (PostgreSQL instances). For MySQL instances,\nthis property determines whether the instance is First or Second\nGeneration. For more information, see \u003ca\nhref=\"/sql/docs/db_path/instance-settings\"\u003eInstance Settings\u003c/a\u003e.",
+          "description": "The tier (or machine type) for this instance, for example *db-n1-standard-1* (MySQL instances) or *db-custom-1-3840* (PostgreSQL instances).",
           "type": "string"
         },
         "userLabels": {
           "additionalProperties": {
             "type": "string"
           },
-          "description": "User-provided labels, represented as a dictionary where each label is a\nsingle key value pair.",
+          "description": "User-provided labels, represented as a dictionary where each label is a single key value pair.",
           "type": "object"
         }
       },
       "type": "object"
     },
+    "SqlActiveDirectoryConfig": {
+      "description": "Active Directory configuration, relevant only for Cloud SQL for SQL Server.",
+      "id": "SqlActiveDirectoryConfig",
+      "properties": {
+        "domain": {
+          "description": "The name of the domain (e.g., mydomain.com).",
+          "type": "string"
+        },
+        "kind": {
+          "description": "This is always sql#activeDirectoryConfig.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "SqlExternalSyncSettingError": {
-      "description": "External master migration setting error.",
+      "description": "External primary instance migration setting error/warning.",
       "id": "SqlExternalSyncSettingError",
       "properties": {
         "detail": {
@@ -3595,7 +3775,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#migrationSettingError\u003c/code\u003e.",
+          "description": "Can be *sql#externalSyncSettingError* or *sql#externalSyncSettingWarning*.",
           "type": "string"
         },
         "type": {
@@ -3609,7 +3789,20 @@
             "INSUFFICIENT_PRIVILEGE",
             "UNSUPPORTED_MIGRATION_TYPE",
             "NO_PGLOGICAL_INSTALLED",
-            "PGLOGICAL_NODE_ALREADY_EXISTS"
+            "PGLOGICAL_NODE_ALREADY_EXISTS",
+            "INVALID_WAL_LEVEL",
+            "INVALID_SHARED_PRELOAD_LIBRARY",
+            "INSUFFICIENT_MAX_REPLICATION_SLOTS",
+            "INSUFFICIENT_MAX_WAL_SENDERS",
+            "INSUFFICIENT_MAX_WORKER_PROCESSES",
+            "UNSUPPORTED_EXTENSIONS",
+            "INVALID_RDS_LOGICAL_REPLICATION",
+            "INVALID_LOGGING_SETUP",
+            "INVALID_DB_PARAM",
+            "UNSUPPORTED_GTID_MODE",
+            "SQLSERVER_AGENT_NOT_RUNNING",
+            "UNSUPPORTED_TABLE_DEFINITION",
+            "UNSUPPORTED_DEFINER"
           ],
           "enumDescriptions": [
             "",
@@ -3620,7 +3813,20 @@
             "",
             "Unsupported migration type.",
             "No pglogical extension installed on databases, applicable for postgres.",
-            "pglogical node already exists on databases, applicable for postgres."
+            "pglogical node already exists on databases, applicable for postgres.",
+            "The value of parameter wal_level is not set to logical.",
+            "The value of parameter shared_preload_libraries does not include pglogical.",
+            "The value of parameter max_replication_slots is not sufficient.",
+            "The value of parameter max_wal_senders is not sufficient.",
+            "The value of parameter max_worker_processes is not sufficient.",
+            "Extensions installed are either not supported or having unsupported versions",
+            "The value of parameter rds.logical_replication is not set to 1.",
+            "The primary instance logging setup doesn't allow EM sync.",
+            "The primary instance database parameter setup doesn't allow EM sync.",
+            "The gtid_mode is not supported, applicable for MySQL.",
+            "SQL Server Agent is not running.",
+            "The table definition is not support due to missing primary key or replica identity, applicable for postgres.",
+            "The customer has a definer that will break EM setup."
           ],
           "type": "string"
         }
@@ -3650,8 +3856,15 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#migrationSettingErrorList\u003c/code\u003e.",
+          "description": "This is always *sql#migrationSettingErrorList*.",
           "type": "string"
+        },
+        "warnings": {
+          "description": "List of migration warnings.",
+          "items": {
+            "$ref": "SqlExternalSyncSettingError"
+          },
+          "type": "array"
         }
       },
       "type": "object"
@@ -3722,16 +3935,16 @@
           "type": "string"
         },
         "commonName": {
-          "description": "User supplied name.  Constrained to [a-zA-Z.-_ ]+.",
+          "description": "User supplied name. Constrained to [a-zA-Z.-_ ]+.",
           "type": "string"
         },
         "createTime": {
-          "description": "The time when the certificate was created in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e",
+          "description": "The time when the certificate was created in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*",
           "format": "google-datetime",
           "type": "string"
         },
         "expirationTime": {
-          "description": "The time when the certificate expires in \u003ca\nhref=\"https://tools.ietf.org/html/rfc3339\"\u003eRFC 3339\u003c/a\u003e format, for example\n\u003ccode\u003e2012-11-15T16:19:00.094Z\u003c/code\u003e.",
+          "description": "The time when the certificate expires in RFC 3339 format, for example *2012-11-15T16:19:00.094Z*.",
           "format": "google-datetime",
           "type": "string"
         },
@@ -3740,7 +3953,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#sslCert\u003c/code\u003e.",
+          "description": "This is always *sql#sslCert*.",
           "type": "string"
         },
         "selfLink": {
@@ -3763,7 +3976,7 @@
           "description": "The public information about the cert."
         },
         "certPrivateKey": {
-          "description": "The private key for the client cert, in pem format.  Keep private in order\nto protect your security.",
+          "description": "The private key for the client cert, in pem format. Keep private in order to protect your security.",
           "type": "string"
         }
       },
@@ -3773,6 +3986,10 @@
       "description": "SslCerts create ephemeral certificate request.",
       "id": "SslCertsCreateEphemeralRequest",
       "properties": {
+        "access_token": {
+          "description": "Access token to include in the signed certificate.",
+          "type": "string"
+        },
         "public_key": {
           "description": "PEM encoded public key to include in the signed certificate.",
           "type": "string"
@@ -3785,7 +4002,7 @@
       "id": "SslCertsInsertRequest",
       "properties": {
         "commonName": {
-          "description": "User supplied name.  Must be a distinct name from the other certificates\nfor this instance.",
+          "description": "User supplied name. Must be a distinct name from the other certificates for this instance.",
           "type": "string"
         }
       },
@@ -3797,10 +4014,10 @@
       "properties": {
         "clientCert": {
           "$ref": "SslCertDetail",
-          "description": "The new client certificate and private key.  For First Generation\ninstances, the new certificate does not take effect until the instance is\nrestarted."
+          "description": "The new client certificate and private key."
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#sslCertsInsert\u003c/code\u003e.",
+          "description": "This is always *sql#sslCertsInsert*.",
           "type": "string"
         },
         "operation": {
@@ -3809,7 +4026,7 @@
         },
         "serverCaCert": {
           "$ref": "SslCert",
-          "description": "The server Certificate Authority's certificate.  If this is missing you can\nforce a new one to be generated by calling resetSslConfig method on\ninstances resource."
+          "description": "The server Certificate Authority's certificate. If this is missing you can force a new one to be generated by calling resetSslConfig method on instances resource."
         }
       },
       "type": "object"
@@ -3826,7 +4043,7 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#sslCertsList\u003c/code\u003e.",
+          "description": "This is always *sql#sslCertsList*.",
           "type": "string"
         }
       },
@@ -3847,7 +4064,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#tier\u003c/code\u003e.",
+          "description": "This is always *sql#tier*.",
           "type": "string"
         },
         "region": {
@@ -3858,7 +4075,7 @@
           "type": "array"
         },
         "tier": {
-          "description": "An identifier for the machine type, for example, db-n1-standard-1. For\nrelated information, see \u003ca href=\"/sql/pricing\"\u003ePricing\u003c/a\u003e.",
+          "description": "An identifier for the machine type, for example, db-n1-standard-1. For related information, see Pricing.",
           "type": "string"
         }
       },
@@ -3876,7 +4093,7 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#tiersList\u003c/code\u003e.",
+          "description": "This is always *sql#tiersList*.",
           "type": "string"
         }
       },
@@ -3887,11 +4104,11 @@
       "id": "TruncateLogContext",
       "properties": {
         "kind": {
-          "description": "This is always \u003ccode\u003esql#truncateLogContext\u003c/code\u003e.",
+          "description": "This is always *sql#truncateLogContext*.",
           "type": "string"
         },
         "logType": {
-          "description": "The type of log to truncate. Valid values are\n\u003ccode\u003eMYSQL_GENERAL_TABLE\u003c/code\u003e and \u003ccode\u003eMYSQL_SLOW_TABLE\u003c/code\u003e.",
+          "description": "The type of log to truncate. Valid values are *MYSQL_GENERAL_TABLE* and *MYSQL_SLOW_TABLE*.",
           "type": "string"
         }
       },
@@ -3902,23 +4119,23 @@
       "id": "User",
       "properties": {
         "etag": {
-          "description": "This field is deprecated and will be removed from a future version of the\nAPI.",
+          "description": "This field is deprecated and will be removed from a future version of the API.",
           "type": "string"
         },
         "host": {
-          "description": "The host name from which the user can connect. For \u003ccode\u003einsert\u003c/code\u003e\noperations, host defaults to an empty string. For \u003ccode\u003eupdate\u003c/code\u003e\noperations, host is specified as part of the request URL. The host name\ncannot be updated after insertion.",
+          "description": "The host name from which the user can connect. For *insert* operations, host defaults to an empty string. For *update* operations, host is specified as part of the request URL. The host name cannot be updated after insertion.",
           "type": "string"
         },
         "instance": {
-          "description": "The name of the Cloud SQL instance. This does not include the project ID.\nCan be omitted for \u003ccode\u003eupdate\u003c/code\u003e since it is already specified on the\nURL.",
+          "description": "The name of the Cloud SQL instance. This does not include the project ID. Can be omitted for *update* since it is already specified on the URL.",
           "type": "string"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#user\u003c/code\u003e.",
+          "description": "This is always *sql#user*.",
           "type": "string"
         },
         "name": {
-          "description": "The name of the user in the Cloud SQL instance. Can be omitted for\n\u003ccode\u003eupdate\u003c/code\u003e since it is already specified in the URL.",
+          "description": "The name of the user in the Cloud SQL instance. Can be omitted for *update* since it is already specified in the URL.",
           "type": "string"
         },
         "password": {
@@ -3926,11 +4143,25 @@
           "type": "string"
         },
         "project": {
-          "description": "The project ID of the project containing the Cloud SQL database. The Google\napps domain is prefixed if applicable. Can be omitted for\n\u003ccode\u003eupdate\u003c/code\u003e since it is already specified on the URL.",
+          "description": "The project ID of the project containing the Cloud SQL database. The Google apps domain is prefixed if applicable. Can be omitted for *update* since it is already specified on the URL.",
           "type": "string"
         },
         "sqlserverUserDetails": {
           "$ref": "SqlServerUserDetails"
+        },
+        "type": {
+          "description": "The user type. It determines the method to authenticate the user during login. The default is the database's built-in user type.",
+          "enum": [
+            "BUILT_IN",
+            "CLOUD_IAM_USER",
+            "CLOUD_IAM_SERVICE_ACCOUNT"
+          ],
+          "enumDescriptions": [
+            "The database's built-in user type.",
+            "Cloud IAM user.",
+            "Cloud IAM service account."
+          ],
+          "type": "string"
         }
       },
       "type": "object"
@@ -3947,11 +4178,11 @@
           "type": "array"
         },
         "kind": {
-          "description": "This is always \u003ccode\u003esql#usersList\u003c/code\u003e.",
+          "description": "This is always *sql#usersList*.",
           "type": "string"
         },
         "nextPageToken": {
-          "description": "An identifier that uniquely identifies the operation. You can use this\nidentifier to retrieve the Operations resource that has information about\nthe operation.",
+          "description": "An identifier that uniquely identifies the operation. You can use this identifier to retrieve the Operations resource that has information about the operation.",
           "type": "string"
         }
       },

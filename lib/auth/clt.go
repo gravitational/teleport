@@ -48,6 +48,7 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"github.com/gravitational/trace/trail"
 )
 
@@ -183,7 +184,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 
 	clientParams := append(
 		[]roundtrip.ClientParam{
-			roundtrip.HTTPClient(&http.Client{Transport: transport}),
+			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(transport)}),
 			roundtrip.SanitizerEnabled(true),
 		},
 		params...,

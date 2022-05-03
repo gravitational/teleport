@@ -1,4 +1,4 @@
-// Copyright 2020 Google LLC
+// Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import (
 	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"google.golang.org/api/option/internaloption"
 	gtransport "google.golang.org/api/transport/grpc"
 	longrunningpb "google.golang.org/genproto/googleapis/longrunning"
 	"google.golang.org/grpc"
@@ -47,9 +48,11 @@ type OperationsCallOptions struct {
 
 func defaultOperationsClientOptions() []option.ClientOption {
 	return []option.ClientOption{
-		option.WithEndpoint("longrunning.googleapis.com:443"),
+		internaloption.WithDefaultEndpoint("longrunning.googleapis.com:443"),
+		internaloption.WithDefaultMTLSEndpoint("longrunning.mtls.googleapis.com:443"),
+		internaloption.WithDefaultAudience("https://longrunning.googleapis.com/"),
+		internaloption.WithDefaultScopes(DefaultAuthScopes()...),
 		option.WithGRPCDialOption(grpc.WithDisableServiceConfig()),
-		option.WithScopes(DefaultAuthScopes()...),
 		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
@@ -112,6 +115,9 @@ type OperationsClient struct {
 	// Connection pool of gRPC connections to the service.
 	connPool gtransport.ConnPool
 
+	// flag to opt out of default deadlines via GOOGLE_API_GO_EXPERIMENTAL_DISABLE_DEFAULT_DEADLINE
+	disableDeadlines bool
+
 	// The gRPC API client.
 	operationsClient longrunningpb.OperationsClient
 
@@ -144,13 +150,19 @@ func NewOperationsClient(ctx context.Context, opts ...option.ClientOption) (*Ope
 		clientOpts = append(clientOpts, hookOpts...)
 	}
 
+	disableDeadlines, err := checkDisableDeadlines()
+	if err != nil {
+		return nil, err
+	}
+
 	connPool, err := gtransport.DialPool(ctx, append(clientOpts, opts...)...)
 	if err != nil {
 		return nil, err
 	}
 	c := &OperationsClient{
-		connPool:    connPool,
-		CallOptions: defaultOperationsCallOptions(),
+		connPool:         connPool,
+		disableDeadlines: disableDeadlines,
+		CallOptions:      defaultOperationsCallOptions(),
 
 		operationsClient: longrunningpb.NewOperationsClient(connPool),
 	}
@@ -215,7 +227,7 @@ func (c *OperationsClient) ListOperations(ctx context.Context, req *longrunningp
 		}
 
 		it.Response = resp
-		return resp.Operations, resp.NextPageToken, nil
+		return resp.GetOperations(), resp.GetNextPageToken(), nil
 	}
 	fetch := func(pageSize int, pageToken string) (string, error) {
 		items, nextPageToken, err := it.InternalFetch(pageSize, pageToken)
@@ -226,8 +238,8 @@ func (c *OperationsClient) ListOperations(ctx context.Context, req *longrunningp
 		return nextPageToken, nil
 	}
 	it.pageInfo, it.nextFunc = iterator.NewPageInfo(fetch, it.bufLen, it.takeBuf)
-	it.pageInfo.MaxSize = int(req.PageSize)
-	it.pageInfo.Token = req.PageToken
+	it.pageInfo.MaxSize = int(req.GetPageSize())
+	it.pageInfo.Token = req.GetPageToken()
 	return it
 }
 
@@ -235,6 +247,11 @@ func (c *OperationsClient) ListOperations(ctx context.Context, req *longrunningp
 // method to poll the operation result at intervals as recommended by the API
 // service.
 func (c *OperationsClient) GetOperation(ctx context.Context, req *longrunningpb.GetOperationRequest, opts ...gax.CallOption) (*longrunningpb.Operation, error) {
+	if _, ok := ctx.Deadline(); !ok && !c.disableDeadlines {
+		cctx, cancel := context.WithTimeout(ctx, 10000*time.Millisecond)
+		defer cancel()
+		ctx = cctx
+	}
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.GetOperation[0:len(c.CallOptions.GetOperation):len(c.CallOptions.GetOperation)], opts...)
@@ -255,6 +272,11 @@ func (c *OperationsClient) GetOperation(ctx context.Context, req *longrunningpb.
 // operation. If the server doesn’t support this method, it returns
 // google.rpc.Code.UNIMPLEMENTED.
 func (c *OperationsClient) DeleteOperation(ctx context.Context, req *longrunningpb.DeleteOperationRequest, opts ...gax.CallOption) error {
+	if _, ok := ctx.Deadline(); !ok && !c.disableDeadlines {
+		cctx, cancel := context.WithTimeout(ctx, 10000*time.Millisecond)
+		defer cancel()
+		ctx = cctx
+	}
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.DeleteOperation[0:len(c.CallOptions.DeleteOperation):len(c.CallOptions.DeleteOperation)], opts...)
@@ -277,6 +299,11 @@ func (c *OperationsClient) DeleteOperation(ctx context.Context, req *longrunning
 // an Operation.error value with a google.rpc.Status.code of 1,
 // corresponding to Code.CANCELLED.
 func (c *OperationsClient) CancelOperation(ctx context.Context, req *longrunningpb.CancelOperationRequest, opts ...gax.CallOption) error {
+	if _, ok := ctx.Deadline(); !ok && !c.disableDeadlines {
+		cctx, cancel := context.WithTimeout(ctx, 10000*time.Millisecond)
+		defer cancel()
+		ctx = cctx
+	}
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.CancelOperation[0:len(c.CallOptions.CancelOperation):len(c.CallOptions.CancelOperation)], opts...)
@@ -288,9 +315,9 @@ func (c *OperationsClient) CancelOperation(ctx context.Context, req *longrunning
 	return err
 }
 
-// WaitOperation waits for the specified long-running operation until it is done or reaches
-// at most a specified timeout, returning the latest state.  If the operation
-// is already done, the latest state is immediately returned.  If the timeout
+// WaitOperation waits until the specified long-running operation is done or reaches at most
+// a specified timeout, returning the latest state.  If the operation is
+// already done, the latest state is immediately returned.  If the timeout
 // specified is greater than the default HTTP/RPC timeout, the HTTP/RPC
 // timeout is used.  If the server does not support this method, it returns
 // google.rpc.Code.UNIMPLEMENTED.
