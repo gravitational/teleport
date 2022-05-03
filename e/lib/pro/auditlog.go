@@ -2,7 +2,6 @@ package pro
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -11,7 +10,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	rclient "github.com/gravitational/reporting/client"
-	"github.com/gravitational/reporting/types"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -64,48 +62,9 @@ func NewAuditLog(config AuditLogConfig) (*AuditLog, error) {
 	}, nil
 }
 
-// EmitAuditEventLegacy sends the anonymized usage metrics to the control plane and
-// then calls EmitAuditEvent on the logger it wraps
-// !!!FIXEVENTS!!!
-func (l *AuditLog) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
-	switch event.Name {
-	case events.UserLoginEvent:
-		l.Debugf("Recoding audit event %q.", event.Name)
-		l.Recorder.Record(types.NewUserLoginEvent(
-			l.anonymize(fields.GetString(events.EventUser))))
-	case events.SessionStartEvent:
-		l.Debugf("Recoding audit event %q.", event.Name)
-		l.Recorder.Record(types.NewServerLoginEvent(
-			fields.GetString(events.SessionServerID)))
-	default:
-		l.Debugf("Ignoring event %q.", event.Name)
-	}
-	return trace.Wrap(l.Inner.EmitAuditEventLegacy(event, fields))
-}
-
 // EmitAuditEvent emits the specified event.
 func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return trace.Wrap(l.Inner.EmitAuditEvent(ctx, event))
-}
-
-func (l *AuditLog) PostSessionSlice(slice events.SessionSlice) error {
-	for _, chunk := range slice.Chunks {
-		if chunk.EventType == events.SessionStartEvent {
-			var fields events.EventFields
-			if err := json.Unmarshal(chunk.Data, &fields); err != nil {
-				log.Warningf("Failed to unmarshal event: %v.", err)
-			} else {
-				l.Debugf("Recoding session event %q.", chunk.EventType)
-				l.Recorder.Record(types.NewServerLoginEvent(
-					fields.GetString(events.SessionServerID)))
-			}
-		}
-	}
-	return trace.Wrap(l.Inner.PostSessionSlice(slice))
-}
-
-func (l *AuditLog) UploadSessionRecording(r events.SessionRecording) error {
-	return trace.Wrap(l.Inner.UploadSessionRecording(r))
 }
 
 func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
