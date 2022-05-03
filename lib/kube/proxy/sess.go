@@ -50,6 +50,7 @@ const sessionRecorderID = "session-recorder"
 
 const PresenceVerifyInterval = time.Second * 15
 const PresenceMaxDifference = time.Minute
+const sessionMaxLifetime = time.Hour * 24
 
 // remoteClient is either a kubectl or websocket client.
 type remoteClient interface {
@@ -350,7 +351,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		sess:                           sess,
 		closeC:                         make(chan struct{}),
 		initiator:                      initiator.ID,
-		expires:                        time.Now().UTC().Add(time.Hour * 24),
+		expires:                        time.Now().UTC().Add(sessionMaxLifetime),
 		PresenceEnabled:                ctx.Identity.GetIdentity().MFAVerified != "",
 		stateUpdate:                    sync.NewCond(&sync.Mutex{}),
 		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
