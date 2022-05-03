@@ -1866,20 +1866,20 @@ func getLocalIP() (string, error) {
 
 // eventually checks a given condition at regular intervals and returns
 // true if the condition is met within the specified duration.
-func eventually(f func() bool, interval time.Duration, duration time.Duration) bool {
-	return check(f, true, interval, duration)
+func eventually(cond func() bool, interval time.Duration, duration time.Duration) bool {
+	return check(cond, true, interval, duration)
 }
 
 // never checks a given condition at regular intervals and returns
-// true if the condition is not met within the specified duration.
-func never(f func() bool, interval time.Duration, duration time.Duration) bool {
-	return check(f, false, interval, duration)
+// false if the condition is met within the specified duration.
+func never(cond func() bool, interval time.Duration, duration time.Duration) bool {
+	return check(cond, false, interval, duration)
 }
 
 // check checks a given condition at regular intervals and returns
 // the value of shouldPassCheck if the condition is met within the specified
 // duration.
-func check(f func() bool, shouldPassCheck bool, interval time.Duration, duration time.Duration) bool {
+func check(cond func() bool, shouldPassCheck bool, interval time.Duration, duration time.Duration) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	for {
@@ -1887,7 +1887,7 @@ func check(f func() bool, shouldPassCheck bool, interval time.Duration, duration
 		case <-ctx.Done():
 			return !shouldPassCheck
 		default:
-			if f() {
+			if cond() {
 				return shouldPassCheck
 			}
 			time.Sleep(interval)
