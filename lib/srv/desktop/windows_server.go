@@ -1262,38 +1262,38 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 // expiration while the session is active. Once the given ctx is closed,
 // the tracker will be marked as terminated.
 func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, windowsUser string, sessionID string, desktop types.WindowsDesktop) error {
-	s.cfg.Log.Debugf("Starting tracker for session %v", sessionID)
-	initiator := &types.Participant{
-		ID:   id.Username,
-		User: id.Username,
+	trackerSpec := types.SessionTrackerSpecV1{
+		SessionID:   sessionID,
+		Kind:        string(types.WindowsDesktopSessionKind),
+		State:       types.SessionState_SessionStateRunning,
+		Hostname:    s.cfg.Hostname,
+		Address:     desktop.GetAddr(),
+		DesktopName: desktop.GetName(),
+		ClusterName: s.clusterName,
+		Login:       windowsUser,
+		Participants: []types.Participant{{
+			User: id.Username,
+		}},
+		HostUser: id.Username,
+		Created:  s.cfg.Clock.Now(),
 	}
 
-	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
-		SessionID:    sessionID,
-		Kind:         string(types.WindowsDesktopSessionKind),
-		State:        types.SessionState_SessionStateRunning,
-		Hostname:     s.cfg.Hostname,
-		Address:      desktop.GetAddr(),
-		ClusterName:  s.clusterName,
-		Login:        windowsUser,
-		Participants: []types.Participant{*initiator},
-		HostUser:     initiator.User,
-		Created:      s.cfg.Clock.Now(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = s.cfg.AuthClient.CreateSessionTracker(ctx, tracker)
+	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
+	tracker, err := srv.NewSessionTracker(s.closeCtx, trackerSpec, s.cfg.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	go func() {
-		ticker := s.cfg.Clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
-		defer ticker.Stop()
-		if err := services.TrackSession(s.closeCtx, s.cfg.AuthClient, tracker, ticker, ctx.Done()); err != nil {
-			s.cfg.Log.Debugf("Error tracking session state for session %v", sessionID)
+		if err := tracker.UpdateExpirationLoop(s.closeCtx, s.cfg.Clock); err != nil {
+			s.cfg.Log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionID)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		if err := tracker.Close(s.closeCtx); err != nil {
+			s.cfg.Log.WithError(err).Debugf("Failed to update session tracker state for session %v", sessionID)
 		}
 	}()
 

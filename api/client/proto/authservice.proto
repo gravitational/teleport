@@ -1593,7 +1593,7 @@ message CreateSessionTrackerRequest {
     repeated types.SessionTrackerPolicySet HostPolicies = 14
         [ (gogoproto.jsontag) = "host_policies,omitempty" ];
 
-    // sessionTracker is the session tracker to be created.
+    // SessionTracker is the session tracker to be created.
     types.SessionTrackerV1 SessionTracker = 15
         [ (gogoproto.jsontag) = "session_tracker,omitempty" ];
 }

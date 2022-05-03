@@ -18,15 +18,12 @@ package services
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // SessionTrackerService is a realtime session service that has information about
@@ -51,96 +48,13 @@ type SessionTrackerService interface {
 	UpdatePresence(ctx context.Context, sessionID, user string) error
 }
 
-// UpdateSessionTrackerState is a helper function to add a session tracker participant.
-func AddSessionTrackerParticipant(ctx context.Context, sts SessionTrackerService, sid string, participant *types.Participant) error {
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: sid,
-		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
-			AddParticipant: &proto.SessionTrackerAddParticipant{
-				Participant: participant,
-			},
-		},
-	}
-
-	err := sts.UpdateSessionTracker(ctx, req)
-	return trace.Wrap(err)
-}
-
-// UpdateSessionTrackerState is a helper function to remove a session tracker participant.
-func RemoveSessionTrackerParticipant(ctx context.Context, sts SessionTrackerService, sid string, participantID string) error {
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: sid,
-		Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
-			RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
-				ParticipantID: participantID,
-			},
-		},
-	}
-
-	err := sts.UpdateSessionTracker(ctx, req)
-	return trace.Wrap(err)
-}
-
-// UpdateSessionTrackerState is a helper function to update a session tracker state.
-func UpdateSessionTrackerState(ctx context.Context, sts SessionTrackerService, sid string, state types.SessionState) error {
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: sid,
-		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
-			UpdateState: &proto.SessionTrackerUpdateState{
-				State: state,
-			},
-		},
-	}
-
-	err := sts.UpdateSessionTracker(ctx, req)
-	return trace.Wrap(err)
-}
-
-// UpdateSessionTrackerExpiry is a helper function to update a session tracker expiry.
-func UpdateSessionTrackerExpiry(ctx context.Context, sts SessionTrackerService, sid string, expires time.Time) error {
-	req := &proto.UpdateSessionTrackerRequest{
-		SessionID: sid,
-		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
-			UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
-				Expires: &expires,
-			},
-		},
-	}
-
-	err := sts.UpdateSessionTracker(ctx, req)
-	return trace.Wrap(err)
-}
-
-// TrackSession creates the given session tracker. The session tracker's expiration
-// will be extended on each tick from the given ticker until a termiante signal is
-// received. Then the tracker's state will be updated to terminated.
-func TrackSession(ctx context.Context, sts SessionTrackerService, tracker types.SessionTracker, ticker clockwork.Ticker, terminate <-chan struct{}) error {
-	if _, err := sts.CreateSessionTracker(ctx, tracker); err != nil {
-		return trace.Wrap(err)
-	}
-
-	for {
-		select {
-		case time := <-ticker.Chan():
-			expiry := time.Add(apidefaults.SessionTrackerTTL)
-			if err := UpdateSessionTrackerExpiry(ctx, sts, tracker.GetSessionID(), expiry); err != nil {
-				return trace.Wrap(err)
-			}
-		case <-terminate:
-			err := UpdateSessionTrackerState(ctx, sts, tracker.GetSessionID(), types.SessionState_SessionStateTerminated)
-			return trace.Wrap(err)
-		}
-	}
-}
-
 // UnmarshalSessionTracker unmarshals the Session resource from JSON.
 func UnmarshalSessionTracker(bytes []byte) (types.SessionTracker, error) {
-	var session types.SessionTrackerV1
-
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
 
+	var session types.SessionTrackerV1
 	if err := utils.FastUnmarshal(bytes, &session); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}

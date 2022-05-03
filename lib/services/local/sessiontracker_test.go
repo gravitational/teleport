@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -58,14 +58,33 @@ func TestSessionTrackerStorage(t *testing.T) {
 	require.NoError(t, err)
 
 	bobID := uuid.New().String()
-	err = services.AddSessionTrackerParticipant(ctx, srv, sid, &types.Participant{
-		ID:   bobID,
-		User: "bob",
-		Mode: string(types.SessionObserverMode),
-	})
+
+	req := &proto.UpdateSessionTrackerRequest{
+		SessionID: sid,
+		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
+			AddParticipant: &proto.SessionTrackerAddParticipant{
+				Participant: &types.Participant{
+					ID:   bobID,
+					User: "bob",
+					Mode: string(types.SessionObserverMode),
+				},
+			},
+		},
+	}
+
+	err = srv.UpdateSessionTracker(ctx, req)
 	require.NoError(t, err)
 
-	err = services.RemoveSessionTrackerParticipant(ctx, srv, sid, bobID)
+	req = &proto.UpdateSessionTrackerRequest{
+		SessionID: sid,
+		Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
+			RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
+				ParticipantID: bobID,
+			},
+		},
+	}
+
+	err = srv.UpdateSessionTracker(ctx, req)
 	require.NoError(t, err)
 
 	sessions, err := srv.GetActiveSessionTrackers(ctx)

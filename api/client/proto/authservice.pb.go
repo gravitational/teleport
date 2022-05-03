@@ -9616,7 +9616,7 @@ type CreateSessionTrackerRequest struct {
 	// creation.
 	// DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
 	HostPolicies []*types.SessionTrackerPolicySet `protobuf:"bytes,14,rep,name=HostPolicies,proto3" json:"host_policies,omitempty"`
-	// sessionTracker is the session tracker to be created.
+	// SessionTracker is the session tracker to be created.
 	SessionTracker       *types.SessionTrackerV1 `protobuf:"bytes,15,opt,name=SessionTracker,proto3" json:"session_tracker,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
 	XXX_unrecognized     []byte                  `json:"-"`

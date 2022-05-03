@@ -282,10 +282,6 @@ const (
 	// no name is provided at connection time.
 	DefaultRedisUsername = "default"
 
-	// SessionTrackerExpirationUpdateInterval is the default interval on which an active
-	// session's expiration will be extended.
-	SessionTrackerExpirationUpdateInterval = defaults.SessionTrackerTTL / 6
-
 	// AbandonedUploadPollingRate defines how often to check for
 	// abandoned uploads which need to be completed.
 	AbandonedUploadPollingRate = defaults.SessionTrackerTTL / 6

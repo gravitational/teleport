@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -49,11 +50,16 @@ type session struct {
 	fwd *forward.Forwarder
 	// streamWriter can emit events to the audit log.
 	streamWriter events.StreamWriter
+
+	closeC chan struct{}
 }
 
 // newSession creates a new session.
 func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*session, error) {
-	sess := &session{id: identity.RouteToApp.SessionID}
+	sess := &session{
+		id:     identity.RouteToApp.SessionID,
+		closeC: make(chan struct{}),
+	}
 
 	// Create a session tracker so that other services, such as
 	// the session upload completer, can track the session's lifetime.
@@ -108,7 +114,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 
 	// Put the session in the cache so the next request can use it for 5 minutes
 	// or the time until the certificate expires, whichever comes first.
-	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Second)
+	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
 	err = s.cache.set(sess, ttl)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -117,13 +123,15 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 	return sess, nil
 }
 
-func (s *Server) closeSession(sess *session) {
-	if err := sess.streamWriter.Close(s.closeContext); err != nil {
-		s.log.Debugf("Failed to close stream writer: %v.", err)
-	}
+func (s *session) close(ctx context.Context) error {
+	close(s.closeC)
+	err := s.streamWriter.Close(ctx)
+	return trace.Wrap(err)
+}
 
-	if err := services.UpdateSessionTrackerState(s.closeContext, s.c.AuthClient, sess.id, types.SessionState_SessionStateTerminated); err != nil {
-		s.log.WithError(err).Warningf("Failed to update session tracker state for session %v.", sess.id)
+func (s *Server) closeSession(sess *session) {
+	if err := sess.close(s.closeContext); err != nil {
+		s.log.WithError(err).Debug("Error closing session %v", sess.id)
 	}
 }
 
@@ -216,30 +224,35 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig ty
 
 // createTracker creates a new session tracker for the app session.
 func (s *Server) createTracker(sess *session, identity *tlsca.Identity) error {
-	s.log.Debugf("Creating tracker for session %v", sess.id)
-	initiator := &types.Participant{
-		ID:   identity.Username,
-		User: identity.Username,
+	trackerSpec := types.SessionTrackerSpecV1{
+		SessionID:   sess.id,
+		Kind:        string(types.AppSessionKind),
+		State:       types.SessionState_SessionStateRunning,
+		Hostname:    s.c.HostID,
+		AppName:     identity.RouteToApp.Name,
+		ClusterName: identity.RouteToApp.ClusterName,
+		Login:       identity.GetUserMetadata().Login,
+		Participants: []types.Participant{{
+			User: identity.Username,
+		}},
+		HostUser: identity.Username,
+		Created:  s.c.Clock.Now(),
 	}
 
-	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
-		SessionID:    sess.id,
-		Kind:         string(types.AppSessionKind),
-		State:        types.SessionState_SessionStateRunning,
-		Hostname:     s.c.HostID,
-		AppName:      identity.RouteToApp.Name,
-		ClusterName:  identity.RouteToApp.ClusterName,
-		Login:        identity.GetUserMetadata().Login,
-		Participants: []types.Participant{*initiator},
-		HostUser:     initiator.User,
-		Created:      s.c.Clock.Now(),
-	})
+	s.log.Debugf("Creating tracker for session %v", sess.id)
+	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.c.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = s.c.AuthClient.CreateSessionTracker(s.closeContext, tracker)
-	return trace.Wrap(err)
+	go func() {
+		<-sess.closeC
+		if err := tracker.UpdateState(s.closeContext, types.SessionState_SessionStateTerminated); err != nil {
+			s.log.WithError(err).Debugf("Failed to update session tracker state for session %v", sess.id)
+		}
+	}()
+
+	return nil
 }
 
 // sessionCache holds a cache of sessions that are used to forward requests.
@@ -282,11 +295,11 @@ func (s *sessionCache) get(key string) (*session, error) {
 }
 
 // set will add the session to the cache.
-func (s *sessionCache) set(value *session, ttl time.Duration) error {
+func (s *sessionCache) set(sess *session, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.cache.Set(value.id, value, ttl); err != nil {
+	if err := s.cache.Set(sess.id, sess, ttl); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -294,14 +307,13 @@ func (s *sessionCache) set(value *session, ttl time.Duration) error {
 
 // expire will close the stream writer.
 func (s *sessionCache) expire(key string, el interface{}) {
-	// Closing the session stream writer may trigger a flush operation which could be
-	// time-consuming. Launch in another goroutine since this occurs under a
+	// Closing the session stream writer may trigger a flush operation which could
+	// be time-consuming. Launch in another goroutine since this occurs under a
 	// lock and expire can get called during a "get" operation on the ttlmap.
 	go s.closeSession(el)
 	s.srv.log.Debugf("Closing expired stream %v.", key)
 }
 
-// expire will close the stream writer.
 func (s *sessionCache) closeSession(el interface{}) {
 	switch sess := el.(type) {
 	case *session:
@@ -338,9 +350,8 @@ func (s *sessionCache) expiredSessions() {
 func (s *sessionCache) closeAllSessions() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, el, cont := s.cache.Pop()
-	for cont {
-		s.closeSession(el)
-		_, el, cont = s.cache.Pop()
+
+	for _, session, ok := s.cache.Pop(); ok; _, session, ok = s.cache.Pop() {
+		s.closeSession(session)
 	}
 }

@@ -869,17 +869,10 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 
 // trackSession creates a new session tracker for the database session.
 // While ctx is open, the session tracker's expiration will be extended
-// on an interval. Once the ctx is closed, the sessiont tracker's state
+// on an interval. Once the ctx is closed, the session tracker's state
 // will be updated to terminated.
 func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) error {
-	s.log.Debugf("Starting tracker for session %v", sessionCtx.ID)
-
-	initiator := &types.Participant{
-		ID:   sessionCtx.Identity.Username,
-		User: sessionCtx.Identity.Username,
-	}
-
-	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:    sessionCtx.ID,
 		Kind:         string(types.DatabaseSessionKind),
 		State:        types.SessionState_SessionStateRunning,
@@ -887,19 +880,29 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		DatabaseName: sessionCtx.DatabaseName,
 		ClusterName:  sessionCtx.ClusterName,
 		Login:        sessionCtx.Identity.GetUserMetadata().Login,
-		Participants: []types.Participant{*initiator},
-		HostUser:     initiator.User,
-		Created:      s.cfg.Clock.Now(),
-	})
+		Participants: []types.Participant{{
+			User: sessionCtx.Identity.Username,
+		}},
+		HostUser: sessionCtx.Identity.Username,
+		Created:  s.cfg.Clock.Now(),
+	}
+
+	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
+	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.cfg.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	go func() {
-		ticker := s.cfg.Clock.NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
-		defer ticker.Stop()
-		if err := services.TrackSession(s.closeContext, s.cfg.AuthClient, tracker, ticker, ctx.Done()); err != nil {
-			s.log.Debugf("Error tracking session state for session %v", sessionCtx.ID)
+		if err := tracker.UpdateExpirationLoop(s.closeContext, s.cfg.Clock); err != nil {
+			s.log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		if err := tracker.Close(s.closeContext); err != nil {
+			s.log.WithError(err).Debugf("Failed to update session tracker state for session %v", sessionCtx.ID)
 		}
 	}()
 

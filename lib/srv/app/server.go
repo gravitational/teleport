@@ -513,7 +513,7 @@ func (s *Server) Close() error {
 		errs = append(errs, err)
 	}
 
-	// Close the session cache and its remaining sessions. sessions
+	// Close the session cache and its remaining sessions. Sessions
 	// use server.closeContext to complete cleanup, so we must wait
 	// for sessions to finish closing before closing the context.
 	s.cache.closeAllSessions()
