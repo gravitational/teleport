@@ -381,17 +381,17 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 			flags.tlsCertKeyFile,
 			c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName))
 
-		// mongosh does not load system CAs by default which will cause issues if
-		// the proxy presents a certificate signed by a non-recognized authority
-		// which your system trusts (e.g. mkcert).
-		if hasMongosh {
-			args = append(args, "--tlsUseSystemCA")
-		}
-
 		if c.options.caPath != "" {
 			// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
 			// and connection is terminated by proxy identity certificate.
 			args = append(args, []string{flags.tlsCAFile, c.options.caPath}...)
+		} else {
+			// mongosh does not load system CAs by default which will cause issues if
+			// the proxy presents a certificate signed by a non-recognized authority
+			// which your system trusts (e.g. mkcert).
+			if hasMongosh {
+				args = append(args, "--tlsUseSystemCA")
+			}
 		}
 	}
 
