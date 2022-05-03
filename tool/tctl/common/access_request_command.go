@@ -50,6 +50,7 @@ type AccessRequestCommand struct {
 	format string
 
 	dryRun bool
+	force  bool
 
 	approve, deny bool
 
@@ -96,6 +97,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 
 	c.requestDelete = requests.Command("rm", "Delete an access request")
 	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
+	c.requestDelete.Flag("force", "Force the deletion of an active access request").Short('f').BoolVar(&c.force)
 
 	c.requestCaps = requests.Command("capabilities", "Check a user's access capabilities").Alias("caps").Hidden()
 	c.requestCaps.Arg("username", "Name of target user").Required().StringVar(&c.user)
@@ -299,19 +301,23 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 		}
 	}
 
-	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.DeleteAccessRequest(context.TODO(), reqID); err != nil {
-			return trace.Wrap(err)
+	if len(approvedTokens) == 0 || c.force {
+		for _, reqID := range strings.Split(c.reqIDs, ",") {
+			if err := client.DeleteAccessRequest(context.TODO(), reqID); err != nil {
+				return trace.Wrap(err)
+			}
 		}
+		fmt.Println("Access request deleted successfully.")
 	}
-	fmt.Println("Requests deleted successfully.")
-	if len(approvedTokens) > 0 {
-		fmt.Println("\nSince this access request has already been approved, deleting the request now will NOT remove")
-		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the requested roles")
-		fmt.Printf("you can run:\n\n")
+
+	if !c.force && len(approvedTokens) > 0 {
+		fmt.Println("\nThis access request has already been approved, deleting the request now will NOT remove")
+		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the")
+		fmt.Printf("requested roles you can run:\n\n")
 		for _, reqID := range approvedTokens {
 			fmt.Printf("> tctl lock --access_request %s\n\n", reqID)
 		}
+		fmt.Printf("To disregard this warning and delete the request anyway you can re-run the command with --force.\n\n")
 	}
 	return nil
 }
