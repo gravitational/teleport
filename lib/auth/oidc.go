@@ -265,6 +265,32 @@ type oidcAuthResponse struct {
 	claims jose.Claims
 }
 
+func checkEmailVerifiedClaim(claims jose.Claims) error {
+	claimName := "email_verified"
+	unverifiedErr := trace.AccessDenied("email not verified by OIDC provider")
+
+	emailVerified, hasEmailVerifiedClaim, _ := claims.StringClaim(claimName)
+	if hasEmailVerifiedClaim && emailVerified == "false" {
+		return unverifiedErr
+	}
+
+	data, ok := claims[claimName]
+	if !ok {
+		return nil
+	}
+
+	emailVerifiedBool, ok := data.(bool)
+	if !ok {
+		return trace.BadParameter("unable to parse oidc claim: %q, must be a string or bool", claimName)
+	}
+
+	if !emailVerifiedBool {
+		return unverifiedErr
+	}
+
+	return nil
+}
+
 func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
 	ctx := context.TODO()
 	if error := q.Get("error"); error != "" {
@@ -313,6 +339,9 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 	}
 
 	log.Debugf("OIDC claims: %v.", re.claims)
+	if err := checkEmailVerifiedClaim(claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// if we are sending acr values, make sure we also validate them
 	acrValue := connector.GetACR()
