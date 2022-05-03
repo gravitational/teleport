@@ -35,7 +35,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
@@ -51,9 +50,6 @@ import (
 func TestTSHSSH(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
-
-	require.NoError(t, os.RemoveAll(profile.FullProfilePath("")))
-	t.Cleanup(func() { require.NoError(t, os.RemoveAll(profile.FullProfilePath(""))) })
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *service.Config) {
@@ -78,6 +74,8 @@ func TestTSHSSH(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(types.HomeEnvVar, t.TempDir())
+
 			tc.fn(t, s)
 		})
 	}
@@ -440,10 +438,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			os.RemoveAll(profile.FullProfilePath(""))
-			t.Cleanup(func() {
-				os.RemoveAll(profile.FullProfilePath(""))
-			})
+			t.Setenv(types.HomeEnvVar, t.TempDir())
 
 			s := newTestSuite(t, tc.opts...)
 			// Login to the Teleport proxy.
@@ -550,6 +545,7 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 		fmt.Sprintf("%s=1", tshBinMainTestEnv),
 		fmt.Sprintf("SSH_AUTH_SOCK=%s", createAgent(t)),
 		fmt.Sprintf("PATH=%s", filepath.Dir(sshPath)),
+		fmt.Sprintf("%s=%s", types.HomeEnvVar, os.Getenv(types.HomeEnvVar)),
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
