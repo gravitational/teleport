@@ -1,5 +1,25 @@
 # Changelog
 
+## 9.1.3
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with some MySQL clients not being able to connect to MySQL 8.0 servers. [#12340](https://github.com/gravitational/teleport/pull/12340)
+* Fixed multiple conditions that could lead to SSH sessions freezing. [#12286](https://github.com/gravitational/teleport/pull/12286)
+* Fixed issue with `tsh db ls` failing for leaf clusters. [#12320](https://github.com/gravitational/teleport/pull/12320)
+* Fixed a scenario in which Teleport's internal cache could potentially become unhealthy. [#12251](https://github.com/gravitational/teleport/pull/12251), [#12002](https://github.com/gravitational/teleport/pull/12002)
+* Improved performance when opening new Application Access sessions. [#12300](https://github.com/gravitational/teleport/pull/12300)
+* Added flags to the `teleport configure` command. [#12267](https://github.com/gravitational/teleport/pull/12267)
+* Improved CA rotation stability. [#12333](https://github.com/gravitational/teleport/pull/12333)
+* Fixed issue with `mongosh` certificate verification when using TLS routing. [#12363](https://github.com/gravitational/teleport/pull/12363)
+
+## 9.1.2
+
+This release of Teleport contains two bug fixes.
+
+* Fixed issue with Teleport pods not becoming ready on Kubernetes. [#12243](https://github.com/gravitational/teleport/pull/12243)
+* Fixed issue with Teleport processes crashing upon restart after failed host UUID generation. [#12222](https://github.com/gravitational/teleport/pull/12222)
+
 ## 9.1.1
 
 This release of Teleport contains multiple bug fixes and improvements.

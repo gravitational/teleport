@@ -1525,33 +1525,35 @@ func Test_getUsersForDb(t *testing.T) {
 			database: dbProd,
 			result:   "[dev]",
 		},
-
 		{
 			name:     "roleDevStage x dbStage",
 			roles:    services.RoleSet{roleDevStage},
 			database: dbStage,
 			result:   "[*], except: [superuser]",
 		},
-
 		{
 			name:     "roleDevStage x dbProd",
 			roles:    services.RoleSet{roleDevStage},
 			database: dbProd,
 			result:   "(none)",
 		},
-
 		{
 			name:     "roleDevProd x dbStage",
 			roles:    services.RoleSet{roleDevProd},
 			database: dbStage,
 			result:   "(none)",
 		},
-
 		{
 			name:     "roleDevProd x dbProd",
 			roles:    services.RoleSet{roleDevProd},
 			database: dbProd,
 			result:   "[dev]",
+		},
+		{
+			name:     "no role set",
+			roles:    nil,
+			database: dbProd,
+			result:   "(unknown)",
 		},
 	}
 
@@ -1662,6 +1664,7 @@ func TestSerializeDatabases(t *testing.T) {
           "iam_auth": false
         }
       },
+      "mysql": {},
       "gcp": {},
       "azure": {},
       "tls": {
@@ -1674,6 +1677,7 @@ func TestSerializeDatabases(t *testing.T) {
       }
     },
     "status": {
+      "mysql": {},
       "aws": {
         "redshift": {},
         "rds": {

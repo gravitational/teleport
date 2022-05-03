@@ -496,8 +496,8 @@ github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70 h1:To76nCJtM3DI
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70/go.mod h1:88hFR45MpUd23d2vNWE/dYtesU50jKsbz0I9kH7UaBY=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0 h1:DC+S+j/tBs/0MnQCC5j7GWWbMGcR3ca5v75ksAU1LJM=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0/go.mod h1:iiK0YP1ZeepvmBQk/QpLEhhTNJgfzrpArPY/aFvc9yU=
-github.com/gravitational/go-mysql v1.1.1-teleport.2 h1:XZ36BZ7BgslA5ZCyCHjpc1wilFITThIH7cLcbLWKWzM=
-github.com/gravitational/go-mysql v1.1.1-teleport.2/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
+github.com/gravitational/go-mysql v1.1.1-teleport.3 h1:7tf9m9EjaDiZy8OZFmPMEyxmEYDswI8CfyhZzh5lH6E=
+github.com/gravitational/go-mysql v1.1.1-teleport.3/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
 github.com/gravitational/go-oidc v0.0.6 h1:DCllahGYxDAvxWsq8UILgO+/i1EheQRxcNzS+D+wP5I=
 github.com/gravitational/go-oidc v0.0.6/go.mod h1:SevmOUNdOB0aD9BAIgjptZ6oHkKxMZZgA70nwPfgU/w=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8FcGwRACSHortU1UxCSo9nF0t34rPWjk9Nef3j2Ic=
@@ -987,6 +987,8 @@ github.com/tmc/grpc-websocket-proxy v0.0.0-20170815181823-89b8d40f7ca8/go.mod h1
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4 h1:aR+lGR8m0zBjvDlHkHOCmdsk79ipIPeiP75GqUlywKM=
 github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4/go.mod h1:eahSLaqAS0zsIEv80+vXT7WanXs7MQQDg3j3wGBSayo=
+github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb h1:Ywfo8sUltxogBpFuMOFRrrSifO788kAFxmvVw31PtQQ=
+github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb/go.mod h1:ikPs9bRWicNw3S7XpJ8sK/smGwU9WcSVU3dy9qahYBM=
 github.com/ugorji/go v1.1.4/go.mod h1:uQMGLiO92mf5W77hV/PUCpI3pbzQx3CRekS0kk+RGrc=
 github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
 github.com/urfave/cli v1.22.1/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
