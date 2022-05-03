@@ -6,7 +6,44 @@
 # runtime requirement for the host to have newer glibc too. For example,
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
-FROM ubuntu:18.04
+
+# Build libfido2 separately for isolation, speed and flexibility.
+FROM buildpack-deps:18.04 AS libfido2
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends cmake && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install libudev-zero.
+# libudev-zero replaces systemd's libudev
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
+    cd libudev-zero && \
+    make install-static
+
+# Install libcbor.
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
+    cd libcbor && \
+    cmake \
+        -DCBOR_CUSTOM_ALLOC=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DWITH_EXAMPLES=OFF . && \
+    make && \
+    make install
+
+# Install libfido2.
+# Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
+    cd libfido2 && \
+    CFLAGS=-pthread cmake \
+        -DBUILD_EXAMPLES=OFF \
+        -DBUILD_MANPAGES=OFF \
+        -DBUILD_TOOLS=OFF \
+        -DCMAKE_BUILD_TYPE=Release . && \
+    make && \
+    make install
+
+FROM ubuntu:18.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -32,7 +69,6 @@ RUN apt-get update -y --fix-missing && \
         ca-certificates \
         clang-10 \
         clang-format-10 \
-        cmake \
         curl \
         default-jre \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
@@ -84,22 +120,6 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
 
-# Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
-  cd libcbor && \
-  cmake -DCMAKE_BUILD_TYPE=Release -DCBOR_CUSTOM_ALLOC=ON . && \
-  make && \
-  make install
-
-# Install libfido2.
-# Depends on libcbor, libssl-dev, zlib and libudev-dev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
-  cd libfido2 && \
-  cmake -DCMAKE_BUILD_TYPE=Release . && \
-  make && \
-  make install && \
-  ldconfig
-
 # Install Go.
 ARG GOLANG_VERSION
 RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
@@ -107,6 +127,9 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLA
     chmod a+w /go && \
     chmod a+w /var/lib && \
     chmod a-w /
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install libbpf
 ARG LIBBPF_VERSION
@@ -114,10 +137,6 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
-
-ENV GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install addlicense
 RUN go install github.com/google/addlicense@v1.0.0
@@ -188,6 +207,25 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi && \
     cargo install cbindgen
 
+# Switch back to root for the remaining instructions and keep it as the default
+# user.
 USER root
+
+# Copy libfido2 libraries.
+# Do this last to take better advantage of the multi-stage build.
+COPY --from=libfido2 /usr/local/include/ /usr/local/include/
+COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
+COPY --from=libfido2 \
+    /usr/local/lib/libcbor.a \
+    /usr/local/lib/libfido2.a \
+    /usr/local/lib/libfido2.so.1.10.0 \
+    /usr/local/lib/libudev.a \
+    /usr/local/lib/
+RUN cd /usr/local/lib && \
+    ln -s libfido2.so.1.10.0 libfido2.so.1 && \
+    ln -s libfido2.so.1 libfido2.so && \
+    ldconfig
+COPY pkgconfig/buildbox/ /
+
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -66,6 +67,7 @@ func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 		return clientPack.client, nil
 	}
 
+	clientPack.cancel()
 	delete(a.oidcClients, conn.GetName())
 	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
 
@@ -78,40 +80,36 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaults.WebHeadersTimeout)
-	defer cancel()
-
+	// SyncProviderConfig doesn't take a context for cancellation, instead it
+	// returns a channel that has to be closed to stop the sync. To ensure that
+	// the sync is eventually stopped we create a child context of the server context, which
+	// is cancelled either on deletion of the connector or shutdown of the server.
+	// This will cause syncCtx.Done() to unblock, at which point we can close the stop channel.
+	firstSync := make(chan struct{})
+	syncCtx, syncCancel := context.WithCancel(a.closeCtx)
 	go func() {
-		defer cancel()
-		client.SyncProviderConfig(conn.GetIssuerURL())
+		stop := client.SyncProviderConfig(conn.GetIssuerURL())
+		close(firstSync)
+		<-syncCtx.Done()
+		close(stop)
 	}()
 
 	select {
-	case <-ctx.Done():
+	case <-firstSync:
+	case <-time.After(defaults.WebHeadersTimeout):
+		syncCancel()
+		return nil, trace.ConnectionProblem(nil,
+			"timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
+			conn.GetName(), conn.GetIssuerURL())
 	case <-a.closeCtx.Done():
+		syncCancel()
 		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
-	}
-
-	// Canceled is expected in case if sync provider config finishes faster
-	// than the deadline
-	if ctx.Err() != nil && ctx.Err() != context.Canceled {
-		var err error
-		if ctx.Err() == context.DeadlineExceeded {
-			err = trace.ConnectionProblem(err,
-				"failed to reach out to oidc connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
-				conn.GetName(), conn.GetIssuerURL())
-		} else {
-			err = trace.ConnectionProblem(err,
-				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
-				conn.GetName(), conn.GetIssuerURL())
-		}
-		return nil, err
 	}
 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
+	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config, cancel: syncCancel}
 
 	return client, nil
 }
@@ -267,6 +265,32 @@ type oidcAuthResponse struct {
 	claims jose.Claims
 }
 
+func checkEmailVerifiedClaim(claims jose.Claims) error {
+	claimName := "email_verified"
+	unverifiedErr := trace.AccessDenied("email not verified by OIDC provider")
+
+	emailVerified, hasEmailVerifiedClaim, _ := claims.StringClaim(claimName)
+	if hasEmailVerifiedClaim && emailVerified == "false" {
+		return unverifiedErr
+	}
+
+	data, ok := claims[claimName]
+	if !ok {
+		return nil
+	}
+
+	emailVerifiedBool, ok := data.(bool)
+	if !ok {
+		return trace.BadParameter("unable to parse oidc claim: %q, must be a string or bool", claimName)
+	}
+
+	if !emailVerifiedBool {
+		return unverifiedErr
+	}
+
+	return nil
+}
+
 func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
 	ctx := context.TODO()
 	if error := q.Get("error"); error != "" {
@@ -315,6 +339,9 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 	}
 
 	log.Debugf("OIDC claims: %v.", re.claims)
+	if err := checkEmailVerifiedClaim(claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// if we are sending acr values, make sure we also validate them
 	acrValue := connector.GetACR()
@@ -707,19 +734,19 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 
 // getOAuthClient returns a Oauth2 client from the oidc.Client.  If the connector is set as a Ping provider sets the Client Secret Post auth method
 func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
-
 	oac, err := oidcClient.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	//If the default client secret basic is used the Ping OIDC
-	// will throw an error of multiple client credentials.  Even if you set in Ping
-	// to use Client Secret Post it will return to use client secret basic.
-	// Issue https://github.com/gravitational/teleport/issues/8374
-	if connector.GetProvider() == teleport.Ping {
+	// For OIDC, Ping and Okta will throw an error when the
+	// default client secret basic method is used.
+	// See: https://github.com/gravitational/teleport/issues/8374
+	switch connector.GetProvider() {
+	case teleport.Ping, teleport.Okta:
 		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
 	}
+
 	return oac, err
 }
 

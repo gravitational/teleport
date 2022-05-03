@@ -21,18 +21,21 @@ import "github.com/gravitational/teleport/api/constants"
 const (
 	// WebConfigAuthProviderOIDCType is OIDC provider type
 	WebConfigAuthProviderOIDCType = "oidc"
-	// WebConfigAuthProviderOIDCURL is OIDC webapi endpoint
-	WebConfigAuthProviderOIDCURL = "/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName"
+	// WebConfigAuthProviderOIDCURL is OIDC webapi endpoint.
+	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
+	WebConfigAuthProviderOIDCURL = "/v1/webapi/oidc/login/web?connector_id=:providerName&redirect_url=:redirect"
 
 	// WebConfigAuthProviderSAMLType is SAML provider type
 	WebConfigAuthProviderSAMLType = "saml"
-	// WebConfigAuthProviderSAMLURL is SAML webapi endpoint
-	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?redirect_url=:redirect&connector_id=:providerName"
+	// WebConfigAuthProviderSAMLURL is SAML webapi endpoint.
+	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
+	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?connector_id=:providerName&redirect_url=:redirect"
 
 	// WebConfigAuthProviderGitHubType is GitHub provider type
 	WebConfigAuthProviderGitHubType = "github"
 	// WebConfigAuthProviderGitHubURL is GitHub webapi endpoint
-	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?redirect_url=:redirect&connector_id=:providerName"
+	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
+	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?connector_id=:providerName&redirect_url=:redirect"
 )
 
 // WebConfig is web application configuration served by the backend to be used in frontend apps.
@@ -69,10 +72,14 @@ type WebConfigAuthSettings struct {
 	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
 	// LocalAuthEnabled is a flag that enables local authentication
 	LocalAuthEnabled bool `json:"localAuthEnabled"`
+	// AllowPasswordless is true if passwordless logins are allowed.
+	AllowPasswordless bool `json:"allowPasswordless,omitempty"`
 	// AuthType is the authentication type.
 	AuthType string `json:"authType"`
 	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
 	// when various options are available.
 	// It is empty if there is nothing to suggest.
 	PreferredLocalMFA constants.SecondFactorType `json:"preferredLocalMfa,omitempty"`
+	// LocalConnectorName is the name of the local connector.
+	LocalConnectorName string `json:"localConnectorName,omitempty"`
 }

@@ -50,10 +50,8 @@ func TestTSHSSH(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	require.NoError(t, os.RemoveAll(profile.FullProfilePath("")))
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(profile.FullProfilePath(""))) })
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *service.Config) {
@@ -141,12 +139,14 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	})
 	require.NoError(t, err)
 
-	err = Run([]string{
-		"ssh",
-		s.leaf.Config.Hostname,
-		"echo", "hello",
-	})
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		err = Run([]string{
+			"ssh",
+			s.leaf.Config.Hostname,
+			"echo", "hello",
+		})
+		return err == nil
+	}, 5*time.Second, time.Second)
 
 	identityFile := path.Join(t.TempDir(), "identity.pem")
 	err = Run([]string{

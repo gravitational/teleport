@@ -18,8 +18,11 @@ package clusters
 
 import (
 	"context"
+	"os/exec"
 
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 )
@@ -29,6 +32,9 @@ type CreateGatewayParams struct {
 	TargetURI string
 	// TargetUser is the target user name
 	TargetUser string
+	// TargetSubresourceName points at a subresource of the remote resource, for example a database
+	// name on a database server.
+	TargetSubresourceName string
 	// LocalPort is the gateway local port
 	LocalPort string
 }
@@ -40,26 +46,61 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	if err := c.ReissueDBCerts(ctx, params.TargetUser, db); err != nil {
+	if err := c.ReissueDBCerts(ctx, params.TargetUser, params.TargetSubresourceName, db); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	gw, err := gateway.New(gateway.Config{
-		LocalPort:    params.LocalPort,
-		TargetURI:    params.TargetURI,
-		TargetUser:   params.TargetUser,
-		TargetName:   db.GetName(),
-		Protocol:     db.GetProtocol(),
-		KeyPath:      c.status.KeyPath(),
-		CACertPath:   c.status.CACertPathForCluster(c.Name),
-		CertPath:     c.status.DatabaseCertPathForCluster("", db.GetName()),
-		Insecure:     c.clusterClient.InsecureSkipVerify,
-		WebProxyAddr: c.clusterClient.WebProxyAddr,
-		Log:          c.Log.WithField("gateway", params.TargetURI),
+		LocalPort:             params.LocalPort,
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetName:            db.GetName(),
+		TargetSubresourceName: params.TargetSubresourceName,
+		Protocol:              db.GetProtocol(),
+		KeyPath:               c.status.KeyPath(),
+		CertPath:              c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
+		Insecure:              c.clusterClient.InsecureSkipVerify,
+		WebProxyAddr:          c.clusterClient.WebProxyAddr,
+		Log:                   c.Log.WithField("gateway", params.TargetURI),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	cliCommand, err := buildCLICommand(c, gw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gw.CLICommand = cliCommand.String()
+
 	return gw, nil
+}
+
+func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
+	routeToDb := tlsca.RouteToDatabase{
+		ServiceName: gw.TargetName,
+		Protocol:    gw.Protocol,
+		Username:    gw.TargetUser,
+		Database:    gw.TargetSubresourceName,
+	}
+
+	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb,
+		// TODO(ravicious): Pass the root cluster name here. GetActualName returns leaf name for leaf
+		// clusters.
+		//
+		// At this point it doesn't matter though, because this argument is used only for
+		// generating correct CA paths. But we use dbcmd.WithNoTLS here, which doesn't include CA paths
+		// in the returned CLI command.
+		c.GetActualName(),
+		dbcmd.WithLogger(gw.Log),
+		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
+		dbcmd.WithNoTLS(),
+		dbcmd.WithTolerateMissingCLIClient(),
+	).GetConnectCommandNoAbsPath()
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cmd, nil
 }

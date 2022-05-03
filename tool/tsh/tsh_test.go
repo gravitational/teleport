@@ -22,12 +22,16 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -38,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -704,9 +709,6 @@ func TestIdentityRead(t *testing.T) {
 	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
 	require.NoError(t, err)
 	require.NotNil(t, conf)
-
-	// ensure that at least root CA was successfully loaded
-	require.Greater(t, len(conf.RootCAs.Subjects()), 0)
 }
 
 func TestFormatConnectCommand(t *testing.T) {
@@ -1065,7 +1067,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1076,7 +1079,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
@@ -1086,7 +1090,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTimeout: time.Minute,
 			},
-		}, {
+		},
+		{
 			desc: "$DISPLAY not set",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1106,7 +1111,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1114,7 +1120,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1122,7 +1129,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1131,7 +1139,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=no",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1140,7 +1149,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Timeout=60",
 			opts:        []string{"ForwardX11Timeout=60"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1162,7 +1172,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1174,7 +1185,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1186,7 +1198,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1198,7 +1211,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1210,7 +1224,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m with -oForwardX11Timeout=120",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
@@ -1458,5 +1473,710 @@ func setHomePath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
 		return nil
+	}
+}
+
+func testSerialization(t *testing.T, expected string, serializer func(string) (string, error)) {
+	out, err := serializer(teleport.JSON)
+	require.NoError(t, err)
+	require.JSONEq(t, expected, out)
+
+	out, err = serializer(teleport.YAML)
+	require.NoError(t, err)
+	outJSON, err := yaml.YAMLToJSON([]byte(out))
+	require.NoError(t, err)
+	require.JSONEq(t, expected, string(outJSON))
+}
+
+func TestSerializeVersion(t *testing.T) {
+	testCases := []struct {
+		name     string
+		expected string
+
+		proxyVersion string
+	}{
+		{
+			name: "no proxy version provided",
+			expected: fmt.Sprintf(
+				`{"version": %q, "gitref": %q, "runtime": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(),
+			),
+		},
+		{
+			name:         "proxy version provided",
+			proxyVersion: "1.33.7",
+			expected: fmt.Sprintf(
+				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7"),
+		},
+	}
+
+	for _, tC := range testCases {
+		t.Run(tC.name, func(t *testing.T) {
+			testSerialization(t, tC.expected, func(fmt string) (string, error) {
+				return serializeVersion(fmt, tC.proxyVersion)
+			})
+		})
+	}
+}
+
+func TestSerializeApps(t *testing.T) {
+	expected := `
+	[{
+		"kind": "app",
+		"version": "v3",
+		"metadata": {
+			"name": "my app",
+			"description": "this is the description",
+			"labels": {
+				"a": "1",
+				"b": "2"
+			}
+		},
+		"spec": {
+			"uri": "https://example.com",
+			"insecure_skip_verify": false
+		}
+	}]
+	`
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        "my app",
+		Description: "this is the description",
+		Labels:      map[string]string{"a": "1", "b": "2"},
+	}, types.AppSpecV3{
+		URI: "https://example.com",
+	})
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeApps([]types.Application{app}, f)
+	})
+}
+
+func TestSerializeAppsEmpty(t *testing.T) {
+	testSerialization(t, "[]", func(f string) (string, error) {
+		return serializeApps(nil, f)
+	})
+}
+
+func TestSerializeAppConfig(t *testing.T) {
+	expected := `
+	{
+		"name": "my app",
+		"uri": "https://example.com",
+		"ca": "/path/to/ca",
+		"cert": "/path/to/cert",
+		"key": "/path/to/key",
+		"curl": "curl https://example.com"
+	}
+	`
+	appConfig := &appConfigInfo{
+		Name: "my app",
+		URI:  "https://example.com",
+		CA:   "/path/to/ca",
+		Cert: "/path/to/cert",
+		Key:  "/path/to/key",
+		Curl: "curl https://example.com",
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeAppConfig(appConfig, f)
+	})
+}
+
+func TestSerializeDatabases(t *testing.T) {
+	expected := `
+	[{
+    "kind": "db",
+    "version": "v3",
+    "metadata": {
+      "name": "my db",
+      "description": "this is the description",
+      "labels": {"a": "1", "b": "2"}
+    },
+    "spec": {
+      "protocol": "mongodb",
+      "uri": "mongodb://example.com",
+      "aws": {
+        "redshift": {},
+        "rds": {
+          "iam_auth": false
+        }
+      },
+      "mysql": {},
+      "gcp": {},
+      "azure": {},
+      "tls": {
+        "mode": 0
+      },
+      "ad": {
+        "keytab_file": "",
+        "domain": "",
+        "spn": ""
+      }
+    },
+    "status": {
+      "mysql": {},
+      "aws": {
+        "redshift": {},
+        "rds": {
+          "iam_auth": false
+        }
+      }
+    }
+  }]
+	`
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my db",
+		Description: "this is the description",
+		Labels:      map[string]string{"a": "1", "b": "2"},
+	}, types.DatabaseSpecV3{
+		Protocol: "mongodb",
+		URI:      "mongodb://example.com",
+	})
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeDatabases([]types.Database{db}, f)
+	})
+}
+
+func TestSerializeDatabasesEmpty(t *testing.T) {
+	testSerialization(t, "[]", func(f string) (string, error) {
+		return serializeDatabases(nil, f)
+	})
+}
+
+func TestSerializeDatabaseEnvironment(t *testing.T) {
+	expected := `
+	{
+		"A": "1",
+		"B": "2"
+	}
+	`
+	env := map[string]string{
+		"A": "1",
+		"B": "2",
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeDatabaseEnvironment(env, f)
+	})
+}
+
+func TestSerializeDatabaseConfig(t *testing.T) {
+	expected := `
+	{
+		"name": "my db",
+		"host": "example.com",
+		"port": 27017,
+		"ca": "/path/to/ca",
+		"cert": "/path/to/cert",
+		"key": "/path/to/key"
+	}
+	`
+	configInfo := &dbConfigInfo{
+		Name: "my db",
+		Host: "example.com",
+		Port: 27017,
+		CA:   "/path/to/ca",
+		Cert: "/path/to/cert",
+		Key:  "/path/to/key",
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeDatabaseConfig(configInfo, f)
+	})
+}
+
+func TestSerializeNodes(t *testing.T) {
+	expected := `
+	[{
+    "kind": "node",
+    "version": "v2",
+    "metadata": {
+      "name": "my server"
+    },
+    "spec": {
+      "addr": "https://example.com",
+      "hostname": "example.com",
+      "rotation": {
+        "current_id": "",
+        "started": "0001-01-01T00:00:00Z",
+        "last_rotated": "0001-01-01T00:00:00Z",
+        "schedule": {
+          "update_clients": "0001-01-01T00:00:00Z",
+          "update_servers": "0001-01-01T00:00:00Z",
+          "standby": "0001-01-01T00:00:00Z"
+        }
+      },
+      "version": "v2"
+    }
+  }]
+	`
+	node, err := types.NewServer("my server", "node", types.ServerSpecV2{
+		Addr:     "https://example.com",
+		Hostname: "example.com",
+		Version:  "v2",
+	})
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeNodes([]types.Server{node}, f)
+	})
+}
+
+func TestSerializeNodesEmpty(t *testing.T) {
+	testSerialization(t, "[]", func(f string) (string, error) {
+		return serializeNodes(nil, f)
+	})
+}
+
+func TestSerializeClusters(t *testing.T) {
+	expected := `
+	[
+		{
+			"cluster_name": "rootCluster",
+			"status": "online",
+			"cluster_type": "root",
+			"selected": true
+		},
+		{
+			"cluster_name": "leafCluster",
+			"status": "offline",
+			"cluster_type": "leaf",
+			"selected": false
+		}
+	]
+	`
+	root := clusterInfo{
+		ClusterName: "rootCluster",
+		Status:      teleport.RemoteClusterStatusOnline,
+		ClusterType: "root",
+		Selected:    true,
+	}
+	leafClusters := []clusterInfo{
+		{
+			ClusterName: "leafCluster",
+			Status:      teleport.RemoteClusterStatusOffline,
+			ClusterType: "leaf",
+			Selected:    false,
+		},
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeClusters(root, leafClusters, f)
+	})
+}
+
+func TestSerializeProfiles(t *testing.T) {
+	expected := `
+	{
+  "active": {
+    "profile_url": "example.com",
+    "username": "test",
+    "active_requests": [
+      "1",
+      "2",
+      "3"
+    ],
+    "cluster": "main",
+    "roles": [
+      "a",
+      "b",
+      "c"
+    ],
+    "traits": {
+      "a": [
+  "1",
+  "2",
+  "3"
+]
+    },
+    "logins": [
+      "a",
+      "b",
+      "c"
+    ],
+    "kubernetes_enabled": true,
+    "kubernetes_users": [
+      "x"
+    ],
+    "kubernetes_groups": [
+      "y"
+    ],
+    "databases": [
+      "z"
+    ],
+    "valid_until": "1970-01-01T00:00:00Z",
+    "extensions": [
+      "7",
+      "8",
+      "9"
+    ]
+  },
+  "profiles": [
+    {
+      "profile_url": "example.com",
+      "username": "test2",
+      "cluster": "other",
+      "kubernetes_enabled": false,
+      "valid_until": "1970-01-01T00:00:00Z"
+    }
+  ]
+}
+	`
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	p, err := url.Parse("example.com")
+	require.NoError(t, err)
+	activeProfile := &client.ProfileStatus{
+		ProxyURL:       *p,
+		Username:       "test",
+		ActiveRequests: services.RequestIDs{AccessRequests: []string{"1", "2", "3"}},
+		Cluster:        "main",
+		Roles:          []string{"a", "b", "c"},
+		Traits:         wrappers.Traits{"a": []string{"1", "2", "3"}},
+		Logins:         []string{"a", "b", "c"},
+		KubeEnabled:    true,
+		KubeUsers:      []string{"x"},
+		KubeGroups:     []string{"y"},
+		Databases:      []tlsca.RouteToDatabase{{ServiceName: "z"}},
+		ValidUntil:     aTime,
+		Extensions:     []string{"7", "8", "9"},
+	}
+	otherProfile := &client.ProfileStatus{
+		ProxyURL:   *p,
+		Username:   "test2",
+		Cluster:    "other",
+		ValidUntil: aTime,
+	}
+
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeProfiles(activeProfile, []*client.ProfileStatus{otherProfile}, f)
+	})
+}
+
+func TestSerializeProfilesNoOthers(t *testing.T) {
+	expected := `
+	{
+		"active": {
+      "profile_url": "example.com",
+      "username": "test",
+      "cluster": "main",
+      "kubernetes_enabled": false,
+      "valid_until": "1970-01-01T00:00:00Z"
+    },
+		"profiles": []
+	}
+	`
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	p, err := url.Parse("example.com")
+	require.NoError(t, err)
+	profile := &client.ProfileStatus{
+		ProxyURL:   *p,
+		Username:   "test",
+		Cluster:    "main",
+		ValidUntil: aTime,
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeProfiles(profile, nil, f)
+	})
+}
+
+func TestSerializeProfilesNoActive(t *testing.T) {
+	expected := `
+	{
+		"profiles": []
+	}
+	`
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeProfiles(nil, nil, f)
+	})
+}
+
+func TestSerializeEnvironment(t *testing.T) {
+	expected := fmt.Sprintf(`
+	{
+		%q: "example.com",
+		%q: "main"
+	}
+	`, proxyEnvVar, clusterEnvVar)
+	p, err := url.Parse("https://example.com")
+	require.NoError(t, err)
+	profile := &client.ProfileStatus{
+		ProxyURL: *p,
+		Cluster:  "main",
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeEnvironment(profile, f)
+	})
+}
+
+func TestSerializeAccessRequests(t *testing.T) {
+	expected := `
+	{
+    "kind": "access_request",
+    "version": "v3",
+    "metadata": {
+      "name": "test"
+    },
+    "spec": {
+      "user": "user",
+      "roles": [
+        "a",
+        "b",
+        "c"
+      ],
+      "state": 1,
+      "created": "0001-01-01T00:00:00Z",
+      "expires": "0001-01-01T00:00:00Z"
+    }
+  }
+	`
+	req, err := types.NewAccessRequest("test", "user", "a", "b", "c")
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeAccessRequest(req, f)
+	})
+	expected2 := fmt.Sprintf("[%v]", expected)
+	testSerialization(t, expected2, func(f string) (string, error) {
+		return serializeAccessRequests([]types.AccessRequest{req}, f)
+	})
+}
+
+func TestSerializeKubeSessions(t *testing.T) {
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	expected := `
+	[
+  {
+    "kind": "session_tracker",
+    "version": "v1",
+    "metadata": {
+      "name": "id"
+    },
+    "spec": {
+      "session_id": "id",
+      "kind": "session-kind",
+      "state": 1,
+      "created": "1970-01-01T00:00:00Z",
+      "expires": "1970-01-01T00:00:00Z",
+      "attached": "arbitrary attached data",
+      "reason": "some reason",
+      "invited": [
+        "a",
+        "b",
+        "c"
+      ],
+      "target_hostname": "example.com",
+      "target_address": "https://example.com",
+      "cluster_name": "cluster",
+      "login": "login",
+      "participants": [
+        {
+          "id": "some-id",
+          "user": "test",
+          "mode": "mode",
+          "last_active": "1970-01-01T00:00:00Z"
+        }
+      ],
+      "kubernetes_cluster": "kc",
+      "host_user": "test",
+      "host_roles": [
+        {
+          "name": "policy",
+          "version": "v1",
+          "require_session_join": [
+            {
+              "name": "policy",
+              "filter": "filter",
+              "kinds": [
+                "x",
+                "y",
+                "z"
+              ],
+              "count": 1,
+              "modes": [
+                "mode",
+                "mode-1",
+                "mode-2"
+              ],
+              "on_leave": "do something"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+	`
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    "id",
+		Kind:         "session-kind",
+		State:        types.SessionState_SessionStateRunning,
+		Created:      aTime,
+		Expires:      aTime,
+		AttachedData: "arbitrary attached data",
+		Reason:       "some reason",
+		Invited:      []string{"a", "b", "c"},
+		Hostname:     "example.com",
+		Address:      "https://example.com",
+		ClusterName:  "cluster",
+		Login:        "login",
+		Participants: []types.Participant{
+			{
+				ID:         "some-id",
+				User:       "test",
+				Mode:       "mode",
+				LastActive: aTime,
+			},
+		},
+		KubernetesCluster: "kc",
+		HostUser:          "test",
+		HostPolicies: []*types.SessionTrackerPolicySet{
+			{
+				Name:    "policy",
+				Version: "v1",
+				RequireSessionJoin: []*types.SessionRequirePolicy{
+					{
+						Name:    "policy",
+						Filter:  "filter",
+						Kinds:   []string{"x", "y", "z"},
+						Count:   1,
+						Modes:   []string{"mode", "mode-1", "mode-2"},
+						OnLeave: "do something",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeKubeSessions([]types.SessionTracker{tracker}, f)
+	})
+}
+
+func TestSerializeKubeClusters(t *testing.T) {
+	expected := `
+	[
+		{
+			"kube_cluster_name": "cluster1",
+			"selected": true
+		},
+		{
+			"kube_cluster_name": "cluster2",
+			"selected": false
+		}
+	]
+	`
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeKubeClusters([]string{"cluster1", "cluster2"}, "cluster1", f)
+	})
+}
+
+func TestSerializeMFADevices(t *testing.T) {
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	expected := `
+	[
+  {"metadata":{"Name":"my device"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z"}
+	]
+	`
+	dev := types.NewMFADevice("my device", "id", aTime)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeMFADevices([]*types.MFADevice{dev}, f)
+	})
+}
+
+func Test_getUsersForDb(t *testing.T) {
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	roleDevStage := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		roles    services.RoleSet
+		database types.Database
+		result   string
+	}{
+		{
+			name:     "developer allowed any username in stage database except superuser",
+			roles:    services.RoleSet{roleDevStage, roleDevProd},
+			database: dbStage,
+			result:   "[* dev], except: [superuser]",
+		},
+		{
+			name:     "developer allowed only specific username/database in prod database",
+			roles:    services.RoleSet{roleDevStage, roleDevProd},
+			database: dbProd,
+			result:   "[dev]",
+		},
+		{
+			name:     "roleDevStage x dbStage",
+			roles:    services.RoleSet{roleDevStage},
+			database: dbStage,
+			result:   "[*], except: [superuser]",
+		},
+		{
+			name:     "roleDevStage x dbProd",
+			roles:    services.RoleSet{roleDevStage},
+			database: dbProd,
+			result:   "(none)",
+		},
+		{
+			name:     "roleDevProd x dbStage",
+			roles:    services.RoleSet{roleDevProd},
+			database: dbStage,
+			result:   "(none)",
+		},
+		{
+			name:     "roleDevProd x dbProd",
+			roles:    services.RoleSet{roleDevProd},
+			database: dbProd,
+			result:   "[dev]",
+		},
+		{
+			name:     "no role set",
+			roles:    nil,
+			database: dbProd,
+			result:   "(unknown)",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := getUsersForDb(tc.database, tc.roles)
+			require.Equal(t, tc.result, got)
+		})
 	}
 }

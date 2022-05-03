@@ -88,7 +88,52 @@ sets Pod annotations when specified:
     - name: data
       persistentVolumeClaim:
         claimName: RELEASE-NAME
-should add PersistentVolumeClaim as volume when in standalone mode:
+should add PersistentVolumeClaim as volume when in custom mode and persistence.enabled is true:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+should add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is true:
   1: |
     containers:
     - args:
@@ -248,50 +293,6 @@ should add emptyDir for data in GCP mode:
       name: config
     - emptyDir: {}
       name: data
-should add emptyDir for data in custom mode:
-  1: |
-    containers:
-    - args:
-      - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
-      imagePullPolicy: IfNotPresent
-      livenessProbe:
-        failureThreshold: 6
-        httpGet:
-          path: /healthz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      name: teleport
-      ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
-      readinessProbe:
-        failureThreshold: 12
-        httpGet:
-          path: /readyz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      volumeMounts:
-      - mountPath: /etc/teleport
-        name: config
-        readOnly: true
-      - mountPath: /var/lib/teleport
-        name: data
-    serviceAccountName: RELEASE-NAME
-    volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
-    - configMap:
-        name: RELEASE-NAME
-      name: config
-    - emptyDir: {}
-      name: data
 should add insecureSkipProxyTLSVerify to args when set in values:
   1: |
     containers:
@@ -338,8 +339,54 @@ should add insecureSkipProxyTLSVerify to args when set in values:
     - name: data
       persistentVolumeClaim:
         claimName: RELEASE-NAME
-should add named PersistentVolumeClaim as volume when in standalone mode and standalone.existingClaimName is set:
+should add named PersistentVolumeClaim as volume when in custom mode and persistence.existingClaimName is set:
   1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: teleport-storage
+? should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName
+  is set and persistence.enabled is true
+: 1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
@@ -578,8 +625,9 @@ should have multiple replicas when replicaCount is set:
     - configMap:
         name: RELEASE-NAME
       name: config
-    - emptyDir: {}
-      name: data
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should mount ConfigMap for config in AWS mode:
   1: |
     affinity:
@@ -737,8 +785,9 @@ should mount ConfigMap for config in custom mode:
     - configMap:
         name: RELEASE-NAME
       name: config
-    - emptyDir: {}
-      name: data
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should mount ConfigMap for config in standalone mode:
   1: |
     containers:
@@ -1123,8 +1172,9 @@ should mount cert-manager TLS secret when highAvailability.certManager.enabled i
     - configMap:
         name: RELEASE-NAME
       name: config
-    - emptyDir: {}
-      name: data
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should mount extraVolumes and extraVolumeMounts:
   1: |
     containers:
@@ -1348,6 +1398,184 @@ should mount tls.existingSecretName when set in values:
     - name: data
       persistentVolumeClaim:
         claimName: RELEASE-NAME
+should not add PersistentVolumeClaim as volume when in custom mode and persistence.enabled is false:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
+should not add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is false:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
+? should not add named PersistentVolumeClaim as volume when in custom mode, persistence.existingClaimName
+  is set and persistence.enabled is false
+: 1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
+? should not add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName
+  is set but persistence.enabled is false
+: 1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should not do enterprise things when when enterprise is not set in values:
   1: |
     containers:
@@ -1595,8 +1823,9 @@ should not have strategy in custom mode:
     - configMap:
         name: RELEASE-NAME
       name: config
-    - emptyDir: {}
-      name: data
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should not mount TLS secrets when when highAvailability.certManager.enabled is false and tls.existingSecretName is not set:
   1: |
     containers:
@@ -1766,8 +1995,9 @@ should set affinity when set in values:
     - configMap:
         name: RELEASE-NAME
       name: config
-    - emptyDir: {}
-      name: data
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should set environment when extraEnv set in values:
   1: |
     containers:

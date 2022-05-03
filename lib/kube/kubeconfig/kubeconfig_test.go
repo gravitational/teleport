@@ -405,7 +405,7 @@ func genUserKey() (*client.Key, []byte, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, pub, err := keygen.GenerateKeyPair("")
+	priv, pub, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

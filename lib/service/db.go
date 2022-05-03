@@ -76,7 +76,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the auth server.
-	err = process.initUploaderService(accessPoint, conn.Client)
+	err = process.initUploaderService(accessPoint, conn.Client, conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -98,6 +98,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					CACert:     string(db.TLS.CACert),
 					ServerName: db.TLS.ServerName,
 					Mode:       db.TLS.Mode.ToProto(),
+				},
+				MySQL: types.MySQLOptions{
+					ServerVersion: db.MySQL.ServerVersion,
 				},
 				AWS: types.AWS{
 					Region: db.AWS.Region,

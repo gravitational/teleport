@@ -26,6 +26,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
@@ -41,12 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -77,18 +75,14 @@ type TerminalRequest struct {
 	InteractiveCommand []string `json:"-"`
 
 	// KeepAliveInterval is the interval for sending ping frames to web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	KeepAliveInterval time.Duration
-}
-
-// AuthProvider is a subset of the full Auth API.
-type AuthProvider interface {
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext) (*TerminalHandler, error) {
+func NewTerminal(req TerminalRequest, getter NodesGetter, sessCtx *SessionContext) (*TerminalHandler, error) {
 	// Make sure whatever session is requested is a valid session.
 	_, err := session.ParseID(string(req.SessionID))
 	if err != nil {
@@ -102,16 +96,11 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := authProvider.GetNodes(ctx, req.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// DELETE IN: 5.0
 	//
 	// All proxies will support lookup by uuid, so host/port lookup
 	// and fallback can be dropped entirely.
-	hostName, hostPort, err := resolveServerHostPort(req.Server, servers)
+	hostName, hostPort, err := resolveServerHostPort(req.Server, getter)
 	if err != nil {
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
@@ -120,15 +109,14 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
 		}),
-		params:       req,
-		ctx:          sessCtx,
-		hostName:     hostName,
-		hostPort:     hostPort,
-		hostUUID:     req.Server,
-		authProvider: authProvider,
-		encoder:      unicode.UTF8.NewEncoder(),
-		decoder:      unicode.UTF8.NewDecoder(),
-		wsLock:       &sync.Mutex{},
+		params:   req,
+		ctx:      sessCtx,
+		hostName: hostName,
+		hostPort: hostPort,
+		hostUUID: req.Server,
+		encoder:  unicode.UTF8.NewEncoder(),
+		decoder:  unicode.UTF8.NewDecoder(),
+		wsLock:   &sync.Mutex{},
 	}, nil
 }
 
@@ -161,9 +149,6 @@ type TerminalHandler struct {
 
 	// terminalCancel is used to signal when the terminal session is closing.
 	terminalCancel context.CancelFunc
-
-	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
 
 	// encoder is used to encode strings into UTF-8.
 	encoder *encoding.Encoder
@@ -203,6 +188,7 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
 	t.handler(ws, r)
 }
 
@@ -219,6 +205,33 @@ func (t *TerminalHandler) Close() error {
 		t.terminalCancel()
 	})
 	return nil
+}
+
+// startPingLoop starts a loop that will continuously send a ping frame through the websocket
+// to prevent the connection between web client and teleport proxy from becoming idle.
+// Interval is determined by the keep_alive_interval config set by user (or default).
+// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
+func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
+	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
+	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
+	defer tickerCh.Stop()
+
+	for {
+		select {
+		case <-tickerCh.C:
+			// A short deadline is used here to detect a broken connection quickly.
+			// If this is just a temporary issue, we will retry shortly anyway.
+			deadline := time.Now().Add(time.Second)
+			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+				t.Close()
+				return
+			}
+		case <-t.terminalContext.Done():
+			t.log.Debug("Terminating websocket ping loop.")
+			return
+		}
+	}
 }
 
 // handler is the main websocket loop. It creates a Teleport client and then
@@ -243,6 +256,15 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	}
 
 	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
+
+	// Update the read deadline upon receiving a pong message.
+	ws.SetPongHandler(func(_ string) error {
+		ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+		return nil
+	})
+
+	// Start sending ping frames through websocket to client.
+	go t.startPingLoop(ws)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
@@ -519,9 +541,15 @@ func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) error {
 	return nil
 }
 
+// NodesGetter is a function that retrieves a subset of nodes matching
+// the filter criteria.
+type NodesGetter interface {
+	GetNodes(fn func(n services.Node) bool) []types.Server
+}
+
 // resolveServerHostPort parses server name and attempts to resolve hostname
 // and port.
-func resolveServerHostPort(servername string, existingServers []types.Server) (string, int, error) {
+func resolveServerHostPort(servername string, getter NodesGetter) (string, int, error) {
 	// If port is 0, client wants us to figure out which port to use.
 	defaultPort := 0
 
@@ -529,12 +557,20 @@ func resolveServerHostPort(servername string, existingServers []types.Server) (s
 		return "", defaultPort, trace.BadParameter("empty server name")
 	}
 
+	var hostname string
 	// Check if servername is UUID.
-	for i := range existingServers {
-		node := existingServers[i]
-		if node.GetName() == servername {
-			return node.GetHostname(), defaultPort, nil
+	getter.GetNodes(func(n services.Node) bool {
+		if hostname != "" {
+			return false
 		}
+		if n.GetName() == servername {
+			hostname = n.GetHostname()
+		}
+		return false
+	})
+
+	if hostname != "" {
+		return hostname, defaultPort, nil
 	}
 
 	if !strings.Contains(servername, ":") {
@@ -674,12 +710,14 @@ func (w *terminalStream) Read(out []byte) (n int, err error) {
 	return w.terminal.read(out, w.ws)
 }
 
-// SetReadDeadline sets the network read deadline on the underlying websocket.
-func (w *terminalStream) SetReadDeadline(t time.Time) error {
-	return w.ws.SetReadDeadline(t)
-}
-
 // Close the websocket.
 func (w *terminalStream) Close() error {
 	return w.ws.Close()
+}
+
+// deadlineForInterval returns a suitable network read deadline for a given ping interval.
+// We chose to take the current time plus twice the interval to allow the timeframe of one interval
+// to wait for a returned pong message.
+func deadlineForInterval(interval time.Duration) time.Time {
+	return time.Now().Add(interval * 2)
 }

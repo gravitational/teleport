@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -126,6 +127,48 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 
 func (p pinCancelPrompt) PromptTouch() {
 	// 2nd touch never happens
+}
+
+func TestIsFIDO2Available(t *testing.T) {
+	const fido2Key = "TSH_FIDO2"
+	defer func() {
+		os.Unsetenv(fido2Key)
+	}()
+
+	tests := []struct {
+		name   string
+		setenv func()
+		want   bool
+	}{
+		{
+			name: "TSH_FIDO2 unset",
+			setenv: func() {
+				os.Unsetenv(fido2Key)
+			},
+			want: true,
+		},
+		{
+			name: "TSH_FIDO2=1",
+			setenv: func() {
+				os.Setenv(fido2Key, "1")
+			},
+			want: true,
+		},
+		{
+			name: "TSH_FIDO2=0",
+			setenv: func() {
+				os.Setenv(fido2Key, "0")
+			},
+			want: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.setenv()
+			got := wancli.IsFIDO2Available()
+			require.Equal(t, test.want, got, "IsFIDO2Available")
+		})
+	}
 }
 
 func TestFIDO2Login(t *testing.T) {
@@ -396,12 +439,12 @@ func TestFIDO2Login(t *testing.T) {
 		},
 		{
 			name:   "NOK cancel after PIN",
-			fido2:  newFakeFIDO2(auth1, pin1),
-			setUP:  pin1.setUP,
-			prompt: &pinCancelPrompt{pin: pin1.pin}, // cancel set on test body
+			fido2:  newFakeFIDO2(pin3, bio2),        // pin3 and bio2 have resident credentials
+			setUP:  pin3.setUP,                      // user chooses pin3, but cancels before further touches
+			prompt: &pinCancelPrompt{pin: pin3.pin}, // cancel set on test body
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = nil
+				cp.Response.AllowedCredentials = nil // passwordless forces PIN
 				cp.Response.UserVerification = protocol.VerificationRequired
 				return &cp
 			},
@@ -530,8 +573,8 @@ func TestFIDO2Login(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.fido2.setCallbacks()
+		runTest := func(t *testing.T, f2 *fakeFIDO2) {
+			f2.setCallbacks()
 			test.setUP()
 
 			timeout := test.timeout
@@ -598,6 +641,17 @@ func TestFIDO2Login(t *testing.T) {
 			if test.assertResponse != nil {
 				test.assertResponse(t, got)
 			}
+		}
+
+		// Run tests against both "metered" and "non-metered" fake variants, so we
+		// can ensure both behave correctly.
+		// There shouldn't be much of a difference, but tests are fast enough that
+		// it doesn't hurt either.
+		t.Run(test.name+"/metered", func(t *testing.T) {
+			runTest(t, test.fido2)
+		})
+		t.Run(test.name+"/nonMetered", func(t *testing.T) {
+			runTest(t, test.fido2.withNonMeteredLocations())
 		})
 	}
 }
@@ -693,11 +747,18 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 			wantTouches: 1,
 		},
 		{
-			name:        "Passwordless PIN requires single touch",
-			fido2:       newFakeFIDO2(pin1),
+			name:        "Passwordless PIN plugged requires single touch",
+			fido2:       newFakeFIDO2(pin1).withNonMeteredLocations(),
 			assertion:   pwdlessAssertion,
 			prompt:      pin1,
 			wantTouches: 1,
+		},
+		{
+			name:        "Passwordless PIN not plugged requires two touches",
+			fido2:       newFakeFIDO2(pin1),
+			assertion:   pwdlessAssertion,
+			prompt:      pin1,
+			wantTouches: 2,
 		},
 		{
 			name:      "Passwordless Bio with optimistic assertion requires single touch",
@@ -1313,6 +1374,8 @@ func resetFIDO2AfterTests(t *testing.T) {
 }
 
 type fakeFIDO2 struct {
+	useNonMeteredLocs bool
+
 	locs    []*libfido2.DeviceLocation
 	devices map[string]*fakeFIDO2Device
 }
@@ -1333,8 +1396,19 @@ func newFakeFIDO2(devs ...*fakeFIDO2Device) *fakeFIDO2 {
 	return f
 }
 
+// withNonMeteredLocations makes fakeFIDO2 return all known devices immediately.
+// Useful to test flows that optimize for plugged devices.
+func (f *fakeFIDO2) withNonMeteredLocations() *fakeFIDO2 {
+	f.useNonMeteredLocs = true
+	return f
+}
+
 func (f *fakeFIDO2) setCallbacks() {
-	*wancli.FIDODeviceLocations = f.newMeteredDeviceLocations()
+	if f.useNonMeteredLocs {
+		*wancli.FIDODeviceLocations = f.DeviceLocations
+	} else {
+		*wancli.FIDODeviceLocations = f.newMeteredDeviceLocations()
+	}
 	*wancli.FIDONewDevice = f.NewDevice
 }
 
@@ -1349,6 +1423,10 @@ func (f *fakeFIDO2) newMeteredDeviceLocations() func() ([]*libfido2.DeviceLocati
 		}
 		return f.locs, nil
 	}
+}
+
+func (f *fakeFIDO2) DeviceLocations() ([]*libfido2.DeviceLocation, error) {
+	return f.locs, nil
 }
 
 func (f *fakeFIDO2) NewDevice(path string) (wancli.FIDODevice, error) {
