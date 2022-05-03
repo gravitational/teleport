@@ -64,7 +64,7 @@ func (t *TemplateMongo) Render(ctx context.Context, authClient auth.ClientI, cur
 		return trace.Wrap(err)
 	}
 
-	hostCAs, err := authClient.GetCertAuthorities(ctx, types.HostCA, false)
+	hostCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

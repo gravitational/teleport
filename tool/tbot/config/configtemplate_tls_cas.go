@@ -26,9 +26,15 @@ import (
 )
 
 const (
+	// defaultHostCAPath is the default filename for the host CA certificate
 	defaultHostCAPath = "teleport-host-ca.crt"
 
+	// defaultUserCAPath is the default filename for the user CA certificate
 	defaultUserCAPath = "teleport-user-ca.crt"
+
+	// defaultDatabaseCAPath is the default filename for the database CA
+	// certificate
+	defaultDatabaseCAPath = "teleport-database-ca.crt"
 )
 
 // TemplateTLSCAs outputs Teleport's host and user CAs for miscellaneous TLS
@@ -39,6 +45,10 @@ type TemplateTLSCAs struct {
 
 	// UserCAPath is the path to which Teleport's user CAs will be written.
 	UserCAPath string `yaml:"user_ca_path,omitempty"`
+
+	// DatabaseCAPath is the path to which Teleport's database CA will be
+	// written.
+	DatabaseCAPath string `yaml:"database_ca_path,omitempty"`
 }
 
 func (t *TemplateTLSCAs) CheckAndSetDefaults() error {
@@ -52,6 +62,10 @@ func (t *TemplateTLSCAs) CheckAndSetDefaults() error {
 
 	if t.UserCAPath == "" {
 		t.UserCAPath = defaultUserCAPath
+	}
+
+	if t.DatabaseCAPath == "" {
+		t.DatabaseCAPath = defaultDatabaseCAPath
 	}
 
 	return nil
@@ -68,6 +82,9 @@ func (t *TemplateTLSCAs) Describe() []FileDescription {
 		},
 		{
 			Name: t.HostCAPath,
+		},
+		{
+			Name: t.DatabaseCAPath,
 		},
 	}
 }
@@ -97,6 +114,11 @@ func (t *TemplateTLSCAs) Render(ctx context.Context, authClient auth.ClientI, cu
 		return trace.Wrap(err)
 	}
 
+	databaseCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
@@ -112,6 +134,10 @@ func (t *TemplateTLSCAs) Render(ctx context.Context, authClient auth.ClientI, cu
 	}
 
 	if err := dest.Write(t.UserCAPath, concatCACerts(userCAs)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := dest.Write(t.DatabaseCAPath, concatCACerts(databaseCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 

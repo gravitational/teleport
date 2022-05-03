@@ -24,21 +24,67 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 )
 
 const defaultTLSPrefix = "tls"
+
+// CertAuthType is a types.CertAuthType wrapper with unmarshalling support.
+type CertAuthType types.CertAuthType
+
+const defaultCAType = types.HostCA
+
+func (c *CertAuthType) UnmarshalYAML(node *yaml.Node) error {
+	var certType string
+	err := node.Decode(&certType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch certType {
+	case "":
+		*c = CertAuthType(defaultCAType)
+	case string(types.HostCA), string(types.UserCA), string(types.DatabaseCA):
+		*c = CertAuthType(certType)
+	default:
+		return trace.BadParameter("invalid CA certificate type: %q", certType)
+	}
+
+	return nil
+}
+
+func (c *CertAuthType) CheckAndSetDefaults() error {
+	switch types.CertAuthType(*c) {
+	case "":
+		*c = CertAuthType(defaultCAType)
+	case types.HostCA, types.UserCA, types.DatabaseCA:
+		// valid, nothing to do
+	default:
+		return trace.BadParameter("unsupported CA certificate type: %q", string(*c))
+	}
+
+	return nil
+}
 
 // TemplateTLS is a config template that wraps identityfile's TLS writer.
 // It's not generally needed but can be used to write out TLS certificates with
 // alternative prefix and file extensions if needed for application
 // compatibility reasons.
 type TemplateTLS struct {
+	// Prefix is the filename prefix for the output files.
 	Prefix string `yaml:"prefix,omitempty"`
+
+	// CACertType is the type of CA cert to be written
+	CACertType CertAuthType `yaml:"ca_cert_type,omitempty"`
 }
 
 func (t *TemplateTLS) CheckAndSetDefaults() error {
 	if t.Prefix == "" {
 		t.Prefix = defaultTLSPrefix
+	}
+
+	if err := t.CACertType.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -68,7 +114,7 @@ func (t *TemplateTLS) Render(ctx context.Context, authClient auth.ClientI, curre
 		return trace.Wrap(err)
 	}
 
-	hostCAs, err := authClient.GetCertAuthorities(ctx, types.HostCA, false)
+	cas, err := authClient.GetCertAuthorities(ctx, types.CertAuthType(t.CACertType), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -78,7 +124,7 @@ func (t *TemplateTLS) Render(ctx context.Context, authClient auth.ClientI, curre
 		Writer: &BotConfigWriter{
 			dest: dest,
 		},
-		Key:    newClientKey(currentIdentity, hostCAs),
+		Key:    newClientKey(currentIdentity, cas),
 		Format: identityfile.FormatTLS,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

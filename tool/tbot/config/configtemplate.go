@@ -155,9 +155,9 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 	notNilCount := 0
 	for _, template := range templates {
 		// Note: this check is fragile and will fail if the templates aren't
-		// all simple pointer types. They are, though, and "correct" solution
-		// is insane, so we'll stick with this.
-		if template == nil || reflect.ValueOf(template).IsNil() {
+		// all simple pointer types. They are, though, and the "correct"
+		// solution is insane, so we'll stick with this.
+		if reflect.ValueOf(template).IsNil() {
 			continue
 		}
 
@@ -193,7 +193,7 @@ func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
 
 	for _, template := range templates {
 		// Note: same caveats as above.
-		if template == nil || reflect.ValueOf(template).IsNil() {
+		if reflect.ValueOf(template).IsNil() {
 			continue
 		}
 
