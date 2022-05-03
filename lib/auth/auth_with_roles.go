@@ -1231,11 +1231,11 @@ func (a *ServerWithRoles) GetReverseTunnel(name string, opts ...services.Marshal
 	return a.authServer.GetReverseTunnel(name, opts...)
 }
 
-func (a *ServerWithRoles) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (a *ServerWithRoles) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetReverseTunnels(opts...)
+	return a.authServer.GetReverseTunnels(ctx, opts...)
 }
 
 func (a *ServerWithRoles) DeleteReverseTunnel(domainName string) error {
@@ -2544,30 +2544,6 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 		return trace.AccessDenied("failed to validate event metadata")
 	}
 	return s.stream.EmitAuditEvent(ctx, event)
-}
-
-func (a *ServerWithRoles) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
-	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.EmitAuditEventLegacy(event, fields)
-}
-
-func (a *ServerWithRoles) PostSessionSlice(slice events.SessionSlice) error {
-	if err := a.action(slice.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.PostSessionSlice(slice)
-}
-
-func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) error {
-	if err := r.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(r.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.UploadSessionRecording(r)
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {

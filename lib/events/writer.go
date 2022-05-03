@@ -18,7 +18,6 @@ package events
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"time"
 
@@ -29,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // NewWriterLog returns a new instance of writer log
@@ -53,36 +51,6 @@ type WriterLog struct {
 // Close releases connection and resources associated with log if any
 func (w *WriterLog) Close() error {
 	return w.w.Close()
-}
-
-// EmitAuditEventLegacy emits audit event
-func (w *WriterLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	err := UpdateEventFields(event, fields, w.clock, w.newUID)
-	if err != nil {
-		log.Error(err)
-		// even in case of error, prefer to log incomplete event
-		// rather than to log nothing
-	}
-	// line is the text to be logged
-	line, err := json.Marshal(fields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.w.Write(line)
-	return trace.ConvertSystemError(err)
-}
-
-// DELETE IN: 2.7.0
-// This method is no longer necessary as nodes and proxies >= 2.7.0
-// use UploadSessionRecording method.
-// PostSessionSlice sends chunks of recorded session to the event log
-func (w *WriterLog) PostSessionSlice(SessionSlice) error {
-	return trace.NotImplemented("not implemented")
-}
-
-// UploadSessionRecording uploads session recording to the audit server
-func (w *WriterLog) UploadSessionRecording(r SessionRecording) error {
-	return trace.NotImplemented("not implemented")
 }
 
 // GetSessionChunk returns a reader which can be used to read a byte stream
