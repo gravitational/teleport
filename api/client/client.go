@@ -38,6 +38,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -361,8 +362,14 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
-		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
-		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor))
+		grpc.WithChainUnaryInterceptor(
+			otelgrpc.UnaryClientInterceptor(),
+			metadata.UnaryClientInterceptor,
+		),
+		grpc.WithChainStreamInterceptor(
+			otelgrpc.StreamClientInterceptor(),
+			metadata.StreamClientInterceptor),
+	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
 	// to explicitly provide gprc.WithInsecure in the client's dial options.
 	if c.tlsConfig != nil {
