@@ -106,7 +106,7 @@ func (l *WebListener) Serve() error {
 			case <-l.context.Done():
 				return trace.Wrap(net.ErrClosed, "listener is closed")
 			case <-time.After(5 * time.Second):
-				l.log.WithError(err).Warn("Backoff on network error.")
+				l.log.WithError(err).Warn("Backoff on accept error.")
 			}
 			continue
 		}

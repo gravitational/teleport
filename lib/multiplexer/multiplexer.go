@@ -186,7 +186,7 @@ func (m *Mux) Serve() error {
 		case <-m.context.Done():
 			return nil
 		case <-time.After(5 * time.Second):
-			m.Debugf("backoff on accept error: %v", trace.DebugReport(err))
+			m.WithError(err).Debugf("Backoff on accept error.")
 		}
 	}
 }
