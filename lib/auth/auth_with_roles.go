@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -862,6 +863,27 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if req.UseSearchAsRoles {
+		// For search-based access requests, replace the current roles with all
+		// roles the user is allowed to search with.
+		if err := a.context.UseSearchAsRoles(services.RoleGetter(a.authServer)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
+			Metadata: apievents.Metadata{
+				Type: events.AccessRequestResourceSearch,
+				Code: events.AccessRequestResourceSearchCode,
+			},
+			UserMetadata:        ClientUserMetadata(ctx),
+			SearchAsRoles:       a.context.Checker.RoleNames(),
+			ResourceType:        req.ResourceType,
+			Namespace:           req.Namespace,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		})
+	}
+
 	// ListResources request coming through this auth layer gets request filters
 	// stripped off and saved to be applied later after items go through rbac checks.
 	// The list that gets returned from the backend comes back unfiltered and as
@@ -1292,11 +1314,11 @@ func (a *ServerWithRoles) CreateWebSession(user string) (types.WebSession, error
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
-func (a *ServerWithRoles) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
+func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
 	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(req, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(ctx, req, a.context.Identity.GetIdentity())
 }
 
 // GetWebSessionInfo returns the web session for the given user specified with sid.
@@ -1351,10 +1373,8 @@ func (*webSessionsWithRoles) Upsert(ctx context.Context, session types.WebSessio
 
 // Delete removes the web session specified with req.
 func (r *webSessionsWithRoles) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
-	if err := r.c.currentUserAction(req.User); err != nil {
-		if err := r.c.action(apidefaults.Namespace, types.KindWebSession, types.VerbDelete); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := r.c.canDeleteWebSession(req.User); err != nil {
+		return trace.Wrap(err)
 	}
 	return r.ws.Delete(ctx, req)
 }
@@ -1441,6 +1461,7 @@ type webTokensWithRoles struct {
 type accessChecker interface {
 	action(namespace, resource string, verbs ...string) error
 	currentUserAction(user string) error
+	canDeleteWebSession(username string) error
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
@@ -1730,13 +1751,6 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	return a.authServer.DeleteUser(ctx, user)
 }
 
-func (a *ServerWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	if err := a.action(apidefaults.Namespace, types.KindKeyPair, types.VerbCreate); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return a.authServer.GenerateKeyPair(pass)
-}
-
 func (a *ServerWithRoles) GenerateHostCert(
 	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {
@@ -1904,34 +1918,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// add any applicable access request values.
 		req.AccessRequests = apiutils.Deduplicate(req.AccessRequests)
 		for _, reqID := range req.AccessRequests {
-			accessReq, err := services.GetAccessRequest(ctx, a.authServer, reqID)
+			newRoles, accessRequestExpiry, err := a.authServer.getRolesAndExpiryFromAccessRequest(ctx, req.Username, reqID)
 			if err != nil {
-				if trace.IsNotFound(err) {
-					return nil, trace.AccessDenied("invalid access request %q", reqID)
-				}
 				return nil, trace.Wrap(err)
 			}
-			if accessReq.GetUser() != req.Username {
-				return nil, trace.AccessDenied("invalid access request %q", reqID)
-			}
-			if !accessReq.GetState().IsApproved() {
-				if accessReq.GetState().IsDenied() {
-					return nil, trace.AccessDenied("access-request %q has been denied", reqID)
-				}
-				return nil, trace.AccessDenied("access-request %q is awaiting approval", reqID)
-			}
-			if err := services.ValidateAccessRequestForUser(a.authServer, accessReq); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			aexp := accessReq.GetAccessExpiry()
-			if aexp.Before(a.authServer.GetClock().Now()) {
-				return nil, trace.AccessDenied("access-request %q is expired", reqID)
-			}
-			if aexp.Before(req.Expires) {
+			if accessRequestExpiry.Before(req.Expires) {
 				// cannot generate a cert that would outlive the access request
-				req.Expires = aexp
+				req.Expires = accessRequestExpiry
 			}
-			roles = append(roles, accessReq.GetRoles()...)
+			roles = append(roles, newRoles...)
 		}
 		// nothing prevents an access-request from including roles already possessed by the
 		// user, so we must make sure to trim duplicate roles.
@@ -3465,11 +3460,9 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Users can only delete their own app sessions.
-	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbDelete); err != nil {
-			return trace.Wrap(err)
-		}
+	// Check if user can delete this web session.
+	if err := a.canDeleteWebSession(session.GetUser()); err != nil {
+		return trace.Wrap(err)
 	}
 	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -3486,6 +3479,32 @@ func (a *ServerWithRoles) DeleteAllAppSessions(ctx context.Context) error {
 	if err := a.authServer.DeleteAllAppSessions(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// DeleteUserAppSessions deletes all user’s application sessions.
+func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	// First, check if the current user can delete the request user sessions.
+	if err := a.canDeleteWebSession(req.Username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteUserAppSessions(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// canDeleteWebSession checks if the current user can delete
+// WebSessions from the provided `username`.
+func (a *ServerWithRoles) canDeleteWebSession(username string) error {
+	if err := a.currentUserAction(username); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -3580,6 +3599,29 @@ func (a *ServerWithRoles) filterKubeServices(server types.Server) error {
 	// MFA is not required to list the clusters, but will be required to
 	// connect to them.
 	mfaParams := services.AccessMFAParams{Verified: true}
+
+	// Filter out agents that don't have support for moderated sessions access
+	// checking if the user has any roles that require it.
+	if hasLocalUserRole(a.context.Checker) {
+		roles := a.context.Checker.(LocalUserRoleSet)
+		agentVersion, versionErr := semver.NewVersion(server.GetTeleportVersion())
+
+		hasK8SRequirePolicy := func() bool {
+			for _, role := range roles.RoleSet {
+				for _, policy := range role.GetSessionRequirePolicies() {
+					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
+						return true
+					}
+				}
+			}
+
+			return false
+		}
+
+		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
+			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
+		}
+	}
 
 	filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 	for _, kube := range server.GetKubernetesClusters() {

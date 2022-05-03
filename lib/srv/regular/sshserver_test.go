@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
@@ -127,7 +128,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
-	priv, pub, err := testServer.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -190,7 +191,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		nodeDir,
 		"",
 		utils.NetAddr{},
-		nil,
+		nodeClient,
 		serverOptions...)
 	require.NoError(t, err)
 	require.NoError(t, auth.CreateUploaderDir(nodeDir))
@@ -1124,6 +1125,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:                   f.testSrv.ClusterName(),
@@ -1140,6 +1142,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Emitter:                       proxyClient,
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1155,7 +1158,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-		nil,
+		proxyClient,
 		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
@@ -1165,6 +1168,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1247,6 +1251,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	logger := logrus.WithField("test", "TestProxyDirectAccess")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     proxyClient.TLSConfig(),
@@ -1263,6 +1268,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		Emitter:                       proxyClient,
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
 	})
 	require.NoError(t, err)
 
@@ -1279,7 +1285,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-		nil,
+		proxyClient,
 		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
@@ -1289,6 +1295,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1411,7 +1418,7 @@ func TestLimiter(t *testing.T) {
 		nodeStateDir,
 		"",
 		utils.NetAddr{},
-		nil,
+		nodeClient,
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
 		SetSessionServer(nodeClient),
@@ -1575,7 +1582,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	priv, pub, err := authSrv.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -1870,7 +1877,7 @@ type upack struct {
 func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	ctx := context.Background()
 	auth := testSvr.Auth()
-	upriv, upub, err := auth.GenerateKeyPair("")
+	upriv, upub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1942,6 +1949,18 @@ func newLockWatcher(ctx context.Context, t *testing.T, client types.Events) *ser
 	require.NoError(t, err)
 	t.Cleanup(lockWatcher.Close)
 	return lockWatcher
+}
+
+func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *services.NodeWatcher {
+	nodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(nodeWatcher.Close)
+	return nodeWatcher
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating

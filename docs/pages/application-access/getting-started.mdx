@@ -12,6 +12,15 @@ Let's connect to Grafana using Teleport Application Access in three steps:
 - Install the Teleport Application Service on a node and configure it to proxy Grafana.
 - Access Grafana through Teleport.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Application Access Grafana Self-Hosted](../../img/application-access/grafana_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access CockroachDB Cloud](../../img/application-access/grafana_cloud.png)
+</ScopedBlock>
+
 ## Prerequisites
 
 - The Teleport Auth Service and Proxy Service, deployed on your own infrastructure or via Teleport Cloud.
@@ -62,8 +71,10 @@ $ tctl tokens add \
 
 ### Start Teleport
 
-On the host where you will run the Teleport Application Service, download the latest version of Teleport for your platform from our
-[downloads page](https://goteleport.com/teleport/download).
+
+Install Teleport on the host where you will run the Teleport Application Service. See our [Installation](../installation.mdx) page for options besides Linux servers.
+
+(!docs/pages/includes/install-linux.mdx!)
 
 Now start Teleport and point it to the application endpoint:
 

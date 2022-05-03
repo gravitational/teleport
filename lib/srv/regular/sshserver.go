@@ -187,6 +187,9 @@ type Server struct {
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
+
+	// nodeWatcher is the server's node watcher.
+	nodeWatcher *services.NodeWatcher
 }
 
 // GetClock returns server clock implementation
@@ -554,6 +557,14 @@ func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	}
 }
 
+// SetNodeWatcher sets the server's node watcher.
+func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
+	return func(s *Server) error {
+		s.nodeWatcher = nodeWatcher
+		return nil
+	}
+}
+
 // SetX11ForwardingConfig sets the server's X11 forwarding configuration
 func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	return func(s *Server) error {
@@ -639,7 +650,10 @@ func New(addr utils.NetAddr,
 		trace.ComponentFields: logrus.Fields{},
 	})
 
-	s.reg, err = srv.NewSessionRegistry(s, auth)
+	s.reg, err = srv.NewSessionRegistry(srv.SessionRegistryConfig{
+		Srv:                   s,
+		SessionTrackerService: auth,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

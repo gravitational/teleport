@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"math"
 	"path/filepath"
+	"strings"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -147,7 +149,6 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	rotation := state.Spec.Rotation
 
 	switch rotation.State {
@@ -164,6 +165,15 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 		process.log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
 		clt, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
+			// In the event that a user is attempting to connect a machine to
+			// a different cluster it will give a cryptic warning about an
+			// unknown certificate authority. Unfortunately we cannot intercept
+			// this error as it comes from the http package before a request is
+			// made. So provide a more user friendly error as a hint of what
+			// they can do to resolve the issue.
+			if strings.Contains(err.Error(), "certificate signed by unknown authority") {
+				process.log.Errorf("Was this node already registered to a different cluster? To join this node to a new cluster, remove `%s` and try again", process.Config.DataDir)
+			}
 			return nil, trace.Wrap(err)
 		}
 		return &Connector{
@@ -291,7 +301,7 @@ func (process *TeleportProcess) generateKeyPair(role types.SystemRole, reason st
 		return &keyPair, nil
 	}
 	process.log.Debugf("Generating new key pair for %v %v.", role, reason)
-	privPEM, pubSSH, err := process.Config.Keygen.GenerateKeyPair("")
+	privPEM, pubSSH, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -333,17 +343,21 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
 func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string, dnsNames []string, rotation types.Rotation) (*auth.Identity, error) {
-	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
-		return auth.GenerateIdentity(process.localAuth, conn.ClientIdentity.ID, additionalPrincipals, dnsNames)
+	id := conn.ClientIdentity.ID
+	if id.NodeName == "" {
+		id.NodeName = process.Config.Hostname
+	}
+	if id.Role == types.RoleAdmin || id.Role == types.RoleAuth {
+		return auth.GenerateIdentity(process.localAuth, id, additionalPrincipals, dnsNames)
 	}
 	const reason = "re-register"
-	keyPair, err := process.generateKeyPair(conn.ClientIdentity.ID.Role, reason)
+	keyPair, err := process.generateKeyPair(id.Role, reason)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity, err := auth.ReRegister(auth.ReRegisterParams{
 		Client:               conn.Client,
-		ID:                   conn.ClientIdentity.ID,
+		ID:                   id,
 		AdditionalPrincipals: additionalPrincipals,
 		PrivateKey:           keyPair.PrivateKey,
 		PublicTLSKey:         keyPair.PublicTLSKey,
@@ -354,7 +368,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.deleteKeyPair(conn.ClientIdentity.ID.Role, reason)
+	process.deleteKeyPair(id.Role, reason)
 	return identity, nil
 }
 
@@ -852,18 +866,18 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
 	logger.Debug("Attempting to connect to Auth Server directly.")
-	directClient, err := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
-	if err == nil {
+	directClient, directErr := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
+	if directErr == nil {
 		logger.Debug("Connected to Auth Server with direct connection.")
 		return directClient, nil
 	}
 	logger.Debug("Failed to connect to Auth Server directly.")
 	// store err in directLogger, only log it if tunnel dial fails.
-	directErrLogger := logger.WithError(err)
+	directErrLogger := logger.WithError(directErr)
 
 	// Don't attempt to connect through a tunnel as a proxy or auth server.
 	if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(directErr)
 	}
 
 	logger.Debug("Attempting to discover reverse tunnel address.")
@@ -877,7 +891,9 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	if err != nil {
 		directErrLogger.Debug("Failed to connect to Auth Server directly.")
 		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
-		return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
+		return nil, trace.WrapWithMessage(
+			trace.NewAggregate(directErr, err),
+			trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining."))
 	}
 
 	logger.Debug("Connected to Auth Server through tunnel.")

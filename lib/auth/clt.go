@@ -964,10 +964,8 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
-func (c *Client) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
-	out, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", req.User, "web", "sessions"), req)
+func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("users", req.User, "web", "sessions"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1035,21 +1033,6 @@ func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(context.TODO(), c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
-}
-
-// GenerateKeyPair generates SSH private/public key pair optionally protected
-// by password. If the pass parameter is an empty string, the key pair
-// is not password-protected.
-func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("keypair"), generateKeyPairReq{Password: pass})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	var kp *generateKeyPairResponse
-	if err := json.Unmarshal(out.Bytes(), &kp); err != nil {
-		return nil, nil, err
-	}
-	return kp.PrivKey, []byte(kp.PubKey), err
 }
 
 // GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
@@ -1701,7 +1684,7 @@ type WebService interface {
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(req WebSessionReq) (types.WebSession, error)
+	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (types.WebSession, error)
 
@@ -1805,11 +1788,6 @@ type IdentityService interface {
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
 	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
-
-	// GenerateKeyPair generates SSH private/public key pair optionally protected
-	// by password. If the pass parameter is an empty string, the key pair
-	// is not password-protected.
-	GenerateKeyPair(pass string) ([]byte, []byte, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
