@@ -461,18 +461,9 @@ func (s *remoteSite) updateCertAuthorities(retry utils.Retry, remoteClusterVersi
 }
 
 func (s *remoteSite) watchCertAuthorities(remoteClusterVersion string) error {
-	localWatchedTypes := []types.CertAuthType{types.HostCA, types.UserCA}
-
-	// Delete in 11.0.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.DatabaseCAMinVersion)
+	localWatchedTypes, err := s.getLocalWatchedCerts(remoteClusterVersion)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	if ver10orAbove {
-		localWatchedTypes = append(localWatchedTypes, types.DatabaseCA)
-	} else {
-		s.Debugf("connected to remote cluster in version %s. Database CA won't be propagated.", remoteClusterVersion)
 	}
 
 	localWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
@@ -556,6 +547,25 @@ func (s *remoteSite) watchCertAuthorities(remoteClusterVersion string) error {
 			}
 		}
 	}
+}
+
+// getLocalWatchedCerts returns local certificates types that should be watched by the cert authority watcher.
+func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) ([]types.CertAuthType, error) {
+	localWatchedTypes := []types.CertAuthType{types.HostCA, types.UserCA}
+
+	// Delete in 11.0.
+	ver10orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.DatabaseCAMinVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ver10orAbove {
+		localWatchedTypes = append(localWatchedTypes, types.DatabaseCA)
+	} else {
+		s.Debugf("Connected to remote cluster of version %s. Database CA won't be propagated.", remoteClusterVersion)
+	}
+
+	return localWatchedTypes, nil
 }
 
 func (s *remoteSite) updateLocks(retry utils.Retry) {
