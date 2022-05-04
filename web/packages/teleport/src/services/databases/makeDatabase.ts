@@ -24,7 +24,7 @@ export default function makeDatabase(json): Database {
   return {
     name,
     description: desc,
-    title: formatDatabaseInfo(type, protocol).title,
+    type: formatDatabaseInfo(type, protocol).title,
     protocol,
     labels,
   };

@@ -30,7 +30,7 @@ test('correct formatting of database fetch response', async () => {
       {
         name: 'aurora',
         description: 'PostgreSQL 11.6: AWS Aurora',
-        title: 'RDS PostgreSQL',
+        type: 'RDS PostgreSQL',
         protocol: 'postgres',
         labels: [
           { name: 'cluster', value: 'root' },
@@ -80,7 +80,7 @@ describe('correct formatting of all type and protocol combos', () => {
         search: 'does-not-matter',
       });
 
-      expect(response.databases[0].title).toBe(combined);
+      expect(response.databases[0].type).toBe(combined);
     }
   );
 });

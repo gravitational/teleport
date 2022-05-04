@@ -68,8 +68,9 @@ function DatabaseList(props: Props) {
             isSortable: true,
           },
           {
-            key: 'title',
+            key: 'type',
             headerText: 'Type',
+            isSortable: true,
           },
           {
             key: 'labels',

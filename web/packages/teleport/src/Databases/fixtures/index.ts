@@ -20,7 +20,7 @@ export const databases: Database[] = [
   {
     name: 'aurora',
     description: 'PostgreSQL 11.6: AWS Aurora ',
-    title: 'RDS PostgreSQL',
+    type: 'RDS PostgreSQL',
     protocol: 'postgres',
     labels: [
       { name: 'cluster', value: 'root' },
@@ -30,7 +30,7 @@ export const databases: Database[] = [
   {
     name: 'postgres-gcp',
     description: 'PostgreSQL 9.6: Google Cloud SQL',
-    title: 'Cloud SQL PostgreSQL',
+    type: 'Cloud SQL PostgreSQL',
     protocol: 'postgres',
     labels: [
       { name: 'cluster', value: 'root' },
@@ -40,7 +40,7 @@ export const databases: Database[] = [
   {
     name: 'mysql-aurora-56',
     description: 'MySQL 5.6: AWS Aurora Longname For SQL',
-    title: 'Self-hosted MySQL',
+    type: 'Self-hosted MySQL',
     protocol: 'mysql',
     labels: [
       { name: 'cluster', value: 'root' },

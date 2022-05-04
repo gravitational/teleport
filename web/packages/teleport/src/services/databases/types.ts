@@ -19,7 +19,7 @@ import { AgentLabel } from 'teleport/services/resources';
 export interface Database {
   name: string;
   description: string;
-  title: string;
+  type: string;
   protocol: DbProtocol;
   labels: AgentLabel[];
 }

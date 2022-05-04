@@ -34,9 +34,10 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const [startKeys, setStartKeys] = useState<string[]>([]);
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [params, setParams] = useState<ResourceUrlQueryParams>(() =>
-    getResourceUrlQueryParams(search)
-  );
+  const [params, setParams] = useState<ResourceUrlQueryParams>({
+    sort: { fieldName: 'hostname', dir: 'ASC' },
+    ...getResourceUrlQueryParams(search),
+  });
 
   const [results, setResults] = useState<NodesResponse & { logins: string[] }>({
     logins: [],
