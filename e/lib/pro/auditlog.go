@@ -98,8 +98,3 @@ func (l *AuditLog) WaitForDelivery(ctx context.Context) error {
 func (l *AuditLog) Close() error {
 	return trace.Wrap(l.Inner.Close())
 }
-
-// anonymize returns the anonymized hash of the provided data
-func (l *AuditLog) anonymize(data string) string {
-	return l.Anonymizer.Anonymize([]byte(data))
-}
