@@ -338,41 +338,64 @@ RBAC lets teams limit what resources are available to Teleport users. This can b
 you don't want regular users editing SSO (`auth_connector`) or creating and editing new roles
 (`role`).
 
-List of all rule options defined below.
+List of key rule options defined below.
 
 ```yaml
-  allow:
-    rules:
+allow:
+  rules:
+    # Role: CRUD options for managing Teleport Nodes
+    - resources:
+        - node
+      verbs: [list, create, read, update, delete]
+    # Role: CRUD options for managing Teleport Application Servers
+    - resources:
+        - app_server
+      verbs: [list, create, read, update, delete]
+    # Role: CRUD options for managing Teleport Kubernetes Services
+    - resources:
+        - kube_service
+      verbs: [list, create, read, update, delete]
+    # Role: CRUD options for managing Teleport Database Servers
+    - resources:
+        - db_server
+      verbs: [list, create, read, update, delete]
+    # Role: CRUD options for managing Teleport Windows Desktops
+    - resources:
+        - windows_desktop
+      verbs: [list, create, read, update, delete]
     # Role: CRUD options for managing Teleport Roles
     - resources:
-      - role
+        - role
       verbs: [list, create, read, update, delete]
     # Auth Connectors: CRUD options for managing SSO connectors
     - resources:
-      - auth_connector
-      verbs:  [list, create, read, update, delete]
+        - auth_connector
+      verbs: [list, create, read, update, delete]
     # Session: Provides access to Session Recordings.
     # e.g If session read is false, users can't play the recordings
     # It is possible to restrict "list" but to allow "read" (in this case a user will
     # be able to replay a session using `tsh play` if they know the session ID)
     - resources:
-      - session
-      verbs:  [list,read]
+        - session
+      verbs: [list, read]
     # Trusted Clusters:  CRUD options for managing Trusted Clusters
     - resources:
-      - trusted_cluster
+        - trusted_cluster
       verbs: [list, create, read, update, delete]
     # Events: Can view the audit log and session recordings.
     - resources:
-      - event
-      verbs:  [list, read]
+        - event
+      verbs: [list, read]
     # User: CRUD options for managing Teleport local users
-    - resources: [user]
-      verbs: [list,create,read,update,delete]
+    - resources:
+        - user
+      verbs: [list, create, read, update, delete]
     # Tokens: CRUD options for managing tokens
     # Enterprise customer can enable app and node wizard enabling this resource
-    - resources: [token]
-      verbs: [list,create,read,update,delete]
+    - resources:
+        - token
+      verbs: [list, create, read, update, delete]
+
 ```
 
 ## RBAC for sessions
