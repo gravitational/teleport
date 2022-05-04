@@ -24,6 +24,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -37,15 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
+
+const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -503,6 +505,20 @@ func expectEvent(t *testing.T, eventsC <-chan Event, expectedEvent string) {
 			}
 		case <-timeC:
 			t.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
+		}
+	}
+}
+
+func unexpectedEvent(t *testing.T, eventsC <-chan Event, unexpectedEvent string) {
+	timeC := time.After(time.Second)
+	for {
+		select {
+		case event := <-eventsC:
+			if event.Type == unexpectedEvent {
+				t.Fatalf("Received unexpected event: %s", unexpectedEvent)
+			}
+		case <-timeC:
+			return
 		}
 	}
 }
@@ -1408,7 +1424,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetReverseTunnels()
+	out, err := p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 
@@ -1421,7 +1437,7 @@ func TestReverseTunnels(t *testing.T) {
 	err = p.presenceS.UpsertReverseTunnel(tunnel)
 	require.NoError(t, err)
 
-	out, err = p.presenceS.GetReverseTunnels()
+	out, err = p.presenceS.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	tunnel = out[0]
@@ -1433,7 +1449,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetReverseTunnels()
+	out, err = p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 
@@ -1449,7 +1465,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetReverseTunnels()
+	out, err = p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Empty(t, out)
 }
@@ -2312,6 +2328,96 @@ func TestRelativeExpiry(t *testing.T) {
 	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
+}
+
+func TestRelativeExpiryLimit(t *testing.T) {
+	const (
+		checkInterval = time.Second
+		nodeCount     = 100
+		expiryLimit   = 10
+	)
+
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.RelativeExpiryLimit = expiryLimit
+		c.Clock = clock
+		return ForProxy(c)
+	})
+	t.Cleanup(p.Close)
+
+	// add servers that expire at a range of times
+	now := clock.Now()
+	for i := 0; i < nodeCount; i++ {
+		exp := now.Add(time.Minute * time.Duration(i))
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetExpiry(exp)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := 0; i < nodeCount; i++ {
+		expectEvent(t, p.eventsC, EventProcessed)
+	}
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, nodeCount)
+
+	clock.Advance(time.Hour * 24)
+	for expired := nodeCount - expiryLimit; expired > 0; expired -= expiryLimit {
+		// get rid of events that were emitted before clock advanced
+		drainEvents(p.eventsC)
+		// wait for next relative expiry check to run
+		expectEvent(t, p.eventsC, RelativeExpiry)
+
+		// verify that the limit is respected.
+		nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, nodes, expired)
+
+		// advance clock to trigger next relative expiry check
+		clock.Advance(time.Hour * 24)
+	}
+}
+
+func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = time.Second
+		c.Clock = clock
+		c.Watches = []types.WatchKind{{Kind: types.KindNode}}
+		return c
+	})
+	t.Cleanup(p.Close)
+
+	p2 := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = time.Second
+		c.Clock = clock
+		c.Watches = []types.WatchKind{
+			{Kind: types.KindNamespace},
+			{Kind: types.KindNamespace},
+			{Kind: types.KindCertAuthority},
+		}
+		return c
+	})
+	t.Cleanup(p2.Close)
+
+	for i := 0; i < 2; i++ {
+		clock.Advance(time.Hour * 24)
+		drainEvents(p.eventsC)
+		expectEvent(t, p.eventsC, RelativeExpiry)
+
+		drainEvents(p2.eventsC)
+		unexpectedEvent(t, p2.eventsC, RelativeExpiry)
+	}
 }
 
 func TestCache_Backoff(t *testing.T) {

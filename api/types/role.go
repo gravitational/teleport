@@ -61,7 +61,7 @@ type Role interface {
 
 	// GetNamespaces gets a list of namespaces this role is allowed or denied access to.
 	GetNamespaces(RoleConditionType) []string
-	// GetNamespaces sets a list of namespaces this role is allowed or denied access to.
+	// SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 	SetNamespaces(RoleConditionType, []string)
 
 	// GetNodeLabels gets the map of node labels this role is allowed or denied access to.
@@ -118,7 +118,7 @@ type Role interface {
 
 	// GetDatabaseNames gets a list of database names this role is allowed or denied access to.
 	GetDatabaseNames(RoleConditionType) []string
-	// SetDatabasenames sets a list of database names this role is allowed or denied access to.
+	// SetDatabaseNames sets a list of database names this role is allowed or denied access to.
 	SetDatabaseNames(RoleConditionType, []string)
 
 	// GetDatabaseUsers gets a list of database users this role is allowed or denied access to.
