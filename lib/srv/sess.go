@@ -584,11 +584,7 @@ func (s *session) Stop() {
 		}
 	}
 
-	// Remove session parties and close client connections.
-	for _, p := range s.parties {
-		p.closeUnderSessionLock()
-	}
-
+	// Close session tracker and mark it as terminated
 	if err := s.tracker.Close(s.serverCtx); err != nil {
 		s.log.WithError(err).Debug("Failed to close session tracker")
 	}
@@ -605,6 +601,11 @@ func (s *session) Close() error {
 	s.log.Infof("Closing session %v.", s.id)
 
 	serverSessions.Dec()
+
+	// Remove session parties and close client connections.
+	for _, p := range s.getParties() {
+		p.Close()
+	}
 
 	// Remove session from registry
 	s.registry.removeSession(s)
@@ -1393,6 +1394,10 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 		return trace.AccessDenied(
 			"can't switch users from %v to %v for session %v",
 			s.login, p.login, s.id)
+	}
+
+	if s.tracker.GetState() == types.SessionState_SessionStateTerminated {
+		return trace.AccessDenied("The requested session is not active")
 	}
 
 	s.mu.Lock()
