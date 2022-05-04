@@ -157,7 +157,7 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 		Protocol:    providerType,
 		BindAddr:    c.clusterClient.BindAddr,
 		Browser:     c.clusterClient.Browser,
-	})
+	}, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

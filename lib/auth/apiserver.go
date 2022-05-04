@@ -204,6 +204,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/saml/connectors/:id", srv.withAuth(srv.deleteSAMLConnector))
 	srv.POST("/:version/saml/requests/create", srv.withAuth(srv.createSAMLAuthRequest))
 	srv.POST("/:version/saml/requests/validate", srv.withAuth(srv.validateSAMLResponse))
+	srv.GET("/:version/saml/requests/get/:id", srv.withAuth(srv.getSAMLAuthRequest))
 
 	// Github connector
 	srv.POST("/:version/github/connectors", srv.withAuth(srv.createGithubConnector))
@@ -213,6 +214,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/github/connectors/:id", srv.withAuth(srv.deleteGithubConnector))
 	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest))
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
+
+	// SSO diag info
+	srv.GET("/:version/sso/diag/:auth/:id", srv.withAuth(srv.getSSODiagnosticInfo))
 
 	// Provisioning tokens- Moved to grpc
 	// DELETE IN 8.0
@@ -1399,6 +1403,23 @@ func (s *APIServer) createSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r
 	return response, nil
 }
 
+func (s *APIServer) getSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	request, err := auth.GetSAMLAuthRequest(r.Context(), p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return request, nil
+}
+
+func (s *APIServer) getSSODiagnosticInfo(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	info, err := auth.GetSSODiagnosticInfo(r.Context(), p.ByName("auth"), p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return info, nil
+}
+
 type validateSAMLResponseReq struct {
 	Response string `json:"response"`
 }
@@ -1428,7 +1449,7 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.ValidateSAMLResponse(req.Response)
+	response, err := auth.ValidateSAMLResponse(r.Context(), req.Response)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
