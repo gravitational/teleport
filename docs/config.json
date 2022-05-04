@@ -215,8 +215,8 @@
               "slug": "/setup/reference/networking/"
             },
             {
-              "title": "Enterprise License File",
-              "slug": "/setup/reference/license/"
+              "title": "Predicate Language",
+              "slug": "/setup/reference/predicate-language/"
             }
           ]
         }
@@ -329,18 +329,18 @@
         {
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
-           "entries": [
-            { 
-              "title": "Local Demo Cluster", 
+          "entries": [
+            {
+              "title": "Local Demo Cluster",
               "slug": "/kubernetes-access/getting-started/local/"
             },
-            { 
-              "title": "Cluster", 
-              "slug": "/kubernetes-access/getting-started/cluster/" 
+            {
+              "title": "Cluster",
+              "slug": "/kubernetes-access/getting-started/cluster/"
             },
-            { 
-              "title": "Agent", 
-              "slug": "/kubernetes-access/getting-started/agent/" 
+            {
+              "title": "Agent",
+              "slug": "/kubernetes-access/getting-started/agent/"
             }
           ]
         },
@@ -401,8 +401,8 @@
               "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
             },
             {
-               "title": "teleport-kube-agent",
-               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+              "title": "teleport-kube-agent",
+              "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
             }
           ]
         },
@@ -717,7 +717,7 @@
           "slug": "/enterprise/getting-started/"
         },
         {
-          "title": "Single sign-on (SSO)",
+          "title": "Single Sign-On (SSO)",
           "slug": "/enterprise/sso/",
           "entries": [
             {
@@ -765,6 +765,10 @@
         {
           "title": "HSM",
           "slug": "/enterprise/hsm/"
+        },
+        {
+          "title": "Enterprise License File",
+          "slug": "/enterprise/license/"
         }
       ]
     },
@@ -870,7 +874,8 @@
         "first": "abcd123-insecure-do-not-use-this",
         "second": "efgh456-insecure-do-not-use-this",
         "third": "ijkl789-insecure-do-not-use-this"
-      }
+      },
+      "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "fedramp": {
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
@@ -879,7 +884,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
-      "version": "8.3.6",
+      "version": "9.1.2",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -911,10 +916,10 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "9.0.4",
+      "version": "9.1.3",
       "golang": "1.17",
       "plugin": {
-        "version": "9.0.4"
+        "version": "9.1.3"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:9",
@@ -1130,6 +1135,11 @@
     {
       "source": "/setup/guides/joining-nodes-aws/",
       "destination": "/setup/guides/joining-nodes-aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/setup/reference/license/",
+      "destination": "/docs/enterprise/license/",
       "permanent": true
     }
   ]

@@ -63,7 +63,7 @@ func openSecure(path string) (*os.File, error) {
 		// Equivalent to 0600. Unfortunately it's not worth reusing our
 		// default file mode constant here.
 		Mode:    unix.O_RDONLY | unix.S_IRUSR | unix.S_IWUSR,
-		Flags:   unix.O_RDWR | unix.O_CREAT,
+		Flags:   uint64(OpenMode),
 		Resolve: unix.RESOLVE_NO_SYMLINKS,
 	}
 
@@ -98,10 +98,13 @@ func openSymlinksMode(path string, symlinksMode SymlinksMode) (*os.File, error) 
 	case SymlinksTrySecure:
 		file, err = openSecure(path)
 		if err == unix.ENOSYS {
-			log.Warnf("Failed to write to %q securely due to missing "+
-				"syscall; falling back to regular file write. Set "+
-				"`symlinks: insecure` on this destination to disable this "+
-				"warning.", path)
+			missingSyscallWarning.Do(func() {
+				log.Warnf("Failed to write to %q securely due to missing "+
+					"syscall; falling back to regular file write. Set "+
+					"`symlinks: insecure` on this destination to disable this "+
+					"warning.", path)
+			})
+
 			file, err = openStandard(path)
 			if err != nil {
 				return nil, trace.Wrap(err)

@@ -818,6 +818,77 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 	return process, nil
 }
 
+func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.TeleportProcess, error) {
+	type result struct {
+		process *service.TeleportProcess
+		tmpDir  string
+		err     error
+	}
+
+	results := make(chan result, len(configs))
+	for _, conf := range configs {
+		go func(cfg *service.Config) {
+			dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
+			if err != nil {
+				results <- result{err: err}
+			}
+
+			cfg.DataDir = dataDir
+			cfg.AuthServers = []utils.NetAddr{
+				{
+					AddrNetwork: "tcp",
+					Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+				},
+			}
+			cfg.Token = "token"
+			cfg.UploadEventsC = i.UploadEventsC
+			cfg.Auth.Enabled = false
+			cfg.Proxy.Enabled = false
+
+			// Create a new Teleport process and add it to the list of nodes that
+			// compose this "cluster".
+			process, err := service.NewTeleport(cfg)
+			if err != nil {
+				results <- result{err: err, tmpDir: dataDir}
+			}
+
+			// Build a list of expected events to wait for before unblocking based off
+			// the configuration passed in.
+			expectedEvents := []string{
+				service.AppsReady,
+			}
+
+			// Start the process and block until the expected events have arrived.
+			receivedEvents, err := startAndWait(process, expectedEvents)
+			if err != nil {
+				results <- result{err: err, tmpDir: dataDir}
+			}
+
+			log.Debugf("Teleport Application Server (in instance %v) started: %v/%v events received.",
+				i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+
+			results <- result{err: err, tmpDir: dataDir, process: process}
+		}(conf)
+	}
+
+	processes := make([]*service.TeleportProcess, 0, len(configs))
+	for j := 0; j < len(configs); j++ {
+		result := <-results
+		if result.tmpDir != "" {
+			i.tempDirs = append(i.tempDirs, result.tmpDir)
+		}
+
+		if result.err != nil {
+			return nil, trace.Wrap(result.err)
+		}
+
+		i.Nodes = append(i.Nodes, result.process)
+		processes = append(processes, result.process)
+	}
+
+	return processes, nil
+}
+
 // StartDatabase starts the database access service with the provided config.
 func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportProcess, *auth.Client, error) {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
@@ -1103,14 +1174,25 @@ func (i *TeleInstance) Start() error {
 	// Build a list of expected events to wait for before unblocking based off
 	// the configuration passed in.
 	expectedEvents := []string{}
-	// Always wait for TeleportReadyEvent.
-	expectedEvents = append(expectedEvents, service.TeleportReadyEvent)
+	if i.Config.Auth.Enabled {
+		expectedEvents = append(expectedEvents, service.AuthTLSReady)
+	}
 	if i.Config.Proxy.Enabled {
 		expectedEvents = append(expectedEvents, service.ProxyReverseTunnelReady)
+		expectedEvents = append(expectedEvents, service.ProxySSHReady)
 		expectedEvents = append(expectedEvents, service.ProxyAgentPoolReady)
 		if !i.Config.Proxy.DisableWebService {
 			expectedEvents = append(expectedEvents, service.ProxyWebServerReady)
 		}
+	}
+	if i.Config.SSH.Enabled {
+		expectedEvents = append(expectedEvents, service.NodeSSHReady)
+	}
+	if i.Config.Apps.Enabled {
+		expectedEvents = append(expectedEvents, service.AppsReady)
+	}
+	if i.Config.Databases.Enabled {
+		expectedEvents = append(expectedEvents, service.DatabasesReady)
 	}
 
 	// Start the process and block until the expected events have arrived.
@@ -1744,4 +1826,27 @@ func genUserKey() (*client.Key, error) {
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, nil
+}
+
+// getLocalIP gets the non-loopback IP address of this host.
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		default:
+			continue
+		}
+		if !ip.IsLoopback() {
+			return ip.String(), nil
+		}
+	}
+	return "", trace.NotFound("No non-loopback local IP address found")
 }

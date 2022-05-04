@@ -33,12 +33,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 
 	"github.com/gravitational/trace"
@@ -164,6 +163,7 @@ func TestKube(t *testing.T) {
 	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
 	t.Run("Disconnect", suite.bind(testKubeDisconnect))
 	t.Run("Join", suite.bind(testKubeJoin))
+	t.Run("ConnectionLimit", suite.bind(testKubeConnectionLimit))
 }
 
 // TestKubeExec tests kubernetes Exec command set
@@ -1481,29 +1481,25 @@ func kubeExec(kubeConfig *rest.Config, args kubeExecArgs) error {
 	return executor.Stream(opts)
 }
 
-func kubeJoin(kubeConfig kubeProxyConfig, sessionID string) (*streamproto.SessionStream, error) {
+func kubeJoin(kubeConfig kubeProxyConfig, tc *client.TeleportClient, sessionID string) (*client.KubeSession, error) {
 	tlsConfig, err := kubeProxyTLSConfig(kubeConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer := &websocket.Dialer{
-		TLSClientConfig: tlsConfig,
-	}
-
-	endpoint := "wss://" + kubeConfig.t.Config.Proxy.Kube.ListenAddr.Addr + "/api/v1/teleport/join/" + sessionID
-	ws, resp, err := dialer.Dial(endpoint, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer resp.Body.Close()
-
-	stream, err := streamproto.NewSessionStream(ws, streamproto.ClientHandshake{Mode: types.SessionObserverMode})
+	meta, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID: sessionID,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return stream, nil
+	sess, err := client.NewKubeSession(context.TODO(), tc, meta, kubeConfig.t.Config.Proxy.Kube.ListenAddr.Addr, "", types.SessionPeerMode, tlsConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
 }
 
 // testKubeJoin tests that that joining an interactive exec session works.
@@ -1579,12 +1575,21 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// created. Sadly though the k8s API doesn't give us much indication of when that is.
 	time.Sleep(time.Second * 5)
 
+	participantStdinR, participantStdinW, err := os.Pipe()
+	participantStdoutR, participantStdoutW, err := os.Pipe()
+
+	tc, err := teleport.NewClient(ClientConfig{})
+	require.NoError(t, err)
+
+	tc.Stdin = participantStdinR
+	tc.Stdout = participantStdoutW
+
 	stream, err := kubeJoin(kubeProxyConfig{
 		t:          teleport,
 		username:   participantUsername,
 		kubeUsers:  kubeUsers,
 		kubeGroups: kubeGroups,
-	}, "")
+	}, tc, "")
 	require.NoError(t, err)
 	defer stream.Close()
 
@@ -1593,13 +1598,96 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// new IO streams of the second client.
 	time.Sleep(time.Second * 5)
 
+	// sent a test message from the participant
+	participantStdinW.WriteString("\aecho hi2\n\r")
+
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	term.Type("\aecho hi\n\r")
 
 	// Terminate the session after a moment to allow for the IO to reach the second client.
 	time.AfterFunc(5*time.Second, func() { term.Type("\aexit\n\r\a") })
 
-	participantOutput, err := io.ReadAll(stream)
+	participantOutput, err := io.ReadAll(participantStdoutR)
 	require.NoError(t, err)
 	require.Contains(t, participantOutput, []byte("echo hi"))
+	require.Contains(t, out.String(), []byte("echo hi2"))
+}
+
+// testKubeConnectionLimit checks that the `max_kubernetes_connections` role option is enforced.
+func testKubeConnectionLimit(t *testing.T, suite *KubeSuite) {
+	teleport := NewInstance(InstanceConfig{
+		ClusterName: Site,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+	})
+
+	const maxConnections = 10
+	hostUsername := suite.me.Username
+	kubeGroups := []string{testImpersonationGroup}
+	kubeUsers := []string{"alice@example.com"}
+	role, err := types.NewRole("kubemaster", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins:     []string{hostUsername},
+			KubeGroups: kubeGroups,
+			KubeUsers:  kubeUsers,
+		},
+		Options: types.RoleOptions{
+			MaxKubernetesConnections: maxConnections,
+		},
+	})
+	require.NoError(t, err)
+	teleport.AddUserWithRole(hostUsername, role)
+
+	err = teleport.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, teleport.StopAll()) })
+
+	// set up kube configuration using proxy
+	proxyClient, proxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
+		t:          teleport,
+		username:   hostUsername,
+		kubeUsers:  kubeUsers,
+		kubeGroups: kubeGroups,
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	// try get request to fetch available pods
+	pod, err := proxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	openExec := func() error {
+		// interactive command, allocate pty
+		term := NewTerminal(250)
+		out := &bytes.Buffer{}
+
+		return kubeExec(proxyClientConfig, kubeExecArgs{
+			podName:      pod.Name,
+			podNamespace: pod.Namespace,
+			container:    pod.Spec.Containers[0].Name,
+			command:      []string{"/bin/sh", "-c", "sleep 300"},
+			stdout:       out,
+			tty:          true,
+			stdin:        term,
+		})
+	}
+
+	// Create and maintain the maximum amount of open connections
+	for i := 0; i < maxConnections; i++ {
+		go openExec()
+	}
+
+	// Wait for the connections to open and check for any errors
+	require.Eventually(t, func() bool {
+		trackers, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		return len(trackers) == maxConnections
+	}, time.Second*30, time.Second)
+
+	// Open one more connection. It should fail due to the limit.
+	err = openExec()
+	require.Error(t, err)
 }
