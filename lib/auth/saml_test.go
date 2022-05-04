@@ -18,17 +18,28 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/xml"
 	"net/url"
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
+	saml2 "github.com/russellhaering/gosaml2"
+	samltypes "github.com/russellhaering/gosaml2/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,6 +67,21 @@ func TestCreateSAMLUser(t *testing.T) {
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 
+	// Dry-run creation of SAML user.
+	user, err := a.createSAMLUser(&createUserParams{
+		connectorName: "samlService",
+		username:      "foo@example.com",
+		logins:        []string{"foo"},
+		roles:         []string{"admin"},
+		sessionTTL:    1 * time.Minute,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, "foo@example.com", user.GetName())
+
+	// Dry-run must not create a user.
+	_, err = a.GetUser("foo@example.com", false)
+	require.Error(t, err)
+
 	// Create SAML user with 1 minute expiry.
 	_, err = a.createSAMLUser(&createUserParams{
 		connectorName: "samlService",
@@ -63,7 +89,7 @@ func TestCreateSAMLUser(t *testing.T) {
 		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
-	})
+	}, false)
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
@@ -220,4 +246,378 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	// SigAlg and Signature must be added when `provider: ping`.
 	require.NotEmpty(t, parsed.Query().Get("SigAlg"), "SigAlg is required for provider: ping")
 	require.NotEmpty(t, parsed.Query().Get("Signature"), "Signature is required for provider: ping")
+}
+
+func TestServer_getConnectorAndProvider(t *testing.T) {
+	// Create a Server instance for testing.
+	c := clockwork.NewFakeClockAt(time.Now())
+	b, err := lite.NewWithConfig(context.Background(), lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            c,
+	})
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	require.NoError(t, err)
+
+	authConfig := &InitConfig{
+		ClusterName:            clusterName,
+		Backend:                b,
+		Authority:              authority.New(),
+		SkipPeriodicOperations: true,
+	}
+
+	a, err := NewServer(authConfig)
+	require.NoError(t, err)
+
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		caKey,
+		pkix.Name{
+			CommonName:   "server1",
+			Organization: []string{"server1"},
+		}, nil, defaults.CATTL)
+	require.NoError(t, err)
+	require.NotNil(t, tlsCert)
+
+	keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+		Organization: []string{"Teleport OSS"},
+		CommonName:   "teleport.localhost.localdomain",
+	}, nil, 10*365*24*time.Hour)
+	require.NoError(t, err)
+
+	request := services.SAMLAuthRequest{
+		ID:               "ABC",
+		ConnectorID:      "zzz",
+		CheckUser:        false,
+		PublicKey:        nil,
+		CertTTL:          0,
+		CreateWebSession: false,
+		SSOTestFlow:      true,
+		ConnectorSpec: &types.SAMLConnectorSpecV2{
+			Issuer:                   "test",
+			Audience:                 "test",
+			ServiceProviderIssuer:    "test",
+			SSO:                      "test",
+			Cert:                     string(tlsCert),
+			AssertionConsumerService: "test",
+			AttributesToRoles: []types.AttributeMapping{{
+				Name:  "foo",
+				Value: "bar",
+				Roles: []string{"baz"},
+			}},
+			SigningKeyPair: &types.AsymmetricKeyPair{
+				PrivateKey: string(keyPEM),
+				Cert:       string(certPEM),
+			},
+		},
+	}
+
+	connector, provider, err := a.getConnectorAndProvider(context.Background(), request)
+	require.NoError(t, err)
+	require.NotNil(t, connector)
+	require.NotNil(t, provider)
+
+	expectedConnector := &types.SAMLConnectorV2{Kind: "saml", Version: "v2", Metadata: types.Metadata{Name: "zzz", Namespace: apidefaults.Namespace}, Spec: *request.ConnectorSpec}
+	require.Equal(t, expectedConnector, connector)
+
+	require.Equal(t, "test", provider.IdentityProviderSSOURL)
+	require.Equal(t, "test", provider.IdentityProviderIssuer)
+	require.Equal(t, "test", provider.AssertionConsumerServiceURL)
+	require.Equal(t, "test", provider.ServiceProviderIssuer)
+
+	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
+		Issuer:                   "test",
+		SSO:                      "test",
+		Cert:                     string(tlsCert),
+		AssertionConsumerService: "test",
+		AttributesToRoles: []types.AttributeMapping{{
+			Name:  "foo",
+			Value: "bar",
+			Roles: []string{"baz"},
+		}},
+	})
+	require.NoError(t, err)
+
+	err = a.CreateSAMLConnector(conn)
+	require.NoError(t, err)
+
+	request2 := services.SAMLAuthRequest{
+		ID:          "ABC",
+		ConnectorID: "foo",
+		SSOTestFlow: false,
+	}
+
+	connector, provider, err = a.getConnectorAndProvider(context.Background(), request2)
+	require.NoError(t, err)
+	require.NotNil(t, connector)
+	require.NotNil(t, provider)
+
+}
+
+func TestServer_ValidateSAMLResponse(t *testing.T) {
+	// Create a Server instance for testing.
+	c := clockwork.NewFakeClockAt(time.Date(2022, 04, 25, 9, 0, 0, 0, time.UTC))
+	b, err := lite.NewWithConfig(context.Background(), lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            c,
+	})
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	require.NoError(t, err)
+
+	authConfig := &InitConfig{
+		ClusterName:            clusterName,
+		Backend:                b,
+		Authority:              authority.New(),
+		SkipPeriodicOperations: true,
+	}
+
+	a, err := NewServer(authConfig)
+	require.NoError(t, err)
+
+	a.SetClock(c)
+
+	// empty response gives error.
+	response, err := a.ValidateSAMLResponse(context.Background(), "")
+	require.Nil(t, response)
+	require.Error(t, err)
+
+	// create role referenced in request.
+	role, err := types.NewRole("access", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"dummy"},
+		},
+	})
+	require.NoError(t, err)
+	err = a.CreateRole(role)
+	require.NoError(t, err)
+
+	// real response from Okta
+	respOkta := `<?xml version="1.0" encoding="UTF-8"?><saml2p:Response Destination="https://boson.tener.io:3080/v1/webapi/saml/acs" ID="id336368461455218662129342736" InResponseTo="_4f256462-6c2d-466d-afc0-6ee36602b6f2" IssueInstant="2022-04-25T08:55:18.710Z" Version="2.0" xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:xs="http://www.w3.org/2001/XMLSchema"><saml2:Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">http://www.okta.com/exk14fxcpjuKMcor30h8</saml2:Issuer><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><ds:Reference URI="#id336368461455218662129342736"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"><ec:InclusiveNamespaces PrefixList="xs" xmlns:ec="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>uBRfvYvl5C/LPCh36uAmRLHW76+aDP3ngChtIwP3/Fc=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue>M1VfkOOBH6r7niHhfGvf4OJ1HH5QJl83aD/b+mTDUUnXzHXgXlkb0BGQkSFn6ixojwCoXchpxCNzVLPN/tvfyY1dxP4MO8b+/07bGuVD2yTNlhN43/FFcDpmZ1ZDW8w2nPF1E5gy1lR8Wx2NgT3kQ2Ui1vRNX/KeX/P9NnABj4AjcshyHK2e49WLM/D4U84XOl7ODtzS7PTvtB0SGIwRE25G//8AsAv81eBfHL54Nz1HAqinMhxQtz32ZDXpKaAV6GypyBTvk6vo7Pkk4OiL6G9VIGC8Bd/gnavsc+Ickfuo7KTq8NDKTLB5WG34XKJqq6dGopSMrxr67oYjCEDZfw==</ds:SignatureValue><ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAX4zyofpMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG
+A1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU
+MBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi04MTMzNTQxHDAaBgkqhkiG9w0BCQEW
+DWluZm9Ab2t0YS5jb20wHhcNMjIwMTA3MDkwNTU4WhcNMzIwMTA3MDkwNjU4WjCBkjELMAkGA1UE
+BhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNV
+BAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtODEzMzU0MRwwGgYJ
+KoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA
+xQz+tLD5cNlOBfdohHvqNWIfC13OCSnUAe20qA0K8y+jtZrpwjtjjLX8iRuCx8dYc/nd6zYOhhSq
+2sLmrRa09wUXXTgnLGcj50gePTaroYLyF4FNgQWLvPHJk0FGcx6JvD6L+V5RzYwH87Fhg8niP4LZ
+EBw3iZnsIJN9KOuLuQeXTW0PIlMFzpCwT9aUCHCoLepe5Ou8oi8XcOCmsOESHPchV2RC/xQDIqRP
+Lp1Sf7NNJ6mTmP2gOoLwsz95beOLrEI+PI/GgZBqM3OutWA0L9mAbJK9T5dPAvhnwCV+SK2HvicJ
+T8c6uJxuKmoWv1t3SyaN0cIbmw6vj9CIf4DTwQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQCWGgLL
+f3tgUZRGjmR5iiKeOeaEWG/eaF1nfenVfSaWT9ckimcXyLCY/P7CXEBiioVrxjky07iceJpi4rVE
+RcVZ8SGXCa0NroESmIFlIHez6vRTrqUsfDmidxsSCwY02eaBq+9gK5iXV5WeXMKbn0yeGwF+3PkU
+RAH1HuypwMH0FJRLIdW36pw7FCrGrXpk3UC6mEumXC9FptjSK1FlW+ZckgDprePOoUpypEygr2UC
+XXOsqT0dwBUUttdOQMZHqIiXS5VPJ8zhYPHBGYI8WGk5FWVuXIXhgRm7LN/EyXIvCOFmDH0tVnQL
+V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo></ds:Signature><saml2p:Status xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol"><saml2p:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></saml2p:Status><saml2:Assertion ID="id33636846145688909913681942" IssueInstant="2022-04-25T08:55:18.710Z" Version="2.0" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xs="http://www.w3.org/2001/XMLSchema"><saml2:Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">http://www.okta.com/exk14fxcpjuKMcor30h8</saml2:Issuer><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><ds:Reference URI="#id33636846145688909913681942"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"><ec:InclusiveNamespaces PrefixList="xs" xmlns:ec="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>XwJSotSzU2qLdzu/WDk8dpQ/Cy1Id88932S/95+N+Ds=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue>qyIvGi1+w93AdGUj0+T5RYAq+CAjLSScMTMc7dLTEze6qr3mP51W/bCoZz8E47lpsbLeh0EiATa6h2Uaj6/34rILfCt3aQRNjNicu0gBKhePyNraapdnoyeqJEV8UrAOOKFiH30e5AvQ1nRZqfgY7KMt6cZH5/eXjUS63lPJJn4yr9vLw9loCdHCoHlaseh2IHi7CickyyxSMTX+Y58zpBy2g/KwN3K4oZM4a10ZYWkZpzkZJXDRSUkEc/wTTO7IPPY7Zv7R7UC+zjf5Px1sYeKTkkIxlZViZmtqjYuhibnTmhroJx7wX/LtOPxCkwLHlQRDACBNbP/UtrudU1ZMxA==</ds:SignatureValue><ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAX4zyofpMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG
+A1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU
+MBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi04MTMzNTQxHDAaBgkqhkiG9w0BCQEW
+DWluZm9Ab2t0YS5jb20wHhcNMjIwMTA3MDkwNTU4WhcNMzIwMTA3MDkwNjU4WjCBkjELMAkGA1UE
+BhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNV
+BAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtODEzMzU0MRwwGgYJ
+KoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA
+xQz+tLD5cNlOBfdohHvqNWIfC13OCSnUAe20qA0K8y+jtZrpwjtjjLX8iRuCx8dYc/nd6zYOhhSq
+2sLmrRa09wUXXTgnLGcj50gePTaroYLyF4FNgQWLvPHJk0FGcx6JvD6L+V5RzYwH87Fhg8niP4LZ
+EBw3iZnsIJN9KOuLuQeXTW0PIlMFzpCwT9aUCHCoLepe5Ou8oi8XcOCmsOESHPchV2RC/xQDIqRP
+Lp1Sf7NNJ6mTmP2gOoLwsz95beOLrEI+PI/GgZBqM3OutWA0L9mAbJK9T5dPAvhnwCV+SK2HvicJ
+T8c6uJxuKmoWv1t3SyaN0cIbmw6vj9CIf4DTwQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQCWGgLL
+f3tgUZRGjmR5iiKeOeaEWG/eaF1nfenVfSaWT9ckimcXyLCY/P7CXEBiioVrxjky07iceJpi4rVE
+RcVZ8SGXCa0NroESmIFlIHez6vRTrqUsfDmidxsSCwY02eaBq+9gK5iXV5WeXMKbn0yeGwF+3PkU
+RAH1HuypwMH0FJRLIdW36pw7FCrGrXpk3UC6mEumXC9FptjSK1FlW+ZckgDprePOoUpypEygr2UC
+XXOsqT0dwBUUttdOQMZHqIiXS5VPJ8zhYPHBGYI8WGk5FWVuXIXhgRm7LN/EyXIvCOFmDH0tVnQL
+V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo></ds:Signature><saml2:Subject xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"><saml2:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">ops@gravitational.io</saml2:NameID><saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><saml2:SubjectConfirmationData InResponseTo="_4f256462-6c2d-466d-afc0-6ee36602b6f2" NotOnOrAfter="2022-04-25T09:00:18.711Z" Recipient="https://boson.tener.io:3080/v1/webapi/saml/acs"/></saml2:SubjectConfirmation></saml2:Subject><saml2:Conditions NotBefore="2022-04-25T08:50:18.711Z" NotOnOrAfter="2022-04-25T09:00:18.711Z" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"><saml2:AudienceRestriction><saml2:Audience>https://boson.tener.io:3080/v1/webapi/saml/acs</saml2:Audience></saml2:AudienceRestriction></saml2:Conditions><saml2:AuthnStatement AuthnInstant="2022-04-25T08:03:11.779Z" SessionIndex="_4f256462-6c2d-466d-afc0-6ee36602b6f2" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"><saml2:AuthnContext><saml2:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml2:AuthnContextClassRef></saml2:AuthnContext></saml2:AuthnStatement><saml2:AttributeStatement xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"><saml2:Attribute Name="username" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"><saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">ops@gravitational.io</saml2:AttributeValue></saml2:Attribute><saml2:Attribute Name="groups" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"><saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Everyone</saml2:AttributeValue><saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">okta-admin</saml2:AttributeValue><saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">okta-dev</saml2:AttributeValue></saml2:Attribute></saml2:AttributeStatement></saml2:Assertion></saml2p:Response>`
+
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		caKey,
+		pkix.Name{
+			CommonName:   "server1",
+			Organization: []string{"server1"},
+		}, nil, defaults.CATTL)
+	require.NoError(t, err)
+	require.NotNil(t, tlsCert)
+
+	keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+		Organization: []string{"Teleport OSS"},
+		CommonName:   "teleport.localhost.localdomain",
+	}, nil, 10*365*24*time.Hour)
+	require.NoError(t, err)
+
+	conn, err := types.NewSAMLConnector("saml-test-conn", types.SAMLConnectorSpecV2{
+		Issuer:                   "test",
+		SSO:                      "test",
+		Cert:                     string(tlsCert),
+		AssertionConsumerService: "test",
+		AttributesToRoles: []types.AttributeMapping{{
+			Name:  "foo",
+			Value: "bar",
+			Roles: []string{"baz"},
+		}},
+		SigningKeyPair: &types.AsymmetricKeyPair{
+			PrivateKey: string(keyPEM),
+			Cert:       string(certPEM),
+		},
+	})
+	require.NoError(t, err)
+
+	err = a.CreateSAMLConnector(conn)
+	require.NoError(t, err)
+
+	err = a.Identity.CreateSAMLAuthRequest(services.SAMLAuthRequest{
+		ID:                "_4f256462-6c2d-466d-afc0-6ee36602b6f2",
+		ConnectorID:       "saml-test-conn",
+		SSOTestFlow:       true,
+		RedirectURL:       "https://dev-813354.oktapreview.com/app/dev-813354_krzysztofssodev_1/exk14fxcpjuKMcor30h8/sso/saml?SAMLRequest=lFZZk6JKE%2F0rHc6jYbOIiMbtiSgWEREEQVBfbrAUUMiiFFLgr%2F9i7Jm%2BPXf75j5mUifz5MmMJH%2FDQVlcl%2BDeZtUe3u4Qty99WVR4%2BfzwNro31bIOMMLLKighXrbR0gHGdsm%2B0strU7d1VBejT5B%2FRwQYw6ZFdTV60eS30e9cws54jmcnfMTGE47n40mQRPSEh3DK8zQb8gk7evFgg1FdvY3YV3r0Yn3PKqIqRlX67wnD90d4uXZda2LtHHf0An6QkOoK30vYOLDpUAQP%2B%2B3bKGvbK15SVFjjunptYQWbV1Qvp7RAUx1DERgGV0R9q5QKIjx60TC%2BQ63CbVC1byOWZtkJzU3YmUsLy9lsyQjn0YsMcYuqoH3W8CNBDLuJwEynM%2B61vrTBtYEdguQ1qksquF4%2Fff790jwG%2FGjrBOM6ht3vDAX7C8MlfXTN77oR1c2UzgQK4%2FrJa%2FT12dTlk1nz9b8V9Bv1GftbjJcOSqugvTfwe5Nj%2FF7DkqIIIa9k%2Blo3KcXSNE3RC6ovixij9MvoAwtjrUrqpykFVV2hKCjQ4ymGAdusjl9AkdYNarPyHwLzFMN%2BCzyJGK5imBH1M69fjMJQNPeD3qSsG%2FilwcEEZwE747%2BH3MMENrCK4Mthr72NvvzaeD6hbhNUOKmbEv9s%2Fl9aP6kGqw4W9RXGE%2Fyjuu%2FUfj3g36hF%2FZWgjFKI2%2F8oHayiLz8J9h7FC4o7%2FGogv2z54Iyj8bXj7FAoDc5Dwf3O0atwvsq3Ju%2FKBm0Bcnh7MvoMfjo%2B5H83%2FzQ8H%2F1%2BR2wJqAs5PUmLBA%2B5pPtrwRn4rhbER6QzrNHr9h1nztqm1S0kJT1Oo0NfxHRdnvx%2B27Lurbdl8FgdEZvM3FBqnV1DeHisSX7ezTHT24DMvdJBpb%2FlrVj0UmQk%2BVHhB1MyU65CSl2t1cHyBANokpgwPbrm86ne%2BBssK0UEVoAqlKFREkvel%2BWM7Qkv7MVOsUg0X%2FM3Yc1x2prVjXw4CUVxccn6UO53BsObdG4MpcBNGcYaWyp9NBQXcRTKtqSdVpyo7zM7PA6OQ53nJ0%2BMTGtqHpFmVLfxdnaKUpMa32Wt2N%2Bsy0NYr8aC7gxb5KPAnR%2Flta%2B0VaWa8I5XdyHSZ3XZiMM4Ho9tKaHA29uH9J%2B0%2Fia%2FDoePVhxn9EIO2uDDkL7t0wRFQQu%2FGpom6w9JAtkuBUQTQartwVbT871EMqWEfmR2ZGASUToQ2T5t9PqsZV1kAlvZijYgtqx4hmiogDkoUmYYnurh81HsospOXcZ0DSciG%2Fske7YtK%2F2MPvt9EamLIZZmOGTNLFSzLpra91Bd5Ce%2Fv4QskwU%2BR9ZZZBq5RkxZYww5ZYyHwvnffI%2Bnb%2Fjw5SIw9geikGcOXSH94Y8conVgjH7zAIWYmp4IDHdd7YtQ9Ug43dDbsu9O7AoH6uLxB599F%2Fqra5hLEnC0P9csijaQ01SxgCxJwK6lNFVEYAZRd7v7M%2BFkb1nIzriDojbZoOe3vb2z8xUppklq%2BWaQ9tNq84j53vOPQqEG7KbjFFo93MIT2GoBVXgNOCVuy9oqdDirWoiHq6pTV9NKdySK52MZjvO5hjMLye6miZrHoqR7nN96vqwyTKsb%2FZTz7W63urT12CWsdlmV05vNRw6rcpcdjw26i3w%2FgNhShGyfn%2BVNfM%2Bgf7xk1IWiu16cx7QVxoXZFJej1yyctR%2FHM51Hjqe4xgy4sraoSXSSbuJj8O%2F0GMw4xO38u5s6F3Z6m7GPqddGEb3SRKII6%2FMBGHGHUkd30Km51Xi%2FSFhm3%2FN%2BRBToqKs5ZeJzCQKj7u1wk%2FYL9mblYsBeBAkQBYDASA2RI3J6kr09bQF7TYnAlkEKgQHIt7mLFaKIFLElA4C%2Fm1H52SP56MXrtT1di%2FxxbqOHV9mUlKYPZacgQ2KkAveXIzxXIrPm3etKKRd5787nrSeqIt0vYjAopNyRE0iT8WrmbrSCL2%2FJoIVHfXxc9bcgquX1tWmt9lbe1ky7Z2l1EVlC2SdhOQ5v3LzZ%2BSbTpqDUir4P9vyZVV2Ffehk1g15fMYOiqX%2BEixOsS%2BAVImuldfCW583mHN2UYjijYbHC7PqW3DdWIa%2B2l3CS5dv%2BtkCXxIJm1VzEeSpBJGM3Dm1NuStwUXCVHFVmpMo52E6nVpcE54uXS2%2FDI8hBnqnIR2hBWZLRkfuDqu6d5GVZmyFRl1zA3%2Fci3Tr1WUs2f1DOm9lzCPSIVU9wGZOtPcF9Oel8uF8XzvU54X008L6%2Bv2gNYMSarJVFygaXkBR1ERqYNDCt1Hb3OHoZVU3ZdD%2B8%2B3IvDJPD4onyfPp8l7hK4xQgmD8%2FKf%2B9XD%2B%2Br8AAAD%2F%2Fw%3D%3D",
+		ClientRedirectURL: "http://127.0.0.1:57293/callback?secret_key=70e98f8871530e66e6a136ae71fe002454dc1c76d754f090f895508a2226c36b",
+		ConnectorSpec: &types.SAMLConnectorSpecV2{
+			Issuer:                   "http://www.okta.com/exk14fxcpjuKMcor30h8",
+			SSO:                      "https://dev-813354.oktapreview.com/app/dev-813354_krzysztofssodev_1/exk14fxcpjuKMcor30h8/sso/saml",
+			Cert:                     "",
+			Display:                  "Okta",
+			AssertionConsumerService: "https://boson.tener.io:3080/v1/webapi/saml/acs",
+			Audience:                 "https://boson.tener.io:3080/v1/webapi/saml/acs",
+			ServiceProviderIssuer:    "https://boson.tener.io:3080/v1/webapi/saml/acs",
+			EntityDescriptor:         "\u003c?xml version=\"1.0\" encoding=\"UTF-8\"?\u003e\u003cmd:EntityDescriptor entityID=\"http://www.okta.com/exk14fxcpjuKMcor30h8\" xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\"\u003e\u003cmd:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\"\u003e\u003cmd:KeyDescriptor use=\"signing\"\u003e\u003cds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"\u003e\u003cds:X509Data\u003e\u003cds:X509Certificate\u003eMIIDpDCCAoygAwIBAgIGAX4zyofpMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG\nA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU\nMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi04MTMzNTQxHDAaBgkqhkiG9w0BCQEW\nDWluZm9Ab2t0YS5jb20wHhcNMjIwMTA3MDkwNTU4WhcNMzIwMTA3MDkwNjU4WjCBkjELMAkGA1UE\nBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNV\nBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtODEzMzU0MRwwGgYJ\nKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nxQz+tLD5cNlOBfdohHvqNWIfC13OCSnUAe20qA0K8y+jtZrpwjtjjLX8iRuCx8dYc/nd6zYOhhSq\n2sLmrRa09wUXXTgnLGcj50gePTaroYLyF4FNgQWLvPHJk0FGcx6JvD6L+V5RzYwH87Fhg8niP4LZ\nEBw3iZnsIJN9KOuLuQeXTW0PIlMFzpCwT9aUCHCoLepe5Ou8oi8XcOCmsOESHPchV2RC/xQDIqRP\nLp1Sf7NNJ6mTmP2gOoLwsz95beOLrEI+PI/GgZBqM3OutWA0L9mAbJK9T5dPAvhnwCV+SK2HvicJ\nT8c6uJxuKmoWv1t3SyaN0cIbmw6vj9CIf4DTwQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQCWGgLL\nf3tgUZRGjmR5iiKeOeaEWG/eaF1nfenVfSaWT9ckimcXyLCY/P7CXEBiioVrxjky07iceJpi4rVE\nRcVZ8SGXCa0NroESmIFlIHez6vRTrqUsfDmidxsSCwY02eaBq+9gK5iXV5WeXMKbn0yeGwF+3PkU\nRAH1HuypwMH0FJRLIdW36pw7FCrGrXpk3UC6mEumXC9FptjSK1FlW+ZckgDprePOoUpypEygr2UC\nXXOsqT0dwBUUttdOQMZHqIiXS5VPJ8zhYPHBGYI8WGk5FWVuXIXhgRm7LN/EyXIvCOFmDH0tVnQL\nV115UGOwvjOOxmOFbYBn865SHgMndFtr\u003c/ds:X509Certificate\u003e\u003c/ds:X509Data\u003e\u003c/ds:KeyInfo\u003e\u003c/md:KeyDescriptor\u003e\u003cmd:NameIDFormat\u003eurn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\u003c/md:NameIDFormat\u003e\u003cmd:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"https://dev-813354.oktapreview.com/app/dev-813354_krzysztofssodev_1/exk14fxcpjuKMcor30h8/sso/saml\"/\u003e\u003cmd:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"https://dev-813354.oktapreview.com/app/dev-813354_krzysztofssodev_1/exk14fxcpjuKMcor30h8/sso/saml\"/\u003e\u003c/md:IDPSSODescriptor\u003e\u003c/md:EntityDescriptor\u003e",
+			EntityDescriptorURL:      "",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "groups",
+					Value: "okta-admin",
+					Roles: []string{"access"},
+				},
+			},
+			SigningKeyPair: &types.AsymmetricKeyPair{
+				PrivateKey: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA1py+q5bnxhAvZ7bnhQQauHIqOpFA5CMXCXd+A9Y1qDHecnN3\nrFVZfyUZrYm/gTQZSptgAshr+VWsBh9O3ZAZ5Lg+f0FSkYr+k0+A7Bx3v4N76Psi\nyE+INMmtyvP2bTGyOrHqaeGzQYkpiPq044WS2j5PDYiQWbepDpxLYbiQ7qwzS9xZ\nZp6w8TyFGNkMl26F5ZeSH+T/S/EHt3Q9t2U2uWRdWv1IdZ13krqJJURMzkBMMj2j\nBxgKoHPJa7T4DniLg5a5OBKTbernbPdW1xzQUgHATwdlQAx2+KBIpKJiuqixH1/b\nVHHpZzAR5IYXv82xmYBoyjFBsmDH3ao+MFraTwIDAQABAoIBAQCEXZbINEHtiiwC\n1u/Cvb5RRrC/ALm6O95Ii3egnCzp+SAPDSKhmt6hKdvFifEgmmaC+oPkE4Ns/Ccm\ne4bj5q3hwLVjPYHUnJrZdq64cfJ1n338O3C/hTYoAL/9Li0uOfmIdBV1iqxJ3nRM\ntPx+W/MwQj/1w+XsP/e4ODPSKMjTOyZkLVhArLA2qBM3l1NBWQw4EV96m1Dvjq2o\nxFYhSODZOYDYXq82NZya3cBzj30kEB/6fNk6qPAsMa3Ck7F/9mx3MA2XM/S0aB/U\nq+5I1g+mTAMPKa2c2Tv2hwWuRU9ddKGiXuw/gHPoBwEU7AVNk+nNSVDhj5/pqcFB\nM/lPNg6xAoGBAPu/oICyXwlXYfsvkTx+HHpY7Imq8RtBUjVpD3z+LC6+QydlF2Z/\nNqLDxBPZAAdA7VGzw5QdNR8DKY9EgeRQAcci8FIqjueTPQDVKl9kwJzOxqg8DM8t\nR8YpIOtP22JvjHAkFafBq9cWYZNLQwVabIkCdc0jUruN53WKRkj+b0npAoGBANo8\nkX7ypsS+riLu6Ez89tXHV78CW8eMb/Wxsa2hgrzd7KmgjYdj2wlfRaEY6pSvBA1Y\nMvy/Emvm2KhwuGzWWPJvoaQq/Hr6Puns9DVP8U3TTJDC3R5dDZUQ0DiVUGyez9Qu\nXV5aNMnXFjGPdRQYjGM1zG6677dM0CVYu/6MVSd3AoGBAN5X3tALufgsHzOUTXfa\nAhjk1PS573yc8piNk8pXSnp2PCVdGY/DJ2QV9uV4sJe3dmLEnCYCrdoYFuqcHQSi\nzQ8uAobvY4uP9T75BhV+jMdxsO8BKmcInO2dgZ+SxjZoQucAV8f0O2saL0/CFw1x\nUY6oh5aIbheMOzMKzwzE+1GRAoGAYm5FFWPuUfjK49irj+XckulZKz6uFJ/D86YU\nxIJ/TB4wWwWeL/2a0mxVJGbvjuYtRrOMM7EeZup0t+w3UmePMLGmzzvQKstpyupj\n7xPCe16dPwGU59gCg0RVFeBKqOMsS8Apvp+jBZJsYSgaH1k/IJQoQ50u95a+nsmZ\n6SJ0WdsCgYBfTcIJ456LNPQ7sjDtcqIQcbBgXYIt/u4dIhz0zuLSfvTrXAtcy7nU\nEDU+N2Ay715GmS+/iwc592Itam93t3sl1ql/Y+SrrxGQ7zRd6MALKIxM0+4qptB5\nDFXT1B5qhKHdZFr71AIGPrUjfsRQV8tPKFjRkuQ0zqEPvi4g06RMRw==\n-----END RSA PRIVATE KEY-----\n",
+				Cert:       "-----BEGIN CERTIFICATE-----\nMIIDKzCCAhOgAwIBAgIRALIKjRCwhEmeWcNvwy1fBCUwDQYJKoZIhvcNAQELBQAw\nQDEVMBMGA1UEChMMVGVsZXBvcnQgT1NTMScwJQYDVQQDEx50ZWxlcG9ydC5sb2Nh\nbGhvc3QubG9jYWxkb21haW4wHhcNMjIwNDI1MDg1MzE4WhcNMzIwNDIyMDg1MzE4\nWjBAMRUwEwYDVQQKEwxUZWxlcG9ydCBPU1MxJzAlBgNVBAMTHnRlbGVwb3J0Lmxv\nY2FsaG9zdC5sb2NhbGRvbWFpbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC\nggEBANacvquW58YQL2e254UEGrhyKjqRQOQjFwl3fgPWNagx3nJzd6xVWX8lGa2J\nv4E0GUqbYALIa/lVrAYfTt2QGeS4Pn9BUpGK/pNPgOwcd7+De+j7IshPiDTJrcrz\n9m0xsjqx6mnhs0GJKYj6tOOFkto+Tw2IkFm3qQ6cS2G4kO6sM0vcWWaesPE8hRjZ\nDJduheWXkh/k/0vxB7d0PbdlNrlkXVr9SHWdd5K6iSVETM5ATDI9owcYCqBzyWu0\n+A54i4OWuTgSk23q52z3Vtcc0FIBwE8HZUAMdvigSKSiYrqosR9f21Rx6WcwEeSG\nF7/NsZmAaMoxQbJgx92qPjBa2k8CAwEAAaMgMB4wDgYDVR0PAQH/BAQDAgeAMAwG\nA1UdEwEB/wQCMAAwDQYJKoZIhvcNAQELBQADggEBADXVdHHQ3HB6X7QizVnQ/Cgg\nzEOEiMC1ClsxkXeZnB1H6TpFEm9jxT77tVBGB0x9dAyEwmOwYAgf+F5TJIl6mqfy\nIbXK+XFxqacoDHprtPtqmqH1tR20G9cP8mxfbm+bq47rOWN1tgAmIlxxaR6Z2GTE\n2zKw5vyjdZsSidCxka9YdW8AgEcpnVteqxjrs4SOcbidJIs+9NnxtApJPMKFOkbk\nvjJx59skfCsNnrk8D3CeiDiT7/HMDLM4c83ETG04C/SzNSvGlpf60mTIjkyzydAK\nvIiKii9s2m1KiTOsGKVkDEr+PbMoo4y6XRB0tVomdCQxzCZLDs6iwviGGUer7wI=\n-----END CERTIFICATE-----\n",
+			},
+			Provider:          "",
+			EncryptionKeyPair: nil,
+		},
+	}, defaults.SAMLAuthRequestTTL)
+	require.NoError(t, err)
+
+	// check ValidateSAMLResponse
+	response, err = a.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)))
+	require.NoError(t, err)
+	require.NotNil(t, response)
+
+	// check internal method, validate diagnostic outputs.
+	diagCtx := a.newSSODiagContext(types.KindSAML)
+	auth, err := a.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)))
+	require.NoError(t, err)
+
+	// ensure diag info got stored and is identical.
+	infoFromBackend, err := a.GetSSODiagnosticInfo(context.Background(), types.KindSAML, auth.Req.ID)
+	require.NoError(t, err)
+	require.Equal(t, &diagCtx.info, infoFromBackend)
+
+	// verify values
+	require.Equal(t, "ops@gravitational.io", auth.Username)
+	require.Equal(t, "ops@gravitational.io", auth.Identity.Username)
+	require.Equal(t, "saml-test-conn", auth.Identity.ConnectorID)
+	require.Equal(t, "_4f256462-6c2d-466d-afc0-6ee36602b6f2", auth.Req.ID)
+	require.Equal(t, 0, len(auth.HostSigners))
+
+	authnInstant := time.Date(2022, 04, 25, 8, 3, 11, 779000000, time.UTC)
+
+	// ignore, this is boring and very complex.
+	require.NotNil(t, diagCtx.info.SAMLAssertionInfo.Assertions)
+	diagCtx.info.SAMLAssertionInfo.Assertions = nil
+
+	require.Equal(t, types.SSODiagnosticInfo{
+		TestFlow: true,
+		Error:    "",
+		Success:  true,
+		CreateUserParams: &types.CreateUserParams{
+			ConnectorName: "saml-test-conn",
+			Username:      "ops@gravitational.io",
+			Roles:         []string{"access"},
+			Traits: map[string][]string{
+				"groups":   {"Everyone", "okta-admin", "okta-dev"},
+				"username": {"ops@gravitational.io"},
+			},
+			SessionTTL: 108000000000000,
+		},
+		SAMLAttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "groups",
+				Value: "okta-admin",
+				Roles: []string{"access"},
+			},
+		},
+		SAMLAttributesToRolesWarnings: nil,
+		SAMLAttributeStatements: map[string][]string{
+			"groups":   {"Everyone", "okta-admin", "okta-dev"},
+			"username": {"ops@gravitational.io"},
+		},
+		SAMLAssertionInfo: &types.AssertionInfo{
+			NameID: "ops@gravitational.io",
+			Values: map[string]samltypes.Attribute{
+				"groups": {
+					XMLName:    xml.Name{Space: "urn:oasis:names:tc:SAML:2.0:assertion", Local: "Attribute"},
+					Name:       "groups",
+					NameFormat: "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
+					Values: []samltypes.AttributeValue{
+						{
+							XMLName: xml.Name{Space: "urn:oasis:names:tc:SAML:2.0:assertion", Local: "AttributeValue"},
+							Value:   "Everyone",
+						},
+						{
+							XMLName: xml.Name{Space: "urn:oasis:names:tc:SAML:2.0:assertion", Local: "AttributeValue"},
+							Value:   "okta-admin",
+						},
+						{
+							XMLName: xml.Name{Space: "urn:oasis:names:tc:SAML:2.0:assertion", Local: "AttributeValue"},
+							Value:   "okta-dev",
+						},
+					},
+				},
+				"username": {
+					XMLName:    xml.Name{Space: "urn:oasis:names:tc:SAML:2.0:assertion", Local: "Attribute"},
+					Name:       "username",
+					NameFormat: "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
+					Values: []samltypes.AttributeValue{
+						{
+							XMLName: xml.Name{Space: "urn:oasis:names:tc:SAML:2.0:assertion", Local: "AttributeValue"},
+							Value:   "ops@gravitational.io",
+						},
+					},
+				},
+			},
+			WarningInfo:                &saml2.WarningInfo{},
+			SessionIndex:               "_4f256462-6c2d-466d-afc0-6ee36602b6f2",
+			AuthnInstant:               &authnInstant,
+			SessionNotOnOrAfter:        nil,
+			Assertions:                 nil,
+			ResponseSignatureValidated: true,
+		},
+		SAMLTraitsFromAssertions: map[string][]string{
+			"groups":   {"Everyone", "okta-admin", "okta-dev"},
+			"username": {"ops@gravitational.io"},
+		},
+		SAMLConnectorTraitMapping: []types.TraitMapping{
+			{
+				Trait: "groups",
+				Value: "okta-admin",
+				Roles: []string{"access"},
+			},
+		},
+	}, diagCtx.info)
+
+	// make sure no users have been created.
+	users, err := a.GetUsers(false)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(users))
 }
