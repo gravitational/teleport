@@ -1279,13 +1279,13 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 	}
 
 	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
-	tracker, err := srv.NewSessionTracker(s.closeCtx, trackerSpec, s.cfg.AuthClient)
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	go func() {
-		if err := tracker.UpdateExpirationLoop(s.closeCtx, s.cfg.Clock); err != nil {
+		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
 			s.cfg.Log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionID)
 		}
 	}()

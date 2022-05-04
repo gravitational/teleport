@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package srv
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -31,7 +30,7 @@ import (
 
 func TestSessionTracker(t *testing.T) {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClockAt(time.Now())
+	clock := clockwork.NewFakeClock()
 
 	mockService := &mockSessiontrackerService{
 		trackers: make(map[string]types.SessionTracker),
@@ -39,6 +38,7 @@ func TestSessionTracker(t *testing.T) {
 
 	sessID := "sessionID"
 	trackerSpec := types.SessionTrackerSpecV1{
+		Created:   clock.Now(),
 		SessionID: sessID,
 		State:     types.SessionState_SessionStatePending,
 	}
@@ -71,20 +71,14 @@ func TestSessionTracker(t *testing.T) {
 
 		// cancelling the goroutine's ctx should halt the update loop
 		cancel()
-		require.Nil(t, <-done)
-	})
-
-	t.Run("WaitOnStateUpdate", func(t *testing.T) {
-		t.Parallel()
-
-		// Wait for state to get updated to terminated
-		require.Equal(t, types.SessionState_SessionStateTerminated, tracker.WaitForStateUpdate())
+		_, ok := <-done
+		require.False(t, ok)
 	})
 
 	t.Run("UpdateState", func(t *testing.T) {
 		err = tracker.UpdateState(ctx, types.SessionState_SessionStateRunning)
 		require.NoError(t, err)
-		require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetStateUnderStateLock())
+		require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetState())
 		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 	})
 
@@ -104,38 +98,12 @@ func TestSessionTracker(t *testing.T) {
 		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 	})
 
-	t.Run("UpdateExpirationLoop", func(t *testing.T) {
-		cancelCtx, cancel := context.WithCancel(ctx)
-		done := make(chan struct{})
-
-		// Test update expiration loop
-		go func() {
-			tracker.UpdateExpirationLoop(cancelCtx, clock)
-			close(done)
-		}()
-
-		// Wait for goroutine to wait on clock.After
-		clock.BlockUntil(1)
-		expectedExpiry := tracker.tracker.Expiry().Add(sessionTrackerExpirationUpdateInterval)
-		clock.Advance(sessionTrackerExpirationUpdateInterval)
-
-		// expiration should be updated by the next time we wait on clock.After
-		clock.BlockUntil(1)
-		require.Equal(t, expectedExpiry, tracker.tracker.Expiry())
-		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
-
-		// cancelling the goroutine's ctx should halt the update loop
-		cancel()
-		require.Nil(t, <-done)
-	})
-
 	t.Run("Close", func(t *testing.T) {
+		// Closing the tracker should update the state to terminated
 		err = tracker.Close(ctx)
 		require.NoError(t, err)
-
-		// Closing the tracker should update the state to terminated
-		require.Equal(t, types.SessionState_SessionStateTerminated, tracker.GetStateUnderStateLock())
-		require.Equal(t, tracker, mockService.trackers[sessID])
+		require.Equal(t, types.SessionState_SessionStateTerminated, tracker.GetState())
+		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 	})
 }
 
@@ -152,16 +120,7 @@ func (m *mockSessiontrackerService) GetSessionTracker(ctx context.Context, sessi
 }
 
 func (m *mockSessiontrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	switch update := req.Update.(type) {
-	case *proto.UpdateSessionTrackerRequest_UpdateExpiry:
-		m.trackers[req.SessionID].SetExpiry(*update.UpdateExpiry.Expires)
-	case *proto.UpdateSessionTrackerRequest_UpdateState:
-		m.trackers[req.SessionID].SetState(update.UpdateState.State)
-	case *proto.UpdateSessionTrackerRequest_AddParticipant:
-		m.trackers[req.SessionID].AddParticipant(*update.AddParticipant.Participant)
-	case *proto.UpdateSessionTrackerRequest_RemoveParticipant:
-		m.trackers[req.SessionID].RemoveParticipant(update.RemoveParticipant.ParticipantID)
-	}
+	// m.trackers[req.SessionID] will be updated as a pointer reference
 	return nil
 }
 

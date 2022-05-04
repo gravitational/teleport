@@ -406,8 +406,6 @@ type session struct {
 
 	presenceEnabled bool
 
-	started bool
-
 	doneCh chan struct{}
 
 	bpfContext *bpf.SessionContext
@@ -831,10 +829,9 @@ func (s *session) setEndingContext(ctx *ServerContext) {
 	s.endingContext = ctx
 }
 
+// launch launches the session.
+// Must be called under session Lock.
 func (s *session) launch(ctx *ServerContext) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.log.Debugf("Launching session %v.", s.id)
 	s.BroadcastMessage("Connecting to %v over SSH", ctx.srv.GetInfo().GetHostname())
 
@@ -1184,6 +1181,8 @@ func (s *session) removePartyUnderLock(p *party) error {
 	// Remove participant from in-memory map of party members.
 	delete(s.parties, p.id)
 
+	s.BroadcastMessage("User %v left the session.", p.user)
+
 	// Update session tracker
 	s.log.Debugf("No longer tracking participant: %v", p.id)
 	if err := s.tracker.RemoveParticipant(s.serverCtx, p.id.String()); err != nil {
@@ -1193,33 +1192,36 @@ func (s *session) removePartyUnderLock(p *party) error {
 	// Remove party for the term writer
 	s.io.DeleteWriter(string(p.id))
 
+	// Emit session leave event to both the Audit Log as well as over the
+	// "x-teleport-event" channel in the SSH connection.
+	s.emitSessionLeaveEvent(p.ctx)
+
 	canRun, policyOptions, err := s.checkIfStart()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	s.tracker.LockState()
-	defer s.tracker.UnlockState()
-	if !canRun && s.tracker.GetStateUnderStateLock() == types.SessionState_SessionStateRunning {
+	if !canRun {
 		if policyOptions.TerminateOnLeave {
 			// Force termination in goroutine to avoid deadlock
 			go s.registry.ForceTerminate(s.scx)
 			return nil
 		}
 
-		err := s.tracker.UpdateStateUnderStateLock(s.serverCtx, types.SessionState_SessionStatePending)
-		if err != nil {
+		// pause session and wait for another party to resume
+		s.io.Off()
+		s.BroadcastMessage("Session paused, Waiting for required participants...")
+		if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStatePending); err != nil {
 			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStatePending)
 		}
 
-		go s.waitOnAccess()
+		go func() {
+			if state := s.tracker.WaitForStateUpdate(); state == types.SessionState_SessionStateRunning {
+				s.BroadcastMessage("Resuming session...")
+				s.io.On()
+			}
+		}()
 	}
-
-	s.BroadcastMessage("User %v left the session.", p.user)
-
-	// Emit session leave event to both the Audit Log as well as over the
-	// "x-teleport-event" channel in the SSH connection.
-	s.emitSessionLeaveEvent(p.ctx)
 
 	// If the leaving party was the last one in the session, start the lingerAndDie
 	// goroutine. Parties that join during the linger duration will cancel the
@@ -1231,16 +1233,6 @@ func (s *session) removePartyUnderLock(p *party) error {
 	}
 
 	return nil
-}
-
-func (s *session) waitOnAccess() {
-	s.io.Off()
-	s.BroadcastMessage("Session paused, Waiting for required participants...")
-
-	if state := s.tracker.WaitForStateUpdate(); state == types.SessionState_SessionStateRunning {
-		s.BroadcastMessage("Resuming session...")
-		s.io.On()
-	}
 }
 
 func (s *session) isStopped() bool {
@@ -1459,38 +1451,24 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 		}()
 	}
 
-	s.tracker.LockState()
-	defer s.tracker.UnlockState()
-	if s.tracker.GetStateUnderStateLock() == types.SessionState_SessionStatePending {
+	if s.tracker.GetState() == types.SessionState_SessionStatePending {
 		canStart, _, err := s.checkIfStart()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		if canStart {
-			if !s.started {
-				s.started = true
-
-				go func() {
-					err := s.launch(s.scx)
-					if err != nil {
-						s.log.Errorf("Failed to launch session %v: %v", s.id, err)
-					}
-				}()
-			} else {
-				err := s.tracker.UpdateStateUnderStateLock(s.serverCtx, types.SessionState_SessionStateRunning)
-				if err != nil {
-					s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
-				}
+			if err := s.launch(s.scx); err != nil {
+				s.log.Errorf("Failed to launch session %v: %v", s.id, err)
 			}
-		} else if !s.started {
-			base := "Waiting for required participants..."
+			return nil
+		}
 
-			if s.displayParticipantRequirements {
-				s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
-			} else {
-				s.BroadcastMessage(base)
-			}
+		base := "Waiting for required participants..."
+		if s.displayParticipantRequirements {
+			s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
+		} else {
+			s.BroadcastMessage(base)
 		}
 	}
 
@@ -1626,8 +1604,7 @@ func (p *party) closeUnderSessionLock() {
 
 // trackSession creates a new session tracker for the ssh session.
 // While ctx is open, the session tracker's expiration will be extended
-// on an interval. Once the ctx is closed, the session tracker's state
-// will be updated to terminated.
+// on an interval until the session tracker is closed.
 func (s *session) trackSession(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:   s.id.String(),
@@ -1662,14 +1639,9 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 	}
 
 	go func() {
-		cancelCtx, cancel := context.WithCancel(s.serverCtx)
-		defer cancel()
-		go func() {
-			if err := s.tracker.UpdateExpirationLoop(cancelCtx, s.registry.clock); err != nil {
-				s.log.WithError(err).Debug("Failed to update session tracker expiration")
-			}
-		}()
-		<-s.stopC
+		if err := s.tracker.UpdateExpirationLoop(s.serverCtx, s.registry.clock); err != nil {
+			s.log.WithError(err).Debug("Failed to update session tracker expiration")
+		}
 	}()
 
 	return nil

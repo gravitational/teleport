@@ -809,11 +809,7 @@ func (s *session) join(p *party) error {
 		}
 	}
 
-	s.tracker.LockState()
-	state := s.tracker.GetStateUnderStateLock()
-	s.tracker.UnlockState()
-
-	if state == types.SessionState_SessionStateTerminated {
+	if s.tracker.GetState() == types.SessionState_SessionStateTerminated {
 		return trace.AccessDenied("The requested session is not active")
 	}
 
@@ -932,10 +928,7 @@ func (s *session) BroadcastMessage(format string, args ...interface{}) {
 
 // leave removes a party from the session.
 func (s *session) leave(id uuid.UUID) error {
-	s.tracker.LockState()
-	defer s.tracker.UnlockState()
-
-	if s.tracker.GetStateUnderStateLock() == types.SessionState_SessionStateTerminated {
+	if s.tracker.GetState() == types.SessionState_SessionStateTerminated {
 		return nil
 	}
 
@@ -1007,32 +1000,29 @@ func (s *session) leave(id uuid.UUID) error {
 	if !canStart {
 		if options.TerminateOnLeave {
 			go func() {
-				err := s.Close()
-				if err != nil {
+				if err := s.Close(); err != nil {
 					s.log.WithError(err).Errorf("Failed to close session")
 				}
 			}()
-		} else {
-			if err := s.tracker.UpdateStateUnderStateLock(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
-				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
-			}
-			go s.waitOnAccess()
+			return nil
 		}
+
+		// pause session and wait for another party to resume
+		s.io.Off()
+		s.BroadcastMessage("Session paused, Waiting for required participants...")
+		if err := s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStatePending); err != nil {
+			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStatePending)
+		}
+
+		go func() {
+			if state := s.tracker.WaitForStateUpdate(); state == types.SessionState_SessionStateRunning {
+				s.BroadcastMessage("Resuming session...")
+				s.io.On()
+			}
+		}()
 	}
 
 	return nil
-}
-
-// waitOnAccess puts the session in pending mode and waits for the session
-// to fulfill the access requirements again.
-func (s *session) waitOnAccess() {
-	s.io.Off()
-	s.BroadcastMessage("Session paused, Waiting for required participants...")
-
-	if state := s.tracker.WaitForStateUpdate(); state == types.SessionState_SessionStateRunning {
-		s.BroadcastMessage("Resuming session...")
-		s.io.On()
-	}
 }
 
 // allParticipants returns a list of all historical participants of the session.
@@ -1117,8 +1107,7 @@ func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, err
 
 // trackSession creates a new session tracker for the kube session.
 // While ctx is open, the session tracker's expiration will be extended
-// on an interval. Once the ctx is closed, the session tracker's state
-// will be updated to terminated.
+// on an interval until the session tracker is closed.
 func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicySet) error {
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:   s.id.String(),

@@ -678,6 +678,9 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	// the session upload completer, can track the session's lifetime.
 	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
 	if err := s.trackSession(cancelCtx, sessionCtx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -894,7 +897,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 	}
 
 	go func() {
-		if err := tracker.UpdateExpirationLoop(s.closeContext, s.cfg.Clock); err != nil {
+		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
 			s.log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
 		}
 	}()
