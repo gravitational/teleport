@@ -31,7 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -292,94 +291,6 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 }
 
 func (l *AuditLog) WaitForDelivery(context.Context) error {
-	return nil
-}
-
-// SessionRecording is a recording of a live session
-type SessionRecording struct {
-	// Namespace is a session namespace
-	Namespace string
-	// SessionID is a session ID
-	SessionID session.ID
-	// Recording is a packaged tarball recording
-	Recording io.Reader
-}
-
-// CheckAndSetDefaults checks and sets default parameters
-func (l *SessionRecording) CheckAndSetDefaults() error {
-	if l.Recording == nil {
-		return trace.BadParameter("missing parameter Recording")
-	}
-	if l.SessionID.IsZero() {
-		return trace.BadParameter("missing parameter session ID")
-	}
-	if l.Namespace == "" {
-		l.Namespace = apidefaults.Namespace
-	}
-	return nil
-}
-
-// UploadSessionRecording persists the session recording locally or to third
-// party storage.
-// TODO(zmb3): I don't think this is ever called anymore - remove it
-func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
-	if err := r.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Upload session recording to endpoint defined in file configuration. Like S3.
-	start := time.Now()
-	url, err := l.UploadHandler.Upload(context.TODO(), r.SessionID, r.Recording)
-	if err != nil {
-		l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
-		return trace.Wrap(err)
-	}
-	l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
-	return l.EmitAuditEvent(context.TODO(), &apievents.SessionUpload{
-		Metadata: apievents.Metadata{
-			Index: SessionUploadIndex,
-			ID:    uuid.New().String(),
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(r.SessionID),
-		},
-		SessionURL: url,
-	})
-}
-
-// PostSessionSlice submits slice of session chunks to the audit log server.
-func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
-	if slice.Namespace == "" {
-		return trace.BadParameter("missing parameter Namespace")
-	}
-	if len(slice.Chunks) == 0 {
-		return trace.BadParameter("missing session chunks")
-	}
-	if l.ExternalLog != nil {
-		return l.ExternalLog.PostSessionSlice(slice)
-	}
-	if slice.Version < V3 {
-		return trace.BadParameter("audit log rejected %v log entry, upgrade your components.", slice.Version)
-	}
-	// V3 API does not write session log to local session directory,
-	// instead it writes locally, this internal method captures
-	// non-print events to the global audit log
-	return l.processSlice(nil, &slice)
-}
-
-func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
-	for _, chunk := range slice.Chunks {
-		if chunk.EventType == SessionPrintEvent || chunk.EventType == "" {
-			continue
-		}
-		fields, err := EventFromChunk(slice.SessionID, chunk)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := l.EmitAuditEventLegacy(Event{Name: chunk.EventType}, fields); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 
@@ -943,25 +854,6 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEven
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-// EmitAuditEventLegacy adds a new event to the log.
-func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	// If an external logger has been set, use it as the emitter, otherwise
-	// fallback to the local disk based emitter.
-	var emitAuditEvent func(event Event, fields EventFields) error
-	if l.ExternalLog != nil {
-		emitAuditEvent = l.ExternalLog.EmitAuditEventLegacy
-	} else {
-		emitAuditEvent = l.getLocalLog().EmitAuditEventLegacy
-	}
-
-	err := emitAuditEvent(event, fields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
