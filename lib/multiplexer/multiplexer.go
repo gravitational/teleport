@@ -369,7 +369,7 @@ var (
 	postgresCancelRequest = []byte{0x0, 0x0, 0x0, 0x10, 0x4, 0xd2, 0x16, 0x2e}
 )
 
-// isHTTP returns true if the first 3 bytes of the prefix indicate
+// isHTTP returns true if the first few bytes of the prefix indicate
 // the use of an HTTP method.
 func isHTTP(in []byte) bool {
 	methods := [...][]byte{
@@ -384,20 +384,24 @@ func isHTTP(in []byte) bool {
 		[]byte("PATCH"),
 	}
 	for _, verb := range methods {
-		// we only get 3 bytes, so can only compare the first 3 bytes of each verb
-		if bytes.HasPrefix(verb, in[:3]) {
+		if bytes.HasPrefix(verb, in) {
 			return true
 		}
 	}
 	return false
 }
 
+// detectProto tries to determine the network protocol used from the first
+// 8 bytes of a connection.
 func detectProto(in []byte) (Protocol, error) {
+	if len(in) < 8 {
+		return ProtoUnknown, trace.BadParameter("expected at least 8 bytes, got %d", len(in))
+	}
+
 	switch {
-	// reader peeks only 3 bytes, slice the longer proxy prefix
-	case bytes.HasPrefix(in, proxyPrefix[:3]):
+	case bytes.HasPrefix(in, proxyPrefix):
 		return ProtoProxy, nil
-	case bytes.HasPrefix(in, proxyV2Prefix[:3]):
+	case bytes.HasPrefix(in, proxyV2Prefix[:8]):
 		return ProtoProxyV2, nil
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil
