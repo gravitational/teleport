@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
@@ -810,7 +811,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
 	// reason/message in the event the channel is rejected.
-	remoteSession, err := s.remoteClient.NewSession()
+	remoteSession, err := tracing.NewSSHSession(ctx, s.remoteClient)
 	if err != nil {
 		s.log.Warnf("Remote session open failed: %v", err)
 		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)
@@ -912,7 +913,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
-			return s.handleSubsystem(ch, req, scx)
+			return s.handleSubsystem(ctx, ch, req, scx)
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
@@ -932,7 +933,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.EnvRequest:
 		return s.handleEnv(ch, req, scx)
 	case sshutils.SubsystemRequest:
-		return s.handleSubsystem(ch, req, scx)
+		return s.handleSubsystem(ctx, ch, req, scx)
 	case sshutils.X11ForwardRequest:
 		return s.handleX11Forward(ctx, ch, req, scx)
 	case sshutils.AgentForwardRequest:
@@ -1070,16 +1071,16 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	return nil
 }
 
-func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	subsystem, err := parseSubsystemRequest(req, ctx)
+func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+	subsystem, err := parseSubsystemRequest(req, serverContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// start the requested subsystem, if it fails to start return result right away
-	err = subsystem.Start(ch)
+	err = subsystem.Start(ctx, ch)
 	if err != nil {
-		ctx.SendSubsystemResult(srv.SubsystemResult{
+		serverContext.SendSubsystemResult(srv.SubsystemResult{
 			Name: subsystem.subsytemName,
 			Err:  trace.Wrap(err),
 		})
@@ -1089,7 +1090,7 @@ func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.Serv
 	// wait for the subsystem to finish and return that result
 	go func() {
 		err := subsystem.Wait()
-		ctx.SendSubsystemResult(srv.SubsystemResult{
+		serverContext.SendSubsystemResult(srv.SubsystemResult{
 			Name: subsystem.subsytemName,
 			Err:  trace.Wrap(err),
 		})

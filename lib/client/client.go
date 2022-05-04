@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/moby/term"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -41,13 +43,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
-	"github.com/moby/term"
-
-	"github.com/gravitational/trace"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
@@ -92,8 +92,8 @@ func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.Sessio
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
-func (proxy *ProxyClient) GetSites() ([]types.Site, error) {
-	proxySession, err := proxy.Client.NewSession()
+func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
+	proxySession, err := tracing.NewSSHSession(ctx, proxy.Client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -785,7 +785,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 // and could be cached based on the access policy
 func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet bool) (auth.ClientI, error) {
 	// get the current cluster:
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -811,7 +811,7 @@ func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName st
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCurrentCluster(ctx context.Context, quiet bool) (auth.ClientI, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -993,7 +993,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		return nil, trace.Wrap(err)
 	}
 
-	proxySession, err := proxy.Client.NewSession()
+	proxySession, err := tracing.NewSSHSession(ctx, proxy.Client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1111,7 +1111,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		return nil, trace.Wrap(err)
 	}
 
-	proxySession, err := proxy.Client.NewSession()
+	proxySession, err := tracing.NewSSHSession(ctx, proxy.Client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1380,7 +1380,7 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 		return trace.Wrap(err)
 	}
 
-	s, err := c.Client.NewSession()
+	s, err := tracing.NewSSHSession(ctx, c.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1635,8 +1635,8 @@ func (c *NodeClient) Close() error {
 }
 
 // currentCluster returns the connection to the API of the current cluster
-func (proxy *ProxyClient) currentCluster() (*types.Site, error) {
-	sites, err := proxy.GetSites()
+func (proxy *ProxyClient) currentCluster(ctx context.Context) (*types.Site, error) {
+	sites, err := proxy.GetSites(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

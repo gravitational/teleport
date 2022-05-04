@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -210,7 +211,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, callback func(s *ssh.
 type interactiveCallback func(serverSession *ssh.Session, shell io.ReadWriteCloser) error
 
 func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, error) {
-	sess, err := ns.nodeClient.Client.NewSession()
+	sess, err := tracing.NewSSHSession(ctx, ns.NodeClient().Client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
