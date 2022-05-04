@@ -1,0 +1,2 @@
+clusterName: teleport.example.com
+proxyKubePublicAddr: k8s.example.com:3026

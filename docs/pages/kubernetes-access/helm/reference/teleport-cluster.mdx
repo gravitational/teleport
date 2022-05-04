@@ -142,6 +142,28 @@ By default no devices are forbidden.
   </TabItem>
 </Tabs>
 
+## `proxyKubePublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `nil` | no | `proxy_service.kube_public_addr` | ❌ |
+
+`proxyKubePublicAddr` configures the public address for the kubernetes proxy to listen on (e.g. k8s.example.com:443)
+
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  proxyKubePublicAddr: k8s.example.com:443
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set proxyKubePublicAddr=k8s.example.com:443
+  ```
+  </TabItem>
+</Tabs>
+
 ## `separatePostgresListener`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |

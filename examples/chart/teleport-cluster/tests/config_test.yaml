@@ -259,6 +259,16 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
+  - it: matches snapshot for proxy-kube-public-address.yaml
+    values:
+      - ../.lint/proxy-kube-public-address.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for resources.yaml
     values:
       - ../.lint/resources.yaml

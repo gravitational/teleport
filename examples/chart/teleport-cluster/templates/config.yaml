@@ -98,6 +98,9 @@ data:
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
   {{- if not .Values.proxyListenerMode }}
       kube_listen_addr: 0.0.0.0:3026
+    {{- if .Values.proxyKubePublicAddr }}
+      kube_public_addr: {{ .Values.proxyKubePublicAddr }}
+    {{- end }}
       mysql_listen_addr: 0.0.0.0:3036
     {{- if .Values.separatePostgresListener }}
       postgres_listen_addr: 0.0.0.0:5432
