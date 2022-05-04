@@ -12,8 +12,8 @@ state: draft
 
 ## What
 
-Additional validation based on client IP for creating and using certificates. User can define which IP addresses can
-create certificates and from where they can be used.
+Additional validation based on client IP for creating and using certificates. Certificate can be used only with the same
+client IP as the one used to generate it.
 
 ## Why
 
@@ -66,7 +66,8 @@ certificate type:
   of `tlsca.Identity` and validated in authorization routines in respective services. It will be also stored in JWT
   token in Application access.
 
-Encoding above will happen in all places we generate certificates: 
+Encoding above will happen in all places we generate certificates:
+
 * `lib/auth/auth.go#generateUserCert`
 * `lib/auth/join.go#generateCerts` (Machine ID)
 * `lib/auth/auth_with_roles.go#generateUserCerts()` (renewals, impersonation etc)
