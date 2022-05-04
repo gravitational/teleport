@@ -299,13 +299,33 @@ func TestLabels(t *testing.T) {
 	}
 	tconf := service.MakeDefaultConfig()
 	tconf.DataDir = t.TempDir()
-	tconf.SSH.Enabled = true
 	tconf.Auth.Enabled = true
-	tconf.Proxy.Enabled = false
-	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.Proxy.Enabled = true
+	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
 	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
+
+	tconf.SSH.Enabled = true
+	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
+
+	appConf := service.App{
+		Name: "test-app",
+		URI:  "app.example.com",
+	}
+
+	tconf.Apps.Enabled = true
+	tconf.Apps.Apps = []service.App{appConf}
+
+	dbConfig := service.Database{
+		Name:     "test-db",
+		Protocol: "postgres",
+		URI:      "postgres://somewhere.example.com",
+	}
+	tconf.Databases.Enabled = true
+	tconf.Databases.Databases = []service.Database{dbConfig}
+
+	enableKubernetesService(t, tconf)
 
 	proc, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
@@ -313,20 +333,53 @@ func TestLabels(t *testing.T) {
 
 	ctx := context.Background()
 	authServer := proc.GetAuthServer()
+
 	var nodes []types.Server
+	var apps []types.AppServer
+	var databases []types.DatabaseServer
+	var kubes []types.Server
+
+	// Wait for everything to come online.
 	require.Eventually(t, func() bool {
 		var err error
 		nodes, err = authServer.GetNodes(ctx, tconf.SSH.Namespace)
 		require.NoError(t, err)
-		return len(nodes) == 1
-	}, 20*time.Second, time.Second)
+		// apps, err = authServer.GetApps(ctx)
+		apps, err = authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
+		require.NoError(t, err)
+		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
+		require.NoError(t, err)
+		kubes, err = authServer.GetKubeServices(ctx)
+		require.NoError(t, err)
+		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
+	}, 10*time.Second, time.Second)
 
+	// TODO: guarantee that this (or any) tag exists
+	tagName := fmt.Sprintf("%s/Name", types.AWSNamespace)
+
+	// Check that EC2 labels were applied.
 	require.Eventually(t, func() bool {
 		node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
 		require.NoError(t, err)
-		// TODO: guarantee that this (or any) tag exists
-		_, ok := node.GetAllLabels()[fmt.Sprintf("%s/Name", types.AWSNamespace)]
-		return ok
+		_, nodeHasLabel := node.GetAllLabels()[tagName]
+		apps, err := authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		app := apps[0].GetApp()
+		_, appHasLabel := app.GetAllLabels()[tagName]
+
+		databases, err := authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
+		require.NoError(t, err)
+		require.Len(t, databases, 1)
+		database := databases[0].GetDatabase()
+		_, dbHasLabel := database.GetAllLabels()[tagName]
+
+		kubes, err := authServer.GetKubeServices(ctx)
+		require.NoError(t, err)
+		require.Len(t, kubes, 1)
+		kube := kubes[0]
+		_, kubeHasLabel := kube.GetAllLabels()[tagName]
+		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
 	}, 10*time.Second, time.Second)
 
 }
