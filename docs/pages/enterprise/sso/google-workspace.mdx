@@ -37,48 +37,13 @@ to define policies like:
 
 Before you get started you’ll need:
 
-<Tabs>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on how to set this up, see our Enterprise
-  [Getting Started](/docs/enterprise/getting-started) guide.
-
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
-  To download these tools, visit the [Downloads](/docs/cloud/downloads) page.
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-</Tabs>
 - A Google Workspace super administrator account. We recommend setting up a separate super admin account with 2FA as opposed to granting your daily user super admin privileges.
 - Ability to create a Google Cloud project, which requires signing up for Google Cloud. Note that this guide will not require using any paid Google Cloud services.
 - Ability to set up Google Workspace groups.
+
+(!docs/pages/includes/enterprise/ent-user-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Enable default OIDC authentication
 

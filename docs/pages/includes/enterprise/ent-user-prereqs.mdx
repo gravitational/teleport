@@ -1,0 +1,31 @@
+<Tabs>
+<TabItem
+  scope={["enterprise"]} label="Self-Hosted">
+
+- Access to the machine hosting the Auth Service
+
+- Maintaining SAML/OIDC auth connectors via the desktop CLI requires enterprise `tctl` admin tool version >= (=teleport.version=),
+  which you can download by visiting the
+  [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+
+<TabItem scope={["cloud"]}
+  label="Teleport Cloud">
+
+- The `tctl` client Admin tool version >= (=cloud.version=).
+
+  You can download these from [Teleport Cloud Downloads](/docs/cloud/downloads).
+
+  ```code
+  $ tctl version
+  # Teleport v(=cloud.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+</Tabs>
