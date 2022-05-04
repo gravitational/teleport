@@ -163,16 +163,15 @@ func (s *SessionTracker) UpdateState(ctx context.Context, state types.SessionSta
 }
 
 // WaitForStateUpdate waits for the tracker's state to be updated and returns the new state.
-func (s *SessionTracker) WaitForStateUpdate() types.SessionState {
+func (s *SessionTracker) WaitForStateUpdate(initialState types.SessionState) types.SessionState {
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
-	initialState := s.tracker.GetState()
 
 	for {
-		s.trackerCond.Wait()
-		if newState := s.tracker.GetState(); newState != initialState {
-			return newState
+		if state := s.tracker.GetState(); state != initialState {
+			return state
 		}
+		s.trackerCond.Wait()
 	}
 }
 

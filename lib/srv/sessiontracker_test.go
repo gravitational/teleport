@@ -40,7 +40,6 @@ func TestSessionTracker(t *testing.T) {
 	trackerSpec := types.SessionTrackerSpecV1{
 		Created:   clock.Now(),
 		SessionID: sessID,
-		State:     types.SessionState_SessionStatePending,
 	}
 
 	// Create a new session tracker
@@ -75,23 +74,35 @@ func TestSessionTracker(t *testing.T) {
 		require.False(t, ok)
 	})
 
-	t.Run("UpdateState", func(t *testing.T) {
+	t.Run("State", func(t *testing.T) {
+		stateUpdate := make(chan types.SessionState)
+		go func() {
+			stateUpdate <- tracker.WaitForStateUpdate(types.SessionState_SessionStatePending)
+		}()
+
+		err = tracker.UpdateState(ctx, types.SessionState_SessionStatePending)
+		require.NoError(t, err)
+		require.Equal(t, types.SessionState_SessionStatePending, tracker.GetState())
+		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
+
 		err = tracker.UpdateState(ctx, types.SessionState_SessionStateRunning)
 		require.NoError(t, err)
 		require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetState())
 		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
+
+		// WaitForStateUpdate should ignore the pending update and then catch the running update
+		require.Equal(t, types.SessionState_SessionStateRunning, <-stateUpdate)
 	})
 
-	participantID := "userID"
-	t.Run("AddParticipant", func(t *testing.T) {
+	t.Run("Participants", func(t *testing.T) {
+		participantID := "userID"
+
 		p := &types.Participant{ID: participantID}
 		err = tracker.AddParticipant(ctx, p)
 		require.NoError(t, err)
 		require.Equal(t, []types.Participant{*p}, tracker.GetParticipants())
 		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
-	})
 
-	t.Run("RemoveParticipant", func(t *testing.T) {
 		err = tracker.RemoveParticipant(ctx, participantID)
 		require.NoError(t, err)
 		require.Empty(t, tracker.GetParticipants())

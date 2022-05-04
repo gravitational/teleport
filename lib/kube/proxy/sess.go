@@ -1015,7 +1015,7 @@ func (s *session) leave(id uuid.UUID) error {
 		}
 
 		go func() {
-			if state := s.tracker.WaitForStateUpdate(); state == types.SessionState_SessionStateRunning {
+			if state := s.tracker.WaitForStateUpdate(types.SessionState_SessionStatePending); state == types.SessionState_SessionStateRunning {
 				s.BroadcastMessage("Resuming session...")
 				s.io.On()
 			}
