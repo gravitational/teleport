@@ -766,7 +766,10 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 		}
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
+			// The party's connection may already be closed, in which case we expect an EOF
+			if !trace.IsEOF(err) {
+				s.log.Warnf("Unable to send %v to %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
+			}
 			continue
 		}
 		s.log.Debugf("Sent %v to %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr())
