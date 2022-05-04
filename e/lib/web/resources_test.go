@@ -115,6 +115,11 @@ metadata:
   name: test-goodcontent
 spec:
   acs: test
+  attributes_to_roles:
+  - name: foo
+    roles:
+    - access
+    value: bar
   entity_descriptor: |
     <?xml version="1.0" encoding="UTF-8"?>
     <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test">
