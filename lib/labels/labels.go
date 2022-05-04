@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
@@ -169,8 +170,9 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 	l.c.Labels[name] = value
 }
 
+// EC2LabelConfig is the configuration for the EC2 label service.
 type EC2LabelConfig struct {
-	Client *utils.InstanceMetadataClient
+	Client utils.InstanceMetadata
 	Log    *logrus.Entry
 }
 
@@ -188,10 +190,13 @@ func (conf *EC2LabelConfig) checkAndSetDefaults() error {
 	return nil
 }
 
+// EC2Labels is a service that periodically imports tags from EC2 via instance
+// metadata.
 type EC2Labels struct {
 	c      *EC2LabelConfig
-	mu     sync.Mutex
+	mu     sync.RWMutex
 	once   sync.Once
+	clock  clockwork.Clock
 	labels map[string]string
 
 	closeContext context.Context
@@ -206,6 +211,7 @@ func NewEC2Labels(ctx context.Context, c *EC2LabelConfig) (*EC2Labels, error) {
 
 	return &EC2Labels{
 		c:            c,
+		clock:        clockwork.NewRealClock(),
 		labels:       make(map[string]string),
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
@@ -214,15 +220,9 @@ func NewEC2Labels(ctx context.Context, c *EC2LabelConfig) (*EC2Labels, error) {
 
 // Get returns the list of updated EC2 labels.
 func (l *EC2Labels) Get() map[string]string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	m := make(map[string]string)
-	for k, v := range l.labels {
-		m[fmt.Sprintf("%s/%s", types.AWSNamespace, k)] = v
-	}
-
-	return m
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return toAWSLabels(l.labels)
 }
 
 // Sync will block and synchronously update EC2 labels.
@@ -249,19 +249,20 @@ func (l *EC2Labels) Sync() {
 	l.labels = m
 }
 
-// Start will start a loop that continually keeps EC2 labels updated.
+// Start will start a loop that continually keeps EC2 labels updated. Start
+// can safely be called multiple times.
 func (l *EC2Labels) Start() {
 	l.once.Do(func() { go l.periodicUpdateLabels() })
 }
 
 func (l *EC2Labels) periodicUpdateLabels() {
-	ticker := time.NewTicker(types.EC2LabelUpdatePeriod)
+	ticker := l.clock.NewTicker(types.EC2LabelUpdatePeriod)
 	defer ticker.Stop()
 
 	for {
 		l.Sync()
 		select {
-		case <-ticker.C:
+		case <-ticker.Chan():
 		case <-l.closeContext.Done():
 			return
 		}
@@ -271,4 +272,13 @@ func (l *EC2Labels) periodicUpdateLabels() {
 // Close will free up all resources and stop keeping EC2 labels updated.
 func (l *EC2Labels) Close() {
 	l.closeFunc()
+}
+
+// toAWSLabels formats labels coming from EC2.
+func toAWSLabels(labels map[string]string) map[string]string {
+	m := make(map[string]string, len(labels))
+	for k, v := range labels {
+		m[fmt.Sprintf("%s/%s", types.AWSNamespace, k)] = v
+	}
+	return m
 }

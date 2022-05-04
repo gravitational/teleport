@@ -89,6 +89,17 @@ func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
 	return iid.AccountID + "-" + iid.InstanceID
 }
 
+// InstanceMetadata is an interface for fetching information from EC2 instance
+// metadata.
+type InstanceMetadata interface {
+	// IsAvailable checks if instance metadata is available.
+	IsAvailable() bool
+	// GetTagKeys gets all of the EC2 tag keys.
+	GetTagKeys() ([]string, error)
+	// GetTagValue gets the value for a specified tag key.
+	GetTagValue(key string) (string, error)
+}
+
 // InstanceMetadataClient is a wrapper for an imds.Client.
 type InstanceMetadataClient struct {
 	c   *imds.Client

@@ -19,15 +19,16 @@ package labels
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 
 	"github.com/google/uuid"
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
@@ -35,14 +36,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-type LabelSuite struct {
-}
-
-var _ = check.Suite(&LabelSuite{})
-
-func TestLabels(t *testing.T) { check.TestingT(t) }
-
-func (s *LabelSuite) TestSync(c *check.C) {
+func TestSync(t *testing.T) {
 	// Create dynamic labels and sync right away.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
@@ -52,14 +46,14 @@ func (s *LabelSuite) TestSync(c *check.C) {
 			},
 		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	l.Sync()
 
 	// Check that the result contains the output of the command.
-	c.Assert(l.Get()["foo"].GetResult(), check.Equals, "4")
+	require.Equal(t, "4", l.Get()["foo"].GetResult())
 }
 
-func (s *LabelSuite) TestStart(c *check.C) {
+func TestStart(t *testing.T) {
 	// Create dynamic labels and setup async update.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
@@ -69,24 +63,24 @@ func (s *LabelSuite) TestStart(c *check.C) {
 			},
 		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	l.Start()
 
 	// Wait a maximum of 5 seconds for dynamic labels to be updated.
 	select {
 	case <-time.Tick(50 * time.Millisecond):
 		val, ok := l.Get()["foo"]
-		c.Assert(ok, check.Equals, true)
+		require.True(t, ok)
 		if val.GetResult() == "4" {
 			break
 		}
 	case <-time.After(5 * time.Second):
-		c.Fatalf("Timed out waiting for label to be updated.")
+		t.Fatalf("Timed out waiting for label to be updated.")
 	}
 }
 
 // TestInvalidCommand makes sure that invalid commands return a error message.
-func (s *LabelSuite) TestInvalidCommand(c *check.C) {
+func TestInvalidCommand(t *testing.T) {
 	// Create invalid labels and sync right away.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
@@ -95,11 +89,82 @@ func (s *LabelSuite) TestInvalidCommand(c *check.C) {
 				Command: []string{uuid.New().String()}},
 		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	l.Sync()
 
 	// Check that the output contains that the command was not found.
 	val, ok := l.Get()["foo"]
-	c.Assert(ok, check.Equals, true)
-	c.Assert(strings.Contains(val.GetResult(), "output:"), check.Equals, true)
+	require.True(t, ok)
+	require.Contains(t, val.GetResult(), "output:")
+}
+
+type mockIMDSClient struct {
+	available bool
+	tags      map[string]string
+}
+
+func (m *mockIMDSClient) IsAvailable() bool {
+	return m.available
+}
+
+func (m *mockIMDSClient) GetTagKeys() ([]string, error) {
+	keys := make([]string, 0, len(m.tags))
+	for k := range m.tags {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+func (m *mockIMDSClient) GetTagValue(key string) (string, error) {
+	if value, ok := m.tags[key]; ok {
+		return value, nil
+	}
+	return "", trace.NotFound("Tag %q not found", key)
+}
+
+func TestEC2Labels(t *testing.T) {
+	imdsClient := &mockIMDSClient{
+		available: true,
+		tags:      make(map[string]string),
+	}
+	clock := clockwork.NewFakeClock()
+	ctx, cancel := context.WithCancel(context.Background())
+	ec2Labels, err := NewEC2Labels(ctx, &EC2LabelConfig{
+		Client: imdsClient,
+	})
+	require.NoError(t, err)
+	ec2Labels.clock = clock
+
+	compareLabels := func(m map[string]string) func() bool {
+		return func() bool {
+			labels := ec2Labels.Get()
+			if len(labels) != len(m) {
+				return false
+			}
+			for k, v := range labels {
+				if m[k] != v {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	// Check that initial tags are read.
+	initialTags := map[string]string{"a": "1", "b": "2"}
+	imdsClient.tags = initialTags
+	ec2Labels.Start()
+	require.Eventually(t, compareLabels(toAWSLabels(initialTags)), time.Second, 100*time.Microsecond)
+
+	// Check that tags are updated over time.
+	updatedTags := map[string]string{"a": "3", "c": "4"}
+	imdsClient.tags = updatedTags
+	clock.Advance(types.EC2LabelUpdatePeriod)
+	require.Eventually(t, compareLabels(toAWSLabels(updatedTags)), time.Second, 100*time.Millisecond)
+
+	// Check that service stops updating when cancelled.
+	cancel()
+	imdsClient.tags = map[string]string{"x": "8", "y": "9", "z": "10"}
+	clock.Advance(types.EC2LabelUpdatePeriod)
+	require.Eventually(t, compareLabels(toAWSLabels(updatedTags)), time.Second, 100*time.Millisecond)
 }
