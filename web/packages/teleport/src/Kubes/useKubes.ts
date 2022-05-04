@@ -36,9 +36,10 @@ export default function useKubes(ctx: TeleportContext) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [params, setParams] = useState<ResourceUrlQueryParams>(() =>
-    getResourceUrlQueryParams(search)
-  );
+  const [params, setParams] = useState<ResourceUrlQueryParams>({
+    sort: { fieldName: 'name', dir: 'ASC' },
+    ...getResourceUrlQueryParams(search),
+  });
 
   const isSearchEmpty = !params?.query && !params?.search;
 
