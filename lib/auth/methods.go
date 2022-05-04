@@ -329,7 +329,8 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
-	ClientIP          string
+	// ClientIP is an IP of the client making the request.
+	ClientIP string `json:"client_ip"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
