@@ -581,7 +581,7 @@ func TestSAMLSuccess(t *testing.T) {
 	id := doc.Root().SelectAttr("ID")
 	require.NotNil(t, id)
 
-	authRequest, err := s.server.Auth().GetSAMLAuthRequest(id.Value)
+	authRequest, err := s.server.Auth().GetSAMLAuthRequest(context.Background(), id.Value)
 	require.NoError(t, err)
 
 	// now swap the request id to the hardcoded one in fixtures

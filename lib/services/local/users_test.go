@@ -762,3 +762,41 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
 	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
 }
+
+func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	nilInfo, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "BAD_ID")
+	require.Nil(t, nilInfo)
+	require.Error(t, err)
+
+	info := types.SSODiagnosticInfo{
+		TestFlow: true,
+		Error:    "foo bar baz",
+		Success:  false,
+		CreateUserParams: &types.CreateUserParams{
+			ConnectorName: "bar",
+			Username:      "baz",
+		},
+		SAMLAttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "foo",
+				Value: "bar",
+				Roles: []string{"baz"},
+			},
+		},
+		SAMLAttributesToRolesWarnings: nil,
+		SAMLAttributeStatements:       nil,
+		SAMLAssertionInfo:             nil,
+		SAMLTraitsFromAssertions:      nil,
+		SAMLConnectorTraitMapping:     nil,
+	}
+
+	err = identity.CreateSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID", info)
+	require.NoError(t, err)
+
+	infoGet, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID")
+	require.NoError(t, err)
+	require.Equal(t, &info, infoGet)
+}
