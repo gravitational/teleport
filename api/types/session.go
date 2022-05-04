@@ -512,7 +512,8 @@ type NewWebSessionRequest struct {
 	LoginTime time.Time
 	// AccessRequests contains the UUIDs of the access requests currently in use.
 	AccessRequests []string
-	ClientIP       string
+	// ClientIP is an IP of the client requesting web session.
+	ClientIP string
 }
 
 // Check validates the request.
