@@ -62,7 +62,7 @@ func (t *TemplateCockroach) Render(ctx context.Context, authClient auth.ClientI,
 		return trace.Wrap(err)
 	}
 
-	hostCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	dbCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -73,7 +73,7 @@ func (t *TemplateCockroach) Render(ctx context.Context, authClient auth.ClientI,
 			dest:    dest,
 			subpath: t.DirName,
 		},
-		Key:    newClientKey(currentIdentity, hostCAs),
+		Key:    newClientKey(currentIdentity, dbCAs),
 		Format: identityfile.FormatCockroach,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

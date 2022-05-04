@@ -64,7 +64,7 @@ func (t *TemplateMongo) Render(ctx context.Context, authClient auth.ClientI, cur
 		return trace.Wrap(err)
 	}
 
-	hostCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	dbCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -74,7 +74,7 @@ func (t *TemplateMongo) Render(ctx context.Context, authClient auth.ClientI, cur
 		Writer: &BotConfigWriter{
 			dest: dest,
 		},
-		Key:    newClientKey(currentIdentity, hostCAs),
+		Key:    newClientKey(currentIdentity, dbCAs),
 		Format: identityfile.FormatMongo,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
