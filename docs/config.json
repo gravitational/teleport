@@ -409,6 +409,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
+      "version": "9.1.2", 
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
