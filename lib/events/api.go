@@ -684,21 +684,8 @@ type IAuditLog interface {
 	// Closer releases connection and resources associated with log if any
 	io.Closer
 
-	// EmitAuditEventLegacy emits audit in legacy format
-	// DELETE IN: 5.0.0
-	EmitAuditEventLegacy(Event, EventFields) error
-
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, apievents.AuditEvent) error
-
-	// DELETE IN: 2.7.0
-	// This method is no longer necessary as nodes and proxies >= 2.7.0
-	// use UploadSessionRecording method.
-	// PostSessionSlice sends chunks of recorded session to the event log
-	PostSessionSlice(SessionSlice) error
-
-	// UploadSessionRecording uploads session recording to the audit server
-	UploadSessionRecording(r SessionRecording) error
 
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
