@@ -42,7 +42,13 @@ import (
 )
 
 const (
+	// defaultAgentConnectionCount is the default connection count used when in
+	// proxy peering mode.
 	defaultAgentConnectionCount = 1
+	// maxBackoff sets the maximum backoff for creating new agents.
+	maxBackoff = time.Second * 8
+	// remoteFindCacheTTL sets the time between calls to webclient.Find.
+	remoteFindCacheTTL = time.Second * 5
 )
 
 // ServerHandler implements an interface which can handle a connection
@@ -62,7 +68,13 @@ type AgentPool struct {
 	// runtimeConfig contains dynamic configuration values.
 	runtimeConfig *agentPoolRuntimeConfig
 
-	// remoteTLSRoutingEnabled caches a remote clusters tls routing setting.
+	// lastRemoteFind is the time the last remote find call was made.
+	lastRemoteFind *time.Time
+	// remoteTLSRoutingEnabled caches a remote clusters tls routing setting. This helps prevent
+	// proxy endpoint stagnation where an even numbers of proxies are hidden behind a round robin
+	// load balancer. For instance in a situation where there are two proxies [A, B] due to the
+	// the agent pools sequential webclient.Find and ssh dial, the Find call will always reach
+	// Proxy A and the ssh dial call will always be forwarded to Proxy B.
 	remoteTLSRoutingEnabled bool
 
 	// events receives agent state change events.
@@ -164,7 +176,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	}
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step:      time.Second,
-		Max:       time.Second * 8,
+		Max:       maxBackoff,
 		Jitter:    utils.NewJitter(),
 		AutoReset: 4,
 	})
@@ -526,7 +538,10 @@ func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
 // getRemoteALPNRoutingFunc returns a function to get a remote clusters tls routing setting.
 func (p *AgentPool) getRemoteTLSRoutingFunc(ctx context.Context, addr *utils.NetAddr) func() bool {
 	return func() bool {
-		resp, err := webclient.Find(&webclient.Config{
+		if p.lastRemoteFind != nil && p.Clock.Now().Sub(*p.lastRemoteFind) < remoteFindCacheTTL {
+			return p.remoteTLSRoutingEnabled
+		}
+		pong, err := webclient.Find(&webclient.Config{
 			Context:         ctx,
 			ProxyAddr:       addr.Addr,
 			Insecure:        lib.IsInsecureDevMode(),
@@ -537,8 +552,12 @@ func (p *AgentPool) getRemoteTLSRoutingFunc(ctx context.Context, addr *utils.Net
 			// address the ping call will always fail.
 			p.log.Infof("Failed to ping web proxy %q addr: %v", addr.Addr, err)
 		} else {
-			p.remoteTLSRoutingEnabled = resp.Proxy.TLSRoutingEnabled
+			p.remoteTLSRoutingEnabled = pong.Proxy.TLSRoutingEnabled
 		}
+
+		now := p.Clock.Now()
+		p.lastRemoteFind = &now
+
 		return p.remoteTLSRoutingEnabled
 	}
 }
