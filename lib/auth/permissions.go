@@ -181,11 +181,13 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	}
 	if authContext.Checker.PinSourceIP() {
 		value := ctx.Value(ContextClientAddr)
-		if clientIP, ok := value.(*net.TCPAddr); ok {
-			pinnedIP := authContext.Identity.GetIdentity().ClientIP
-			if pinnedIP != clientIP.IP.String() {
-				return nil, trace.AccessDenied("client IP %s does not match the expected %s", clientIP.IP, pinnedIP)
-			}
+		addr, ok := value.(*net.TCPAddr)
+		if !ok {
+			return nil, trace.AccessDenied("client IP can't be checked but is required")
+		}
+		pinnedIP := authContext.Identity.GetIdentity().ClientIP
+		if pinnedIP != addr.IP.String() {
+			return nil, trace.AccessDenied("client IP %s does not match the expected %s", addr.IP, pinnedIP)
 		}
 	}
 	// Enforce applicable locks.

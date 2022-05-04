@@ -2158,7 +2158,7 @@ func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID st
 
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
-	// Token is it's own authentication, no need to double check.
+	// Token is its own authentication, no need to double check.
 	return a.authServer.ChangeUserAuthentication(ctx, req)
 }
 

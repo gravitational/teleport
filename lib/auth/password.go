@@ -17,6 +17,7 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
+	"net"
 	"net/mail"
 
 	"github.com/gravitational/teleport"
@@ -59,7 +60,13 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	webSession, err := s.createUserWebSession(ctx, user, "")
+	clientIP := ""
+	value := ctx.Value(ContextClientAddr)
+	addr, ok := value.(*net.TCPAddr)
+	if ok {
+		clientIP = addr.IP.String()
+	}
+	webSession, err := s.createUserWebSession(ctx, user, clientIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
