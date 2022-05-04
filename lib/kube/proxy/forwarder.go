@@ -31,9 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-	"golang.org/x/net/http2"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -55,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	fwdutils "github.com/gravitational/oxy/utils"
@@ -63,7 +61,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -451,6 +451,9 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 			return nil, trace.Wrap(err)
 		}
 		if err := f.authorize(req.Context(), authContext); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := f.acquireConnectionLock(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
@@ -894,6 +897,41 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 	return trace.Wrap(err)
 }
 
+// acquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
+// The semaphore is releasted when the request is returned/connection is closed.
+// Returns an error if a semaphore could not be acquired.
+func (f *Forwarder) acquireConnectionLock(ctx context.Context, identity *authContext) error {
+	user := identity.Identity.GetIdentity().Username
+	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	maxConnections := services.RoleSet(roles).MaxKubernetesConnections()
+	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+		Service: f.cfg.AuthClient,
+		Expiry:  sessionMaxLifetime,
+		Params: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindKubernetesConnection,
+			SemaphoreName: user,
+			MaxLeases:     maxConnections,
+			Holder:        identity.teleportCluster.name,
+		},
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), teleport.MaxLeases) {
+			err = trace.AccessDenied("too many concurrent kubernetes connections for user %q (max=%d)",
+				user,
+				maxConnections,
+			)
+		}
+
+		return trace.Wrap(err)
+	}
+	go semLock.KeepAlive(ctx)
+	return nil
+}
+
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
@@ -1288,7 +1326,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		}
 	}
 	client := &http.Client{
-		Transport: rt,
+		Transport: otelhttp.NewTransport(rt),
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil

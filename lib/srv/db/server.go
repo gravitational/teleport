@@ -170,8 +170,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			Clients: c.CloudClients,
-			HostID:  c.HostID,
+			AccessPoint: c.AccessPoint,
+			Clients:     c.CloudClients,
+			HostID:      c.HostID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -318,7 +319,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	if err := fetchMySQLVersion(ctx, database); err != nil {
 		// Log, but do not fail. We will fetch the version later.
-		s.log.Warnf("Failed to fetch the MySQL version for %s", database.GetName())
+		s.log.Warnf("Failed to fetch the MySQL version for %s: %v", database.GetName(), err)
 	}
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.
@@ -555,6 +556,11 @@ func (s *Server) getRotationState() types.Rotation {
 
 // Start starts proxying all server's registered databases.
 func (s *Server) Start(ctx context.Context) (err error) {
+	// Start IAM service that will be configuring IAM auth for databases.
+	if err := s.cfg.CloudIAM.Start(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {

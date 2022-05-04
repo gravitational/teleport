@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
@@ -323,12 +324,12 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
 		version := getMySQLVersionFromServer(proxyCtx.Servers)
 		// Set the version in the context to match a behaviour in other handlers.
-		ctx := context.WithValue(s.closeCtx, common.ContextMySQLServerVersion, version)
+		ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
 		return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)

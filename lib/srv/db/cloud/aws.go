@@ -19,7 +19,6 @@ package cloud
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -43,8 +42,8 @@ type awsConfig struct {
 	identity awslib.Identity
 	// database is the database instance to configure.
 	database types.Database
-	// hostID is the host identifier where this agent's running.
-	hostID string
+	// policyName is the name of the inline policy for the identity.
+	policyName string
 }
 
 // Check validates the config.
@@ -58,8 +57,8 @@ func (c *awsConfig) Check() error {
 	if c.database == nil {
 		return trace.BadParameter("missing parameter database")
 	}
-	if c.hostID == "" {
-		return trace.BadParameter("missing parameter host ID")
+	if c.policyName == "" {
+		return trace.BadParameter("missing parameter policy name")
 	}
 	return nil
 }
@@ -169,13 +168,18 @@ func (r *awsClient) enableIAMAuth(ctx context.Context) error {
 
 // ensureIAMPolicy adds database connect permissions to the agent's policy.
 func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
+	resources := r.cfg.database.GetIAMResources()
+	if len(resources) == 0 {
+		return nil
+	}
+
 	policy, err := r.getIAMPolicy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	action := r.cfg.database.GetIAMAction()
 	var changed bool
-	for _, resource := range r.cfg.database.GetIAMResources() {
+	for _, resource := range resources {
 		if policy.Ensure(awslib.EffectAllow, action, resource) {
 			r.log.Debugf("Permission %q for %q is already part of policy.", action, resource)
 		} else {
@@ -195,12 +199,17 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 
 // deleteIAMPolicy deletes IAM access policy from the identity this agent is running as.
 func (r *awsClient) deleteIAMPolicy(ctx context.Context) error {
+	resources := r.cfg.database.GetIAMResources()
+	if len(resources) == 0 {
+		return nil
+	}
+
 	policy, err := r.getIAMPolicy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	action := r.cfg.database.GetIAMAction()
-	for _, resource := range r.cfg.database.GetIAMResources() {
+	for _, resource := range resources {
 		policy.Delete(awslib.EffectAllow, action, resource)
 	}
 	// If policy is empty now, delete it as IAM policy can't be empty.
@@ -216,7 +225,7 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
 		out, err := r.iam.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
-			PolicyName: aws.String(r.policyName()),
+			PolicyName: aws.String(r.cfg.policyName),
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
 		if err != nil {
@@ -228,7 +237,7 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 		policyDocument = aws.StringValue(out.PolicyDocument)
 	case awslib.User:
 		out, err := r.iam.GetUserPolicyWithContext(ctx, &iam.GetUserPolicyInput{
-			PolicyName: aws.String(r.policyName()),
+			PolicyName: aws.String(r.cfg.policyName),
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})
 		if err != nil {
@@ -254,13 +263,13 @@ func (r *awsClient) updateIAMPolicy(ctx context.Context, policy *awslib.PolicyDo
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
 		_, err = r.iam.PutRolePolicyWithContext(ctx, &iam.PutRolePolicyInput{
-			PolicyName:     aws.String(r.policyName()),
+			PolicyName:     aws.String(r.cfg.policyName),
 			PolicyDocument: aws.String(string(document)),
 			RoleName:       aws.String(r.cfg.identity.GetName()),
 		})
 	case awslib.User:
 		_, err = r.iam.PutUserPolicyWithContext(ctx, &iam.PutUserPolicyInput{
-			PolicyName:     aws.String(r.policyName()),
+			PolicyName:     aws.String(r.cfg.policyName),
 			PolicyDocument: aws.String(string(document)),
 			UserName:       aws.String(r.cfg.identity.GetName()),
 		})
@@ -277,21 +286,16 @@ func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
 		_, err = r.iam.DeleteRolePolicyWithContext(ctx, &iam.DeleteRolePolicyInput{
-			PolicyName: aws.String(r.policyName()),
+			PolicyName: aws.String(r.cfg.policyName),
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
 	case awslib.User:
 		_, err = r.iam.DeleteUserPolicyWithContext(ctx, &iam.DeleteUserPolicyInput{
-			PolicyName: aws.String(r.policyName()),
+			PolicyName: aws.String(r.cfg.policyName),
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})
 	default:
 		return trace.BadParameter("can only detach policies from roles or users, got %v", r.cfg.identity)
 	}
 	return common.ConvertError(err)
-}
-
-// policyName is the inline IAM policy name this agent is managing.
-func (r *awsClient) policyName() string {
-	return fmt.Sprintf("teleport-%v", r.cfg.hostID)
 }

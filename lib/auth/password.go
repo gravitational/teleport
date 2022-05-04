@@ -380,21 +380,21 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		return trace.BadParameter("no second factor sent during user %q password reset", username)
 	}
 
-	// Default device name still used as UI invite/reset
-	// forms does not allow user to enter own device names yet.
+	deviceName := req.GetNewDeviceName()
 	// Using default values here is safe since we don't expect users to have
 	// any devices at this point.
-	var deviceName string
-	switch {
-	case req.GetNewMFARegisterResponse().GetTOTP() != nil:
-		deviceName = "otp"
-	case req.GetNewMFARegisterResponse().GetWebauthn() != nil:
-		deviceName = "webauthn"
-	default:
-		// Fallback to something reasonable while letting verifyMFARespAndAddDevice
-		// worry about the "unknown" response type.
-		deviceName = "mfa"
-		log.Warnf("Unexpected MFA register response type, setting device name to %q: %T", deviceName, req.GetNewMFARegisterResponse().Response)
+	if deviceName == "" {
+		switch {
+		case req.GetNewMFARegisterResponse().GetTOTP() != nil:
+			deviceName = "otp"
+		case req.GetNewMFARegisterResponse().GetWebauthn() != nil:
+			deviceName = "webauthn"
+		default:
+			// Fallback to something reasonable while letting verifyMFARespAndAddDevice
+			// worry about the "unknown" response type.
+			deviceName = "mfa"
+			log.Warnf("Unexpected MFA register response type, setting device name to %q: %T", deviceName, req.GetNewMFARegisterResponse().Response)
+		}
 	}
 
 	_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFARegisterResponse(), &newMFADeviceFields{

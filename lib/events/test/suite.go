@@ -20,7 +20,6 @@ package test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"os"
 	"testing"
@@ -190,28 +189,6 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
-	err = s.Log.PostSessionSlice(events.SessionSlice{
-		Namespace: apidefaults.Namespace,
-		SessionID: string(sessionID),
-		Chunks: []*events.SessionChunk{
-			// start the seession
-			{
-				Time:       s.Clock.Now().UTC().UnixNano(),
-				EventIndex: 0,
-				EventType:  events.SessionStartEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob"}),
-			},
-			// emitting session end event should close the session
-			{
-				Time:       s.Clock.Now().Add(time.Hour).UTC().UnixNano(),
-				EventIndex: 4,
-				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob", events.SessionParticipants: []string{"bob", "alice"}}),
-			},
-		},
-		Version: events.V2,
-	})
-	c.Assert(err, check.IsNil)
 
 	// read the session event
 	historyEvents, err := s.Log.GetSessionEvents(apidefaults.Namespace, sessionID, 0, false)
@@ -219,6 +196,31 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	c.Assert(historyEvents, check.HasLen, 2)
 	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
 	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
+
+	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionStart{
+		Metadata: apievents.Metadata{
+			Time:  s.Clock.Now().UTC(),
+			Index: 0,
+			Type:  events.SessionStartEvent,
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login: "bob",
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Time:  s.Clock.Now().Add(time.Hour).UTC(),
+			Index: 4,
+			Type:  events.SessionEndEvent,
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login: "bob",
+		},
+		Participants: []string{"bob", "alice"},
+	})
+	c.Assert(err, check.IsNil)
 
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil)
 	c.Assert(err, check.IsNil)
@@ -242,12 +244,4 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 0)
-}
-
-func marshal(f events.EventFields) []byte {
-	data, err := json.Marshal(f)
-	if err != nil {
-		panic(err)
-	}
-	return data
 }
