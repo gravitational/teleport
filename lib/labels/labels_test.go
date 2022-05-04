@@ -66,17 +66,11 @@ func TestStart(t *testing.T) {
 	require.NoError(t, err)
 	l.Start()
 
-	// Wait a maximum of 5 seconds for dynamic labels to be updated.
-	select {
-	case <-time.Tick(50 * time.Millisecond):
+	require.Eventually(t, func() bool {
 		val, ok := l.Get()["foo"]
 		require.True(t, ok)
-		if val.GetResult() == "4" {
-			break
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatalf("Timed out waiting for label to be updated.")
-	}
+		return val.GetResult() == "4"
+	}, 5*time.Second, 50*time.Millisecond)
 }
 
 // TestInvalidCommand makes sure that invalid commands return a error message.
@@ -99,12 +93,11 @@ func TestInvalidCommand(t *testing.T) {
 }
 
 type mockIMDSClient struct {
-	available bool
-	tags      map[string]string
+	tags map[string]string
 }
 
 func (m *mockIMDSClient) IsAvailable() bool {
-	return m.available
+	return true
 }
 
 func (m *mockIMDSClient) GetTagKeys() ([]string, error) {
@@ -122,11 +115,21 @@ func (m *mockIMDSClient) GetTagValue(key string) (string, error) {
 	return "", trace.NotFound("Tag %q not found", key)
 }
 
-func TestEC2Labels(t *testing.T) {
+func TestEC2LabelsSync(t *testing.T) {
+	tags := map[string]string{"a": "1", "b": "2"}
 	imdsClient := &mockIMDSClient{
-		available: true,
-		tags:      make(map[string]string),
+		tags: tags,
 	}
+	ec2Labels, err := NewEC2Labels(context.Background(), &EC2LabelConfig{
+		Client: imdsClient,
+	})
+	require.NoError(t, err)
+	ec2Labels.Sync()
+	require.Equal(t, toAWSLabels(tags), ec2Labels.Get())
+}
+
+func TestEC2LabelsAsync(t *testing.T) {
+	imdsClient := &mockIMDSClient{}
 	clock := clockwork.NewFakeClock()
 	ctx, cancel := context.WithCancel(context.Background())
 	ec2Labels, err := NewEC2Labels(ctx, &EC2LabelConfig{
