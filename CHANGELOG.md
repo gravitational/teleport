@@ -1,5 +1,20 @@
 # Changelog
 
+## 9.2.0
+
+This release of Teleport contains multiple improvements, security and bug fixes.
+
+* Fixed issue with U2F facets not being properly validated. [#12208](https://github.com/gravitational/teleport/pull/12208)
+* Hardened SQLite permissions. [#12360](https://github.com/gravitational/teleport/pull/12360)
+* Fixed issue with OIDC callback not checking `email_verified` claim. [#12360](https://github.com/gravitational/teleport/pull/12360)
+* Added `max_kubernetes_connections` role option for limiting simultaneous Kubernetes connections. [#12360](https://github.com/gravitational/teleport/pull/12360)
+* Fixed issue with Teleport failing to start with pay-per-request DynamoDB mode. [#12360](https://github.com/gravitational/teleport/pull/12360)
+* Reduced Machine ID verbosity in case of missing secure symlink kernel support. [#12423](https://github.com/gravitational/teleport/pull/12423)
+* Fixed `tsh proxy db` tunnel mode not working for CockroachDB connections. [#12400](https://github.com/gravitational/teleport/pull/12400)
+* Added support for database access certificates in Machine ID. [#12195](https://github.com/gravitational/teleport/pull/12195)
+* Improved shutdown/restart stability in certain scenarios. [#12393](https://github.com/gravitational/teleport/pull/12393)
+* Added support for clickable labels in web UI. [#12422](https://github.com/gravitational/teleport/pull/12422)
+
 ## 9.1.3
 
 This release of Teleport contains multiple improvements and bug fixes.
