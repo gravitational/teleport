@@ -23,6 +23,8 @@ func main() {
 		&common.AccessRequestCommand{},
 		&ResourceCommandE{},
 		&SAMLCommand{},
+		&SSOTestCommand{},
+		&SSOConfigureCommand{},
 		&common.AppsCommand{},
 		&common.DBCommand{},
 		&common.LockCommand{},
