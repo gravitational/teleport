@@ -31,6 +31,9 @@ export class Gateway extends jspb.Message {
     getCliCommand(): string;
     setCliCommand(value: string): Gateway;
 
+    getTargetSubresourceName(): string;
+    setTargetSubresourceName(value: string): Gateway;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Gateway.AsObject;
@@ -52,5 +55,6 @@ export namespace Gateway {
         localPort: string,
         protocol: string,
         cliCommand: string,
+        targetSubresourceName: string,
     }
 }

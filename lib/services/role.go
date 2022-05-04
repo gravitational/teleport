@@ -1110,6 +1110,19 @@ func (set RoleSet) MaxSessions() int64 {
 	return ms
 }
 
+// MaxConnections returns the maximum number of concurrent Kubernetes connections
+// allowed.  If MaxConnections is zero then no maximum was defined
+// and the number of concurrent connections is unconstrained.
+func (set RoleSet) MaxKubernetesConnections() int64 {
+	var mcs int64
+	for _, role := range set {
+		if m := role.GetOptions().MaxKubernetesConnections; m != 0 && (m < mcs || mcs == 0) {
+			mcs = m
+		}
+	}
+	return mcs
+}
+
 // AdjustClientIdleTimeout adjusts requested idle timeout
 // to the lowest max allowed timeout, the most restrictive
 // option will be picked, negative values will be assumed as 0
