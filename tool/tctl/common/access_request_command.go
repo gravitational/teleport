@@ -294,10 +294,8 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 		if len(reqs) != 1 {
 			return trace.BadParameter("request with ID %q not found", reqID)
 		}
-		for _, req := range reqs {
-			if req.GetState().String() == "APPROVED" {
-				approvedTokens = append(approvedTokens, reqID)
-			}
+		if reqs[0].GetState().String() == "APPROVED" {
+			approvedTokens = append(approvedTokens, reqID)
 		}
 	}
 
@@ -313,11 +311,11 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 	if !c.force && len(approvedTokens) > 0 {
 		fmt.Println("\nThis access request has already been approved, deleting the request now will NOT remove")
 		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the")
-		fmt.Printf("requested roles you can run:\n\n")
+		fmt.Printf("requested roles instead, you can run:\n\n")
 		for _, reqID := range approvedTokens {
-			fmt.Printf("> tctl lock --access_request %s\n\n", reqID)
+			fmt.Printf("> tctl lock --access_request %s\n", reqID)
 		}
-		fmt.Printf("To disregard this warning and delete the request anyway you can re-run the command with --force.\n\n")
+		fmt.Printf("\nTo disregard this warning and delete the request anyway, re-run this command with --force.\n\n")
 	}
 	return nil
 }
