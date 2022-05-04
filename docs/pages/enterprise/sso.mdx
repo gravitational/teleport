@@ -89,19 +89,43 @@ The following connectors are supported:
 
 To configure SSO, a Teleport administrator must:
 
-- Update `/etc/teleport.yaml` on the auth server to set the default
-  authentication connector.
+- Update the deafult authentication type
 - Define the connector [resource](../setup/reference/resources.mdx) and save it into
   a YAML file (like `connector.yaml`)
 - Create the connector using `tctl create connector.yaml`.
 
-```yaml
-# snippet from /etc/teleport.yaml on the auth server:
-auth_service:
-    # defines the default authentication connector type:
+An example setting the default authentication type as `saml` or `oidc`:
+<Tabs>
+  <TabItem label="Static Config (Self-Hosted)">
+ Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+  ```yaml
+  auth_service:
     authentication:
-        type: saml
-```
+# Set as saml or oidc
+      type: saml|oidc
+  ```
+  </TabItem>
+  <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
+  Create a file called `cap.yaml`:
+  ```yaml
+  kind: cluster_auth_preference
+  metadata:
+    name: cluster-auth-preference
+  spec:
+    authentication:
+# set as saml or oidc
+      type: saml|oidc
+  version: v2
+  ```
+
+  Create a resource:
+
+  ```code
+  $ tctl create -f cap.yaml
+  ```
+  </TabItem>
+</Tabs>
+
 
 An example of a connector:
 
