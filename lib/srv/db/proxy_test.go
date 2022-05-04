@@ -40,17 +40,22 @@ func TestProxyProtocolPostgres(t *testing.T) {
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"postgres"}, []string{"postgres"})
 
-	// Point our proxy to the Teleport's db listener on the multiplexer.
-	proxy, err := multiplexer.NewTestProxy(testCtx.mux.DB().Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() { proxy.Close() })
-	go proxy.Serve()
+	for _, v2 := range []bool{false, true} {
+		v2 := v2
+		t.Run(name(v2), func(t *testing.T) {
+			// Point our proxy to the Teleport's db listener on the multiplexer.
+			proxy, err := multiplexer.NewTestProxy(testCtx.mux.DB().Addr().String(), v2)
+			require.NoError(t, err)
+			t.Cleanup(func() { proxy.Close() })
+			go proxy.Serve()
 
-	// Connect to the proxy instead of directly to Postgres listener and make
-	// sure the connection succeeds.
-	psql, err := testCtx.postgresClientWithAddr(ctx, proxy.Address(), "alice", "postgres", "postgres", "postgres")
-	require.NoError(t, err)
-	require.NoError(t, psql.Close(ctx))
+			// Connect to the proxy instead of directly to Postgres listener and make
+			// sure the connection succeeds.
+			psql, err := testCtx.postgresClientWithAddr(ctx, proxy.Address(), "alice", "postgres", "postgres", "postgres")
+			require.NoError(t, err)
+			require.NoError(t, psql.Close(ctx))
+		})
+	}
 }
 
 // TestProxyProtocolMySQL ensures that clients can successfully connect to a
@@ -63,17 +68,22 @@ func TestProxyProtocolMySQL(t *testing.T) {
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
 
-	// Point our proxy to the Teleport's MySQL listener.
-	proxy, err := multiplexer.NewTestProxy(testCtx.mysqlListener.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() { proxy.Close() })
-	go proxy.Serve()
+	for _, v2 := range []bool{false, true} {
+		v2 := v2
+		t.Run(name(v2), func(t *testing.T) {
+			// Point our proxy to the Teleport's MySQL listener.
+			proxy, err := multiplexer.NewTestProxy(testCtx.mysqlListener.Addr().String(), v2)
+			require.NoError(t, err)
+			t.Cleanup(func() { proxy.Close() })
+			go proxy.Serve()
 
-	// Connect to the proxy instead of directly to MySQL listener and make
-	// sure the connection succeeds.
-	mysql, err := testCtx.mysqlClientWithAddr(proxy.Address(), "alice", "mysql", "root")
-	require.NoError(t, err)
-	require.NoError(t, mysql.Close())
+			// Connect to the proxy instead of directly to MySQL listener and make
+			// sure the connection succeeds.
+			mysql, err := testCtx.mysqlClientWithAddr(proxy.Address(), "alice", "mysql", "root")
+			require.NoError(t, err)
+			require.NoError(t, mysql.Close())
+		})
+	}
 }
 
 // TestProxyProtocolMongo ensures that clients can successfully connect to a
@@ -86,17 +96,22 @@ func TestProxyProtocolMongo(t *testing.T) {
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
 
-	// Point our proxy to the Teleport's TLS listener.
-	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() { proxy.Close() })
-	go proxy.Serve()
+	for _, v2 := range []bool{false, true} {
+		v2 := v2
+		t.Run(name(v2), func(t *testing.T) {
+			// Point our proxy to the Teleport's TLS listener.
+			proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), false)
+			require.NoError(t, err)
+			t.Cleanup(func() { proxy.Close() })
+			go proxy.Serve()
 
-	// Connect to the proxy instead of directly to Teleport listener and make
-	// sure the connection succeeds.
-	mongo, err := testCtx.mongoClientWithAddr(ctx, proxy.Address(), "alice", "mongo", "admin")
-	require.NoError(t, err)
-	require.NoError(t, mongo.Disconnect(ctx))
+			// Connect to the proxy instead of directly to Teleport listener and make
+			// sure the connection succeeds.
+			mongo, err := testCtx.mongoClientWithAddr(ctx, proxy.Address(), "alice", "mongo", "admin")
+			require.NoError(t, err)
+			require.NoError(t, mongo.Disconnect(ctx))
+		})
+	}
 }
 
 func TestProxyProtocolRedis(t *testing.T) {
@@ -106,23 +121,28 @@ func TestProxyProtocolRedis(t *testing.T) {
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
 
-	// Point our proxy to the Teleport's TLS listener.
-	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() { proxy.Close() })
-	go proxy.Serve()
+	for _, v2 := range []bool{false, true} {
+		v2 := v2
+		t.Run(name(v2), func(t *testing.T) {
+			// Point our proxy to the Teleport's TLS listener.
+			proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), false)
+			require.NoError(t, err)
+			t.Cleanup(func() { proxy.Close() })
+			go proxy.Serve()
 
-	// Connect to the proxy instead of directly to Teleport listener and make
-	// sure the connection succeeds.
-	redisClient, err := testCtx.redisClientWithAddr(ctx, proxy.Address(), "alice", "redis", "admin")
-	require.NoError(t, err)
+			// Connect to the proxy instead of directly to Teleport listener and make
+			// sure the connection succeeds.
+			redisClient, err := testCtx.redisClientWithAddr(ctx, proxy.Address(), "alice", "redis", "admin")
+			require.NoError(t, err)
 
-	// Send ECHO to Redis server and check if we get it back.
-	resp := redisClient.Echo(ctx, "hello")
-	require.NoError(t, resp.Err())
-	require.Equal(t, "hello", resp.Val())
+			// Send ECHO to Redis server and check if we get it back.
+			resp := redisClient.Echo(ctx, "hello")
+			require.NoError(t, resp.Err())
+			require.Equal(t, "hello", resp.Val())
 
-	require.NoError(t, redisClient.Close())
+			require.NoError(t, redisClient.Close())
+		})
+	}
 }
 
 // TestProxyClientDisconnectDueToIdleConnection ensures that idle clients will be disconnected.
@@ -231,4 +251,11 @@ func TestExtractMySQLVersion(t *testing.T) {
 	version, err := mysql.FetchMySQLVersion(ctx, testCtx.server.proxiedDatabases["mysql"])
 	require.NoError(t, err)
 	require.Equal(t, "8.0.25", version)
+}
+
+func name(v2 bool) string {
+	if v2 {
+		return "v2"
+	}
+	return "v1"
 }

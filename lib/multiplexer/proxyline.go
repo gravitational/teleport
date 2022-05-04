@@ -60,6 +60,38 @@ func (p *ProxyLine) String() string {
 	return fmt.Sprintf("PROXY %s %s %s %d %d\r\n", p.Protocol, p.Source.IP.String(), p.Destination.IP.String(), p.Source.Port, p.Destination.Port)
 }
 
+// Bytes returns on-the wire bytes representation of proxy line conforming to the proxy v2 protocol
+func (p *ProxyLine) Bytes() []byte {
+	var b []byte
+	b = append(b, proxyV2Prefix...)
+	b = append(b, (Version2<<4)|ProxyCommand)
+
+	switch p.Protocol {
+	case TCP4:
+		b = append(b, ProtocolTCP4)
+		b = append(b, 0, 12)
+		b = append(b, p.Source.IP.To4()...)
+		b = append(b, portToBytes(p.Source)...)
+		b = append(b, p.Destination.IP.To4()...)
+		b = append(b, portToBytes(p.Destination)...)
+	case TCP6:
+		b = append(b, ProtocolTCP6)
+		b = append(b, 36)
+		b = append(b, p.Source.IP.To16()...)
+		b = append(b, portToBytes(p.Source)...)
+		b = append(b, p.Destination.IP.To16()...)
+		b = append(b, portToBytes(p.Destination)...)
+	}
+
+	return b
+}
+
+func portToBytes(addr net.TCPAddr) []byte {
+	b := make([]byte, 2)
+	binary.BigEndian.PutUint16(b, uint16(addr.Port))
+	return b
+}
+
 // ReadProxyLine reads proxy line protocol from the reader
 func ReadProxyLine(reader *bufio.Reader) (*ProxyLine, error) {
 	line, err := reader.ReadString('\n')
