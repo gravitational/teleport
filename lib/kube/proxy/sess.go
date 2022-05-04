@@ -1139,17 +1139,17 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 	}
 
 	s.log.Debug("Creating session tracker")
-	tracker, err := srv.NewSessionTracker(s.forwarder.ctx, trackerSpec, s.forwarder.cfg.AuthClient)
+	var err error
+	s.tracker, err = srv.NewSessionTracker(s.forwarder.ctx, trackerSpec, s.forwarder.cfg.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	go func() {
-		if err := tracker.UpdateExpirationLoop(s.forwarder.ctx, s.forwarder.cfg.Clock); err != nil {
+		if err := s.tracker.UpdateExpirationLoop(s.forwarder.ctx, s.forwarder.cfg.Clock); err != nil {
 			s.log.WithError(err).Debug("Failed to update session tracker expiration")
 		}
 	}()
 
-	s.tracker = tracker
 	return nil
 }

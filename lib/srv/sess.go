@@ -1655,7 +1655,8 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 	}
 
 	s.log.Debug("Creating session tracker")
-	tracker, err := NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
+	var err error
+	s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1671,6 +1672,5 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 		<-s.stopC
 	}()
 
-	s.tracker = tracker
 	return nil
 }
