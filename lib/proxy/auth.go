@@ -141,7 +141,7 @@ func getCertPool(ap auth.AccessCache) (*x509.CertPool, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	pool, _, err := auth.ClientCertPool(ap, clusterName.GetClusterName(), types.HostCA)
+	pool, _, err := auth.DefaultClientCertPool(ap, clusterName.GetClusterName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
