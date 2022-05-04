@@ -169,7 +169,8 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 			}
 		default:
 			fields := log.Fields{"event_type": event.GetType(), "event_size": len(line)}
-			l.WithFields(fields).Warnf("Got a event that exeeded max allowed size")
+			l.WithFields(fields).Warnf("Got a event that exeeded max allowed size.")
+			return trace.BadParameter("event size %q exceeds max entry size %q", len(line), l.MaxScanTokenSize)
 		}
 	}
 
@@ -186,7 +187,7 @@ func canReduceMessageSize(event apievents.AuditEvent) bool {
 func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error) {
 	s, ok := event.(messageSizeTrimmer)
 	if !ok {
-		return nil, trace.BadParameter("event not ")
+		return nil, trace.BadParameter("invalid event type %T", event)
 	}
 	sEvent := s.TrimToMaxSize(l.MaxScanTokenSize)
 	line, err := utils.FastMarshal(sEvent)

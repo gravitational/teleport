@@ -16,6 +16,8 @@ limitations under the License.
 
 package events
 
+import "github.com/gogo/protobuf/proto"
+
 func trimN(s string, n int) string {
 	if n <= 0 {
 		return s
@@ -33,13 +35,16 @@ func maxSizePerField(maxLength, customFields int) int {
 	return maxLength / customFields
 }
 
+// TrimToMaxSize trims the DatabaseSessionQuery message content. The maxSize is used to calculate
+// per filed max size where only user input message fields DatabaseQuery and DatabaseQueryParameters are taken into
+// account.
 func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {
 		return m
 	}
 
-	out := *m
+	out := proto.Clone(m).(*DatabaseSessionQuery)
 	out.DatabaseQuery = ""
 	out.DatabaseQueryParameters = nil
 
@@ -65,5 +70,5 @@ func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	for i, v := range m.DatabaseQueryParameters {
 		out.DatabaseQueryParameters[i] = trimN(v, maxFieldsSize)
 	}
-	return &out
+	return out
 }

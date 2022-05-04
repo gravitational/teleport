@@ -281,7 +281,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			if err != nil {
 				switch {
 				case events.IsPermanentEmitError(err):
-					g.WithError(err).Error("Failed to EmitAuditEvent due to a permanent error")
+					g.WithError(err).Error("Failed to EmitAuditEvent due to a permanent error. Event wil be omitted.")
 					continue
 				default:
 					return trace.Wrap(err)

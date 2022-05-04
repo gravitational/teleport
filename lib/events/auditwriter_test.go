@@ -389,3 +389,70 @@ func (a *auditWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 func (a *auditWriterTest) Close(ctx context.Context) error {
 	return a.writer.Close(ctx)
 }
+
+func TestIsPermanentEmitError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "badParameter err",
+			err:  trace.BadParameter(""),
+			want: true,
+		},
+		{
+			name: "agg badParameter and nil",
+			err:  trace.NewAggregate(trace.BadParameter(""), nil),
+			want: true,
+		},
+		{
+			name: "agg badParameter and badParameter",
+			err: trace.NewAggregate(
+				trace.BadParameter(""),
+				trace.BadParameter(""),
+			),
+			want: true,
+		},
+		{
+			name: "agg badParameter and accessDenied",
+			err: trace.NewAggregate(
+				trace.BadParameter(""),
+				trace.AccessDenied(""),
+			),
+			want: false,
+		},
+		{
+			name: "add accessDenied and badParameter",
+			err: trace.NewAggregate(
+				trace.AccessDenied(""),
+				trace.BadParameter(""),
+			),
+			want: false,
+		},
+		{
+			name: "agg badParameter with wrap",
+			err: trace.Wrap(
+				trace.NewAggregate(
+					trace.Wrap(trace.BadParameter("")),
+					trace.Wrap(trace.BadParameter(""))),
+			),
+			want: true,
+		},
+		{
+			name: "agg badParameter and accessDenied with wrap",
+			err: trace.Wrap(
+				trace.NewAggregate(
+					trace.Wrap(trace.BadParameter("")),
+					trace.Wrap(trace.AccessDenied(""))),
+			),
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsPermanentEmitError(tt.err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
