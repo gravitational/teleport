@@ -18,10 +18,12 @@ package services
 
 import (
 	"strings"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -48,4 +50,21 @@ func (s *SAMLSuite) TestParseFromMetadata(c *check.C) {
 	c.Assert(oc.GetAudience(), check.Equals, "https://localhost:3080/v1/webapi/saml/acs")
 	c.Assert(oc.GetSigningKeyPair(), check.NotNil)
 	c.Assert(oc.GetAttributes(), check.DeepEquals, []string{"groups"})
+}
+
+func TestCheckSAMLEntityDescriptor(t *testing.T) {
+	input := fixtures.SAMLOktaConnectorV2
+
+	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+	var raw UnknownResource
+	err := decoder.Decode(&raw)
+	require.NoError(t, err)
+
+	oc, err := UnmarshalSAMLConnector(raw.Raw)
+	require.NoError(t, err)
+
+	ed := oc.GetEntityDescriptor()
+	certs, err := CheckSAMLEntityDescriptor(ed)
+	require.NoError(t, err)
+	require.Len(t, certs, 1)
 }
