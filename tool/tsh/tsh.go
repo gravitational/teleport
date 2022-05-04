@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -323,6 +324,14 @@ func (c *CLIConf) Stderr() io.Writer {
 	return os.Stderr
 }
 
+type exitCodeError struct {
+	code int
+}
+
+func (e *exitCodeError) Error() string {
+	return fmt.Sprintf("exit code %d", e.code)
+}
+
 func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
@@ -338,6 +347,10 @@ func main() {
 		cmdLine = cmdLineOrig
 	}
 	if err := Run(cmdLine); err != nil {
+		var exitError *exitCodeError
+		if errors.As(err, &exitError) {
+			os.Exit(exitError.code)
+		}
 		utils.FatalError(err)
 	}
 }
@@ -835,12 +848,20 @@ func Run(args []string, opts ...cliOption) error {
 
 // onVersion prints version info.
 func onVersion(cf *CLIConf) error {
+	proxyVersion, err := fetchProxyVersion(cf)
+	if err != nil {
+		fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+	}
+
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
 		utils.PrintVersion()
+		if proxyVersion != "" {
+			fmt.Printf("Proxy version: %s\n", proxyVersion)
+		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format)
+		out, err := serializeVersion(format, proxyVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -848,16 +869,50 @@ func onVersion(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
+
 	return nil
 }
 
-func serializeVersion(format string) (string, error) {
+// fetchProxyVersion returns the current version of the Teleport Proxy.
+func fetchProxyVersion(cf *CLIConf) (string, error) {
+	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return "", nil
+		}
+		return "", trace.Wrap(err)
+	}
+
+	if profile == nil {
+		return "", nil
+	}
+
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	ctx, cancel := context.WithTimeout(cf.Context, time.Second*5)
+	defer cancel()
+	pingRes, err := tc.Ping(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return pingRes.ServerVersion, nil
+}
+
+func serializeVersion(format string, proxyVersion string) (string, error) {
 	versionInfo := struct {
-		Version string `json:"version"`
-		Gitref  string `json:"gitref"`
-		Runtime string `json:"runtime"`
+		Version      string `json:"version"`
+		Gitref       string `json:"gitref"`
+		Runtime      string `json:"runtime"`
+		ProxyVersion string `json:"proxyVersion,omitempty"`
 	}{
-		teleport.Version, teleport.Gitref, runtime.Version(),
+		teleport.Version,
+		teleport.Gitref,
+		runtime.Version(),
+		proxyVersion,
 	}
 	var out []byte
 	var err error
@@ -1317,7 +1372,7 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				os.Exit(1)
+				return trace.Wrap(&exitCodeError{code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -1950,15 +2005,14 @@ func onSSH(cf *CLIConf) error {
 			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 			fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 			fmt.Fprintf(os.Stderr, "\n")
-			os.Exit(1)
+			return trace.Wrap(&exitCodeError{code: 1})
 		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			os.Exit(tc.ExitStatus)
-		} else {
-			return trace.Wrap(err)
+			return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -1977,7 +2031,7 @@ func onBenchmark(cf *CLIConf) error {
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(255)
+		return trace.Wrap(&exitCodeError{code: 255})
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
@@ -2050,7 +2104,7 @@ func onSCP(cf *CLIConf) error {
 	// exit with the same exit status as the failed command:
 	if tc.ExitStatus != 0 {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(tc.ExitStatus)
+		return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 	}
 	return trace.Wrap(err)
 }

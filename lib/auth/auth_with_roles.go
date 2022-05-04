@@ -1231,11 +1231,11 @@ func (a *ServerWithRoles) GetReverseTunnel(name string, opts ...services.Marshal
 	return a.authServer.GetReverseTunnel(name, opts...)
 }
 
-func (a *ServerWithRoles) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (a *ServerWithRoles) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetReverseTunnels(opts...)
+	return a.authServer.GetReverseTunnels(ctx, opts...)
 }
 
 func (a *ServerWithRoles) DeleteReverseTunnel(domainName string) error {
@@ -2248,7 +2248,8 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*
 
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err)
+		// TODO(Tener): Update `testFlow` flag once OIDC SSO starts supporting test flows.
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err, false)
 		return nil, trace.Wrap(err)
 	}
 
@@ -2323,18 +2324,57 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*
 		return nil, trace.Wrap(err)
 	}
 
+	// require additional permissions for executing SSO test flow.
+	if req.SSOTestFlow {
+		if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	samlReq, err := a.authServer.CreateSAMLAuthRequest(req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodSAML, err)
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
 		return nil, trace.Wrap(err)
 	}
 
 	return samlReq, nil
 }
 
-func (a *ServerWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
+// ValidateSAMLResponse validates SAML auth response.
+func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
-	return a.authServer.ValidateSAMLResponse(re)
+	return a.authServer.ValidateSAMLResponse(ctx, re)
+}
+
+// GetSAMLAuthRequest returns SAML auth request if found.
+func (a *ServerWithRoles) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetSAMLAuthRequest(ctx, id)
+}
+
+// GetSSODiagnosticInfo returns SSO diagnostic info records.
+func (a *ServerWithRoles) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
+	var resource string
+
+	switch authKind {
+	case types.KindSAML:
+		resource = types.KindSAMLRequest
+	case types.KindGithub:
+		resource = types.KindGithubRequest
+	case types.KindOIDC:
+		resource = types.KindOIDCRequest
+	default:
+		return nil, trace.BadParameter("unsupported authKind %q", authKind)
+	}
+
+	if err := a.action(apidefaults.Namespace, resource, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetSSODiagnosticInfo(ctx, authKind, authRequestID)
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
@@ -2430,7 +2470,8 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest
 
 	githubReq, err := a.authServer.CreateGithubAuthRequest(req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err)
+		// TODO(Tener): Update `testFlow` flag once GitHub SSO starts supporting test flows.
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, false)
 		return nil, trace.Wrap(err)
 	}
 
@@ -2544,30 +2585,6 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 		return trace.AccessDenied("failed to validate event metadata")
 	}
 	return s.stream.EmitAuditEvent(ctx, event)
-}
-
-func (a *ServerWithRoles) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
-	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.EmitAuditEventLegacy(event, fields)
-}
-
-func (a *ServerWithRoles) PostSessionSlice(slice events.SessionSlice) error {
-	if err := a.action(slice.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.PostSessionSlice(slice)
-}
-
-func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) error {
-	if err := r.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(r.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.UploadSessionRecording(r)
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
@@ -4338,11 +4355,16 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 	}, nil
 }
 
-func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error) {
+func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {
+	code := events.UserSSOLoginFailureCode
+	if testFlow {
+		code = events.UserSSOTestFlowLoginFailureCode
+	}
+
 	emitErr := emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
-			Code: events.UserSSOLoginFailureCode,
+			Code: code,
 		},
 		Method: method,
 		Status: apievents.Status{

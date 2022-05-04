@@ -98,10 +98,13 @@ func openSymlinksMode(path string, symlinksMode SymlinksMode) (*os.File, error) 
 	case SymlinksTrySecure:
 		file, err = openSecure(path)
 		if err == unix.ENOSYS {
-			log.Warnf("Failed to write to %q securely due to missing "+
-				"syscall; falling back to regular file write. Set "+
-				"`symlinks: insecure` on this destination to disable this "+
-				"warning.", path)
+			missingSyscallWarning.Do(func() {
+				log.Warnf("Failed to write to %q securely due to missing "+
+					"syscall; falling back to regular file write. Set "+
+					"`symlinks: insecure` on this destination to disable this "+
+					"warning.", path)
+			})
+
 			file, err = openStandard(path)
 			if err != nil {
 				return nil, trace.Wrap(err)
