@@ -592,7 +592,7 @@ func (s *session) Stop() {
 	}
 
 	if err := s.tracker.Close(s.serverCtx); err != nil {
-		s.log.WithError(err).Debug("Failed to update session tracker state")
+		s.log.WithError(err).Debug("Failed to close session tracker")
 	}
 }
 

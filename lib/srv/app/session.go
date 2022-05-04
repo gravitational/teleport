@@ -247,8 +247,8 @@ func (s *Server) createTracker(sess *session, identity *tlsca.Identity) error {
 
 	go func() {
 		<-sess.closeC
-		if err := tracker.UpdateState(s.closeContext, types.SessionState_SessionStateTerminated); err != nil {
-			s.log.WithError(err).Debugf("Failed to update session tracker state for session %v", sess.id)
+		if err := tracker.Close(s.closeContext); err != nil {
+			s.log.WithError(err).Debugf("Failed to close session tracker for session %v", sess.id)
 		}
 	}()
 

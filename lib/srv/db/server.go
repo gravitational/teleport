@@ -902,7 +902,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 	go func() {
 		<-ctx.Done()
 		if err := tracker.Close(s.closeContext); err != nil {
-			s.log.WithError(err).Debugf("Failed to update session tracker state for session %v", sessionCtx.ID)
+			s.log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionCtx.ID)
 		}
 	}()
 

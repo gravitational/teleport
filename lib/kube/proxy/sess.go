@@ -1080,6 +1080,10 @@ func (s *session) Close() error {
 
 		s.io.Close()
 
+		if err := s.tracker.Close(s.forwarder.ctx); err != nil {
+			s.log.WithError(err).Debug("Failed to close session tracker")
+		}
+
 		s.log.Debugf("Closing session %v.", s.id.String())
 		close(s.closeC)
 		for id, party := range s.parties {

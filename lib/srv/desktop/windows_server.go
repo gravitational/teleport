@@ -1293,7 +1293,7 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 	go func() {
 		<-ctx.Done()
 		if err := tracker.Close(s.closeCtx); err != nil {
-			s.cfg.Log.WithError(err).Debugf("Failed to update session tracker state for session %v", sessionID)
+			s.cfg.Log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionID)
 		}
 	}()
 
