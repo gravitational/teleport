@@ -143,8 +143,6 @@ func TestAWSIAM(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("RDS", func(t *testing.T) {
-		t.Parallel()
-
 		// Configure RDS database and make sure IAM was enabled and policy was attached.
 		err = configurator.Setup(ctx, rdsDatabase)
 		require.NoError(t, err)
@@ -162,8 +160,6 @@ func TestAWSIAM(t *testing.T) {
 	})
 
 	t.Run("Aurora", func(t *testing.T) {
-		t.Parallel()
-
 		// Configure Aurora database and make sure IAM was enabled and policy was attached.
 		err = configurator.Setup(ctx, auroraDatabase)
 		require.NoError(t, err)
@@ -181,8 +177,6 @@ func TestAWSIAM(t *testing.T) {
 	})
 
 	t.Run("Redshift", func(t *testing.T) {
-		t.Parallel()
-
 		// Configure Redshift database and make sure policy was attached.
 		err = configurator.Setup(ctx, redshiftDatabase)
 		require.NoError(t, err)
@@ -201,8 +195,6 @@ func TestAWSIAM(t *testing.T) {
 	// Database misssing metadata for generating IAM actions should NOT be
 	// added to the policy document.
 	t.Run("missing metadata", func(t *testing.T) {
-		t.Parallel()
-
 		err = configurator.Setup(ctx, databaseMissingMetadata)
 		waitForTaskProcessed(t)
 		policy := iamClient.attachedRolePolicies["test-role"][policyName]
