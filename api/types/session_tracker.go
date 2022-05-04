@@ -29,7 +29,7 @@ const (
 	KubernetesSessionKind     SessionKind            = "k8s"
 	DatabaseSessionKind       SessionKind            = "db"
 	AppSessionKind            SessionKind            = "app"
-	WindowsDesktopSessionKind SessionKind            = "win"
+	WindowsDesktopSessionKind SessionKind            = "desktop"
 	SessionObserverMode       SessionParticipantMode = "observer"
 	SessionModeratorMode      SessionParticipantMode = "moderator"
 	SessionPeerMode           SessionParticipantMode = "peer"

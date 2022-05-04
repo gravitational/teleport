@@ -1200,14 +1200,14 @@ func (s *session) removePartyUnderLock(p *party) error {
 
 	s.tracker.LockState()
 	defer s.tracker.UnlockState()
-	if !canRun && s.tracker.GetStateUnderLock() == types.SessionState_SessionStateRunning {
+	if !canRun && s.tracker.GetStateUnderStateLock() == types.SessionState_SessionStateRunning {
 		if policyOptions.TerminateOnLeave {
 			// Force termination in goroutine to avoid deadlock
 			go s.registry.ForceTerminate(s.scx)
 			return nil
 		}
 
-		err := s.tracker.UpdateStateUnderLock(s.serverCtx, types.SessionState_SessionStatePending)
+		err := s.tracker.UpdateStateUnderStateLock(s.serverCtx, types.SessionState_SessionStatePending)
 		if err != nil {
 			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStatePending)
 		}
@@ -1461,7 +1461,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 	s.tracker.LockState()
 	defer s.tracker.UnlockState()
-	if s.tracker.GetStateUnderLock() == types.SessionState_SessionStatePending {
+	if s.tracker.GetStateUnderStateLock() == types.SessionState_SessionStatePending {
 		canStart, _, err := s.checkIfStart()
 		if err != nil {
 			return trace.Wrap(err)
@@ -1478,7 +1478,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 					}
 				}()
 			} else {
-				err := s.tracker.UpdateStateUnderLock(s.serverCtx, types.SessionState_SessionStateRunning)
+				err := s.tracker.UpdateStateUnderStateLock(s.serverCtx, types.SessionState_SessionStateRunning)
 				if err != nil {
 					s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 				}

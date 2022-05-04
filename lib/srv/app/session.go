@@ -131,7 +131,7 @@ func (s *session) close(ctx context.Context) error {
 
 func (s *Server) closeSession(sess *session) {
 	if err := sess.close(s.closeContext); err != nil {
-		s.log.WithError(err).Debug("Error closing session %v", sess.id)
+		s.log.WithError(err).Debugf("Error closing session %v", sess.id)
 	}
 }
 

@@ -244,7 +244,7 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 	return ok
 }
 
-var sessionTrackerRoles = []types.SystemRole{types.RoleKube, types.RoleNode, types.RoleAuth, types.RoleProxy, types.RoleDatabase, types.RoleApp, types.RoleWindowsDesktop}
+var sessionTrackerRoles = []types.SystemRole{types.RoleNode, types.RoleProxy, types.RoleAuth, types.RoleKube, types.RoleDatabase, types.RoleApp, types.RoleWindowsDesktop}
 
 const sessionTrackerAccessDeniedMessage = "this request can only be executed by a node, proxy, auth, kube, db, app, or windows desktop service"
 

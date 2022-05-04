@@ -810,7 +810,7 @@ func (s *session) join(p *party) error {
 	}
 
 	s.tracker.LockState()
-	state := s.tracker.GetStateUnderLock()
+	state := s.tracker.GetStateUnderStateLock()
 	s.tracker.UnlockState()
 
 	if state == types.SessionState_SessionStateTerminated {
@@ -935,7 +935,7 @@ func (s *session) leave(id uuid.UUID) error {
 	s.tracker.LockState()
 	defer s.tracker.UnlockState()
 
-	if s.tracker.GetStateUnderLock() == types.SessionState_SessionStateTerminated {
+	if s.tracker.GetStateUnderStateLock() == types.SessionState_SessionStateTerminated {
 		return nil
 	}
 
@@ -1013,7 +1013,7 @@ func (s *session) leave(id uuid.UUID) error {
 				}
 			}()
 		} else {
-			if err := s.tracker.UpdateStateUnderLock(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
+			if err := s.tracker.UpdateStateUnderStateLock(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
 				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 			}
 			go s.waitOnAccess()

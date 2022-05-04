@@ -33,14 +33,13 @@ import (
 // SessionTracker is a session tracker for a specific session. It tracks
 // the session in memory and broadcasts updates to the given service (backend).
 type SessionTracker struct {
-	// t is the in memory session tracker
-	t types.SessionTracker
+	// tracker is the in memory session tracker
+	tracker          types.SessionTracker
+	trackerMu        sync.Mutex
+	trackerStateCond *sync.Cond
 
 	// service is used to share session updates with the service
 	service services.SessionTrackerService
-
-	// stateUpdate is used to synchronize state logic in a session
-	stateUpdate *sync.Cond
 
 	closeC chan struct{}
 }
@@ -61,10 +60,10 @@ func NewSessionTracker(ctx context.Context, trackerSpec types.SessionTrackerSpec
 	}
 
 	return &SessionTracker{
-		service:     service,
-		t:           t,
-		stateUpdate: sync.NewCond(&sync.Mutex{}),
-		closeC:      make(chan struct{}),
+		service:          service,
+		tracker:          t,
+		trackerStateCond: sync.NewCond(&sync.Mutex{}),
+		closeC:           make(chan struct{}),
 	}, nil
 }
 
@@ -96,9 +95,11 @@ func (s *SessionTracker) UpdateExpirationLoop(ctx context.Context, clock clockwo
 }
 
 func (s *SessionTracker) UpdateExpiration(ctx context.Context, expiry time.Time) error {
-	s.t.SetExpiry(expiry)
+	s.trackerMu.Lock()
+	s.tracker.SetExpiry(expiry)
+	s.trackerMu.Unlock()
 	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.t.GetSessionID(),
+		SessionID: s.tracker.GetSessionID(),
 		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
 			UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
 				Expires: &expiry,
@@ -109,9 +110,12 @@ func (s *SessionTracker) UpdateExpiration(ctx context.Context, expiry time.Time)
 }
 
 func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participant) error {
-	s.t.AddParticipant(*p)
+	s.trackerMu.Lock()
+	s.tracker.AddParticipant(*p)
+	s.trackerMu.Unlock()
+
 	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.t.GetSessionID(),
+		SessionID: s.tracker.GetSessionID(),
 		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
 			AddParticipant: &proto.SessionTrackerAddParticipant{
 				Participant: p,
@@ -122,9 +126,12 @@ func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participan
 }
 
 func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID string) error {
-	s.t.RemoveParticipant(participantID)
+	s.trackerMu.Lock()
+	s.tracker.RemoveParticipant(participantID)
+	s.trackerMu.Unlock()
+
 	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.t.GetSessionID(),
+		SessionID: s.tracker.GetSessionID(),
 		Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
 			RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
 				ParticipantID: participantID,
@@ -135,27 +142,27 @@ func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID st
 }
 
 func (s *SessionTracker) LockState() {
-	s.stateUpdate.L.Lock()
+	s.trackerStateCond.L.Lock()
 }
 
 func (s *SessionTracker) UnlockState() {
-	s.stateUpdate.L.Unlock()
+	s.trackerStateCond.L.Unlock()
 }
 
 func (s *SessionTracker) UpdateState(ctx context.Context, state types.SessionState) error {
 	s.LockState()
 	defer s.UnlockState()
 
-	err := s.UpdateStateUnderLock(ctx, state)
+	err := s.UpdateStateUnderStateLock(ctx, state)
 	return trace.Wrap(err)
 }
 
 // Must be called under StateLock
-func (s *SessionTracker) UpdateStateUnderLock(ctx context.Context, state types.SessionState) error {
-	s.t.SetState(state)
-	s.stateUpdate.Broadcast()
+func (s *SessionTracker) UpdateStateUnderStateLock(ctx context.Context, state types.SessionState) error {
+	s.tracker.SetState(state)
+	s.trackerStateCond.Broadcast()
 	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.t.GetSessionID(),
+		SessionID: s.tracker.GetSessionID(),
 		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
 			UpdateState: &proto.SessionTrackerUpdateState{
 				State: state,
@@ -167,23 +174,25 @@ func (s *SessionTracker) UpdateStateUnderLock(ctx context.Context, state types.S
 
 // WaitForStateUpdate waits for the tracker's state to be updated and returns the new state.
 func (s *SessionTracker) WaitForStateUpdate() types.SessionState {
-	s.LockState()
-	defer s.UnlockState()
+	s.trackerStateCond.L.Lock()
+	defer s.trackerStateCond.L.Unlock()
+	currentState := s.GetStateUnderStateLock()
 
-	currentState := s.t.GetState()
 	for {
-		s.stateUpdate.Wait()
-		if s.t.GetState() != currentState {
-			return s.t.GetState()
+		s.trackerStateCond.Wait()
+		if s.tracker.GetState() != currentState {
+			return s.tracker.GetState()
 		}
 	}
 }
 
 // Must be called under StateLock
-func (s *SessionTracker) GetStateUnderLock() types.SessionState {
-	return s.t.GetState()
+func (s *SessionTracker) GetStateUnderStateLock() types.SessionState {
+	return s.tracker.GetState()
 }
 
 func (s *SessionTracker) GetParticipants() []types.Participant {
-	return s.t.GetParticipants()
+	s.trackerMu.Lock()
+	defer s.trackerMu.Unlock()
+	return s.tracker.GetParticipants()
 }

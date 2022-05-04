@@ -47,7 +47,7 @@ func TestSessionTracker(t *testing.T) {
 	tracker, err := NewSessionTracker(ctx, trackerSpec, mockService)
 	require.NoError(t, err)
 	require.NotNil(t, tracker)
-	require.Equal(t, tracker.t, mockService.trackers[sessID])
+	require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 
 	t.Run("UpdateExpirationLoop", func(t *testing.T) {
 		cancelCtx, cancel := context.WithCancel(ctx)
@@ -61,13 +61,13 @@ func TestSessionTracker(t *testing.T) {
 
 		// Wait for goroutine to wait on clock.After
 		clock.BlockUntil(1)
-		expectedExpiry := tracker.t.Expiry().Add(sessionTrackerExpirationUpdateInterval)
+		expectedExpiry := tracker.tracker.Expiry().Add(sessionTrackerExpirationUpdateInterval)
 		clock.Advance(sessionTrackerExpirationUpdateInterval)
 
 		// expiration should be updated by the next time we wait on clock.After
 		clock.BlockUntil(1)
-		require.Equal(t, expectedExpiry, tracker.t.Expiry())
-		require.Equal(t, tracker.t, mockService.trackers[sessID])
+		require.Equal(t, expectedExpiry, tracker.tracker.Expiry())
+		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 
 		// cancelling the goroutine's ctx should halt the update loop
 		cancel()
@@ -84,8 +84,8 @@ func TestSessionTracker(t *testing.T) {
 	t.Run("UpdateState", func(t *testing.T) {
 		err = tracker.UpdateState(ctx, types.SessionState_SessionStateRunning)
 		require.NoError(t, err)
-		require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetStateUnderLock())
-		require.Equal(t, tracker.t, mockService.trackers[sessID])
+		require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetStateUnderStateLock())
+		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 	})
 
 	participantID := "userID"
@@ -94,14 +94,14 @@ func TestSessionTracker(t *testing.T) {
 		err = tracker.AddParticipant(ctx, p)
 		require.NoError(t, err)
 		require.Equal(t, []types.Participant{*p}, tracker.GetParticipants())
-		require.Equal(t, tracker.t, mockService.trackers[sessID])
+		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 	})
 
 	t.Run("RemoveParticipant", func(t *testing.T) {
 		err = tracker.RemoveParticipant(ctx, participantID)
 		require.NoError(t, err)
 		require.Empty(t, tracker.GetParticipants())
-		require.Equal(t, tracker.t, mockService.trackers[sessID])
+		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 	})
 
 	t.Run("UpdateExpirationLoop", func(t *testing.T) {
@@ -116,13 +116,13 @@ func TestSessionTracker(t *testing.T) {
 
 		// Wait for goroutine to wait on clock.After
 		clock.BlockUntil(1)
-		expectedExpiry := tracker.t.Expiry().Add(sessionTrackerExpirationUpdateInterval)
+		expectedExpiry := tracker.tracker.Expiry().Add(sessionTrackerExpirationUpdateInterval)
 		clock.Advance(sessionTrackerExpirationUpdateInterval)
 
 		// expiration should be updated by the next time we wait on clock.After
 		clock.BlockUntil(1)
-		require.Equal(t, expectedExpiry, tracker.t.Expiry())
-		require.Equal(t, tracker.t, mockService.trackers[sessID])
+		require.Equal(t, expectedExpiry, tracker.tracker.Expiry())
+		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 
 		// cancelling the goroutine's ctx should halt the update loop
 		cancel()
@@ -134,7 +134,7 @@ func TestSessionTracker(t *testing.T) {
 		require.NoError(t, err)
 
 		// Closing the tracker should update the state to terminated
-		require.Equal(t, types.SessionState_SessionStateTerminated, tracker.GetStateUnderLock())
+		require.Equal(t, types.SessionState_SessionStateTerminated, tracker.GetStateUnderStateLock())
 		require.Equal(t, tracker, mockService.trackers[sessID])
 	})
 }
