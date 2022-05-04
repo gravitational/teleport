@@ -2173,7 +2173,7 @@ func TestTLSCert(t *testing.T) {
 	}
 }
 
-func Test_applyKeyStoreConfig(t *testing.T) {
+func TestApplyKeyStoreConfig(t *testing.T) {
 	slotNumber := 1
 
 	tempDir := t.TempDir()
@@ -2198,8 +2198,8 @@ func Test_applyKeyStoreConfig(t *testing.T) {
 
 		auth Auth
 
-		want    keystore.Config
-		wantErr string
+		want       keystore.Config
+		errMessage string
 	}{
 		{
 			name: "handle nil configuration",
@@ -2256,7 +2256,7 @@ func Test_applyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "can not set both pin and pin_path",
+			errMessage: "can not set both pin and pin_path",
 		},
 		{
 			name: "err when pkcs11 world writable",
@@ -2267,7 +2267,10 @@ func Test_applyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "PKCS11 library must not be world-writable",
+			errMessage: fmt.Sprintf(
+				"PKCS11 library (%s) must not be world-writable",
+				worldWritablePKCS11LibPath,
+			),
 		},
 		{
 			name: "err when pin file world-readable",
@@ -2278,7 +2281,10 @@ func Test_applyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "HSM pin file must not be world-readable",
+			errMessage: fmt.Sprintf(
+				"HSM pin file (%s) must not be world-readable",
+				worldReadablePinFilePath,
+			),
 		},
 	}
 
@@ -2289,8 +2295,8 @@ func Test_applyKeyStoreConfig(t *testing.T) {
 			err := applyKeyStoreConfig(&FileConfig{
 				Auth: tt.auth,
 			}, cfg)
-			if tt.wantErr != "" {
-				require.EqualError(t, err, tt.wantErr)
+			if tt.errMessage != "" {
+				require.EqualError(t, err, tt.errMessage)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.want, cfg.Auth.KeyStore)

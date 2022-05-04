@@ -646,7 +646,10 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 
 		const worldWritableBits = 0o002
 		if fi.Mode().Perm()&worldWritableBits != 0 {
-			return trace.Errorf("PKCS11 library must not be world-writable")
+			return trace.Errorf(
+				"PKCS11 library (%s) must not be world-writable",
+				fc.Auth.CAKeyParams.PKCS11.ModulePath,
+			)
 		}
 
 		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
@@ -668,7 +671,10 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 
 		const worldReadableBits = 0o004
 		if fi.Mode().Perm()&worldReadableBits != 0 {
-			return trace.Errorf("HSM pin file must not be world-readable")
+			return trace.Errorf(
+				"HSM pin file (%s) must not be world-readable",
+				fc.Auth.CAKeyParams.PKCS11.PinPath,
+			)
 		}
 
 		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
