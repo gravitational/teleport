@@ -87,6 +87,13 @@ persistence:
   # Ignored if existingClaimName is provided.
   volumeSize: 10Gi
 
+######################################################################
+# Agnostic storage properties
+######################################################################
+storage:
+  audit:
+    retentionPeriod: 365d
+
 ##################################################
 # AWS-specific settings (only used in "aws" mode)
 ##################################################

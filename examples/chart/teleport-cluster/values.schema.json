@@ -178,6 +178,23 @@
                 }
             }
         },
+        "storage": {
+            "$id": "#/properties/storage",
+            "type": "object",
+            "properties": {
+                "audit": {
+                    "$id": "#/properties/storage/audit",
+                    "type": "object",
+                    "properties": {
+                        "retentionPeriod": {
+                            "$id": "#/properties/storage/audit/retentionPeriod",
+                            "type": "string",
+                            "default": "365d"
+                        }
+                    }
+                }
+            }
+        },
         "aws": {
             "$id": "#/properties/aws",
             "type": "object",

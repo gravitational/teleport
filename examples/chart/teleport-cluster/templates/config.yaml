@@ -33,6 +33,7 @@ data:
         {{- end }}
         audit_sessions_uri: s3://{{ required "aws.sessionRecordingBucket is required in chart values" .Values.aws.sessionRecordingBucket }}
         continuous_backups: {{ required "aws.backups is required in chart values" .Values.aws.backups }}
+        audit_retention_period: {{ .Values.storage.audit.retentionPeriod }}
   {{- else if eq .Values.chartMode "gcp" }}
       storage:
         type: firestore
@@ -47,6 +48,7 @@ data:
         audit_events_uri: ['firestore://{{ required "gcp.auditLogTable is required in chart values" .Values.gcp.auditLogTable }}?projectID={{ required "gcp.projectId is required in chart values" .Values.gcp.projectId }}{{ empty .Values.gcp.credentialSecretName | ternary "" "&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"}}']
         {{- end }}
         audit_sessions_uri: "gs://{{ required "gcp.sessionRecordingBucket is required in chart values" .Values.gcp.sessionRecordingBucket }}?projectID={{ required "gcp.projectId is required in chart values" .Values.gcp.projectId }}{{ empty .Values.gcp.credentialSecretName | ternary "" "&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"}}"
+        audit_retention_period: {{ .Values.storage.audit.retentionPeriod }}
   {{- end }}
     auth_service:
       enabled: true
