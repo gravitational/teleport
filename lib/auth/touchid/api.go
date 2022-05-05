@@ -135,7 +135,10 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*wanlib.CredentialC
 	pubKeyRaw := resp.publicKeyRaw
 
 	// Parse public key and transform to the required CBOR object.
-	pubKey := pubKeyFromRawAppleKey(pubKeyRaw)
+	pubKey, err := pubKeyFromRawAppleKey(pubKeyRaw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	x := make([]byte, 32) // x and y must have exactly 32 bytes in EC2PublicKeyData.
 	y := make([]byte, 32)
 	pubKey.X.FillBytes(x)
@@ -200,7 +203,15 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*wanlib.CredentialC
 	}, nil
 }
 
-func pubKeyFromRawAppleKey(pubKeyRaw []byte) *ecdsa.PublicKey {
+func pubKeyFromRawAppleKey(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
+	// Verify key length to avoid a potential panic below.
+	// 3 is the smallest number that clears it, but in practice 65 is the more
+	// common length.
+	// Apple's docs make no guarantees, hence no assumptions are made here.
+	if len(pubKeyRaw) < 3 {
+		return nil, fmt.Errorf("public key representation too small (%v bytes)", len(pubKeyRaw))
+	}
+
 	// "For an elliptic curve public key, the format follows the ANSI X9.63
 	// standard using a byte string of 04 || X || Y. (...) All of these
 	// representations use constant size integers, including leading zeros as
@@ -215,7 +226,7 @@ func pubKeyFromRawAppleKey(pubKeyRaw []byte) *ecdsa.PublicKey {
 		Curve: elliptic.P256(),
 		X:     (&big.Int{}).SetBytes(x),
 		Y:     (&big.Int{}).SetBytes(y),
-	}
+	}, nil
 }
 
 type credentialData struct {
