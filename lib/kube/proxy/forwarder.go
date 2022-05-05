@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
@@ -201,6 +202,16 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 		f.KubeClusterName = f.ClusterName
 	}
 	return nil
+}
+
+func NewTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
+	return &Forwarder{
+		log:            logrus.New(),
+		router:         *httprouter.New(),
+		cfg:            cfg,
+		activeRequests: make(map[string]context.Context),
+		ctx:            ctx,
+	}
 }
 
 // NewForwarder returns new instance of Kubernetes request
@@ -453,7 +464,14 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := f.acquireConnectionLock(req.Context(), authContext); err != nil {
+
+		user := authContext.Identity.GetIdentity().Username
+		roles, err := getRolesByName(f, authContext.Identity.GetIdentity().Groups)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := f.AcquireConnectionLock(req.Context(), user, roles); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
@@ -897,16 +915,10 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 	return trace.Wrap(err)
 }
 
-// acquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
+// AcquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
 // The semaphore is releasted when the request is returned/connection is closed.
 // Returns an error if a semaphore could not be acquired.
-func (f *Forwarder) acquireConnectionLock(ctx context.Context, identity *authContext) error {
-	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func (f *Forwarder) AcquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
 	maxConnections := services.RoleSet(roles).MaxKubernetesConnections()
 	if maxConnections == 0 {
 		return nil
@@ -919,7 +931,7 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, identity *authCon
 			SemaphoreKind: types.SemaphoreKindKubernetesConnection,
 			SemaphoreName: user,
 			MaxLeases:     maxConnections,
-			Holder:        identity.teleportCluster.name,
+			Holder:        user,
 		},
 	})
 	if err != nil {

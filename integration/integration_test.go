@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -206,6 +207,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
+	t.Run("TestKubeConnectionSemaphore", suite.bind(testKubeConnectionSemaphore))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -6111,6 +6113,95 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 			services, err := userSite.GetKubeServices(ctx)
 			require.NoError(t, err)
 			require.Len(t, services, testCase.wantsLen)
+		})
+	}
+}
+
+type mockSemaphoreClient struct {
+	auth.ClientI
+	server *auth.Server
+}
+
+func (m *mockSemaphoreClient) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	return m.server.AcquireSemaphore(ctx, params)
+}
+
+func (m *mockSemaphoreClient) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	return m.server.CancelSemaphoreLease(ctx, lease)
+}
+
+// testKubeConnectionSemaphore checks that the kubernetes connection limit is enforced as expected.
+func testKubeConnectionSemaphore(t *testing.T, suite *integrationTestSuite) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type testCase struct {
+		name        string
+		limit       int
+		connections int
+		role        types.Role
+		assert      require.ErrorAssertionFunc
+	}
+
+	unlimitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	limitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{
+		Options: types.RoleOptions{
+			MaxKubernetesConnections: 5,
+		},
+	})
+	require.NoError(t, err)
+
+	testCases := []testCase{
+		{
+			name:        "unlimited",
+			limit:       0,
+			connections: 7,
+			role:        unlimitedRole,
+			assert:      require.NoError,
+		},
+		{
+			name:        "limited-success",
+			limit:       5,
+			connections: 5,
+			role:        limitedRole,
+			assert:      require.NoError,
+		},
+		{
+			name:        "limited-fail",
+			limit:       5,
+			connections: 6,
+			role:        limitedRole,
+			assert:      require.Error,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			teleport := suite.newTeleport(t, nil, true)
+			defer teleport.StopAll()
+
+			adminSite := teleport.Process.GetAuthServer()
+			err = adminSite.UpsertRole(ctx, testCase.role)
+			require.NoError(t, err)
+
+			user, err := types.NewUser("bob")
+			require.NoError(t, err)
+			user.SetRoles([]string{testCase.role.GetName()})
+			err = adminSite.CreateUser(ctx, user)
+			require.NoError(t, err)
+
+			client := &mockSemaphoreClient{server: adminSite}
+			forwarder := proxy.NewTestForwarder(ctx, proxy.ForwarderConfig{
+				AuthClient: client,
+			})
+
+			for i := 0; i < testCase.connections; i++ {
+				err = forwarder.AcquireConnectionLock(ctx, user.GetName(), services.NewRoleSet(testCase.role))
+			}
+
+			testCase.assert(t, err)
 		})
 	}
 }
