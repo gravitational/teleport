@@ -17,6 +17,8 @@ limitations under the License.
 package events
 
 import (
+	"reflect"
+
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -25,6 +27,11 @@ import (
 
 	"encoding/json"
 )
+
+// isInterfaceNil uses some reflect magic to check if an interface is nil.
+func isInterfaceNil(a interface{}) bool {
+	return a == nil || reflect.ValueOf(a).IsNil()
+}
 
 // FromEventFields converts from the typed dynamic representation
 // to the new typed interface-style representation.
@@ -37,8 +44,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	eventType := fields.GetString(EventType)
+	var eventType string
 	var e events.AuditEvent
+	i, ok := fields[EventType]
+	if !ok || isInterfaceNil(i) {
+		eventType = "event-type-nil"
+	} else {
+		eventType = fields.GetString(EventType)
+	}
 
 	switch eventType {
 	case SessionPrintEvent:
