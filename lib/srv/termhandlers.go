@@ -17,6 +17,8 @@ limitations under the License.
 package srv
 
 import (
+	"encoding/json"
+
 	"golang.org/x/crypto/ssh"
 
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -139,6 +141,22 @@ func (t *TermHandlers) HandleWinChange(ch ssh.Channel, req *ssh.Request, ctx *Se
 func (t *TermHandlers) HandleForceTerminate(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
 	err := t.SessionRegistry.ForceTerminate(ctx)
 	return trace.Wrap(err)
+}
+
+func (t *TermHandlers) HandleTerminalSize(req *ssh.Request) error {
+	sessionID := string(req.Payload)
+	size, err := t.SessionRegistry.GetTerminalSize(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	payload, err := json.Marshal(size)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req.Reply(true, payload)
+	return nil
 }
 
 func parseExecRequest(req *ssh.Request, ctx *ServerContext) (Exec, error) {

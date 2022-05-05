@@ -201,7 +201,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 
 func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config ClientConfig) {
 	const (
-		deadline         = time.Second
+		deadline         = time.Second * 5
 		nextIterWaitTime = time.Millisecond * 100
 	)
 

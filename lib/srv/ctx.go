@@ -336,6 +336,9 @@ type ServerContext struct {
 
 	// x11Config holds the xauth and XServer listener config for this session.
 	x11Config *X11Config
+
+	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
+	JoinOnly bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -380,6 +383,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		trace.Component:       child.srv.Component(),
 		trace.ComponentFields: fields,
 	})
+
+	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+		child.JoinOnly = true
+	}
 
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
