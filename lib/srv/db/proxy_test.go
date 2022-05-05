@@ -18,6 +18,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -42,7 +43,7 @@ func TestProxyProtocolPostgres(t *testing.T) {
 
 	for _, v2 := range []bool{false, true} {
 		v2 := v2
-		t.Run(name(v2), func(t *testing.T) {
+		t.Run(fmt.Sprintf("v2=%v", v2), func(t *testing.T) {
 			// Point our proxy to the Teleport's db listener on the multiplexer.
 			proxy, err := multiplexer.NewTestProxy(testCtx.mux.DB().Addr().String(), v2)
 			require.NoError(t, err)
@@ -70,7 +71,7 @@ func TestProxyProtocolMySQL(t *testing.T) {
 
 	for _, v2 := range []bool{false, true} {
 		v2 := v2
-		t.Run(name(v2), func(t *testing.T) {
+		t.Run(fmt.Sprintf("v2=%v", v2), func(t *testing.T) {
 			// Point our proxy to the Teleport's MySQL listener.
 			proxy, err := multiplexer.NewTestProxy(testCtx.mysqlListener.Addr().String(), v2)
 			require.NoError(t, err)
@@ -98,7 +99,7 @@ func TestProxyProtocolMongo(t *testing.T) {
 
 	for _, v2 := range []bool{false, true} {
 		v2 := v2
-		t.Run(name(v2), func(t *testing.T) {
+		t.Run(fmt.Sprintf("v2=%v", v2), func(t *testing.T) {
 			// Point our proxy to the Teleport's TLS listener.
 			proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), false)
 			require.NoError(t, err)
@@ -123,7 +124,7 @@ func TestProxyProtocolRedis(t *testing.T) {
 
 	for _, v2 := range []bool{false, true} {
 		v2 := v2
-		t.Run(name(v2), func(t *testing.T) {
+		t.Run(fmt.Sprintf("v2=%v", v2), func(t *testing.T) {
 			// Point our proxy to the Teleport's TLS listener.
 			proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), false)
 			require.NoError(t, err)
@@ -251,11 +252,4 @@ func TestExtractMySQLVersion(t *testing.T) {
 	version, err := mysql.FetchMySQLVersion(ctx, testCtx.server.proxiedDatabases["mysql"])
 	require.NoError(t, err)
 	require.Equal(t, "8.0.25", version)
-}
-
-func name(v2 bool) string {
-	if v2 {
-		return "v2"
-	}
-	return "v1"
 }
