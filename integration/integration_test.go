@@ -278,7 +278,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			defer teleport.StopAll()
 
 			// Start a node.
-			nodeSSHPort := ports.PopInt()
+			nodeSSHPort := freeOSPort()
 			nodeConfig := func() *service.Config {
 				tconf := suite.defaultServiceConfig()
 
@@ -723,7 +723,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	// addNode adds a node to the teleport instance, returning its uuid.
 	// All nodes added this way have the same hostname.
 	addNode := func() (string, error) {
-		nodeSSHPort := ports.PopInt()
+		nodeSSHPort := freeOSPort()
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = Host
 
@@ -1692,8 +1692,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, b.Start())
 	require.NoError(t, a.Start())
 
-	nodePorts := ports.PopIntSlice(3)
-	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	sshPort, proxyWebPort, proxySSHPort := freeOSPort(), freeOSPort(), freeOSPort()
 	require.NoError(t, a.StartNodeAndProxy("cluster-a-node", sshPort, proxyWebPort, proxySSHPort))
 
 	// Wait for both cluster to see each other via reverse tunnels.
@@ -1836,8 +1835,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	waitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
-	nodePorts := ports.PopIntSlice(3)
-	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	sshPort, proxyWebPort, proxySSHPort := freeOSPort(), freeOSPort(), freeOSPort()
 	require.NoError(t, aux.StartNodeAndProxy("aux-node", sshPort, proxyWebPort, proxySSHPort))
 
 	// Wait for both cluster to see each other via reverse tunnels.
@@ -2183,8 +2181,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	waitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
-	nodePorts := ports.PopIntSlice(3)
-	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	sshPort, proxyWebPort, proxySSHPort := freeOSPort(), freeOSPort(), freeOSPort()
 	require.NoError(t, aux.StartNodeAndProxy("aux-node", sshPort, proxyWebPort, proxySSHPort))
 
 	// Wait for both cluster to see each other via reverse tunnels.
@@ -2482,7 +2479,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	username := suite.me.Username
 
 	// create load balancer for main cluster proxies
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(freeOSPort())))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
@@ -2515,8 +2512,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	// Helper function for adding a new proxy to "main".
 	addNewMainProxy := func(name string) (reversetunnel.Server, ProxyConfig) {
 		t.Logf("adding main proxy %q...", name)
-		nodePorts := ports.PopIntSlice(3)
-		proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+		proxyReverseTunnelPort, proxyWebPort, proxySSHPort := freeOSPort(), freeOSPort(), freeOSPort()
 		newConfig := ProxyConfig{
 			Name:              name,
 			SSHPort:           proxySSHPort,
@@ -2615,7 +2611,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	username := suite.me.Username
 
 	// create load balancer for main cluster proxies
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(freeOSPort())))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
@@ -2646,8 +2642,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// start second proxy
-	nodePorts := ports.PopIntSlice(3)
-	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := freeOSPort(), freeOSPort(), freeOSPort()
 	proxyConfig := ProxyConfig{
 		Name:              "cluster-main-proxy",
 		SSHPort:           proxySSHPort,
@@ -2743,7 +2738,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	// Create and start load balancer for proxies.
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(freeOSPort())))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
@@ -2775,8 +2770,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	t.Cleanup(func() { require.NoError(t, main.StopAll()) })
 
 	// Create a Teleport instance with a Proxy.
-	nodePorts := ports.PopIntSlice(3)
-	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := freeOSPort(), freeOSPort(), freeOSPort()
 	proxyConfig := ProxyConfig{
 		Name:                   "cluster-main-proxy",
 		SSHPort:                proxySSHPort,
@@ -2887,7 +2881,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	defer lib.SetInsecureDevMode(false)
 
 	// Create and start load balancer for proxies.
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(freeOSPort())))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	err = lb.Listen()
@@ -2920,8 +2914,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	defer main.StopAll()
 
 	// Create a Teleport instance with a Proxy.
-	nodePorts := ports.PopIntSlice(3)
-	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := freeOSPort(), freeOSPort(), freeOSPort()
 	proxyConfig := ProxyConfig{
 		Name:              "cluster-main-proxy",
 		SSHPort:           proxySSHPort,
@@ -3359,7 +3352,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// start a ssh server that presents a host key instead of a certificate
-			nodePort := ports.PopInt()
+			nodePort := freeOSPort()
 			sshNode, err := newDiscardServer(Host, nodePort, hostSigner)
 			require.NoError(t, err)
 			err = sshNode.Start()
@@ -4612,7 +4605,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	defer teleport.StopAll()
 
 	// Create and start a Teleport node.
-	nodeSSHPort := ports.PopInt()
+	nodeSSHPort := freeOSPort()
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "server-02"

@@ -17,34 +17,19 @@ limitations under the License.
 package integration
 
 import (
-	"fmt"
 	"net"
 	"strconv"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func freeOSPort() int {
 	lis, err := net.Listen("tcp", ":0")
 	if err != nil {
-		// Inject testing.T and use require?
+		// TODO: Inject testing.T and use require?
 		panic(err)
 	}
 	defer lis.Close()
 
 	return lis.Addr().(*net.TCPAddr).Port
-}
-
-// ports contains tcp ports allocated for all integration tests.
-var ports utils.PortList
-
-func init() {
-	// Allocate tcp ports for all integration tests. 5000 should be plenty.
-	var err error
-	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
-	if err != nil {
-		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
-	}
 }
 
 func newInstancePort() *InstancePort {

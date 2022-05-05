@@ -48,7 +48,6 @@ func extractPort(svr *httptest.Server) (int, error) {
 }
 
 func waitForSessionToBeEstablished(ctx context.Context, namespace string, site auth.ClientI) ([]session.Session, error) {
-
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -120,7 +119,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			// ... and a client connection that was launched with port
 			// forwarding enabled to that dummy server
-			localPort := ports.PopInt()
+			localPort := freeOSPort()
 			remotePort, err := extractPort(remoteSvr)
 			require.NoError(t, err)
 

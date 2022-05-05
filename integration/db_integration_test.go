@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -158,8 +159,10 @@ func TestDatabaseRotateTrustedCluster(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
+	rotationPhases := []string{
+		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
+	}
 
 	waitForEvent := func(process *service.TeleportProcess, event string) {
 		eventC := make(chan service.Event, 1)
@@ -946,14 +949,14 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p := &databasePack{
 		clock: opts.clock,
 		root: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
-			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
-			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			postgresAddr: net.JoinHostPort("localhost", strconv.Itoa(freeOSPort())),
+			mysqlAddr:    net.JoinHostPort("localhost", strconv.Itoa(freeOSPort())),
+			mongoAddr:    net.JoinHostPort("localhost", strconv.Itoa(freeOSPort())),
 		},
 		leaf: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
-			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
-			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			postgresAddr: net.JoinHostPort("localhost", strconv.Itoa(freeOSPort())),
+			mysqlAddr:    net.JoinHostPort("localhost", strconv.Itoa(freeOSPort())),
+			mongoAddr:    net.JoinHostPort("localhost", strconv.Itoa(freeOSPort())),
 		},
 	}
 
@@ -1255,7 +1258,7 @@ func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
 	conf.Token = "static-token-value"
-	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", ports.Pop())}
+	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(freeOSPort()))}
 	conf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",

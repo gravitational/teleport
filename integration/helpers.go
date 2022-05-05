@@ -1786,14 +1786,14 @@ func enableKubernetesService(t *testing.T, config *service.Config) {
 
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
 		TeleportClusterName: "teleport-cluster",
-		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
+		ClusterAddr:         net.JoinHostPort(Host, strconv.Itoa(freeOSPort())),
 		Credentials:         key,
 	})
 	require.NoError(t, err)
 
 	config.Kube.Enabled = true
 	config.Kube.KubeconfigPath = kubeConfigPath
-	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, strconv.Itoa(freeOSPort())))
 }
 
 func genUserKey() (*client.Key, error) {
@@ -1847,8 +1847,6 @@ func getLocalIP() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	// code returns IPv6 Address that cannot be bound to on my mac >:(
-	return "192.168.1.61", nil
 	for _, addr := range addrs {
 		var ip net.IP
 		switch v := addr.(type) {

@@ -240,7 +240,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 }
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
-//SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
+// SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestALPNSNIProxyKube(t *testing.T) {
 	const (
 		localK8SNI = "kube.teleport.cluster.local"
@@ -325,7 +325,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPath
-			config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
+			config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(freeOSPort())))
 		}),
 		withRootClusterRoles(kubeRole),
 		withLeafClusterRoles(kubeRole),
@@ -388,7 +388,6 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			err = client.Close()
 			require.NoError(t, err)
-
 		})
 		t.Run("connect to leaf cluster via proxy", func(t *testing.T) {
 			client, err := mysql.MakeTestClient(common.TestClientConfig{

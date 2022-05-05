@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -55,7 +56,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.Token = tokenName
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
-	config.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
+	config.SSH.Addr.Addr = net.JoinHostPort(Host, strconv.Itoa(freeOSPort()))
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
@@ -72,7 +73,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
 
-	proxyAddr := net.JoinHostPort(Host, ports.Pop())
+	proxyAddr := net.JoinHostPort(Host, strconv.Itoa(freeOSPort()))
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.WebAddr.Addr = proxyAddr
@@ -96,7 +97,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 
 	config := service.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
-	config.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
+	config.Auth.SSHAddr.Addr = net.JoinHostPort(Host, strconv.Itoa(freeOSPort()))
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "testcluster",
 	})
@@ -154,7 +155,7 @@ func TestEC2NodeJoin(t *testing.T) {
 		types.ProvisionTokenSpecV2{
 			Roles: []types.SystemRole{types.RoleNode},
 			Allow: []*types.TokenRule{
-				&types.TokenRule{
+				{
 					AWSAccount: iid.AccountID,
 					AWSRegions: []string{iid.Region},
 				},
@@ -226,7 +227,7 @@ func TestIAMNodeJoin(t *testing.T) {
 		types.ProvisionTokenSpecV2{
 			Roles: []types.SystemRole{types.RoleNode, types.RoleProxy},
 			Allow: []*types.TokenRule{
-				&types.TokenRule{
+				{
 					AWSAccount: *id.Account,
 				},
 			},
