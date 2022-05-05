@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
@@ -202,16 +201,6 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 		f.KubeClusterName = f.ClusterName
 	}
 	return nil
-}
-
-func NewTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
-	return &Forwarder{
-		log:            logrus.New(),
-		router:         *httprouter.New(),
-		cfg:            cfg,
-		activeRequests: make(map[string]context.Context),
-		ctx:            ctx,
-	}
 }
 
 // NewForwarder returns new instance of Kubernetes request
