@@ -17,12 +17,10 @@ limitations under the License.
 package auth
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,6 +44,7 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -184,7 +183,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 
 	clientParams := append(
 		[]roundtrip.ClientParam{
-			roundtrip.HTTPClient(&http.Client{Transport: transport}),
+			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(transport)}),
 			roundtrip.SanitizerEnabled(true),
 		},
 		params...,
@@ -620,8 +619,8 @@ func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (
 }
 
 // GetReverseTunnels returns the list of created reverse tunnels
-func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("reversetunnels"), url.Values{})
+func (c *Client) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+	out, err := c.Get(ctx, c.Endpoint("reversetunnels"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -964,10 +963,8 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
-func (c *Client) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
-	out, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", req.User, "web", "sessions"), req)
+func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("users", req.User, "web", "sessions"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1147,9 +1144,35 @@ func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 	return response, nil
 }
 
+// GetSAMLAuthRequest gets SAML AuthnRequest
+func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
+	out, err := c.Get(ctx, c.Endpoint("saml", "requests", "get", id), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *services.SAMLAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+// GetSSODiagnosticInfo returns SSO diagnostic info records.
+func (c *Client) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
+	out, err := c.Get(ctx, c.Endpoint("sso", "diag", authKind, authRequestID), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response types.SSODiagnosticInfo
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &response, nil
+}
+
 // ValidateSAMLResponse validates response returned by SAML identity provider
-func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
+func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
 		Response: re,
 	})
 	if err != nil {
@@ -1250,47 +1273,6 @@ func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 	return &response, nil
 }
 
-// EmitAuditEventLegacy sends an auditable event to the auth server (part of events.IAuditLog interface)
-func (c *Client) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
-	_, err := c.PostJSON(context.TODO(), c.Endpoint("events"), &auditEventReq{
-		Event:  event,
-		Fields: fields,
-		// Send "type" as well for backwards compatibility.
-		Type: event.Name,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// PostSessionSlice allows clients to submit session stream chunks to the audit log
-// (part of evets.IAuditLog interface)
-//
-// The data is POSTed to HTTP server as a simple binary body (no encodings of any
-// kind are needed)
-func (c *Client) PostSessionSlice(slice events.SessionSlice) error {
-	data, err := slice.Marshal()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", slice.SessionID, "slice"), bytes.NewReader(data))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	r.Header.Set("Content-Type", "application/grpc")
-	c.Client.SetAuthHeader(r.Header)
-	re, err := c.Client.HTTPClient().Do(r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// we **must** consume response by reading all of its body, otherwise the http
-	// client will allocate a new connection for subsequent requests
-	defer re.Body.Close()
-	responseBytes, _ := io.ReadAll(re.Body)
-	return trace.ReadError(re.StatusCode, responseBytes)
-}
-
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
 // session stream, starting from 'offset', up to 'max' in length. The upper bound
 // of 'max' is set to events.MaxChunkBytes
@@ -1307,24 +1289,6 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 		return nil, trace.Wrap(err)
 	}
 	return response.Bytes(), nil
-}
-
-// UploadSessionRecording uploads session recording to the audit server
-func (c *Client) UploadSessionRecording(r events.SessionRecording) error {
-	file := roundtrip.File{
-		Name:     "recording",
-		Filename: "recording",
-		Reader:   r.Recording,
-	}
-	values := url.Values{
-		"sid":       []string{string(r.SessionID)},
-		"namespace": []string{r.Namespace},
-	}
-	_, err := c.PostForm(context.TODO(), c.Endpoint("namespaces", r.Namespace, "sessions", string(r.SessionID), "recording"), values, file)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // Returns events that happen during a session sorted by time
@@ -1686,7 +1650,7 @@ type WebService interface {
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(req WebSessionReq) (types.WebSession, error)
+	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (types.WebSession, error)
 
@@ -1726,7 +1690,7 @@ type IdentityService interface {
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 
-	// GetSAMLConnector gets SAML connectors list
+	// GetSAMLConnectors gets SAML connectors list
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
 
 	// DeleteSAMLConnector deletes SAML connector by ID
@@ -1736,7 +1700,13 @@ type IdentityService interface {
 	CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error)
 
 	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(re string) (*SAMLAuthResponse, error)
+	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
+
+	// GetSAMLAuthRequest returns SAML auth request if found
+	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*services.SAMLAuthRequest, error)
+
+	// GetSSODiagnosticInfo returns SSO diagnostic info records.
+	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
 
 	// CreateGithubConnector creates a new Github connector
 	CreateGithubConnector(connector types.GithubConnector) error

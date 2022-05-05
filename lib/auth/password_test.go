@@ -403,39 +403,6 @@ func TestChangeUserAuthentication(t *testing.T) {
 			},
 		},
 		{
-			name: "with second factor webauthn",
-			setAuthPreference: func() {
-				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorWebauthn,
-					Webauthn: &types.Webauthn{
-						RPID: "localhost",
-					},
-				})
-				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
-				require.NoError(t, err)
-			},
-			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
-				require.NoError(t, err)
-
-				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:                resetTokenID,
-					NewPassword:            []byte("password3"),
-					NewMFARegisterResponse: webauthnRes,
-				}
-			},
-			// Invalid totp fields when auth settings set to only webauthn.
-			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:                resetTokenID,
-					NewPassword:            []byte("password3"),
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
-				}
-			},
-		},
-		{
 			name: "with second factor on",
 			setAuthPreference: func() {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -457,6 +424,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 					TokenID:                resetTokenID,
 					NewPassword:            []byte("password4"),
 					NewMFARegisterResponse: mfaResp,
+					NewDeviceName:          "new-device",
 				}
 			},
 			// Empty register response, when auth settings requires second factors.
@@ -516,6 +484,26 @@ func TestChangeUserAuthentication(t *testing.T) {
 			// Test password is updated.
 			err = srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
 			require.NoError(t, err)
+
+			// Test device was registered.
+			if validReq.NewMFARegisterResponse != nil {
+				devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false /* without secrets*/)
+				require.NoError(t, err)
+				require.Len(t, devs, 1)
+
+				// Test device name setting.
+				dev := devs[0]
+				var wantName string
+				switch {
+				case validReq.NewDeviceName != "":
+					wantName = validReq.NewDeviceName
+				case dev.GetTotp() != nil:
+					wantName = "otp"
+				case dev.GetWebauthn() != nil:
+					wantName = "webauthn"
+				}
+				require.Equal(t, wantName, dev.GetName(), "device name mismatch")
+			}
 		})
 	}
 }

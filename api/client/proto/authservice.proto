@@ -1286,6 +1286,8 @@ message ChangeUserAuthenticationRequest {
     // cluster settings enable optional second factor), or cluster settings disabled second factor.
     MFARegisterResponse NewMFARegisterResponse = 3
         [ (gogoproto.jsontag) = "new_mfa_register_response,omitempty" ];
+    // NewDeviceName is the name of a new mfa or passwordless device.
+    string NewDeviceName = 4 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
 }
 
 // ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
