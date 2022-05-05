@@ -70,8 +70,8 @@ type SessionTracker interface {
 	// GetAddress returns the address of the session target.
 	GetAddress() string
 
-	// GetClustername returns the name of the cluster.
-	GetClustername() string
+	// GetClusterName returns the name of the cluster.
+	GetClusterName() string
 
 	// GetLogin returns the target machine username used for this session.
 	GetLogin() string
@@ -246,7 +246,7 @@ func (s *SessionTrackerV1) GetAddress() string {
 }
 
 // GetClustername returns the name of the cluster the session is running in.
-func (s *SessionTrackerV1) GetClustername() string {
+func (s *SessionTrackerV1) GetClusterName() string {
 	return s.Spec.ClusterName
 }
 

@@ -1562,51 +1562,25 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
-	// find the session ID on the site:
-	sessions, err := site.GetSessions(namespace)
+	var session types.SessionTracker
+	sessions, err := site.GetActiveSessionTrackers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var session *session.Session
-	for _, s := range sessions {
-		if s.ID == sessionID {
-			session = &s
-			break
+
+	for _, sessionIter := range sessions {
+		if sessionIter.GetSessionID() == string(sessionID) {
+			session = sessionIter
 		}
 	}
+
 	if session == nil {
 		return trace.NotFound(notFoundErrorMessage)
 	}
 
-	// pick the 1st party of the session and use his server ID to connect to
-	if len(session.Parties) == 0 {
-		return trace.NotFound(notFoundErrorMessage)
-	}
-	serverID := session.Parties[0].ServerID
-
-	// find a server address by its ID
-	nodes, err := site.GetNodes(ctx, namespace)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	var node types.Server
-	for _, n := range nodes {
-		if n.GetName() == serverID {
-			node = n
-			break
-		}
-	}
-	if node == nil {
-		return trace.NotFound(notFoundErrorMessage)
-	}
-	target := node.GetAddr()
-	if target == "" {
-		// address is empty, try dialing by UUID instead
-		target = fmt.Sprintf("%s:0", serverID)
-	}
 	// connect to server:
 	nc, err := proxyClient.ConnectToNode(ctx, NodeAddr{
-		Addr:      target,
+		Addr:      session.GetAddress() + ":0",
 		Namespace: tc.Namespace,
 		Cluster:   tc.SiteName,
 	}, tc.Config.HostLogin, false)
@@ -1625,7 +1599,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				runPresenceTask(presenceCtx, out, site, tc, string(session.ID))
+				runPresenceTask(presenceCtx, out, site, tc, session.GetSessionID())
 			}
 		}
 	}
@@ -2136,7 +2110,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin *session.Session, beforeStart func(io.Writer)) error {
+func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
 	env := make(map[string]string)
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
@@ -2791,7 +2765,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 		Protocol:    protocol,
 		BindAddr:    tc.BindAddr,
 		Browser:     tc.Browser,
-	})
+	}, nil)
 	return response, trace.Wrap(err)
 }
 

@@ -281,7 +281,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotSSHCert, err := sshutils.ParseCertificate(resp.Cert)
 	require.NoError(t, err)
 	require.Equal(t, gotSSHCert.Key, inSSHPub)
-	require.Equal(t, gotSSHCert.ValidPrincipals, []string{user})
+	require.Equal(t, gotSSHCert.ValidPrincipals, []string{user, teleport.SSHSessionJoinPrincipal})
 	// Verify the public key and Subject in TLS cert.
 	inCryptoPub := inSSHPub.(ssh.CryptoPublicKey).CryptoPublicKey()
 	gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
@@ -290,7 +290,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID := tlsca.Identity{
 		Username:         user,
 		Groups:           []string{role.GetName()},
-		Principals:       []string{user},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:  []string{user},
 		KubernetesGroups: []string{"system:masters"},
 		Expires:          gotTLSCert.NotAfter,
@@ -319,7 +319,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:         user,
 		Groups:           []string{role.GetName()},
-		Principals:       []string{user},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:  []string{user},
 		KubernetesGroups: []string{"system:masters"},
 		// It's OK to use a non-existent kube cluster for leaf teleport
@@ -363,7 +363,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:          user,
 		Groups:            []string{role.GetName()},
-		Principals:        []string{user},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
@@ -396,7 +396,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:          user,
 		Groups:            []string{role.GetName()},
-		Principals:        []string{user},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
@@ -438,7 +438,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:          user,
 		Groups:            []string{role.GetName()},
-		Principals:        []string{user},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
@@ -471,7 +471,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:          user,
 		Groups:            []string{role.GetName()},
-		Principals:        []string{user},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
@@ -990,7 +990,14 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
 		SSO:                      "c",
-		Cert:                     string(certBytes),
+		AttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "dummy",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
+		Cert: string(certBytes),
 	})
 	require.NoError(t, err)
 
@@ -1014,12 +1021,27 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
 	mockE := &eventstest.MockEmitter{}
 
-	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
+	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
 
 	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOLoginFailureCode,
+		},
+		Method: "test",
+		Status: apievents.Status{
+			Success:     false,
+			Error:       "some error",
+			UserMessage: "some error",
+		},
+	})
+
+	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), true)
+
+	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserSSOTestFlowLoginFailureCode,
 		},
 		Method: "test",
 		Status: apievents.Status{

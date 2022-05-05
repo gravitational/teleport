@@ -324,7 +324,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
 		version := getMySQLVersionFromServer(proxyCtx.Servers)

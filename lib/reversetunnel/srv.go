@@ -1119,7 +1119,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		return nil, trace.Wrap(err)
 	}
 
-	go remoteSite.updateCertAuthorities(caRetry)
+	go remoteSite.updateCertAuthorities(caRetry, remoteVersion)
 
 	lockRetry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(srv.Config.PollingPeriod),
