@@ -848,12 +848,20 @@ func Run(args []string, opts ...cliOption) error {
 
 // onVersion prints version info.
 func onVersion(cf *CLIConf) error {
+	proxyVersion, err := fetchProxyVersion(cf)
+	if err != nil {
+		fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+	}
+
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
 		utils.PrintVersion()
+		if proxyVersion != "" {
+			fmt.Printf("Proxy version: %s\n", proxyVersion)
+		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format)
+		out, err := serializeVersion(format, proxyVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -861,16 +869,50 @@ func onVersion(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
+
 	return nil
 }
 
-func serializeVersion(format string) (string, error) {
+// fetchProxyVersion returns the current version of the Teleport Proxy.
+func fetchProxyVersion(cf *CLIConf) (string, error) {
+	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return "", nil
+		}
+		return "", trace.Wrap(err)
+	}
+
+	if profile == nil {
+		return "", nil
+	}
+
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	ctx, cancel := context.WithTimeout(cf.Context, time.Second*5)
+	defer cancel()
+	pingRes, err := tc.Ping(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return pingRes.ServerVersion, nil
+}
+
+func serializeVersion(format string, proxyVersion string) (string, error) {
 	versionInfo := struct {
-		Version string `json:"version"`
-		Gitref  string `json:"gitref"`
-		Runtime string `json:"runtime"`
+		Version      string `json:"version"`
+		Gitref       string `json:"gitref"`
+		Runtime      string `json:"runtime"`
+		ProxyVersion string `json:"proxyVersion,omitempty"`
 	}{
-		teleport.Version, teleport.Gitref, runtime.Version(),
+		teleport.Version,
+		teleport.Gitref,
+		runtime.Version(),
+		proxyVersion,
 	}
 	var out []byte
 	var err error
@@ -2026,6 +2068,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	cf.NodeLogin = teleport.SSHSessionJoinPrincipal
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)

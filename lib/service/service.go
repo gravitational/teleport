@@ -975,14 +975,7 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		wrapper, err := events.NewLegacyHandler(events.LegacyHandlerConfig{
-			Handler: handler,
-			Dir:     dataDir,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return wrapper, nil
+		return handler, nil
 	}
 	uri, err := utils.ParseSessionsURI(auditConfig.AuditSessionsURI())
 	if err != nil {

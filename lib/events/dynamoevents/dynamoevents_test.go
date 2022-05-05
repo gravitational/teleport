@@ -124,10 +124,13 @@ func (s *DynamoeventsSuite) TestSizeBreak(c *check.C) {
 	const eventCount int = 10
 	for i := 0; i < eventCount; i++ {
 		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
-			Method:             events.LoginMethodSAML,
-			Status:             apievents.Status{Success: true},
-			UserMetadata:       apievents.UserMetadata{User: "bob"},
-			Metadata:           apievents.Metadata{Time: s.Clock.Now().UTC().Add(time.Second * time.Duration(i))},
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: "bob"},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: s.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
+			},
 			IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
 		})
 		c.Assert(err, check.IsNil)
@@ -313,7 +316,9 @@ func (s *DynamoeventsLargeTableSuite) TestLargeTableRetrieve(c *check.C) {
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: "bob"},
-			Metadata:     apievents.Metadata{Time: s.Clock.Now().UTC()},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: s.Clock.Now().UTC()},
 		})
 		c.Assert(err, check.IsNil)
 	}
