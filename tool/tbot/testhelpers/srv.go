@@ -48,7 +48,7 @@ func DefaultConfig(t *testing.T) *config.FileConfig {
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
-				EnabledFlag: "true",
+				EnabledFlag:   "true",
 				ListenAddress: mustGetFreeLocalListenerAddr(t),
 			},
 			WebAddr:    mustGetFreeLocalListenerAddr(t),
