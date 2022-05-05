@@ -63,6 +63,7 @@ func TestDynamicKnownType(t *testing.T) {
 	}
 
 	event, err := FromEventFields(fields)
+	printEvent := event.(*events.SessionPrint)
 	require.NoError(t, err)
-	require.Equal(t, SessionPrintEvent, event.GetType())
+	require.Equal(t, SessionPrintEvent, printEvent.GetType())
 }
