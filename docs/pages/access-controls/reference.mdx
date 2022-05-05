@@ -338,28 +338,28 @@ RBAC lets teams limit what resources are available to Teleport users. This can b
 you don't want regular users editing SSO (`auth_connector`) or creating and editing new roles
 (`role`).
 
-List of key rule options defined below.
+Below is an example `allow` section of commonly used `rules`:
 
 ```yaml
 allow:
   rules:
-    # Role: CRUD options for managing Teleport Nodes
+    # Role: CRUD options for managing Teleport Server Access Nodes
     - resources:
         - node
       verbs: [list, create, read, update, delete]
-    # Role: CRUD options for managing Teleport Application Servers
+    # Role: CRUD options for managing Teleport Application Access Servers
     - resources:
         - app_server
       verbs: [list, create, read, update, delete]
-    # Role: CRUD options for managing Teleport Kubernetes Services
+    # Role: CRUD options for managing Teleport Kubernetes Access Services
     - resources:
         - kube_service
       verbs: [list, create, read, update, delete]
-    # Role: CRUD options for managing Teleport Database Servers
+    # Role: CRUD options for managing Teleport Database Access Servers
     - resources:
         - db_server
       verbs: [list, create, read, update, delete]
-    # Role: CRUD options for managing Teleport Windows Desktops
+    # Role: CRUD options for managing Teleport Desktop Access Desktops
     - resources:
         - windows_desktop
       verbs: [list, create, read, update, delete]
