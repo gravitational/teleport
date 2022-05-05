@@ -1085,7 +1085,6 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 
 	type testCase struct {
 		name        string
-		limit       int
 		connections int
 		role        types.Role
 		assert      require.ErrorAssertionFunc
@@ -1104,21 +1103,18 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 	testCases := []testCase{
 		{
 			name:        "unlimited",
-			limit:       0,
 			connections: 7,
 			role:        unlimitedRole,
 			assert:      require.NoError,
 		},
 		{
 			name:        "limited-success",
-			limit:       5,
 			connections: 5,
 			role:        limitedRole,
 			assert:      require.NoError,
 		},
 		{
 			name:        "limited-fail",
-			limit:       5,
 			connections: 6,
 			role:        limitedRole,
 			assert:      require.Error,
