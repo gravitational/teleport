@@ -1020,7 +1020,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 		return ctx, trace.Wrap(err)
 	}
-	go semLock.KeepAlive(ctx)
+
 	// ensure that losing the lock closes the connection context.  Under normal
 	// conditions, cancellation propagates from the connection context to the
 	// lock, but if we lose the lock due to some error (e.g. poor connectivity
