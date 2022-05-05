@@ -1079,16 +1079,9 @@ func (l *Log) getBillingModeIsProvisioned(ctx context.Context) (bool, error) {
 
 	// Perform pessimistic nil-checks, assume the table is provisioned if they are true.
 	// Otherwise, actually check the billing mode.
-	switch {
-	case table.BillingModeSummary == nil:
-		fallthrough
-	case table.BillingModeSummary.BillingMode == nil:
-		fallthrough
-	case *table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned:
-		return true, nil
-	default:
-		return false, nil
-	}
+	return table.BillingModeSummary == nil ||
+		table.BillingModeSummary.BillingMode == nil ||
+		*table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned, nil
 }
 
 // indexExists checks if a given index exists on a given table and that it is active or updating.
