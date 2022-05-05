@@ -296,7 +296,7 @@ const (
 	// that the resource originates from.
 	OriginLabel = "teleport.dev/origin"
 
-	// OriginConfigFile is an origin value indicating that the resource was
+	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = "defaults"
 
