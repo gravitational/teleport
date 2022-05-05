@@ -444,6 +444,21 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 	}, f.formatResponseError)
 }
 
+// acquireConnectionLockWithIdentity acquires a connection lock under a given identity.
+func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity *authContext) error {
+	user := identity.Identity.GetIdentity().Username
+	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := f.AcquireConnectionLock(ctx, user, roles); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 		authContext, err := f.authenticate(req)
@@ -453,14 +468,8 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		user := authContext.Identity.GetIdentity().Username
-		roles, err := getRolesByName(f, authContext.Identity.GetIdentity().Groups)
+		err = f.acquireConnectionLockWithIdentity(req.Context(), authContext)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := f.AcquireConnectionLock(req.Context(), user, roles); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
@@ -476,6 +485,10 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.
 			if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
+		}
+		err = f.acquireConnectionLockWithIdentity(req.Context(), authContext)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
 	}, f.formatResponseError)
