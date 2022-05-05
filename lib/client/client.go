@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
+	"github.com/moby/term"
 
 	"github.com/gravitational/trace"
 )
@@ -1608,6 +1609,24 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 			}
 		}()
 	}
+}
+
+// GetRemoteTerminalSize fetches the terminal size of a given SSH session.
+func (c *NodeClient) GetRemoteTerminalSize(sessionID string) (*term.Winsize, error) {
+	ok, payload, err := c.Client.SendRequest(teleport.TerminalSizeRequest, true, []byte(sessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	} else if !ok {
+		return nil, trace.BadParameter("failed to get terminal size")
+	}
+
+	ws := new(term.Winsize)
+	err = json.Unmarshal(payload, ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ws, nil
 }
 
 // Close closes client and it's operations
