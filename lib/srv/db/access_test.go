@@ -28,6 +28,7 @@ import (
 	"time"
 
 	mssql "github.com/denisenkom/go-mssqldb"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -1317,6 +1318,8 @@ type testRedis struct {
 
 // testSQLServer represents a single proxied SQL Server database.
 type testSQLServer struct {
+	// db is the test SQLServer database server.
+	db *sqlserver.TestServer
 	// resource is the resource representing this SQL Server database
 	resource types.Database
 }
@@ -2307,14 +2310,22 @@ func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDataba
 
 func withSQLServer(name string) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		sqlServer, err := sqlserver.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		})
+		require.NoError(t, err)
+		go sqlServer.Serve()
+		t.Cleanup(func() { sqlServer.Close() })
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolSQLServer,
-			URI:      "localhost:1433", // URI doesn't matter as tests aren't actually going to dial it.
+			URI:      net.JoinHostPort("localhost", sqlServer.Port()),
 		})
 		require.NoError(t, err)
 		testCtx.sqlServer[name] = testSQLServer{
+			db:       sqlServer,
 			resource: database,
 		}
 		return database

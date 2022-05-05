@@ -165,6 +165,9 @@ const (
 	// MySQLRefreshCode is the db.session.mysql.refresh event code.
 	MySQLRefreshCode = "TMY13I"
 
+	// MSServerRPCRequestCode is the db.session.msserver.rpc_request event code.
+	MSServerRPCRequestCode = "TMS00I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
