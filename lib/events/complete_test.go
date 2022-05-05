@@ -22,10 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
@@ -52,9 +54,9 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		},
 	}
 
-	sessionTrackerService := &eventstest.MockSessionTrackerService{
-		Clock:        clock,
-		MockTrackers: []types.SessionTracker{sessionTracker},
+	sessionTrackerService := &mockSessionTrackerService{
+		clock:    clock,
+		trackers: []types.SessionTracker{sessionTracker},
 	}
 
 	uc, err := NewUploadCompleter(UploadCompleterConfig{
@@ -90,22 +92,7 @@ func TestUploadCompleterWithGracePeriod(t *testing.T) {
 	log := &mockAuditLog{}
 
 	sessionID := session.NewID()
-	expires := clock.Now().Add(time.Hour * 1)
-	sessionTracker := &types.SessionTrackerV1{
-		Spec: types.SessionTrackerSpecV1{
-			SessionID: string(sessionID),
-		},
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Expires: &expires,
-			},
-		},
-	}
-
-	sessionTrackerService := &eventstest.MockSessionTrackerService{
-		Clock:        clock,
-		MockTrackers: []types.SessionTracker{sessionTracker},
-	}
+	sessionTrackerService := &mockSessionTrackerService{}
 
 	uc, err := NewUploadCompleter(UploadCompleterConfig{
 		Uploader:       mu,
@@ -123,7 +110,7 @@ func TestUploadCompleterWithGracePeriod(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, mu.uploads[upload.ID].completed)
 
-	// Even if session tracker is expired/not found, the completer
+	// Even if session tracker is not found, the completer
 	// should wait until the grace period to complete it
 	clock.Advance(1 * time.Hour)
 	err = uc.checkUploads(context.Background())
@@ -160,7 +147,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 				Uploader:       mu,
 				AuditLog:       log,
 				Clock:          clock,
-				SessionTracker: &eventstest.MockSessionTrackerService{},
+				SessionTracker: &mockSessionTrackerService{},
 			})
 			require.NoError(t, err)
 
@@ -218,4 +205,39 @@ func (m *mockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, 
 
 func (m *mockAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return m.emitter.EmitAuditEvent(ctx, event)
+}
+
+type mockSessionTrackerService struct {
+	clock    clockwork.Clock
+	trackers []types.SessionTracker
+}
+
+func (m *mockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	return nil, trace.NotImplemented("")
+}
+
+func (m *mockSessionTrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	for _, tracker := range m.trackers {
+		// mock session tracker expiration
+		if tracker.GetSessionID() == sessionID && tracker.Expiry().After(m.clock.Now()) {
+			return tracker, nil
+		}
+	}
+	return nil, trace.NotFound("tracker not found")
+}
+
+func (m *mockSessionTrackerService) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
+	return nil, trace.NotImplemented("")
+}
+
+func (m *mockSessionTrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	return trace.NotImplemented("")
+}
+
+func (m *mockSessionTrackerService) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	return trace.NotImplemented("")
+}
+
+func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
+	return trace.NotImplemented("")
 }
