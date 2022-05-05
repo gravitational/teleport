@@ -115,6 +115,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*wanlib.CredentialC
 		// ES256 is all we can do.
 		if param.Type == protocol.PublicKeyCredentialType && param.Algorithm == webauthncose.AlgES256 {
 			ok = true
+			break
 		}
 	}
 	if !ok {

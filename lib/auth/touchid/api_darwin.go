@@ -196,6 +196,7 @@ func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.Credent
 		pubKeyRaw, err := base64.StdEncoding.DecodeString(pubKeyB64)
 		if err != nil {
 			log.WithError(err).Warnf("Failed to decode public key for credential %q", credentialID)
+			// Do not return or break here, we want the defers to run in all items.
 		}
 
 		infos[i] = CredentialInfo{
