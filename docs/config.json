@@ -916,7 +916,7 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "9.1.3",
+      "version": "9.2.0",
       "golang": "1.17",
       "plugin": {
         "version": "9.1.3"
