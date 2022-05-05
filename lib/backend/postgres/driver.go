@@ -69,6 +69,9 @@ func (d *pgDriver) open(ctx context.Context, u *url.URL) (sqlbk.DB, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if connConfig.User == "" {
+			return nil, trace.BadParameter("storage backend certificate CommonName field is blank; database username is required")
+		}
 	}
 
 	// Attempt to create backend database if it does not exist.
