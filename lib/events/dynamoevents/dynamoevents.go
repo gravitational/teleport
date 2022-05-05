@@ -1067,14 +1067,21 @@ func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus
 }
 
 func (l *Log) getBillingModeIsProvisioned(ctx context.Context) (bool, error) {
-	table, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
+	res, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(l.Tablename),
 	})
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	return *table.Table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned, nil
+	// Guaranteed to be set.
+	table := res.Table
+
+	// Perform pessimistic nil-checks, assume the table is provisioned if they are true.
+	// Otherwise, actually check the billing mode.
+	return table.BillingModeSummary == nil ||
+		table.BillingModeSummary.BillingMode == nil ||
+		*table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned, nil
 }
 
 // indexExists checks if a given index exists on a given table and that it is active or updating.
