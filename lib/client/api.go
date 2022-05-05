@@ -1580,7 +1580,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 
 	// connect to server:
 	nc, err := proxyClient.ConnectToNode(ctx, NodeAddr{
-		Addr:      session.GetAddress(),
+		Addr:      session.GetAddress() + ":0",
 		Namespace: tc.Namespace,
 		Cluster:   tc.SiteName,
 	}, tc.Config.HostLogin, false)

@@ -1702,7 +1702,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		Namespace:    apidefaults.Namespace,
 		Type:         string(types.KubernetesSessionKind),
 		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
-		Address:      s.scx.ServerConn.LocalAddr().String(),
+		Address:      s.scx.srv.ID(),
 		ClusterName:  s.scx.ClusterName,
 		Login:        "root",
 		Initiator:    initator,
