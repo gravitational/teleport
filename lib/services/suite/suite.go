@@ -1250,7 +1250,6 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
 
 	lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 	c.Assert(err, check.IsNil)
-	go lock.KeepAlive(cancelCtx)
 
 	for i := 0; i < renewals; i++ {
 		select {
@@ -1294,9 +1293,8 @@ func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
+				_, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 				c.Assert(err, check.IsNil)
-				go lock.KeepAlive(cancelCtx)
 			}()
 		}
 		wg.Wait()
@@ -1334,9 +1332,8 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
 	for i := int64(0); i < attempts; i++ {
 		wg.Add(1)
 		go func() {
-			lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
+			_, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 			if err == nil {
-				go lock.KeepAlive(cancelCtx)
 				atomic.AddInt64(&success, 1)
 			} else {
 				atomic.AddInt64(&failure, 1)
@@ -1366,7 +1363,6 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 	defer cancel()
 	lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 	c.Assert(err, check.IsNil)
-	go lock.KeepAlive(cancelCtx)
 
 	// MaxLeases is 1, so second acquire op fails.
 	_, err = services.AcquireSemaphoreLock(cancelCtx, cfg)
@@ -1382,7 +1378,6 @@ func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
 	cfg.TickRate = time.Millisecond * 50
 	lock, err = services.AcquireSemaphoreLock(cancelCtx, cfg)
 	c.Assert(err, check.IsNil)
-	go lock.KeepAlive(cancelCtx)
 
 	timeout := time.After(time.Second)
 
