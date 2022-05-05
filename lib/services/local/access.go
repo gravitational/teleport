@@ -42,7 +42,8 @@ func NewAccessService(backend backend.Backend) *AccessService {
 
 // DeleteAllRoles deletes all roles
 func (s *AccessService) DeleteAllRoles() error {
-	return s.DeleteRange(context.TODO(), backend.Key(rolesPrefix), backend.RangeEnd(backend.Key(rolesPrefix)))
+	startKey := backend.ExactKey(rolesPrefix)
+	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
 // GetRoles returns a list of roles registered with the local auth server
@@ -232,7 +233,7 @@ func (s *AccessService) DeleteLock(ctx context.Context, name string) error {
 
 // DeleteLock deletes all/in-force locks.
 func (s *AccessService) DeleteAllLocks(ctx context.Context) error {
-	startKey := backend.Key(locksPrefix)
+	startKey := backend.ExactKey(locksPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 

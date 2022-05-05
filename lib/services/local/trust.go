@@ -39,7 +39,7 @@ func NewCAService(b backend.Backend) *CA {
 
 // DeleteAllCertAuthorities deletes all certificate authorities of a certain type
 func (s *CA) DeleteAllCertAuthorities(caType types.CertAuthType) error {
-	startKey := backend.Key(authoritiesPrefix, string(caType))
+	startKey := backend.ExactKey(authoritiesPrefix, string(caType))
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 

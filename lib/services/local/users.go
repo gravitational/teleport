@@ -63,7 +63,7 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 
 // DeleteAllUsers deletes all users
 func (s *IdentityService) DeleteAllUsers() error {
-	startKey := backend.Key(webPrefix, usersPrefix)
+	startKey := backend.ExactKey(webPrefix, usersPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -566,7 +566,7 @@ func (s *IdentityService) DeleteUserLoginAttempts(user string) error {
 	if user == "" {
 		return trace.BadParameter("missing username")
 	}
-	startKey := backend.Key(webPrefix, usersPrefix, user, attemptsPrefix)
+	startKey := backend.ExactKey(webPrefix, usersPrefix, user, attemptsPrefix)
 	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -1509,7 +1509,7 @@ func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user s
 		return trace.BadParameter("missing parameter user")
 	}
 
-	startKey := backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
+	startKey := backend.ExactKey(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
 	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 

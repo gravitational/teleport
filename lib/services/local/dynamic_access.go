@@ -258,7 +258,8 @@ func (s *DynamicAccessService) DeleteAccessRequest(ctx context.Context, name str
 }
 
 func (s *DynamicAccessService) DeleteAllAccessRequests(ctx context.Context) error {
-	return trace.Wrap(s.DeleteRange(ctx, backend.Key(accessRequestsPrefix), backend.RangeEnd(backend.Key(accessRequestsPrefix))))
+	startKey := backend.ExactKey(accessRequestsPrefix)
+	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req types.AccessRequest) error {

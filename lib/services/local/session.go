@@ -126,7 +126,7 @@ func (s *IdentityService) DeleteUserAppSessions(ctx context.Context, req *proto.
 
 // DeleteAllAppSessions removes all application web sessions.
 func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
-	startKey := backend.Key(appsPrefix, sessionsPrefix)
+	startKey := backend.ExactKey(appsPrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -207,7 +207,7 @@ func (r *webSessions) Delete(ctx context.Context, req types.DeleteWebSessionRequ
 
 // DeleteAll removes all regular web sessions.
 func (r *webSessions) DeleteAll(ctx context.Context) error {
-	startKey := backend.Key(webPrefix, sessionsPrefix)
+	startKey := backend.ExactKey(webPrefix, sessionsPrefix)
 	return trace.Wrap(r.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
@@ -309,7 +309,7 @@ func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest)
 
 // DeleteAll removes all web tokens.
 func (r *webTokens) DeleteAll(ctx context.Context) error {
-	startKey := backend.Key(webPrefix, tokensPrefix)
+	startKey := backend.ExactKey(webPrefix, tokensPrefix)
 	if err := r.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}

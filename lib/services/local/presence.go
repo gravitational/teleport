@@ -81,7 +81,8 @@ func (s *PresenceService) GetLocalClusterName() (string, error) {
 
 // DeleteAllNamespaces deletes all namespaces
 func (s *PresenceService) DeleteAllNamespaces() error {
-	return s.DeleteRange(context.TODO(), backend.Key(namespacesPrefix), backend.RangeEnd(backend.Key(namespacesPrefix)))
+	startKey := backend.ExactKey(namespacesPrefix)
+	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
 // GetNamespaces returns a list of namespaces
@@ -197,7 +198,7 @@ func (s *PresenceService) upsertServer(ctx context.Context, prefix string, serve
 
 // DeleteAllNodes deletes all nodes in a namespace
 func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) error {
-	startKey := backend.Key(nodesPrefix, namespace)
+	startKey := backend.ExactKey(nodesPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -405,7 +406,7 @@ func (s *PresenceService) UpsertAuthServer(server types.Server) error {
 
 // DeleteAllAuthServers deletes all auth servers
 func (s *PresenceService) DeleteAllAuthServers() error {
-	startKey := backend.Key(authServersPrefix)
+	startKey := backend.ExactKey(authServersPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -428,7 +429,7 @@ func (s *PresenceService) GetProxies() ([]types.Server, error) {
 
 // DeleteAllProxies deletes all proxies
 func (s *PresenceService) DeleteAllProxies() error {
-	startKey := backend.Key(proxiesPrefix)
+	startKey := backend.ExactKey(proxiesPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -440,7 +441,7 @@ func (s *PresenceService) DeleteProxy(name string) error {
 
 // DeleteAllReverseTunnels deletes all reverse tunnels
 func (s *PresenceService) DeleteAllReverseTunnels() error {
-	startKey := backend.Key(reverseTunnelsPrefix)
+	startKey := backend.ExactKey(reverseTunnelsPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -678,7 +679,7 @@ func (s *PresenceService) DeleteTunnelConnections(clusterName string) error {
 
 // DeleteAllTunnelConnections deletes all tunnel connections
 func (s *PresenceService) DeleteAllTunnelConnections() error {
-	startKey := backend.Key(tunnelConnectionsPrefix)
+	startKey := backend.ExactKey(tunnelConnectionsPrefix)
 	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
@@ -793,7 +794,7 @@ func (s *PresenceService) DeleteRemoteCluster(clusterName string) error {
 
 // DeleteAllRemoteClusters deletes all remote clusters
 func (s *PresenceService) DeleteAllRemoteClusters() error {
-	startKey := backend.Key(remoteClustersPrefix)
+	startKey := backend.ExactKey(remoteClustersPrefix)
 	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
@@ -1157,11 +1158,8 @@ func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) er
 
 // DeleteAllKubeServices deletes all registered kubernetes services.
 func (s *PresenceService) DeleteAllKubeServices(ctx context.Context) error {
-	return trace.Wrap(s.DeleteRange(
-		ctx,
-		backend.Key(kubeServicesPrefix),
-		backend.RangeEnd(backend.Key(kubeServicesPrefix)),
-	))
+	startKey := backend.ExactKey(kubeServicesPrefix)
+	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
@@ -1246,7 +1244,7 @@ func (s *PresenceService) DeleteAllDatabaseServers(ctx context.Context, namespac
 	if namespace == "" {
 		return trace.BadParameter("missing database servers namespace")
 	}
-	startKey := backend.Key(dbServersPrefix, namespace)
+	startKey := backend.ExactKey(dbServersPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -1352,7 +1350,7 @@ func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace
 
 // DeleteAllApplicationServers removes all registered application servers.
 func (s *PresenceService) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
-	startKey := backend.Key(appServersPrefix, namespace)
+	startKey := backend.ExactKey(appServersPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -1432,7 +1430,7 @@ func (s *PresenceService) DeleteAppServer(ctx context.Context, namespace string,
 //
 // DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
 func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
+	startKey := backend.ExactKey(appsPrefix, serversPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -1549,7 +1547,7 @@ func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name 
 
 // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
 func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
-	startKey := backend.Key(windowsDesktopServicesPrefix)
+	startKey := backend.ExactKey(windowsDesktopServicesPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 

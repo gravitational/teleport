@@ -65,7 +65,7 @@ func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.Provision
 
 // DeleteAllTokens deletes all provisioning tokens
 func (s *ProvisioningService) DeleteAllTokens() error {
-	startKey := backend.Key(tokensPrefix)
+	startKey := backend.ExactKey(tokensPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 

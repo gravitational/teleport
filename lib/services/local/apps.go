@@ -130,7 +130,7 @@ func (s *AppService) DeleteApp(ctx context.Context, name string) error {
 
 // DeleteAllApps removes all application resources.
 func (s *AppService) DeleteAllApps(ctx context.Context) error {
-	startKey := backend.Key(appPrefix)
+	startKey := backend.ExactKey(appPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
