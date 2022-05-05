@@ -24,6 +24,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func freeOSPort() int {
+	lis, err := net.Listen("tcp", ":0")
+	if err != nil {
+		// Inject testing.T and use require?
+		panic(err)
+	}
+	defer lis.Close()
+
+	return lis.Addr().(*net.TCPAddr).Port
+}
+
 // ports contains tcp ports allocated for all integration tests.
 var ports utils.PortList
 
@@ -37,10 +48,8 @@ func init() {
 }
 
 func newInstancePort() *InstancePort {
-	i := ports.PopInt()
-	p := InstancePort(i)
+	p := InstancePort(freeOSPort())
 	return &p
-
 }
 
 type InstancePort int
@@ -64,6 +73,7 @@ func singleProxyPortSetup() *InstancePorts {
 		isSinglePortSetup: true,
 	}
 }
+
 func standardPortSetup() *InstancePorts {
 	return &InstancePorts{
 		Web:           newInstancePort(),
