@@ -257,7 +257,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 
-	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuth(fwd.join))
+	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
 	fwd.router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
@@ -453,8 +453,29 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := f.acquireConnectionLock(req.Context(), authContext); err != nil {
+
+		user := authContext.Identity.GetIdentity().Username
+		roles, err := getRolesByName(f, authContext.Identity.GetIdentity().Groups)
+		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if err := f.AcquireConnectionLock(req.Context(), user, roles); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return handler(authContext, w, req, p)
+	}, f.formatResponseError)
+}
+
+// withAuthPassthrough authenticates the request and fetches information but doesn't deny if the user
+// doesn't have RBAC access to the Kubernetes cluster.
+func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.Handle {
+	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+		authContext, err := f.authenticate(req)
+		if err != nil {
+			if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
 		}
 		return handler(authContext, w, req, p)
 	}, f.formatResponseError)
@@ -897,25 +918,23 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 	return trace.Wrap(err)
 }
 
-// acquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
+// AcquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
 // The semaphore is releasted when the request is returned/connection is closed.
 // Returns an error if a semaphore could not be acquired.
-func (f *Forwarder) acquireConnectionLock(ctx context.Context, identity *authContext) error {
-	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
-	if err != nil {
-		return trace.Wrap(err)
+func (f *Forwarder) AcquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
+	maxConnections := roles.MaxKubernetesConnections()
+	if maxConnections == 0 {
+		return nil
 	}
 
-	maxConnections := services.RoleSet(roles).MaxKubernetesConnections()
-	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+	_, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: f.cfg.AuthClient,
 		Expiry:  sessionMaxLifetime,
 		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: types.SemaphoreKindKubernetesConnection,
 			SemaphoreName: user,
 			MaxLeases:     maxConnections,
-			Holder:        identity.teleportCluster.name,
+			Holder:        user,
 		},
 	})
 	if err != nil {
@@ -928,7 +947,7 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, identity *authCon
 
 		return trace.Wrap(err)
 	}
-	go semLock.KeepAlive(ctx)
+
 	return nil
 }
 
