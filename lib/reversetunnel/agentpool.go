@@ -541,6 +541,10 @@ func (p *AgentPool) getRemoteTLSRoutingFunc(ctx context.Context, addr *utils.Net
 		if p.lastRemoteFind != nil && p.Clock.Now().Sub(*p.lastRemoteFind) < remoteFindCacheTTL {
 			return p.remoteTLSRoutingEnabled
 		}
+
+		ctx, cancel := context.WithTimeout(ctx, defaults.DefaultDialTimeout)
+		defer cancel()
+
 		pong, err := webclient.Find(&webclient.Config{
 			Context:         ctx,
 			ProxyAddr:       addr.Addr,

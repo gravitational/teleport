@@ -624,10 +624,13 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				return
 			}
 
-			a.log.Debugf("Received discovery request: %v", r.Proxies)
+			var proxies []string
 			for _, proxy := range r.Proxies {
-				a.tracker.TrackExpected(proxy.GetName())
+				proxies = append(proxies, proxy.GetName())
 			}
+
+			a.log.Debugf("Received discovery request: %v", proxies)
+			a.tracker.TrackExpected(proxies...)
 		}
 	}
 }
