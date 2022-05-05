@@ -51,7 +51,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	var e events.AuditEvent
 	i, ok := fields[EventType]
 	if !ok || !isInterfaceString(i) {
-		eventType = "event-type-nil"
+		eventType = ""
 	} else {
 		eventType = fields.GetString(EventType)
 	}
@@ -257,8 +257,15 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		unknown.Type = UnknownEvent
 		unknown.Code = UnknownCode
 		unknown.UnknownType = eventType
-		unknown.UnknownCode = fields.GetString(EventCode)
 		unknown.Data = string(data)
+
+		i, ok = fields[EventCode]
+		if !ok || !isInterfaceString(i) {
+			unknown.UnknownCode = ""
+		} else {
+			unknown.UnknownCode = fields.GetString(EventCode)
+		}
+
 		return unknown, nil
 	}
 
