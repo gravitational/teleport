@@ -607,6 +607,7 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 		return nil, trace.Wrap(err)
 	}
 	requestWithContext := context.WithValue(ctx, ContextUser, user)
+	requestWithContext = context.WithValue(requestWithContext, ContextClientAddr, conn.RemoteAddr())
 	return requestWithContext, nil
 }
 
