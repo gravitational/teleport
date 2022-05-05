@@ -21,20 +21,19 @@
 #import <Foundation/Foundation.h>
 #import <Security/Security.h>
 
-#include <stdbool.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "common.h"
 
-bool matchesLabelFilter(LabelFilter filter, const char *label) {
-  switch (filter.kind) {
+BOOL matchesLabelFilter(LabelFilterKind kind, NSString *filter,
+                        NSString *label) {
+  switch (kind) {
   case LABEL_EXACT:
-    return strcmp(label, filter.value) == 0;
+    return [label isEqualToString:filter];
   case LABEL_PREFIX:
-    return strstr(label, filter.value) == label;
+    return [label hasPrefix:filter];
   }
-  return -1;
+  return NO;
 }
 
 int FindCredentials(LabelFilter filter, CredentialInfo **infosOut) {
@@ -61,6 +60,8 @@ int FindCredentials(LabelFilter filter, CredentialInfo **infosOut) {
     return status;
   }
 
+  NSString *nsFilter = [NSString stringWithUTF8String:filter.value];
+
   CFIndex count = CFArrayGetCount(items);
   *infosOut = calloc(count, sizeof(CredentialInfo));
   int infosLen = 0;
@@ -69,7 +70,7 @@ int FindCredentials(LabelFilter filter, CredentialInfo **infosOut) {
 
     CFStringRef label = CFDictionaryGetValue(attrs, kSecAttrLabel);
     NSString *nsLabel = (__bridge NSString *)label;
-    if (!matchesLabelFilter(filter, [nsLabel UTF8String])) {
+    if (!matchesLabelFilter(filter.kind, nsFilter, nsLabel)) {
       continue;
     }
 
