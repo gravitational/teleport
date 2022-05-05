@@ -1288,8 +1288,7 @@ func containsDB(servers []types.DatabaseServer, name string) bool {
 // TestDatabaseAccessLargeQuery tests a scenario where a user connects
 // to a MySQL database running in a root cluster.
 func TestDatabaseAccessLargeQuery(t *testing.T) {
-	clock := clockwork.NewFakeClockAt(time.Now())
-	pack := setupDatabaseTest(t, withClock(clock))
+	pack := setupDatabaseTest(t)
 
 	// Connect to the database service in root cluster.
 	client, err := mysql.MakeTestClient(common.TestClientConfig{
@@ -1306,20 +1305,30 @@ func TestDatabaseAccessLargeQuery(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	now := time.Now()
 	query := fmt.Sprintf("select %s", strings.Repeat("A", 100*1024))
 	result, err := client.Execute(query)
 	require.NoError(t, err)
 	require.Equal(t, mysql.TestQueryResponse, result)
 	result.Close()
 
-	now := clock.Now()
-	clock.Advance(time.Hour)
-
 	require.NoError(t, err)
 	require.Equal(t, mysql.TestQueryResponse, result)
 	result.Close()
 
-	waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+	ee := waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+	require.Len(t, ee, 1)
+
+	query = "select 1"
+	result, err = client.Execute(query)
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	require.Eventually(t, func() bool {
+		ee := waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+		return len(ee) == 2
+	}, time.Second*3, time.Millisecond*500)
 
 	// Disconnect.
 	err = client.Close()
