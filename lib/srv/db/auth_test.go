@@ -253,7 +253,7 @@ func TestDBCertSigning(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		requester proto.DatabaseCertRequest_Sender
+		requester proto.DatabaseCertRequest_Requester
 		getCertFn func(dbCAs []types.CertAuthority) []byte
 	}{
 		{
@@ -277,10 +277,10 @@ func TestDBCertSigning(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			certResp, err := authServer.AuthServer.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
-				CSR:        csr,
-				ServerName: "localhost",
-				TTL:        proto.Duration(time.Hour),
-				Requester:  tt.requester,
+				CSR:           csr,
+				ServerName:    "localhost",
+				TTL:           proto.Duration(time.Hour),
+				RequesterName: tt.requester,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, certResp.Cert)
