@@ -908,6 +908,10 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, identity *authCon
 	}
 
 	maxConnections := services.RoleSet(roles).MaxKubernetesConnections()
+	if maxConnections == 0 {
+		return nil
+	}
+
 	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: f.cfg.AuthClient,
 		Expiry:  sessionMaxLifetime,
