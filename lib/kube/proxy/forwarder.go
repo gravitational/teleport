@@ -908,7 +908,7 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 // The semaphore is releasted when the request is returned/connection is closed.
 // Returns an error if a semaphore could not be acquired.
 func (f *Forwarder) AcquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
-	maxConnections := services.RoleSet(roles).MaxKubernetesConnections()
+	maxConnections := roles.MaxKubernetesConnections()
 	if maxConnections == 0 {
 		return nil
 	}
