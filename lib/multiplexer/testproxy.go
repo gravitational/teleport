@@ -29,24 +29,26 @@ import (
 // TestProxy is tcp passthrough proxy that sends a proxy-line when connecting
 // to the target server.
 type TestProxy struct {
-	listener net.Listener
-	target   string
-	closeCh  chan (struct{})
-	log      logrus.FieldLogger
+	listener   net.Listener
+	target     string
+	closeCh    chan struct{}
+	log        logrus.FieldLogger
+	sourceAddr string
 }
 
 // NewTestProxy creates a new test proxy that sends a proxy-line when
 // proxying connections to the provided target address.
-func NewTestProxy(target string) (*TestProxy, error) {
+func NewTestProxy(target string, sourceAddr string) (*TestProxy, error) {
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &TestProxy{
-		listener: listener,
-		target:   target,
-		closeCh:  make(chan struct{}),
-		log:      logrus.WithField(trace.Component, "test:proxy"),
+		listener:   listener,
+		target:     target,
+		closeCh:    make(chan struct{}),
+		log:        logrus.WithField(trace.Component, "test:proxy"),
+		sourceAddr: sourceAddr,
 	}, nil
 }
 
@@ -118,13 +120,20 @@ func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sourceAddr := clientAddr
+	if p.sourceAddr != "" {
+		sourceAddr, err = utils.ParseAddr(p.sourceAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	serverAddr, err := utils.ParseAddr(serverConn.RemoteAddr().String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	proxyLine := &ProxyLine{
 		Protocol:    TCP4,
-		Source:      net.TCPAddr{IP: net.ParseIP(clientAddr.Host()), Port: clientAddr.Port(0)},
+		Source:      net.TCPAddr{IP: net.ParseIP(sourceAddr.Host()), Port: sourceAddr.Port(0)},
 		Destination: net.TCPAddr{IP: net.ParseIP(serverAddr.Host()), Port: serverAddr.Port(0)},
 	}
 	p.log.Debugf("Sending %v to %v.", proxyLine.String(), serverConn.RemoteAddr().String())

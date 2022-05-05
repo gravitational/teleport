@@ -1863,21 +1863,3 @@ func getLocalIP() (string, error) {
 	}
 	return "", trace.NotFound("No non-loopback local IP address found")
 }
-
-func proxyDialContext() func(ctx context.Context, network string, addr string) (net.Conn, error) {
-	d := &net.Dialer{KeepAlive: 5 * time.Minute}
-
-	return func(ctx context.Context, network, addr string) (net.Conn, error) {
-		conn, err := d.DialContext(ctx, network, addr)
-		if err != nil {
-			return nil, err
-		}
-		ap := strings.Split(addr, ":")
-		_, err = conn.Write([]byte(fmt.Sprintf("PROXY TCP4 1.2.3.4 %s 1234 %s\r\n", ap[0], ap[1])))
-		if err != nil {
-			conn.Close()
-			return nil, err
-		}
-		return conn, err
-	}
-}

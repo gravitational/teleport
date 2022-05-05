@@ -163,6 +163,57 @@ func TestKube(t *testing.T) {
 	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
 	t.Run("Disconnect", suite.bind(testKubeDisconnect))
 	t.Run("Join", suite.bind(testKubeJoin))
+	t.Run("DifferentPinnedIP", suite.bind(testKubeDifferentPinnedIPAccessDenied))
+}
+
+func testKubeDifferentPinnedIPAccessDenied(t *testing.T, suite *KubeSuite) {
+	tconf := suite.teleKubeConfig(Host)
+
+	teleport := NewInstance(InstanceConfig{
+		ClusterName: Site,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+	})
+
+	username := suite.me.Username
+	kubeGroups := []string{testImpersonationGroup}
+	kubeUsers := []string{"alice@example.com"}
+	role, err := types.NewRoleV3("kubemaster", types.RoleSpecV5{
+		Options: types.RoleOptions{
+			PinSourceIP: true,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			KubeGroups: kubeGroups,
+			KubeUsers:  kubeUsers,
+		},
+	})
+	require.NoError(t, err)
+	teleport.AddUserWithRole(username, role)
+
+	err = teleport.CreateEx(t, nil, tconf)
+	require.NoError(t, err)
+
+	err = teleport.Start()
+	require.NoError(t, err)
+	defer teleport.StopAll()
+
+	// set up kube configuration using proxy
+	proxyClient, _, err := kubeProxyClient(kubeProxyConfig{
+		t:          teleport,
+		username:   username,
+		kubeUsers:  kubeUsers,
+		kubeGroups: kubeGroups,
+	})
+	require.NoError(t, err)
+
+	// try get request to fetch available pods
+	_, err = proxyClient.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "access denied")
 }
 
 // TestKubeExec tests kubernetes Exec command set

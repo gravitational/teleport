@@ -41,7 +41,7 @@ func TestProxyProtocolPostgres(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"postgres"}, []string{"postgres"})
 
 	// Point our proxy to the Teleport's db listener on the multiplexer.
-	proxy, err := multiplexer.NewTestProxy(testCtx.mux.DB().Addr().String())
+	proxy, err := multiplexer.NewTestProxy(testCtx.mux.DB().Addr().String(), "")
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })
 	go proxy.Serve()
@@ -64,7 +64,7 @@ func TestProxyProtocolMySQL(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})
 
 	// Point our proxy to the Teleport's MySQL listener.
-	proxy, err := multiplexer.NewTestProxy(testCtx.mysqlListener.Addr().String())
+	proxy, err := multiplexer.NewTestProxy(testCtx.mysqlListener.Addr().String(), "")
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })
 	go proxy.Serve()
@@ -87,7 +87,7 @@ func TestProxyProtocolMongo(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
 
 	// Point our proxy to the Teleport's TLS listener.
-	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String())
+	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), "")
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })
 	go proxy.Serve()
@@ -107,7 +107,7 @@ func TestProxyProtocolRedis(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
 
 	// Point our proxy to the Teleport's TLS listener.
-	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String())
+	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), "")
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })
 	go proxy.Serve()

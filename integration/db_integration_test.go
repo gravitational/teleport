@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
@@ -102,11 +103,16 @@ func TestDatabaseAccessDifferentPinnedIPAccessDenied(t *testing.T) {
 		})
 	})
 
+	proxy, err := multiplexer.NewTestProxy(net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()), "1.2.3.4:5678")
+	require.NoError(t, err)
+	t.Cleanup(func() { proxy.Close() })
+	go proxy.Serve()
+
 	// Connect to the database service in root cluster.
-	_, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+	_, err = postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Address:    proxy.Address(),
 		Cluster:    pack.root.cluster.Secrets.SiteName,
 		Username:   pack.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -115,7 +121,6 @@ func TestDatabaseAccessDifferentPinnedIPAccessDenied(t *testing.T) {
 			Username:    "postgres",
 			Database:    "test",
 		},
-		DialFunc: proxyDialContext(),
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "client IP 1.2.3.4 does not match the expected 127.0.0.1")
