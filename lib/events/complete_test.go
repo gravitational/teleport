@@ -57,7 +57,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		MockTrackers: []types.SessionTracker{sessionTracker},
 	}
 
-	uc, err := newUploadCompleter(UploadCompleterConfig{
+	uc, err := NewUploadCompleter(UploadCompleterConfig{
 		Uploader:       mu,
 		AuditLog:       log,
 		SessionTracker: sessionTrackerService,
@@ -74,6 +74,63 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 
 	clock.Advance(1 * time.Hour)
 
+	err = uc.checkUploads(context.Background())
+	require.NoError(t, err)
+	require.True(t, mu.uploads[upload.ID].completed)
+}
+
+// TestUploadCompleterWithGracePeriod verifies that the upload completer
+// completes uploads that have lived past the configured grace period.
+// DELETE IN 11.0.0
+func TestUploadCompleterWithGracePeriod(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	mu := NewMemoryUploader()
+	mu.Clock = clock
+
+	log := &mockAuditLog{}
+
+	sessionID := session.NewID()
+	expires := clock.Now().Add(time.Hour * 1)
+	sessionTracker := &types.SessionTrackerV1{
+		Spec: types.SessionTrackerSpecV1{
+			SessionID: string(sessionID),
+		},
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Expires: &expires,
+			},
+		},
+	}
+
+	sessionTrackerService := &eventstest.MockSessionTrackerService{
+		Clock:        clock,
+		MockTrackers: []types.SessionTracker{sessionTracker},
+	}
+
+	uc, err := NewUploadCompleter(UploadCompleterConfig{
+		Uploader:       mu,
+		AuditLog:       log,
+		SessionTracker: sessionTrackerService,
+		Clock:          clock,
+		GracePeriod:    2 * time.Hour,
+	})
+	require.NoError(t, err)
+
+	upload, err := mu.CreateUpload(context.Background(), sessionID)
+	require.NoError(t, err)
+
+	err = uc.checkUploads(context.Background())
+	require.NoError(t, err)
+	require.False(t, mu.uploads[upload.ID].completed)
+
+	// Even if session tracker is expired/not found, the completer
+	// should wait until the grace period to complete it
+	clock.Advance(1 * time.Hour)
+	err = uc.checkUploads(context.Background())
+	require.NoError(t, err)
+	require.False(t, mu.uploads[upload.ID].completed)
+
+	clock.Advance(1 * time.Hour)
 	err = uc.checkUploads(context.Background())
 	require.NoError(t, err)
 	require.True(t, mu.uploads[upload.ID].completed)
@@ -99,7 +156,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 				sessionEvents: []apievents.AuditEvent{test.startEvent},
 			}
 
-			uc, err := newUploadCompleter(UploadCompleterConfig{
+			uc, err := NewUploadCompleter(UploadCompleterConfig{
 				Uploader:       mu,
 				AuditLog:       log,
 				Clock:          clock,
