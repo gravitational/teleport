@@ -26,16 +26,6 @@ import (
 	"encoding/json"
 )
 
-// isInterfaceString checks if an interface is a string.
-func isInterfaceString(a interface{}) bool {
-	switch a.(type) {
-	case string:
-		return true
-	default:
-		return false
-	}
-}
-
 // FromEventFields converts from the typed dynamic representation
 // to the new typed interface-style representation.
 //
@@ -49,11 +39,15 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 
 	getFieldEmpty := func(field string) string {
 		i, ok := fields[field]
-		if !ok || !isInterfaceString(i) {
+		if !ok {
+			return ""
+		}
+		s, ok := i.(string)
+		if !ok {
 			return ""
 		}
 
-		return i.(string)
+		return s
 	}
 
 	var eventType = getFieldEmpty(EventType)
