@@ -38,8 +38,17 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	eventType := fields.GetString(EventType)
-	var e apievents.AuditEvent
+	getFieldEmpty := func(field string) string {
+		i, ok := fields[field]
+		if !ok {
+			return ""
+		}
+		s, _ := i.(string)
+		return s
+	}
+
+	var eventType = getFieldEmpty(EventType)
+	var e events.AuditEvent
 
 	switch eventType {
 	case SessionPrintEvent:
@@ -240,7 +249,7 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		unknown.Type = UnknownEvent
 		unknown.Code = UnknownCode
 		unknown.UnknownType = eventType
-		unknown.UnknownCode = fields.GetString(EventCode)
+		unknown.UnknownCode = getFieldEmpty(EventCode)
 		unknown.Data = string(data)
 		return unknown, nil
 	}
