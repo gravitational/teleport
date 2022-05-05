@@ -27,7 +27,6 @@ package touchid
 import "C"
 
 import (
-	"crypto/ecdsa"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -193,13 +192,10 @@ func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.Credent
 		}
 
 		// ECDSA public key
-		var pubKey *ecdsa.PublicKey
 		pubKeyB64 := C.GoString(infoC.pub_key_b64)
 		pubKeyRaw, err := base64.StdEncoding.DecodeString(pubKeyB64)
 		if err != nil {
-			log.WithError(err).Warn("Failed to decode public key for credential %q", credentialID)
-		} else {
-			pubKey = pubKeyFromRawAppleKey(pubKeyRaw)
+			log.WithError(err).Warnf("Failed to decode public key for credential %q", credentialID)
 		}
 
 		infos[i] = CredentialInfo{
@@ -207,7 +203,7 @@ func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.Credent
 			CredentialID: credentialID,
 			RPID:         rpID,
 			User:         user,
-			PublicKey:    pubKey,
+			publicKeyRaw: pubKeyRaw,
 		}
 	}
 	return infos, int(res)
