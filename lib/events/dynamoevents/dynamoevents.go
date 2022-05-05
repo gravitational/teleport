@@ -525,15 +525,16 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 }
 
 func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID string, in apievents.AuditEvent) error {
-	if se, ok := trimEventSize(in); ok {
-		if err := l.putAuditEvent(ctx, sessionID, se); err != nil {
-			return trace.BadParameter(err.Error())
-		}
-		fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
-		l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
-		return nil
+	se, ok := trimEventSize(in)
+	if !ok {
+		return trace.BadParameter(err.Error())
 	}
-	return trace.BadParameter(err.Error())
+	if err := l.putAuditEvent(ctx, sessionID, se); err != nil {
+		return trace.BadParameter(err.Error())
+	}
+	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
+	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
+	return nil
 }
 
 // getSessionID if set returns event ID obtained from metadata or generates a new one.
