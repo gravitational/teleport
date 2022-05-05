@@ -240,7 +240,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 }
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
-//SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
+// SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestALPNSNIProxyKube(t *testing.T) {
 	const (
 		localK8SNI = "kube.teleport.cluster.local"
@@ -388,7 +388,6 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			err = client.Close()
 			require.NoError(t, err)
-
 		})
 		t.Run("connect to leaf cluster via proxy", func(t *testing.T) {
 			client, err := mysql.MakeTestClient(common.TestClientConfig{
@@ -710,7 +709,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 		HostID:      uuid.New().String(),
 		NodeName:    addr,
 		log:         utils.NewLoggerForTests(),
-		Ports:       singleProxyPortSetup(),
+		Ports:       osSelectedSinglePortSetup(),
 	})
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
@@ -742,11 +741,12 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 	t.Setenv("no_proxy", addr)
 
-	rcProxyAddr := net.JoinHostPort(addr, rc.GetPortWeb())
+	rcProxyAddr, err := rc.Process.ProxyWebAddr()
+	require.NoError(t, err)
 
 	// Start the node, due to no_proxy=127.0.0.1 env variable the connection established
 	// to the proxy should not go through the http_proxy server.
-	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr))
+	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr.Addr))
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
@@ -760,7 +760,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	// Unset the no_proxy=127.0.0.1 env variable. After that a new node
 	// should take into account the http_proxy address and connection should go through the http_proxy.
 	require.NoError(t, os.Unsetenv("no_proxy"))
-	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
+	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr.Addr))
 	require.NoError(t, err)
 	err = waitForNodeCount(ctx, rc, "root.example.com", 2)
 	require.NoError(t, err)

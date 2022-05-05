@@ -40,7 +40,6 @@ func newInstancePort() *InstancePort {
 	i := ports.PopInt()
 	p := InstancePort(i)
 	return &p
-
 }
 
 type InstancePort int
@@ -50,6 +49,19 @@ func (p *InstancePort) String() string {
 		return ""
 	}
 	return strconv.Itoa(int(*p))
+}
+
+func osSelectedSinglePortSetup() *InstancePorts {
+	zero := InstancePort(0)
+	return &InstancePorts{
+		Web:               &zero,
+		SSHProxy:          &zero,
+		ReverseTunnel:     &zero,
+		MySQL:             &zero,
+		SSH:               &zero,
+		Auth:              &zero,
+		isSinglePortSetup: true,
+	}
 }
 
 func singleProxyPortSetup() *InstancePorts {
@@ -64,6 +76,7 @@ func singleProxyPortSetup() *InstancePorts {
 		isSinglePortSetup: true,
 	}
 }
+
 func standardPortSetup() *InstancePorts {
 	return &InstancePorts{
 		Web:           newInstancePort(),

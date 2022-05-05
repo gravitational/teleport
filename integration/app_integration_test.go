@@ -634,7 +634,6 @@ func TestAppAuditEvents(t *testing.T) {
 }
 
 func TestAppServersHA(t *testing.T) {
-
 	type packInfo struct {
 		clusterName    string
 		publicHTTPAddr string
