@@ -94,7 +94,7 @@ func (*touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialI
 const labelSeparator = " "
 
 func makeLabel(rpID, user string) string {
-	return fmt.Sprintf("%v%v%v", rpID, labelSeparator, user)
+	return rpID + labelSeparator + user
 }
 
 func splitLabel(label string) (string, string) {
