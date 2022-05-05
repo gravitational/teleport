@@ -195,6 +195,15 @@ func (a *ServerWithRoles) actionForKindSSHSession(namespace, verb string, sid se
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSSHSession, verb, extendContext))
 }
 
+// serverAction returns an access denied error if the role is not one of the builtin server roles.
+func (a *ServerWithRoles) serverAction() error {
+	role, ok := a.context.Identity.(BuiltinRole)
+	if !ok || !role.IsServer() {
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
+	}
+	return nil
+}
+
 // hasBuiltinRole checks that the attached checker is a BuiltinRoleSet
 // and whether any of the given roles match the role set.
 func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
@@ -244,14 +253,10 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 	return ok
 }
 
-var sessionTrackerRoles = []types.SystemRole{types.RoleNode, types.RoleProxy, types.RoleAuth, types.RoleKube, types.RoleDatabase, types.RoleApp, types.RoleWindowsDesktop}
-
-const sessionTrackerAccessDeniedMessage = "this request can only be executed by a node, proxy, auth, kube, db, app, or windows desktop service"
-
 // CreateSessionTracker creates a tracker resource for an active session.
 func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	if !a.hasBuiltinRole(sessionTrackerRoles...) {
-		return nil, trace.AccessDenied(sessionTrackerAccessDeniedMessage)
+	if err := a.serverAction(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
@@ -264,8 +269,8 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
 func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	if !a.hasBuiltinRole(sessionTrackerRoles...) {
-		return nil, trace.AccessDenied(sessionTrackerAccessDeniedMessage)
+	if err := a.serverAction(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.GetSessionTracker(ctx, sessionID)
@@ -330,8 +335,8 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	if !a.hasBuiltinRole(sessionTrackerRoles...) {
-		return trace.AccessDenied(sessionTrackerAccessDeniedMessage)
+	if err := a.serverAction(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.RemoveSessionTracker(ctx, sessionID)
@@ -339,8 +344,8 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if !a.hasBuiltinRole(sessionTrackerRoles...) {
-		return trace.AccessDenied(sessionTrackerAccessDeniedMessage)
+	if err := a.serverAction(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.UpdateSessionTracker(ctx, req)
