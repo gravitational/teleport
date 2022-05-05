@@ -171,16 +171,21 @@ func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
 	return false
 }
 
+func HasV5Role(roles []types.Role) bool {
+	for _, role := range roles {
+		if role.GetVersion() == types.V5 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // CanJoin returns the modes a user has access to join a session with.
 // If the list is empty, the user doesn't have access to join the session at all.
 func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) ([]types.SessionParticipantMode, error) {
-	supported, err := e.supportsSessionAccessControls()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
-	if !supported {
+	if !HasV5Role(user.Roles) {
 		return preAccessControlsModes(e.kind), nil
 	}
 
@@ -215,16 +220,6 @@ func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticip
 // PolicyOptions is a set of settings for the session determined by the matched require policy.
 type PolicyOptions struct {
 	TerminateOnLeave bool
-}
-
-func (e *SessionAccessEvaluator) hasPolicies() bool {
-	for _, policySet := range e.policySets {
-		if len(policySet.RequireSessionJoin) > 0 {
-			return true
-		}
-	}
-
-	return false
 }
 
 // Generate a pretty-printed string of precise requirements for session start suitable for user display.
@@ -262,16 +257,6 @@ func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTra
 
 // FulfilledFor checks if a given session may run with a list of participants.
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
-	supported, err := e.supportsSessionAccessControls()
-	if err != nil {
-		return false, PolicyOptions{}, trace.Wrap(err)
-	}
-
-	// If advanced access controls are supported or no require policies are defined, we allow by default.
-	if !e.hasPolicies() || !supported {
-		return true, PolicyOptions{TerminateOnLeave: true}, nil
-	}
-
 	options := PolicyOptions{TerminateOnLeave: true}
 
 	// Check every policy set to check if it's fulfilled.
@@ -339,28 +324,6 @@ policySetLoop:
 
 	// All policy sets matched, we can allow the session.
 	return true, options, nil
-}
-
-// supportsSessionAccessControls checks if moderated sessions-style access controls can be applied to the session.
-// If a set only has v4 or earlier roles, we don't want to apply the access checks to SSH sessions.
-//
-// This only applies to SSH sessions since they previously had no access control for joining sessions.
-// We don't need this fallback behaviour for multiparty kubernetes since it's a new feature.
-func (e *SessionAccessEvaluator) supportsSessionAccessControls() (bool, error) {
-	if e.kind == types.SSHSessionKind {
-		for _, policySet := range e.policySets {
-			switch policySet.Version {
-			case types.V1, types.V2, types.V3, types.V4:
-				return false, nil
-			case types.V5:
-				return true, nil
-			default:
-				return false, trace.BadParameter("unsupported role version: %v", policySet.Version)
-			}
-		}
-	}
-
-	return true, nil
 }
 
 func preAccessControlsModes(kind types.SessionKind) []types.SessionParticipantMode {

@@ -461,7 +461,8 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			if len(tt.expectPrincipals) > 0 {
-				require.ElementsMatch(t, tt.expectPrincipals, userCert.ValidPrincipals, "principals must match")
+				expectPrincipals := append(tt.expectPrincipals, teleport.SSHSessionJoinPrincipal)
+				require.ElementsMatch(t, expectPrincipals, userCert.ValidPrincipals, "principals must match")
 			}
 
 			if tt.expectRoles != nil {

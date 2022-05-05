@@ -1755,10 +1755,10 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	c.Assert(certRequests(userCerts.TLS), check.HasLen, 0)
 
 	// verify that cert for user with no static logins is generated with
-	// exactly one login and that it is an invalid unix login (indicated
+	// exactly two logins and that the one that isn't a join principal is an invalid unix login (indicated
 	// by preceding dash (-).
 	logins := certLogins(userCerts.SSH)
-	c.Assert(len(logins), check.Equals, 1)
+	c.Assert(len(logins), check.Equals, 2)
 	c.Assert(rune(logins[0][0]), check.Equals, '-')
 
 	// attempt to apply request in PENDING state (should fail)
@@ -1785,7 +1785,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	// verify that dynamically applied role granted a login,
 	// which is is valid and has replaced the dummy login.
 	logins = certLogins(userCerts.SSH)
-	c.Assert(len(logins), check.Equals, 1)
+	c.Assert(len(logins), check.Equals, 2)
 	c.Assert(rune(logins[0][0]), check.Not(check.Equals), '-')
 
 	elevatedCert, err := tls.X509KeyPair(userCerts.TLS, priv)

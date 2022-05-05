@@ -282,7 +282,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotSSHCert, err := sshutils.ParseCertificate(resp.Cert)
 	require.NoError(t, err)
 	require.Equal(t, gotSSHCert.Key, inSSHPub)
-	require.Equal(t, gotSSHCert.ValidPrincipals, []string{user})
+	require.Equal(t, gotSSHCert.ValidPrincipals, []string{user, teleport.SSHSessionJoinPrincipal})
 	// Verify the public key and Subject in TLS cert.
 	inCryptoPub := inSSHPub.(ssh.CryptoPublicKey).CryptoPublicKey()
 	gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
@@ -291,7 +291,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID := tlsca.Identity{
 		Username:         user,
 		Groups:           []string{role.GetName()},
-		Principals:       []string{user},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:  []string{user},
 		KubernetesGroups: []string{"system:masters"},
 		Expires:          gotTLSCert.NotAfter,
@@ -320,7 +320,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:         user,
 		Groups:           []string{role.GetName()},
-		Principals:       []string{user},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:  []string{user},
 		KubernetesGroups: []string{"system:masters"},
 		// It's OK to use a non-existent kube cluster for leaf teleport
@@ -364,7 +364,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:          user,
 		Groups:            []string{role.GetName()},
-		Principals:        []string{user},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
@@ -397,7 +397,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:          user,
 		Groups:            []string{role.GetName()},
-		Principals:        []string{user},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
@@ -439,7 +439,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:          user,
 		Groups:            []string{role.GetName()},
-		Principals:        []string{user},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",
@@ -472,7 +472,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	wantID = tlsca.Identity{
 		Username:          user,
 		Groups:            []string{role.GetName()},
-		Principals:        []string{user},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
 		KubernetesCluster: "root-kube-cluster",

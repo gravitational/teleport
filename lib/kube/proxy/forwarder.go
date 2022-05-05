@@ -256,7 +256,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 
-	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuth(fwd.join))
+	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
 	fwd.router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
@@ -461,6 +461,20 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 
 		if err := f.AcquireConnectionLock(req.Context(), user, roles); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		return handler(authContext, w, req, p)
+	}, f.formatResponseError)
+}
+
+// withAuthPassthrough authenticates the request and fetches information but doesn't deny if the user
+// doesn't have RBAC access to the Kubernetes cluster.
+func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.Handle {
+	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+		authContext, err := f.authenticate(req)
+		if err != nil {
+			if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
 		}
 		return handler(authContext, w, req, p)
 	}, f.formatResponseError)

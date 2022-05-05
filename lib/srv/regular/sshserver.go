@@ -925,6 +925,8 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 		s.handleRecordingProxy(r)
 	case teleport.VersionRequest:
 		s.handleVersionRequest(r)
+	case teleport.TerminalSizeRequest:
+		s.termHandlers.HandleTerminalSize(r)
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
@@ -1438,6 +1440,28 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		default:
 			return trace.BadParameter(
 				"(%v) proxy doesn't support request type '%v'", s.Component(), req.Type)
+		}
+	}
+
+	// Certs with a join-only principal can only use a
+	// subset of all the possible request types.
+	if ctx.JoinOnly {
+		switch req.Type {
+		case sshutils.PTYRequest:
+			return s.termHandlers.HandlePTYReq(ch, req, ctx)
+		case sshutils.ShellRequest:
+			return s.termHandlers.HandleShell(ch, req, ctx)
+		case sshutils.WindowChangeRequest:
+			return s.termHandlers.HandleWinChange(ch, req, ctx)
+		case teleport.ForceTerminateRequest:
+			return s.termHandlers.HandleForceTerminate(ch, req, ctx)
+		case sshutils.EnvRequest:
+			// We ignore all SSH setenv requests for join-only principals.
+			// SSH will send them anyway but it seems fine to silently drop them.
+		case sshutils.SubsystemRequest:
+			return s.handleSubsystem(ch, req, ctx)
+		default:
+			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
 	}
 
