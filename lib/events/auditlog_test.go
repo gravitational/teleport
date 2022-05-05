@@ -62,19 +62,12 @@ func (a *AuditTestSuite) makeLog(c *check.C, dataDir string) (*AuditLog, error) 
 // creates a file-based audit log and returns a proper *AuditLog pointer
 // instead of the usual IAuditLog interface
 func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, clock clockwork.Clock) (*AuditLog, error) {
-	handler, err := NewLegacyHandler(LegacyHandlerConfig{
-		Handler: NewMemoryUploader(),
-		Dir:     dataDir,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	alog, err := NewAuditLog(AuditLogConfig{
 		DataDir:       dataDir,
 		ServerID:      "server1",
 		Clock:         clock,
 		UIDGenerator:  utils.NewFakeUID(),
-		UploadHandler: handler,
+		UploadHandler: NewMemoryUploader(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

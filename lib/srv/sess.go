@@ -41,6 +41,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/moby/term"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -183,6 +184,11 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, ctx *ServerContext) error 
 
 		return nil
 	}
+
+	if ctx.JoinOnly {
+		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
+	}
+
 	// session not found? need to create one. start by getting/generating an ID for it
 	sid, found := ctx.GetEnv(sshutils.SessionEnvVar)
 	if !found {
@@ -257,6 +263,19 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 	sess.Stop()
 
 	return nil
+}
+
+// GetTerminalSize fetches the terminal size of an active SSH session.
+func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, error) {
+	s.sessionsMux.Lock()
+	defer s.sessionsMux.Unlock()
+
+	sess := s.sessions[rsession.ID(sessionID)]
+	if sess == nil {
+		return nil, trace.NotFound("No session found in context.")
+	}
+
+	return sess.term.GetWinSize()
 }
 
 // NotifyWinChange is called to notify all members in the party that the PTY
@@ -1390,6 +1409,9 @@ func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
 
 // addParty is called when a new party joins the session.
 func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.login != p.login {
 		return trace.AccessDenied(
 			"can't switch users from %v to %v for session %v",
@@ -1399,9 +1421,6 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	if s.tracker.GetState() == types.SessionState_SessionStateTerminated {
 		return trace.AccessDenied("The requested session is not active")
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if len(s.parties) == 0 {
 		canStart, _, err := s.checkIfStart()
@@ -1619,7 +1638,7 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 		Kind:        string(types.SSHSessionKind),
 		State:       types.SessionState_SessionStatePending,
 		Hostname:    s.registry.Srv.GetInfo().GetHostname(),
-		Address:     s.scx.ServerConn.LocalAddr().String(),
+		Address:     s.scx.srv.ID(),
 		ClusterName: s.scx.ClusterName,
 		Login:       s.login,
 		Participants: []types.Participant{{
