@@ -698,6 +698,8 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 // TestALPNProxyHTTPProxyNoProxyDial tests if a node joining to root cluster
 // takes into account http_proxy and no_proxy env variables.
 func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
+	// t.Parallel() not possible as test uses t.Setenv()
+
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 

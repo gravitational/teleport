@@ -154,6 +154,7 @@ func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 }
 
 func TestKube(t *testing.T) {
+	t.Parallel()
 	suite := newKubeSuite(t)
 	t.Run("Exec", suite.bind(testKubeExec))
 	t.Run("Deny", suite.bind(testKubeDeny))
@@ -733,6 +734,7 @@ loop:
 // using SNI-forwarding
 // DELETE IN(4.3.0)
 func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
+	t.Parallel()
 	ctx := context.Background()
 
 	clusterMain := "cluster-main"
