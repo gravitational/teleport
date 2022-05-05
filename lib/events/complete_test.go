@@ -213,7 +213,14 @@ type mockSessionTrackerService struct {
 }
 
 func (m *mockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	return nil, trace.NotImplemented("")
+	var trackers []types.SessionTracker
+	for _, tracker := range m.trackers {
+		// mock session tracker expiration
+		if tracker.Expiry().After(m.clock.Now()) {
+			trackers = append(trackers, tracker)
+		}
+	}
+	return trackers, nil
 }
 
 func (m *mockSessionTrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
@@ -227,17 +234,17 @@ func (m *mockSessionTrackerService) GetSessionTracker(ctx context.Context, sessi
 }
 
 func (m *mockSessionTrackerService) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	return nil, trace.NotImplemented("")
+	return nil, trace.NotImplemented("CreateSessionTracker is not implemented")
 }
 
 func (m *mockSessionTrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	return trace.NotImplemented("")
+	return trace.NotImplemented("UpdateSessionTracker is not implemented")
 }
 
 func (m *mockSessionTrackerService) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	return trace.NotImplemented("")
+	return trace.NotImplemented("RemoveSessionTracker is not implemented")
 }
 
 func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
-	return trace.NotImplemented("")
+	return trace.NotImplemented("UpdatePresence is not implemented")
 }
