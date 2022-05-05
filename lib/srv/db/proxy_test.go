@@ -101,7 +101,7 @@ func TestProxyProtocolMongo(t *testing.T) {
 		v2 := v2
 		t.Run(fmt.Sprintf("v2=%v", v2), func(t *testing.T) {
 			// Point our proxy to the Teleport's TLS listener.
-			proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), false)
+			proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), v2)
 			require.NoError(t, err)
 			t.Cleanup(func() { proxy.Close() })
 			go proxy.Serve()
@@ -126,7 +126,7 @@ func TestProxyProtocolRedis(t *testing.T) {
 		v2 := v2
 		t.Run(fmt.Sprintf("v2=%v", v2), func(t *testing.T) {
 			// Point our proxy to the Teleport's TLS listener.
-			proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), false)
+			proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String(), v2)
 			require.NoError(t, err)
 			t.Cleanup(func() { proxy.Close() })
 			go proxy.Serve()
