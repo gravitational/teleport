@@ -156,7 +156,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 			var msg string
 			if !quiet {
 				if hasWebauthn {
-					msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
+					msg = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", promptDevicePrefix, promptDevicePrefix)
 				} else {
 					msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
 				}
