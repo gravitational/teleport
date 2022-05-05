@@ -26,7 +26,7 @@ import (
 	"encoding/json"
 )
 
-// isInterfaceNil checks if an interface is a string.
+// isInterfaceString checks if an interface is a string.
 func isInterfaceString(a interface{}) bool {
 	switch a.(type) {
 	case string:
