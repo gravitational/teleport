@@ -880,8 +880,6 @@ type pack struct {
 	flushAppPublicAddr  string
 	flushAppClusterName string
 	flushAppURI         string
-
-	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 type appTestOptions struct {
@@ -1473,7 +1471,6 @@ func (p *pack) sendRequest(req *http.Request, tlsConfig *tls.Config) (int, strin
 
 	client := &http.Client{
 		Transport: &http.Transport{
-			DialContext:     p.dialContext,
 			TLSClientConfig: tlsConfig,
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
