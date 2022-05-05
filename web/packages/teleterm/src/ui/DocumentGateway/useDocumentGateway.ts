@@ -26,7 +26,10 @@ export default function useGateway(doc: types.DocumentGateway) {
   const workspaceDocumentsService = useWorkspaceDocumentsService();
   const gateway = ctx.clustersService.findGateway(doc.gatewayUri);
   const connected = !!gateway;
-  const cluster = ctx.clustersService.findRootClusterByResource(doc.targetUri);
+  const rootCluster = ctx.clustersService.findRootClusterByResource(
+    doc.targetUri
+  );
+  const cluster = ctx.clustersService.findClusterByResource(doc.targetUri);
 
   const [connectAttempt, createGateway, setConnectAttempt] = useAsync(
     async () => {
@@ -55,20 +58,20 @@ export default function useGateway(doc: types.DocumentGateway) {
   });
 
   const reconnect = () => {
-    if (cluster?.connected) {
+    if (rootCluster?.connected) {
       createGateway();
       return;
     }
 
-    if (cluster && !cluster.connected) {
+    if (rootCluster && !rootCluster.connected) {
       ctx.commandLauncher.executeCommand('cluster-connect', {
-        clusterUri: cluster.uri,
+        clusterUri: rootCluster.uri,
         onSuccess: createGateway,
       });
       return;
     }
 
-    if (!cluster) {
+    if (!rootCluster) {
       setConnectAttempt({
         status: 'error',
         statusText: `unable to resolve cluster for ${doc.targetUri}`,
@@ -94,10 +97,10 @@ export default function useGateway(doc: types.DocumentGateway) {
   }, [disconnectAttempt.status]);
 
   useEffect(() => {
-    if (cluster.connected) {
+    if (rootCluster.connected) {
       createGateway();
     }
-  }, [cluster.connected]);
+  }, [rootCluster.connected]);
 
   return {
     doc,
