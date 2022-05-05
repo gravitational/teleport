@@ -36,7 +36,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -47,6 +46,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
+	"github.com/ghodss/yaml"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
@@ -73,6 +74,14 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTSH,
 })
+
+const (
+	// mfaModeAuto, mfaModeCrossPlatform and mfaModePlatform correspond to
+	// wancli.AuthenticatorAttachment values.
+	mfaModeAuto          = "auto"
+	mfaModeCrossPlatform = "cross-platform"
+	mfaModePlatform      = "platform"
+)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
@@ -201,6 +210,9 @@ type CLIConf struct {
 
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
+
+	// MFAMode is the preferred mode for MFA/Passwordless assertions.
+	MFAMode string
 
 	// SkipVersionCheck skips version checking for client and server
 	SkipVersionCheck bool
@@ -434,6 +446,10 @@ func Run(args []string, opts ...cliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform}
+	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
+		Default(mfaModeAuto).
+		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the version")
@@ -2348,6 +2364,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.AuthConnector != "" {
 		c.AuthConnector = cf.AuthConnector
 	}
+	c.AuthenticatorAttachment, err = mfaModeToAttachment(cf.MFAMode)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -2424,6 +2444,19 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	tc.Config.Invited = cf.Invited
 	tc.Config.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	return tc, nil
+}
+
+func mfaModeToAttachment(val string) (wancli.AuthenticatorAttachment, error) {
+	switch val {
+	case "", mfaModeAuto:
+		return wancli.AttachmentAuto, nil
+	case mfaModeCrossPlatform:
+		return wancli.AttachmentCrossPlatform, nil
+	case mfaModePlatform:
+		return wancli.AttachmentPlatform, nil
+	default:
+		return wancli.AttachmentAuto, fmt.Errorf("invalid MFA mode: %q", val)
+	}
 }
 
 // setX11Config sets X11 config using CLI and SSH option flags.

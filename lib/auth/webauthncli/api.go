@@ -23,6 +23,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// AuthenticatorAttachment allows callers to choose a specific attachment.
+type AuthenticatorAttachment int
+
+const (
+	AttachmentAuto AuthenticatorAttachment = iota
+	AttachmentCrossPlatform
+	AttachmentPlatform
+)
+
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
 	// User is the desired credential username for login.
@@ -36,6 +45,8 @@ type LoginOpts struct {
 	// Login may decide to forego optimistic assertions if it wouldn't save a
 	// touch.
 	OptimisticAssertion bool
+	// AuthenticatorAttachment specifies the desired authenticator attachment.
+	AuthenticatorAttachment AuthenticatorAttachment
 }
 
 // Login performs client-side, U2F-compatible, Webauthn login.

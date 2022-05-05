@@ -60,6 +60,27 @@ type PromptMFAChallengeOpts struct {
 	// available.
 	// If set it also avoids stdin hijacking, as only one prompt is necessary.
 	UseStrongestAuth bool
+	// AuthenticatorAttachment specifies the desired authenticator attachment.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+}
+
+// PromptMFAChallenge prompts the user to complete MFA authentication
+// challenges.
+// See client.PromptMFAChallenge.
+func (tc *TeleportClient) PromptMFAChallenge(
+	ctx context.Context, c *proto.MFAAuthenticateChallenge, optsOverride *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+	opts := &PromptMFAChallengeOpts{
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+	}
+	if optsOverride != nil {
+		opts.PromptDevicePrefix = optsOverride.PromptDevicePrefix
+		opts.Quiet = optsOverride.Quiet
+		opts.UseStrongestAuth = optsOverride.UseStrongestAuth
+		if optsOverride.AuthenticatorAttachment != wancli.AttachmentAuto {
+			opts.AuthenticatorAttachment = optsOverride.AuthenticatorAttachment
+		}
+	}
+	return PromptMFAChallenge(ctx, c, tc.WebProxyAddr, opts)
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
@@ -180,7 +201,8 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 
 			const user = ""
 			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
-				User: user,
+				User:                    user,
+				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()
