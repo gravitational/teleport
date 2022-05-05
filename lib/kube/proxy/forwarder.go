@@ -913,7 +913,7 @@ func (f *Forwarder) AcquireConnectionLock(ctx context.Context, user string, role
 		return nil
 	}
 
-	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+	_, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: f.cfg.AuthClient,
 		Expiry:  sessionMaxLifetime,
 		Params: types.AcquireSemaphoreRequest{
@@ -933,7 +933,7 @@ func (f *Forwarder) AcquireConnectionLock(ctx context.Context, user string, role
 
 		return trace.Wrap(err)
 	}
-	go semLock.KeepAlive(ctx)
+
 	return nil
 }
 

@@ -1138,9 +1138,10 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 
 			for i := 0; i < testCase.connections; i++ {
 				err = forwarder.AcquireConnectionLock(ctx, user.GetName(), services.NewRoleSet(testCase.role))
+				if i == testCase.connections-1 {
+					testCase.assert(t, err)
+				}
 			}
-
-			testCase.assert(t, err)
 		})
 	}
 }
