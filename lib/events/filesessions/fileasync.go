@@ -171,7 +171,6 @@ func (u *Uploader) Serve(ctx context.Context) error {
 		case <-u.closeC:
 			return nil
 		case <-ctx.Done():
-			u.Close()
 			return nil
 		case event := <-u.eventsCh:
 			// Successful and failed upload events are used to speed up and
