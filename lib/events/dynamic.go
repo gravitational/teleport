@@ -42,11 +42,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		if !ok {
 			return ""
 		}
-		s, ok := i.(string)
-		if !ok {
-			return ""
-		}
-
+		s, _ := i.(string)
 		return s
 	}
 
