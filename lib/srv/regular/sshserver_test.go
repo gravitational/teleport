@@ -1125,6 +1125,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:                   f.testSrv.ClusterName(),
@@ -1141,6 +1142,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Emitter:                       proxyClient,
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1166,6 +1168,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1248,6 +1251,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	logger := logrus.WithField("test", "TestProxyDirectAccess")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     proxyClient.TLSConfig(),
@@ -1264,6 +1268,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		Emitter:                       proxyClient,
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
 	})
 	require.NoError(t, err)
 
@@ -1290,6 +1295,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1943,6 +1949,18 @@ func newLockWatcher(ctx context.Context, t *testing.T, client types.Events) *ser
 	require.NoError(t, err)
 	t.Cleanup(lockWatcher.Close)
 	return lockWatcher
+}
+
+func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *services.NodeWatcher {
+	nodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(nodeWatcher.Close)
+	return nodeWatcher
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating

@@ -17,7 +17,7 @@
 
 */
 
-package common
+package dbutils
 
 // ContextKey is a type used for Go's context value type.
 type ContextKey string

@@ -1379,6 +1379,9 @@ message AccessRequestSpecV3 {
     // that is not a requirement.
     repeated string SuggestedReviewers = 13
         [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
+
+    // RequestedResourceIDs is a list of resources to which access is being requested.
+    repeated string RequestedResourceIDs = 14 [ (gogoproto.jsontag) = "resource_ids,omitempty" ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -1600,6 +1603,11 @@ message RoleOptions {
     // CertExtensions specifies the key/values
     repeated CertExtension CertExtensions = 17
         [ (gogoproto.jsontag) = "cert_extensions,omitempty" ];
+
+    // MaxKubernetesConnections defines the maximum number of concurrent
+    // Kubernetes sessions a user may hold.
+    int64 MaxKubernetesConnections = 18
+        [ (gogoproto.jsontag) = "max_kubernetes_connections,omitempty" ];
 }
 
 message RecordSession {
@@ -1833,6 +1841,16 @@ message ClaimMapping {
     // Claim is a claim name.
     string Claim = 1 [ (gogoproto.jsontag) = "claim" ];
     // Value is a claim value to match.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    // Roles is a list of static teleport roles to match.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+}
+
+// TraitMapping maps a trait to teleport roles.
+message TraitMapping {
+    // Trait is a trait name.
+    string Trait = 1 [ (gogoproto.jsontag) = "trait" ];
+    // Value is a trait value to match.
     string Value = 2 [ (gogoproto.jsontag) = "value" ];
     // Roles is a list of static teleport roles to match.
     repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
@@ -2635,6 +2653,92 @@ message GithubConnectorSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_logins" ];
     // Display is the connector display name.
     string Display = 5 [ (gogoproto.jsontag) = "display" ];
+}
+
+// SSOWarnings conveys a user-facing main message along with auxiliary warnings.
+message SSOWarnings {
+    // Message is main user-facing message to be shown.
+    string Message = 1 [ (gogoproto.jsontag) = "message,omitempty" ];
+    // Warnings is a set of distinct warnings to be reported.
+    repeated string Warnings = 2 [ (gogoproto.jsontag) = "warnings,omitempty" ];
+}
+
+// CreateUserParams represents the user creation parameters as called during SSO login flow.
+message CreateUserParams {
+    // ConnectorName is the name of the connector used for SSO login flow.
+    string ConnectorName = 1 [ (gogoproto.jsontag) = "connector_name,omitempty" ];
+    // Username is the name of the user to be created.
+    string Username = 2 [ (gogoproto.jsontag) = "username,omitempty" ];
+    // Logins is a list of available unix logins.
+    repeated string Logins = 3 [ (gogoproto.jsontag) = "logins,omitempty" ];
+    // KubeGroups is a list of assigned kube groups.
+    repeated string KubeGroups = 4 [ (gogoproto.jsontag) = "kube_groups,omitempty" ];
+    // KubeUsers is a list of available kube users.
+    repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kube_users,omitempty" ];
+    // Roles is a list of assigned roles.
+    repeated string Roles = 6 [ (gogoproto.jsontag) = "roles,omitempty" ];
+
+    // Traits is the set of traits the user is assigned.
+    wrappers.LabelValues Traits = 7 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "traits,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // SessionTTL determines the TTL.
+    int64 SessionTTL = 8
+        [ (gogoproto.jsontag) = "session_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
+}
+
+// SSODiagnosticInfo is a single SSO diagnostic info entry.
+message SSODiagnosticInfo {
+    // TestFlow indicates the SSO flow was a test one.
+    bool TestFlow = 1 [ (gogoproto.jsontag) = "test_flow" ];
+
+    // Error stores user-friendly error message.
+    string Error = 2 [ (gogoproto.jsontag) = "error" ];
+
+    // Success if present, marks the flow as finished with success.
+    bool Success = 3 [ (gogoproto.jsontag) = "success" ];
+
+    // CreateUserParams represents the user creation parameters as called during SSO login flow.
+    CreateUserParams CreateUserParams = 4 [ (gogoproto.jsontag) = "create_user_params,omitempty" ];
+
+    // SAMLAttributesToRoles represents mapping from attributes to roles, as used during SAML login
+    // flow.
+    repeated AttributeMapping SAMLAttributesToRoles = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "attributes_to_roles,omitempty" ];
+
+    // SAMLAttributesToRolesWarnings contains warnings produced during the process of mapping the
+    // SAML attributes to roles.
+    SSOWarnings SAMLAttributesToRolesWarnings = 6
+        [ (gogoproto.jsontag) = "saml_attributes_to_roles_warnings,omitempty" ];
+
+    // SAMLAttributeStatements represents SAML attribute statements.
+    wrappers.LabelValues SAMLAttributeStatements = 7 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_attribute_statements,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // SAMLAssertionInfo represents raw SAML assertion info as returned by IdP during SAML flow.
+    bytes SAMLAssertionInfo = 8 [
+        (gogoproto.jsontag) = "saml_assertion_info,omitempty",
+        (gogoproto.customtype) = "AssertionInfo"
+    ];
+
+    // SAMLTraitsFromAssertions represents traits translated from SAML assertions.
+    wrappers.LabelValues SAMLTraitsFromAssertions = 9 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_traits_from_assertions,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // SAMLConnectorTraitMapping represents connector-specific trait mapping.
+    repeated TraitMapping SAMLConnectorTraitMapping = 10 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_connector_trait_mapping,omitempty"
+    ];
 }
 
 // TeamMapping represents a single team membership mapping.
