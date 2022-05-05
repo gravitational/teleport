@@ -1074,7 +1074,15 @@ func (l *Log) getBillingModeIsProvisioned(ctx context.Context) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	return *table.Table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned, nil
+	if table.Table == nil {
+		return false, trace.BadParameter("failed to get billing mode: table.Table is nil")
+	}
+	if table.Table.BillingModeSummary == nil {
+		return false, trace.BadParameter("failed to get billing mode: table.Table.BillingModeSummary is nil")
+	}
+
+	// In case of nil BillingMode by default the PAY_PER_REQUEST mode will be returned.
+	return aws.StringValue(table.Table.BillingModeSummary.BillingMode) == dynamodb.BillingModeProvisioned, nil
 }
 
 // indexExists checks if a given index exists on a given table and that it is active or updating.
