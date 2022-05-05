@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.2.1
+
+This release of Teleport contains an improvement and several bug fixes.
+
+* Updated `tctl rm` command to support removing tokens. [#12439](https://github.com/gravitational/teleport/pull/12439)
+* Fixed issue with Teleport failing to start when using DynamoDB backend in pay-per-request mode. [#12461](https://github.com/gravitational/teleport/pull/12461)
+* Fixed issue with Kubernetes port forwarding not working. [#12468](https://github.com/gravitational/teleport/pull/12468)
+* Fixed issue with IAM policy limit when using database auto-discovery on Kubernetes. [#12457](https://github.com/gravitational/teleport/pull/12457)
+
 ## 9.2.0
 
 This release of Teleport contains multiple improvements, security and bug fixes.
