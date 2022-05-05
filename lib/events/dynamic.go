@@ -51,9 +51,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		i, ok := fields[field]
 		if !ok || !isInterfaceString(i) {
 			return ""
-		} else {
-			return i.(string)
 		}
+
+		return i.(string)
 	}
 
 	var eventType = getFieldEmpty(EventType)
