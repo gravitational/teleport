@@ -2765,7 +2765,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 		Protocol:    protocol,
 		BindAddr:    tc.BindAddr,
 		Browser:     tc.Browser,
-	})
+	}, nil)
 	return response, trace.Wrap(err)
 }
 
