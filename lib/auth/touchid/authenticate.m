@@ -37,8 +37,9 @@ int Authenticate(AuthenticateRequest req, char **sigB64Out, char **errOut) {
   OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query,
                                         (CFTypeRef *)&privateKey);
   if (status != errSecSuccess) {
-    *errOut = CopyNSString([NSString
-        stringWithFormat:@"credential query failed: status %d", status]);
+    CFStringRef err = SecCopyErrorMessageString(status, NULL);
+    NSString *nsErr = (__bridge_transfer NSString *)err;
+    *errOut = CopyNSString(nsErr);
     return -1;
   }
 
