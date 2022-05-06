@@ -21,6 +21,7 @@
 #import <Foundation/Foundation.h>
 #import <Security/Security.h>
 
+#include <limits.h>
 #include <stdlib.h>
 
 #include "common.h"
@@ -63,6 +64,10 @@ int FindCredentials(LabelFilter filter, CredentialInfo **infosOut) {
   NSString *nsFilter = [NSString stringWithUTF8String:filter.value];
 
   CFIndex count = CFArrayGetCount(items);
+  // Guard against overflows, just in case we ever get that many credentials.
+  if (count > INT_MAX) {
+    count = INT_MAX;
+  }
   *infosOut = calloc(count, sizeof(CredentialInfo));
   int infosLen = 0;
   for (CFIndex i = 0; i < count; i++) {

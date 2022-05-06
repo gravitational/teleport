@@ -157,53 +157,57 @@ func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.Credent
 
 	start := unsafe.Pointer(infosC)
 	size := unsafe.Sizeof(C.CredentialInfo{})
-	infos := make([]CredentialInfo, res)
+	infos := make([]CredentialInfo, 0, res)
 	for i := 0; i < int(res); i++ {
-		// IMPORTANT: The defer below is used to free the pointers inside infos.
-		// It relies on the fact that we never error out of the function after
-		// this point, otherwise some instances would leak.
-		infoC := (*C.CredentialInfo)(unsafe.Add(start, uintptr(i)*size))
-		defer func() {
+		var label, appLabel, appTag, pubKeyB64 string
+		{
+			infoC := (*C.CredentialInfo)(unsafe.Add(start, uintptr(i)*size))
+
+			// Get all data from infoC...
+			label = C.GoString(infoC.label)
+			appLabel = C.GoString(infoC.app_label)
+			appTag = C.GoString(infoC.app_tag)
+			pubKeyB64 = C.GoString(infoC.pub_key_b64)
+
+			// ... then free it before proceeding.
 			C.free(unsafe.Pointer(infoC.label))
 			C.free(unsafe.Pointer(infoC.app_label))
 			C.free(unsafe.Pointer(infoC.app_tag))
 			C.free(unsafe.Pointer(infoC.pub_key_b64))
-		}()
-
-		// user@rpid
-		label := C.GoString(infoC.label)
-		rpID, user := splitLabel(label)
-		if rpID == "" || user == "" {
-			log.Debugf("Skipping credential with unexpected label: %q", label)
-			continue
 		}
 
 		// credential ID / UUID
-		credentialID := C.GoString(infoC.app_label)
+		credentialID := appLabel
+
+		// user@rpid
+		rpID, user := splitLabel(label)
+		if rpID == "" || user == "" {
+			log.Debugf("Skipping credential %q: unexpected label: %q", credentialID, label)
+			continue
+		}
 
 		// user handle
-		appTag := C.GoString(infoC.app_tag)
 		userHandle, err := base64.RawURLEncoding.DecodeString(appTag)
 		if err != nil {
-			log.Debugf("Skipping credential with unexpected application tag: %q", appTag)
+			log.Debugf("Skipping credential %q: unexpected application tag: %q", credentialID, appTag)
 			continue
 		}
 
 		// ECDSA public key
-		pubKeyB64 := C.GoString(infoC.pub_key_b64)
 		pubKeyRaw, err := base64.StdEncoding.DecodeString(pubKeyB64)
 		if err != nil {
 			log.WithError(err).Warnf("Failed to decode public key for credential %q", credentialID)
-			// Do not return or break here, we want the defers to run in all items.
+			// Do not return or break out of the loop, it needs to run in order to
+			// deallocate the structs within.
 		}
 
-		infos[i] = CredentialInfo{
+		infos = append(infos, CredentialInfo{
 			UserHandle:   userHandle,
 			CredentialID: credentialID,
 			RPID:         rpID,
 			User:         user,
 			publicKeyRaw: pubKeyRaw,
-		}
+		})
 	}
 	return infos, int(res)
 }
