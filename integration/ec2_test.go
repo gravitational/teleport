@@ -287,9 +287,9 @@ func TestIAMNodeJoin(t *testing.T) {
 // TestLabels is an integration test which asserts that Teleport correctly picks up
 // EC2 tags when running on an EC2 instance.
 func TestLabels(t *testing.T) {
-	// if os.Getenv("TELEPORT_TEST_EC2") == "" {
-	// 	t.Skipf("Skipping TestLabels because TELEPORT_TEST_EC2 is not set")
-	// }
+	if os.Getenv("TELEPORT_TEST_EC2") == "" {
+		t.Skipf("Skipping TestLabels because TELEPORT_TEST_EC2 is not set")
+	}
 	oldInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(oldInsecure) })
