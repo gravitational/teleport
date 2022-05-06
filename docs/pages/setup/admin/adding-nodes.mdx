@@ -1,5 +1,5 @@
 ---
-title: Adding Nodes to the Cluster
+title: Adding Nodes to your Cluster
 description: How to add Nodes to your Teleport cluster
 ---
 
@@ -9,7 +9,7 @@ This guide explains how to add Teleport Nodes to your cluster.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- A Linux server that you will use to host your Teleport Node
+- A Linux server that you will use to host your Teleport Node.
 
 (!docs/pages/includes/tctl.mdx!)
 
@@ -57,8 +57,9 @@ by executing [`tctl auth rotate`](../reference/cli.mdx#tctl-auth-rotate).
     
 </Notice>
 
-Retrieve the CA pin of the Auth Service <ScopedBlock scope="cloud"> by running the following
-command on your local machine</ScopedBlock>:
+On you local machine, retrieve the CA pin of the Auth Service <ScopedBlock
+scope="cloud"> by running the following command on your local
+machine</ScopedBlock>:
 
 ```code
 $ export CA_PIN=$(tctl status | awk '/CA pin/{print $3}')
@@ -77,15 +78,14 @@ Once a Node joins, it receives a host certificate signed by the cluster's
 Auth Service. To receive a host certificate upon joining a cluster, a new
 Teleport host must present an **invite token**.
 
-An invite token also defines which role a new host can assume within a cluster:
-`auth`, `proxy`, `node`, `app`, `kube`, or `db`.
+An invite token also defines which role a new host can assume within a cluster
+(e.g., `auth`, `proxy`, `node`, or `kube`).
 
 Administrators can generate tokens as they are needed. A token can be used
 multiple times until its time to live (TTL) expires.
 
-Use the `tctl` tool <ScopedBlock scope="cloud">on your local
-machine</ScopedBlock> to generate a new token. In the following example, a new
-token is created with a TTL of five minutes:
+On your local machine, use the `tctl` tool to generate a new token. In the
+following example, a new token is created with a TTL of five minutes:
 
 ```code
 # Generate a short-lived invite token for a new node:
@@ -98,17 +98,19 @@ $ tctl tokens ls
 # Token                            Type            Expiry Time
 # ------------------------         -----------     ---------------
 # (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
-
-# ... or revoke an invite token before it's used:
-$ tctl tokens rm (=presets.tokens.first=)
 ```
 
-If you want to provide your own token, you can do so using the `--token` flag:
+<Details title="Tokens with known values">
+
+Rather than automatically generating a token, you can create one with a known
+value by using the `--token` flag:
 
 ```code
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=secret-value
 # The invite token: secret-value
 ```
+
+</Details>
 
 <Details scope={["oss","enterprise"]} title="An insecure alternative: static tokens" scopeOnly={true} opened>
 <Admonition type="warning">
@@ -134,79 +136,56 @@ auth_service:
 
 ### Start your Node with the invite token and CA pin
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} scopeOnly={true} label="Self Hosted">
-
-Execute one of the following commands on a new Node to add it to a cluster.
-Supply the invite token and CA pin you retrieved earlier:
+Execute the following commands on your local machine, then copy the output.
 
 ```code
-$ sudo teleport start \
-   --roles=node \
-   --token=(=presets.tokens.first=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=10.12.0.6:3025
-```
-</TabItem>
-<TabItem scope={["cloud"]} scopeOnly={true} label="Teleport Cloud">
-
-Execute the following command on a new Node to add it to a cluster. Replace
-`mytenant.teleport.sh` with the domain name of your Teleport Cloud tenant.
-Supply the invite token and CA pin you retrieved earlier:
-
-```code
-$ sudo teleport start \
-   --roles=node \
-   --token=(=presets.tokens.first=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=https://mytenant.teleport.sh:443
+$ echo "export CA_PIN=${CA_PIN?}"
+$ echo "export INVITE_TOKEN=${INVITE_TOKEN?}"
 ```
 
-</TabItem>
-</Tabs>
-
-As new Nodes come online, they start sending ping requests every few seconds to
-the Auth Service. This allows users to explore cluster membership and size:
-
-```code
-$ tctl nodes ls
-
-Node Name     Node ID                                  Address            Labels
----------     -------                                  -------            ------
-turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro:ubuntu
-dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
-```
-
-{/* TODO: This lengthy Details box should be a subsection. Using the Details box
-as a workaround until we have a way to control the visibility of subsections
-using the scope switcher */}
+Paste the output into a terminal on the host where you will run your Node so you
+can use the `CA_PIN` and `INVITE_TOKEN` variables to start Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-### Teleport Node Tunneling
-
-Teleport Node Tunneling lets you add a remote Node to an existing Teleport Cluster through a tunnel.
-This can be useful for IoT applications or for managing a couple of servers in a different network.
-
-<Admonition type="note">
-We recommend setting up a [Trusted Cluster](../admin/trustedclusters.mdx) if you
-have workloads split across different networks or clouds.
-</Admonition>
-
-To connect a Node to your cluster via Node Tunneling, use `tctl` to create a
-single-use token for a Node. Instead of supplying the IP of the Auth Service for
-the `--auth-server` flag, you will use the URL of the Proxy Service.
-
-In the example below, we've replaced the auth server IP with the Proxy's web
-endpoint `teleport-proxy.example.com:3080`.
+Still on the host where you will run your Node, assign the address of your Auth
+Service to an environment variable, including the domain name (or IP address)
+and port:
 
 ```code
-$ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
-
-# This will save the token to a file.
-# Run this on the new node to join the cluster:
-$ sudo teleport start --roles=node --token=/path/to/token.file --auth-server=teleport-proxy.example.com:3080
+$ export ADDR=teleport.example.com:3025
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Still on the host where you will run your Node, assign the address of your
+Teleport Cloud tenant to an environment variable, including the domain name (or
+IP address) and port `443`:
+
+```code
+$ export ADDR=mytenant.teleport.sh:443
+```
+
+</ScopedBlock>
+
+<Details title="Alternative: Connect to the Proxy Service via Teleport Node Tunneling" scope={["oss", "enterprise"]} scopeOnly opened={false}>
+
+If you plan to use Teleport Node Tunneling, which we will explain below, set
+`ADDR` to the domain name (or IP address) and `web_listen_addr` port of your
+Teleport Proxy Service.
+
+Teleport Node Tunneling lets you add a remote Node to an existing Teleport
+Cluster through a reverse tunnel. This is useful when the Auth Service is
+inaccessible from the network where the Node is running, e.g., for IoT
+applications.
+
+<Notice type="note">
+
+We recommend setting up a [Trusted Cluster](../admin/trustedclusters.mdx) if you
+have workloads split across different networks or clouds.
+
+</Notice>
 
 Using the ports in Teleport's default configuration, the Node needs to be able
 to talk to ports `3080` and `3024` on the Proxy Service. Port `3080` is used to
@@ -242,13 +221,39 @@ DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the s
   uses a round-robin or a similar balancing algorithm. Do not use sticky load balancing algorithms (a.k.a. "session affinity") with Teleport Proxy Service instances.
 </Admonition>
 
-</ScopedBlock>
+</Details>
+
+Execute the following command on your Node to add it to a cluster:
+
+```code
+$ sudo teleport start \
+   --roles=node \
+   --token=${INVITE_TOKEN?} \
+   --ca-pin=${CA_PIN?} \
+   --auth-server=${ADDR?}
+```
+
+As new Nodes come online, they start sending ping requests every few seconds to
+the Auth Service. This allows users to explore cluster membership and size.
+
+Run the following command on your local machine to see all of the Teleport Nodes
+in your cluster:
+
+```code
+$ tctl nodes ls
+
+Node Name     Node ID                                  Address            Labels
+---------     -------                                  -------            ------
+turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro:ubuntu
+dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
+```
 
 ## Step 3/3. Revoke an invitation
 
 Tokens used for joining Nodes to a cluster can be revoked before they are used.
 
-Run the following command to create a token for a new Proxy Service.
+Run the following command on your local machine to create a token for a new
+Proxy Service.
 
 ```code
 $ tctl nodes add --ttl=5m --roles=proxy 
