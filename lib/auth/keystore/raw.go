@@ -20,7 +20,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -107,7 +106,6 @@ func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
 			return signer, nil
 		}
 	}
@@ -124,7 +122,6 @@ func (c *rawKeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
 			return signer, nil
 		}
 	}
