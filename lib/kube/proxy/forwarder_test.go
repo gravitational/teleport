@@ -45,10 +45,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1052,4 +1054,94 @@ func (m *mockWatcher) Events() <-chan types.Event {
 
 func (m *mockWatcher) Done() <-chan struct{} {
 	return m.ctx.Done()
+}
+
+func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
+	return &Forwarder{
+		log:            logrus.New(),
+		router:         *httprouter.New(),
+		cfg:            cfg,
+		activeRequests: make(map[string]context.Context),
+		ctx:            ctx,
+	}
+}
+
+type mockSemaphoreClient struct {
+	auth.ClientI
+	sem types.Semaphores
+}
+
+func (m *mockSemaphoreClient) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	return m.sem.AcquireSemaphore(ctx, params)
+}
+
+func (m *mockSemaphoreClient) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	return m.sem.CancelSemaphoreLease(ctx, lease)
+}
+
+func TestKubernetesConnectionLimit(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type testCase struct {
+		name        string
+		connections int
+		role        types.Role
+		assert      require.ErrorAssertionFunc
+	}
+
+	unlimitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	limitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{
+		Options: types.RoleOptions{
+			MaxKubernetesConnections: 5,
+		},
+	})
+	require.NoError(t, err)
+
+	testCases := []testCase{
+		{
+			name:        "unlimited",
+			connections: 7,
+			role:        unlimitedRole,
+			assert:      require.NoError,
+		},
+		{
+			name:        "limited-success",
+			connections: 5,
+			role:        limitedRole,
+			assert:      require.NoError,
+		},
+		{
+			name:        "limited-fail",
+			connections: 6,
+			role:        limitedRole,
+			assert:      require.Error,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			user, err := types.NewUser("bob")
+			require.NoError(t, err)
+			user.SetRoles([]string{testCase.role.GetName()})
+
+			backend, err := memory.New(memory.Config{})
+			require.NoError(t, err)
+
+			sem := local.NewPresenceService(backend)
+			client := &mockSemaphoreClient{sem: sem}
+			forwarder := newTestForwarder(ctx, ForwarderConfig{
+				AuthClient: client,
+			})
+
+			for i := 0; i < testCase.connections; i++ {
+				err = forwarder.AcquireConnectionLock(ctx, user.GetName(), services.NewRoleSet(testCase.role))
+				if i == testCase.connections-1 {
+					testCase.assert(t, err)
+				}
+			}
+		})
+	}
 }

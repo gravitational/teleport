@@ -47,7 +47,7 @@ func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
 		log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
 	}
 
-	file, err := openStandard(path)
+	file, err := openStandard(path, ReadMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -71,7 +71,7 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 		log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
 	}
 
-	file, err := openStandard(path)
+	file, err := openStandard(path, WriteMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
