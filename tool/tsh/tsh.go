@@ -46,6 +46,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
@@ -696,6 +697,12 @@ func Run(args []string, opts ...cliOption) error {
 	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
 	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
 
+	// touchid subcommands.
+	var tid *touchIDCommand
+	if touchid.IsAvailable() {
+		tid = newTouchIDCommand(app)
+	}
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
@@ -754,102 +761,104 @@ func Run(args []string, opts ...cliOption) error {
 	}
 	cf.ExtraProxyHeaders = confOptions.ExtraHeaders
 
-	switch command {
-	case ver.FullCommand():
+	switch {
+	case command == ver.FullCommand():
 		err = onVersion(&cf)
-	case ssh.FullCommand():
+	case command == ssh.FullCommand():
 		err = onSSH(&cf)
-	case bench.FullCommand():
+	case command == bench.FullCommand():
 		err = onBenchmark(&cf)
-	case join.FullCommand():
+	case command == join.FullCommand():
 		err = onJoin(&cf)
-	case scp.FullCommand():
+	case command == scp.FullCommand():
 		err = onSCP(&cf)
-	case play.FullCommand():
+	case command == play.FullCommand():
 		err = onPlay(&cf)
-	case ls.FullCommand():
+	case command == ls.FullCommand():
 		err = onListNodes(&cf)
-	case clusters.FullCommand():
+	case command == clusters.FullCommand():
 		err = onListClusters(&cf)
-	case login.FullCommand():
+	case command == login.FullCommand():
 		err = onLogin(&cf)
-	case logout.FullCommand():
+	case command == logout.FullCommand():
 		if err := refuseArgs(logout.FullCommand(), args); err != nil {
 			return trace.Wrap(err)
 		}
 		err = onLogout(&cf)
-	case show.FullCommand():
+	case command == show.FullCommand():
 		err = onShow(&cf)
-	case status.FullCommand():
+	case command == status.FullCommand():
 		err = onStatus(&cf)
-	case lsApps.FullCommand():
+	case command == lsApps.FullCommand():
 		err = onApps(&cf)
-	case appLogin.FullCommand():
+	case command == appLogin.FullCommand():
 		err = onAppLogin(&cf)
-	case appLogout.FullCommand():
+	case command == appLogout.FullCommand():
 		err = onAppLogout(&cf)
-	case appConfig.FullCommand():
+	case command == appConfig.FullCommand():
 		err = onAppConfig(&cf)
-	case kube.credentials.FullCommand():
+	case command == kube.credentials.FullCommand():
 		err = kube.credentials.run(&cf)
-	case kube.ls.FullCommand():
+	case command == kube.ls.FullCommand():
 		err = kube.ls.run(&cf)
-	case kube.login.FullCommand():
+	case command == kube.login.FullCommand():
 		err = kube.login.run(&cf)
-	case kube.sessions.FullCommand():
+	case command == kube.sessions.FullCommand():
 		err = kube.sessions.run(&cf)
-	case kube.exec.FullCommand():
+	case command == kube.exec.FullCommand():
 		err = kube.exec.run(&cf)
-	case kube.join.FullCommand():
+	case command == kube.join.FullCommand():
 		err = kube.join.run(&cf)
 
-	case proxySSH.FullCommand():
+	case command == proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf)
-	case proxyDB.FullCommand():
+	case command == proxyDB.FullCommand():
 		err = onProxyCommandDB(&cf)
-	case proxyApp.FullCommand():
+	case command == proxyApp.FullCommand():
 		err = onProxyCommandApp(&cf)
 
-	case dbList.FullCommand():
+	case command == dbList.FullCommand():
 		err = onListDatabases(&cf)
-	case dbLogin.FullCommand():
+	case command == dbLogin.FullCommand():
 		err = onDatabaseLogin(&cf)
-	case dbLogout.FullCommand():
+	case command == dbLogout.FullCommand():
 		err = onDatabaseLogout(&cf)
-	case dbEnv.FullCommand():
+	case command == dbEnv.FullCommand():
 		err = onDatabaseEnv(&cf)
-	case dbConfig.FullCommand():
+	case command == dbConfig.FullCommand():
 		err = onDatabaseConfig(&cf)
-	case dbConnect.FullCommand():
+	case command == dbConnect.FullCommand():
 		err = onDatabaseConnect(&cf)
-	case environment.FullCommand():
+	case command == environment.FullCommand():
 		err = onEnvironment(&cf)
-	case mfa.ls.FullCommand():
+	case command == mfa.ls.FullCommand():
 		err = mfa.ls.run(&cf)
-	case mfa.add.FullCommand():
+	case command == mfa.add.FullCommand():
 		err = mfa.add.run(&cf)
-	case mfa.rm.FullCommand():
+	case command == mfa.rm.FullCommand():
 		err = mfa.rm.run(&cf)
-	case reqList.FullCommand():
+	case command == reqList.FullCommand():
 		err = onRequestList(&cf)
-	case reqShow.FullCommand():
+	case command == reqShow.FullCommand():
 		err = onRequestShow(&cf)
-	case reqCreate.FullCommand():
+	case command == reqCreate.FullCommand():
 		err = onRequestCreate(&cf)
-	case reqReview.FullCommand():
+	case command == reqReview.FullCommand():
 		err = onRequestReview(&cf)
-	case reqSearch.FullCommand():
+	case command == reqSearch.FullCommand():
 		err = onRequestSearch(&cf)
-	case config.FullCommand():
+	case command == config.FullCommand():
 		err = onConfig(&cf)
-	case configProxy.FullCommand():
+	case command == configProxy.FullCommand():
 		err = onConfigProxy(&cf)
-	case aws.FullCommand():
+	case command == aws.FullCommand():
 		err = onAWS(&cf)
-	case daemonStart.FullCommand():
+	case command == daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
-	case f2Diag.FullCommand():
+	case command == f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
+	case tid != nil && command == tid.ls.FullCommand():
+		err = tid.ls.run(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
