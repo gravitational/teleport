@@ -630,6 +630,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("role %q has been deleted\n", rc.ref.Name)
+	case types.KindToken:
+		if err = client.DeleteToken(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("token %q has been deleted\n", rc.ref.Name)
 	case types.KindSAMLConnector:
 		if err = client.DeleteSAMLConnector(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -963,7 +968,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		return &githubCollection{connectors}, nil
 	case types.KindReverseTunnel:
 		if rc.ref.Name == "" {
-			tunnels, err := client.GetReverseTunnels()
+			tunnels, err := client.GetReverseTunnels(context.Background())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
