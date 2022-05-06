@@ -943,6 +943,16 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IsWatched return true if the given certificate auth type is being observer by the watcher.
+func (cfg *CertAuthorityWatcherConfig) IsWatched(certType types.CertAuthType) bool {
+	for _, observedType := range cfg.WatchCertTypes {
+		if observedType == certType {
+			return true
+		}
+	}
+	return false
+}
+
 // NewCertAuthorityWatcher returns a new instance of CertAuthorityWatcher.
 func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig) (*CertAuthorityWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
