@@ -859,6 +859,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onFIDO2Diag(&cf)
 	case tid != nil && command == tid.ls.FullCommand():
 		err = tid.ls.run(&cf)
+	case tid != nil && command == tid.rm.FullCommand():
+		err = tid.rm.run(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)

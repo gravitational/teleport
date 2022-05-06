@@ -27,12 +27,14 @@ import (
 
 type touchIDCommand struct {
 	ls *touchIDLsCommand
+	rm *touchIDRmCommand
 }
 
 func newTouchIDCommand(app *kingpin.Application) *touchIDCommand {
 	tid := app.Command("touchid", "Manage Touch ID credentials").Hidden()
 	return &touchIDCommand{
 		ls: newTouchIDLsCommand(tid),
+		rm: newTouchIDRmCommand(tid),
 	}
 }
 
@@ -74,5 +76,35 @@ func (c *touchIDLsCommand) run(cf *CLIConf) error {
 	}
 	fmt.Println(t.AsBuffer().String())
 
+	return nil
+}
+
+type touchIDRmCommand struct {
+	*kingpin.CmdClause
+
+	credentialID string
+}
+
+func newTouchIDRmCommand(app *kingpin.CmdClause) *touchIDRmCommand {
+	c := &touchIDRmCommand{
+		CmdClause: app.Command("rm", "Remove a Touch ID credential").Hidden(),
+	}
+	c.Arg("id", "ID of the Touch ID credential to remove").Required().StringVar(&c.credentialID)
+	return c
+}
+
+func (c *touchIDRmCommand) FullCommand() string {
+	if c.CmdClause == nil {
+		return "touchid rm"
+	}
+	return c.CmdClause.FullCommand()
+}
+
+func (c *touchIDRmCommand) run(cf *CLIConf) error {
+	if err := touchid.DeleteCredential(c.credentialID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Touch ID credential %q removed.\n", c.credentialID)
 	return nil
 }
