@@ -171,6 +171,8 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 		if u.cfg.GracePeriod != 0 {
 			gracePoint := upload.Initiated.Add(u.cfg.GracePeriod)
 			if gracePoint.After(u.cfg.Clock.Now()) {
+				// uploads are ordered oldest to newest, stop checking
+				// once an upload doesn't exceed the grace point
 				return nil
 			}
 		}

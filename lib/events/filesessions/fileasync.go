@@ -113,9 +113,6 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 // It keeps checkpoints of the upload state and resumes
 // the upload that have been aborted.
 //
-// The uploader completes the sessions that have been
-// abandoned longer than the grace period.
-//
 // It marks corrupted session files to skip their processing.
 //
 type Uploader struct {
