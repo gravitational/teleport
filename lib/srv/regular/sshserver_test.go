@@ -647,6 +647,7 @@ func TestAgentForward(t *testing.T) {
 
 	signers, err := clientAgent.Signers()
 	require.NoError(t, err)
+	signers[0] = f.up.certSigner
 
 	sshConfig := &ssh.ClientConfig{
 		User:            f.user,
