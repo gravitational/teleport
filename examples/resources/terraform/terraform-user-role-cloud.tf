@@ -1,8 +1,8 @@
 terraform {
   required_providers {
     teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
       version = ">= (=teleport.version=)"
-      source  = "gravitational.com/teleport/teleport"
     }
   }
 }
@@ -56,7 +56,7 @@ resource "teleport_role" "terraform-test" {
 
       node_labels = {
          key = ["example"]
-         value = ["yes"]
+         alabel = ["with", "multiple", "values"]
       }
     }
 

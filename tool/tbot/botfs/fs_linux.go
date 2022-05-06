@@ -58,12 +58,12 @@ var missingSyscallWarning sync.Once
 
 // openSecure opens the given path for writing (with O_CREAT, mode 0600)
 // with the RESOLVE_NO_SYMLINKS flag set.
-func openSecure(path string) (*os.File, error) {
+func openSecure(path string, mode OpenMode) (*os.File, error) {
 	how := unix.OpenHow{
 		// Equivalent to 0600. Unfortunately it's not worth reusing our
 		// default file mode constant here.
 		Mode:    unix.O_RDONLY | unix.S_IRUSR | unix.S_IWUSR,
-		Flags:   uint64(OpenMode),
+		Flags:   uint64(mode),
 		Resolve: unix.RESOLVE_NO_SYMLINKS,
 	}
 
@@ -78,16 +78,16 @@ func openSecure(path string) (*os.File, error) {
 	return os.NewFile(uintptr(fd), filepath.Base(path)), nil
 }
 
-// openSymlinks mode opens the file for read/write using the given symlink
+// openSymlinks mode opens the file for read or write using the given symlink
 // mode, potentially failing or logging a warning if symlinks can't be
 // secured.
-func openSymlinksMode(path string, symlinksMode SymlinksMode) (*os.File, error) {
+func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*os.File, error) {
 	var file *os.File
 	var err error
 
 	switch symlinksMode {
 	case SymlinksSecure:
-		file, err = openSecure(path)
+		file, err = openSecure(path, mode)
 		if err == unix.ENOSYS {
 			return nil, trace.Errorf("openSecure(%q) failed due to missing "+
 				"syscall; `symlinks: insecure` may be required for this "+
@@ -96,13 +96,16 @@ func openSymlinksMode(path string, symlinksMode SymlinksMode) (*os.File, error) 
 			return nil, trace.Wrap(err)
 		}
 	case SymlinksTrySecure:
-		file, err = openSecure(path)
+		file, err = openSecure(path, mode)
 		if err == unix.ENOSYS {
-			log.Warnf("Failed to write to %q securely due to missing "+
-				"syscall; falling back to regular file write. Set "+
-				"`symlinks: insecure` on this destination to disable this "+
-				"warning.", path)
-			file, err = openStandard(path)
+			missingSyscallWarning.Do(func() {
+				log.Warnf("Failed to write to %q securely due to missing "+
+					"syscall; falling back to regular file write. Set "+
+					"`symlinks: insecure` on this destination to disable this "+
+					"warning.", path)
+			})
+
+			file, err = openStandard(path, mode)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -110,7 +113,7 @@ func openSymlinksMode(path string, symlinksMode SymlinksMode) (*os.File, error) 
 			return nil, trace.Wrap(err)
 		}
 	case SymlinksInsecure:
-		file, err = openStandard(path)
+		file, err = openStandard(path, mode)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -136,7 +139,7 @@ func createSecure(path string, isDir bool) error {
 		return nil
 	}
 
-	f, err := openSecure(path)
+	f, err := openSecure(path, WriteMode)
 	if err == unix.ENOSYS {
 		// bubble up the original error for comparison
 		return err
@@ -204,7 +207,7 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 
 // Read reads the contents of the given file into memory.
 func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
-	file, err := openSymlinksMode(path, symlinksMode)
+	file, err := openSymlinksMode(path, ReadMode, symlinksMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -221,7 +224,7 @@ func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
 
 // Write stores the given data to the file at the given path.
 func Write(path string, data []byte, symlinksMode SymlinksMode) error {
-	file, err := openSymlinksMode(path, symlinksMode)
+	file, err := openSymlinksMode(path, WriteMode, symlinksMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}

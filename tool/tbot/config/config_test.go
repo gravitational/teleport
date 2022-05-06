@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,9 +74,9 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	// A single default destination should exist
 	require.Len(t, cfg.Destinations, 1)
 	dest := cfg.Destinations[0]
-	require.ElementsMatch(t, []identity.ArtifactKind{identity.KindSSH}, dest.Kinds)
 
-	require.Len(t, dest.Configs, 1)
+	// We have 3 required/default templates.
+	require.Len(t, dest.Configs, 3)
 	template := dest.Configs[0]
 	require.NotNil(t, template.SSHClient)
 
@@ -108,8 +107,6 @@ func TestConfigFile(t *testing.T) {
 
 	require.Len(t, cfg.Destinations, 1)
 	destination := cfg.Destinations[0]
-
-	require.ElementsMatch(t, []identity.ArtifactKind{identity.KindSSH, identity.KindTLS}, destination.Kinds)
 
 	require.Len(t, destination.Configs, 1)
 	template := destination.Configs[0]
@@ -182,7 +179,6 @@ storage:
 destinations:
   - directory:
       path: /tmp/foo
-    kinds: [ssh, tls]
     configs:
       - ssh_client:
           proxy_port: 1234

@@ -819,20 +819,25 @@ $ tctl help
 Generates a user invitation token:
 
 ```code
-$ tctl users add [<flags>] <account> [<local-logins>]
+$ tctl users add [<flags>] <account>
 ```
 
 #### Arguments
 
 - `<account>` - The Teleport user account name.
-- `<local-logins>` - A comma-separated list of local UNIX users this account can log in as. If unspecified the account will be mapped to an OS user of the same name. See examples below.
 
 #### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--k8s-groups` | none | a kubernetes group | Kubernetes groups to assign to a user, e.g. `system:masters` |
-| `--k8s-users` | none | a kubernetes user | Kubernetes user to assign to a user, e.g. `jenkins` |
+| `--roles` | none | Comma-separated strings | List of Teleport roles to assign to the new user |
+| `--logins` | none | Comma-separated strings | List of allowed SSH logins for the new user |
+| `--kubernetes-groups` | none | Comma-separated strings | Kubernetes groups to assign to a user, e.g. `system:masters` |
+| `--kubernetes-users` | none | Comma-separated strings | Kubernetes user to assign to a user, e.g. `jenkins` |
+| `--db-users` | none | Comma-separated strings | List of allowed database users for the new user |
+| `--db-names` | none | Comma-separated strings | List of allowed database names for the new user |
+| `--windows-logins` | none | Comma-separated strings | List of allowed Windows logins for the new user |
+| `--aws-role-arns` | none | Comma-separated strings | List of allowed AWS role ARNs for the new user |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
 
 #### Global flags
@@ -1443,7 +1448,7 @@ $ tsh ls --search=staging,mac
 
 # List nodes using predicate language. This query searches for nodes with labels
 # with key `env` equal to `staging` and key `os` equal to `mac`.
-$ tsh ls --query='labels.env == "staging" && equals(labels.os, "mac")'
+$ tsh ls --query='labels["env"] == "staging" && equals(labels["os"], "mac")'
 ```
 
 ## Experimental features
