@@ -248,30 +248,33 @@ func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
 // ReadIdentityFromStore reads stored identity credentials
 func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs, kinds ...ArtifactKind) (*Identity, error) {
 	var identity Identity
-	if ContainsKind(KindSSH, kinds) {
-		if len(certs.SSH) == 0 {
-			return nil, trace.BadParameter("identity requires SSH certificates but they are unset")
-		}
 
-		err := ReadSSHIdentityFromKeyPair(&identity, params.PrivateKeyBytes, params.PrivateKeyBytes, certs.SSH)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Note: in practice we should always expect certificates to have all
+	// fields set even though destinations do not contain sufficient data to
+	// load a stored identity. This works in practice because we never read
+	// destination identities from disk and only read them from the result of
+	// `generateUserCerts`, which is always fully-formed.
 
-		if len(certs.SSHCACerts) != 0 {
-			identity.SSHCACertBytes = certs.SSHCACerts
-		}
+	if len(certs.SSH) == 0 {
+		return nil, trace.BadParameter("identity requires SSH certificates but they are unset")
 	}
 
-	if ContainsKind(KindTLS, kinds) {
-		if len(certs.TLSCACerts) == 0 || len(certs.TLS) == 0 {
-			return nil, trace.BadParameter("identity requires TLS certificates but they are empty")
-		}
+	if len(certs.TLSCACerts) == 0 || len(certs.TLS) == 0 {
+		return nil, trace.BadParameter("identity requires TLS certificates but they are empty")
+	}
 
-		// Parse the key pair to verify that identity parses properly for future use.
-		if err := ReadTLSIdentityFromKeyPair(&identity, params.PrivateKeyBytes, certs.TLS, certs.TLSCACerts); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	err := ReadSSHIdentityFromKeyPair(&identity, params.PrivateKeyBytes, params.PrivateKeyBytes, certs.SSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(certs.SSHCACerts) != 0 {
+		identity.SSHCACertBytes = certs.SSHCACerts
+	}
+
+	// Parse the key pair to verify that identity parses properly for future use.
+	if err := ReadTLSIdentityFromKeyPair(&identity, params.PrivateKeyBytes, certs.TLS, certs.TLSCACerts); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	identity.PublicKeyBytes = params.PublicKeyBytes
