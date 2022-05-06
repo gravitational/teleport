@@ -31,9 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-	"golang.org/x/net/http2"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -55,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	fwdutils "github.com/gravitational/oxy/utils"
@@ -63,7 +61,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -257,7 +257,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 
-	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuth(fwd.join))
+	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
 	fwd.router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
@@ -452,6 +452,30 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 		}
 		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		user := authContext.Identity.GetIdentity().Username
+		roles, err := getRolesByName(f, authContext.Identity.GetIdentity().Groups)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := f.AcquireConnectionLock(req.Context(), user, roles); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return handler(authContext, w, req, p)
+	}, f.formatResponseError)
+}
+
+// withAuthPassthrough authenticates the request and fetches information but doesn't deny if the user
+// doesn't have RBAC access to the Kubernetes cluster.
+func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.Handle {
+	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+		authContext, err := f.authenticate(req)
+		if err != nil {
+			if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
 		}
 		return handler(authContext, w, req, p)
 	}, f.formatResponseError)
@@ -894,6 +918,39 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 	return trace.Wrap(err)
 }
 
+// AcquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
+// The semaphore is releasted when the request is returned/connection is closed.
+// Returns an error if a semaphore could not be acquired.
+func (f *Forwarder) AcquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
+	maxConnections := roles.MaxKubernetesConnections()
+	if maxConnections == 0 {
+		return nil
+	}
+
+	_, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+		Service: f.cfg.AuthClient,
+		Expiry:  sessionMaxLifetime,
+		Params: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindKubernetesConnection,
+			SemaphoreName: user,
+			MaxLeases:     maxConnections,
+			Holder:        user,
+		},
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), teleport.MaxLeases) {
+			err = trace.AccessDenied("too many concurrent kubernetes connections for user %q (max=%d)",
+				user,
+				maxConnections,
+			)
+		}
+
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
@@ -1288,7 +1345,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		}
 	}
 	client := &http.Client{
-		Transport: rt,
+		Transport: otelhttp.NewTransport(rt),
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil

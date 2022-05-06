@@ -17,7 +17,6 @@ limitations under the License.
 package config
 
 import (
-	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 )
 
@@ -49,9 +48,8 @@ func (dc *DatabaseConfig) CheckAndSetDefaults() error {
 type DestinationConfig struct {
 	DestinationMixin `yaml:",inline"`
 
-	Roles   []string                `yaml:"roles,omitempty"`
-	Kinds   []identity.ArtifactKind `yaml:"kinds,omitempty"`
-	Configs []TemplateConfig        `yaml:"configs,omitempty"`
+	Roles   []string         `yaml:"roles,omitempty"`
+	Configs []TemplateConfig `yaml:"configs,omitempty"`
 
 	Database *DatabaseConfig `yaml:"database,omitempty"`
 }
@@ -61,6 +59,30 @@ type DestinationConfig struct {
 // config is provided.
 func destinationDefaults(dm *DestinationMixin) error {
 	return trace.BadParameter("destinations require some valid output sink")
+}
+
+// addRequiredConfigs adds all configs with default parameters that were not
+// explicitly requested by users. Several configs, including `identity`, `tls`,
+// and `ssh_client`, are always generated (with defaults set, if any) but will
+// not be overridden if already included by the user.
+func (dc *DestinationConfig) addRequiredConfigs() {
+	if dc.GetConfigByName(TemplateSSHClientName) == nil {
+		dc.Configs = append(dc.Configs, TemplateConfig{
+			SSHClient: &TemplateSSHClient{},
+		})
+	}
+
+	if dc.GetConfigByName(TemplateIdentityName) == nil {
+		dc.Configs = append(dc.Configs, TemplateConfig{
+			Identity: &TemplateIdentity{},
+		})
+	}
+
+	if dc.GetConfigByName(TemplateTLSCAsName) == nil {
+		dc.Configs = append(dc.Configs, TemplateConfig{
+			TLSCAs: &TemplateTLSCAs{},
+		})
+	}
 }
 
 func (dc *DestinationConfig) CheckAndSetDefaults() error {
@@ -77,12 +99,7 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	// Note: empty roles is allowed; interpreted to mean "all" at generation
 	// time
 
-	if len(dc.Kinds) == 0 && len(dc.Configs) == 0 {
-		dc.Kinds = []identity.ArtifactKind{identity.KindSSH}
-		dc.Configs = []TemplateConfig{{
-			SSHClient: &TemplateSSHClient{},
-		}}
-	}
+	dc.addRequiredConfigs()
 
 	for _, cfg := range dc.Configs {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -93,13 +110,49 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ContainsKind determines if this destination contains the given ConfigKind.
-func (dc *DestinationConfig) ContainsKind(kind identity.ArtifactKind) bool {
-	for _, k := range dc.Kinds {
-		if k == kind {
-			return true
+// ListSubdirectories lists all subdirectories that should be contained within
+// this destination. Primarily used for on-the-fly directory creation.
+func (dc *DestinationConfig) ListSubdirectories() ([]string, error) {
+	// Note: currently no standard identity.Artifacts create subdirs. If that
+	// ever changes, we'll need to adapt this to ensure we initialize them
+	// properly on the fly.
+	var subdirs []string
+
+	for _, config := range dc.Configs {
+		template, err := config.GetConfigTemplate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, file := range template.Describe() {
+			if file.IsDir {
+				subdirs = append(subdirs, file.Name)
+			}
 		}
 	}
 
-	return false
+	return subdirs, nil
+}
+
+// GetConfigByName returns the first valid template with the given name
+// contained within this destination.
+func (dc *DestinationConfig) GetConfigByName(name string) Template {
+	for _, cfg := range dc.Configs {
+		tpl, err := cfg.GetConfigTemplate()
+		if err != nil {
+			continue
+		}
+
+		if tpl.Name() == name {
+			return tpl
+		}
+	}
+
+	return nil
+}
+
+// GetRequiredConfig returns the static list of all default / required config
+// templates.
+func GetRequiredConfigs() []string {
+	return []string{TemplateTLSCAsName, TemplateSSHClientName, TemplateIdentityName}
 }

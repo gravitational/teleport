@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 
 	"github.com/gravitational/teleport/tool/tbot/botfs"
@@ -115,18 +116,34 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Init() error {
-	// Create the directory if needed.
-	stat, err := os.Stat(dd.Path)
+// mkdir attempts to make the given directory with extra logging.
+func mkdir(p string) error {
+	stat, err := os.Stat(p)
 	if trace.IsNotFound(err) {
-		if err := os.MkdirAll(dd.Path, botfs.DefaultDirMode); err != nil {
+		if err := os.MkdirAll(p, botfs.DefaultDirMode); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Created directory %q", dd.Path)
+
+		log.Infof("Created directory %q", p)
 	} else if err != nil {
 		return trace.Wrap(err)
 	} else if !stat.IsDir() {
-		return trace.BadParameter("Path %q already exists and is not a directory", dd.Path)
+		return trace.BadParameter("Path %q already exists and is not a directory", p)
+	}
+
+	return nil
+}
+
+func (dd *DestinationDirectory) Init(subdirs []string) error {
+	// Create the directory if needed.
+	if err := mkdir(dd.Path); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, dir := range subdirs {
+		if err := mkdir(path.Join(dd.Path, dir)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

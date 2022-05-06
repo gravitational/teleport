@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
+	"github.com/moby/term"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -187,6 +188,11 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, ctx *ServerContext) error 
 
 		return nil
 	}
+
+	if ctx.JoinOnly {
+		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
+	}
+
 	// session not found? need to create one. start by getting/generating an ID for it
 	sid, found := ctx.GetEnv(sshutils.SessionEnvVar)
 	if !found {
@@ -261,6 +267,19 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 	sess.Stop()
 
 	return nil
+}
+
+// GetTerminalSize fetches the terminal size of an active SSH session.
+func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, error) {
+	s.sessionsMux.Lock()
+	defer s.sessionsMux.Unlock()
+
+	sess := s.sessions[rsession.ID(sessionID)]
+	if sess == nil {
+		return nil, trace.NotFound("No session found in context.")
+	}
+
+	return sess.term.GetWinSize()
 }
 
 // NotifyWinChange is called to notify all members in the party that the PTY
@@ -383,7 +402,7 @@ type session struct {
 
 	// stopC channel is used to kill all goroutines owned
 	// by the session
-	stopC chan bool
+	stopC chan struct{}
 
 	// startTime is the time when this session was created.
 	startTime time.Time
@@ -424,6 +443,11 @@ type session struct {
 
 	// endingContext is the server context which closed this session.
 	endingContext *ServerContext
+
+	// lingerAndDieCancel is a context cancel func which will cancel
+	// an ongoing lingerAndDie goroutine. This is used by joining parties
+	// to cancel the goroutine and prevent the session from closing prematurely.
+	lingerAndDieCancel func()
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -497,7 +521,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		parties:                        make(map[rsession.ID]*party),
 		participants:                   make(map[rsession.ID]*party),
 		login:                          ctx.Identity.Login,
-		stopC:                          make(chan bool),
+		stopC:                          make(chan struct{}),
 		startTime:                      startTime,
 		serverCtx:                      ctx.srv.Context(),
 		state:                          types.SessionState_SessionStatePending,
@@ -810,8 +834,10 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 }
 
 // emitSessionEndEvent emits a session end event.
-// Must be called under session Lock.
 func (s *session) emitSessionEndEvent() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	ctx := s.scx
 	if s.endingContext != nil {
 		ctx = s.endingContext
@@ -1210,11 +1236,11 @@ func (s *session) String() string {
 	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.parties))
 }
 
-// removeParty removes the party from the in-memory map that holds all party members
+// removePartyUnderLock removes the party from the in-memory map that holds all party members
 // and closes their underlying ssh channels. This may also trigger the session to end
 // if the party is the last in the session or has policies that dictate it to end.
 // Must be called under session Lock.
-func (s *session) removeParty(p *party) error {
+func (s *session) removePartyUnderLock(p *party) error {
 	s.log.Infof("Removing party %v from session %v", p, s.id)
 
 	// Remove participant from in-memory map of party members.
@@ -1257,10 +1283,13 @@ func (s *session) removeParty(p *party) error {
 	// "x-teleport-event" channel in the SSH connection.
 	s.emitSessionLeaveEvent(p.ctx)
 
-	// If the leaving party was the last one in the
-	// session, start the lingerAndDie goroutine.
+	// If the leaving party was the last one in the session, start the lingerAndDie
+	// goroutine. Parties that join during the linger duration will cancel the
+	// goroutine to prevent the session from ending with active parties.
 	if len(s.parties) == 0 && !s.isStopped() {
-		go s.lingerAndDie(p)
+		ctx, cancel := context.WithCancel(s.serverCtx)
+		s.lingerAndDieCancel = cancel
+		go s.lingerAndDie(ctx, p)
 	}
 
 	return nil
@@ -1275,25 +1304,27 @@ func (s *session) isStopped() bool {
 	}
 }
 
-// If after a short linger duration there are no active
-// parties in the session, end the session.
-func (s *session) lingerAndDie(party *party) {
+// lingerAndDie will let the party-less session linger for a short
+// duration, and then die if no parties have joined.
+func (s *session) lingerAndDie(ctx context.Context, party *party) {
 	s.log.Debugf("Session %v has no active party members.", s.id)
 
-	s.registry.clock.Sleep(defaults.SessionIdlePeriod)
-	if len(s.getParties()) != 0 {
+	select {
+	case <-s.registry.clock.After(defaults.SessionIdlePeriod):
+		s.log.Infof("Session %v will be garbage collected.", s.id)
+
+		// set closing context to the leaving party to show who ended the session.
+		s.setEndingContext(party.ctx)
+
+		// Stop the session, and let the background processes
+		// complete cleanup and close the session.
+		s.Stop()
+	case <-ctx.Done():
 		s.log.Infof("Session %v has become active again.", s.id)
 		return
+	case <-s.stopC:
+		return
 	}
-
-	s.log.Infof("Session %v will be garbage collected.", s.id)
-
-	// set closing context to the leaving party to show who ended the session.
-	s.setEndingContext(party.ctx)
-
-	// Stop the session, and let the background processes
-	// complete cleanup and close the session.
-	s.Stop()
 }
 
 func (s *session) getNamespace() string {
@@ -1420,12 +1451,6 @@ func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
 
 // addParty is called when a new party joins the session.
 func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
-	if s.login != p.login {
-		return trace.AccessDenied(
-			"can't switch users from %v to %v for session %v",
-			s.login, p.login, s.id)
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1441,9 +1466,16 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 		}
 	}
 
+	// Cancel lingerAndDie goroutine if one is running.
+	if s.lingerAndDieCancel != nil {
+		s.lingerAndDieCancel()
+		s.lingerAndDieCancel = nil
+	}
+
 	// Adds participant to in-memory map of party members.
 	s.parties[p.id] = p
 	s.participants[p.id] = p
+	p.ctx.AddCloser(p)
 
 	err := s.trackerAddParticipant(p)
 	if err != nil {
@@ -1458,7 +1490,6 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
-	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
 	s.BroadcastMessage("User %v joined the session.", p.user)
@@ -1626,12 +1657,12 @@ func (p *party) Close() error {
 }
 
 // closeUnderSessionLock closes the party, and removes it from it's session.
-// Must be called under session Lock (party.s.mu)
+// Must be called under session Lock.
 func (p *party) closeUnderSessionLock() {
 	p.closeOnce.Do(func() {
 		p.log.Infof("Closing party %v", p.id)
 		// Remove party from its session
-		if err := p.s.removeParty(p); err != nil {
+		if err := p.s.removePartyUnderLock(p); err != nil {
 			p.ctx.Errorf("Failed to remove party %v: %v", p.id, err)
 		}
 		p.ch.Close()
@@ -1671,7 +1702,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		Namespace:    apidefaults.Namespace,
 		Type:         string(types.KubernetesSessionKind),
 		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
-		Address:      s.scx.ServerConn.LocalAddr().String(),
+		Address:      s.scx.srv.ID(),
 		ClusterName:  s.scx.ClusterName,
 		Login:        "root",
 		Initiator:    initator,
