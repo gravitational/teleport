@@ -800,7 +800,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, "", trace.Wrap(err)
 	}
 
-	var resources []types.Resource
+	page := make([]types.Resource, 0, limit)
 	nextKey, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.Resource) (bool, error) {
 		for _, resource := range nextPage {
 			if err := a.checkAccessToResource(resource); err != nil {
@@ -811,16 +811,25 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			resources = append(resources, resource)
+			page = append(page, resource)
+			if len(page) == limit {
+				// page is filled, stop processing
+				return true, nil
+			}
 		}
 
-		return len(resources) == limit, nil
+		return len(page) == limit, nil
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return resources, nextKey, nil
+	// Filled a page, reset nextKey in case the last node was cut out.
+	if len(page) == limit {
+		nextKey = backend.NextPaginationKey(page[len(page)-1])
+	}
+
+	return page, nextKey, nil
 }
 
 func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
@@ -865,7 +874,7 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 		for _, node := range filteredPage {
 			if len(page) == limit {
 				// page is filled, stop processing
-				break
+				return true, nil
 			}
 			if node.MatchAgainst(realLabels) {
 				page = append(page, node)
