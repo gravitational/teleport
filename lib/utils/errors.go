@@ -17,6 +17,8 @@ limitations under the License.
 package utils
 
 import (
+	"errors"
+	"net"
 	"strings"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -24,17 +26,28 @@ import (
 )
 
 // IsUseOfClosedNetworkError returns true if the specified error
-// indicates the use of closed network connection
-// TODO(dmitri): replace in go1.16 with `errors.Is(err, net.ErrClosed)`
+// indicates the use of a closed network connection.
 func IsUseOfClosedNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection)
+
+	return errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection)
 }
 
 // IsOKNetworkError returns true if the provided error received from a network
-// operation is one of those that usually indicate normal connection close.
+// operation is one of those that usually indicate normal connection close. If
+// the error is a trace.Aggregate, all the errors must be OK network errors.
 func IsOKNetworkError(err error) bool {
+	// trace.Aggregate contains at least one error and all the errors are
+	// non-nil
+	if a, ok := trace.Unwrap(err).(trace.Aggregate); ok {
+		for _, err := range a.Errors() {
+			if !IsOKNetworkError(err) {
+				return false
+			}
+		}
+		return true
+	}
 	return trace.IsEOF(err) || IsUseOfClosedNetworkError(err)
 }

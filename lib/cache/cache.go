@@ -283,10 +283,6 @@ type Cache struct {
 	// fails.
 	initErr error
 
-	// wrapper is a wrapper around cache backend that
-	// allows to set backend into failure mode,
-	// intercepting all calls and returning errors instead
-	wrapper *backend.Wrapper
 	// ctx is a cache exit context
 	ctx context.Context
 	// cancel triggers exit context closure
@@ -556,9 +552,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	wrapper := backend.NewWrapper(config.Backend)
-
-	clusterConfigCache, err := local.NewClusterConfigurationService(wrapper)
+	clusterConfigCache, err := local.NewClusterConfigurationService(config.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -573,24 +567,23 @@ func New(config Config) (*Cache, error) {
 
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
-		wrapper:            wrapper,
 		ctx:                ctx,
 		cancel:             cancel,
 		Config:             config,
 		generation:         atomic.NewUint64(0),
 		initC:              make(chan struct{}),
 		fnCache:            fnCache,
-		trustCache:         local.NewCAService(wrapper),
+		trustCache:         local.NewCAService(config.Backend),
 		clusterConfigCache: clusterConfigCache,
-		provisionerCache:   local.NewProvisioningService(wrapper),
-		usersCache:         local.NewIdentityService(wrapper),
-		accessCache:        local.NewAccessService(wrapper),
-		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
-		presenceCache:      local.NewPresenceService(wrapper),
-		restrictionsCache:  local.NewRestrictionsService(wrapper),
-		appSessionCache:    local.NewIdentityService(wrapper),
-		webSessionCache:    local.NewIdentityService(wrapper).WebSessions(),
-		webTokenCache:      local.NewIdentityService(wrapper).WebTokens(),
+		provisionerCache:   local.NewProvisioningService(config.Backend),
+		usersCache:         local.NewIdentityService(config.Backend),
+		accessCache:        local.NewAccessService(config.Backend),
+		dynamicAccessCache: local.NewDynamicAccessService(config.Backend),
+		presenceCache:      local.NewPresenceService(config.Backend),
+		restrictionsCache:  local.NewRestrictionsService(config.Backend),
+		appSessionCache:    local.NewIdentityService(config.Backend),
+		webSessionCache:    local.NewIdentityService(config.Backend).WebSessions(),
+		webTokenCache:      local.NewIdentityService(config.Backend).WebTokens(),
 		eventsFanout:       services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
