@@ -54,6 +54,8 @@ type nativeTID interface {
 	// ListCredentials lists all registered credentials.
 	// Requires user interaction.
 	ListCredentials() ([]CredentialInfo, error)
+
+	DeleteCredential(credentialID string) error
 }
 
 // CredentialInfo holds information about a Secure Enclave credential.
@@ -402,4 +404,13 @@ func ListCredentials() ([]CredentialInfo, error) {
 	}
 
 	return infos, nil
+}
+
+// DeleteCredential deletes a Secure Enclave credential.
+// Requires user interaction.
+func DeleteCredential(credentialID string) error {
+	if !native.IsAvailable() {
+		return ErrNotAvailable
+	}
+	return native.DeleteCredential(credentialID)
 }

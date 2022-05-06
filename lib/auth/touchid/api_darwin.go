@@ -230,3 +230,27 @@ func findCredentialsImpl(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 	}
 	return infos, int(res)
 }
+
+// https://osstatus.com/search/results?framework=Security&search=-25300
+const errSecItemNotFound = -25300
+
+func (touchIDImpl) DeleteCredential(credentialID string) error {
+	// User prompt becomes: ""$binary" is trying to delete credential".
+	reasonC := C.CString("delete credential")
+	defer C.free(unsafe.Pointer(reasonC))
+
+	idC := C.CString(credentialID)
+	defer C.free(unsafe.Pointer(idC))
+
+	var errC *C.char
+	defer C.free(unsafe.Pointer(errC))
+
+	switch res := C.DeleteCredential(reasonC, idC, &errC); {
+	case res == errSecItemNotFound:
+		return ErrCredentialNotFound
+	case res != 0:
+		errMsg := C.GoString(errC)
+		return errors.New(errMsg)
+	}
+	return nil
+}

@@ -142,6 +142,10 @@ func (f *fakeNative) Authenticate(credentialID string, data []byte) ([]byte, err
 	return key.Sign(rand.Reader, data, crypto.SHA256)
 }
 
+func (f *fakeNative) DeleteCredential(credentialID string) error {
+	return errors.New("not implemented")
+}
+
 func (f *fakeNative) IsAvailable() bool {
 	return true
 }

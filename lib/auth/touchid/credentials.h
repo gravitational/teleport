@@ -41,4 +41,9 @@ int FindCredentials(LabelFilter filter, CredentialInfo **infosOut);
 int ListCredentials(const char *reason, CredentialInfo **infosOut,
                     char **errOut);
 
+// DeleteCredential deletes a credential by its app_label.
+// Requires user interaction.
+// Returns zero if successful, non-zero otherwise (typically an OSStatus).
+int DeleteCredential(const char *reason, const char *appLabel, char **errOut);
+
 #endif // CREDENTIALS_H_

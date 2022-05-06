@@ -157,3 +157,48 @@ int ListCredentials(const char *reason, CredentialInfo **infosOut,
 
   return res;
 }
+
+OSStatus deleteCredential(const char *appLabel) {
+  NSData *nsAppLabel = [NSData dataWithBytes:appLabel length:strlen(appLabel)];
+  NSDictionary *query = @{
+    (id)kSecClass : (id)kSecClassKey,
+    (id)kSecAttrKeyType : (id)kSecAttrKeyTypeECSECPrimeRandom,
+    (id)kSecMatchLimit : (id)kSecMatchLimitOne,
+    (id)kSecAttrApplicationLabel : nsAppLabel,
+  };
+  return SecItemDelete((__bridge CFDictionaryRef)query);
+}
+
+int DeleteCredential(const char *reason, const char *appLabel, char **errOut) {
+  LAContext *ctx = [[LAContext alloc] init];
+
+  __block int res;
+  __block NSString *nsError;
+
+  // A semaphore is needed, otherwise we return before the prompt has a chance
+  // to resolve.
+  dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+  [ctx evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
+      localizedReason:[NSString stringWithUTF8String:reason]
+                reply:^void(BOOL success, NSError *_Nullable error) {
+                  if (success) {
+                    res = deleteCredential(appLabel);
+                  } else {
+                    res = -1;
+                    nsError = [error localizedDescription];
+                  }
+                  dispatch_semaphore_signal(sema);
+                }];
+  dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+  // sema released by ARC.
+
+  if (nsError) {
+    *errOut = CopyNSString(nsError);
+  } else if (res != errSecSuccess) {
+    CFStringRef err = SecCopyErrorMessageString(res, NULL);
+    NSString *nsErr = (__bridge_transfer NSString *)err;
+    *errOut = CopyNSString(nsErr);
+  }
+
+  return res;
+}
