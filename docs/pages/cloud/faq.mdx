@@ -47,14 +47,15 @@ There is no need to open any ports on your infrastructure for inbound traffic.
 
 ## How can I access the tctl admin tool?
 
-We have made changes to allow you to log into your cluster using `tsh`, then use `tctl` remotely:
+Find the appropriate download at [Teleport Cloud Downloads](./downloads.mdx). Use the enterprise version of `tctl` and `tsh`.
+
+After downloading the tools, first log into your cluster using `tsh`, then use `tctl` remotely:
 
 ```code
 $ tsh login --proxy=myinstance.teleport.sh
 $ tctl status
 ```
 
-You must use the enterprise version of `tctl`.
 
 ## Why am I getting `permission denied` errors when using `tctl`?
 
@@ -125,10 +126,6 @@ We don't currently offer a list of addresses for firewall configuration, but int
 
 No. We believe mTLS with strong identity is the best standard available for authenticating and access clients.
 We are also investigating additional and new features that can be used as a defense in depth strategy for use with Teleport Cloud in 2022.
-
-## Where can I download `tsh` or `tctl` to interact with my cloud tenant?
-
-Find the appropriate downloads at [Teleport Cloud Downloads](./downloads.mdx).
 
 ## Is IPv6 Supported for connections to Teleport Cloud?
 
