@@ -31,52 +31,40 @@ export default function useGateway(doc: types.DocumentGateway) {
   );
   const cluster = ctx.clustersService.findClusterByResource(doc.targetUri);
 
-  const [connectAttempt, createGateway, setConnectAttempt] = useAsync(
-    async () => {
-      const gw = await ctx.clustersService.createGateway({
-        targetUri: doc.targetUri,
-        port: doc.port,
-        user: doc.targetUser,
-        subresource_name: doc.targetSubresourceName,
-      });
+  const [connectAttempt, createGateway] = useAsync(async () => {
+    const gw = await ctx.clustersService.createGateway({
+      targetUri: doc.targetUri,
+      port: doc.port,
+      user: doc.targetUser,
+      subresource_name: doc.targetSubresourceName,
+    });
 
-      workspaceDocumentsService.update(doc.uri, {
-        gatewayUri: gw.uri,
-        // Set the port on doc to match the one returned from the daemon. Teleterm doesn't let the
-        // user provide a port for the gateway, so instead we have to let the daemon use a random
-        // one.
-        //
-        // Setting it here makes it so that on app restart, Teleterm will restart the proxy with the
-        // same port number.
-        port: gw.localPort,
-      });
-    }
-  );
+    workspaceDocumentsService.update(doc.uri, {
+      gatewayUri: gw.uri,
+      // Set the port on doc to match the one returned from the daemon. Teleterm doesn't let the
+      // user provide a port for the gateway, so instead we have to let the daemon use a random
+      // one.
+      //
+      // Setting it here makes it so that on app restart, Teleterm will restart the proxy with the
+      // same port number.
+      port: gw.localPort,
+    });
+  });
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {
     await ctx.clustersService.removeGateway(doc.gatewayUri);
   });
 
   const reconnect = () => {
-    if (rootCluster?.connected) {
+    if (rootCluster.connected) {
       createGateway();
       return;
     }
 
-    if (rootCluster && !rootCluster.connected) {
-      ctx.commandLauncher.executeCommand('cluster-connect', {
-        clusterUri: rootCluster.uri,
-        onSuccess: createGateway,
-      });
-      return;
-    }
-
-    if (!rootCluster) {
-      setConnectAttempt({
-        status: 'error',
-        statusText: `unable to resolve cluster for ${doc.targetUri}`,
-      });
-    }
+    ctx.commandLauncher.executeCommand('cluster-connect', {
+      clusterUri: rootCluster.uri,
+      onSuccess: createGateway,
+    });
   };
 
   const runCliCommand = () => {
@@ -90,7 +78,7 @@ export default function useGateway(doc: types.DocumentGateway) {
     });
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (disconnectAttempt.status === 'success') {
       workspaceDocumentsService.close(doc.uri);
     }
