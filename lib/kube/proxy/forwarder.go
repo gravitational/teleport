@@ -951,6 +951,7 @@ func (f *Forwarder) AcquireConnectionLock(ctx context.Context, user string, role
 	return nil
 }
 
+// execNonInteractive handles all exec sessions without a TTY.
 func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (resp interface{}, err error) {
 	defer proxy.Close()
 	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
