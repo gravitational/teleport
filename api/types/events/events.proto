@@ -762,9 +762,8 @@ message AccessRequestCreate {
     // variant).
     string ProposedState = 11 [ (gogoproto.jsontag) = "proposed_state,omitempty" ];
 
-    // RequestedResourceIDs is a list of resources to which access is being
-    // requested.
-    repeated string RequestedResourceIDs = 12 [ (gogoproto.jsontag) = "resource_ids,omitempty" ];
+    // RequestedResourceIDs is the set of resources to which access is being requested.
+    string RequestedResourceIDs = 12 [ (gogoproto.jsontag) = "requested_resource_ids,omitempty" ];
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.

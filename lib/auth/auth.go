@@ -2423,6 +2423,10 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if err := a.DynamicAccessExt.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
+	requestedResourcesStr, err := services.ResourceIDsToString(req.GetRequestedResourceIDs())
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
@@ -2433,7 +2437,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Expires: req.GetAccessExpiry(),
 		},
 		Roles:                req.GetRoles(),
-		RequestedResourceIDs: req.GetRequestedResourceIDs(),
+		RequestedResourceIDs: requestedResourcesStr,
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),

@@ -46,12 +46,12 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 // NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(user string, roles ...string) (types.AccessRequest, error) {
-	return NewAccessRequestWithResources(user, roles, nil)
+	return NewAccessRequestWithResources(user, roles, []types.ResourceID{})
 }
 
 // NewAccessRequestWithResources assembles an AccessRequest resource with
 // requested resources.
-func NewAccessRequestWithResources(user string, roles []string, resourceIDs []string) (types.AccessRequest, error) {
+func NewAccessRequestWithResources(user string, roles []string, resourceIDs []types.ResourceID) (types.AccessRequest, error) {
 	req, err := types.NewAccessRequestWithResources(uuid.New().String(), user, roles, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1281,4 +1281,20 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}
+}
+
+func ResourceIDsToString(ids []types.ResourceID) (string, error) {
+	bytes, err := utils.FastMarshal(ids)
+	if err != nil {
+		return "", trace.BadParameter("failed to marshal resource IDs to JSON: %v", err)
+	}
+	return string(bytes), nil
+}
+
+func ResourceIDsFromString(raw string) ([]types.ResourceID, error) {
+	resourceIDs := []types.ResourceID{}
+	if err := utils.FastUnmarshal([]byte(raw), &resourceIDs); err != nil {
+		return nil, trace.BadParameter("failed to parse resource IDs from JSON: %v", err)
+	}
+	return resourceIDs, nil
 }
