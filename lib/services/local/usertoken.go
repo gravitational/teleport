@@ -29,14 +29,14 @@ import (
 
 // GetUserTokens returns all user tokens.
 func (s *IdentityService) GetUserTokens(ctx context.Context) ([]types.UserToken, error) {
-	startKey := backend.Key(userTokenPrefix)
+	startKey := backend.ExactKey(userTokenPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// DELETE IN 9.0.0 retrieve tokens with old prefix.
-	startKey = backend.Key(LegacyPasswordTokensPrefix)
+	startKey = backend.ExactKey(LegacyPasswordTokensPrefix)
 	oldPrefixResult, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,11 +80,11 @@ func (s *IdentityService) DeleteUserToken(ctx context.Context, tokenID string) e
 
 // GetUserToken returns a token by its ID.
 func (s *IdentityService) GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error) {
-	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, paramsPrefix))
+	item, err := s.Get(ctx, backend.ExactKey(userTokenPrefix, tokenID, paramsPrefix))
 
 	// DELETE IN 9.0.0: fallback for old prefix first.
 	if trace.IsNotFound(err) {
-		item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, paramsPrefix))
+		item, err = s.Get(ctx, backend.ExactKey(LegacyPasswordTokensPrefix, tokenID, paramsPrefix))
 	}
 
 	// Handle errors from either Get.
@@ -115,7 +115,7 @@ func (s *IdentityService) CreateUserToken(ctx context.Context, token types.UserT
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(userTokenPrefix, token.GetName(), paramsPrefix),
+		Key:     backend.ExactKey(userTokenPrefix, token.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: token.Expiry(),
 	}
@@ -129,11 +129,11 @@ func (s *IdentityService) CreateUserToken(ctx context.Context, token types.UserT
 
 // GetUserTokenSecrets returns token secrets.
 func (s *IdentityService) GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, secretsPrefix))
+	item, err := s.Get(ctx, backend.ExactKey(userTokenPrefix, tokenID, secretsPrefix))
 
 	// DELETE IN 9.0.0: fallback for old prefix first.
 	if trace.IsNotFound(err) {
-		item, err = s.Get(ctx, backend.Key(LegacyPasswordTokensPrefix, tokenID, secretsPrefix))
+		item, err = s.Get(ctx, backend.ExactKey(LegacyPasswordTokensPrefix, tokenID, secretsPrefix))
 	}
 
 	// Handle errors from either Get.
@@ -163,7 +163,7 @@ func (s *IdentityService) UpsertUserTokenSecrets(ctx context.Context, secrets ty
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(userTokenPrefix, secrets.GetName(), secretsPrefix),
+		Key:     backend.ExactKey(userTokenPrefix, secrets.GetName(), secretsPrefix),
 		Value:   value,
 		Expires: secrets.Expiry(),
 	}

@@ -34,7 +34,7 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req types.GetAppSes
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := s.Get(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID))
+	item, err := s.Get(ctx, backend.ExactKey(appsPrefix, sessionsPrefix, req.SessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -47,7 +47,7 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req types.GetAppSes
 
 // GetAppSessions gets all application web sessions.
 func (s *IdentityService) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	startKey := backend.Key(appsPrefix, sessionsPrefix)
+	startKey := backend.ExactKey(appsPrefix, sessionsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -71,7 +71,7 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.We
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(appsPrefix, sessionsPrefix, session.GetName()),
+		Key:     backend.ExactKey(appsPrefix, sessionsPrefix, session.GetName()),
 		Value:   value,
 		Expires: session.GetExpiryTime(),
 	}
@@ -84,7 +84,7 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.We
 
 // DeleteAppSession removes an application web session.
 func (s *IdentityService) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
-	if err := s.Delete(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
+	if err := s.Delete(ctx, backend.ExactKey(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -157,7 +157,7 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 
 // List gets all regular web sessions.
 func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err error) {
-	key := backend.Key(webPrefix, sessionsPrefix)
+	key := backend.ExactKey(webPrefix, sessionsPrefix)
 	result, err := r.backend.GetRange(ctx, key, backend.RangeEnd(key), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -214,7 +214,7 @@ func (r *webSessions) DeleteAll(ctx context.Context) error {
 // DELETE IN 7.x.
 // listLegacySessions lists web sessions under a legacy path /web/users/<user>/sessions/<id>
 func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSession, error) {
-	startKey := backend.Key(webPrefix, usersPrefix)
+	startKey := backend.ExactKey(webPrefix, usersPrefix)
 	result, err := r.backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -265,7 +265,7 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 
 // List gets all web tokens.
 func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) {
-	key := backend.Key(webPrefix, tokensPrefix)
+	key := backend.ExactKey(webPrefix, tokensPrefix)
 	result, err := r.backend.GetRange(ctx, key, backend.RangeEnd(key), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -322,9 +322,9 @@ type webTokens struct {
 }
 
 func webSessionKey(sessionID string) (key []byte) {
-	return backend.Key(webPrefix, sessionsPrefix, sessionID)
+	return backend.ExactKey(webPrefix, sessionsPrefix, sessionID)
 }
 
 func webTokenKey(token string) (key []byte) {
-	return backend.Key(webPrefix, tokensPrefix, token)
+	return backend.ExactKey(webPrefix, tokensPrefix, token)
 }

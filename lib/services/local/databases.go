@@ -38,7 +38,7 @@ func NewDatabasesService(backend backend.Backend) *DatabaseService {
 
 // GetDatabases returns all database resources.
 func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, error) {
-	startKey := backend.Key(databasesPrefix)
+	startKey := backend.ExactKey(databasesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -57,7 +57,7 @@ func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, e
 
 // GetDatabase returns the specified database resource.
 func (s *DatabaseService) GetDatabase(ctx context.Context, name string) (types.Database, error) {
-	item, err := s.Get(ctx, backend.Key(databasesPrefix, name))
+	item, err := s.Get(ctx, backend.ExactKey(databasesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("database %q doesn't exist", name)
@@ -82,7 +82,7 @@ func (s *DatabaseService) CreateDatabase(ctx context.Context, database types.Dat
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(databasesPrefix, database.GetName()),
+		Key:     backend.ExactKey(databasesPrefix, database.GetName()),
 		Value:   value,
 		Expires: database.Expiry(),
 		ID:      database.GetResourceID(),
@@ -104,7 +104,7 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Dat
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(databasesPrefix, database.GetName()),
+		Key:     backend.ExactKey(databasesPrefix, database.GetName()),
 		Value:   value,
 		Expires: database.Expiry(),
 		ID:      database.GetResourceID(),
@@ -118,7 +118,7 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Dat
 
 // DeleteDatabase removes the specified database resource.
 func (s *DatabaseService) DeleteDatabase(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.Key(databasesPrefix, name))
+	err := s.Delete(ctx, backend.ExactKey(databasesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("database %q doesn't exist", name)

@@ -222,7 +222,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 		}
 		return []types.AccessRequest{req}, nil
 	}
-	result, err := s.GetRange(ctx, backend.Key(accessRequestsPrefix), backend.RangeEnd(backend.Key(accessRequestsPrefix)), backend.NoLimit)
+	result, err := s.GetRange(ctx, backend.ExactKey(accessRequestsPrefix), backend.RangeEnd(backend.ExactKey(accessRequestsPrefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -314,7 +314,7 @@ func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, f
 		}
 		return []types.PluginData{data}, nil
 	}
-	prefix := backend.Key(pluginDataPrefix, types.KindAccessRequest)
+	prefix := backend.ExactKey(pluginDataPrefix, types.KindAccessRequest)
 	result, err := s.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -490,11 +490,11 @@ func itemToPluginData(item backend.Item) (types.PluginData, error) {
 }
 
 func accessRequestKey(name string) []byte {
-	return backend.Key(accessRequestsPrefix, name, paramsPrefix)
+	return backend.ExactKey(accessRequestsPrefix, name, paramsPrefix)
 }
 
 func pluginDataKey(kind string, name string) []byte {
-	return backend.Key(pluginDataPrefix, kind, name, paramsPrefix)
+	return backend.ExactKey(pluginDataPrefix, kind, name, paramsPrefix)
 }
 
 const (

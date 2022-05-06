@@ -48,7 +48,7 @@ func (s *AccessService) DeleteAllRoles() error {
 
 // GetRoles returns a list of roles registered with the local auth server
 func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
-	result, err := s.GetRange(ctx, backend.Key(rolesPrefix), backend.RangeEnd(backend.Key(rolesPrefix)), backend.NoLimit)
+	result, err := s.GetRange(ctx, backend.ExactKey(rolesPrefix), backend.RangeEnd(backend.ExactKey(rolesPrefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,7 +82,7 @@ func (s *AccessService) CreateRole(role types.Role) error {
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:     backend.ExactKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: role.Expiry(),
 	}
@@ -107,7 +107,7 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:     backend.ExactKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: role.Expiry(),
 		ID:      role.GetResourceID(),
@@ -125,7 +125,7 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 	if name == "" {
 		return nil, trace.BadParameter("missing role name")
 	}
-	item, err := s.Get(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
+	item, err := s.Get(ctx, backend.ExactKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("role %v is not found", name)
@@ -141,7 +141,7 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing role name")
 	}
-	err := s.Delete(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
+	err := s.Delete(ctx, backend.ExactKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("role %q is not found", name)
@@ -155,7 +155,7 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 	if name == "" {
 		return nil, trace.BadParameter("missing lock name")
 	}
-	item, err := s.Get(ctx, backend.Key(locksPrefix, name))
+	item, err := s.Get(ctx, backend.ExactKey(locksPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("lock %q is not found", name)
@@ -167,7 +167,7 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	startKey := backend.Key(locksPrefix)
+	startKey := backend.ExactKey(locksPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -205,7 +205,7 @@ func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(locksPrefix, lock.GetName()),
+		Key:     backend.ExactKey(locksPrefix, lock.GetName()),
 		Value:   value,
 		Expires: lock.Expiry(),
 		ID:      lock.GetResourceID(),
@@ -222,7 +222,7 @@ func (s *AccessService) DeleteLock(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing lock name")
 	}
-	err := s.Delete(ctx, backend.Key(locksPrefix, name))
+	err := s.Delete(ctx, backend.ExactKey(locksPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("lock %q is not found", name)
@@ -240,7 +240,7 @@ func (s *AccessService) DeleteAllLocks(ctx context.Context) error {
 // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName string, newRemoteLocks []types.Lock) error {
 	return backend.RunWhileLocked(ctx, s.Backend, "ReplaceRemoteLocks/"+clusterName, time.Minute, func(ctx context.Context) error {
-		remoteLocksKey := backend.Key(locksPrefix, clusterName)
+		remoteLocksKey := backend.ExactKey(locksPrefix, clusterName)
 		origRemoteLocks, err := s.GetRange(ctx, remoteLocksKey, backend.RangeEnd(remoteLocksKey), backend.NoLimit)
 		if err != nil {
 			return trace.Wrap(err)
@@ -256,7 +256,7 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:     backend.Key(locksPrefix, lock.GetName()),
+				Key:     backend.ExactKey(locksPrefix, lock.GetName()),
 				Value:   value,
 				Expires: lock.Expiry(),
 				ID:      lock.GetResourceID(),

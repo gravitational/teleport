@@ -51,7 +51,7 @@ func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.Provision
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(tokensPrefix, p.GetName()),
+		Key:     backend.ExactKey(tokensPrefix, p.GetName()),
 		Value:   data,
 		Expires: p.Expiry(),
 		ID:      p.GetResourceID(),
@@ -74,7 +74,7 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 	if token == "" {
 		return nil, trace.BadParameter("missing parameter token")
 	}
-	item, err := s.Get(ctx, backend.Key(tokensPrefix, token))
+	item, err := s.Get(ctx, backend.ExactKey(tokensPrefix, token))
 	if trace.IsNotFound(err) {
 		return nil, trace.NotFound("provisioning token(%s) not found", backend.MaskKeyName(token))
 	} else if err != nil {
@@ -89,7 +89,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 	if token == "" {
 		return trace.BadParameter("missing parameter token")
 	}
-	err := s.Delete(ctx, backend.Key(tokensPrefix, token))
+	err := s.Delete(ctx, backend.ExactKey(tokensPrefix, token))
 	if trace.IsNotFound(err) {
 		return trace.NotFound("provisioning token(%s) not found", backend.MaskKeyName(token))
 	}
@@ -98,7 +98,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 
 // GetTokens returns all active (non-expired) provisioning tokens
 func (s *ProvisioningService) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
-	startKey := backend.Key(tokensPrefix)
+	startKey := backend.ExactKey(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -64,7 +64,7 @@ const (
 // UpsertLocalClusterName upserts local cluster name
 func (s *PresenceService) UpsertLocalClusterName(name string) error {
 	_, err := s.Put(context.TODO(), backend.Item{
-		Key:   backend.Key(localClusterPrefix, valPrefix),
+		Key:   backend.ExactKey(localClusterPrefix, valPrefix),
 		Value: []byte(name),
 	})
 	return trace.Wrap(err)
@@ -72,7 +72,7 @@ func (s *PresenceService) UpsertLocalClusterName(name string) error {
 
 // GetLocalClusterName upserts local domain
 func (s *PresenceService) GetLocalClusterName() (string, error) {
-	item, err := s.Get(context.TODO(), backend.Key(localClusterPrefix, valPrefix))
+	item, err := s.Get(context.TODO(), backend.ExactKey(localClusterPrefix, valPrefix))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -87,7 +87,7 @@ func (s *PresenceService) DeleteAllNamespaces() error {
 
 // GetNamespaces returns a list of namespaces
 func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
-	result, err := s.GetRange(context.TODO(), backend.Key(namespacesPrefix), backend.RangeEnd(backend.Key(namespacesPrefix)), backend.NoLimit)
+	result, err := s.GetRange(context.TODO(), backend.ExactKey(namespacesPrefix), backend.RangeEnd(backend.ExactKey(namespacesPrefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -117,7 +117,7 @@ func (s *PresenceService) UpsertNamespace(n types.Namespace) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(namespacesPrefix, n.Metadata.Name, paramsPrefix),
+		Key:     backend.ExactKey(namespacesPrefix, n.Metadata.Name, paramsPrefix),
 		Value:   value,
 		Expires: n.Metadata.Expiry(),
 		ID:      n.Metadata.ID,
@@ -135,7 +135,7 @@ func (s *PresenceService) GetNamespace(name string) (*types.Namespace, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing namespace name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(namespacesPrefix, name, paramsPrefix))
+	item, err := s.Get(context.TODO(), backend.ExactKey(namespacesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("namespace %q is not found", name)
@@ -151,7 +151,7 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 	if namespace == "" {
 		return trace.BadParameter("missing namespace name")
 	}
-	err := s.Delete(context.TODO(), backend.Key(namespacesPrefix, namespace, paramsPrefix))
+	err := s.Delete(context.TODO(), backend.ExactKey(namespacesPrefix, namespace, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("namespace %q is not found", namespace)
@@ -161,7 +161,7 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 }
 
 func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]types.Server, error) {
-	result, err := s.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
+	result, err := s.GetRange(ctx, backend.ExactKey(prefix), backend.RangeEnd(backend.ExactKey(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -188,7 +188,7 @@ func (s *PresenceService) upsertServer(ctx context.Context, prefix string, serve
 		return trace.Wrap(err)
 	}
 	_, err = s.Put(ctx, backend.Item{
-		Key:     backend.Key(prefix, server.GetName()),
+		Key:     backend.ExactKey(prefix, server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
@@ -204,7 +204,7 @@ func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) 
 
 // DeleteNode deletes node
 func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name string) error {
-	key := backend.Key(nodesPrefix, namespace, name)
+	key := backend.ExactKey(nodesPrefix, namespace, name)
 	return s.Delete(ctx, key)
 }
 
@@ -216,7 +216,7 @@ func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := s.Get(ctx, backend.Key(nodesPrefix, namespace, name))
+	item, err := s.Get(ctx, backend.ExactKey(nodesPrefix, namespace, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -235,7 +235,7 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 	}
 
 	// Get all items in the bucket.
-	startKey := backend.Key(nodesPrefix, namespace)
+	startKey := backend.ExactKey(nodesPrefix, namespace)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -274,8 +274,8 @@ func (s *PresenceService) ListNodes(ctx context.Context, req proto.ListNodesRequ
 	}
 
 	// Get all items in the bucket within the given range.
-	rangeStart := backend.Key(nodesPrefix, req.Namespace, req.StartKey)
-	keyPrefix := backend.Key(nodesPrefix, req.Namespace)
+	rangeStart := backend.ExactKey(nodesPrefix, req.Namespace, req.StartKey)
+	keyPrefix := backend.ExactKey(nodesPrefix, req.Namespace)
 	rangeEnd := backend.RangeEnd(keyPrefix)
 
 	var servers []types.Server
@@ -322,7 +322,7 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		return nil, trace.Wrap(err)
 	}
 	lease, err := s.Put(ctx, backend.Item{
-		Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
+		Key:     backend.ExactKey(nodesPrefix, server.GetNamespace(), server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
@@ -351,7 +351,7 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h types.KeepAlive) 
 	}
 	err := s.KeepAlive(ctx, backend.Lease{
 		ID:  h.LeaseID,
-		Key: backend.Key(nodesPrefix, h.Namespace, h.Name),
+		Key: backend.ExactKey(nodesPrefix, h.Namespace, h.Name),
 	}, h.Expires)
 	return trace.Wrap(err)
 }
@@ -376,7 +376,7 @@ func (s *PresenceService) UpsertNodes(namespace string, servers []types.Server) 
 		}
 
 		items[i] = backend.Item{
-			Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
+			Key:     backend.ExactKey(nodesPrefix, server.GetNamespace(), server.GetName()),
 			Value:   value,
 			Expires: server.Expiry(),
 			ID:      server.GetResourceID(),
@@ -412,7 +412,7 @@ func (s *PresenceService) DeleteAllAuthServers() error {
 
 // DeleteAuthServer deletes auth server by name
 func (s *PresenceService) DeleteAuthServer(name string) error {
-	key := backend.Key(authServersPrefix, name)
+	key := backend.ExactKey(authServersPrefix, name)
 	return s.Delete(context.TODO(), key)
 }
 
@@ -435,7 +435,7 @@ func (s *PresenceService) DeleteAllProxies() error {
 
 // DeleteProxy deletes proxy
 func (s *PresenceService) DeleteProxy(name string) error {
-	key := backend.Key(proxiesPrefix, name)
+	key := backend.ExactKey(proxiesPrefix, name)
 	return s.Delete(context.TODO(), key)
 }
 
@@ -455,7 +455,7 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel types.ReverseTunnel) error 
 		return trace.Wrap(err)
 	}
 	_, err = s.Put(context.TODO(), backend.Item{
-		Key:     backend.Key(reverseTunnelsPrefix, tunnel.GetName()),
+		Key:     backend.ExactKey(reverseTunnelsPrefix, tunnel.GetName()),
 		Value:   value,
 		Expires: tunnel.Expiry(),
 		ID:      tunnel.GetResourceID(),
@@ -465,7 +465,7 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel types.ReverseTunnel) error 
 
 // GetReverseTunnel returns reverse tunnel by name
 func (s *PresenceService) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
-	item, err := s.Get(context.TODO(), backend.Key(reverseTunnelsPrefix, name))
+	item, err := s.Get(context.TODO(), backend.ExactKey(reverseTunnelsPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -475,7 +475,7 @@ func (s *PresenceService) GetReverseTunnel(name string, opts ...services.Marshal
 
 // GetReverseTunnels returns a list of registered servers
 func (s *PresenceService) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	startKey := backend.Key(reverseTunnelsPrefix)
+	startKey := backend.ExactKey(reverseTunnelsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -499,7 +499,7 @@ func (s *PresenceService) GetReverseTunnels(ctx context.Context, opts ...service
 
 // DeleteReverseTunnel deletes reverse tunnel by it's cluster name
 func (s *PresenceService) DeleteReverseTunnel(clusterName string) error {
-	err := s.Delete(context.TODO(), backend.Key(reverseTunnelsPrefix, clusterName))
+	err := s.Delete(context.TODO(), backend.ExactKey(reverseTunnelsPrefix, clusterName))
 	return trace.Wrap(err)
 }
 
@@ -513,7 +513,7 @@ func (s *PresenceService) UpsertTrustedCluster(ctx context.Context, trustedClust
 		return nil, trace.Wrap(err)
 	}
 	_, err = s.Put(ctx, backend.Item{
-		Key:     backend.Key(trustedClustersPrefix, trustedCluster.GetName()),
+		Key:     backend.ExactKey(trustedClustersPrefix, trustedCluster.GetName()),
 		Value:   value,
 		Expires: trustedCluster.Expiry(),
 		ID:      trustedCluster.GetResourceID(),
@@ -529,7 +529,7 @@ func (s *PresenceService) GetTrustedCluster(ctx context.Context, name string) (t
 	if name == "" {
 		return nil, trace.BadParameter("missing trusted cluster name")
 	}
-	item, err := s.Get(ctx, backend.Key(trustedClustersPrefix, name))
+	item, err := s.Get(ctx, backend.ExactKey(trustedClustersPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -538,7 +538,7 @@ func (s *PresenceService) GetTrustedCluster(ctx context.Context, name string) (t
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
 func (s *PresenceService) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
-	startKey := backend.Key(trustedClustersPrefix)
+	startKey := backend.ExactKey(trustedClustersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -562,7 +562,7 @@ func (s *PresenceService) DeleteTrustedCluster(ctx context.Context, name string)
 	if name == "" {
 		return trace.BadParameter("missing trusted cluster name")
 	}
-	err := s.Delete(ctx, backend.Key(trustedClustersPrefix, name))
+	err := s.Delete(ctx, backend.ExactKey(trustedClustersPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("trusted cluster %q is not found", name)
@@ -582,7 +582,7 @@ func (s *PresenceService) UpsertTunnelConnection(conn types.TunnelConnection) er
 		return trace.Wrap(err)
 	}
 	_, err = s.Put(context.TODO(), backend.Item{
-		Key:     backend.Key(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
+		Key:     backend.ExactKey(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
 		Value:   value,
 		Expires: conn.Expiry(),
 		ID:      conn.GetResourceID(),
@@ -595,7 +595,7 @@ func (s *PresenceService) UpsertTunnelConnection(conn types.TunnelConnection) er
 
 // GetTunnelConnection returns connection by cluster name and connection name
 func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string, opts ...services.MarshalOption) (types.TunnelConnection, error) {
-	item, err := s.Get(context.TODO(), backend.Key(tunnelConnectionsPrefix, clusterName, connectionName))
+	item, err := s.Get(context.TODO(), backend.ExactKey(tunnelConnectionsPrefix, clusterName, connectionName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("trusted cluster connection %q is not found", connectionName)
@@ -615,7 +615,7 @@ func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...servi
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	startKey := backend.Key(tunnelConnectionsPrefix, clusterName)
+	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -635,7 +635,7 @@ func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...servi
 
 // GetAllTunnelConnections returns all tunnel connections
 func (s *PresenceService) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	startKey := backend.Key(tunnelConnectionsPrefix)
+	startKey := backend.ExactKey(tunnelConnectionsPrefix)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -664,7 +664,7 @@ func (s *PresenceService) DeleteTunnelConnection(clusterName, connectionName str
 	if connectionName == "" {
 		return trace.BadParameter("missing connection name")
 	}
-	return s.Delete(context.TODO(), backend.Key(tunnelConnectionsPrefix, clusterName, connectionName))
+	return s.Delete(context.TODO(), backend.ExactKey(tunnelConnectionsPrefix, clusterName, connectionName))
 }
 
 // DeleteTunnelConnections deletes all tunnel connections for cluster
@@ -691,7 +691,7 @@ func (s *PresenceService) CreateRemoteCluster(rc types.RemoteCluster) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(remoteClustersPrefix, rc.GetName()),
+		Key:     backend.ExactKey(remoteClustersPrefix, rc.GetName()),
 		Value:   value,
 		Expires: rc.Expiry(),
 	}
@@ -723,7 +723,7 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 		return trace.Wrap(err)
 	}
 	updateItem := backend.Item{
-		Key:     backend.Key(remoteClustersPrefix, update.GetName()),
+		Key:     backend.ExactKey(remoteClustersPrefix, update.GetName()),
 		Value:   updateValue,
 		Expires: update.Expiry(),
 	}
@@ -740,7 +740,7 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 
 // GetRemoteClusters returns a list of remote clusters
 func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	startKey := backend.Key(remoteClustersPrefix)
+	startKey := backend.ExactKey(remoteClustersPrefix)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -763,7 +763,7 @@ func (s *PresenceService) getRemoteCluster(clusterName string) (*backend.Item, t
 	if clusterName == "" {
 		return nil, nil, trace.BadParameter("missing parameter cluster name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(remoteClustersPrefix, clusterName))
+	item, err := s.Get(context.TODO(), backend.ExactKey(remoteClustersPrefix, clusterName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, nil, trace.NotFound("remote cluster %q is not found", clusterName)
@@ -789,7 +789,7 @@ func (s *PresenceService) DeleteRemoteCluster(clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	return s.Delete(context.TODO(), backend.Key(remoteClustersPrefix, clusterName))
+	return s.Delete(context.TODO(), backend.ExactKey(remoteClustersPrefix, clusterName))
 }
 
 // DeleteAllRemoteClusters deletes all remote clusters
@@ -824,7 +824,7 @@ func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.Acquir
 	leaseID := uuid.New().String()
 
 	// key is not modified, so allocate it once
-	key := backend.Key(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)
+	key := backend.ExactKey(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)
 
 Acquire:
 	for i := int64(0); i < leaseRetryAttempts; i++ {
@@ -947,7 +947,7 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease typ
 		return trace.BadParameter("lease %v has expired at %v", lease.LeaseID, lease.Expires)
 	}
 
-	key := backend.Key(semaphoresPrefix, lease.SemaphoreKind, lease.SemaphoreName)
+	key := backend.ExactKey(semaphoresPrefix, lease.SemaphoreKind, lease.SemaphoreName)
 	item, err := s.Get(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -1012,7 +1012,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 			}
 		}
 
-		key := backend.Key(semaphoresPrefix, lease.SemaphoreKind, lease.SemaphoreName)
+		key := backend.ExactKey(semaphoresPrefix, lease.SemaphoreKind, lease.SemaphoreName)
 		item, err := s.Get(ctx, key)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1058,7 +1058,7 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter types.Semaph
 	var items []backend.Item
 	if filter.SemaphoreKind != "" && filter.SemaphoreName != "" {
 		// special case: filter corresponds to a single semaphore
-		item, err := s.Get(ctx, backend.Key(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName))
+		item, err := s.Get(ctx, backend.ExactKey(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName))
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, nil
@@ -1069,9 +1069,9 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter types.Semaph
 	} else {
 		var startKey []byte
 		if filter.SemaphoreKind != "" {
-			startKey = backend.Key(semaphoresPrefix, filter.SemaphoreKind)
+			startKey = backend.ExactKey(semaphoresPrefix, filter.SemaphoreKind)
 		} else {
-			startKey = backend.Key(semaphoresPrefix)
+			startKey = backend.ExactKey(semaphoresPrefix)
 		}
 		result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 		if err != nil {
@@ -1103,7 +1103,7 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.Sema
 	if filter.SemaphoreKind == "" || filter.SemaphoreName == "" {
 		return trace.BadParameter("semaphore kind and name must be specified for deletion")
 	}
-	return trace.Wrap(s.Delete(ctx, backend.Key(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName)))
+	return trace.Wrap(s.Delete(ctx, backend.ExactKey(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName)))
 }
 
 // UpsertKubeService registers kubernetes service presence.
@@ -1124,7 +1124,7 @@ func (s *PresenceService) UpsertKubeServiceV2(ctx context.Context, server types.
 		return nil, trace.Wrap(err)
 	}
 	lease, err := s.Put(ctx, backend.Item{
-		Key: backend.Key(kubeServicesPrefix,
+		Key: backend.ExactKey(kubeServicesPrefix,
 			server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
@@ -1153,7 +1153,7 @@ func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) er
 	if name == "" {
 		return trace.BadParameter("no name specified for kubernetes service deletion")
 	}
-	return trace.Wrap(s.Delete(ctx, backend.Key(kubeServicesPrefix, name)))
+	return trace.Wrap(s.Delete(ctx, backend.ExactKey(kubeServicesPrefix, name)))
 }
 
 // DeleteAllKubeServices deletes all registered kubernetes services.
@@ -1167,7 +1167,7 @@ func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace stri
 	if namespace == "" {
 		return nil, trace.BadParameter("missing database server namespace")
 	}
-	startKey := backend.Key(dbServersPrefix, namespace)
+	startKey := backend.ExactKey(dbServersPrefix, namespace)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1200,7 +1200,7 @@ func (s *PresenceService) UpsertDatabaseServer(ctx context.Context, server types
 	// they are stored under the following path in the backend:
 	//   /databaseServers/<namespace>/<host-uuid>/<name>
 	lease, err := s.Put(ctx, backend.Item{
-		Key: backend.Key(dbServersPrefix,
+		Key: backend.ExactKey(dbServersPrefix,
 			server.GetNamespace(),
 			server.GetHostID(),
 			server.GetName()),
@@ -1235,7 +1235,7 @@ func (s *PresenceService) DeleteDatabaseServer(ctx context.Context, namespace, h
 	if name == "" {
 		return trace.BadParameter("missing database server name")
 	}
-	key := backend.Key(dbServersPrefix, namespace, hostID, name)
+	key := backend.ExactKey(dbServersPrefix, namespace, hostID, name)
 	return s.Delete(ctx, key)
 }
 
@@ -1265,7 +1265,7 @@ func (s *PresenceService) GetApplicationServers(ctx context.Context, namespace s
 }
 
 func (s *PresenceService) getApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	startKey := backend.Key(appServersPrefix, namespace)
+	startKey := backend.ExactKey(appServersPrefix, namespace)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1318,7 +1318,7 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 	// the following path in the backend:
 	//   /appServers/<namespace>/<host-uuid>/<name>
 	lease, err := s.Put(ctx, backend.Item{
-		Key: backend.Key(appServersPrefix,
+		Key: backend.ExactKey(appServersPrefix,
 			server.GetNamespace(),
 			server.GetHostID(),
 			server.GetName()),
@@ -1344,7 +1344,7 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 
 // DeleteApplicationServer removes specified application server.
 func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
-	key := backend.Key(appServersPrefix, namespace, hostID, name)
+	key := backend.ExactKey(appServersPrefix, namespace, hostID, name)
 	return s.Delete(ctx, key)
 }
 
@@ -1363,7 +1363,7 @@ func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, o
 	}
 
 	// Get all items in the bucket.
-	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
+	startKey := backend.ExactKey(appsPrefix, serversPrefix, namespace)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1400,7 +1400,7 @@ func (s *PresenceService) UpsertAppServer(ctx context.Context, server types.Serv
 		return nil, trace.Wrap(err)
 	}
 	lease, err := s.Put(ctx, backend.Item{
-		Key:     backend.Key(appsPrefix, serversPrefix, server.GetNamespace(), server.GetName()),
+		Key:     backend.ExactKey(appsPrefix, serversPrefix, server.GetNamespace(), server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
@@ -1422,7 +1422,7 @@ func (s *PresenceService) UpsertAppServer(ctx context.Context, server types.Serv
 //
 // DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
 func (s *PresenceService) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	key := backend.Key(appsPrefix, serversPrefix, namespace, name)
+	key := backend.ExactKey(appsPrefix, serversPrefix, namespace, name)
 	return s.Delete(ctx, key)
 }
 
@@ -1444,19 +1444,19 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	var key []byte
 	switch h.GetType() {
 	case constants.KeepAliveNode:
-		key = backend.Key(nodesPrefix, h.Namespace, h.Name)
+		key = backend.ExactKey(nodesPrefix, h.Namespace, h.Name)
 	case constants.KeepAliveApp:
 		if h.HostID != "" {
-			key = backend.Key(appServersPrefix, h.Namespace, h.HostID, h.Name)
+			key = backend.ExactKey(appServersPrefix, h.Namespace, h.HostID, h.Name)
 		} else { // DELETE IN 9.0. Legacy app server is heartbeating back.
-			key = backend.Key(appsPrefix, serversPrefix, h.Namespace, h.Name)
+			key = backend.ExactKey(appsPrefix, serversPrefix, h.Namespace, h.Name)
 		}
 	case constants.KeepAliveDatabase:
-		key = backend.Key(dbServersPrefix, h.Namespace, h.HostID, h.Name)
+		key = backend.ExactKey(dbServersPrefix, h.Namespace, h.HostID, h.Name)
 	case constants.KeepAliveWindowsDesktopService:
-		key = backend.Key(windowsDesktopServicesPrefix, h.Name)
+		key = backend.ExactKey(windowsDesktopServicesPrefix, h.Name)
 	case constants.KeepAliveKube:
-		key = backend.Key(kubeServicesPrefix, h.Name)
+		key = backend.ExactKey(kubeServicesPrefix, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}
@@ -1470,7 +1470,7 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 
 // GetWindowsDesktopServices returns all registered Windows desktop services.
 func (s *PresenceService) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
-	startKey := backend.Key(windowsDesktopServicesPrefix, "")
+	startKey := backend.ExactKey(windowsDesktopServicesPrefix, "")
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1491,7 +1491,7 @@ func (s *PresenceService) GetWindowsDesktopServices(ctx context.Context) ([]type
 }
 
 func (s *PresenceService) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
-	result, err := s.Get(ctx, backend.Key(windowsDesktopServicesPrefix, name))
+	result, err := s.Get(ctx, backend.ExactKey(windowsDesktopServicesPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1516,7 +1516,7 @@ func (s *PresenceService) UpsertWindowsDesktopService(ctx context.Context, srv t
 		return nil, trace.Wrap(err)
 	}
 	lease, err := s.Put(ctx, backend.Item{
-		Key:     backend.Key(windowsDesktopServicesPrefix, srv.GetName()),
+		Key:     backend.ExactKey(windowsDesktopServicesPrefix, srv.GetName()),
 		Value:   value,
 		Expires: srv.Expiry(),
 		ID:      srv.GetResourceID(),
@@ -1541,7 +1541,7 @@ func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name 
 	if name == "" {
 		return trace.BadParameter("missing windows desktop service name")
 	}
-	key := backend.Key(windowsDesktopServicesPrefix, name)
+	key := backend.ExactKey(windowsDesktopServicesPrefix, name)
 	return s.Delete(ctx, key)
 }
 
@@ -1588,8 +1588,8 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
 
-	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
-	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
+	rangeStart := backend.ExactKey(append(keyPrefix, req.StartKey)...)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
 	filter := services.MatchResourceFilter{
 		ResourceKind:        req.ResourceType,
 		Labels:              req.Labels,

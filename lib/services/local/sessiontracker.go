@@ -48,7 +48,7 @@ func NewSessionTrackerService(bk backend.Backend) (services.SessionTrackerServic
 }
 
 func (s *sessionTracker) loadSession(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	sessionJSON, err := s.bk.Get(ctx, backend.Key(sessionPrefix, sessionID))
+	sessionJSON, err := s.bk.Get(ctx, backend.ExactKey(sessionPrefix, sessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,7 +64,7 @@ func (s *sessionTracker) loadSession(ctx context.Context, sessionID string) (typ
 // UpdatePresence updates the presence status of a user in a session.
 func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	for i := 0; i < casRetryLimit; i++ {
-		sessionItem, err := s.bk.Get(ctx, backend.Key(sessionPrefix, sessionID))
+		sessionItem, err := s.bk.Get(ctx, backend.ExactKey(sessionPrefix, sessionID))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -85,7 +85,7 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 		}
 
 		item := backend.Item{
-			Key:     backend.Key(sessionPrefix, sessionID),
+			Key:     backend.ExactKey(sessionPrefix, sessionID),
 			Value:   sessionJSON,
 			Expires: session.Expiry(),
 		}
@@ -117,7 +117,7 @@ func (s *sessionTracker) GetSessionTracker(ctx context.Context, sessionID string
 
 // GetActiveSessionTrackers returns a list of active session trackers.
 func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	prefix := backend.Key(sessionPrefix)
+	prefix := backend.ExactKey(sessionPrefix)
 	result, err := s.bk.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -217,7 +217,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(sessionPrefix, session.GetSessionID()),
+		Key:     backend.ExactKey(sessionPrefix, session.GetSessionID()),
 		Value:   json,
 		Expires: session.Expiry(),
 	}
@@ -232,7 +232,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
 	for i := 0; i < casRetryLimit; i++ {
-		sessionItem, err := s.bk.Get(ctx, backend.Key(sessionPrefix, req.SessionID))
+		sessionItem, err := s.bk.Get(ctx, backend.ExactKey(sessionPrefix, req.SessionID))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -264,7 +264,7 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 		}
 
 		item := backend.Item{
-			Key:     backend.Key(sessionPrefix, req.SessionID),
+			Key:     backend.ExactKey(sessionPrefix, req.SessionID),
 			Value:   sessionJSON,
 			Expires: session.Expiry(),
 		}
@@ -286,7 +286,7 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (s *sessionTracker) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	return trace.Wrap(s.bk.Delete(ctx, backend.Key(sessionPrefix, sessionID)))
+	return trace.Wrap(s.bk.Delete(ctx, backend.ExactKey(sessionPrefix, sessionID)))
 }
 
 // unmarshalSession unmarshals the Session resource from JSON.
