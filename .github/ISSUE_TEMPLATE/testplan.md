@@ -281,7 +281,9 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 - [ ] Test receiving a message via Teleport Slackbot
 - [ ] Test receiving a new Jira Ticket via Teleport Jira
 
-### AWS Node Joining
+### AWS
+
+#### AWS Node Joining
 [Docs](https://goteleport.com/docs/setup/guides/joining-nodes-aws/)
 - [ ] On EC2 instance with `ec2:DescribeInstances` permissions for local account:
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestEC2NodeJoin`
@@ -289,6 +291,11 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestIAMNodeJoin`
 - [ ] EC2 Join method in IoT mode with node and auth in different AWS accounts
 - [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
+
+#### EC2 Tags
+[Docs](https://goteleport.com/docs/setup/guides/ec2-tags/)
+- [ ] On EC2 instance with `Name` tag (should be present by default) and tags in instance metadata enabled:
+  `TELEPORT_TEST_EC2=1 go test ./integration -run TestLabels`
 
 ## WEB UI
 
