@@ -292,7 +292,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err, "validing merged bot config")
+		return nil, trace.Wrap(err, "validating merged bot config")
 	}
 
 	return config, nil
