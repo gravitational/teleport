@@ -951,6 +951,43 @@ func (f *Forwarder) AcquireConnectionLock(ctx context.Context, user string, role
 	return nil
 }
 
+func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (resp interface{}, err error) {
+	defer proxy.Close()
+	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var policySets []*types.SessionTrackerPolicySet
+	for _, role := range roles {
+		policySet := role.GetSessionPolicySet()
+		policySets = append(policySets, &policySet)
+	}
+
+	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind)
+	canStart, _, err := authorizer.FulfilledFor(nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !canStart {
+		return nil, trace.AccessDenied("insufficient permissions to launch non-interactive session")
+	}
+
+	executor, err := f.getExecutor(*ctx, sess, req)
+	if err != nil {
+		f.log.WithError(err).Warning("Failed creating executor.")
+		return nil, trace.Wrap(err)
+	}
+
+	streamOptions := proxy.options()
+	if err = executor.Stream(streamOptions); err != nil {
+		f.log.WithError(err).Warning("Executor failed while streaming.")
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
@@ -983,7 +1020,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		stdin:              utils.AsBool(q.Get("stdin")),
 		stdout:             utils.AsBool(q.Get("stdout")),
 		stderr:             utils.AsBool(q.Get("stderr")),
-		tty:                utils.AsBool(q.Get("tty")),
+		tty:                true,
 		httpRequest:        req,
 		httpResponseWriter: w,
 		context:            req.Context(),
@@ -1003,6 +1040,11 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if sess.noAuditEvents {
 		// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
 		return f.remoteExec(ctx, w, req, p, sess, request, proxy)
+	}
+
+	if !utils.AsBool(q.Get("tty")) {
+		resp, err = f.execNonInteractive(ctx, w, req, p, request, proxy, sess)
+		return
 	}
 
 	client := newKubeProxyClientStreams(proxy)
