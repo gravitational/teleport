@@ -244,8 +244,15 @@ fn connect_rdp_inner(
 
     // Client for the "cliprdr" channel - clipboard sharing.
     let cliprdr = if params.allow_clipboard {
-        Some(cliprdr::Client::new(Box::new(move |v| unsafe {
-            handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32);
+        Some(cliprdr::Client::new(Box::new(move |v| -> RdpResult<()> {
+            unsafe {
+                if let Some(err_str) =
+                    handle_cgo_error(handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32))
+                {
+                    return Err(errors::try_error(&err_str));
+                }
+                Ok(())
+            }
         })))
     } else {
         None
@@ -457,7 +464,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
     // us from locking the mutex in Client permanently while no data is available.
     while wait_for_fd(tcp_fd as usize) {
-        let mut err = CGO_OK;
+        let mut err = None;
         let res = client
             .rdp_client
             .lock()
@@ -475,7 +482,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
                         }
                     };
                     unsafe {
-                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOError;
+                        err = handle_cgo_error(handle_bitmap(client_ref, &mut cbitmap) as CGOError);
                     };
                 }
                 // These should never really be sent by the server to us.
@@ -493,8 +500,8 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             }
             _ => {}
         }
-        if err != CGO_OK {
-            let err_str = unsafe { from_cgo_error(err) };
+
+        if let Some(err_str) = err {
             return Some(format!("failed forwarding RDP bitmap frame: {}", err_str));
         }
     }
@@ -687,19 +694,40 @@ fn to_cgo_error(s: String) -> CGOError {
     CString::new(s).expect("CString::new failed").into_raw()
 }
 
-/// from_cgo_error copies CGOError into a String and frees the underlying Go memory.
+/// handle_cgo_error copies CGOError into a String and frees the underlying Go memory.
+/// If the error was nil, it returns None. This function should be wrapped around any
+/// function defined on the Go side that returns a CGOError.
 ///
 /// # Safety
 ///
-/// The pointer inside the CGOError must point to a valid null terminated Go string.
-unsafe fn from_cgo_error(e: CGOError) -> String {
-    let s = from_go_string(e);
-    free_go_string(e);
-    s
+/// The pointer inside the CGOError must point to a valid null terminated Go string or to
+/// a null pointer (Go's `nil`).
+///
+/// The CGOError passed to this function is typically created on the Go side by calling
+/// ```
+/// return C.CString("an error message")
+/// ```
+/// The Go side function MUST NOT try to free the C string itself, by doing something like
+/// ```
+/// err := C.CString("an error message")
+/// defer C.free(unsafe.Pointer(err))
+/// return err
+/// ```
+unsafe fn handle_cgo_error(err: CGOError) -> Option<String> {
+    if err != CGO_OK {
+        let s = from_go_string(err);
+        free_go_string(err);
+        Some(s)
+    } else {
+        None
+    }
 }
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
+//
+// Functions defined here which return a CGOError should be wrapped in a handle_cgo_error when called,
+// to ensure that memory is properly freed. See handle_cgo_error's documentation string for more details.
 extern "C" {
     fn free_go_string(s: *mut c_char);
     fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
