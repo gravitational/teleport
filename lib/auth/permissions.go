@@ -466,7 +466,8 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
-						types.NewRule(types.KindUser, services.RO()),
+						//types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindUser, services.RW()), // TODO(jakule): Do we want to extend the permissions only for one integration?
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindAuthServer, services.RO()),

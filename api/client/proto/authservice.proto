@@ -660,6 +660,18 @@ message CreateAppSessionResponse {
     types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
 }
 
+message CreateSnowflakeSessionRequest {
+    // Username is the name of the user requesting the session.
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    string SnowflakeUsername = 2 [ (gogoproto.jsontag) = "snowflake_username" ];
+    string SnowflakeAccountName = 3 [ (gogoproto.jsontag) = "snowflake_account_name" ];
+    string SessionToken = 4 [ (gogoproto.jsontag) = "session_token" ];
+}
+
+message CreateSnowflakeSessionResponse {
+    types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
 
@@ -1856,6 +1868,9 @@ service AuthService {
     // CreateAppSession creates an application web session. Application web
     // sessions represent a browser session the client holds.
     rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);
+
+    rpc CreateSnowflakeSession(CreateSnowflakeSessionRequest)
+        returns (CreateSnowflakeSessionResponse);
     // DeleteAppSession removes an application web session.
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllAppSessions removes all application web sessions.

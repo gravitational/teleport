@@ -155,6 +155,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 					return nil, trace.BadParameter("missing parameter AppSession")
 				}
 				collections[resourceKind] = &appSession{watch: watch, Cache: c}
+			case types.KindSnowflakeSession:
+				if c.SnowflakeSession == nil {
+					return nil, trace.BadParameter("missing parameter SnowflakeSession")
+				}
+				collections[resourceKind] = &appSession{watch: watch, Cache: c}
 			case types.KindWebSession:
 				if c.WebSession == nil {
 					return nil, trace.BadParameter("missing parameter WebSession")

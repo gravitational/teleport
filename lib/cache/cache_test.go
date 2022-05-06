@@ -68,17 +68,18 @@ type testPack struct {
 	provisionerS   services.Provisioner
 	clusterConfigS services.ClusterConfiguration
 
-	usersS          services.UsersService
-	accessS         services.Access
-	dynamicAccessS  services.DynamicAccessCore
-	presenceS       services.Presence
-	appSessionS     services.AppSession
-	restrictions    services.Restrictions
-	apps            services.Apps
-	databases       services.Databases
-	webSessionS     types.WebSessionInterface
-	webTokenS       types.WebTokenInterface
-	windowsDesktops services.WindowsDesktops
+	usersS            services.UsersService
+	accessS           services.Access
+	dynamicAccessS    services.DynamicAccessCore
+	presenceS         services.Presence
+	appSessionS       services.AppSession
+	snowflakeSessionS services.AppSession
+	restrictions      services.Restrictions
+	apps              services.Apps
+	databases         services.Databases
+	webSessionS       types.WebSessionInterface
+	webTokenS         types.WebTokenInterface
+	windowsDesktops   services.WindowsDesktops
 }
 
 func (t *testPack) Close() {
@@ -905,25 +906,26 @@ func initStrategy(t *testing.T) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
+		Context:          ctx,
+		Backend:          p.cacheBackend,
+		Events:           p.eventsS,
+		ClusterConfig:    p.clusterConfigS,
+		Provisioner:      p.provisionerS,
+		Trust:            p.trustS,
+		Users:            p.usersS,
+		Access:           p.accessS,
+		DynamicAccess:    p.dynamicAccessS,
+		Presence:         p.presenceS,
+		AppSession:       p.appSessionS,
+		SnowflakeSession: p.snowflakeSessionS,
+		WebSession:       p.webSessionS,
+		WebToken:         p.webTokenS,
+		Restrictions:     p.restrictions,
+		Apps:             p.apps,
+		Databases:        p.databases,
+		WindowsDesktops:  p.windowsDesktops,
+		MaxRetryPeriod:   200 * time.Millisecond,
+		EventsC:          p.eventsC,
 	}))
 	require.NoError(t, err)
 

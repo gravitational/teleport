@@ -33,6 +33,7 @@ import (
 	"net/http/httputil"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -86,21 +87,11 @@ const (
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	uri := sessionCtx.Database.GetURI()
 	uriParts := strings.Split(uri, ".")
-	if len(uriParts) != 5 {
+	if len(uriParts) != 5 && len(uriParts) != 3 {
 		return trace.BadParameter("invalid Snowflake url: %s", uri)
 	}
 
 	accountName := uriParts[0]
-
-	jwtToken, err := e.AuthClient.GenerateDatabaseJWT(ctx, types.GenerateSnowflakeJWT{
-		Username: sessionCtx.DatabaseUser,
-		Account:  accountName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	e.Log.Debugf("JWT token: %s", jwtToken)
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
@@ -114,6 +105,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	clientConnReader := bufio.NewReader(e.clientConn)
+
+	var snowflakeSession types.WebSession
 
 	for {
 		req, err := http.ReadRequest(clientConnReader)
@@ -176,7 +169,36 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 		if strings.Contains(req.Header.Get("Authorization"), "Snowflake Token") &&
 			!strings.Contains(req.Header.Get("Authorization"), "None") {
-			e.connectionToken = req.Header.Get("Authorization")
+
+			sessionID := req.Header.Get("Authorization")
+			sessionID = strings.TrimPrefix(sessionID, "Snowflake Token=\"")
+			sessionID = strings.TrimSuffix(sessionID, "\"")
+
+			e.Log.Warnf("session ID get: %v", sessionID)
+
+			for i := 0; i < 10; i++ {
+				snowflakeSession, err = e.AuthClient.GetAppSession(ctx, types.GetAppSessionRequest{
+					SessionID: sessionID,
+				})
+				if err != nil {
+					if trace.IsNotFound(err) {
+						e.Log.Debugf("not found %s, retry", sessionID)
+						time.Sleep(time.Second)
+						continue
+					}
+					return trace.Wrap(err)
+				}
+
+				e.connectionToken = snowflakeSession.GetBearerToken()
+				break
+			}
+
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+
+			//e.Log.Debugf("WS JWT token: %s", snowflakeSession.GetBearerToken())
 		}
 
 		if req.Header.Get("Authorization") == "Basic" {
@@ -185,6 +207,15 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 		switch {
 		case strings.HasPrefix(origURLPath, loginRequestPath):
+			jwtToken, err := e.AuthClient.GenerateDatabaseJWT(ctx, types.GenerateSnowflakeJWT{
+				Username: sessionCtx.DatabaseUser,
+				Account:  accountName,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			e.Log.Debugf("JWT token: %s", jwtToken)
+
 			if newBody, err := replaceToken(body, jwtToken, accountName); err == nil {
 				e.Log.Debugf("new body: %s", string(newBody))
 
@@ -269,10 +300,27 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 
 		if strings.HasPrefix(origURLPath, loginRequestPath) {
-			if err := e.extractToken(dumpResp); err == nil {
+			if newResp, err := e.extractToken(dumpResp, func(sessionToken string) (string, error) {
+				snowflakeSession, err = e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+					Username:             sessionCtx.Identity.Username,
+					SnowflakeAccountName: accountName,
+					SnowflakeUsername:    sessionCtx.DatabaseUser,
+					SessionToken:         e.connectionToken,
+				})
+				if err != nil {
+					return "", trace.Wrap(err)
+				}
+
+				return snowflakeSession.GetName(), nil
+			}); err == nil {
 				e.Log.Debugf("extracted token")
+				e.Log.Debugf("old resp: %s", string(dumpResp))
+				e.Log.Debugf("new resp: %s", string(newResp))
+				dumpResp = newResp
+
 			} else {
 				e.Log.Debugf("failed to extract token: %v", err)
+				return trace.Wrap(err)
 			}
 		}
 
@@ -283,6 +331,15 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	return nil
+}
+
+func copyResponse(resp *http.Response, body []byte) ([]byte, error) {
+	resp.Body = io.NopCloser(bytes.NewBuffer(body))
+	resp.ContentLength = int64(len(body))
+	if _, ok := resp.Header["Content-Length"]; ok {
+		delete(resp.Header, "Content-Length")
+	}
+	return httputil.DumpResponse(resp, true)
 }
 
 type queryRequest struct {
@@ -298,33 +355,56 @@ func extractSQLStmt(body []byte) (string, error) {
 	return queryRequest.SQLText, nil
 }
 
-func (e *Engine) extractToken(dumpResp []byte) error {
+func (e *Engine) extractToken(dumpResp []byte, sessCb func(string) (string, error)) ([]byte, error) {
 	respBytes := bytes.NewReader(dumpResp)
 	respBufio := bufio.NewReader(respBytes)
 
 	resp, err := http.ReadResponse(respBufio, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	gzBody, err := gzip.NewReader(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	bodyBytes, err := io.ReadAll(gzBody)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	loginResp := &LoginResponse{}
 	if err := json.Unmarshal(bodyBytes, loginResp); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	e.connectionToken = loginResp.Data.Token
+	e.connectionToken = loginResp.Data["token"].(string)
 
-	return nil
+	sessionToken, err := sessCb(e.connectionToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	loginResp.Data["token"] = sessionToken
+	loginResp.Data["masterToken"] = sessionToken
+
+	newResp, err := json.Marshal(loginResp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	buf := &bytes.Buffer{}
+	newGzBody := gzip.NewWriter(buf)
+	if _, err := newGzBody.Write(newResp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := newGzBody.Close(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return copyResponse(resp, buf.Bytes())
 }
 
 func replaceToken(loginReq []byte, jwtToken string, accountName string) ([]byte, error) {
@@ -349,35 +429,36 @@ func replaceToken(loginReq []byte, jwtToken string, accountName string) ([]byte,
 }
 
 type LoginResponse struct {
-	Data struct {
-		MasterToken             string      `json:"masterToken"`
-		Token                   string      `json:"token"`
-		ValidityInSeconds       int         `json:"validityInSeconds"`
-		MasterValidityInSeconds int         `json:"masterValidityInSeconds"`
-		DisplayUserName         string      `json:"displayUserName"`
-		ServerVersion           string      `json:"serverVersion"`
-		FirstLogin              bool        `json:"firstLogin"`
-		RemMeToken              interface{} `json:"remMeToken"`
-		RemMeValidityInSeconds  int         `json:"remMeValidityInSeconds"`
-		HealthCheckInterval     int         `json:"healthCheckInterval"`
-		NewClientForUpgrade     interface{} `json:"newClientForUpgrade"`
-		SessionID               int64       `json:"sessionId"`
-		//Parameters              []struct {
-		//	Name  string `json:"name"`
-		//	Value int    `json:"value"`
-		//} `json:"parameters"`
-		SessionInfo struct {
-			DatabaseName  interface{} `json:"databaseName"`
-			SchemaName    interface{} `json:"schemaName"`
-			WarehouseName interface{} `json:"warehouseName"`
-			RoleName      string      `json:"roleName"`
-		} `json:"sessionInfo"`
-		IDToken                   interface{} `json:"idToken"`
-		IDTokenValidityInSeconds  int         `json:"idTokenValidityInSeconds"`
-		ResponseData              interface{} `json:"responseData"`
-		MfaToken                  interface{} `json:"mfaToken"`
-		MfaTokenValidityInSeconds int         `json:"mfaTokenValidityInSeconds"`
-	} `json:"data"`
+	Data map[string]interface{} `json:"data"`
+	//Data struct {
+	//	MasterToken             string      `json:"masterToken"`
+	//	Token                   string      `json:"token"`
+	//	ValidityInSeconds       int         `json:"validityInSeconds"`
+	//	MasterValidityInSeconds int         `json:"masterValidityInSeconds"`
+	//	DisplayUserName         string      `json:"displayUserName"`
+	//	ServerVersion           string      `json:"serverVersion"`
+	//	FirstLogin              bool        `json:"firstLogin"`
+	//	RemMeToken              interface{} `json:"remMeToken"`
+	//	RemMeValidityInSeconds  int         `json:"remMeValidityInSeconds"`
+	//	HealthCheckInterval     int         `json:"healthCheckInterval"`
+	//	NewClientForUpgrade     interface{} `json:"newClientForUpgrade"`
+	//	SessionID               int64       `json:"sessionId"`
+	//	//Parameters              []struct {
+	//	//	Name  string `json:"name"`
+	//	//	Value int    `json:"value"`
+	//	//} `json:"parameters"`
+	//	SessionInfo struct {
+	//		DatabaseName  interface{} `json:"databaseName"`
+	//		SchemaName    interface{} `json:"schemaName"`
+	//		WarehouseName interface{} `json:"warehouseName"`
+	//		RoleName      string      `json:"roleName"`
+	//	} `json:"sessionInfo"`
+	//	IDToken                   interface{} `json:"idToken"`
+	//	IDTokenValidityInSeconds  int         `json:"idTokenValidityInSeconds"`
+	//	ResponseData              interface{} `json:"responseData"`
+	//	MfaToken                  interface{} `json:"mfaToken"`
+	//	MfaTokenValidityInSeconds int         `json:"mfaTokenValidityInSeconds"`
+	//} `json:"data"`
 	Code    interface{} `json:"code"`
 	Message interface{} `json:"message"`
 	Success bool        `json:"success"`

@@ -98,6 +98,8 @@ const (
 	// KindAppSession represents an application specific web session.
 	KindAppSession = "app_session"
 
+	KindSnowflakeSession = "snowflake_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -271,7 +273,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.

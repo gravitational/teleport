@@ -235,3 +235,40 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 
 	return certs.SSH, certs.TLS, nil
 }
+
+func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest, _ types.User, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+	if !modules.GetModules().Features().DB {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
+	}
+
+	// Don't let the app session go longer than the identity expiration,
+	// which matches the parent web session TTL as well.
+	//
+	// When using web-based app access, the browser will send a cookie with
+	// sessionID which will be used to fetch services.WebSession which
+	// contains a certificate whose life matches the life of the session
+	// that will be used to establish the connection.
+	ttl := checker.AdjustSessionTTL(identity.Expires.Sub(s.clock.Now()))
+
+	// Create services.WebSession for this session.
+	sessionID, err := utils.CryptoRandomHex(SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	session, err := types.NewWebSession(sessionID, types.KindSnowflakeSession, types.WebSessionSpecV2{
+		User:               req.Username,
+		Expires:            s.clock.Now().Add(ttl),
+		BearerToken:        req.SessionToken,
+		BearerTokenExpires: time.Now().Add(time.Hour), // TODO(jakule): fix me
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
+	UserLoginCount.Inc()
+	return session, nil
+}

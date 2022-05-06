@@ -69,7 +69,7 @@ type WebSession interface {
 	SetPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
-	// BearerToken is a special bearer token used for additional
+	// GetBearerToken is a special bearer token used for additional
 	// bearer authentication
 	GetBearerToken() string
 	// SetExpiryTime sets session expiry time
@@ -307,6 +307,17 @@ func (r CreateAppSessionRequest) Check() error {
 	}
 
 	return nil
+}
+
+type CreateSnowflakeSessionRequest struct {
+	// Username is the identity of the user requesting the session.
+	Username string `json:"username"`
+
+	SnowflakeUsername string
+
+	SnowflakeAccountName string
+
+	SessionToken string
 }
 
 // DeleteAppSessionRequest are the parameters used to request removal of

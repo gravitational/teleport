@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -716,7 +717,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	defer func() {
 		if r := recover(); r != nil {
-			s.log.Warnf("Recovered while handling DB connection from %v: %v.", clientConn.RemoteAddr(), r)
+			s.log.Warnf("Recovered while handling DB connection from %v: %v. %v", clientConn.RemoteAddr(), r, string(debug.Stack()))
 			err = trace.BadParameter("failed to handle client connection")
 		}
 		if err != nil {
