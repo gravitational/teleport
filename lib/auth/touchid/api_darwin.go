@@ -39,19 +39,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func init() {
-	native = &touchIDImpl{}
-}
+var native nativeTID = &touchIDImpl{}
 
 type touchIDImpl struct{}
 
-func (*touchIDImpl) IsAvailable() bool {
+func (touchIDImpl) IsAvailable() bool {
 	// TODO(codingllama): Write a deeper check that looks at binary
 	//  signature/entitlements/etc.
 	return true
 }
 
-func (*touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialInfo, error) {
+func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialInfo, error) {
 	credentialID := uuid.NewString()
 	userHandleB64 := base64.RawURLEncoding.EncodeToString(userHandle)
 
@@ -106,11 +104,11 @@ func splitLabel(label string) (string, string) {
 	return rpID, user
 }
 
-func (*touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, error) {
+func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, error) {
 	var req C.AuthenticateRequest
 	req.app_label = C.CString(credentialID)
-	req.digest = C.CString(string(digest))
-	req.digest_len = C.int(len(digest))
+	req.digest = (*C.char)(C.CBytes(digest))
+	req.digest_len = C.size_t(len(digest))
 	defer func() {
 		C.free(unsafe.Pointer(req.app_label))
 		C.free(unsafe.Pointer(req.digest))
@@ -131,7 +129,7 @@ func (*touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, er
 	return base64.StdEncoding.DecodeString(sigB64)
 }
 
-func (*touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) {
+func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) {
 	infos, res := findCredentialsImpl(rpID, user, func(filter C.LabelFilter, infosC **C.CredentialInfo) C.int {
 		return C.FindCredentials(filter, infosC)
 	})

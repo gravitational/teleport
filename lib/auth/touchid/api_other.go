@@ -17,9 +17,7 @@
 
 package touchid
 
-func init() {
-	native = noopNative{}
-}
+var native nativeTID = noopNative{}
 
 type noopNative struct{}
 

@@ -15,12 +15,14 @@
 #ifndef AUTHENTICATE_H_
 #define AUTHENTICATE_H_
 
+#include <stddef.h>
+
 #include "credential_info.h"
 
 typedef struct AuthenticateRequest {
   const char *app_label;
   const char *digest;
-  int digest_len;
+  size_t digest_len;
 } AuthenticateRequest;
 
 // Authenticate finds the key specified by app_label and signs the digest using

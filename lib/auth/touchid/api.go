@@ -40,9 +40,8 @@ var (
 	ErrNotAvailable       = errors.New("touch ID not available")
 )
 
-var native nativeTID
-
 // nativeTID represents the native Touch ID interface.
+// Implementors must provide a global variable called `native`.
 type nativeTID interface {
 	IsAvailable() bool
 
