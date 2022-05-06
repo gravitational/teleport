@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/gravitational/teleport/lib"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/trace"
 
@@ -130,6 +131,7 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 	res := make(map[string]*kubeCreds, len(cfg.Contexts))
 	// Convert kubeconfig contexts into kubeCreds.
 	for cluster, clientCfg := range cfg.Contexts {
+		clientCfg.TLSClientConfig.Insecure = lib.IsInsecureDevMode()
 		clusterCreds, err := extractKubeCreds(ctx, cluster, clientCfg, serviceType, kubeconfigPath, log, checkImpersonation)
 		if err != nil {
 			log.WithError(err).Warnf("failed to load credentials for cluster %q.", cluster)

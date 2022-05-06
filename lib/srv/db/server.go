@@ -468,6 +468,9 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 func (s *Server) injectEC2Labels(database types.Database) {
 	if s.cfg.EC2Labels != nil {
 		labels := database.GetStaticLabels()
+		if labels == nil {
+			labels = make(map[string]string)
+		}
 		for k, v := range s.cfg.EC2Labels.Get() {
 			if _, ok := labels[k]; !ok {
 				labels[k] = v

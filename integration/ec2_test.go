@@ -287,9 +287,12 @@ func TestIAMNodeJoin(t *testing.T) {
 // TestLabels is an integration test which asserts that Teleport correctly picks up
 // EC2 tags when running on an EC2 instance.
 func TestLabels(t *testing.T) {
-	if os.Getenv("TELEPORT_TEST_EC2") == "" {
-		t.Skipf("Skipping TestLabels because TELEPORT_TEST_EC2 is not set")
-	}
+	// if os.Getenv("TELEPORT_TEST_EC2") == "" {
+	// 	t.Skipf("Skipping TestLabels because TELEPORT_TEST_EC2 is not set")
+	// }
+	oldInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(oldInsecure) })
 	storageConfig := backend.Config{
 		Type: lite.GetName(),
 		Params: backend.Params{
@@ -298,6 +301,7 @@ func TestLabels(t *testing.T) {
 		},
 	}
 	tconf := service.MakeDefaultConfig()
+	tconf.Log = newSilentLogger()
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
@@ -354,6 +358,20 @@ func TestLabels(t *testing.T) {
 		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
 	}, 10*time.Second, time.Second)
 
+	// Make a kube cluster.
+	kubeServer := kubes[0]
+	kubeServer.SetKubernetesClusters([]*types.KubernetesCluster{{
+		Name: "cluster",
+		DynamicLabels: map[string]types.CommandLabelV2{
+			"echo": {
+				Period:  types.Duration(time.Second),
+				Command: []string{"echo", "hello"},
+			},
+		},
+	}})
+	_, err = authServer.UpsertKubeServiceV2(ctx, kubeServer)
+	require.NoError(t, err)
+
 	// TODO: guarantee that this (or any) tag exists
 	tagName := fmt.Sprintf("%s/Name", types.AWSNamespace)
 
@@ -374,11 +392,10 @@ func TestLabels(t *testing.T) {
 		database := databases[0].GetDatabase()
 		_, dbHasLabel := database.GetAllLabels()[tagName]
 
-		kubes, err := authServer.GetKubeServices(ctx)
-		require.NoError(t, err)
-		require.Len(t, kubes, 1)
-		kube := kubes[0]
-		_, kubeHasLabel := kube.GetAllLabels()[tagName]
+		kubeClusters := getKubeClusters(t, authServer)
+		require.Len(t, kubeClusters, 1)
+		kube := kubeClusters[0]
+		_, kubeHasLabel := kube.StaticLabels[tagName]
 		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
 	}, 10*time.Second, time.Second)
 
