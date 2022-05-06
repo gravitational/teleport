@@ -4338,12 +4338,12 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 
 	t.Log("change signature algorithm with custom config value and manual rotation")
 	// Change the signing algorithm in config file.
-	signingAlg := ssh.SigAlgoRSA
+	signingAlg := ssh.KeyAlgoRSA
 	config.CASignatureAlgorithm = &signingAlg
 	svc, cancel = restart(svc, cancel)
 	// Do a manual rotation - this should change the signing algorithm.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	t.Log("preserve signature algorithm with empty config value and manual rotation")
 	// Unset the config value.
@@ -4353,7 +4353,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 	// Do a manual rotation - this should leave the signing algorithm
 	// unaffected because config value is not set.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	// shut down the service
 	cancel()
