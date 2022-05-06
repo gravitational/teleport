@@ -130,16 +130,6 @@ func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, err
 }
 
 func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) {
-	infos, res := findCredentialsImpl(rpID, user, func(filter C.LabelFilter, infosC **C.CredentialInfo) C.int {
-		return C.FindCredentials(filter, infosC)
-	})
-	if res < 0 {
-		return nil, fmt.Errorf("failed to find credentials: status %d", res)
-	}
-	return infos, nil
-}
-
-func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.CredentialInfo) C.int) ([]CredentialInfo, int) {
 	var filterC C.LabelFilter
 	if user == "" {
 		filterC.kind = C.LABEL_PREFIX
@@ -147,10 +137,39 @@ func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.Credent
 	filterC.value = C.CString(makeLabel(rpID, user))
 	defer C.free(unsafe.Pointer(filterC.value))
 
+	infos, res := findCredentialsImpl(func(infosC **C.CredentialInfo) C.int {
+		return C.FindCredentials(filterC, infosC)
+	})
+	if res < 0 {
+		return nil, fmt.Errorf("failed to find credentials: status %d", res)
+	}
+	return infos, nil
+}
+
+func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
+	// User prompt becomes: ""$binary" is trying to list credentials".
+	reasonC := C.CString("list credentials")
+	defer C.free(unsafe.Pointer(reasonC))
+
+	var errMsgC *C.char
+	defer C.free(unsafe.Pointer(errMsgC))
+
+	infos, res := findCredentialsImpl(func(infosOut **C.CredentialInfo) C.int {
+		return C.ListCredentials(reasonC, infosOut, &errMsgC)
+	})
+	if res < 0 {
+		errMsg := C.GoString(errMsgC)
+		return nil, errors.New(errMsg)
+	}
+
+	return infos, nil
+}
+
+func findCredentialsImpl(find func(**C.CredentialInfo) C.int) ([]CredentialInfo, int) {
 	var infosC *C.CredentialInfo
 	defer C.free(unsafe.Pointer(infosC))
 
-	res := find(filterC, &infosC)
+	res := find(&infosC)
 	if res < 0 {
 		return nil, int(res)
 	}

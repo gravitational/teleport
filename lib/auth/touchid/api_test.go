@@ -21,6 +21,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/duo-labs/webauthn/protocol"
@@ -159,6 +160,10 @@ func (f *fakeNative) FindCredentials(rpID, user string) ([]touchid.CredentialInf
 		}
 	}
 	return resp, nil
+}
+
+func (f *fakeNative) ListCredentials() ([]touchid.CredentialInfo, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (f *fakeNative) Register(rpID, user string, userHandle []byte) (*touchid.CredentialInfo, error) {
