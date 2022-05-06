@@ -463,6 +463,20 @@ func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) 
 	return nil
 }
 
+//export tdp_sd_info_request
+func tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoRequest) C.CGOError {
+	// TODO(isaiah): req is a pointer to memory created and managed by "C" (aka Rust). Copy the C-managed
+	// memory into Go-managed memory, and pass to a (c *Client) method. See tdp_sd_acknowledge for an example.
+	return nil
+}
+
+//export tdp_sd_create_request
+func tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRequest) C.CGOError {
+	// TODO(isaiah): req is a pointer to memory created and managed by "C" (aka Rust). Copy the C-managed
+	// memory into Go-managed memory, and pass to a (c *Client) method. See tdp_sd_acknowledge for an example.
+	return nil
+}
+
 // Wait blocks until the client disconnects and runs the cleanup.
 func (c *Client) Wait() error {
 	c.wg.Wait()

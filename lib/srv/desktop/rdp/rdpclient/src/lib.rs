@@ -242,7 +242,7 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
 
-    let tdp_sd_acknowledge = Box::new(move |ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
+    let tdp_sd_acknowledge = Box::new(|ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
         unsafe {
             if tdp_sd_acknowledge(go_ref, &mut CGOSharedDirectoryAcknowledge::from(ack)) != CGO_OK {
                 return Err(RdpError::TryError(String::from(
@@ -253,6 +253,72 @@ fn connect_rdp_inner(
         Ok(())
     });
 
+    let tdp_sd_info_request = Box::new(|req: SharedDirectoryInfoRequest| -> RdpResult<()> {
+        // Create C compatible string from req.path
+        match CString::new(req.path.clone()) {
+            Ok(c_string) => {
+                unsafe {
+                    // Convert C compatible string into raw pointer for passing into the CGO struct
+                    let c_string = c_string.into_raw();
+                    let err = tdp_sd_info_request(
+                        go_ref,
+                        &mut CGOSharedDirectoryInfoRequest {
+                            completion_id: req.completion_id,
+                            directory_id: req.directory_id,
+                            path: c_string,
+                        },
+                    );
+                    // Retake pointer to free memory
+                    let _ = CString::from_raw(c_string);
+                    if err != CGO_OK {
+                        return Err(RdpError::TryError(String::from(
+                            "call to tdp_sd_info_request failed",
+                        )));
+                    };
+                }
+                return Ok(());
+            }
+            Err(_) => {
+                // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
+                return Err(RdpError::TryError(String::from(format!(
+                    "path contained characters that couldn't be converted to a C string: {}",
+                    req.path
+                ))));
+            }
+        }
+    });
+
+    let tdp_sd_create_request = Box::new(|req: SharedDirectoryCreateRequest| -> RdpResult<()> {
+        match CString::new(req.path.clone()) {
+            Ok(c_string) => {
+                unsafe {
+                    if tdp_sd_create_request(
+                        go_ref,
+                        &mut CGOSharedDirectoryCreateRequest {
+                            completion_id: req.completion_id,
+                            directory_id: req.directory_id,
+                            file_type: req.file_type,
+                            path: c_string.into_raw(),
+                        },
+                    ) != CGO_OK
+                    {
+                        return Err(RdpError::TryError(String::from(
+                            "call to tdp_sd_create_request failed",
+                        )));
+                    };
+                }
+                return Ok(());
+            }
+            Err(_) => {
+                // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
+                return Err(RdpError::TryError(String::from(format!(
+                    "path contained characters that couldn't be converted to a C string: {}",
+                    req.path
+                ))));
+            }
+        }
+    });
+
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(
         params.cert_der,
@@ -260,6 +326,8 @@ fn connect_rdp_inner(
         pin,
         params.allow_directory_sharing,
         tdp_sd_acknowledge,
+        tdp_sd_info_request,
+        tdp_sd_create_request,
     );
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -768,8 +836,6 @@ pub struct SharedDirectoryAcknowledge {
     pub directory_id: u32,
 }
 
-/// CGOSharedDirectoryAcknowledge is a CGO-compatible version of
-/// the TDP Shared Directory Knowledge message that we pass back to Go.
 #[repr(C)]
 pub struct CGOSharedDirectoryAcknowledge {
     pub err: u32,
@@ -785,6 +851,62 @@ impl From<SharedDirectoryAcknowledge> for CGOSharedDirectoryAcknowledge {
     }
 }
 
+pub struct SharedDirectoryInfoRequest {
+    completion_id: u32,
+    directory_id: u32,
+    path: String,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryInfoRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *mut c_char,
+}
+
+struct SharedDirectoryInfoResponse {
+    completion_id: u32,
+    err: u32,
+    fso: FileSystemObject,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryInfoResponse {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *mut c_char,
+}
+
+pub struct SharedDirectoryCreateRequest {
+    completion_id: u32,
+    directory_id: u32,
+    file_type: u32,
+    path: String,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryCreateRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub file_type: u32,
+    pub path: *mut c_char,
+}
+
+pub struct FileSystemObject {
+    last_modified: u32,
+    size: u64,
+    file_type: u32,
+    path: String,
+}
+
+#[repr(C)]
+pub struct CGOFileSystemObject {
+    pub last_modified: u32,
+    pub size: u64,
+    pub file_type: u32,
+    pub path: *mut c_char,
+}
+
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
@@ -792,8 +914,12 @@ extern "C" {
     fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
 
-    /// Shared Directory Acknowledge
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge) -> CGOError;
+    fn tdp_sd_info_request(client_ref: usize, req: *mut CGOSharedDirectoryInfoRequest) -> CGOError;
+    fn tdp_sd_create_request(
+        client_ref: usize,
+        req: *mut CGOSharedDirectoryCreateRequest,
+    ) -> CGOError;
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.
