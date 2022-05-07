@@ -462,12 +462,13 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	args := []string{
 		"--noup",
-		"-a", "accn-name??", //TODO(JN): Do we need this?
+		"-a", "teleport",
 		"-u", c.db.Username,
 		"-h", c.host,
 		"-p", strconv.Itoa(c.port),
-		"-o", "log_level=DEBUG",
 	}
+
+	// TODO(jakule): set "SNOWSQL_PWD=teleport"
 
 	return exec.Command("snowsql", args...)
 }
