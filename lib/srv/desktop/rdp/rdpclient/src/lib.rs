@@ -511,9 +511,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             _ => {}
         }
         if err != CGOErrCode::ErrCodeSuccess {
-            return Some(format!(
-                "failed forwarding RDP bitmap frame: handle_bitmap failed on the Go side",
-            ));
+            return Some("failed forwarding RDP bitmap frame: handle_bitmap failed on the Go side");
         }
     }
     None
