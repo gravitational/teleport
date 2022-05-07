@@ -12,9 +12,9 @@ At a high level, implementing drive (folder) redirection for Teleport is a matte
 (described in this document).
 
 ```
-                         Teleport Desktop Protocol                         RDP
-                ------------------------------------------        ---------------------
-                |                                        |        |                   |
+                        Teleport Desktop Protocol                         RDP
+               ------------------------------------------        ---------------------
+               |                                        |        |                   |
 +----------------------+     +------------------+  +------------------+     +------------------+
 |                      |     |                  |  |                  |     |                  |
 |                      |     |                  |  |    Teleport      |     |                  |
@@ -25,7 +25,8 @@ At a high level, implementing drive (folder) redirection for Teleport is a matte
 
 RDP is an old protocol, and is designed in some ways to be deeply compatible with Windows operating system, which means that it contains a lot of details that
 aren't necessarily relevant or available to our client, which is limited to sort of file information is available to us through the browser. While this reality
-creates its own set of implementation difficulties for us, it also creates an opportunity for us to simplify drive redirection in the TDP protocol.
+creates its own set of implementation difficulties for us, it also creates an opportunity for us to simplify drive redirection (aka "directory sharing") in the
+TDP protocol.
 
 Being such a longstanding, large, and complex protocol, it can sometimes be difficult to tell from it's documentation precisely how RDP is actually supposed to
 work. Adding to that difficulty is the File System Virtual Channel Extension designer's decision to leave some aspects of client and server dynamics unspecified:
@@ -44,7 +45,8 @@ document, it should be assumed that we follow FreeRDP's conventions and algorith
 
 After the initial drive negotiation, RDP directs the remote machine's use of the drive by sending
 [`Device I/O Request`s](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d). These requests are only sent
-from the server (the Windows Desktop) to the client (the Rust client running on Teleport's Windows Desktop Service).
+from the server (the Windows Desktop) to the client (the Rust client running on Teleport's Windows Desktop Service). Each `Device I/O Request` contains the fields
+described below, and may contain an additional data structure determined by it's `MajorFunction`/`MinorFunction`.
 
 #### `DeviceId`
 
@@ -113,43 +115,42 @@ means "create a new file or directory", however it turns out this is only the ca
 
 In fact, `IRP_MJ_CREATE` is sent at the beginning of any operation the server wants to execute. It most commonly just tells the client "create a reference to a
 file/directory and give it a `FileId`". The client does so and sends that `FileId` back to the server in response, and that `FileId` is then used in subsequent
-`Device I/O Request`s that act on that file/
-directory, such as reading or writing. Once the operation is complete, the server sends a `IRP_MJ_CLOSE`, which typically means "remove the reference you created
-previously".
+`Device I/O Request`s that act on that file/directory, such as reading or writing. Once the operation is complete, the server sends a `IRP_MJ_CLOSE`, which typically
+means "remove the reference you created previously".
 
 As an example, here is what happens when the client first announces a new folder for redirection:
 
 ```
-                RDP Server                            RDP Client
-                (Windows Machine)                     (Windows Desktop Service)
-                        |                                    |
-                        | Client Device List Announce Request|
-                        |<-----------------------------------+
-                        |                                    |
-                        |Server Device Announce Response     |
-                        +----------------------------------->|
-                        |                                    |
-                        |Device Create Request               |Generates a FileId corresponding to
-                        |(IRP_MJ_CREATE)                     |the requested Path (which is "", meaning
-                        +----------------------------------->|the top level directory)
-                        |                                    |
-                        |Device Create Response              |and responds with it.
-                        |<-----------------------------------+
-                        |                                    |
-                        |Drive Query Information Request     |
-Asks for metadata about |(IRP_MJ_QUERY_INFORMATION)          |
-the tld.                +----------------------------------->|
-                        |                                    |
-                        |Drive Query Information Response    |
-                        |<-----------------------------------+Replies with the metadata
-                        |                                    |
-                        |Device Close Request                |
-                        |(IRP_MJ_CLOSE)                      |Operation complete, the previously
-                        +----------------------------------->|generated FileId can now be recycled
-                        |                                    |
-                        |                                    |
-                        |                                    |
-                        |                                    |
+               RDP Server                            RDP Client
+               (Windows Machine)                     (Windows Desktop Service)
+                       |                                    |
+                       | Client Device List Announce Request|
+                       |<-----------------------------------+
+                       |                                    |
+                       |Server Device Announce Response     |
+                       +----------------------------------->|
+                       |                                    |
+                       |Device Create Request               |Generates a FileId corresponding to
+                       |(IRP_MJ_CREATE)                     |the requested Path (which is "", meaning
+                       +----------------------------------->|the top level directory), internally creating some
+                       |                                    |sort of file handle.
+                       |Device Create Response              |
+                       |<-----------------------------------+and responds with the FileId.
+                       |                                    |
+                       |Drive Query Information Request     |
+Asks for metadata about|(IRP_MJ_QUERY_INFORMATION)          |
+the tld.               +----------------------------------->|
+                       |                                    |
+                       |Drive Query Information Response    |
+                       |<-----------------------------------+Replies with the metadata
+                       |                                    |
+                       |Device Close Request                |
+                       |(IRP_MJ_CLOSE)                      |Operation complete, the previously
+                       +----------------------------------->|generated FileId can now be recycled
+                       |                                    |and internal file handle can be deleted.
+                       |                                    |
+                       |                                    |
+                       |                                    |
 ```
 
 A similar process would then take place for other operations, for example a read of a file in the shared directory named `example.txt` would look like
@@ -160,241 +161,12 @@ A similar process would then take place for other operations, for example a read
 4. client executes the read and responds with the data
 5. server sends `IRP_MJ_CLOSE`
 
-## RDP --> TDP Translation
-
-The following section walks through each possible `Device I/O Request`
-(`MajorFunction`) and describe the TDP <--> RDP interface that we will use to handle them. As mentioned in the introduction, we will be considering FreeRDP as the
-canonical implementation, whose entrypoint for handling `Device I/O Request`s
-can be found [here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L691-L749).
-
-#### `IRP_MJ_CREATE`
-
-RDP request: [`Device Create Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e)`Device Create Request`
-
-RDP response: [`Device Create Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76)
-
-FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L151)
-
-Note that the `SharedAccess` and `DesiredAccess` fields of the `Device Create Request`
-will be ignored. `SharedAccess` is related to file locking, which typically only has an "advisory" (as opposed to "mandatory") implementation on Unix-based OS's
-and we will assume is unimportant ([more here](https://www.thegeekstuff.com/2012/04/linux-file-locking-types/)). In FreeRDP `DesiredAccess` essentially sets
-[whether or not the file is writeable](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L702). Because
-file handles in the browser are always writeable, we will simply ignore this field.
-
-Our client will start by taking the `DeviceId`, `CompletionId`, and `Path` fields from the `Device Create Request`
-and sending them on to the client in their corresponding fields in the `Shared Directory Info Request`. The algorithm will work as does the meat of the FreeRDP
-algorithm (found [here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207-L332)). where
-`GetFileAttributesW` is substituted with `Shared Directory Info Request`, and `CreateDirectoryW` and `CreateFileW` are substituted with a `Shared Directory Create Request`
-(roughly speaking. Note that our `Shared Directory Create Request` fails if the file/directory already exists whereas `CreateDirectoryW` and `CreateFileW` don't
-necessarily, and so our algorithm should account for this).
-
-##### `file_id_cache`
-
-Upon the successful execution of the algorithmic translation, our client will also create an entry in an internal `file_id_cache` indexed by `FileId`, with an
-object that looks like:
-
-```json
-{
-  "path": "relative/path/to/file/or/dir",
-  "delete_pending": false,
-  "fsos": [], // list of File System Objects, see below
-  "fsos_index": 0
-}
-```
-
-This is our version of the `IRP_MJ_CREATE` semantics of "create a reference to a file/directory and give it a `FileId`" discussed above, and will be used in
-responding to other `MajorFunctions` as needed. All other `MajorFunctions` should begin by checking that an entry at `FileId` exists in this cache, and return an
-[`Device Close Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5) with `IoStatus` set to
-`STATUS_UNSUCCESSFUL` if it does not.
-
-#### `IRP_MJ_CLOSE`
-
-RDP request: [`Device Close Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3ec6627f-9e0f-4941-a828-3fc6ed63d9e7)
-
-RDP response: [`Device Close Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5)
-
-FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L236)
-
-If file's `file_id_cache` entry has `delete_pending == true`, we'll send a `Shared Directory Delete Request` to the client and it's resultant `Shared Directory Delete Response`
-or `Shared Directory Error` will be translated into an appropriate `Device Close Response`.
-The `file_id_cache` entry then must be deleted (even if the `Shared Directory Delete Request` fails).
-
-#### `IRP_MJ_READ`
-
-RDP request: [`Device Read Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3192516d-36a6-47c5-987a-55c214aa0441)
-
-RDP response: [`Device Read Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9)
-
-FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L268)
-
-The `Length` and `Offset` fields should be passed on to their corresponding fields in a `Shared Directory Read Request` and sent to the client, and corresponding
-fields in the `Shared Directory Read Response` or `Shared Directory Error` the client sends back should be packaged into a
-`Device Read Response` and retuned to the RDP server.
-
-#### `IRP_MJ_WRITE`
-
-RDP request: [`Device Write Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/2e25f0aa-a4ce-4ff3-ad62-ab6098280a3a)
-
-RDP response: [`Device Write Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/58160a47-2379-4c4a-a99d-24a1a666c02a)
-
-FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L326)
-
-The `Offset`, `Length`, and `WriteData` fields should be translated to their corresponding fields in a `Shared Directory Write Request` and passed to the client,
-and the corresponding fields in the `Shared Directory Write Response` or `Shared Directory Error` should be translated into an
-`Device Write Response` and sent back to the RDP server.
-
-#### `IRP_MJ_QUERY_INFORMATION`
-
-RDP request: [`Server Drive Query Information Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/e43dcd68-2980-40a9-9238-344b6cf94946)
-
-RDP response: [`Client Drive Query Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4)
-
-FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L373)
-
-This request asks for information about a file or directory in the form of `FileBasicInformation`,
-[`FileStandardInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/5afa7f66-619c-48f3-955f-68c4ece704ae), or
-[`FileAttributeTagInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/d295752f-ce89-4b98-8553-266d37c84f0e), which collectively ask
-for the following fields, mapped to the `Shared Directory Info Response` fields we will fill them out with the following mapping to `File System Object` fields:
-
-- `CreationTime` --> `last_modified`
-- `LastAccessTime` --> `last_modified`
-- `LastWriteTime` --> `last_modified`
-- `ChangeTime` --> `last_modified`
-- [`FileAttributes`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca28ec38-f155-4768-81d6-4bfeb8586fc9) --> `file_type = file` maps to `FILE_ATTRIBUTE_NORMAL`, `file_type = directory` maps to `FILE_ATTRIBUTE_DIRECTORY`
-- `AllocationSize` --> `size`
-- `EndOfFile` --> `size`
-- `NumberOfLinks` --> 0
-- `DeletePending` --> `file_id_cache[FileId].delete_pending`
-- and `Directory` --> `TRUE` if `file_type = directory` else `FALSE`
-
-#### `IRP_MJ_SET_INFORMATION`
-
-RDP Request: [`Server Drive Set Information Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/b5d3104b-0e42-4cf8-9059-e9fe86615e5c)
-
-RDP Response: [`Client Drive Set Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970)
-
-FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L404)
-
-This message is sent by the RDP server to the client in order to modify a file's metadata, truncate its size, or mark it for deletion. Which of these operations
-its intended for is determined by the `FsInformationClass` field, which will determine our response (also see
-[FreeRDP' implementation](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L579) for reference):
-
-`FileBasicInformation`: This type of request is for
-setting file metadata like creation time, last access time, etc. We don't have this level of access to file attributes in the browser. Fortunately, this degree of
-control isn't critical for the basic application of sharing a directory of standard files, so we will just ignore these types of requests and send back a
-`Client Drive Set Information Response` with
-`IoStatus = STATUS_SUCCESS`.
-
-[`FileEndOfFileInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/75241cca-3167-472f-8058-a52d77c6bb17) or
-[`FileAllocationInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/0201c69b-50db-412d-bab3-dd97aeede13b): This is a "truncate"
-request. It's not quite clear how this might be implemented on the client. I've determined empirically that we can just send back a
-`Client Drive Set Information Response` with
-`IoStatus = STATUS_SUCCESS` here without doing anything, and nothing breaks for editing basic text files, so we will start with that and reassess if we run into
-problems.
-
-[`FileDispositionInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/12c3dd1c-14f6-4229-9d29-75fb2cb392f6): This type of message can
-mark a file or directory for deletion, which we will do by marking the corresponding entry in `file_id_cache` with `delete_pending: true`. The actual deletion is
-not carried out here (see `IRP_MJ_CLOSE`).
-
-[`FileRenameInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/1d2673a8-8fb9-4868-920a-775ccaa30cf8): Sent to rename a file. If
-`ReplaceIfExists == FALSE`, start the operation with a `Shared Directory Info Request` for the `FileName` and only continue if we receive a "resource does not
-exist" `Shared Directory Error`. Send a `Shared Directory Move Request`, using `file_id_cache.path` for `original_path` and `FileName` for `new_path`.
-
-#### `IRP_MJ_DIRECTORY_CONTROL`
-
-RDP Request: [`Server Drive Query Directory Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1)
-
-RDP Response: [`Client Drive Query Directory Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140)
-
-FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L650)
-
-The above RDP request and response correspond to `MajorFunction = IRP_MJ_DIRECTORY_CONTROL`, `MinorFunction = IRP_MN_QUERY_DIRECTORY`. There is another possible
-`MinorFunction` called `IRP_MN_NOTIFY_CHANGE_DIRECTORY`,
-[but like FreeRDP we will ignore it](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L660).
-
-The way these requests work is somewhat odd -- first, a directory will be "opened" with an `IRP_MJ_OPEN` (per usual), then it will receive a series of
-`IRP_MJ_DIRECTORY_CONTROL` requests, each asking for an individual item in the identified directory, before being closed with an `IRP_MJ_CLOSE` (also per usual).
-The first of the series of requests will have `InitialQuery` set to `TRUE`, while subsequent requests will have it set to `FALSE`. Unlike most RDP messages,
-`Client Drive Query Directory Response`s do allow
-for [dot directory names](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/fccd0313-0364-45bd-b75c-924fd6a5662f), and when running FreeRDP on
-MacOS the first two
-`Client Drive Query Directory Response`s are always
-for `"."` and `".."`.
-
-Upon receipt of an `Server Drive Query Directory Request`
-with `InitialQuery` set to `TRUE`, we will extract the `path` from the `file_id_cache` and execute a `Shared Directory List Request`, whose `Shared Directory List Response`
-will be stored in `file_id_cache.fsos`. (If the client instead responds with a "resource does not exist" `Shared Directory Error`, we must send back a `Client I/O Response`
-with `IoStatus` set to `STATUS_NO_SUCH_FILE`). The client can then respond with a `Client Drive Query Directory Response` for `"."`.
-
-We will now expect a subsequent
-`Server Drive Query Directory Request` with
-`InitialQuery` now set to `FALSE`, to which we'll respond back with a
-`Client Drive Query Directory Response` for `".."`
-with a set of default values (listed below). On subsequent requests, we will take `file_id_cache.fsos[file_id_cache.fsos_index]` and send it back in a
-`Client Drive Query Directory Response`,
-incrementing `file_id_cache.fsos_index` each time. Finally, we'll recieve a
-`Server Drive Query Directory Request` for which we
-have no additional item to report back, at which point we will send back a `Client I/O Response` with `IoStatus` set to `STATUS_NO_SUCH_FILE`, thus ending the
-sequence (at which point the server will send us an `IRP_MJ_CLOSE` for this `FileId`).
-
-`Server Drive Query Directory Request` can ask for
-information back in any of the following formats:
-[`FileDirectoryInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/b38bf518-9057-4c88-9ddd-5e2d3976a64b),
-[`FileFullDirectoryInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e8d926d1-3a22-4654-be9c-58317a85540b),
-[`FileBothDirectoryInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/270df317-9ba5-4ccb-ba00-8d22be139bc5), or
-[`FileNamesInformation`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/a289f7a8-83d2-4927-8c88-b2d328dde5a5) (handled by FreeRDP starting
-[here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L796)). Collectively these data
-structures will be filled out with the following mapping to `File System Object` fields. In case such fields don't exist (such as for the `".."` directory), I've
-included a default mapping value as well:
-
-- `CreationTime` --> `last_modified`, 0 (default)
-- `LastAccessTime` --> `last_modified`, 0
-- `LastWriteTime` --> `last_modified`, 0
-- `ChangeTime` --> `last_modified`, 0
-- [`FileAttributes`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca28ec38-f155-4768-81d6-4bfeb8586fc9) --> `file_type = file` maps to `FILE_ATTRIBUTE_NORMAL`, `file_type = directory` maps to `FILE_ATTRIBUTE_DIRECTORY`, default `FILE_ATTRIBUTE_DIRECTORY`
-- `AllocationSize` --> `size`, 0
-- `EndOfFile` --> `size`, 0
-- `FileName` --> last path item in the `path`
-
-#### `IRP_MJ_LOCK_CONTROL`
-
-[FreeRDP silently ignores these messages](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L579) and so will we.
-
-#### `IRP_MJ_QUERY_VOLUME_INFORMATION`
-
-RDP request: [`Server Drive Query Volume Information Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/484e622d-0e2b-423c-8461-7de38878effb)
-
-RDP response: [`Client Drive Query Volume Information Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/fbdc7db8-a268-4420-8b5e-ce689ad1d4ac)
-
-FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L442)
-
-This request comes to us as a in search of low level information about the folder we are sharing. This information is not available to us via the browser, so there
-is no corresponding TDP message in this case. We will simply follow what FreeRDP does
-[here](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L442-L581). We will emulate
-[`GetDiskFreeSpaceW`](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1025-L1041) by using
-[`UINT32_MAX`] for each of `lpSectorsPerCluster`, `lpNumberOfFreeClusters`, and `lpTotalNumberOfClusters`, and `1` for `lpBytesPerSector` (taken from
-[`GetDiskFreeSpaceA`](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1007-L1023)).
-
-Hopefully this is good enough to keep everything running smoothly. We will need to experiment manually to check that this approach doesn't cause any obvious
-problems, and reassess if it does.
-
-#### `IRP_MJ_DEVICE_CONTROL`
-
-This is effectively a no-op [in FreeRDP](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684).
-We have an implementation of it in order to handle our smartcard simulation, but it's irrelevant to this document.
-
-#### `IRP_MJ_SET_VOLUME_INFORMATION`
-
-This is not supported by FreeRDP and causes it to execute
-[the `default` case](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L742-L745) which we will
-emulate.
-
 ## TDP File Shared Directory Extension
 
-Extends the TDP protocol, the rest of which is specified [here](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md). Note
-that "file" in the following context should be taken to mean "file or directory".
+Our RDP client lives on the Windows Desktop Service, while the directory we're sharing is exposed to us via the user's browser. This means that in order to get information to and from the shared directory,
+we must extends the TDP protocol (see the diagram in the `Introduction` section for reference).
 
-Each `* Request` and `* Response` message contains a `completion_id` field, with `* Request`s being responsible for generating the `completion_id`s, and `* Response`s being responsible for
+Each `* Request` and `* Response` TDP message contains a `completion_id` field, with `* Request`s being responsible for generating the `completion_id`s, and `* Response`s being responsible for
 including the correct `completion_id` to signify which `* Request` the response is intended for.
 
 #### 11 - Shared Directory Announce
@@ -696,3 +468,74 @@ For now, all errors will be unspecified, and translated into
 [`NTSTATUS::STATUS_UNSUCCESSFUL`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55) over RDP. Later, we
 can add more specific error messages for more specific RDP error handling,
 [as they do in FreeRDP](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L67-L132).
+
+## RDP --> TDP Translation for `IRP_MJ_READ`
+
+It's beyond the scope of this document to detail the RDP --> TDP translation of every `MajorFunction`, however I here is one example of the task at hand
+for `IRP_MJ_READ`, for clarity's sake.
+
+RDP request: [`Device Read Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3192516d-36a6-47c5-987a-55c214aa0441)
+
+RDP response: [`Device Read Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9)
+
+FreeRDP: [entry point](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L268)
+
+Our Windows Desktop Service receives the following `Device Read Request`
+
+```
+DeviceReadRequest {
+  DeviceIoRequest: DeviceIoRequest {
+    Header: ommitted,
+    DeviceId: 2,
+    FileId: 3,
+    CompletionId: 4,
+    MajorFunction: IRP_MJ_READ,
+    MinorFunction: 0x00000000,
+  },
+  Length: 1024,
+  Offset: 2048,
+}
+```
+
+First we consult our internal cache of psuedo "file handles" for an entry where `FileId = 3`, which would have been created while fielding a previous successful `IRP_MJ_CREATE`.
+From that we'll grab the `path` corresponding to this file (lets say "example/file.txt"). No we have all the information required to create a TDP `Shared Directory Read Request`:
+
+```
+SharedDirectoryReadRequest: {
+  message_type: 19,
+  completion_id: 4,
+  directory_id: 2,
+  path_length: 16,
+  path: "example/file.txt",
+  offset: 2048,
+  length: 1024,
+}
+```
+
+Presuming the request succeeds, we expect back a response like:
+
+```
+SharedDirectoryReadResponse {
+  completion_id: 4,
+  err: 0,
+  read_data_length: 1024,
+  read_data: [...],
+}
+```
+
+Which we can then package into an RDP `Device Read Response`
+
+```
+DeviceReadResponse {
+  DeviceIoReply: DeviceIoResponse {
+    Header: ommitted,
+    DeviceId: 2,
+    CompletionId: 4,
+    IoStatus: NTSTATUS.STATUS_SUCCESS,
+  }
+  Length: 1024,
+  ReadData: [...],
+}
+```
+
+This is clearly the "happy path" for this process, error mode handling thas been ommitted here. Note that not all `MajorFunctions` have such straightforward translations, and some will require multiple TDP messages to complete their translation.
