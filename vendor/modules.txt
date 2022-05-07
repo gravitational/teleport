@@ -445,7 +445,7 @@ github.com/gravitational/configure/jsonschema
 # github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 ## explicit
 github.com/gravitational/form
-# github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
+# github.com/gravitational/kingpin v2.1.11-0.20220506065057-8b7839c62700+incompatible
 ## explicit
 github.com/gravitational/kingpin
 # github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
