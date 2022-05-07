@@ -371,12 +371,20 @@ func (e *Engine) extractToken(dumpResp []byte, sessCb func(string) (string, erro
 		return nil, err
 	}
 
-	gzBody, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return nil, err
+	var bodyReader io.Reader
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		defer gzipReader.Close()
+
+		bodyReader = gzipReader
+	} else {
+		bodyReader = resp.Body
 	}
 
-	bodyBytes, err := io.ReadAll(gzBody)
+	bodyBytes, err := io.ReadAll(bodyReader)
 	if err != nil {
 		return nil, err
 	}
@@ -384,6 +392,10 @@ func (e *Engine) extractToken(dumpResp []byte, sessCb func(string) (string, erro
 	loginResp := &LoginResponse{}
 	if err := json.Unmarshal(bodyBytes, loginResp); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if loginResp.Success == false {
+		return nil, trace.Errorf("snowflake authentication failed: %s", loginResp.Message)
 	}
 
 	e.connectionToken = loginResp.Data["token"].(string)
