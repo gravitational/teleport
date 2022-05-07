@@ -21,8 +21,8 @@
 #define CHANNEL_CHUNK_LEGNTH 1600
 
 typedef enum CGOErrCode {
-  ErrCodeSuccess,
-  ErrCodeFailure,
+  ErrCodeSuccess = 0,
+  ErrCodeFailure = 1,
 } CGOErrCode;
 
 typedef enum CGOPointerButton {

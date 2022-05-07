@@ -701,8 +701,8 @@ unsafe fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
 pub enum CGOErrCode {
-    ErrCodeSuccess,
-    ErrCodeFailure,
+    ErrCodeSuccess = 0,
+    ErrCodeFailure = 1,
 }
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'
