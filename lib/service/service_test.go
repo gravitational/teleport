@@ -492,6 +492,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
+				"teleport-snowflake",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
