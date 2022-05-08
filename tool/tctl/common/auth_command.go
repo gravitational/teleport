@@ -327,7 +327,8 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
-	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach, identityfile.FormatRedis:
+	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
+		identityfile.FormatRedis, identityfile.FormatCassandra:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
 	}
 	switch {

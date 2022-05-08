@@ -18,12 +18,16 @@ limitations under the License.
 package identityfile
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -33,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/gravitational/trace"
+
+	"github.com/pavel-v-chernykh/keystore-go/v4"
 )
 
 // Format describes possible file formats how a user identity can be stored.
@@ -70,6 +76,8 @@ const (
 	// configuring a Redis database for mutual TLS.
 	FormatRedis Format = "redis"
 
+	FormatCassandra Format = "cassandra"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
@@ -79,7 +87,7 @@ type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis}
+	FormatCockroach, FormatRedis, FormatCassandra}
 
 // String returns human-readable version of FormatList, ex:
 // file, openssh, tls, kubernetes
@@ -273,6 +281,82 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			}
 		}
 		err = writer.WriteFile(casPath, caCerts, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case FormatCassandra:
+		certBlock, _ := pem.Decode(cfg.Key.TLSCert)
+		privBlock, _ := pem.Decode(cfg.Key.Priv)
+
+		privKey, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		privKeyPkcs8, err := x509.MarshalPKCS8PrivateKey(privKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ks := keystore.New()
+		pkeIn := keystore.PrivateKeyEntry{
+			CreationTime: time.Now(),
+			PrivateKey:   privKeyPkcs8,
+			CertificateChain: []keystore.Certificate{
+				{
+					Type:    "x509",
+					Content: certBlock.Bytes,
+				},
+			},
+		}
+
+		if err := ks.SetPrivateKeyEntry("cassandra", pkeIn, []byte("teleport")); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		keystoreBuf := &bytes.Buffer{}
+		if err := ks.Store(keystoreBuf, []byte("teleport")); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		certPath := cfg.OutputPath + ".keystore"
+		casPath := cfg.OutputPath + ".truststore"
+		filesWritten = append(filesWritten, certPath, casPath)
+		err = writer.WriteFile(certPath, keystoreBuf.Bytes(), identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		///////// CA export ////////////
+		var caCerts []byte
+		for _, ca := range cfg.Key.TrustedCA {
+			for _, cert := range ca.TLSCertificates {
+				block, _ := pem.Decode(cert)
+				caCerts = append(caCerts, block.Bytes...)
+			}
+		}
+
+		ts := keystore.New()
+
+		trustIn := keystore.TrustedCertificateEntry{
+			CreationTime: time.Now(),
+			Certificate: keystore.Certificate{
+				Type:    "x509",
+				Content: caCerts,
+			},
+		}
+
+		if err := ts.SetTrustedCertificateEntry("cassandra", trustIn); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		truststoreBuf := &bytes.Buffer{}
+		if err := ts.Store(truststoreBuf, []byte("teleport")); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = writer.WriteFile(casPath, truststoreBuf.Bytes(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

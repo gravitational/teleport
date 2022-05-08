@@ -166,6 +166,9 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolSQLServer:
 		return c.getSQLServerCommand(), nil
+
+	case defaults.ProtocolCassandra:
+		return c.getCassandraCommand(), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -454,6 +457,10 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	}
 
 	return c.exe.Command(mssqlBin, args...)
+}
+
+func (c *CLICommandBuilder) getCassandraCommand() *exec.Cmd {
+	return c.exe.Command("cqlsh", "--protocol-version", "4", "--ssl")
 }
 
 type connectionCommandOpts struct {
