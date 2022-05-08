@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/sirupsen/logrus"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
@@ -2444,6 +2445,7 @@ func (c *Client) GetResources(ctx context.Context, namespace, resourceType strin
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
 				chunkSize = chunkSize / 2
+				logrus.WithError(err).Warnf("ListResources exceeded limit, trying again with limit: %d", chunkSize)
 				if chunkSize == 0 {
 					return nil, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
 				}
