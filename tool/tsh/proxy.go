@@ -661,6 +661,8 @@ func dbProtocolToText(protocol string) string {
 		return "Redis"
 	case defaults.ProtocolSQLServer:
 		return "SQL Server"
+	case defaults.ProtocolCassandra:
+		return "Cassandra"
 	}
 	return ""
 }

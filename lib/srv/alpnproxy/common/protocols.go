@@ -47,6 +47,9 @@ const (
 	// ProtocolSnowflake is TLS ALPN protocol value used to indicate Snowflake protocol.
 	ProtocolSnowflake Protocol = "teleport-snowflake"
 
+	// ProtocolCassandra is the TLS ALPN protocol value used to indicate Cassandra protocol.
+	ProtocolCassandra Protocol = "teleport-cassandra"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
@@ -100,6 +103,21 @@ var SupportedProtocols = append(
 		ProtocolTCP,
 	}, DatabaseProtocols...)...,
 )
+var SupportedProtocols = []Protocol{
+	ProtocolHTTP2,
+	ProtocolHTTP,
+	ProtocolPostgres,
+	ProtocolMySQL,
+	ProtocolMongoDB,
+	ProtocolRedisDB,
+	ProtocolSQLServer,
+	ProtocolSnowflake,
+	ProtocolCassandra,
+	ProtocolProxySSH,
+	ProtocolReverseTunnel,
+	ProtocolAuth,
+	ProtocolTCP,
+}
 
 // ProtocolsToString converts the list of Protocols to the list of strings.
 func ProtocolsToString(protocols []Protocol) []string {
@@ -125,6 +143,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolSQLServer, nil
 	case defaults.ProtocolSnowflake:
 		return ProtocolSnowflake, nil
+	case defaults.ProtocolCassandra:
+		return ProtocolCassandra, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -141,6 +161,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolRedisDB,
 		ProtocolSQLServer,
 		ProtocolSnowflake,
+		ProtocolCassandra,
 	}
 
 	return slices.Contains(
@@ -157,6 +178,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolRedisDB,
 	ProtocolSQLServer,
 	ProtocolSnowflake,
+	ProtocolCassandra,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is

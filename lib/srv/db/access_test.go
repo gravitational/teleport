@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -1230,6 +1231,8 @@ type testContext struct {
 	sqlServer map[string]testSQLServer
 	// snowflake is a collection of Snowflake databases the test uses.
 	snowflake map[string]testSnowflake
+	// cassandra is a collection of Cassandra databases the test uses.
+	cassandra map[string]testCassandra
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1278,6 +1281,14 @@ type testSnowflake struct {
 	// db is the test Snowflake database server.
 	db *snowflake.TestServer
 	// resource is the resource representing this Snowflake database.
+	resource types.Database
+}
+
+// testCassandra represents a single proxied Cassandra database.
+type testCassandra struct {
+	// db is the test Cassandra database server.
+	db *cassandra.TestServer
+	// resource is the resource representing this Cassandra database.
 	resource types.Database
 }
 
@@ -1539,6 +1550,27 @@ func (c *testContext) sqlServerClient(ctx context.Context, teleportUser, dbServi
 	return client, proxy, nil
 }
 
+// cassandraClient connects to test Cassandra through database access as a specified Teleport user and database account.
+func (c *testContext) cassandraClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...cassandra.ClientOptions) (*cassandra.Session, error) {
+	return c.cassandraClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
+}
+
+// cassandraClientWithAddr is like cassandraClient but allows overriding connection address.
+func (c *testContext) cassandraClientWithAddr(ctx context.Context, proxyAddress, teleportUser, dbService, dbUser string, opts ...cassandra.ClientOptions) (*cassandra.Session, error) {
+	return cassandra.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient: c.authClient,
+		AuthServer: c.authServer,
+		Address:    proxyAddress,
+		Cluster:    c.clusterName,
+		Username:   teleportUser,
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: dbService,
+			Protocol:    defaults.ProtocolCassandra,
+			Username:    dbUser,
+		},
+	}, opts...)
+}
+
 // startLocalALPNProxy starts local ALPN proxy for the specified database.
 func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, teleportUser string, route tlsca.RouteToDatabase) (*alpnproxy.LocalProxy, error) {
 	key, err := client.GenerateRSAKey()
@@ -1678,6 +1710,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		redis:       make(map[string]testRedis),
 		sqlServer:   make(map[string]testSQLServer),
 		snowflake:   make(map[string]testSnowflake),
+		cassandra:   make(map[string]testCassandra),
 		clock:       clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })

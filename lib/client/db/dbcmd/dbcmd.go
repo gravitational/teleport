@@ -19,6 +19,7 @@
 package dbcmd
 
 import (
+	"bytes"
 	"fmt"
 	"net/url"
 	"os"
@@ -26,6 +27,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -59,6 +61,8 @@ const (
 	mssqlBin = "mssql-cli"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
+	// cqlshBin is the Cassandra client program name.
+	cqlshBin = "cqlsh"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -173,6 +177,8 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolSnowflake:
 		return c.getSnowflakeCommand(), nil
+	case defaults.ProtocolCassandra:
+		return c.getCassandraCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -504,6 +510,71 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 
 	return cmd
 }
+
+func (c *CLICommandBuilder) getCassandraCommand() (*exec.Cmd, error) {
+	cfgPath, err := c.createCassandraCfgFile()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	args := []string{
+		"-u", c.db.Username,
+		"--cqlshrc", cfgPath,
+	}
+
+	if !c.options.noTLS {
+		args = append(args, "--ssl")
+	}
+
+	return c.exe.Command(cqlshBin, args...), nil
+}
+
+func (c *CLICommandBuilder) createCassandraCfgFile() (string, error) {
+	opts := struct {
+		Certfile    string
+		Userkey     string
+		Usercertkey string
+		Port        int
+	}{
+		Certfile:    c.profile.CACertPathForCluster(c.rootCluster),
+		Userkey:     c.profile.KeyPath(),
+		Usercertkey: c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		Port:        c.port,
+	}
+	buf := &bytes.Buffer{}
+	err := cqlshrcTmpl.Execute(buf, opts)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// TODO(jakule): Should we remove the file somehow?
+	cfg, err := os.CreateTemp("", "cqlshrc")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if _, err := cfg.Write(buf.Bytes()); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if err := cfg.Close(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return cfg.Name(), nil
+}
+
+var cqlshrcTmpl = template.Must(template.New("").Parse(`[connection]
+hostname = 127.0.0.1
+port = {{.Port}}
+factory = cqlshlib.ssl.ssl_transport_factory
+
+[ssl]
+validate = true
+certfile = {{.Certfile}}
+userkey = {{.Userkey}}
+usercert = {{.Usercertkey}}
+`))
 
 type connectionCommandOpts struct {
 	localProxyPort           int

@@ -18,6 +18,7 @@ limitations under the License.
 package identityfile
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -26,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -35,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/gravitational/trace"
+
+	"github.com/pavel-v-chernykh/keystore-go/v4"
 )
 
 // Format describes possible file formats how a user identity can be stored.
@@ -75,6 +79,9 @@ const (
 	// FormatSnowflake produces public key in the format suitable for
 	// configuration Snowflake JWT access.
 	FormatSnowflake Format = "snowflake"
+	// FormatCassandra produces CA and key pair in the format suitable for
+	// configuring a Cassandra database for mutual TLS.
+	FormatCassandra Format = "cassandra"
 
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
@@ -85,7 +92,7 @@ type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis, FormatSnowflake}
+	FormatCockroach, FormatRedis, FormatSnowflake, FormatCassandra}
 
 // String returns human-readable version of FormatList, ex:
 // file, openssh, tls, kubernetes
@@ -316,6 +323,32 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case FormatCassandra:
+		// create private key + certificate bundle
+		keystoreBuf, err := prepareCassandraKeystore(cfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// create CA bundle
+		truststoreBuf, err := prepareCassandraTruststore(cfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		certPath := cfg.OutputPath + ".keystore"
+		casPath := cfg.OutputPath + ".truststore"
+		filesWritten = append(filesWritten, certPath, casPath)
+		err = writer.WriteFile(certPath, keystoreBuf.Bytes(), identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = writer.WriteFile(casPath, truststoreBuf.Bytes(), identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, cfg.OutputPath)
 		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
@@ -342,6 +375,76 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		return nil, trace.BadParameter("unsupported identity format: %q, use one of %s", cfg.Format, KnownFileFormats)
 	}
 	return filesWritten, nil
+}
+
+func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
+	var caCerts []byte
+	for _, ca := range cfg.Key.TrustedCA {
+		for _, cert := range ca.TLSCertificates {
+			block, _ := pem.Decode(cert)
+			caCerts = append(caCerts, block.Bytes...)
+		}
+	}
+
+	ts := keystore.New()
+
+	trustIn := keystore.TrustedCertificateEntry{
+		CreationTime: time.Now(),
+		Certificate: keystore.Certificate{
+			Type:    "x509",
+			Content: caCerts,
+		},
+	}
+
+	if err := ts.SetTrustedCertificateEntry("cassandra", trustIn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	truststoreBuf := &bytes.Buffer{}
+	if err := ts.Store(truststoreBuf, []byte("teleport")); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return truststoreBuf, nil
+}
+
+func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
+	certBlock, _ := pem.Decode(cfg.Key.TLSCert)
+	privBlock, _ := pem.Decode(cfg.Key.Priv)
+
+	privKey, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privKeyPkcs8, err := x509.MarshalPKCS8PrivateKey(privKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ks := keystore.New()
+	pkeIn := keystore.PrivateKeyEntry{
+		CreationTime: time.Now(),
+		PrivateKey:   privKeyPkcs8,
+		CertificateChain: []keystore.Certificate{
+			{
+				Type:    "x509",
+				Content: certBlock.Bytes,
+			},
+		},
+	}
+
+	// TODO(jakule): "teleport" password shouldn't be hardcoded
+	if err := ks.SetPrivateKeyEntry("cassandra", pkeIn, []byte("teleport")); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keystoreBuf := &bytes.Buffer{}
+
+	// TODO(jakule): "teleport" password shouldn't be hardcoded
+	if err := ks.Store(keystoreBuf, []byte("teleport")); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keystoreBuf, nil
 }
 
 func checkOverwrite(writer ConfigWriter, force bool, paths ...string) error {
