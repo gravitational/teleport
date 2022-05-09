@@ -152,7 +152,7 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
+	oidcClient, err := s.a.getOrCreateOIDCClient(context.Background(), connector)
 	require.NoError(t, err)
 
 	// Verify HTTP endpoints return trace.NotFound.
@@ -336,7 +336,7 @@ func TestPingProvider(t *testing.T) {
 		Provider:     teleport.Ping,
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
+	oidcClient, err := s.a.getOrCreateOIDCClient(context.Background(), connector)
 
 	require.NoError(t, err)
 
