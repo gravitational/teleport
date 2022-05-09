@@ -25,4 +25,5 @@ tmp
 # test binaries produced by go
 *.test
 
+/macos/tshdev/tsh.app/Contents/MacOS/tsh
 /tool/modules/fips.go
