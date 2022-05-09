@@ -761,109 +761,113 @@ func Run(args []string, opts ...cliOption) error {
 	}
 	cf.ExtraProxyHeaders = confOptions.ExtraHeaders
 
-	switch {
-	case command == ver.FullCommand():
+	switch command {
+	case ver.FullCommand():
 		err = onVersion(&cf)
-	case command == ssh.FullCommand():
+	case ssh.FullCommand():
 		err = onSSH(&cf)
-	case command == bench.FullCommand():
+	case bench.FullCommand():
 		err = onBenchmark(&cf)
-	case command == join.FullCommand():
+	case join.FullCommand():
 		err = onJoin(&cf)
-	case command == scp.FullCommand():
+	case scp.FullCommand():
 		err = onSCP(&cf)
-	case command == play.FullCommand():
+	case play.FullCommand():
 		err = onPlay(&cf)
-	case command == ls.FullCommand():
+	case ls.FullCommand():
 		err = onListNodes(&cf)
-	case command == clusters.FullCommand():
+	case clusters.FullCommand():
 		err = onListClusters(&cf)
-	case command == login.FullCommand():
+	case login.FullCommand():
 		err = onLogin(&cf)
-	case command == logout.FullCommand():
+	case logout.FullCommand():
 		if err := refuseArgs(logout.FullCommand(), args); err != nil {
 			return trace.Wrap(err)
 		}
 		err = onLogout(&cf)
-	case command == show.FullCommand():
+	case show.FullCommand():
 		err = onShow(&cf)
-	case command == status.FullCommand():
+	case status.FullCommand():
 		err = onStatus(&cf)
-	case command == lsApps.FullCommand():
+	case lsApps.FullCommand():
 		err = onApps(&cf)
-	case command == appLogin.FullCommand():
+	case appLogin.FullCommand():
 		err = onAppLogin(&cf)
-	case command == appLogout.FullCommand():
+	case appLogout.FullCommand():
 		err = onAppLogout(&cf)
-	case command == appConfig.FullCommand():
+	case appConfig.FullCommand():
 		err = onAppConfig(&cf)
-	case command == kube.credentials.FullCommand():
+	case kube.credentials.FullCommand():
 		err = kube.credentials.run(&cf)
-	case command == kube.ls.FullCommand():
+	case kube.ls.FullCommand():
 		err = kube.ls.run(&cf)
-	case command == kube.login.FullCommand():
+	case kube.login.FullCommand():
 		err = kube.login.run(&cf)
-	case command == kube.sessions.FullCommand():
+	case kube.sessions.FullCommand():
 		err = kube.sessions.run(&cf)
-	case command == kube.exec.FullCommand():
+	case kube.exec.FullCommand():
 		err = kube.exec.run(&cf)
-	case command == kube.join.FullCommand():
+	case kube.join.FullCommand():
 		err = kube.join.run(&cf)
 
-	case command == proxySSH.FullCommand():
+	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf)
-	case command == proxyDB.FullCommand():
+	case proxyDB.FullCommand():
 		err = onProxyCommandDB(&cf)
-	case command == proxyApp.FullCommand():
+	case proxyApp.FullCommand():
 		err = onProxyCommandApp(&cf)
 
-	case command == dbList.FullCommand():
+	case dbList.FullCommand():
 		err = onListDatabases(&cf)
-	case command == dbLogin.FullCommand():
+	case dbLogin.FullCommand():
 		err = onDatabaseLogin(&cf)
-	case command == dbLogout.FullCommand():
+	case dbLogout.FullCommand():
 		err = onDatabaseLogout(&cf)
-	case command == dbEnv.FullCommand():
+	case dbEnv.FullCommand():
 		err = onDatabaseEnv(&cf)
-	case command == dbConfig.FullCommand():
+	case dbConfig.FullCommand():
 		err = onDatabaseConfig(&cf)
-	case command == dbConnect.FullCommand():
+	case dbConnect.FullCommand():
 		err = onDatabaseConnect(&cf)
-	case command == environment.FullCommand():
+	case environment.FullCommand():
 		err = onEnvironment(&cf)
-	case command == mfa.ls.FullCommand():
+	case mfa.ls.FullCommand():
 		err = mfa.ls.run(&cf)
-	case command == mfa.add.FullCommand():
+	case mfa.add.FullCommand():
 		err = mfa.add.run(&cf)
-	case command == mfa.rm.FullCommand():
+	case mfa.rm.FullCommand():
 		err = mfa.rm.run(&cf)
-	case command == reqList.FullCommand():
+	case reqList.FullCommand():
 		err = onRequestList(&cf)
-	case command == reqShow.FullCommand():
+	case reqShow.FullCommand():
 		err = onRequestShow(&cf)
-	case command == reqCreate.FullCommand():
+	case reqCreate.FullCommand():
 		err = onRequestCreate(&cf)
-	case command == reqReview.FullCommand():
+	case reqReview.FullCommand():
 		err = onRequestReview(&cf)
-	case command == reqSearch.FullCommand():
+	case reqSearch.FullCommand():
 		err = onRequestSearch(&cf)
-	case command == config.FullCommand():
+	case config.FullCommand():
 		err = onConfig(&cf)
-	case command == configProxy.FullCommand():
+	case configProxy.FullCommand():
 		err = onConfigProxy(&cf)
-	case command == aws.FullCommand():
+	case aws.FullCommand():
 		err = onAWS(&cf)
-	case command == daemonStart.FullCommand():
+	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
-	case command == f2Diag.FullCommand():
+	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
-	case tid != nil && command == tid.ls.FullCommand():
-		err = tid.ls.run(&cf)
-	case tid != nil && command == tid.rm.FullCommand():
-		err = tid.rm.run(&cf)
 	default:
-		// This should only happen when there's a missing switch case above.
-		err = trace.BadParameter("command %q not configured", command)
+		// Handle commands that might not be available.
+		switch {
+		case tid != nil && command == tid.ls.FullCommand():
+			err = tid.ls.run(&cf)
+		case tid != nil && command == tid.rm.FullCommand():
+			err = tid.rm.run(&cf)
+		default:
+			// This should only happen when there's a missing switch case above.
+			err = trace.BadParameter("command %q not configured", command)
+		}
 	}
 
 	if trace.IsNotImplemented(err) {
