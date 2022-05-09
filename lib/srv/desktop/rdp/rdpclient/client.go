@@ -226,7 +226,7 @@ func (c *Client) connect(ctx context.Context) error {
 		C.bool(c.cfg.AllowClipboard),
 	)
 	if res.err != C.ErrCodeSuccess {
-		return trace.ConnectionProblem(nil, "connect_rdp failed on the Rust side")
+		return trace.ConnectionProblem(nil, "RDP connection failed")
 	}
 	c.rustClient = res.client
 	return nil
@@ -291,7 +291,6 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); err != C.ErrCodeSuccess {
-					c.cfg.Log.Debugf("write_rdp_pointer failed on the Rust side")
 					return
 				}
 			case tdp.MouseButton:
@@ -317,7 +316,6 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); err != C.ErrCodeSuccess {
-					c.cfg.Log.Debugf("write_rdp_pointer failed on the Rust side")
 					return
 				}
 			case tdp.MouseWheel:
@@ -346,7 +344,6 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				); err != C.ErrCodeSuccess {
-					c.cfg.Log.Debugf("write_rdp_pointer failed on the Rust side")
 					return
 				}
 			case tdp.KeyboardButton:
@@ -357,7 +354,6 @@ func (c *Client) start() {
 						down: m.State == tdp.ButtonPressed,
 					},
 				); err != C.ErrCodeSuccess {
-					c.cfg.Log.Debugf("write_rdp_keyboard failed on the Rust side")
 					return
 				}
 			case tdp.ClipboardData:
@@ -367,7 +363,6 @@ func (c *Client) start() {
 						(*C.uint8_t)(unsafe.Pointer(&m[0])),
 						C.uint32_t(len(m)),
 					); err != C.ErrCodeSuccess {
-						c.cfg.Log.Debugf("update_clipboard failed on the Rust side")
 						return
 					}
 				} else {
@@ -454,7 +449,7 @@ func (c *Client) Close() {
 		c.handle.Delete()
 
 		if err := C.close_rdp(c.rustClient); err != C.ErrCodeSuccess {
-			c.cfg.Log.Warningf("close_rdp failed on the Rust side")
+			c.cfg.Log.Warningf("failed to close the RDP client")
 		}
 	})
 }
