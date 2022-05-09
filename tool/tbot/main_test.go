@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/utils/golden"
@@ -35,14 +34,14 @@ func TestRun_Configure(t *testing.T) {
 	// If we switch to a more dependency injected model for botfs, we can
 	// ensure that the test one returns the same value across operating systems.
 	normalizeOSDependentValues := func(data []byte) []byte {
-		str := string(data)
-		str = strings.ReplaceAll(
-			str, "symlinks: try-secure", "symlinks: secure",
+		cpy := append([]byte{}, data...)
+		cpy = bytes.ReplaceAll(
+			cpy, []byte("symlinks: try-secure"), []byte("symlinks: secure"),
 		)
-		str = strings.ReplaceAll(
-			str, `acls: "off"`, "acls: try",
+		cpy = bytes.ReplaceAll(
+			cpy, []byte(`acls: "off"`), []byte("acls: try"),
 		)
-		return []byte(str)
+		return cpy
 	}
 
 	baseArgs := []string{"configure"}
@@ -72,10 +71,7 @@ func TestRun_Configure(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			t.Run("file", func(t *testing.T) {
-				t.Parallel()
-
 				path := filepath.Join(t.TempDir(), "config.yaml")
 				args := append(tt.args, []string{"-o", path}...)
 				err := Run(args, nil)
@@ -91,8 +87,6 @@ func TestRun_Configure(t *testing.T) {
 			})
 
 			t.Run("stdout", func(t *testing.T) {
-				t.Parallel()
-
 				stdout := new(bytes.Buffer)
 				err := Run(tt.args, stdout)
 				require.NoError(t, err)

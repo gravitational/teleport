@@ -66,6 +66,7 @@ package golden
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -89,7 +90,8 @@ func pathForFile(t *testing.T, name string) string {
 // data.
 func ShouldSet() bool {
 	env := os.Getenv("GOLDEN_UPDATE")
-	return env == "y" || env == "1"
+	should, _ := strconv.ParseBool(env)
+	return should
 }
 
 // SetNamed writes the supplied data to a named golden file for the current
