@@ -1033,7 +1033,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		stdin:              utils.AsBool(q.Get("stdin")),
 		stdout:             utils.AsBool(q.Get("stdout")),
 		stderr:             utils.AsBool(q.Get("stderr")),
-		tty:                true,
+		tty:                utils.AsBool(q.Get("tty")),
 		httpRequest:        req,
 		httpResponseWriter: w,
 		context:            req.Context(),
@@ -1055,7 +1055,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return f.remoteExec(ctx, w, req, p, sess, request, proxy)
 	}
 
-	if !utils.AsBool(q.Get("tty")) {
+	if !request.tty {
 		resp, err = f.execNonInteractive(ctx, w, req, p, request, proxy, sess)
 		return
 	}
@@ -1090,7 +1090,6 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-
 	if err = executor.Stream(streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
 		return nil, trace.Wrap(err)
