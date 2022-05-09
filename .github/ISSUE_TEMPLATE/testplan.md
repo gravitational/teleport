@@ -295,7 +295,9 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 #### EC2 Tags
 [Docs](https://goteleport.com/docs/setup/guides/ec2-tags/)
 - [ ] On EC2 instance with `Name` tag (should be present by default) and tags in instance metadata enabled:
-  `TELEPORT_TEST_EC2=1 go test ./integration -run TestLabels`
+  `TELEPORT_TEST_EC2=1 go test ./integration -run TestEC2Labels`
+- [ ] On EC2 instance with tag `TeleportHostname` set to `fakehost.example.com` and tags in instance metadata enabled:
+  `TELEPORT_TEST_EC2=1 go test ./integration -run TestEC2Hostname`
 
 ## WEB UI
 

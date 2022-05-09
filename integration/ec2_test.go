@@ -284,9 +284,9 @@ func TestIAMNodeJoin(t *testing.T) {
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 }
 
-// TestLabels is an integration test which asserts that Teleport correctly picks up
+// TestEC2Labels is an integration test which asserts that Teleport correctly picks up
 // EC2 tags when running on an EC2 instance.
-func TestLabels(t *testing.T) {
+func TestEC2Labels(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
 		t.Skipf("Skipping TestLabels because TELEPORT_TEST_EC2 is not set")
 	}
@@ -399,4 +399,54 @@ func TestLabels(t *testing.T) {
 		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
 	}, 10*time.Second, time.Second)
 
+}
+
+// TestEC2Hostname is an integration test which asserts that Teleport sets its
+// hostname if the EC2 tag `TeleportHostname` is available. This test must be
+// run on an instance with tag `TeleportHostname=fakehost.example.com`.
+func TestEC2Hostname(t *testing.T) {
+	if os.Getenv("TELEPORT_TEST_EC2") == "" {
+		t.Skipf("Skipping TestLabels because TELEPORT_TEST_EC2 is not set")
+	}
+
+	teleportHostname := "fakehost.example.com"
+
+	storageConfig := backend.Config{
+		Type: lite.GetName(),
+		Params: backend.Params{
+			"path":               t.TempDir(),
+			"poll_stream_period": 50 * time.Millisecond,
+		},
+	}
+	tconf := service.MakeDefaultConfig()
+	tconf.Log = newSilentLogger()
+	tconf.DataDir = t.TempDir()
+	tconf.Auth.Enabled = true
+	tconf.Proxy.Enabled = true
+	tconf.Proxy.DisableWebInterface = true
+	tconf.Auth.StorageConfig = storageConfig
+	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
+
+	tconf.SSH.Enabled = true
+	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
+
+	proc, err := service.NewTeleport(tconf)
+	require.NoError(t, err)
+	require.NoError(t, proc.Start())
+
+	ctx := context.Background()
+	authServer := proc.GetAuthServer()
+	var node types.Server
+	require.Eventually(t, func() bool {
+		nodes, err := authServer.GetNodes(ctx, tconf.SSH.Namespace)
+		require.NoError(t, err)
+		if len(nodes) == 1 {
+			node = nodes[0]
+			return true
+		}
+		return false
+	}, 10*time.Second, time.Second)
+
+	require.Equal(t, teleportHostname, node.GetHostname())
 }
