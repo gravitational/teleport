@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -435,7 +434,6 @@ func (s *Server) getRotationState() types.Rotation {
 
 // registerApp starts proxying the app.
 func (s *Server) registerApp(ctx context.Context, app types.Application) error {
-	fmt.Printf("registerApp: %s\n", app.GetName())
 	if err := s.startApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
@@ -485,18 +483,15 @@ func (s *Server) getApps() (apps types.Apps) {
 }
 
 func (s *Server) injectEC2Labels(app types.Application) {
-	if s.c.EC2Labels != nil {
-		labels := app.GetStaticLabels()
-		if labels == nil {
-			labels = make(map[string]string)
-		}
-		for k, v := range s.c.EC2Labels.Get() {
-			if _, ok := labels[k]; !ok {
-				labels[k] = v
-			}
-		}
-		app.SetStaticLabels(labels)
+	if s.c.EC2Labels == nil {
+		return
 	}
+
+	labels := s.c.EC2Labels.Get()
+	for k, v := range app.GetStaticLabels() {
+		labels[k] = v
+	}
+	app.SetStaticLabels(labels)
 }
 
 // Start starts proxying all registered apps.
@@ -547,10 +542,6 @@ func (s *Server) Close() error {
 	// Stop the database resource watcher.
 	if s.watcher != nil {
 		s.watcher.Close()
-	}
-
-	if s.c.EC2Labels != nil {
-		s.c.EC2Labels.Close()
 	}
 
 	return trace.NewAggregate(errs...)

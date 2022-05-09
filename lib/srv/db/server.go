@@ -472,18 +472,15 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 }
 
 func (s *Server) injectEC2Labels(database types.Database) {
-	if s.cfg.EC2Labels != nil {
-		labels := database.GetStaticLabels()
-		if labels == nil {
-			labels = make(map[string]string)
-		}
-		for k, v := range s.cfg.EC2Labels.Get() {
-			if _, ok := labels[k]; !ok {
-				labels[k] = v
-			}
-		}
-		database.SetStaticLabels(labels)
+	if s.cfg.EC2Labels == nil {
+		return
 	}
+
+	labels := s.cfg.EC2Labels.Get()
+	for k, v := range database.GetStaticLabels() {
+		labels[k] = v
+	}
+	database.SetStaticLabels(labels)
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.
@@ -636,9 +633,6 @@ func (s *Server) Close() error {
 	// Stop the database resource watcher.
 	if s.watcher != nil {
 		s.watcher.Close()
-	}
-	if s.cfg.EC2Labels != nil {
-		s.cfg.EC2Labels.Close()
 	}
 	// Close all cloud clients.
 	errors = append(errors, s.cfg.Auth.Close())

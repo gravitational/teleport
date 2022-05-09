@@ -284,9 +284,6 @@ func (s *Server) close() {
 	if s.dynamicLabels != nil {
 		s.dynamicLabels.Close()
 	}
-	if s.ec2Labels != nil {
-		s.ec2Labels.Close()
-	}
 }
 
 // Close closes listening socket and stops accepting connections

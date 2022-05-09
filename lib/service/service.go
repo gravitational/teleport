@@ -603,6 +603,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	return newSrv, nil
 }
 
+// initConfig is a config struct to pass to a service's init method.
 type initConfig struct {
 	ec2Labels *labels.EC2Labels
 }
@@ -3511,7 +3512,6 @@ var appDependEvents = []string{
 }
 
 func (process *TeleportProcess) initApps(initConf initConfig) {
-	fmt.Println("initApps")
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".
