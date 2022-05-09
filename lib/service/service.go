@@ -3794,8 +3794,6 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // StartShutdown launches non-blocking graceful shutdown process that signals
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
-	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
-
 	for _, l := range process.registeredListeners {
 		switch fl := l.listener.(type) {
 		case *net.TCPListener:
@@ -3825,6 +3823,8 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 		}
 		l.listener.Close()
 	}
+
+	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 
 	localCtx, cancel := context.WithCancel(ctx)
 	go func() {
