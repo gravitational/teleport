@@ -195,7 +195,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 			// WebAuthn.
 			prompt.FirstTouchMessage = ""
 			if !hasTOTP && !quiet {
-				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key\n", promptDevicePrefix)
+				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
 			}
 			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
 

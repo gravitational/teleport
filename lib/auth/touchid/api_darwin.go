@@ -29,7 +29,6 @@ import "C"
 import (
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"strings"
 	"unsafe"
 
@@ -141,7 +140,7 @@ func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) 
 		return C.FindCredentials(filterC, infosC)
 	})
 	if res < 0 {
-		return nil, fmt.Errorf("failed to find credentials: status %d", res)
+		return nil, trace.BadParameter("failed to find credentials: status %d", res)
 	}
 	return infos, nil
 }
