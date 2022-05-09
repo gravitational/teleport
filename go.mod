@@ -49,7 +49,7 @@ require (
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
-	github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
+	github.com/gravitational/kingpin v2.1.11-0.20220506065057-8b7839c62700+incompatible
 	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
 	github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9
 	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
@@ -134,6 +134,6 @@ replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
-	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
+	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
 )
