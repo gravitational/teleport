@@ -414,9 +414,7 @@ ${CA_PINS_CONFIG}
 auth_service:
   enabled: no
 ssh_service:
-  enabled: yes
-  labels:
-    serving_app: "${APP_NAME}"
+  enabled: no
 proxy_service:
   enabled: no
 app_service:

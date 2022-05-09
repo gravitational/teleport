@@ -319,6 +319,9 @@ type Config struct {
 	// AuthConnector is the name of the authentication connector to use.
 	AuthConnector string
 
+	// AuthenticatorAttachment is the desired authenticator attachment.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
@@ -1342,12 +1345,11 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params,
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, c, proxyAddr, nil /* opts */)
+	return proxyClient.IssueUserCertsWithMFA(
+		ctx, params,
+		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return tc.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
 		})
-
-	return key, err
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
@@ -2624,8 +2626,9 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 
 	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
 	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
-		User:                tc.Username,
-		OptimisticAssertion: !tc.ExplicitUsername,
+		User:                    tc.Username,
+		OptimisticAssertion:     !tc.ExplicitUsername,
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2732,9 +2735,10 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
 		},
-		User:             tc.Username,
-		Password:         password,
-		UseStrongestAuth: tc.UseStrongestAuth,
+		User:                    tc.Username,
+		Password:                password,
+		UseStrongestAuth:        tc.UseStrongestAuth,
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 	})
 
 	return response, trace.Wrap(err)
