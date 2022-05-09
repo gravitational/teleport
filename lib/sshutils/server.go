@@ -72,8 +72,6 @@ type Server struct {
 	cfg     ssh.ServerConfig
 	limiter *limiter.Limiter
 
-	listenerClosed bool
-
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 
@@ -270,12 +268,6 @@ func (s *Server) Addr() string {
 	return s.listener.Addr().String()
 }
 
-func (s *Server) isClosed() bool {
-	s.RLock()
-	defer s.RUnlock()
-	return s.listenerClosed
-}
-
 func (s *Server) Serve(listener net.Listener) error {
 	if err := s.setListener(listener); err != nil {
 		return trace.Wrap(err)
@@ -303,7 +295,6 @@ func (s *Server) setListener(l net.Listener) error {
 	if s.listener != nil {
 		return trace.BadParameter("listener is already set to %v", s.listener.Addr())
 	}
-	s.listenerClosed = false
 	s.listener = l
 	return nil
 }
@@ -353,37 +344,27 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) Close() error {
 	s.Lock()
 	defer s.Unlock()
+	defer s.closeFunc()
 
-	// If no listener is set, the server is in tunnel mode which means
-	// closeFunc has to be manually called.
-	if s.listener == nil {
-		s.closeFunc()
-		return nil
-	}
-
-	// listener already closed, nothing to do
-	if s.listenerClosed {
-		return nil
-	}
-
-	s.listenerClosed = true
 	if s.listener != nil {
 		err := s.listener.Close()
+		if utils.IsUseOfClosedNetworkError(err) {
+			return nil
+		}
 		return err
 	}
+
 	return nil
 }
 
 func (s *Server) acceptConnections() {
 	defer s.closeFunc()
-	backoffTimer := time.NewTicker(5 * time.Second)
-	defer backoffTimer.Stop()
 	addr := s.Addr()
 	s.log.Debugf("Listening on %v.", addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if s.isClosed() {
+			if utils.IsUseOfClosedNetworkError(err) {
 				s.log.Debugf("Server %v has closed.", addr)
 				return
 			}
@@ -391,7 +372,7 @@ func (s *Server) acceptConnections() {
 			case <-s.closeContext.Done():
 				s.log.Debugf("Server %v has closed.", addr)
 				return
-			case <-backoffTimer.C:
+			case <-time.After(5 * time.Second):
 				s.log.Debugf("Backoff on network error: %v.", err)
 			}
 		} else {
