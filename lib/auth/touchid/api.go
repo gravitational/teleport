@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -397,9 +398,9 @@ func ListCredentials() ([]CredentialInfo, error) {
 		info := &infos[i]
 		key, err := pubKeyFromRawAppleKey(info.publicKeyRaw)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.Warnf("Failed to convert public key: %v", err)
 		}
-		info.PublicKey = key
+		info.PublicKey = key // this is OK, even if it's nil
 		info.publicKeyRaw = nil
 	}
 

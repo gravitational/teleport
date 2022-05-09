@@ -1,5 +1,5 @@
-// go:build touchid
-//  +build touchid
+//go:build touchid
+// +build touchid
 
 // Copyright 2022 Gravitational, Inc
 //
@@ -131,7 +131,7 @@ int ListCredentials(const char *reason, CredentialInfo **infosOut,
   filter.value = "";
 
   __block int res;
-  __block NSString *nsError;
+  __block NSString *nsError = NULL;
 
   // A semaphore is needed, otherwise we return before the prompt has a chance
   // to resolve.
@@ -146,6 +146,7 @@ int ListCredentials(const char *reason, CredentialInfo **infosOut,
                     res = -1;
                     nsError = [error localizedDescription];
                   }
+
                   dispatch_semaphore_signal(sema);
                 }];
   dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
@@ -173,7 +174,7 @@ int DeleteCredential(const char *reason, const char *appLabel, char **errOut) {
   LAContext *ctx = [[LAContext alloc] init];
 
   __block int res;
-  __block NSString *nsError;
+  __block NSString *nsError = NULL;
 
   // A semaphore is needed, otherwise we return before the prompt has a chance
   // to resolve.
