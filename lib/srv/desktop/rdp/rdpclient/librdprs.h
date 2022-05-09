@@ -7,6 +7,18 @@
 
 #define SPECIAL_NO_RESPONSE 4294967295
 
+#define VERSION_MAJOR 1
+
+#define VERSION_MINOR 12
+
+#define SMARTCARD_CAPABILITY_VERSION_01 1
+
+#define GENERAL_CAPABILITY_VERSION_01 1
+
+#define GENERAL_CAPABILITY_VERSION_02 2
+
+#define SCARD_DEVICE_ID 1
+
 /**
  * The default maximum chunk size for virtual channel data.
  *
