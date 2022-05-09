@@ -34,6 +34,12 @@
  */
 #define CHANNEL_CHUNK_LEGNTH 1600
 
+typedef enum CGOErrCode
+{
+  ErrCodeSuccess = 0,
+  ErrCodeFailure = 1,
+} CGOErrCode;
+
 typedef enum CGOPointerButton
 {
   PointerButtonNone,
@@ -62,22 +68,19 @@ typedef enum CGOPointerWheel
  */
 typedef struct Client Client;
 
-/**
- * CGOError is an alias for a C string pointer, for C API clarity.
- */
-typedef char *CGOError;
-
 typedef struct ClientOrError
 {
   struct Client *client;
-  CGOError err;
+  enum CGOErrCode err;
 } ClientOrError;
 
 /**
- * CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
- * PointerEvent is a mouse move or click update from the user.
+ * @brief
+ *
  */
-typedef struct CGOMousePointerEvent
+*PointerEvent is a mouse move or click update from the user.
+                                         * /
+                                     typedef struct CGOMousePointerEvent
 {
   uint16_t x;
   uint16_t y;
@@ -193,7 +196,7 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
  *
  * `client_ptr` must be a valid pointer to a Client.
  */
-CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
+enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
 
 /**
  * handle_tdp_sd_announce announces a new drivethat's ready to be
@@ -203,8 +206,8 @@ CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len
  *
  * The caller must ensure that drive_name points to a valid buffer.
  */
-CGOError handle_tdp_sd_announce(struct Client *client_ptr,
-                                struct CGOSharedDirectoryAnnounce sd_announce);
+enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
+                                       struct CGOSharedDirectoryAnnounce sd_announce);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
@@ -215,28 +218,28 @@ CGOError handle_tdp_sd_announce(struct Client *client_ptr,
  * `client_ptr` must be a valid pointer to a Client.
  * `handle_bitmap` *must not* free the memory of CGOBitmap.
  */
-CGOError read_rdp_output(struct Client *client_ptr);
+enum CGOErrCode read_rdp_output(struct Client *client_ptr);
 
 /**
  * # Safety
  *
  * client_ptr must be a valid pointer to a Client.
  */
-CGOError write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
+enum CGOErrCode write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
 
 /**
  * # Safety
  *
  * client_ptr must be a valid pointer to a Client.
  */
-CGOError write_rdp_keyboard(struct Client *client_ptr, struct CGOKeyboardEvent key);
+enum CGOErrCode write_rdp_keyboard(struct Client *client_ptr, struct CGOKeyboardEvent key);
 
 /**
  * # Safety
  *
  * client_ptr must be a valid pointer to a Client.
  */
-CGOError close_rdp(struct Client *client_ptr);
+enum CGOErrCode close_rdp(struct Client *client_ptr);
 
 /**
  * free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
@@ -254,19 +257,19 @@ void free_rdp(struct Client *client_ptr);
  */
 void free_rust_string(char *s);
 
-extern void free_go_string(char *s);
+extern enum CGOErrCode handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
-extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
-
-extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
+extern enum CGOErrCode handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
 
 /**
  * Shared Directory Acknowledge
  */
-extern CGOError tdp_sd_acknowledge(uintptr_t client_ref, struct CGOSharedDirectoryAcknowledge *ack);
+extern enum CGOErrCode tdp_sd_acknowledge(uintptr_t client_ref, struct CGOSharedDirectoryAcknowledge *ack);
 
-extern CGOError tdp_sd_info_request(uintptr_t client_ref,
-                                    struct CGOSharedDirectoryInfoRequest *req);
+extern enum CGOErrCode tdp_sd_info_request(uintptr_t client_ref,
+                                           struct CGOSharedDirectoryInfoRequest *req);
 
-extern CGOError tdp_sd_create_request(uintptr_t client_ref,
-                                      struct CGOSharedDirectoryCreateRequest *req);
+extern enum CGOErrCode tdp_sd_create_request(uintptr_t client_ref,
+                                             struct CGOSharedDirectoryCreateRequest *req);
+extern enum CGOErrCode tdp_sd_acknowledge(uintptr_t client_ref,
+                                          struct CGOSharedDirectoryAcknowledge *ack);

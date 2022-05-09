@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth/touchid"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
@@ -42,7 +43,6 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
@@ -50,10 +50,23 @@ import (
 const (
 	totpDeviceType     = "TOTP"
 	webauthnDeviceType = "WEBAUTHN"
+	touchIDDeviceType  = "TOUCHID"
 )
 
-// defaultDeviceTypes lists the supported device types for `tsh mfa add`.
-var defaultDeviceTypes = []string{totpDeviceType, webauthnDeviceType}
+var (
+	totpDeviceTypes = []string{totpDeviceType}
+	webDeviceTypes  = initWebDevs()
+
+	// defaultDeviceTypes lists the supported device types for `tsh mfa add`.
+	defaultDeviceTypes = append(totpDeviceTypes, webDeviceTypes...)
+)
+
+func initWebDevs() []string {
+	if touchid.IsAvailable() {
+		return []string{webauthnDeviceType, touchIDDeviceType}
+	}
+	return []string{webauthnDeviceType}
+}
 
 type mfaCommands struct {
 	ls  *mfaLSCommand
@@ -188,7 +201,7 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	}
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
-		StringVar(&c.devType)
+		EnumVar(&c.devType, defaultDeviceTypes...)
 
 	if wancli.IsFIDO2Available() {
 		var allowPwdless bool
@@ -215,7 +228,6 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	}
 	ctx := cf.Context
 
-	deviceTypes := defaultDeviceTypes
 	if c.devType == "" {
 		// If we are prompting the user for the device type, then take a glimpse at
 		// server-side settings and adjust the options accordingly.
@@ -224,21 +236,13 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		deviceTypes = deviceTypesFromPreferredMFA(pingResp.Auth.PreferredLocalMFA)
 
-		c.devType, err = prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Choose device type", deviceTypes)
+		c.devType, err = prompt.PickOne(
+			ctx, os.Stdout, prompt.Stdin(),
+			"Choose device type", deviceTypesFromSecondFactor(pingResp.Auth.SecondFactor))
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	m := map[string]proto.DeviceType{
-		totpDeviceType:     proto.DeviceType_DEVICE_TYPE_TOTP,
-		webauthnDeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-	}
-	devType := m[c.devType]
-	if devType == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
-		return trace.BadParameter("unknown device type %q, must be one of %v", c.devType, strings.Join(deviceTypes, ", "))
 	}
 
 	if c.devName == "" {
@@ -250,25 +254,27 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	}
 	c.devName = strings.TrimSpace(c.devName)
 	if c.devName == "" {
-		return trace.BadParameter("device name can not be empty")
+		return trace.BadParameter("device name cannot be empty")
 	}
 
 	// If passwordless is supported but unset, then ask the user.
-	if devType != proto.DeviceType_DEVICE_TYPE_WEBAUTHN {
-		pwdless := false
-		c.pwdless = &pwdless // only WebAuthn does passwordless
-	}
-	if c.pwdless == nil {
-		answer, err := prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Allow passwordless logins", []string{"YES", "NO"})
-		if err != nil {
-			return trace.Wrap(err)
+	var pwdless bool
+	switch c.devType {
+	case webauthnDeviceType:
+		// Ask the user?
+		if c.pwdless == nil {
+			answer, err := prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Allow passwordless logins", []string{"YES", "NO"})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			pwdless = answer == "YES"
 		}
-		val := answer == "YES"
-		c.pwdless = &val
+	case touchIDDeviceType:
+		pwdless = true // Touch ID is always a resident key/passwordless
 	}
-	pwdless := c.pwdless != nil && *c.pwdless
+	c.pwdless = &pwdless
 
-	dev, err := c.addDeviceRPC(ctx, tc, c.devName, devType, pwdless)
+	dev, err := c.addDeviceRPC(ctx, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -277,27 +283,28 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-func deviceTypesFromPreferredMFA(preferredMFA constants.SecondFactorType) []string {
-	log.Debugf("Got server-side preferred local MFA: %v", preferredMFA)
-
-	m := map[constants.SecondFactorType]string{
-		constants.SecondFactorOTP:      totpDeviceType,
-		constants.SecondFactorWebauthn: webauthnDeviceType,
-	}
-
-	switch preferredType, ok := m[preferredMFA]; {
-	case !ok: // Empty or unknown suggestion, fallback to defaults.
+func deviceTypesFromSecondFactor(sf constants.SecondFactorType) []string {
+	switch sf {
+	case constants.SecondFactorOTP:
+		return totpDeviceTypes
+	case constants.SecondFactorWebauthn:
+		return webDeviceTypes
+	default:
 		return defaultDeviceTypes
-	case preferredType == totpDeviceType: // OTP only
-		return []string{preferredType}
-	default: // OTP + MFA
-		return []string{totpDeviceType, preferredType}
 	}
 }
 
-func (c *mfaAddCommand) addDeviceRPC(
-	ctx context.Context,
-	tc *client.TeleportClient, devName string, devType proto.DeviceType, passwordless bool) (*types.MFADevice, error) {
+func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportClient) (*types.MFADevice, error) {
+	devTypePB := map[string]proto.DeviceType{
+		totpDeviceType:     proto.DeviceType_DEVICE_TYPE_TOTP,
+		webauthnDeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		touchIDDeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+	}[c.devType]
+	// Sanity check.
+	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+		return nil, trace.BadParameter("unexpected device type: %q", c.devType)
+	}
+
 	var dev *types.MFADevice
 	if err := client.RetryWithRelogin(ctx, tc, func() error {
 		pc, err := tc.ConnectToProxy(ctx)
@@ -319,13 +326,13 @@ func (c *mfaAddCommand) addDeviceRPC(
 		}
 		// Init.
 		usage := proto.DeviceUsage_DEVICE_USAGE_MFA
-		if passwordless {
+		if c.pwdless != nil && *c.pwdless {
 			usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
 		}
 		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_Init{
 			Init: &proto.AddMFADeviceRequestInit{
-				DeviceName:  devName,
-				DeviceType:  devType,
+				DeviceName:  c.devName,
+				DeviceType:  devTypePB,
 				DeviceUsage: usage,
 			},
 		}}); err != nil {
@@ -341,8 +348,8 @@ func (c *mfaAddCommand) addDeviceRPC(
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_ExistingMFAChallenge", resp.Response)
 		}
-		authResp, err := client.PromptMFAChallenge(ctx, authChallenge, tc.Config.WebProxyAddr, &client.PromptMFAChallengeOpts{
-			PromptDevicePrefix: "*registered*",
+		authResp, err := tc.PromptMFAChallenge(ctx, authChallenge, &client.PromptMFAChallengeOpts{
+			PromptDevicePrefix: "*registered* ",
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -362,7 +369,7 @@ func (c *mfaAddCommand) addDeviceRPC(
 		if regChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_NewMFARegisterChallenge", resp.Response)
 		}
-		regResp, err := promptRegisterChallenge(ctx, tc.Config.WebProxyAddr, regChallenge)
+		regResp, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, regChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -389,14 +396,21 @@ func (c *mfaAddCommand) addDeviceRPC(
 	return dev, nil
 }
 
-func promptRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
+func promptRegisterChallenge(ctx context.Context, proxyAddr, devType string, c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
 	switch c.Request.(type) {
 	case *proto.MFARegisterChallenge_TOTP:
 		return promptTOTPRegisterChallenge(ctx, c.GetTOTP())
 	case *proto.MFARegisterChallenge_Webauthn:
-		// WebAuthn prompt doesn't take in "r" because it reads directly from stdin
-		// using term.ReadPassword.
-		return promptWebauthnRegisterChallenge(ctx, proxyAddr, c.GetWebauthn())
+		origin := proxyAddr
+		if !strings.HasPrefix(proxyAddr, "https://") {
+			origin = "https://" + origin
+		}
+		cc := wanlib.CredentialCreationFromProto(c.GetWebauthn())
+
+		if devType == touchIDDeviceType {
+			return promptTouchIDRegisterChallenge(origin, cc)
+		}
+		return promptWebauthnRegisterChallenge(ctx, origin, cc)
 	default:
 		return nil, trace.BadParameter("server bug: unexpected registration challenge type: %T", c.Request)
 	}
@@ -478,11 +492,7 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 	}}, nil
 }
 
-func promptWebauthnRegisterChallenge(ctx context.Context, proxyAddr string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
-	origin := proxyAddr
-	if !strings.HasPrefix(proxyAddr, "https://") {
-		origin = "https://" + origin
-	}
+func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	log.Debugf("WebAuthn: prompting MFA devices with origin %q", origin)
 
 	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
@@ -490,8 +500,22 @@ func promptWebauthnRegisterChallenge(ctx context.Context, proxyAddr string, cc *
 	prompt.FirstTouchMessage = "Tap your *new* security key"
 	prompt.SecondTouchMessage = "Tap your *new* security key again to complete registration"
 
-	resp, err := wancli.Register(ctx, origin, wanlib.CredentialCreationFromProto(cc), prompt)
+	resp, err := wancli.Register(ctx, origin, cc, prompt)
 	return resp, trace.Wrap(err)
+}
+
+func promptTouchIDRegisterChallenge(origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+	log.Debugf("Touch ID: prompting registration with origin %q", origin)
+
+	ccr, err := touchid.Register(origin, cc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.MFARegisterResponse{
+		Response: &proto.MFARegisterResponse_Webauthn{
+			Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+		},
+	}, nil
 }
 
 type mfaRemoveCommand struct {
@@ -547,7 +571,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_MFAChallenge", resp.Response)
 		}
-		authResp, err := client.PromptMFAChallenge(cf.Context, authChallenge, tc.Config.WebProxyAddr, nil /* opts */)
+		authResp, err := tc.PromptMFAChallenge(cf.Context, authChallenge, nil /* optsOverride */)
 		if err != nil {
 			return trace.Wrap(err)
 		}

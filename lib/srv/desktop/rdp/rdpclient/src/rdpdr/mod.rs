@@ -956,6 +956,7 @@ struct DeviceCreateRequest {
     path: String,
 }
 
+#[allow(dead_code)]
 impl DeviceCreateRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let invalid_flags = || invalid_data_error("invalid flags in Device Create Request");
@@ -998,6 +999,7 @@ impl DeviceCreateRequest {
 /// A message with this header describes a response to a Device Create Request (section 2.2.1.4.1).
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76
 #[derive(Debug)]
+#[allow(dead_code)]
 struct DeviceCreateResponse {
     device_io_reply: DeviceIoResponse,
     file_id: u32,
@@ -1018,6 +1020,7 @@ struct DeviceCreateResponse {
     information: flags::Information,
 }
 
+#[allow(dead_code)]
 impl DeviceCreateResponse {
     fn new(device_create_request: &DeviceCreateRequest, io_status: NTSTATUS) -> Self {
         let device_io_request = &device_create_request.device_io_request;
@@ -1063,6 +1066,7 @@ impl DeviceCreateResponse {
 /// 2.2.3.3.8 Server Drive Query Information Request (DR_DRIVE_QUERY_INFORMATION_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/e43dcd68-2980-40a9-9238-344b6cf94946
 #[derive(Debug)]
+#[allow(dead_code)]
 struct ServerDriveQueryInformationRequest {
     /// A DR_DEVICE_IOREQUEST (section 2.2.1.4) header. The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_QUERY_INFORMATION.
     device_io_request: DeviceIoRequest,
@@ -1090,6 +1094,7 @@ struct ServerDriveQueryInformationRequest {
     // section 2.4. The "File information class" table defines all the possible values for the FsInformationClass field.
 }
 
+#[allow(dead_code)]
 impl ServerDriveQueryInformationRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         if let Some(fs_information_class_lvl) =
@@ -1110,12 +1115,14 @@ impl ServerDriveQueryInformationRequest {
 /// 2.4 File Information Classes [MS-FSCC]
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
 #[derive(Debug)]
+#[allow(dead_code)]
 enum FsInformationClass {
     FileBasicInformation(FileBasicInformation),
     FileStandardInformation(FileStandardInformation),
     FileBothDirectoryInformation(FileBothDirectoryInformation),
 }
 
+#[allow(dead_code)]
 impl FsInformationClass {
     fn encode(&self) -> RdpResult<Vec<u8>> {
         match self {
@@ -1140,6 +1147,7 @@ struct FileBasicInformation {
     //reserved: u32,
 }
 
+#[allow(dead_code)]
 /// 4 i64's and 1 u32's = (4 * 8) + 4
 const FILE_BASIC_INFORMATION_SIZE: u32 = (4 * 8) + 4;
 
@@ -1201,6 +1209,7 @@ impl FileStandardInformation {
     }
 }
 
+#[allow(dead_code)]
 // 2 i64's + 1 u32 + 2 Boolean (u8) = (2 * 8) + 4 + 2
 const FILE_STANDARD_INFORMATION_SIZE: u32 = (2 * 8) + 4 + 2;
 
@@ -1208,6 +1217,7 @@ const FILE_STANDARD_INFORMATION_SIZE: u32 = (2 * 8) + 4 + 2;
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/8ce7b38c-d3cc-415d-ab39-944000ea77ff
 #[derive(Debug, ToPrimitive)]
 #[repr(u8)]
+#[allow(dead_code)]
 enum Boolean {
     TRUE = 1,
     FALSE = 0,
@@ -1236,11 +1246,13 @@ struct FileBothDirectoryInformation {
     file_name: String,
 }
 
+#[allow(dead_code)]
 /// Base size of the FileBothDirectoryInformation, not accounting for variably sized file_name.
 /// Note that file_name's size should be calculated as if it were a Unicode string.
 /// 5 u32's (including FileAttributesFlags) + 6 i64's + 1 i8 + 24 bytes
 const FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE: u32 = (5 * 4) + (6 * 8) + 1 + 24; // 93
 
+#[allow(dead_code)]
 impl FileBothDirectoryInformation {
     fn new(
         creation_time: i64,
@@ -1295,12 +1307,15 @@ impl FileBothDirectoryInformation {
 /// 2.2.3.4.8 Client Drive Query Information Response (DR_DRIVE_QUERY_INFORMATION_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4
 #[derive(Debug)]
+#[allow(dead_code)]
+
 struct ClientDriveQueryInformationResponse {
     device_io_response: DeviceIoResponse,
     length: u32,
     buffer: FsInformationClass,
 }
 
+#[allow(dead_code)]
 impl ClientDriveQueryInformationResponse {
     /// Constructs a ClientDriveQueryInformationResponse from a ServerDriveQueryInformationRequest and an NTSTATUS.
     /// If the ServerDriveQueryInformationRequest.fs_information_class_lvl is currently unsupported, the program will panic.
@@ -1357,11 +1372,13 @@ impl ClientDriveQueryInformationResponse {
 /// 2.2.1.4.2 Device Close Request (DR_CLOSE_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3ec6627f-9e0f-4941-a828-3fc6ed63d9e7
 #[derive(Debug)]
+#[allow(dead_code)]
 struct DeviceCloseRequest {
     device_io_request: DeviceIoRequest,
     // Padding (32 bytes):  An array of 32 bytes. Reserved. This field can be set to any value, and MUST be ignored.
 }
 
+#[allow(dead_code)]
 impl DeviceCloseRequest {
     fn decode(device_io_request: DeviceIoRequest) -> Self {
         return Self { device_io_request };
@@ -1371,13 +1388,14 @@ impl DeviceCloseRequest {
 /// 2.2.1.5.2 Device Close Response (DR_CLOSE_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5
 #[derive(Debug)]
+#[allow(dead_code)]
 struct DeviceCloseResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_CLOSE.
     device_io_response: DeviceIoResponse,
     /// This field can be set to any value and MUST be ignored.
     padding: u32,
 }
-
+#[allow(dead_code)]
 impl DeviceCloseResponse {
     fn new(device_close_request: DeviceCloseRequest, io_status: NTSTATUS) -> Self {
         Self {
@@ -1411,6 +1429,7 @@ struct ServerDriveNotifyChangeDirectoryRequest {
     // Padding (27 bytes):  An array of 27 bytes. This field is unused and MUST be ignored.
 }
 
+#[allow(dead_code)]
 impl ServerDriveNotifyChangeDirectoryRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let invalid_flags =
@@ -1443,6 +1462,7 @@ struct DeviceReadRequest {
     // Padding (20 bytes):  An array of 20 bytes. Reserved. This field can be set to any value and MUST be ignored.
 }
 
+#[allow(dead_code)]
 impl DeviceReadRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
@@ -1456,6 +1476,7 @@ impl DeviceReadRequest {
 /// 2.2.1.5.3 Device Read Response (DR_READ_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9
 #[derive(Debug)]
+#[allow(dead_code)]
 struct DeviceReadResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_READ.
     device_io_reply: DeviceIoResponse,
@@ -1465,6 +1486,7 @@ struct DeviceReadResponse {
     read_data: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl DeviceReadResponse {
     fn new(
         device_read_request: &DeviceReadRequest,
@@ -1516,6 +1538,7 @@ struct ServerDriveQueryDirectoryRequest {
     path: String,
 }
 
+#[allow(dead_code)]
 impl ServerDriveQueryDirectoryRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let fs_information_class_lvl =
@@ -1566,6 +1589,7 @@ impl ServerDriveQueryDirectoryRequest {
 /// 2.2.3.4.10 Client Drive Query Directory Response (DR_DRIVE_QUERY_DIRECTORY_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140
 #[derive(Debug)]
+#[allow(dead_code)]
 struct ClientDriveQueryDirectoryResponse {
     /// The CompletionId field of the DR_DEVICE_IOCOMPLETION header MUST match a Device I/O Request (section 2.2.1.4) that
     /// has the MajorFunction field set to IRP_MJ_DIRECTORY_CONTROL and the MinorFunction field set to IRP_MN_QUERY_DIRECTORY.
@@ -1578,6 +1602,7 @@ struct ClientDriveQueryDirectoryResponse {
     // Padding (1 byte): This field is unused and MUST be ignored.
 }
 
+#[allow(dead_code)]
 impl ClientDriveQueryDirectoryResponse {
     fn new(
         req: &ServerDriveQueryDirectoryRequest,
