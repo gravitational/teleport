@@ -64,9 +64,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		syscall.SIGCHLD, // collect child status
 	)
 
-	doneContext, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	serviceErrorsC := make(chan Event, 10)
 	process.WaitForEvent(ctx, ServiceExitedWithErrorEvent, serviceErrorsC)
 
@@ -78,7 +75,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		case signal := <-sigC:
 			switch signal {
 			case syscall.SIGQUIT:
-				go process.printShutdownStatus(doneContext)
 				process.Shutdown(ctx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
@@ -112,7 +108,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 					continue
 				}
 				process.log.Infof("Successfully started new process, shutting down gracefully.")
-				go process.printShutdownStatus(doneContext)
 				process.Shutdown(ctx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
