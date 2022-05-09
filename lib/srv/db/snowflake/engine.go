@@ -52,6 +52,7 @@ func init() {
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
+		HttpClient:   getDefaultHttpClient(),
 	}
 }
 
@@ -63,6 +64,8 @@ type Engine struct {
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
 
+	HttpClient *http.Client
+
 	connectionToken string
 }
 
@@ -71,6 +74,16 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	e.sessionCtx = sessionCtx
 
 	return nil
+}
+
+func getDefaultHttpClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		},
+	}
 }
 
 func (e *Engine) SendError(err error) {
@@ -121,15 +134,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion:         tls.VersionTLS12,
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-
 	clientConnReader := bufio.NewReader(e.clientConn)
 
 	for {
@@ -138,81 +142,89 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err)
 		}
 
-		e.Log.Debugf("%+v", req)
-
-		origURLPath := req.URL.String()
-		e.Log.Debugf("orig url: %s", req.URL.String())
-
-		body, err := readRequest(req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		e.Log.Debugf("%s", string(body))
-
-		e.connectionToken, err = e.getConnectionToken(ctx, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		body, err = e.process(ctx, sessionCtx, origURLPath, accountName, body)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		buf := e.writeResponse(req, body)
-
-		e.Log.Debugf("newbody size: %d", buf.Len())
-
-		body = buf.Bytes()
-		req.URL.Scheme = "https"
-		req.URL.Host = sessionCtx.Database.GetURI()
-		newUrl := req.URL.String()
-		e.Log.Debugf("new url: %s", newUrl)
-		e.Log.Debugf("method: %s", req.Method)
-
-		reqCopy, err := e.copyRequest(ctx, req, newUrl, body)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if e.connectionToken != "" {
-			e.Log.Debugf("setting Snowflake token %s", e.connectionToken)
-			if strings.Contains(e.connectionToken, "Snowflake Token") {
-				reqCopy.Header.Set("Authorization", e.connectionToken)
-			} else {
-				reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
-			}
-		}
-
-		resp, err := httpClient.Do(reqCopy)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		dumpResp, err := httputil.DumpResponse(resp, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		e.printBody(resp, resp.Body)
-
-		if resp.StatusCode != 200 {
-			e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
-		}
-
-		if strings.HasPrefix(origURLPath, loginRequestPath) {
-			dumpResp, err = e.saveSessionToken(ctx, sessionCtx, dumpResp, accountName)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		_, err = e.clientConn.Write(dumpResp)
+		err = e.processRequest(ctx, sessionCtx, req, accountName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
+}
+
+func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
+	e.Log.Debugf("%+v", req)
+
+	origURLPath := req.URL.String()
+	e.Log.Debugf("orig url: %s", req.URL.String())
+
+	body, err := readRequest(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	e.Log.Debugf("%s", string(body))
+
+	e.connectionToken, err = e.getConnectionToken(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	body, err = e.process(ctx, sessionCtx, origURLPath, accountName, body)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	buf := e.writeResponse(req, body)
+
+	e.Log.Debugf("newbody size: %d", buf.Len())
+
+	body = buf.Bytes()
+	req.URL.Scheme = "https"
+	req.URL.Host = sessionCtx.Database.GetURI()
+	newUrl := req.URL.String()
+	e.Log.Debugf("new url: %s", newUrl)
+	e.Log.Debugf("method: %s", req.Method)
+
+	reqCopy, err := e.copyRequest(ctx, req, newUrl, body)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if e.connectionToken != "" {
+		e.Log.Debugf("setting Snowflake token %s", e.connectionToken)
+		if strings.Contains(e.connectionToken, "Snowflake Token") {
+			reqCopy.Header.Set("Authorization", e.connectionToken)
+		} else {
+			reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
+		}
+	}
+
+	resp, err := e.HttpClient.Do(reqCopy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dumpResp, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	e.printBody(resp, resp.Body)
+
+	if resp.StatusCode != 200 {
+		e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
+	}
+
+	if strings.HasPrefix(origURLPath, loginRequestPath) {
+		dumpResp, err = e.saveSessionToken(ctx, sessionCtx, dumpResp, accountName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	_, err = e.clientConn.Write(dumpResp)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // authorizeConnection does authorization check for Redis connection about
@@ -246,20 +258,20 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 
 func (e *Engine) writeResponse(req *http.Request, body []byte) *bytes.Buffer {
 	buf := &bytes.Buffer{}
-	var wr io.WriteCloser
+	var wr io.Writer
 	if req.Header.Get("Content-Encoding") == "gzip" {
-		wr = gzip.NewWriter(buf)
+		gzipWriter := gzip.NewWriter(buf)
+		defer gzipWriter.Close()
+
+		wr = gzipWriter
 	} else {
-		wr = &MyWriteCloser{buf}
+		wr = bufio.NewWriter(buf)
 	}
 
 	if _, err := wr.Write(body); err != nil {
 		e.Log.Error(err)
 	}
 
-	if err := wr.Close(); err != nil {
-		e.Log.Error(err)
-	}
 	return buf
 }
 
@@ -602,12 +614,4 @@ type LoginRequest struct {
 	//	} `json:"SESSION_PARAMETERS"`
 	//} `json:"data"`
 	Data map[string]interface{} `json:"data"`
-}
-
-type MyWriteCloser struct {
-	io.Writer
-}
-
-func (mwc *MyWriteCloser) Close() error {
-	return nil
 }

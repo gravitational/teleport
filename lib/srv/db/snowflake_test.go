@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"net"
+	"net/http"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -34,6 +35,25 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	// Override SQL Server engine that is used normally with the test one
+	// that mocks connection dial and Kerberos auth.
+	common.RegisterEngine(newTestSnowflakeEngine, defaults.ProtocolSnowflake)
+}
+
+func newTestSnowflakeEngine(ec common.EngineConfig) common.Engine {
+	return &snowflake.Engine{
+		EngineConfig: ec,
+		HttpClient: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+	}
+}
 
 func TestAccessSnowflake(t *testing.T) {
 	ctx := context.Background()
