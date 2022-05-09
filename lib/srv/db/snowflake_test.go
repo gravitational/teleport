@@ -22,11 +22,14 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"net"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/stretchr/testify/require"
@@ -132,6 +135,7 @@ func TestAccessSnowflake(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			defer result.Close()
 
 			for result.Next() {
 				var res int
@@ -145,6 +149,67 @@ func TestAccessSnowflake(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestAuditSnowflake(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSnowflake("snowflake"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
+
+	t.Run("access denied", func(t *testing.T) {
+		// Access denied should trigger an unsuccessful session start event.
+		dbConn, proxy, err := testCtx.snowflakeClient(ctx, "alice", "snowflake", "notadmin", "")
+		require.NoError(t, err)
+		err = dbConn.PingContext(ctx)
+		require.Error(t, err)
+		waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+		proxy.Close()
+	})
+
+	var dbConn *sql.DB
+	var proxy *alpnproxy.LocalProxy
+	t.Cleanup(func() {
+		if proxy != nil {
+			proxy.Close()
+		}
+	})
+
+	t.Run("session starts event", func(t *testing.T) {
+		// Connect should trigger successful session start event.
+		var err error
+
+		dbConn, proxy, err = testCtx.snowflakeClient(ctx, "alice", "snowflake", "admin", "")
+		require.NoError(t, err)
+		err = dbConn.PingContext(ctx)
+		require.NoError(t, err)
+		waitForEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+	})
+
+	t.Run("command sends", func(t *testing.T) {
+		// SET should trigger Query event.
+		result, err := dbConn.QueryContext(ctx, "select 42")
+		require.NoError(t, err)
+		defer result.Close()
+
+		for result.Next() {
+			var res int
+			err = result.Scan(&res)
+			require.NoError(t, err)
+			require.Equal(t, 42, res)
+		}
+
+		waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+	})
+
+	t.Run("session ends event", func(t *testing.T) {
+		t.Skip() //TODO(jakule): Driver for some reason doesn't terminate the session.
+		// Closing connection should trigger session end event.
+		err := dbConn.Close()
+		require.NoError(t, err)
+		waitForEvent(t, testCtx, libevents.DatabaseSessionEndCode)
+	})
 }
 
 func withSnowflake(name string) withDatabaseOption {

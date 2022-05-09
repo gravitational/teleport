@@ -255,6 +255,14 @@ const (
   "success": true
 }
 `
+
+	sessionEndResponse = `{
+  "data": null,
+  "code": null,
+  "message": null,
+  "success": true
+}
+`
 )
 
 // Serve starts serving client connections.
@@ -274,7 +282,8 @@ func (s *TestServer) Serve() error {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(queryResponse))
 		case sessionRequestPath:
-			w.WriteHeader(200)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(sessionEndResponse))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

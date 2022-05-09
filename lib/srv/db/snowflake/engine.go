@@ -88,7 +88,7 @@ func (e *Engine) SendError(err error) {
 	response := &http.Response{
 		ProtoMajor: 1,
 		ProtoMinor: 1,
-		StatusCode: 401,
+		StatusCode: 401, // TODO(jakule): set correct error code
 		Body:       io.NopCloser(bytes.NewBufferString(fmt.Sprintf(`{"success": false, "message:"%s"}`, err.Error()))),
 	}
 
@@ -114,8 +114,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	accountName := uriParts[0]
 
-	err := e.authorizeConnection(ctx)
-	if err != nil {
+	if err := e.authorizeConnection(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
