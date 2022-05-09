@@ -3794,6 +3794,40 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // StartShutdown launches non-blocking graceful shutdown process that signals
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
+	process.Lock()
+	process.log.Info("BEGINNING SHUTDOWN CLOSE LOOP")
+	for _, l := range process.registeredListeners {
+		switch fl := l.listener.(type) {
+		case *net.TCPListener:
+			fd, err := fl.File()
+			if err != nil {
+				process.log.WithError(err).Warnf("Failed to get file descriptor for listener %q at shutdown.", l.typ)
+				continue
+			}
+			newListener, err := net.FileListener(fd)
+			fd.Close()
+			if err != nil {
+				go func() {
+					process.log.Infof("Starting closey listener loop %q", l.typ)
+					for {
+						c, err := newListener.Accept()
+						if err != nil {
+							process.log.WithError(err).Warnf("Failed to accept connection on listener %q at shutdown.", l.typ)
+							time.Sleep(5 * time.Second)
+							continue
+						}
+						process.log.Errorf("=========== RECEIVED CONNECTION DURING SHUTDOWN ON %q ===========", l.typ)
+						c.Close()
+					}
+				}()
+			}
+		default:
+			process.log.Warnf("Unknown listener type encountered during shutdown: %T", l.listener)
+		}
+		l.listener.Close()
+	}
+	process.Unlock()
+
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
 	go func() {

@@ -793,6 +793,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
+	case types.KindProxy:
+		if err = client.DeleteProxy(rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("proxy %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}

@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"context"
 	"net"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -132,5 +133,16 @@ func (l *Listener) Accept() (net.Conn, error) {
 // Close closes the listener, connections to multiplexer will hang
 func (l *Listener) Close() error {
 	l.cancel()
+	go func() {
+		time.Sleep(time.Second)
+		for l := range l.connC {
+			if l != nil {
+				println("yooooooooooooooooo got a connection stuck in the listener")
+				l.Close()
+			} else {
+				println("wtfffffffffffffffffffffffffffff got non-nil conn from connC")
+			}
+		}
+	}()
 	return nil
 }

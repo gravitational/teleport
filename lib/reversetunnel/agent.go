@@ -264,8 +264,20 @@ func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
 // If this is Web Service port check if proxy support ALPN SNI Listener.
 func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
 	pd := reverseTunnelDetails{TLSRoutingEnabled: false}
+
+	ctx, cancel := context.WithTimeout(a.ctx, apidefaults.DefaultDialTimeout)
+	defer cancel()
+
 	resp, err := webclient.Find(
-		&webclient.Config{Context: a.ctx, ProxyAddr: a.Addr.Addr, Insecure: lib.IsInsecureDevMode(), IgnoreHTTPProxy: true})
+		&webclient.Config{Context: ctx, ProxyAddr: a.Addr.Addr, Insecure: lib.IsInsecureDevMode(), IgnoreHTTPProxy: true})
+	if ctx.Err() != nil {
+		a.log.Errorf("=========== WOULD'VE GOTTEN STUCK IN getReverseTunnelDetails ===========")
+		a.log.Errorf("=========== WOULD'VE GOTTEN STUCK IN getReverseTunnelDetails ===========")
+		a.log.Errorf("=========== WOULD'VE GOTTEN STUCK IN getReverseTunnelDetails ===========")
+		a.log.Errorf("=========== WOULD'VE GOTTEN STUCK IN getReverseTunnelDetails ===========")
+		a.log.Errorf("=========== WOULD'VE GOTTEN STUCK IN getReverseTunnelDetails ===========")
+		return nil
+	}
 
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel
@@ -574,10 +586,13 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			}
 			r.ClusterAddr = a.Addr
 			if a.Tracker != nil {
+				proxies := make([]string, 0, len(r.Proxies))
 				// Notify tracker of all known proxies.
 				for _, p := range r.Proxies {
-					a.Tracker.TrackExpected(p.GetName())
+					proxies = append(proxies, p.GetName())
 				}
+				a.Tracker.TrackExpected(proxies...)
+				a.log.WithField("received_proxies", proxies).Infof("TRACKED PROXIES")
 			}
 		}
 	}

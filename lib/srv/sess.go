@@ -1373,6 +1373,10 @@ func (s *session) heartbeat(ctx *ServerContext) {
 				Parties:   &partyList,
 			})
 			if err != nil {
+				if trace.IsNotFound(err) {
+					s.log.Warnf("Session %v was deleted, stopping heartbeat.", s.id)
+					return
+				}
 				s.log.Warnf("Unable to update session %v as active: %v", s.id, err)
 			}
 		case <-s.stopC:
