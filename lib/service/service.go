@@ -3816,7 +3816,7 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 							time.Sleep(5 * time.Second)
 							continue
 						}
-						process.log.Errorf("=========== RECEIVED CONNECTION DURING SHUTDOWN ON %q ===========", l.typ)
+						process.log.Errorf("=========== RECEIVED CONNECTION AFTER SHUTDOWN ON %q ===========", l.typ)
 						c.Close()
 					}
 				}()
