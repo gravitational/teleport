@@ -278,7 +278,8 @@ func checkDestinations(cfg *config.BotConfig) error {
 
 	// TODO: consider warning if ownership of all destintions is not expected.
 
-	if err := storage.Init(); err != nil {
+	// Note: no subdirs to init for bot's internal storage.
+	if err := storage.Init([]string{}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -288,7 +289,12 @@ func checkDestinations(cfg *config.BotConfig) error {
 			return trace.Wrap(err)
 		}
 
-		if err := destImpl.Init(); err != nil {
+		subdirs, err := dest.ListSubdirectories()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := destImpl.Init(subdirs); err != nil {
 			return trace.Wrap(err)
 		}
 	}

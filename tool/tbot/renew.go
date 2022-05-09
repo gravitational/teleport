@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -133,51 +132,6 @@ func describeTLSIdentity(ident *identity.Identity) (string, error) {
 	), nil
 }
 
-// describeSSHIdentity generates an informational message about the given
-// SSH identity, appropriate for user-facing log messages.
-func describeSSHIdentity(ident *identity.Identity) (string, error) {
-	cert := ident.SSHCert
-	if cert == nil {
-		return "", trace.BadParameter("attempted to describe SSH identity without SSH credentials")
-	}
-
-	renewable := false
-	if _, ok := cert.Extensions[teleport.CertExtensionRenewable]; ok {
-		renewable = true
-	}
-
-	disallowReissue := false
-	if _, ok := cert.Extensions[teleport.CertExtensionDisallowReissue]; ok {
-		disallowReissue = true
-	}
-
-	var roles []string
-	if rolesStr, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]; ok {
-		if actualRoles, err := services.UnmarshalCertRoles(rolesStr); err == nil {
-			roles = actualRoles
-		}
-	}
-
-	var principals []string
-	for _, principal := range cert.ValidPrincipals {
-		if !strings.HasPrefix(principal, constants.NoLoginPrefix) {
-			principals = append(principals, principal)
-		}
-	}
-
-	duration := time.Second * time.Duration(cert.ValidBefore-cert.ValidAfter)
-	return fmt.Sprintf(
-		"valid: after=%v, before=%v, duration=%s | kind=ssh, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v",
-		time.Unix(int64(cert.ValidAfter), 0).Format(time.RFC3339),
-		time.Unix(int64(cert.ValidBefore), 0).Format(time.RFC3339),
-		duration,
-		renewable,
-		disallowReissue,
-		roles,
-		principals,
-	), nil
-}
-
 // identityConfigurator is a function that alters a cert request
 type identityConfigurator = func(req *proto.UserCertsRequest)
 
@@ -258,7 +212,7 @@ func generateIdentity(
 	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
 		PrivateKeyBytes: privateKey,
 		PublicKeyBytes:  publicKey,
-	}, certs, destCfg.Kinds...)
+	}, certs, identity.DestinationKinds()...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -536,7 +490,7 @@ func renew(
 		// Check the ACLs. We can't fix them, but we can warn if they're
 		// misconfigured. We'll need to precompute a list of keys to check.
 		// Note: This may only log a warning, depending on configuration.
-		if err := destImpl.Verify(identity.ListKeys(dest.Kinds...)); err != nil {
+		if err := destImpl.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
@@ -553,22 +507,14 @@ func renew(
 			return nil, nil, trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 		}
 
-		var impersonatedIdentStr string
-		if dest.ContainsKind(identity.KindTLS) {
-			impersonatedIdentStr, err = describeTLSIdentity(impersonatedIdent)
-			if err != nil {
-				return nil, nil, trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
-			}
-		} else {
-			// Note: kinds must contain at least 1 of TLS or SSH
-			impersonatedIdentStr, err = describeSSHIdentity(impersonatedIdent)
-			if err != nil {
-				return nil, nil, trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
-			}
+		impersonatedIdentStr, err := describeTLSIdentity(impersonatedIdent)
+		if err != nil {
+			return nil, nil, trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
 		}
+
 		log.Infof("Successfully renewed impersonated certificates for %s, %s", destImpl, impersonatedIdentStr)
 
-		if err := identity.SaveIdentity(impersonatedIdent, destImpl, dest.Kinds...); err != nil {
+		if err := identity.SaveIdentity(impersonatedIdent, destImpl, identity.DestinationKinds()...); err != nil {
 			return nil, nil, trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
 		}
 
