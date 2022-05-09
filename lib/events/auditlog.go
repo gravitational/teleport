@@ -498,18 +498,6 @@ func (l *AuditLog) createOrGetDownload(path string) (context.Context, context.Ca
 }
 
 func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
-	checker, ok := l.UploadHandler.(UnpackChecker)
-	if ok {
-		unpacked, err := checker.IsUnpacked(l.ctx, sid)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if unpacked {
-			l.log.Debugf("Recording %v is stored in legacy unpacked format.", sid)
-			return nil
-		}
-	}
-
 	tarballPath := filepath.Join(l.playbackDir, string(sid)+".tar")
 
 	ctx, cancel := l.createOrGetDownload(tarballPath)
@@ -1053,75 +1041,4 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			return
 		}
 	}
-}
-
-// LegacyHandlerConfig configures
-// legacy local handler adapter
-type LegacyHandlerConfig struct {
-	// Handler is a handler that local handler wraps
-	Handler MultipartHandler
-	// Dir is a root directory with unpacked session records
-	// stored in legacy format
-	Dir string
-}
-
-// CheckAndSetDefaults checks and sets default values
-func (cfg *LegacyHandlerConfig) CheckAndSetDefaults() error {
-	if cfg.Handler == nil {
-		return trace.BadParameter("missing parameter Handler")
-	}
-	if cfg.Dir == "" {
-		return trace.BadParameter("missing parameter Dir")
-	}
-	return nil
-}
-
-// NewLegacyHandler returns new legacy handler
-func NewLegacyHandler(cfg LegacyHandlerConfig) (*LegacyHandler, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &LegacyHandler{
-		MultipartHandler: cfg.Handler,
-		cfg:              cfg,
-	}, nil
-}
-
-// LegacyHandler wraps local file uploader and handles
-// old style uploads stored directly on disk
-// TODO(zmb3): can we remove this now that 4.4 is unsupported?
-type LegacyHandler struct {
-	MultipartHandler
-	cfg LegacyHandlerConfig
-}
-
-// UnpackChecker is a workaround for 4.4 directory cases
-// when the session is unpacked
-type UnpackChecker interface {
-	// IsUnpacked returns true if session is already unpacked
-	IsUnpacked(ctx context.Context, sessionID session.ID) (bool, error)
-}
-
-// IsUnpacked returns true if session is already unpacked
-func (l *LegacyHandler) IsUnpacked(ctx context.Context, sessionID session.ID) (bool, error) {
-	// legacy format stores unpacked records in the directory
-	// in one of the sub-folders set up for the auth server ID
-	// if the file is present there, there no need to unpack and convert it
-	authServers, err := getAuthServers(l.cfg.Dir)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	_, err = readSessionIndex(l.cfg.Dir, authServers, apidefaults.Namespace, sessionID)
-	if err == nil {
-		return true, nil
-	}
-	if trace.IsNotFound(err) {
-		return false, nil
-	}
-	return false, trace.Wrap(err)
-}
-
-// Download downloads session tarball and writes it to writer
-func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
-	return l.cfg.Handler.Download(ctx, sessionID, writer)
 }
