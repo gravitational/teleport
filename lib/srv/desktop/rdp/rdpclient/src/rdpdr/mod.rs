@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod consts;
+mod scard;
+
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::vchan;
 use crate::Payload;
-use crate::{scard, vchan};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
@@ -23,22 +26,37 @@ use rdp::model::data::Message;
 use rdp::model::error::*;
 use std::io::{Read, Write};
 
-pub const CHANNEL_NAME: &str = "rdpdr";
+pub use consts::CHANNEL_NAME;
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
 ///
 /// This client only supports a single smartcard device.
+#[allow(dead_code)]
 pub struct Client {
     vchan: vchan::Client,
     scard: scard::Client,
+
+    allow_directory_sharing: bool,
 }
 
 impl Client {
-    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>, pin: String) -> Self {
+    pub fn new(
+        cert_der: Vec<u8>,
+        key_der: Vec<u8>,
+        pin: String,
+        allow_directory_sharing: bool,
+    ) -> Self {
+        if allow_directory_sharing {
+            debug!("creating rdpdr client with directory sharing enabled")
+        } else {
+            debug!("creating rdpdr client with directory sharing disabled")
+        }
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
+
+            allow_directory_sharing,
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
@@ -49,24 +67,26 @@ impl Client {
     ) -> RdpResult<()> {
         if let Some(mut payload) = self.vchan.read(payload)? {
             let header = SharedHeader::decode(&mut payload)?;
-            if let Component::RDPDR_CTYP_PRN = header.component {
+            if let consts::Component::RDPDR_CTYP_PRN = header.component {
                 warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
                 return Ok(());
             }
             let responses = match header.packet_id {
-                PacketId::PAKID_CORE_SERVER_ANNOUNCE => {
+                consts::PacketId::PAKID_CORE_SERVER_ANNOUNCE => {
                     self.handle_server_announce(&mut payload)?
                 }
-                PacketId::PAKID_CORE_SERVER_CAPABILITY => {
+                consts::PacketId::PAKID_CORE_SERVER_CAPABILITY => {
                     self.handle_server_capability(&mut payload)?
                 }
-                PacketId::PAKID_CORE_CLIENTID_CONFIRM => {
+                consts::PacketId::PAKID_CORE_CLIENTID_CONFIRM => {
                     self.handle_client_id_confirm(&mut payload)?
                 }
-                PacketId::PAKID_CORE_DEVICE_REPLY => self.handle_device_reply(&mut payload)?,
+                consts::PacketId::PAKID_CORE_DEVICE_REPLY => {
+                    self.handle_device_reply(&mut payload)?
+                }
                 // Device IO request is where communication with the smartcard actually happens.
                 // Everything up to this point was negotiation and smartcard device registration.
-                PacketId::PAKID_CORE_DEVICE_IOREQUEST => {
+                consts::PacketId::PAKID_CORE_DEVICE_IOREQUEST => {
                     self.handle_device_io_request(&mut payload)?
                 }
                 _ => {
@@ -93,7 +113,7 @@ impl Client {
         debug!("got ServerAnnounceRequest {:?}", req);
 
         let resp = self.add_headers_and_chunkify(
-            PacketId::PAKID_CORE_CLIENTID_CONFIRM,
+            consts::PacketId::PAKID_CORE_CLIENTID_CONFIRM,
             ClientAnnounceReply::new(req).encode()?,
         )?;
         debug!("sending client announce reply");
@@ -105,7 +125,7 @@ impl Client {
         debug!("got {:?}", req);
 
         let resp = self.add_headers_and_chunkify(
-            PacketId::PAKID_CORE_CLIENT_CAPABILITY,
+            consts::PacketId::PAKID_CORE_CLIENT_CAPABILITY,
             ClientCoreCapabilityResponse::new_response().encode()?,
         )?;
         debug!("sending client core capability response");
@@ -117,7 +137,7 @@ impl Client {
         debug!("got ServerClientIdConfirm {:?}", req);
 
         let resp = self.add_headers_and_chunkify(
-            PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
+            consts::PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
             ClientDeviceListAnnounceRequest::new_smartcard().encode()?,
         )?;
         debug!("sending client device list announce request");
@@ -128,7 +148,7 @@ impl Client {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
         debug!("got {:?}", req);
 
-        if req.device_id != SCARD_DEVICE_ID {
+        if req.device_id != consts::SCARD_DEVICE_ID {
             Err(invalid_data_error(&format!(
                 "got ServerDeviceAnnounceResponse for unknown device_id {}",
                 &req.device_id
@@ -147,7 +167,7 @@ impl Client {
         let req = DeviceIoRequest::decode(payload)?;
         debug!("got {:?}", req);
 
-        if let MajorFunction::IRP_MJ_DEVICE_CONTROL = req.major_function {
+        if let consts::MajorFunction::IRP_MJ_DEVICE_CONTROL = req.major_function {
             let ioctl = DeviceControlRequest::decode(req, payload)?;
             debug!("got {:?}", ioctl);
 
@@ -156,7 +176,7 @@ impl Client {
                 return Ok(vec![]);
             }
             let resp = self.add_headers_and_chunkify(
-                PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                consts::PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
                 DeviceControlResponse::new(&ioctl, code, res).encode()?,
             )?;
             debug!("sending device IO response");
@@ -174,10 +194,11 @@ impl Client {
     /// and splits the entire payload into chunks if the payload exceeds the maximum size.
     fn add_headers_and_chunkify(
         &self,
-        packet_id: PacketId,
+        packet_id: consts::PacketId,
         payload: Vec<u8>,
     ) -> RdpResult<Vec<Vec<u8>>> {
-        let mut inner = SharedHeader::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
+        let mut inner =
+            SharedHeader::new(consts::Component::RDPDR_CTYP_CORE, packet_id).encode()?;
         inner.extend_from_slice(&payload);
         self.vchan.add_header_and_chunkify(None, inner)
     }
@@ -189,12 +210,12 @@ impl Client {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/29d4108f-8163-4a67-8271-e48c4b9c2a7c
 #[derive(Debug)]
 struct SharedHeader {
-    component: Component,
-    packet_id: PacketId,
+    component: consts::Component,
+    packet_id: consts::PacketId,
 }
 
 impl SharedHeader {
-    fn new(component: Component, packet_id: PacketId) -> Self {
+    fn new(component: consts::Component, packet_id: consts::PacketId) -> Self {
         Self {
             component,
             packet_id,
@@ -204,10 +225,10 @@ impl SharedHeader {
         let component = payload.read_u16::<LittleEndian>()?;
         let packet_id = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
-            component: Component::from_u16(component).ok_or_else(|| {
+            component: consts::Component::from_u16(component).ok_or_else(|| {
                 invalid_data_error(&format!("invalid component value {:#06x}", component))
             })?,
-            packet_id: PacketId::from_u16(packet_id).ok_or_else(|| {
+            packet_id: consts::PacketId::from_u16(packet_id).ok_or_else(|| {
                 invalid_data_error(&format!("invalid packet_id value {:#06x}", packet_id))
             })?,
         })
@@ -220,37 +241,9 @@ impl SharedHeader {
     }
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum Component {
-    RDPDR_CTYP_CORE = 0x4472,
-    RDPDR_CTYP_PRN = 0x5052,
-}
-
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum PacketId {
-    PAKID_CORE_SERVER_ANNOUNCE = 0x496E,
-    PAKID_CORE_CLIENTID_CONFIRM = 0x4343,
-    PAKID_CORE_CLIENT_NAME = 0x434E,
-    PAKID_CORE_DEVICELIST_ANNOUNCE = 0x4441,
-    PAKID_CORE_DEVICE_REPLY = 0x6472,
-    PAKID_CORE_DEVICE_IOREQUEST = 0x4952,
-    PAKID_CORE_DEVICE_IOCOMPLETION = 0x4943,
-    PAKID_CORE_SERVER_CAPABILITY = 0x5350,
-    PAKID_CORE_CLIENT_CAPABILITY = 0x4350,
-    PAKID_CORE_DEVICELIST_REMOVE = 0x444D,
-    PAKID_PRN_CACHE_DATA = 0x5043,
-    PAKID_CORE_USER_LOGGEDON = 0x554C,
-    PAKID_PRN_USING_XPS = 0x5543,
-}
-
 type ServerAnnounceRequest = ClientIdMessage;
 type ClientAnnounceReply = ClientIdMessage;
 type ServerClientIdConfirm = ClientIdMessage;
-
-const VERSION_MAJOR: u16 = 0x0001;
-const VERSION_MINOR: u16 = 0x000c;
 
 #[derive(Debug)]
 struct ClientIdMessage {
@@ -262,8 +255,8 @@ struct ClientIdMessage {
 impl ClientIdMessage {
     fn new(req: ServerAnnounceRequest) -> Self {
         Self {
-            version_major: VERSION_MAJOR,
-            version_minor: VERSION_MINOR,
+            version_major: consts::VERSION_MAJOR,
+            version_minor: consts::VERSION_MINOR,
             client_id: req.client_id,
         }
     }
@@ -302,15 +295,15 @@ impl ServerCoreCapabilityRequest {
             capabilities: vec![
                 CapabilitySet {
                     header: CapabilityHeader {
-                        cap_type: CapabilityType::CAP_GENERAL_TYPE,
+                        cap_type: consts::CapabilityType::CAP_GENERAL_TYPE,
                         length: 8 + 36, // 8 byte header + 36 byte capability descriptor
-                        version: GENERAL_CAPABILITY_VERSION_02,
+                        version: consts::GENERAL_CAPABILITY_VERSION_02,
                     },
                     data: Capability::General(GeneralCapabilitySet {
                         os_type: 0,
                         os_version: 0,
-                        protocol_major_version: VERSION_MAJOR,
-                        protocol_minor_version: VERSION_MINOR,
+                        protocol_major_version: consts::VERSION_MAJOR,
+                        protocol_minor_version: consts::VERSION_MINOR,
                         io_code_1: 0x00007fff, // Combination of all the required bits.
                         io_code_2: 0,
                         extended_pdu: 0x00000001 | 0x00000002, // RDPDR_DEVICE_REMOVE_PDUS | RDPDR_CLIENT_DISPLAY_NAME_PDU
@@ -321,9 +314,9 @@ impl ServerCoreCapabilityRequest {
                 },
                 CapabilitySet {
                     header: CapabilityHeader {
-                        cap_type: CapabilityType::CAP_SMARTCARD_TYPE,
+                        cap_type: consts::CapabilityType::CAP_SMARTCARD_TYPE,
                         length: 8, // 8 byte header + empty capability descriptor
-                        version: SMARTCARD_CAPABILITY_VERSION_01,
+                        version: consts::SMARTCARD_CAPABILITY_VERSION_01,
                     },
                     data: Capability::Smartcard,
                 },
@@ -377,14 +370,9 @@ impl CapabilitySet {
     }
 }
 
-const SMARTCARD_CAPABILITY_VERSION_01: u32 = 0x00000001;
-#[allow(dead_code)]
-const GENERAL_CAPABILITY_VERSION_01: u32 = 0x00000001;
-const GENERAL_CAPABILITY_VERSION_02: u32 = 0x00000002;
-
 #[derive(Debug)]
 struct CapabilityHeader {
-    cap_type: CapabilityType,
+    cap_type: consts::CapabilityType,
     length: u16,
     version: u32,
 }
@@ -400,23 +388,13 @@ impl CapabilityHeader {
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let cap_type = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
-            cap_type: CapabilityType::from_u16(cap_type).ok_or_else(|| {
+            cap_type: consts::CapabilityType::from_u16(cap_type).ok_or_else(|| {
                 invalid_data_error(&format!("invalid capability type {:#06x}", cap_type))
             })?,
             length: payload.read_u16::<LittleEndian>()?,
             version: payload.read_u32::<LittleEndian>()?,
         })
     }
-}
-
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum CapabilityType {
-    CAP_GENERAL_TYPE = 0x0001,
-    CAP_PRINTER_TYPE = 0x0002,
-    CAP_PORT_TYPE = 0x0003,
-    CAP_DRIVE_TYPE = 0x0004,
-    CAP_SMARTCARD_TYPE = 0x0005,
 }
 
 #[derive(Debug)]
@@ -438,13 +416,13 @@ impl Capability {
 
     fn decode(payload: &mut Payload, header: &CapabilityHeader) -> RdpResult<Self> {
         match header.cap_type {
-            CapabilityType::CAP_GENERAL_TYPE => Ok(Capability::General(
+            consts::CapabilityType::CAP_GENERAL_TYPE => Ok(Capability::General(
                 GeneralCapabilitySet::decode(payload, header.version)?,
             )),
-            CapabilityType::CAP_PRINTER_TYPE => Ok(Capability::Printer),
-            CapabilityType::CAP_PORT_TYPE => Ok(Capability::Port),
-            CapabilityType::CAP_DRIVE_TYPE => Ok(Capability::Drive),
-            CapabilityType::CAP_SMARTCARD_TYPE => Ok(Capability::Smartcard),
+            consts::CapabilityType::CAP_PRINTER_TYPE => Ok(Capability::Printer),
+            consts::CapabilityType::CAP_PORT_TYPE => Ok(Capability::Port),
+            consts::CapabilityType::CAP_DRIVE_TYPE => Ok(Capability::Drive),
+            consts::CapabilityType::CAP_SMARTCARD_TYPE => Ok(Capability::Smartcard),
         }
     }
 }
@@ -490,7 +468,7 @@ impl GeneralCapabilitySet {
             extended_pdu: payload.read_u32::<LittleEndian>()?,
             extra_flags_1: payload.read_u32::<LittleEndian>()?,
             extra_flags_2: payload.read_u32::<LittleEndian>()?,
-            special_type_device_cap: if version == GENERAL_CAPABILITY_VERSION_02 {
+            special_type_device_cap: if version == consts::GENERAL_CAPABILITY_VERSION_02 {
                 payload.read_u32::<LittleEndian>()?
             } else {
                 0
@@ -500,10 +478,6 @@ impl GeneralCapabilitySet {
 }
 
 type ClientCoreCapabilityResponse = ServerCoreCapabilityRequest;
-
-// If there were multiple redirected devices, they would need unique IDs. In our case there is only
-// one permanent smartcard device, so we hardcode an ID 1.
-const SCARD_DEVICE_ID: u32 = 1;
 
 #[derive(Debug)]
 struct ClientDeviceListAnnounceRequest {
@@ -516,8 +490,8 @@ impl ClientDeviceListAnnounceRequest {
         Self {
             count: 1,
             devices: vec![DeviceAnnounceHeader {
-                device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
-                device_id: SCARD_DEVICE_ID,
+                device_type: consts::DeviceType::RDPDR_DTYP_SMARTCARD,
+                device_id: consts::SCARD_DEVICE_ID,
                 // This name is a constant defined by the spec.
                 preferred_dos_name: "SCARD".to_string(),
                 device_data_length: 0,
@@ -538,7 +512,7 @@ impl ClientDeviceListAnnounceRequest {
 
 #[derive(Debug)]
 struct DeviceAnnounceHeader {
-    device_type: DeviceType,
+    device_type: consts::DeviceType,
     device_id: u32,
     preferred_dos_name: String,
     device_data_length: u32,
@@ -559,16 +533,6 @@ impl DeviceAnnounceHeader {
         w.extend_from_slice(&self.device_data);
         Ok(w)
     }
-}
-
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum DeviceType {
-    RDPDR_DTYP_SERIAL = 0x00000001,
-    RDPDR_DTYP_PARALLEL = 0x00000002,
-    RDPDR_DTYP_PRINT = 0x00000004,
-    RDPDR_DTYP_FILESYSTEM = 0x00000008,
-    RDPDR_DTYP_SMARTCARD = 0x00000020,
 }
 
 #[derive(Debug)]
@@ -592,8 +556,8 @@ struct DeviceIoRequest {
     device_id: u32,
     file_id: u32,
     completion_id: u32,
-    major_function: MajorFunction,
-    minor_function: MinorFunction,
+    major_function: consts::MajorFunction,
+    minor_function: consts::MinorFunction,
 }
 
 impl DeviceIoRequest {
@@ -607,13 +571,13 @@ impl DeviceIoRequest {
             device_id,
             file_id,
             completion_id,
-            major_function: MajorFunction::from_u32(major_function).ok_or_else(|| {
+            major_function: consts::MajorFunction::from_u32(major_function).ok_or_else(|| {
                 invalid_data_error(&format!(
                     "invalid major function value {:#010x}",
                     major_function
                 ))
             })?,
-            minor_function: MinorFunction::from_u32(minor_function).ok_or_else(|| {
+            minor_function: consts::MinorFunction::from_u32(minor_function).ok_or_else(|| {
                 invalid_data_error(&format!(
                     "invalid minor function value {:#010x}",
                     minor_function
@@ -621,30 +585,6 @@ impl DeviceIoRequest {
             })?,
         })
     }
-}
-
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum MajorFunction {
-    IRP_MJ_CREATE = 0x00000000,
-    IRP_MJ_CLOSE = 0x00000002,
-    IRP_MJ_READ = 0x00000003,
-    IRP_MJ_WRITE = 0x00000004,
-    IRP_MJ_DEVICE_CONTROL = 0x0000000E,
-    IRP_MJ_QUERY_VOLUME_INFORMATION = 0x0000000A,
-    IRP_MJ_SET_VOLUME_INFORMATION = 0x0000000B,
-    IRP_MJ_QUERY_INFORMATION = 0x00000005,
-    IRP_MJ_SET_INFORMATION = 0x00000006,
-    IRP_MJ_DIRECTORY_CONTROL = 0x0000000C,
-    IRP_MJ_LOCK_CONTROL = 0x00000011,
-}
-
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-enum MinorFunction {
-    IRP_MN_NONE = 0x00000000,
-    IRP_MN_QUERY_DIRECTORY = 0x00000001,
-    IRP_MN_NOTIFY_CHANGE_DIRECTORY = 0x00000002,
 }
 
 #[derive(Debug)]

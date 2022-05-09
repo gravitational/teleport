@@ -7,6 +7,18 @@
 
 #define SPECIAL_NO_RESPONSE 4294967295
 
+#define VERSION_MAJOR 1
+
+#define VERSION_MINOR 12
+
+#define SMARTCARD_CAPABILITY_VERSION_01 1
+
+#define GENERAL_CAPABILITY_VERSION_01 1
+
+#define GENERAL_CAPABILITY_VERSION_02 2
+
+#define SCARD_DEVICE_ID 1
+
 /**
  * The default maximum chunk size for virtual channel data.
  *
@@ -116,7 +128,8 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
                                  uint8_t *key_der,
                                  uint16_t screen_width,
                                  uint16_t screen_height,
-                                 bool allow_clipboard);
+                                 bool allow_clipboard,
+                                 bool allow_directory_sharing);
 
 /**
  * `update_clipboard` is called from Go, and caches data that was copied
