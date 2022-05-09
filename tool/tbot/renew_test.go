@@ -26,7 +26,6 @@ import (
 	libconfig "github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/teleport/tool/tbot/testhelpers"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -120,7 +119,6 @@ func TestDatabaseRequest(t *testing.T) {
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 
 	dest := botConfig.Destinations[0]
-	dest.Kinds = []identity.ArtifactKind{identity.KindSSH, identity.KindTLS}
 	dest.Database = &config.DatabaseConfig{
 		Service:  "foo",
 		Database: "bar",
