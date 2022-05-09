@@ -132,7 +132,7 @@ readloop:
 			if args.report == byTest {
 				switch event.Action {
 				case actionPass, actionFail, actionSkip:
-					fmt.Printf("%s (in %.2fs): %s\n", event.Action, event.ElapsedSeconds, event.FullName())
+					fmt.Printf("%s (in %5.2fs): %s\n", event.Action, event.ElapsedSeconds, event.FullName())
 				}
 			}
 

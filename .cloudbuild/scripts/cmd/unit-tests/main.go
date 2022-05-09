@@ -99,7 +99,7 @@ func parseCommandLine() (commandlineArgs, error) {
 
 		args.artifactSearchPatterns, err = artifacts.ValidatePatterns(args.workspace, args.artifactSearchPatterns)
 		if err != nil {
-			return args, trace.Wrap(err, "Bad artefact search path")
+			return args, trace.Wrap(err, "Bad artifact search path")
 		}
 	}
 
