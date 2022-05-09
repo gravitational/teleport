@@ -228,7 +228,10 @@ func (c *Client) sync() {
 	for {
 		select {
 		case <-c.ctx.Done():
-			c.config.Log.Debug("Stopping peer proxy sync.")
+			c.config.Log.Debug("Stopping peer proxy sync: context done.")
+			return
+		case <-proxyWatcher.Done():
+			c.config.Log.Debug("Stopping peer proxy sync: proxy watcher done.")
 			return
 		case proxies := <-proxyWatcher.ProxiesC:
 			if err := c.updateConnections(proxies); err != nil {
