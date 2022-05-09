@@ -62,35 +62,34 @@ func (p *ProxyLine) String() string {
 
 // Bytes returns on-the wire bytes representation of proxy line conforming to the proxy v2 protocol
 func (p *ProxyLine) Bytes() []byte {
-	b := &bytes.Buffer{}
-	header := proxyV2Header{VersionCommand: (Version2 << 4) | ProxyCommand}
-	copy(header.Signature[:], proxyV2Prefix)
-	var addr interface{}
+	var b []byte
+	b = append(b, proxyV2Prefix...)
+	b = append(b, (Version2<<4)|ProxyCommand)
+
 	switch p.Protocol {
 	case TCP4:
-		header.Protocol = ProtocolTCP4
-		addr4 := proxyV2Address4{
-			SourcePort:      uint16(p.Source.Port),
-			DestinationPort: uint16(p.Destination.Port),
-		}
-		copy(addr4.Source[:], p.Source.IP.To4())
-		copy(addr4.Destination[:], p.Destination.IP.To4())
-		addr = addr4
+		b = append(b, ProtocolTCP4)
+		b = append(b, 0, 12)
+		b = append(b, p.Source.IP.To4()...)
+		b = append(b, portToBytes(p.Source)...)
+		b = append(b, p.Destination.IP.To4()...)
+		b = append(b, portToBytes(p.Destination)...)
 	case TCP6:
-		header.Protocol = ProtocolTCP6
-		addr6 := proxyV2Address6{
-			SourcePort:      uint16(p.Source.Port),
-			DestinationPort: uint16(p.Destination.Port),
-		}
-		copy(addr6.Source[:], p.Source.IP.To16())
-		copy(addr6.Destination[:], p.Destination.IP.To16())
-		addr = addr6
+		b = append(b, ProtocolTCP6)
+		b = append(b, 36)
+		b = append(b, p.Source.IP.To16()...)
+		b = append(b, portToBytes(p.Source)...)
+		b = append(b, p.Destination.IP.To16()...)
+		b = append(b, portToBytes(p.Destination)...)
 	}
-	header.Length = uint16(binary.Size(addr))
-	binary.Write(b, binary.BigEndian, header)
-	binary.Write(b, binary.BigEndian, addr)
 
-	return b.Bytes()
+	return b
+}
+
+func portToBytes(addr net.TCPAddr) []byte {
+	b := make([]byte, 2)
+	binary.BigEndian.PutUint16(b, uint16(addr.Port))
+	return b
 }
 
 // ReadProxyLine reads proxy line protocol from the reader
