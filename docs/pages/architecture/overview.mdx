@@ -109,13 +109,6 @@ steps are explained in detail below the diagram.
 
 ![Teleport Everything](../../img/everything.svg)
 
-<Admonition
-  type="note"
-  title="Caution"
->
-  The Teleport Admin tool, `tctl`, must be physically present on the same machine where Teleport Auth is running. Adding new nodes or inviting new users to the cluster is only possible using this tool.
-</Admonition>
-
 ### 1: Initiate client connection
 
 ![Client offers certificate](../../img/client_initiate.svg)
@@ -215,7 +208,7 @@ Finally, the client is authorized to create an SSH connection to a node.
 Teleport offers two command-line tools. `tsh` is a client tool used by the end
 users, while `tctl` is used for cluster administration.
 
-### TSH
+### `tsh`
 
 `tsh` is similar in nature to OpenSSH `ssh` or `scp`. It has
 subcommands named after them so you can call:
@@ -234,11 +227,11 @@ valid for 12 hours by default, unless you specify another interval via the
 
 You can learn more about `tsh` in the [User Manual](../server-access/guides/tsh.mdx).
 
-### TCTL
+### `tctl`
 
-`tctl` is used to administer a Teleport cluster. It connects to the Auth
-server listening on `127.0.0.1` and allows a cluster administrator to manage
-nodes and users in the cluster.
+`tctl` is used to administer a Teleport cluster. It connects to the Teleport
+Auth Service and allows a cluster administrator to manage nodes and users in the
+cluster.
 
 `tctl` is also a tool that can be used to modify the dynamic configuration of
 the cluster, like creating new user roles or connecting trusted clusters.
