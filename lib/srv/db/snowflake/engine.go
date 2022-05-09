@@ -37,7 +37,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -75,18 +77,47 @@ func (e *Engine) SendError(err error) {
 	if err == nil || utils.IsOKNetworkError(err) {
 		return
 	}
+
 	//TODO(jakule): implement
-	e.Log.Errorf("snowflake error: %+v", err)
+	e.Log.Errorf("snowflake error: %+v", trace.Unwrap(err))
+
+	if e.clientConn == nil {
+		return
+	}
+
+	response := &http.Response{
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		StatusCode: 401,
+		Body:       io.NopCloser(bytes.NewBufferString(fmt.Sprintf(`{"success": false, "message:"%s"}`, err.Error()))),
+	}
+
+	dumpResponse, err := httputil.DumpResponse(response, true)
+	if err != nil {
+		e.Log.Errorf("snowflake error: %+v", trace.Unwrap(err))
+		return
+	}
+
+	_, err = e.clientConn.Write(dumpResponse)
+	if err != nil {
+		e.Log.Errorf("snowflake error: %+v", trace.Unwrap(err))
+		return
+	}
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	uri := sessionCtx.Database.GetURI()
 	uriParts := strings.Split(uri, ".")
-	if len(uriParts) != 5 && len(uriParts) != 3 {
+	if len(uriParts) != 5 && len(uriParts) != 3 && !strings.Contains(uri, "localhost") {
 		return trace.BadParameter("invalid Snowflake url: %s", uri)
 	}
 
 	accountName := uriParts[0]
+
+	err := e.authorizeConnection(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
@@ -94,7 +125,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
+				MinVersion:         tls.VersionTLS12,
+				InsecureSkipVerify: true,
 			},
 		},
 	}
@@ -129,21 +161,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err)
 		}
 
-		buf := &bytes.Buffer{}
-		var wr io.WriteCloser
-		if req.Header.Get("Content-Encoding") == "gzip" {
-			wr = gzip.NewWriter(buf)
-		} else {
-			wr = &MyWriteCloser{buf}
-		}
-
-		if _, err := wr.Write(body); err != nil {
-			e.Log.Error(err)
-		}
-
-		if err := wr.Close(); err != nil {
-			e.Log.Error(err)
-		}
+		buf := e.writeResponse(req, body)
 
 		e.Log.Debugf("newbody size: %d", buf.Len())
 
@@ -178,7 +196,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err)
 		}
 
-		//e.Log.Debugf("resp: %s", string(dumpResp))
+		e.printBody(resp, resp.Body)
 
 		if resp.StatusCode != 200 {
 			e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
@@ -196,6 +214,76 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err)
 		}
 	}
+}
+
+// authorizeConnection does authorization check for Redis connection about
+// to be established.
+func (e *Engine) authorizeConnection(ctx context.Context) error {
+	ap, err := e.Auth.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       e.sessionCtx.Identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
+
+	dbRoleMatchers := role.DatabaseRoleMatchers(
+		e.sessionCtx.Database.GetProtocol(),
+		e.sessionCtx.DatabaseUser,
+		e.sessionCtx.DatabaseName,
+	)
+	err = e.sessionCtx.Checker.CheckAccess(
+		e.sessionCtx.Database,
+		mfaParams,
+		dbRoleMatchers...,
+	)
+	if err != nil {
+		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (e *Engine) writeResponse(req *http.Request, body []byte) *bytes.Buffer {
+	buf := &bytes.Buffer{}
+	var wr io.WriteCloser
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		wr = gzip.NewWriter(buf)
+	} else {
+		wr = &MyWriteCloser{buf}
+	}
+
+	if _, err := wr.Write(body); err != nil {
+		e.Log.Error(err)
+	}
+
+	if err := wr.Close(); err != nil {
+		e.Log.Error(err)
+	}
+	return buf
+}
+
+func (e *Engine) printBody(resp *http.Response, body io.ReadCloser) {
+	var bodyReader io.Reader
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(body)
+		if err != nil {
+			panic(err)
+		}
+		defer gzipReader.Close()
+
+		bodyReader = gzipReader
+	} else {
+		bodyReader = resp.Body
+	}
+
+	body23, err := io.ReadAll(bodyReader)
+	if err != nil {
+		panic(err)
+	}
+
+	e.Log.Debugf("response body: %s", string(body23))
 }
 
 func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Session, dumpResp []byte, accountName string) ([]byte, error) {
@@ -305,8 +393,6 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 		sessionID = strings.TrimPrefix(sessionID, "Snowflake Token=\"")
 		sessionID = strings.TrimSuffix(sessionID, "\"")
 
-		e.Log.Warnf("session ID get: %v", sessionID)
-
 		var (
 			snowflakeSession types.WebSession
 			err              error
@@ -414,13 +500,18 @@ func (e *Engine) extractToken(dumpResp []byte, sessCb func(string) (string, erro
 	}
 
 	buf := &bytes.Buffer{}
-	newGzBody := gzip.NewWriter(buf)
-	if _, err := newGzBody.Write(newResp); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		newGzBody := gzip.NewWriter(buf)
 
-	if err := newGzBody.Close(); err != nil {
-		return nil, trace.Wrap(err)
+		if _, err := newGzBody.Write(newResp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := newGzBody.Close(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		buf.Write(newResp)
 	}
 
 	return copyResponse(resp, buf.Bytes())
