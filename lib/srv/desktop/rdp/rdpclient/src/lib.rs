@@ -278,7 +278,7 @@ fn connect_rdp_inner(
                     );
                     // Retake pointer to free memory
                     let _ = CString::from_raw(c_string);
-                    if err != CGO_OK {
+                    if err != CGOErrCode::ErrCodeSuccess {
                         return Err(RdpError::TryError(String::from(
                             "call to tdp_sd_info_request failed",
                         )));
@@ -308,7 +308,7 @@ fn connect_rdp_inner(
                             file_type: req.file_type,
                             path: c_string.into_raw(),
                         },
-                    ) != CGO_OK
+                    ) != CGOErrCode::ErrCodeSuccess
                     {
                         return Err(RdpError::TryError(String::from(
                             "call to tdp_sd_create_request failed",
