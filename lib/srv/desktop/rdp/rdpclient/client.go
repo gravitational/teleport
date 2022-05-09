@@ -292,7 +292,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); err != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("write_rdp_pointer failed on the Rust side")
+					c.cfg.Log.Debugf("write_rdp_pointer failed on the Rust side")
 					return
 				}
 			case tdp.MouseButton:
@@ -318,7 +318,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); err != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("write_rdp_pointer failed on the Rust side")
+					c.cfg.Log.Debugf("write_rdp_pointer failed on the Rust side")
 					return
 				}
 			case tdp.MouseWheel:
@@ -347,7 +347,7 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				); err != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("write_rdp_pointer failed on the Rust side")
+					c.cfg.Log.Debugf("write_rdp_pointer failed on the Rust side")
 					return
 				}
 			case tdp.KeyboardButton:
@@ -358,7 +358,7 @@ func (c *Client) start() {
 						down: m.State == tdp.ButtonPressed,
 					},
 				); err != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("write_rdp_keyboard failed on the Rust side")
+					c.cfg.Log.Debugf("write_rdp_keyboard failed on the Rust side")
 					return
 				}
 			case tdp.ClipboardData:
@@ -368,7 +368,7 @@ func (c *Client) start() {
 						(*C.uint8_t)(unsafe.Pointer(&m[0])),
 						C.uint32_t(len(m)),
 					); err != C.ErrCodeSuccess {
-						c.cfg.Log.Warningf("update_clipboard failed on the Rust side")
+						c.cfg.Log.Debugf("update_clipboard failed on the Rust side")
 						return
 					}
 				} else {
