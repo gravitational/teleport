@@ -96,8 +96,53 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 	return &stdoutBuff, nil
 }
 
+func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var options options
+	for _, v := range opts {
+		v(&options)
+	}
+
+	var stdoutBuff bytes.Buffer
+	command := &TokensCommand{
+		stdout: &stdoutBuff,
+	}
+	cfg := service.MakeDefaultConfig()
+
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
+	command.Initialize(app, cfg)
+
+	args = append([]string{"tokens"}, args...)
+	selectedCmd, err := app.Parse(args)
+	require.NoError(t, err)
+
+	var ccf GlobalCLIFlags
+	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
+	ccf.Insecure = options.Insecure
+
+	clientConfig, err := applyConfig(&ccf, cfg)
+	require.NoError(t, err)
+
+	if options.CertPool != nil {
+		clientConfig.TLS.RootCAs = options.CertPool
+	}
+
+	client, err := authclient.Connect(context.Background(), clientConfig)
+	require.NoError(t, err)
+
+	_, err = command.TryRun(selectedCmd, client)
+	if err != nil {
+		return nil, err
+	}
+	return &stdoutBuff, nil
+}
+
 func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
 	err := json.NewDecoder(r).Decode(i)
+	require.NoError(t, err)
+}
+
+func mustDecodeYAML(t *testing.T, r io.Reader, i interface{}) {
+	err := yaml.NewDecoder(r).Decode(i)
 	require.NoError(t, err)
 }
 

@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -51,7 +50,16 @@ var openSSHVersionRegex = regexp.MustCompile(`^OpenSSH_(?P<major>\d+)\.(?P<minor
 // RSA deprecation workaround should be added to generated ssh_config.
 var openSSHMinVersionForRSAWorkaround = semver.New("8.5.0")
 
-// parseSSHVersion attempts to parse
+const (
+	// sshConfigName is the name of the ssh_config file on disk
+	sshConfigName = "ssh_config"
+
+	// knownHostsName is the name of the known_hosts file on disk
+	knownHostsName = "known_hosts"
+)
+
+// parseSSHVersion attempts to parse the local SSH version, used to determine
+// certain config template parameters for client version compatibility.
 func parseSSHVersion(versionString string) (*semver.Version, error) {
 	versionTokens := strings.Split(versionString, " ")
 	if len(versionTokens) == 0 {
@@ -111,6 +119,10 @@ func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (c *TemplateSSHClient) Name() string {
+	return TemplateSSHClientName
+}
+
 func (c *TemplateSSHClient) Describe() []FileDescription {
 	return []FileDescription{
 		{
@@ -123,10 +135,6 @@ func (c *TemplateSSHClient) Describe() []FileDescription {
 }
 
 func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
-	if !destination.ContainsKind(identity.KindSSH) {
-		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", TemplateSSHClientName)
-	}
-
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
@@ -154,7 +162,9 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 
 	// Backend note: Prefer to use absolute paths for filesystem backends.
 	// If the backend is something else, use "". ssh_config will generate with
-	// paths relative to the destination.
+	// paths relative to the destination. This doesn't work with ssh in
+	// practice so adjusting the config for impossible-to-determine-in-advance
+	// destination backends is left as an exercise to the user.
 	var dataDir string
 	if dir, ok := dest.(*DestinationDirectory); ok {
 		dataDir, err = filepath.Abs(dir.Path)
@@ -170,8 +180,8 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 		return trace.Wrap(err)
 	}
 
-	knownHostsPath := filepath.Join(dataDir, "known_hosts")
-	if err := os.WriteFile(knownHostsPath, []byte(knownHosts), 0600); err != nil {
+	knownHostsPath := filepath.Join(dataDir, knownHostsName)
+	if err := dest.Write(knownHostsName, []byte(knownHosts)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -190,7 +200,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 	var sshConfigBuilder strings.Builder
 	identityFilePath := filepath.Join(dataDir, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(dataDir, identity.SSHCertKey)
-	sshConfigPath := filepath.Join(dataDir, "ssh_config")
+	sshConfigPath := filepath.Join(dataDir, sshConfigName)
 	if err := sshConfigTemplate.Execute(&sshConfigBuilder, sshConfigParameters{
 		ClusterName:          clusterName.GetClusterName(),
 		ProxyHost:            proxyHost,
@@ -204,7 +214,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 		return trace.Wrap(err)
 	}
 
-	if err := os.WriteFile(sshConfigPath, []byte(sshConfigBuilder.String()), 0600); err != nil {
+	if err := dest.Write(sshConfigName, []byte(sshConfigBuilder.String())); err != nil {
 		return trace.Wrap(err)
 	}
 

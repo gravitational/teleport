@@ -37,8 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -99,17 +97,33 @@ func TestMonitor(t *testing.T) {
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
+	// this simulates events that happened to be broadcast before the
+	// readyz.monitor started listening for events
+	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
+
+	require.NoError(t, process.Start())
+	t.Cleanup(func() { require.NoError(t, process.Close()) })
+
 	diagAddr, err := process.DiagnosticAddr()
 	require.NoError(t, err)
 	require.NotNil(t, diagAddr)
-	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
 
-	// Start Teleport and make sure the status is OK.
-	go func() {
-		require.NoError(t, process.Run())
-	}()
-	err = waitForStatus(endpoint, http.StatusOK)
-	require.NoError(t, err)
+	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
+	waitForStatus := func(statusCodes ...int) func() bool {
+		return func() bool {
+			resp, err := http.Get(endpoint)
+			require.NoError(t, err)
+			resp.Body.Close()
+			for _, c := range statusCodes {
+				if resp.StatusCode == c {
+					return true
+				}
+			}
+			return false
+		}
+	}
+
+	require.Eventually(t, waitForStatus(http.StatusOK), 5*time.Second, 100*time.Millisecond)
 
 	tests := []struct {
 		desc         string
@@ -166,8 +180,7 @@ func TestMonitor(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			fakeClock.Advance(tt.advanceClock)
 			process.BroadcastEvent(tt.event)
-			err = waitForStatus(endpoint, tt.wantStatus...)
-			require.NoError(t, err)
+			require.Eventually(t, waitForStatus(tt.wantStatus...), 5*time.Second, 100*time.Millisecond)
 		})
 	}
 }
@@ -450,30 +463,6 @@ func TestDesktopAccessFIPS(t *testing.T) {
 	cfg.WindowsDesktop.Enabled = true
 	_, err := NewTeleport(cfg)
 	require.Error(t, err)
-}
-
-func waitForStatus(diagAddr string, statusCodes ...int) error {
-	tickCh := time.Tick(100 * time.Millisecond)
-	timeoutCh := time.After(10 * time.Second)
-	var lastStatus int
-	for {
-		select {
-		case <-tickCh:
-			resp, err := http.Get(diagAddr)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			resp.Body.Close()
-			lastStatus = resp.StatusCode
-			for _, statusCode := range statusCodes {
-				if resp.StatusCode == statusCode {
-					return nil
-				}
-			}
-		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCodes, lastStatus)
-		}
-	}
 }
 
 type mockAccessPoint struct {
