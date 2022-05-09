@@ -3806,7 +3806,7 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 			}
 			newListener, err := net.FileListener(fd)
 			fd.Close()
-			if err != nil {
+			if err == nil {
 				go func() {
 					process.log.Infof("Starting closey listener loop %q", l.typ)
 					for {
