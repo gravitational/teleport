@@ -35,7 +35,6 @@ import (
 )
 
 var (
-	ErrAttemptFailed      = errors.New("login attempt failed")
 	ErrCredentialNotFound = errors.New("credential not found")
 	ErrNotAvailable       = errors.New("touch ID not available")
 )
