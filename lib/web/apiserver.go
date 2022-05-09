@@ -1241,8 +1241,8 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
 		if requestID := r.URL.Query().Get("state"); requestID != "" {
 			if request, errGet := h.cfg.ProxyClient.GetOIDCAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
-				if redUrl, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
-					return redUrl.String()
+				if redURL, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
+					return redURL.String()
 				}
 			}
 		}

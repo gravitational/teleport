@@ -764,7 +764,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	return getClaimsFun(a.closeCtx, oidcClient, connector, code)
 }
 
-// getClaimsFun implements Server.getClaims, but allows that code path to be overriden for testing.
+// getClaimsFun implements Server.getClaims, but allows that code path to be overridden for testing.
 var getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
 	oac, err := getOAuthClient(oidcClient, connector)
 
