@@ -376,14 +376,16 @@ func (c *Client) start() {
 					c.cfg.Log.Warning("Recieved an empty clipboard message")
 				}
 			case tdp.SharedDirectoryAnnounce:
-				driveName := C.CString(m.Name)
-				defer C.free(unsafe.Pointer(driveName))
-				if err := cgoError(C.handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
-					directory_id: C.uint32_t(m.DirectoryId),
-					name:         driveName,
-				})); err != nil {
-					c.cfg.Log.Errorf("Device announce failed: %v", err)
-					return
+				if c.cfg.AllowDirectorySharing {
+					driveName := C.CString(m.Name)
+					defer C.free(unsafe.Pointer(driveName))
+					if err := cgoError(C.handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
+						directory_id: C.uint32_t(m.DirectoryId),
+						name:         driveName,
+					})); err != nil {
+						c.cfg.Log.Errorf("Device announce failed: %v", err)
+						return
+					}
 				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
@@ -457,8 +459,10 @@ func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge
 }
 
 func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) C.CGOError {
-	if err := c.cfg.Conn.OutputMessage(ack); err != nil {
-		return C.CString(fmt.Sprintf("failed to send SharedDirectoryAcknowledge: %v", err))
+	if c.cfg.AllowDirectorySharing {
+		if err := c.cfg.Conn.OutputMessage(ack); err != nil {
+			return C.CString(fmt.Sprintf("failed to send SharedDirectoryAcknowledge: %v", err))
+		}
 	}
 	return nil
 }
