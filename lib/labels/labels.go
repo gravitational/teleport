@@ -173,6 +173,7 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 // EC2LabelConfig is the configuration for the EC2 label service.
 type EC2LabelConfig struct {
 	Client utils.InstanceMetadata
+	Clock  clockwork.Clock
 	Log    *logrus.Entry
 }
 
@@ -183,6 +184,9 @@ func (conf *EC2LabelConfig) checkAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		conf.Client = client
+	}
+	if conf.Clock == nil {
+		conf.Clock = clockwork.NewRealClock()
 	}
 	if conf.Log == nil {
 		conf.Log = logrus.NewEntry(logrus.StandardLogger())
@@ -196,7 +200,6 @@ type EC2Labels struct {
 	c      *EC2LabelConfig
 	mu     sync.RWMutex
 	once   sync.Once
-	clock  clockwork.Clock
 	labels map[string]string
 
 	closeContext context.Context
@@ -211,7 +214,6 @@ func NewEC2Labels(ctx context.Context, c *EC2LabelConfig) (*EC2Labels, error) {
 
 	return &EC2Labels{
 		c:            c,
-		clock:        clockwork.NewRealClock(),
 		labels:       make(map[string]string),
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
@@ -256,7 +258,7 @@ func (l *EC2Labels) Start() {
 }
 
 func (l *EC2Labels) periodicUpdateLabels() {
-	ticker := l.clock.NewTicker(types.EC2LabelUpdatePeriod)
+	ticker := l.c.Clock.NewTicker(types.EC2LabelUpdatePeriod)
 	defer ticker.Stop()
 
 	for {

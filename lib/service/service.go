@@ -603,7 +603,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	return newSrv, nil
 }
 
-// initConfig is a config struct to pass to a service's init method.
+// initConfig is the configuration for service initialization.
 type initConfig struct {
 	ec2Labels *labels.EC2Labels
 }

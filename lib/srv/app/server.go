@@ -486,8 +486,8 @@ func (s *Server) injectEC2Labels(app types.Application) {
 	if s.c.EC2Labels == nil {
 		return
 	}
-
 	labels := s.c.EC2Labels.Get()
+	// Let static labels override EC2 labels if they conflict.
 	for k, v := range app.GetStaticLabels() {
 		labels[k] = v
 	}

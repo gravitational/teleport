@@ -475,8 +475,8 @@ func (s *Server) injectEC2Labels(database types.Database) {
 	if s.cfg.EC2Labels == nil {
 		return
 	}
-
 	labels := s.cfg.EC2Labels.Get()
+	// Let static labels override EC2 labels if they conflict.
 	for k, v := range database.GetStaticLabels() {
 		labels[k] = v
 	}

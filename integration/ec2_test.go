@@ -348,7 +348,6 @@ func TestEC2Labels(t *testing.T) {
 		var err error
 		nodes, err = authServer.GetNodes(ctx, tconf.SSH.Namespace)
 		require.NoError(t, err)
-		// apps, err = authServer.GetApps(ctx)
 		apps, err = authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
 		require.NoError(t, err)
 		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
@@ -372,7 +371,6 @@ func TestEC2Labels(t *testing.T) {
 	_, err = authServer.UpsertKubeServiceV2(ctx, kubeServer)
 	require.NoError(t, err)
 
-	// TODO: guarantee that this (or any) tag exists
 	tagName := fmt.Sprintf("%s/Name", types.AWSNamespace)
 
 	// Check that EC2 labels were applied.

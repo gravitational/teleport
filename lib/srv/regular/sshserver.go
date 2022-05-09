@@ -824,18 +824,13 @@ func (s *Server) getRole() types.SystemRole {
 
 // getNonDynamicLabels returns non-dynamic labels (static and ec2). TODO improve func name and doc
 func (s *Server) getNonDynamicLabels() map[string]string {
-	labels := make(map[string]string)
+	if s.ec2Labels == nil {
+		return s.labels
+	}
+	labels := s.ec2Labels.Get()
+	// Let static labels override ec2 labels if they conflict.
 	for k, v := range s.labels {
 		labels[k] = v
-	}
-
-	if s.ec2Labels != nil {
-		for k, v := range s.ec2Labels.Get() {
-			// Don't override a static label with an ec2 label.
-			if _, ok := labels[k]; !ok {
-				labels[k] = v
-			}
-		}
 	}
 	return labels
 }

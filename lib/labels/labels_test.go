@@ -132,9 +132,9 @@ func TestEC2LabelsAsync(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ec2Labels, err := NewEC2Labels(context.Background(), &EC2LabelConfig{
 		Client: imdsClient,
+		Clock:  clock,
 	})
 	require.NoError(t, err)
-	ec2Labels.clock = clock
 
 	compareLabels := func(m map[string]string) func() bool {
 		return func() bool {

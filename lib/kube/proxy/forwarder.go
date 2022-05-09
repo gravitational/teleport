@@ -1778,6 +1778,7 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+// getNonDynamicLabels gets all non-command (static and ec2) labels.
 func (f *Forwarder) getNonDynamicLabels() map[string]string {
 	m := make(map[string]string)
 	if f.cfg.EC2Labels != nil {

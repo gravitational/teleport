@@ -170,20 +170,16 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		}
 		dynLabels.Sync()
 		go dynLabels.Start()
+
+		defer func() {
+			if retErr != nil {
+				dynLabels.Close()
+			}
+		}()
 	}
 	if ec2Labels != nil {
 		ec2Labels.Start()
 	}
-	defer func() {
-		if retErr != nil {
-			if dynLabels != nil {
-				dynLabels.Close()
-			}
-			if ec2Labels != nil {
-				ec2Labels.Close()
-			}
-		}
-	}()
 
 	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 

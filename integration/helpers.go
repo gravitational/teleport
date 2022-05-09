@@ -1797,6 +1797,7 @@ func enableKubernetesService(t *testing.T, config *service.Config) {
 	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
 }
 
+// getKubeClusters gets all kubernetes clusters accessible from a given auth server.
 func getKubeClusters(t *testing.T, as *auth.Server) []*types.KubernetesCluster {
 	ctx := context.Background()
 	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{
