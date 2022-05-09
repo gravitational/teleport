@@ -59,7 +59,7 @@ func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services
 		}
 
 		// we don't want to cache the client. construct it directly.
-		client, err := a.createOIDCClient(connector, false)
+		client, err := a.createOIDCClient(ctx, connector, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -71,7 +71,7 @@ func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	client, err := a.getOrCreateOIDCClient(connector)
+	client, err := a.getOrCreateOIDCClient(ctx, connector)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -79,7 +79,7 @@ func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services
 	return connector, client, nil
 }
 
-func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
+func (a *Server) getOrCreateOIDCClient(ctx context.Context, conn types.OIDCConnector) (*oidc.Client, error) {
 	client, err := a.getOIDCClient(conn)
 	if err == nil {
 		return client, nil
@@ -87,7 +87,7 @@ func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, 
 	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	return a.createOIDCClient(conn, true)
+	return a.createOIDCClient(ctx, conn, true)
 }
 
 func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
@@ -110,7 +110,7 @@ func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 
 }
 
-func (a *Server) createOIDCClient(conn types.OIDCConnector, rememberClient bool) (*oidc.Client, error) {
+func (a *Server) createOIDCClient(ctx context.Context, conn types.OIDCConnector, rememberClient bool) (*oidc.Client, error) {
 	config := oidcConfig(conn)
 	client, err := oidc.NewClient(config)
 	if err != nil {
@@ -149,9 +149,13 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector, rememberClient bool)
 
 		a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config, cancel: syncCancel}
 	} else {
-		// give it some time and close to avoid resources leaking.
+		// either wait for the parent context to finish, or wait up to 10 minutes.
 		go func() {
-			time.Sleep(time.Minute * 3)
+			select {
+			case <-ctx.Done():
+			case <-time.After(defaults.OIDCAuthRequestTTL):
+			}
+			log.Infof("Removing OIDC test client for connector %q, URL %q", conn.GetName(), conn.GetIssuerURL())
 			syncCancel()
 		}()
 	}
@@ -213,7 +217,10 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 }
 
 func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	ctx := context.TODO()
+	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
 	connector, client, err := a.getOIDCConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -379,7 +386,11 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 	}
 	diagCtx.info.TestFlow = req.SSOTestFlow
 
-	connector, client, err := a.getOIDCConnectorAndClient(ctx, *req)
+	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
+	ctxC, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	connector, client, err := a.getOIDCConnectorAndClient(ctxC, *req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC connector and client.")
 	}
