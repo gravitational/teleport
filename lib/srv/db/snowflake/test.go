@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -273,6 +274,7 @@ func (s *TestServer) Serve() error {
 		case loginRequestPath:
 			// TODO(jakule): verify JWT
 			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", strconv.Itoa(len(loginResponse)))
 			w.Write([]byte(loginResponse))
 		case queryRequestPath:
 			if r.Header.Get("Authorization") != "Snowflake Token=\"test-token-123\"" {
@@ -280,9 +282,11 @@ func (s *TestServer) Serve() error {
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", strconv.Itoa(len(queryResponse)))
 			w.Write([]byte(queryResponse))
 		case sessionRequestPath:
 			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", strconv.Itoa(len(sessionEndResponse)))
 			w.Write([]byte(sessionEndResponse))
 		default:
 			w.WriteHeader(http.StatusNotFound)

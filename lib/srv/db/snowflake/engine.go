@@ -201,29 +201,46 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	dumpResp, err := httputil.DumpResponse(resp, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	e.printBody(resp, resp.Body)
-
-	if resp.StatusCode != 200 {
-		e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
-	}
+	defer resp.Body.Close()
 
 	if strings.HasPrefix(origURLPath, loginRequestPath) {
-		dumpResp, err = e.saveSessionToken(ctx, sessionCtx, dumpResp, accountName)
+		dumpResp, err := httputil.DumpResponse(resp, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		//e.printBody(resp, resp.Body)
+
+		if resp.StatusCode != http.StatusOK {
+			e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
+		} else {
+			dumpResp, err = e.saveSessionToken(ctx, sessionCtx, dumpResp, accountName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		_, err = e.clientConn.Write(dumpResp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+
+	dumpResp, err := httputil.DumpResponse(resp, false)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	_, err = e.clientConn.Write(dumpResp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if _, err := io.Copy(e.clientConn, resp.Body); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
