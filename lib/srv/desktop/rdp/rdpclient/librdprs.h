@@ -128,7 +128,8 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
                                  uint8_t *key_der,
                                  uint16_t screen_width,
                                  uint16_t screen_height,
-                                 bool allow_clipboard);
+                                 bool allow_clipboard,
+                                 bool allow_directory_sharing);
 
 /**
  * `update_clipboard` is called from Go, and caches data that was copied
