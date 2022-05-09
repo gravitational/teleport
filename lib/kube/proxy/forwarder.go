@@ -970,6 +970,37 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		return nil, trace.AccessDenied("insufficient permissions to launch non-interactive session")
 	}
 
+	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
+	event := &apievents.Exec{
+		Metadata: apievents.Metadata{
+			Type:        events.ExecEvent,
+			ClusterName: f.cfg.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        f.cfg.ServerID,
+			ServerNamespace: f.cfg.Namespace,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: uuid.NewString(),
+			WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
+		},
+		UserMetadata: ctx.eventUserMeta(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: req.RemoteAddr,
+			LocalAddr:  sess.kubeAddress,
+			Protocol:   events.EventProtocolKube,
+		},
+		CommandMetadata: apievents.CommandMetadata{
+			Command: strings.Join(request.cmd, " "),
+		},
+		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesPodMetadata:     eventPodMeta,
+	}
+
+	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, event); err != nil {
+		f.log.WithError(err).Warn("Failed to emit exec event.")
+	}
+
 	executor, err := f.getExecutor(*ctx, sess, req)
 	if err != nil {
 		f.log.WithError(err).Warning("Failed creating executor.")
