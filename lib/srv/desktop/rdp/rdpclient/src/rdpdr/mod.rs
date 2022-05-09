@@ -32,16 +32,31 @@ pub use consts::CHANNEL_NAME;
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
 ///
 /// This client only supports a single smartcard device.
+#[allow(dead_code)]
 pub struct Client {
     vchan: vchan::Client,
     scard: scard::Client,
+
+    allow_directory_sharing: bool,
 }
 
 impl Client {
-    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>, pin: String) -> Self {
+    pub fn new(
+        cert_der: Vec<u8>,
+        key_der: Vec<u8>,
+        pin: String,
+        allow_directory_sharing: bool,
+    ) -> Self {
+        if allow_directory_sharing {
+            debug!("creating rdpdr client with directory sharing enabled")
+        } else {
+            debug!("creating rdpdr client with directory sharing disabled")
+        }
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
+
+            allow_directory_sharing,
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.

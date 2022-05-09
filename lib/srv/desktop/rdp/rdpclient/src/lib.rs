@@ -123,6 +123,7 @@ pub unsafe extern "C" fn connect_rdp(
     screen_width: u16,
     screen_height: u16,
     allow_clipboard: bool,
+    allow_directory_sharing: bool,
 ) -> ClientOrError {
     // Convert from C to Rust types.
     let addr = from_go_string(go_addr);
@@ -140,6 +141,7 @@ pub unsafe extern "C" fn connect_rdp(
             screen_width,
             screen_height,
             allow_clipboard,
+            allow_directory_sharing,
         },
     )
     .into()
@@ -173,6 +175,7 @@ struct ConnectParams {
     screen_width: u16,
     screen_height: u16,
     allow_clipboard: bool,
+    allow_directory_sharing: bool,
 }
 
 fn connect_rdp_inner(
@@ -239,7 +242,12 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
     // Client for the "rdpdr" channel - smartcard emulation.
-    let rdpdr = rdpdr::Client::new(params.cert_der, params.key_der, pin);
+    let rdpdr = rdpdr::Client::new(
+        params.cert_der,
+        params.key_der,
+        pin,
+        params.allow_directory_sharing,
+    );
 
     // Client for the "cliprdr" channel - clipboard sharing.
     let cliprdr = if params.allow_clipboard {

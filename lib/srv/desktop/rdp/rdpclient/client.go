@@ -225,6 +225,7 @@ func (c *Client) connect(ctx context.Context) error {
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
 		C.bool(c.cfg.AllowClipboard),
+		C.bool(c.cfg.AllowDirectorySharing),
 	)
 	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)
