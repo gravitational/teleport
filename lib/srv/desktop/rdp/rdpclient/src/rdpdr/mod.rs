@@ -62,6 +62,11 @@ impl Client {
 
         tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
     ) -> Self {
+        if allow_directory_sharing {
+            debug!("creating rdpdr client with directory sharing enabled")
+        } else {
+            debug!("creating rdpdr client with directory sharing disabled")
+        }
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
