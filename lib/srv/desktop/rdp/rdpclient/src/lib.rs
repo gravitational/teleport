@@ -277,9 +277,7 @@ fn connect_rdp_inner(
                 if handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32)
                     != CGOErrCode::ErrCodeSuccess
                 {
-                    return Err(errors::try_error(
-                        "handle_remote_copy failed on the Go side",
-                    ));
+                    return Err(errors::try_error("failed to handle remote copy"));
                 }
             }
             Ok(())
@@ -573,10 +571,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             _ => {}
         }
         if err != CGOErrCode::ErrCodeSuccess {
-            return Some(
-                "failed forwarding RDP bitmap frame: handle_bitmap failed on the Go side"
-                    .to_string(),
-            );
+            return Some("failed forwarding RDP bitmap frame".to_string());
         }
     }
     None
