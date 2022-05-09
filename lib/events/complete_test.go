@@ -69,6 +69,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		SessionTracker: sessionTrackerService,
 		Clock:          clock,
 		ClusterName:    "teleport-cluster",
+		GracePeriod:    24 * time.Hour,
 	})
 	require.NoError(t, err)
 
@@ -79,7 +80,18 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, mu.IsCompleted(upload.ID))
 
-	clock.Advance(1 * time.Hour)
+	// enough to expire the session tracker, not enough to pass the grace period
+	clock.Advance(2 * time.Hour)
+
+	err = uc.CheckUploads(context.Background())
+	require.NoError(t, err)
+	require.False(t, mu.IsCompleted(upload.ID))
+
+	trackers, err := sessionTrackerService.GetActiveSessionTrackers(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, trackers)
+
+	clock.Advance(22*time.Hour + time.Nanosecond)
 
 	err = uc.CheckUploads(context.Background())
 	require.NoError(t, err)
@@ -145,6 +157,7 @@ func TestUploadCompleterAcquiresSemaphore(t *testing.T) {
 			},
 			acquireErr: nil,
 		},
+		GracePeriod: -1,
 	})
 	require.NoError(t, err)
 
@@ -191,6 +204,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 				Clock:          clock,
 				SessionTracker: &mockSessionTrackerService{},
 				ClusterName:    "teleport-cluster",
+				GracePeriod:    -1,
 			})
 			require.NoError(t, err)
 
@@ -284,6 +298,7 @@ func TestCheckUploadsContinuesOnError(t *testing.T) {
 		SessionTracker: sessionTrackerService,
 		Clock:          clock,
 		ClusterName:    "teleport-cluster",
+		GracePeriod:    -1,
 	})
 	require.NoError(t, err)
 
