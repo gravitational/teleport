@@ -95,6 +95,10 @@ type CLIConf struct {
 	// Clean is a flag that, if set, instructs `tbot init` to remove existing
 	// unexpected files.
 	Clean bool
+
+	// ConfigureOutput provides a path that the generated configuration file
+	// should be written to
+	ConfigureOutput string
 }
 
 // OnboardingConfig contains values only required on first connect.

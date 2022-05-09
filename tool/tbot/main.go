@@ -49,13 +49,13 @@ const (
 )
 
 func main() {
-	if err := Run(os.Args[1:]); err != nil {
+	if err := Run(os.Args[1:], os.Stdout); err != nil {
 		utils.FatalError(err)
 		trace.DebugReport(err)
 	}
 }
 
-func Run(args []string) error {
+func Run(args []string, stdout io.Writer) error {
 	var cf config.CLIConf
 	utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 
@@ -94,6 +94,7 @@ func Run(args []string) error {
 	configureCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
 	configureCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
 	configureCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
+	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
 
 	watchCmd := app.Command("watch", "Watch a destination directory for changes.").Hidden()
 
@@ -120,7 +121,7 @@ func Run(args []string) error {
 	case startCmd.FullCommand():
 		err = onStart(botConfig)
 	case configureCmd.FullCommand():
-		err = onConfigure(cf, os.Stdout)
+		err = onConfigure(cf, stdout)
 	case initCmd.FullCommand():
 		err = onInit(botConfig, &cf)
 	case watchCmd.FullCommand():
@@ -143,7 +144,7 @@ func onConfigure(
 	stdout io.Writer,
 ) error {
 	out := stdout
-	outPath := cf.ConfigPath
+	outPath := cf.ConfigureOutput
 	if outPath != "" {
 		f, err := os.Create(outPath)
 		if err != nil {
