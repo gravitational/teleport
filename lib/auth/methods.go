@@ -44,6 +44,8 @@ type AuthenticateUserRequest struct {
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
+	// ClientMetadata includes forwarded information about a client
+	ClientMetadata *apievents.ClientMetadata `json:"client_metadata,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -102,6 +104,7 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 			User: user,
 		},
 		Method: events.LoginMethodLocal,
+		Client: req.ClientMetadata,
 	}
 	if mfaDev != nil {
 		m := mfaDeviceEventMetadata(mfaDev)

@@ -93,7 +93,7 @@ message ServerMetadata {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "server_labels,omitempty" ];
 }
 
-// Connection contains connection infro
+// Connection contains connection info
 message ConnectionMetadata {
     // LocalAddr is a target address on the host
     string LocalAddr = 1 [ (gogoproto.jsontag) = "addr.local,omitempty" ];
@@ -103,6 +103,15 @@ message ConnectionMetadata {
 
     // Protocol specifies protocol that was captured
     string Protocol = 3 [ (gogoproto.jsontag) = "proto,omitempty" ];
+}
+
+// ClientMetadata identifies the originating client for an event.
+message ClientMetadata {
+    // UserAgent identifies the type of client that attempted the event.
+    string UserAgent = 1 [ (gogoproto.jsontag) = "user_agent,omitempty" ];
+
+    // IPAddress identifies the IP of the client that attempted the event.
+    string IPAddress = 2 [ (gogoproto.jsontag) = "ip_address,omitempty" ];
 }
 
 // KubernetesClusterMetadata contains common metadata for kubernetes-related
@@ -648,6 +657,9 @@ message UserLogin {
 
     // MFA is the MFA device used during the login.
     MFADeviceMetadata MFADevice = 6 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
+
+    // Client is the common client event metadata
+    ClientMetadata Client = 7 [ (gogoproto.jsontag) = "client,omitempty" ];
 }
 
 // ResourceMetadata is a common resource metadata
