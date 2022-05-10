@@ -41,7 +41,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Enable HSM feature
+	// Enable HSM feature.
 	// This is safe to do here, as all tests in this package require HSM to be
 	// enabled.
 	modules.SetModules(&modules.TestModules{
