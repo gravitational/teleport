@@ -66,7 +66,6 @@ import "C"
 import (
 	"context"
 	"errors"
-	"fmt"
 	"image"
 	"io"
 	"os"
@@ -225,9 +224,10 @@ func (c *Client) connect(ctx context.Context) error {
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
 		C.bool(c.cfg.AllowClipboard),
+		C.bool(c.cfg.AllowDirectorySharing),
 	)
-	if err := cgoError(res.err); err != nil {
-		return trace.Wrap(err)
+	if res.err != C.ErrCodeSuccess {
+		return trace.ConnectionProblem(nil, "RDP connection failed")
 	}
 	c.rustClient = res.client
 	return nil
@@ -245,7 +245,7 @@ func (c *Client) start() {
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
-		if err := cgoError(C.read_rdp_output(c.rustClient)); err != nil {
+		if err := C.read_rdp_output(c.rustClient); err != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
 
 			// close the TDP connection to the browser
@@ -283,7 +283,7 @@ func (c *Client) start() {
 			switch m := msg.(type) {
 			case tdp.MouseMove:
 				mouseX, mouseY = m.X, m.Y
-				if err := cgoError(C.write_rdp_pointer(
+				if err := C.write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(m.X),
@@ -291,8 +291,7 @@ func (c *Client) start() {
 						button: C.PointerButtonNone,
 						wheel:  C.PointerWheelNone,
 					},
-				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP mouse pointer: %v", err)
+				); err != C.ErrCodeSuccess {
 					return
 				}
 			case tdp.MouseButton:
@@ -308,7 +307,7 @@ func (c *Client) start() {
 				default:
 					button = C.PointerButtonNone
 				}
-				if err := cgoError(C.write_rdp_pointer(
+				if err := C.write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(mouseX),
@@ -317,8 +316,7 @@ func (c *Client) start() {
 						down:   m.State == tdp.ButtonPressed,
 						wheel:  C.PointerWheelNone,
 					},
-				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP mouse button: %v", err)
+				); err != C.ErrCodeSuccess {
 					return
 				}
 			case tdp.MouseWheel:
@@ -337,7 +335,7 @@ func (c *Client) start() {
 				default:
 					wheel = C.PointerWheelNone
 				}
-				if err := cgoError(C.write_rdp_pointer(
+				if err := C.write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:           C.uint16_t(mouseX),
@@ -346,29 +344,26 @@ func (c *Client) start() {
 						wheel:       uint32(wheel),
 						wheel_delta: C.int16_t(m.Delta),
 					},
-				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP mouse wheel: %v", err)
+				); err != C.ErrCodeSuccess {
 					return
 				}
 			case tdp.KeyboardButton:
-				if err := cgoError(C.write_rdp_keyboard(
+				if err := C.write_rdp_keyboard(
 					c.rustClient,
 					C.CGOKeyboardEvent{
 						code: C.uint16_t(m.KeyCode),
 						down: m.State == tdp.ButtonPressed,
 					},
-				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP key press: %v", err)
+				); err != C.ErrCodeSuccess {
 					return
 				}
 			case tdp.ClipboardData:
 				if len(m) > 0 {
-					if err := cgoError(C.update_clipboard(
+					if err := C.update_clipboard(
 						c.rustClient,
 						(*C.uint8_t)(unsafe.Pointer(&m[0])),
 						C.uint32_t(len(m)),
-					)); err != nil {
-						c.cfg.Log.Warningf("Failed forwarding RDP clipboard data: %v", err)
+					); err != C.ErrCodeSuccess {
 						return
 					}
 				} else {
@@ -382,11 +377,11 @@ func (c *Client) start() {
 }
 
 //export handle_bitmap
-func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOError {
+func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOErrCode {
 	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
-func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOError {
+func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a bitmap was sent.
@@ -415,26 +410,28 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOError {
 	copy(img.Pix, data)
 
 	if err := c.cfg.Conn.OutputMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
-		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
+		c.cfg.Log.Errorf("failed to send PNG frame %v: %v", img.Rect, err)
+		return C.ErrCodeFailure
 	}
-	return nil
+	return C.ErrCodeSuccess
 }
 
 //export handle_remote_copy
-func handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOError {
+func handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := C.GoBytes(unsafe.Pointer(data), C.int(length))
 	return cgo.Handle(handle).Value().(*Client).handleRemoteCopy(goData)
 }
 
 // handleRemoteCopy is called from Rust when data is copied
 // on the remote desktop
-func (c *Client) handleRemoteCopy(data []byte) C.CGOError {
+func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 	c.cfg.Log.Debugf("Received %d bytes of clipboard data from Windows desktop", len(data))
 
 	if err := c.cfg.Conn.OutputMessage(tdp.ClipboardData(data)); err != nil {
-		return C.CString(fmt.Sprintf("failed to send clipboard data: %v", err))
+		c.cfg.Log.Errorf("failed handling remote copy: %v", err)
+		return C.ErrCodeFailure
 	}
-	return nil
+	return C.ErrCodeSuccess
 }
 
 // Wait blocks until the client disconnects and runs the cleanup.
@@ -452,8 +449,8 @@ func (c *Client) Close() {
 	c.closeOnce.Do(func() {
 		c.handle.Delete()
 
-		if err := cgoError(C.close_rdp(c.rustClient)); err != nil {
-			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
+		if err := C.close_rdp(c.rustClient); err != C.ErrCodeSuccess {
+			c.cfg.Log.Warningf("failed to close the RDP client")
 		}
 	})
 }
@@ -472,20 +469,4 @@ func (c *Client) UpdateClientActivity() {
 	c.clientActivityMu.Lock()
 	c.clientLastActive = time.Now().UTC()
 	c.clientActivityMu.Unlock()
-}
-
-// cgoError converts from a CGO-originated error to a Go error, copying the
-// error string and releasing the CGO data.
-func cgoError(s C.CGOError) error {
-	if s == nil {
-		return nil
-	}
-	gs := C.GoString(s)
-	C.free_rust_string(s)
-	return errors.New(gs)
-}
-
-//export free_go_string
-func free_go_string(s *C.char) {
-	C.free(unsafe.Pointer(s))
 }
