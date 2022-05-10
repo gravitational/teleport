@@ -273,6 +273,10 @@ type TeleportProcess struct {
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
 	importedDescriptors []FileDescriptor
+	// listenersBlocked is a flag that indicates that the process should not open
+	// new listeners (for instance, because we're shutting down and we've already
+	// closed all the listeners)
+	listenersBlocked bool
 
 	// forkedPIDs is a collection of a teleport processes forked
 	// during restart used to collect their status in case if the
@@ -3316,6 +3320,11 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // StartShutdown launches non-blocking graceful shutdown process that signals
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
+	// by the time we get here we've already extracted the parent pipe, which is
+	// the only potential imported file descriptor that's not a listening socket
+	warnOnErr(process.closeImportedDescriptors(""), process.log)
+	warnOnErr(process.stopListeners(), process.log)
+
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
 	go func() {
