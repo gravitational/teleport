@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -431,6 +432,11 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	roles, _, err := h.fetchRoleSet(cert, ca, teleportUser, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// we don't need to check the RBAC for the node if they are only allowed to join sessions
+	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(roles) {
+		return nil
 	}
 
 	ap, err := h.c.AccessPoint.GetAuthPreference(ctx)

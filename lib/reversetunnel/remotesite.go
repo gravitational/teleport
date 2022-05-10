@@ -18,7 +18,6 @@ package reversetunnel
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -331,7 +330,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 	defer func() {
 		s.Infof("Cluster connection closed.")
 
-		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			s.WithError(err).Warnf("Failed to close remote connection for remote site %s", s.domainName)
 		}
 
@@ -428,7 +427,7 @@ func (s *remoteSite) compareAndSwapCertAuthority(ca types.CertAuthority) error {
 	return trace.CompareFailed("remote certificate authority rotation has been updated")
 }
 
-func (s *remoteSite) updateCertAuthorities(retry utils.Retry) {
+func (s *remoteSite) updateCertAuthorities(retry utils.Retry, remoteClusterVersion string) {
 	s.Debugf("Watching for cert authority changes.")
 
 	for {
@@ -441,7 +440,7 @@ func (s *remoteSite) updateCertAuthorities(retry utils.Retry) {
 			return
 		}
 
-		err := s.watchCertAuthorities()
+		err := s.watchCertAuthorities(remoteClusterVersion)
 		if err != nil {
 			switch {
 			case trace.IsNotFound(err):
@@ -460,7 +459,12 @@ func (s *remoteSite) updateCertAuthorities(retry utils.Retry) {
 	}
 }
 
-func (s *remoteSite) watchCertAuthorities() error {
+func (s *remoteSite) watchCertAuthorities(remoteClusterVersion string) error {
+	localWatchedTypes, err := s.getLocalWatchedCerts(remoteClusterVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	localWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -468,7 +472,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 			Clock:     s.clock,
 			Client:    s.localAccessPoint,
 		},
-		WatchCertTypes: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+		WatchCertTypes: localWatchedTypes,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -503,8 +507,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 		case cas := <-localWatcher.CertAuthorityC:
 			for _, localCA := range cas {
 				if localCA.GetClusterName() != s.srv.ClusterName ||
-					(localCA.GetType() != types.HostCA &&
-						localCA.GetType() != types.UserCA && localCA.GetType() != types.DatabaseCA) {
+					!localWatcher.IsWatched(localCA.GetType()) {
 					continue
 				}
 
@@ -543,6 +546,25 @@ func (s *remoteSite) watchCertAuthorities() error {
 			}
 		}
 	}
+}
+
+// getLocalWatchedCerts returns local certificates types that should be watched by the cert authority watcher.
+func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) ([]types.CertAuthType, error) {
+	localWatchedTypes := []types.CertAuthType{types.HostCA, types.UserCA}
+
+	// Delete in 11.0.
+	ver10orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.DatabaseCAMinVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ver10orAbove {
+		localWatchedTypes = append(localWatchedTypes, types.DatabaseCA)
+	} else {
+		s.Debugf("Connected to remote cluster of version %s. Database CA won't be propagated.", remoteClusterVersion)
+	}
+
+	return localWatchedTypes, nil
 }
 
 func (s *remoteSite) updateLocks(retry utils.Retry) {

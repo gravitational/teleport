@@ -1009,32 +1009,23 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 
 	person := NewTerminal(250)
 
-	// commandsC receive commands
-	commandsC := make(chan string)
+	cl, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    Host,
+		Port:    teleport.GetPortSSHInt(),
+	})
+	require.NoError(t, err)
+	cl.Stdout = person
+	cl.Stdin = person
 
-	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
-	openSession := func() {
-		cl, err := teleport.NewClient(ClientConfig{
-			Login:   suite.me.Username,
-			Cluster: Site,
-			Host:    Host,
-			Port:    teleport.GetPortSSHInt(),
-		})
-		require.NoError(t, err)
-		cl.Stdout = person
-		cl.Stdin = person
-
-		go func() {
-			for command := range commandsC {
-				person.Type(command)
-			}
-		}()
-
-		err = cl.SSH(context.TODO(), []string{}, false)
-		require.NoError(t, err)
-	}
-
-	go openSession()
+	sshCtx, sshCancel := context.WithCancel(context.Background())
+	t.Cleanup(sshCancel)
+	sshErr := make(chan error)
+	go func() {
+		sshErr <- cl.SSH(sshCtx, nil, false)
+		sshCancel()
+	}()
 
 	retry := func(command, pattern string) {
 		person.Type(command)
@@ -1064,11 +1055,29 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.TODO()
 	shutdownContext := teleport.Process.StartShutdown(ctx)
 
+	require.Eventually(t, func() bool {
+		// TODO: check that we either get a connection that fully works or a connection refused error
+		c, err := net.DialTimeout("tcp", teleport.GetReverseTunnelAddr(), 250*time.Millisecond)
+		if err != nil {
+			require.True(t, utils.IsConnectionRefused(trace.Unwrap(err)))
+			return true
+		}
+		require.NoError(t, c.Close())
+		return false
+	}, time.Second*5, time.Millisecond*500, "proxy should not accept new connections while shutting down")
+
 	// make sure that terminal still works
 	retry("echo howdy \r\n", ".*howdy.*")
 
 	// now type exit and wait for shutdown to complete
 	person.Type("exit\n\r")
+
+	select {
+	case err := <-sshErr:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "failed to shutdown ssh session")
+	}
 
 	select {
 	case <-shutdownContext.Done():
