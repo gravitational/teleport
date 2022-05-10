@@ -19,9 +19,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"time"
 
-	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -58,7 +59,7 @@ func (c *Client) NewSession(ctx context.Context) (*ssh.Session, error) {
 	}
 
 	traceCtx := tracing.PropagationContextFromContext(ctx)
-	if len(traceCtx.Keys()) == 0 {
+	if len(traceCtx) == 0 {
 		return session, nil
 	}
 
@@ -81,7 +82,7 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 		TracingContext: tracing.PropagationContextFromContext(ctx),
 	}
 
-	if len(hp.TracingContext.Keys()) > 0 {
+	if len(hp.TracingContext) > 0 {
 		payloadJSON, err := json.Marshal(hp)
 		if err == nil {
 			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
@@ -98,4 +99,23 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 	}
 
 	return c, chans, reqs, nil
+}
+
+// NewClientConnWithDeadline establishes new client connection with specified deadline
+func NewClientConnWithDeadline(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig) (*Client, error) {
+	if config.Timeout > 0 {
+		if err := conn.SetReadDeadline(time.Now().Add(config.Timeout)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config)
+	if err != nil {
+		return nil, err
+	}
+	if config.Timeout > 0 {
+		if err := conn.SetReadDeadline(time.Time{}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return NewClient(c, chans, reqs), nil
 }

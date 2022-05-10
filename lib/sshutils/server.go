@@ -34,10 +34,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -93,11 +93,6 @@ const (
 	// every SSH handshake. It MUST start with "SSH-2.0" according to
 	// https://tools.ietf.org/html/rfc4253#page-4
 	SSHVersionPrefix = "SSH-2.0-Teleport"
-
-	// ProxyHelloSignature is a string which Teleport proxy will send
-	// right after the initial SSH "handshake/version" message if it detects
-	// talking to a Teleport server.
-	ProxyHelloSignature = "Teleport-Proxy"
 
 	// MaxVersionStringBytes is the maximum number of bytes allowed for a
 	// SSH version string
@@ -610,18 +605,6 @@ type (
 	PasswordFunc  func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
 )
 
-// HandshakePayload structure is sent as a JSON blob by the teleport
-// proxy to every SSH server who identifies itself as Teleport server
-//
-// It allows teleport proxies to communicate additional data to server
-type HandshakePayload struct {
-	// ClientAddr is the IP address of the remote client
-	ClientAddr string `json:"clientAddr,omitempty"`
-	// TracingContext contains tracing information so that spans can be correlated
-	// across ssh boundaries
-	TracingContext tracing.PropagationContext `json:"tracingContext,omitempty"`
-}
-
 // connectionWrapper allows the SSH server to perform custom handshake which
 // lets teleport proxy servers to relay a true remote client IP address
 // to the SSH server.
@@ -673,12 +656,12 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	skip := 0
 
 	// are we reading from a Teleport proxy?
-	if bytes.HasPrefix(buff, []byte(ProxyHelloSignature)) {
+	if bytes.HasPrefix(buff, []byte(sshutils.ProxyHelloSignature)) {
 		// the JSON payload ends with a binary zero:
 		payloadBoundary := bytes.IndexByte(buff, 0x00)
 		if payloadBoundary > 0 {
-			var hp HandshakePayload
-			payload := buff[len(ProxyHelloSignature):payloadBoundary]
+			var hp sshutils.HandshakePayload
+			payload := buff[len(sshutils.ProxyHelloSignature):payloadBoundary]
 			if err = json.Unmarshal(payload, &hp); err != nil {
 				c.logger.Error(err)
 			} else {

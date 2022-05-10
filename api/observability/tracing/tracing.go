@@ -22,18 +22,18 @@ import (
 )
 
 // PropagationContext contains tracing information to be passed across service boundaries
-type PropagationContext = propagation.MapCarrier
+type PropagationContext map[string]string
 
 // PropagationContextFromContext creates a PropagationContext from the given context.Context. If the context
 // does not contain any tracing information, the PropagationContext will be empty.
 func PropagationContextFromContext(ctx context.Context) PropagationContext {
 	carrier := propagation.MapCarrier{}
 	otel.GetTextMapPropagator().Inject(ctx, &carrier)
-	return carrier
+	return PropagationContext(carrier)
 }
 
 // WithPropagationContext injects any tracing information from the given PropagationContext into the
 // given context.Context.
 func WithPropagationContext(ctx context.Context, pc PropagationContext) context.Context {
-	return otel.GetTextMapPropagator().Extract(ctx, pc)
+	return otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(pc))
 }

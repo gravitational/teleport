@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	apiproxy "github.com/gravitational/teleport/api/client/proxy"
-	tracessh "github.com/gravitational/teleport/lib/observability/tracing/ssh"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -49,7 +49,7 @@ func dialWithDeadline(ctx context.Context, network string, addr string, config *
 	if err != nil {
 		return nil, err
 	}
-	return NewClientConnWithDeadline(ctx, conn, addr, config)
+	return tracessh.NewClientConnWithDeadline(ctx, conn, addr, config)
 }
 
 // dialALPNWithDeadline allows connecting to Teleport in single-port mode. SSH protocol is wrapped into
@@ -77,26 +77,7 @@ func (d directDial) dialALPNWithDeadline(ctx context.Context, network string, ad
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewClientConnWithDeadline(ctx, tlsConn, addr, config)
-}
-
-// NewClientConnWithDeadline establishes new client connection with specified deadline
-func NewClientConnWithDeadline(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	if config.Timeout > 0 {
-		if err := conn.SetReadDeadline(time.Now().Add(config.Timeout)); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	c, chans, reqs, err := tracessh.NewClientConn(ctx, conn, addr, config)
-	if err != nil {
-		return nil, err
-	}
-	if config.Timeout > 0 {
-		if err := conn.SetReadDeadline(time.Time{}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return tracessh.NewClient(c, chans, reqs), nil
+	return tracessh.NewClientConnWithDeadline(ctx, tlsConn, addr, config)
 }
 
 // A Dialer is a means for a client to establish a SSH connection.

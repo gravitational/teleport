@@ -31,10 +31,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -574,7 +575,7 @@ func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clie
 	if bytes.HasPrefix(buff, []byte(sshutils.SSHVersionPrefix)) {
 		// if we're connecting to a Teleport SSH server, send our own "handshake payload"
 		// message, along with a client's IP:
-		hp := &sshutils.HandshakePayload{
+		hp := &apisshutils.HandshakePayload{
 			ClientAddr:     clientAddr.String(),
 			TracingContext: tracing.PropagationContextFromContext(ctx),
 		}
@@ -583,7 +584,7 @@ func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clie
 			t.log.Error(err)
 		} else {
 			// send a JSON payload sandwiched between 'teleport proxy signature' and 0x00:
-			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
+			payload := fmt.Sprintf("%s%s\x00", apisshutils.ProxyHelloSignature, payloadJSON)
 			_, err = serverConn.Write([]byte(payload))
 			if err != nil {
 				t.log.Error(err)

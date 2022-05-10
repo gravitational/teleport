@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	tracessh "github.com/gravitational/teleport/lib/observability/tracing/ssh"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
