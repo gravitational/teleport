@@ -87,3 +87,4 @@ certificate expires.
 
 This proposal does not protect against IP spoofing, but it should provide at least the same level of security as we have
 today (as this additional protection, not replacement for user authentication).
+Likewise, it won't prevent attacks that use certificates from original machine as malware, worms etc.
