@@ -19,3 +19,15 @@ tests:
         isKind:
           of: RoleBinding
       - matchSnapshot: {}
+
+  - it: sets PodSecurityPolicy labels when specified
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.app\.kubernetes\.io/name
+          value: teleport-kube-agent
+      - equal:
+          path: metadata.labels.resource
+          value: podsecuritypolicy
+      - matchSnapshot: {}

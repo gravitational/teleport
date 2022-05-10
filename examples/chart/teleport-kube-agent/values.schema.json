@@ -206,6 +206,11 @@
                 }
             }
         },
+        "priorityClassName": {
+            "$id": "#/properties/priorityClassName",
+            "type": "string",
+            "default": ""
+        },
         "serviceAccountName": {
             "$id": "#/properties/serviceAccountName",
             "type": "string",
@@ -228,7 +233,13 @@
                 "level": {
                     "$id": "#/properties/log/properties/level",
                     "type": "string",
-                    "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+                    "enum": [
+                        "DEBUG",
+                        "INFO",
+                        "WARN",
+                        "WARNING",
+                        "ERROR"
+                    ],
                     "default": "INFO"
                 },
                 "deployment": {
@@ -252,6 +263,57 @@
             "$id": "#/properties/affinity",
             "type": "object",
             "default": {}
+        },
+        "extraLabels": {
+            "$id": "#/properties/extraLabels",
+            "type": "object",
+            "properties": {
+                "clusterRole": {
+                    "$id": "#/properties/extraLabels/properties/clusterRole",
+                    "type": "object",
+                    "default": {}
+                },
+                "clusterRoleBinding": {
+                    "$id": "#/properties/extraLabels/properties/clusterRoleBinding",
+                    "type": "object",
+                    "default": {}
+                },
+                "config": {
+                    "$id": "#/properties/extraLabels/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/extraLabels/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/extraLabels/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "podDisruptionBudget": {
+                    "$id": "#/properties/extraLabels/properties/podDisruptionBudget",
+                    "type": "object",
+                    "default": {}
+                },
+                "podSecurityPolicy": {
+                    "$id": "#/properties/extraLabels/properties/podSecurityPolicy",
+                    "type": "object",
+                    "default": {}
+                },
+                "secret": {
+                    "$id": "#/properties/extraLabels/properties/secret",
+                    "type": "object",
+                    "default": {}
+                },
+                "serviceAccount": {
+                    "$id": "#/properties/extraLabels/properties/serviceAccount",
+                    "type": "object",
+                    "default": {}
+                }
+            }
         },
         "annotations": {
             "$id": "#/properties/annotations",
