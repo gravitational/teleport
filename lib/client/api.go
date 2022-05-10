@@ -46,6 +46,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -1535,6 +1536,36 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 	}
 }
 
+func getLegacySession(site auth.ClientI, namespace string, sessionID string, errMsg string) (types.SessionTracker, error) {
+	sessions, err := site.GetSessions(namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var sess types.SessionTracker
+	for _, s := range sessions {
+		if s.ID == session.ID(sessionID) {
+			sess, err = types.NewSessionTracker(types.SessionTrackerSpecV1{
+				SessionID: string(s.ID),
+				Address:   s.ServerID,
+			})
+
+			sess.GetMetadata()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			break
+		}
+	}
+
+	if sess == nil {
+		return nil, trace.NotFound(errMsg)
+	}
+
+	return sess, nil
+}
+
 // Join connects to the existing/active SSH session
 func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipantMode, namespace string, sessionID session.ID, input io.Reader) (err error) {
 	if namespace == "" {
@@ -1561,24 +1592,40 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	var session types.SessionTracker
-	sessions, err := site.GetActiveSessionTrackers(ctx)
+	var addr string
+	ping, err := site.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, sessionIter := range sessions {
-		if sessionIter.GetSessionID() == string(sessionID) {
-			session = sessionIter
+	if semver.New(ping.ServerVersion).LessThan(*auth.MinSupportedModeratedSessionsVersion) {
+		session, err = getLegacySession(site, namespace, string(sessionID), notFoundErrorMessage)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-	}
 
-	if session == nil {
-		return trace.NotFound(notFoundErrorMessage)
+		addr = session.GetAddress()
+	} else {
+		sessions, err := site.GetActiveSessionTrackers(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, sessionIter := range sessions {
+			if sessionIter.GetSessionID() == string(sessionID) {
+				session = sessionIter
+				addr = session.GetAddress() + ":0"
+			}
+		}
+
+		if session == nil {
+			return trace.NotFound(notFoundErrorMessage)
+		}
 	}
 
 	// connect to server:
 	nc, err := proxyClient.ConnectToNode(ctx, NodeAddr{
-		Addr:      session.GetAddress() + ":0",
+		Addr:      addr,
 		Namespace: tc.Namespace,
 		Cluster:   tc.SiteName,
 	}, tc.Config.HostLogin, false)
