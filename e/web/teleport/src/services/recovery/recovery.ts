@@ -47,8 +47,11 @@ class RecoveryService {
       .then(res => makeRecoveryToken(res));
   }
 
-  setNewTotpDeviceOrPassword(data: NewCredentialRequest) {
-    return api.post(cfg.api.recoveryNewCredentialsPath, data);
+  setNewTotpDeviceOrPassword(req: NewCredentialRequest) {
+    return api.post(cfg.api.recoveryNewCredentialsPath, {
+      ...req,
+      secondFactorToken: req.otpCode,
+    });
   }
 
   setNewWebauthnDevice(data: NewCredentialRequest) {

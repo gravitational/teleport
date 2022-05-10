@@ -31,6 +31,8 @@ export function Login({
   isRecoveryEnabled,
   onRecover,
   clearAttempt,
+  isPasswordlessEnabled,
+  primaryAuthType,
 }: State) {
   return (
     <>
@@ -48,6 +50,8 @@ export function Login({
         clearAttempt={clearAttempt}
         isRecoveryEnabled={isRecoveryEnabled}
         onRecover={onRecover}
+        isPasswordlessEnabled={isPasswordlessEnabled}
+        primaryAuthType={primaryAuthType}
       />
     </>
   );
