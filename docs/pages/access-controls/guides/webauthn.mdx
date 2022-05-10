@@ -49,39 +49,56 @@ configuration as below:
     ```
   </TabItem>
   <TabItem label="Dynamic resources">
-    Create a `cap.yaml` file or get the existing configuration using
-    `tctl get cluster_auth_preference`:
 
-    ```yaml
-    kind: cluster_auth_preference
-    version: v2
-    metadata:
-      name: cluster-auth-preference
-    spec:
-      type: local
-      # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-      second_factor: on
-      webauthn:
-        rp_id: example.com
-        attestation_allowed_cas:
-        - "/path/to/allowed_ca.pem"
-        attestation_denied_cas:
-        - "/path/to/denied_ca.pem"
-    ```
+  Obtain your existing `cluster_auth_preference` resource:
 
-    Update the configuration:
+  ```code
+  $ tctl get cap > cap.yaml
+  ```
 
-    ```code
-    $ tctl create -f cap.yaml
-    # cluster auth preference has been updated
-    ```
+  If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+  Ensure that `cap.yaml` includes the following content:
+
+  ```yaml
+  kind: cluster_auth_preference
+  version: v2
+  metadata:
+    name: cluster-auth-preference
+  spec:
+    type: local
+    # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+    second_factor: on
+    webauthn:
+      rp_id: example.com
+      attestation_allowed_cas:
+      - "/path/to/allowed_ca.pem"
+      attestation_denied_cas:
+      - "/path/to/denied_ca.pem"
+  ```
+
+  Update the configuration:
+
+  ```code
+  $ tctl create -f cap.yaml
+  # cluster auth preference has been updated
+  ```
+  
   </TabItem>
 </Tabs>
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
-Create a `cap.yaml` file or get the existing configuration using
-`tctl get cluster_auth_preference`:
+
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` includes the following content:
 
 ```yaml
 kind: cluster_auth_preference
