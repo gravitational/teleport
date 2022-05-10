@@ -164,7 +164,7 @@ A similar process would then take place for other operations, for example a read
 ## TDP File Shared Directory Extension
 
 Our RDP client lives on the Windows Desktop Service, while the directory we're sharing is exposed to us via the user's browser. This means that in order to get information to and from the shared directory,
-we must extends the TDP protocol (see the diagram in the `Introduction` section for reference).
+we must extend the TDP protocol (see the diagram in the `Introduction` section for reference).
 
 Each `* Request` and `* Response` TDP message contains a `completion_id` field, with `* Request`s being responsible for generating the `completion_id`s, and `* Response`s being responsible for
 including the correct `completion_id` to signify which `* Request` the response is intended for.
