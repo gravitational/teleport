@@ -164,9 +164,9 @@ A similar process would then take place for other operations, for example a read
 ## TDP File Shared Directory Extension
 
 Our RDP client lives on the Windows Desktop Service, while the directory we're sharing is exposed to us via the user's browser. This means that in order to get information to and from the shared directory,
-we must extend the TDP protocol (see the diagram in the `Introduction` section for reference).
+we must extend the [TDP protocol](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md) (also see the diagram in the `Introduction` section for reference).
 
-Each `* Request` and `* Response` TDP message contains a `completion_id` field, with `* Request`s being responsible for generating the `completion_id`s, and `* Response`s being responsible for
+Each `* Request` (such as `Shared Directory Info Request`, `Shared Directory Create Request`, etc.) and `* Response` (`Shared Directory Info Response`, `Shared Directory Create Response`, etc.) TDP message contains a `completion_id` field, with `* Request`s being responsible for generating the `completion_id`s, and `* Response`s being responsible for
 including the correct `completion_id` to signify which `* Request` the response is intended for.
 
 #### 11 - Shared Directory Announce
@@ -178,19 +178,21 @@ including the correct `completion_id` to signify which `* Request` the response 
 This message announces a new directory to be shared over TDP. `directory_id` must be a unique identifier. Attempting to share multiple different directories using
 the same `directory_id` is undefined behavior.
 
-`name_length` is the length in bytes of the `name`
+`name_length` is the length in bytes of the `name`. The maximum allowed length is equivalent to
+[Windows' `MAX_PATH`](https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=cmd)
+(260 characters).
 
-`name` is the name of the directory (without any path prefix)
+`name` is the name of the directory (without any path prefix).
 
 #### 12 - Shared Directory Acknowledge
 
 ```
-| message type (12) | err error | directory_id uint32 |
+| message type (12) | err_code uint32 | directory_id uint32 |
 ```
 
 Acknowledges a `Shared Directory Announce` was received.
 
-`err` is a `Shared Directory Error`. `0` ("nil") means the `Shared Directory Announce` was successfully processed, `1` ("operation failed") means processing failed.
+`err_code` is an error code. `0` ("nil") means the `Shared Directory Announce` was successfully processed, `1` ("operation failed") means processing failed.
 
 `directory_id` is the `directory_id` of the top level directory being shared, as specified in the `Announce Shared Directory` message this message is acknowledging.
 
@@ -207,7 +209,7 @@ response.
 
 `directory_id` is the `directory_id` of the top level directory being shared, as specified in a previous `Announce Shared Directory` message.
 
-`path_length` is the length in bytes of the `path`
+`path_length` is the length in bytes of the `path`.
 
 `path` is the unix-style relative path (from the root-level directory specified by `directory_id`) to the file or directory, excepting special path characters ".",
 "..". Absolute paths, or those containing path elements with either of the special characters, will result in an error. Info can be requested for the root-level
@@ -216,14 +218,14 @@ directory by setting `path_length: 0` and `path: ""`.
 #### 14 - Shared Directory Info Response
 
 ```
-| message type (14) | completion_id uint32 | err error | file_system_object fso |
+| message type (14) | completion_id uint32 | err_code uint32 | file_system_object fso |
 ```
 
 This message is sent by the client to the server in response to a `Shared Directory Info Request`.
 
 `completion_id` must match the `completion_id` of the `Shared Directory Info Request` that this message is responding to.
 
-`err` is a `Shared Directory Error`. If a file or directory at `path` does not exist, this should be set to `2` ("resource does not exist").
+`err_code` is an error code. If a file or directory at `path` does not exist, this should be set to `2` ("resource does not exist").
 
 `file_system_object` is the file system object.
 
@@ -250,7 +252,7 @@ response.
 #### 16 - Shared Directory Create Response
 
 ```
-| message type (16) | completion_id uint32 | err error |
+| message type (16) | completion_id uint32 | err_code uint32 |
 ```
 
 This message is sent by the client to the server to acknowledge a `Shared Directory Create Request` was successfully executed. A `Shared Directory Create Request`
@@ -258,7 +260,7 @@ that fails should respond with an "operation failed" `Shared Directory Error`.
 
 `completion_id` must match the `completion_id` of the `Shared Directory Create Request` that this message is responding to.
 
-`err` is a `Shared Directory Error`. If a filesystem object at `path` already exists, this should be set to `3` ("resource already exists").
+`err_code` is an error code. If a filesystem object at `path` already exists, this should be set to `3` ("resource already exists").
 
 #### 17 - Shared Directory Delete Request
 
@@ -271,7 +273,7 @@ This message is sent by the server to the client to request the deletion of a fi
 `completion_id` is generated by the server and must be returned by the client in its corresponding `Shared Directory Delete Response` or `Shared Directory Error`
 response.
 
-`directory_id` is the `directory_id` of the top level directory being shared, as specified in a previous `Announce Shared Directory` message.
+`directory_id` is the `directory_id` of the top level directory being shared, as specified in a previous `Shared Directory Announce` message.
 
 `path_length` is the length in bytes of the `path`.
 
@@ -281,7 +283,7 @@ response.
 #### 18 - Shared Directory Delete Response
 
 ```
-| message type (18) | completion_id uint32 | err error |
+| message type (18) | completion_id uint32 | err_code uint32 |
 ```
 
 This message is sent by the client to the server to acknowledge a `Shared Directory Delete Request` was successfully executed. A `Shared Directory Create Request`
@@ -289,7 +291,7 @@ that fails should respond with an appropriate `Shared Directory Error`.
 
 `completion_id` must match the `completion_id` of the `Shared Directory Delete Request` that this message is responding to.
 
-`err` is a `Shared Directory Error`. If the delete fails, this should be set to `1` ("operation failed"). If the file or directory does not exist, this should be set to `2` ("resource does not exist").
+`err_code` is an error code. If the delete fails, this should be set to `1` ("operation failed"). If the file or directory does not exist, this should be set to `2` ("resource does not exist").
 
 #### 19 - Shared Directory Read Request
 
@@ -316,14 +318,14 @@ response.
 #### 20 - Shared Directory Read Response
 
 ```
-| message type (20) | completion_id uint32 | err error | read_data_length uint32 | read_data []byte |
+| message type (20) | completion_id uint32 | err_code uint32 | read_data_length uint32 | read_data []byte |
 ```
 
 This message is sent by the client to the server in response to a `Shared Directory Read Request`.
 
 `completion_id` must match the `completion_id` of the `Shared Directory Read Request` that this message is responding to.
 
-`err` is a `Shared Directory Error`. If the file does not exist or the path is to a directory, this field should be set to `2` ("resource does not exist"). For any other error, this field should be set to `1` ("operation failed").
+`err_code` is an error code. If the file does not exist or the path is to a directory, this field should be set to `2` ("resource does not exist"). For any other error, this field should be set to `1` ("operation failed").
 
 `read_data_length` specifies the number of bytes in the `read_data` field.
 
@@ -355,14 +357,14 @@ This message is sent by the server to the client to request `write_data` be writ
 #### 22 - Shared Directory Write Response
 
 ```
-| message type (22) | completion_id uint32 | err error | bytes_written uint32 |
+| message type (22) | completion_id uint32 | err_code uint32 | bytes_written uint32 |
 ```
 
 This message is sent by the client to the server in response to a `Shared Directory Write Request`.
 
 `completion_id` must match the `completion_id` of the `Shared Directory Write Request` that this message is responding to.
 
-`err` is a `Shared Directory Error`. If the file does not exist or the path is to a directory, this field should be set to `2` ("resource does not exist"). For any other error, this field should be set to `1` ("operation failed").
+`err_code` is an error code. If the file does not exist or the path is to a directory, this field should be set to `2` ("resource does not exist"). For any other error, this field should be set to `1` ("operation failed").
 
 `bytes_written` specifies the number of bytes that were written.
 
@@ -389,14 +391,14 @@ response.
 #### 24 - Shared Directory Move Response
 
 ```
-| message type (24) | completion_id uint32 | err error |
+| message type (24) | completion_id uint32 | err_code uint32 |
 ```
 
 This message is sent by the client to the server in response to a `Shared Directory Move Request` to alert the server of a successful move operation.
 
 `completion_id` must match the `completion_id` of the `Shared Directory Move Request` that this message is responding to.
 
-`err` is a `Shared Directory Error`. If the `original_path` in the `Shared Directory Move Request` does not exist, this field should be set to `2` ("resource does not exist"). For any other error, this field should be set to `1` ("operation failed").
+`err_code` is an error code. If the `original_path` in the `Shared Directory Move Request` does not exist, this field should be set to `2` ("resource does not exist"). For any other error, this field should be set to `1` ("operation failed").
 
 #### 25 - Shared Directory List Request
 
@@ -415,14 +417,14 @@ directory by setting `path_length: 0` and `path: ""`.
 #### 26 - Shared Directory List Response
 
 ```
-| message type (26) | completion_id uint32 | err error | fso_list_length uint32 | fso_list fso[] |
+| message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |
 ```
 
 This message is sent by the client to the server in response to a `Shared Directory Info Request`.
 
 `completion_id` must match the `completion_id` of the `Shared Directory List Request` that this message is responding to.
 
-`err` is a `Shared Directory Error`. If the `original_path` in the `Shared Directory Move Request` does not exist or the path is to a file, this field should be set to `2` ("resource does not exist"). For any other error, this field should be set to `1` ("operation failed").
+`err_code` is an error code. If the `original_path` in the `Shared Directory Move Request` does not exist or the path is to a file, this field should be set to `2` ("resource does not exist"). For any other error, this field should be set to `1` ("operation failed").
 
 `fso_list_length` is the number of entries in the `fso_list`.
 
@@ -455,9 +457,9 @@ requested by RDP.
 "..". Absolute paths, or those containing path elements with either of the special characters, are considered an error. A root-level shared directory is specified
 by setting `path_length: 0` and `path: ""`.
 
-##### Shared Directory Error (error)
+##### err_code's
 
-`error` is a `uint32` sized field specifying an error
+`err_code` is a `uint32` sized field specifying an error
 
 0. nil (no error, operation succeeded)
 1. operation failed
