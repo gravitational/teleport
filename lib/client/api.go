@@ -1549,8 +1549,6 @@ func getLegacySession(site auth.ClientI, namespace string, sessionID string, err
 				SessionID: string(s.ID),
 				Address:   s.ServerID,
 			})
-
-			sess.GetMetadata()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1615,6 +1613,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 			if sessionIter.GetSessionID() == string(sessionID) {
 				session = sessionIter
 				addr = session.GetAddress() + ":0"
+				break
 			}
 		}
 
