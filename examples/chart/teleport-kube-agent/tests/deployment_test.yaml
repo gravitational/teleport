@@ -48,8 +48,7 @@ tests:
       - equal:
           path: metadata.annotations.kubernetes\.io/deployment-different
           value: 3
-      - matchSnapshot:
-          path: spec.template.spec
+      - matchSnapshot: {}
 
   - it: sets Pod annotations when specified
     values:
