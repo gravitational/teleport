@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package sshutils contains contains the implementations of the base SSH
+// Package sshutils contains the implementations of the base SSH
 // server used throughout Teleport.
 package sshutils
 
@@ -627,7 +627,7 @@ type HandshakePayload struct {
 // to the SSH server.
 //
 // (otherwise connection.RemoteAddr (client IP) will always point to a proxy IP
-// instead of oa true client IP)
+// instead of a true client IP)
 type connectionWrapper struct {
 	net.Conn
 	logger logrus.FieldLogger

@@ -30,11 +30,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/observability/tracing"
+	tracessh "github.com/gravitational/teleport/lib/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/trace"
 
 	"github.com/google/uuid"
@@ -92,7 +92,7 @@ type Server struct {
 
 	// remoteClient exposes an API to SSH functionality like shells, port
 	// forwarding, subsystems.
-	remoteClient *ssh.Client
+	remoteClient *tracessh.Client
 
 	// connectionContext is used to construct ServerContext instances
 	// and supports registration of connection-scoped resource closers.
@@ -504,7 +504,7 @@ func (s *Server) Serve() {
 
 	// Connect and authenticate to the remote node.
 	s.log.Debugf("Creating remote connection to %v@%v", sconn.User(), s.clientConn.RemoteAddr().String())
-	s.remoteClient, err = s.newRemoteClient(sconn.User())
+	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User())
 	if err != nil {
 		// Reject the connection with an error so the client doesn't hang then
 		// close the connection.
@@ -570,7 +570,7 @@ func (s *Server) Close() error {
 
 // newRemoteSession will create and return a *ssh.Client and *ssh.Session
 // with a remote host.
-func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
+func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
 	// the proxy will use the agent that has been forwarded to it as the auth
 	// method when connecting to the remote host
 	if s.userAgent == nil {
@@ -597,7 +597,7 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := apisshutils.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
+	client, err := proxy.NewClientConnWithDeadline(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -811,7 +811,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
 	// reason/message in the event the channel is rejected.
-	remoteSession, err := tracing.NewSSHSession(ctx, s.remoteClient)
+	remoteSession, err := s.remoteClient.NewSession(ctx)
 	if err != nil {
 		s.log.Warnf("Remote session open failed: %v", err)
 		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)
@@ -959,7 +959,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 	}
 
 	// Route authentication requests to the agent that was forwarded to the proxy.
-	err = agent.ForwardToAgent(ctx.RemoteClient, s.userAgent)
+	err = agent.ForwardToAgent(ctx.RemoteClient.Client, s.userAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1063,7 +1063,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		return trace.AccessDenied("X11 forwarding request denied by server")
 	}
 
-	err = x11.ServeChannelRequests(ctx, s.remoteClient, s.handleX11ChannelRequest)
+	err = x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}

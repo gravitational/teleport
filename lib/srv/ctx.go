@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	tracessh "github.com/gravitational/teleport/lib/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
@@ -274,7 +275,7 @@ type ServerContext struct {
 
 	// RemoteClient holds a SSH client to a remote server. Only used by the
 	// recording proxy.
-	RemoteClient *ssh.Client
+	RemoteClient *tracessh.Client
 
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
