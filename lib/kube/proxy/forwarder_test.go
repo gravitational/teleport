@@ -1067,7 +1067,8 @@ func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 
 type mockSemaphoreClient struct {
 	auth.ClientI
-	sem types.Semaphores
+	sem   types.Semaphores
+	roles map[string]types.Role
 }
 
 func (m *mockSemaphoreClient) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
@@ -1076,6 +1077,15 @@ func (m *mockSemaphoreClient) AcquireSemaphore(ctx context.Context, params types
 
 func (m *mockSemaphoreClient) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	return m.sem.CancelSemaphoreLease(ctx, lease)
+}
+
+func (m *mockSemaphoreClient) GetRole(ctx context.Context, name string) (types.Role, error) {
+	role, ok := m.roles[name]
+	if !ok {
+		return nil, trace.NotFound("role %q not found", name)
+	}
+
+	return role, nil
 }
 
 func TestKubernetesConnectionLimit(t *testing.T) {
@@ -1130,13 +1140,28 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 			require.NoError(t, err)
 
 			sem := local.NewPresenceService(backend)
-			client := &mockSemaphoreClient{sem: sem}
+			client := &mockSemaphoreClient{
+				sem:   sem,
+				roles: map[string]types.Role{testCase.role.GetName(): testCase.role},
+			}
+
 			forwarder := newTestForwarder(ctx, ForwarderConfig{
-				AuthClient: client,
+				AuthClient:        client,
+				CachingAuthClient: client,
 			})
 
+			identity := &authContext{
+				Context: auth.Context{
+					User: user,
+					Identity: auth.WrapIdentity(tlsca.Identity{
+						Username: user.GetName(),
+						Groups:   []string{testCase.role.GetName()},
+					}),
+				},
+			}
+
 			for i := 0; i < testCase.connections; i++ {
-				err = forwarder.AcquireConnectionLock(ctx, user.GetName(), services.NewRoleSet(testCase.role))
+				err = forwarder.acquireConnectionLockWithIdentity(ctx, identity)
 				if i == testCase.connections-1 {
 					testCase.assert(t, err)
 				}
