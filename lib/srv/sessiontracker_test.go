@@ -19,6 +19,7 @@ package srv
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -52,19 +53,24 @@ func TestSessionTracker(t *testing.T) {
 		cancelCtx, cancel := context.WithCancel(ctx)
 		done := make(chan struct{})
 
-		// Test update expiration loop
+		duration := time.Minute
+		ticker := clock.NewTicker(duration)
+		defer ticker.Stop()
+
+		// Start update expiration goroutine
 		go func() {
-			tracker.UpdateExpirationLoop(cancelCtx, clock)
+			tracker.updateExpirationLoop(cancelCtx, ticker)
 			close(done)
 		}()
 
-		// Wait for goroutine to wait on clock.After
-		clock.BlockUntil(1)
-		expectedExpiry := tracker.tracker.Expiry().Add(sessionTrackerExpirationUpdateInterval)
-		clock.Advance(sessionTrackerExpirationUpdateInterval)
+		// lock expiry and advance clock
+		tracker.trackerCond.L.Lock()
+		clock.Advance(duration)
+		expectedExpiry := tracker.tracker.Expiry().Add(duration)
 
-		// expiration should be updated by the next time we wait on clock.After
-		clock.BlockUntil(1)
+		// wait for expiration to get updated
+		tracker.trackerCond.Wait()
+		tracker.trackerCond.L.Unlock()
 		require.Equal(t, expectedExpiry, tracker.tracker.Expiry())
 		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 

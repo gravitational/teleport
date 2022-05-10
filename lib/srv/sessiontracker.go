@@ -78,17 +78,22 @@ const sessionTrackerExpirationUpdateInterval = apidefaults.SessionTrackerTTL / 6
 // UpdateExpirationLoop extends the session tracker expiration by 1 hour every 10 minutes
 // until the SessionTracker or ctx is closed.
 func (s *SessionTracker) UpdateExpirationLoop(ctx context.Context, clock clockwork.Clock) error {
+	ticker := clock.NewTicker(sessionTrackerExpirationUpdateInterval)
+	defer ticker.Stop()
+	return s.updateExpirationLoop(ctx, ticker)
+}
+
+// updateExpirationLoop is used in tests
+func (s *SessionTracker) updateExpirationLoop(ctx context.Context, ticker clockwork.Ticker) error {
 	for {
 		select {
-		// We use clock.After rather than clock.Ticker here because ticker
-		// does not work with clock.BlockUntil, which is useful in tests.
-		case time := <-clock.After(sessionTrackerExpirationUpdateInterval):
+		case time := <-ticker.Chan():
 			expiry := time.Add(apidefaults.SessionTrackerTTL)
 			if err := s.UpdateExpiration(ctx, expiry); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		case <-ctx.Done():
-			return nil
+			return trace.Wrap(ctx.Err())
 		case <-s.closeC:
 			return nil
 		}
@@ -99,6 +104,7 @@ func (s *SessionTracker) UpdateExpiration(ctx context.Context, expiry time.Time)
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
 	s.tracker.SetExpiry(expiry)
+	s.trackerCond.Broadcast()
 
 	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
 		SessionID: s.tracker.GetSessionID(),
@@ -115,6 +121,7 @@ func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participan
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
 	s.tracker.AddParticipant(*p)
+	s.trackerCond.Broadcast()
 
 	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
 		SessionID: s.tracker.GetSessionID(),
@@ -131,6 +138,7 @@ func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID st
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
 	s.tracker.RemoveParticipant(participantID)
+	s.trackerCond.Broadcast()
 
 	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
 		SessionID: s.tracker.GetSessionID(),
@@ -147,8 +155,6 @@ func (s *SessionTracker) UpdateState(ctx context.Context, state types.SessionSta
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
 	s.tracker.SetState(state)
-
-	// Broadcast state change to any listeners
 	s.trackerCond.Broadcast()
 
 	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
