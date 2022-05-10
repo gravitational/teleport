@@ -506,21 +506,14 @@ func TestChangeUserAuthentication(t *testing.T) {
 				invalidReq := c.getInvalidReq(token.GetName())
 				_, err := srv.Auth().changeUserAuthentication(ctx, invalidReq)
 				require.True(t, trace.IsBadParameter(err))
-
-				if len(invalidReq.NewPassword) == 0 {
-					require.Contains(t, err.Error(), "passwordless")
-				}
 			}
 
 			validReq := c.getReq(token.GetName())
 			_, err = srv.Auth().changeUserAuthentication(ctx, validReq)
 			require.NoError(t, err)
 
-			if len(validReq.NewPassword) == 0 {
-				err := srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
-				require.True(t, trace.IsBadParameter(err))
-			} else {
-				// Test password is updated.
+			// Test password is updated.
+			if len(validReq.NewPassword) != 0 {
 				err := srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
 				require.NoError(t, err)
 			}
