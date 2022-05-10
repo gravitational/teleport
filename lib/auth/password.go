@@ -315,10 +315,11 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
+	reqPasswordless := len(req.GetNewPassword()) == 0 && authPref.GetAllowPasswordless()
 	switch {
-	case req.Passwordless:
+	case reqPasswordless:
 		if req.GetNewMFARegisterResponse() == nil || req.NewMFARegisterResponse.GetWebauthn() == nil {
-			return nil, trace.BadParameter("missing passwordless credentials")
+			return nil, trace.BadParameter("passwordless: missing webauthn credentials")
 		}
 	default:
 		if err := services.VerifyPassword(req.GetNewPassword()); err != nil {
@@ -349,8 +350,7 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.Wrap(err)
 	}
 
-	// Set a new password.
-	if !req.Passwordless {
+	if !reqPasswordless {
 		if err := s.UpsertPassword(username, req.GetNewPassword()); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -404,10 +404,12 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		}
 	}
 
-	_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFARegisterResponse(), &newMFADeviceFields{
+	_, err = s.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:      token.GetUser(),
 		newDeviceName: deviceName,
 		tokenID:       token.GetName(),
+		deviceResp:    req.GetNewMFARegisterResponse(),
+		passwordless:  len(req.GetNewPassword()) == 0,
 	})
 	return trace.Wrap(err)
 }

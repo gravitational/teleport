@@ -1628,10 +1628,12 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 		return nil, trace.Wrap(err)
 	}
 
-	dev, err := a.verifyMFARespAndAddDevice(ctx, req.GetNewMFAResponse(), &newMFADeviceFields{
+	dev, err := a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:      privilegeToken.GetUser(),
 		newDeviceName: req.GetNewDeviceName(),
 		tokenID:       privilegeToken.GetName(),
+		deviceResp:    req.GetNewMFAResponse(),
+		passwordless:  req.DeviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1660,10 +1662,16 @@ type newMFADeviceFields struct {
 	// Identity with an in-memory SessionData storage.
 	// Defaults to the Server's IdentityService.
 	webIdentityOverride wanlib.RegistrationIdentity
+	// deviceResp is the register response from the new device.
+	deviceResp *proto.MFARegisterResponse
+	// passwordless explicitly requests to register a passwordless device.
+	// This flag will be used to verify that the register response is
+	// passwordless capable.
+	passwordless bool
 }
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
-func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
+func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADeviceFields) (*types.MFADevice, error) {
 	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1674,19 +1682,19 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.M
 	}
 
 	var dev *types.MFADevice
-	switch regResp.GetResponse().(type) {
+	switch req.deviceResp.GetResponse().(type) {
 	case *proto.MFARegisterResponse_TOTP:
-		dev, err = a.registerTOTPDevice(ctx, regResp, req)
+		dev, err = a.registerTOTPDevice(ctx, req.deviceResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case *proto.MFARegisterResponse_Webauthn:
-		dev, err = a.registerWebauthnDevice(ctx, regResp, req)
+		dev, err = a.registerWebauthnDevice(ctx, req.deviceResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
-		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", regResp.Response)
+		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", req.deviceResp.Response)
 	}
 
 	clusterName, err := a.GetClusterName()
@@ -1768,8 +1776,12 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 		Identity: identity,
 	}
 	// Finish upserts the device on success.
-	dev, err := webRegistration.Finish(
-		ctx, req.username, req.newDeviceName, wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()))
+	dev, err := webRegistration.Finish(ctx, wanlib.RegistrationRequest{
+		User:         req.username,
+		DeviceName:   req.newDeviceName,
+		CreationResp: wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
+		Passwordless: req.passwordless,
+	})
 	return dev, trace.Wrap(err)
 }
 

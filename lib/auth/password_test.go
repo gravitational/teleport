@@ -384,7 +384,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
+				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID, proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -417,14 +417,12 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID, proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:                resetTokenID,
-					NewPassword:            []byte("password3"), // should not be set even if provided
 					NewMFARegisterResponse: webauthnRes,
-					Passwordless:           true,
 				}
 			},
 			// Missing webauthn for passwordless.
@@ -432,7 +430,6 @@ func TestChangeUserAuthentication(t *testing.T) {
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:                resetTokenID,
 					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
-					Passwordless:           true,
 				}
 			},
 		},
@@ -451,7 +448,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
+				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID, proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -507,10 +504,10 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			if c.getInvalidReq != nil {
 				invalidReq := c.getInvalidReq(token.GetName())
-				_, err = srv.Auth().changeUserAuthentication(ctx, invalidReq)
+				_, err := srv.Auth().changeUserAuthentication(ctx, invalidReq)
 				require.True(t, trace.IsBadParameter(err))
 
-				if invalidReq.Passwordless {
+				if len(invalidReq.NewPassword) == 0 {
 					require.Contains(t, err.Error(), "passwordless")
 				}
 			}
@@ -519,9 +516,14 @@ func TestChangeUserAuthentication(t *testing.T) {
 			_, err = srv.Auth().changeUserAuthentication(ctx, validReq)
 			require.NoError(t, err)
 
-			// Test password is updated.
-			err = srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
-			require.NoError(t, err)
+			if len(validReq.NewPassword) == 0 {
+				err := srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				// Test password is updated.
+				err := srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
+				require.NoError(t, err)
+			}
 
 			// Test device was registered.
 			if validReq.NewMFARegisterResponse != nil {

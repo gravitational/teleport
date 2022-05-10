@@ -1902,11 +1902,13 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	}
 
 	// Validate MFARegisterResponse and upsert the new device on success.
-	dev, err := auth.verifyMFARespAndAddDevice(ctx, regResp, &newMFADeviceFields{
+	dev, err := auth.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:            user,
 		newDeviceName:       initReq.DeviceName,
 		totpSecret:          regChallenge.GetTOTP().GetSecret(),
 		webIdentityOverride: webIdentity,
+		deviceResp:          regResp,
+		passwordless:        initReq.DeviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 
 	return dev, trace.Wrap(err)
