@@ -61,16 +61,19 @@ certificate type:
   by [OpenSSH](https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD). This option is recognized
   by `sshd` from OpenSSH and also by Go's [ssh package](https://pkg.go.dev/golang.org/x/crypto/ssh), so it will be
   enforced automatically in Teleport.
-* TLS certificates (used by DB, Kubernetes, Application and Desktop access) will encode IP in custom extension with OID
-  from range `1.3.9999`, similar to `KubeUsers` and others in [tls/ca.go](tls/ca.go). It will be then decoded as part
-  of `tlsca.Identity` and validated in authorization routines in respective services. It will be also stored in JWT
-  token in Application access.
+* TLS certificates (used by DB, Kubernetes, Application and Desktop access) already encode IP in custom extension with
+  OID
+  `1.3.9999.1.9` in [tls/ca.go](tls/ca.go). It is then decoded as part of `tlsca.Identity` and will be validated
+  in `*authorizer.Authorize` method `lib/auth/permissions.go`
 
 Encoding above will happen in all places we generate certificates:
 
 * `lib/auth/auth.go#generateUserCert`
 * `lib/auth/join.go#generateCerts` (Machine ID)
 * `lib/auth/auth_with_roles.go#generateUserCerts()` (renewals, impersonation etc)
+
+Implementation must ensure that all calls `*authorizer.Authorize` provide valid client IP (there are at least HTTP, gRPC
+and databases protocols to handle).
 
 ### UX
 
