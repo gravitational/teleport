@@ -242,6 +242,10 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.DatabaseJW
 		return nil, trace.Wrap(err)
 	}
 
+	if len(ca.GetActiveKeys().TLS) == 0 {
+		return nil, trace.Errorf("incorrect database CA; missing TLS key")
+	}
+
 	tlsCert := ca.GetActiveKeys().TLS[0].Cert
 
 	block, _ := pem.Decode(tlsCert)
@@ -257,8 +261,7 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.DatabaseJW
 	keyFp := sha256.Sum256(pubKey)
 	keyFpStr := base64.StdEncoding.EncodeToString(keyFp[:])
 
-	log.Debugf("FINGERPRINT: SHA256:%s", keyFpStr)
-
+	// Generate issuer name in the Snowflake required format.
 	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accnName, userName, keyFpStr)
 
 	_, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
@@ -271,7 +274,7 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.DatabaseJW
 	}
 	token, err := privateKey.SignSnowflake(jwt.SignParams{
 		Username: subject,
-		Expires:  time.Now().Add(time.Hour),
+		Expires:  time.Now().Add(time.Hour), // TODO(jakule): This time should be taken from the original token.
 	}, issuer)
 	if err != nil {
 		return nil, trace.Wrap(err)

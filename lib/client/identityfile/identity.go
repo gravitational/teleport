@@ -19,9 +19,7 @@ package identityfile
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"io/fs"
@@ -301,8 +299,6 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				keyFp := sha256.Sum256(pubKey)
-				fmt.Printf("FINGERPRINT: SHA256:%s\n", base64.StdEncoding.EncodeToString(keyFp[:]))
 				pubPem := pem.EncodeToMemory(&pem.Block{
 					Type:  "PUBLIC KEY",
 					Bytes: pubKey,

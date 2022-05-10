@@ -17,9 +17,7 @@ limitations under the License.
 package main
 
 import (
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/pem"
 	"fmt"
 	"net"
 	"os"
@@ -146,34 +144,6 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if db.Protocol == defaults.ProtocolSnowflake {
-		// TODO(JN): unhack
-		// convert key to PKCS8
-		block, rest := pem.Decode(key.Priv)
-		if len(rest) != 0 {
-			return trace.Errorf("failed to decode private key")
-		}
-
-		privKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		privKeyPkcs8, err := x509.MarshalPKCS8PrivateKey(privKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		pemPriv := pem.EncodeToMemory(&pem.Block{
-			Type:  "PRIVATE KEY",
-			Bytes: privKeyPkcs8,
-		})
-
-		if err := os.WriteFile("/tmp/snowflake-key.pkcs8", pemPriv, 0600); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {

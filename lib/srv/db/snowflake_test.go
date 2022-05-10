@@ -37,8 +37,8 @@ import (
 )
 
 func init() {
-	// Override SQL Server engine that is used normally with the test one
-	// that mocks connection dial and Kerberos auth.
+	// Override Snowflake engine that is used normally with the test one
+	// with custom HTTP client.
 	common.RegisterEngine(newTestSnowflakeEngine, defaults.ProtocolSnowflake)
 }
 
@@ -77,7 +77,7 @@ func TestAccessSnowflake(t *testing.T) {
 			allowDbNames: []string{types.Wildcard},
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "snowflake",
-			dbUser:       "postgres",
+			dbUser:       "snowflake",
 		},
 		{
 			desc:         "has access to nothing",
@@ -85,8 +85,8 @@ func TestAccessSnowflake(t *testing.T) {
 			role:         "admin",
 			allowDbNames: []string{},
 			allowDbUsers: []string{},
-			dbName:       "postgres",
-			dbUser:       "postgres",
+			dbName:       "snowflake",
+			dbUser:       "snowflake",
 			err:          "HTTP: 401",
 		},
 		{
@@ -95,8 +95,8 @@ func TestAccessSnowflake(t *testing.T) {
 			role:         "admin",
 			allowDbNames: []string{},
 			allowDbUsers: []string{types.Wildcard},
-			dbName:       "postgres",
-			dbUser:       "postgres",
+			dbName:       "snowflake",
+			dbUser:       "snowflake",
 			err:          "HTTP: 401",
 		},
 		{
@@ -105,8 +105,8 @@ func TestAccessSnowflake(t *testing.T) {
 			role:         "admin",
 			allowDbNames: []string{types.Wildcard},
 			allowDbUsers: []string{},
-			dbName:       "postgres",
-			dbUser:       "postgres",
+			dbName:       "snowflake",
+			dbUser:       "snowflake",
 			err:          "HTTP: 401",
 		},
 		{
@@ -124,8 +124,8 @@ func TestAccessSnowflake(t *testing.T) {
 			role:         "admin",
 			allowDbNames: []string{"metrics"},
 			allowDbUsers: []string{"alice"},
-			dbName:       "postgres",
-			dbUser:       "postgres",
+			dbName:       "snowflake",
+			dbUser:       "snowflake",
 			err:          "HTTP: 401",
 		},
 	}
@@ -133,7 +133,6 @@ func TestAccessSnowflake(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.desc, func(t *testing.T) {
-			//t.Parallel()
 			// Create user/role with the requested permissions.
 			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
