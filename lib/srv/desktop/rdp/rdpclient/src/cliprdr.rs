@@ -30,18 +30,18 @@ pub const CHANNEL_NAME: &str = "cliprdr";
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/fb9b7e0b-6db4-41c2-b83c-f889c1ee7688
 pub struct Client {
     clipboard: HashMap<u32, Vec<u8>>,
-    on_remote_copy: Box<dyn Fn(Vec<u8>)>,
+    on_remote_copy: Box<dyn Fn(Vec<u8>) -> RdpResult<()>>,
     vchan: vchan::Client,
 }
 
 impl Default for Client {
     fn default() -> Self {
-        Self::new(Box::new(|_| {}))
+        Self::new(Box::new(|_| Ok(())))
     }
 }
 
 impl Client {
-    pub fn new(on_remote_copy: Box<dyn Fn(Vec<u8>)>) -> Self {
+    pub fn new(on_remote_copy: Box<dyn Fn(Vec<u8>) -> RdpResult<()>>) -> Self {
         Client {
             clipboard: HashMap::new(),
             on_remote_copy,
@@ -284,7 +284,7 @@ impl Client {
             resp.data.truncate(resp.data.len() - 1);
         }
 
-        (self.on_remote_copy)(resp.data);
+        (self.on_remote_copy)(resp.data)?;
 
         Ok(vec![])
     }
@@ -1015,6 +1015,7 @@ mod tests {
 
         let mut c = Client::new(Box::new(move |vec| {
             send.send(vec).unwrap();
+            Ok(())
         }));
 
         let data_resp = FormatDataResponsePDU {
