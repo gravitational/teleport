@@ -35,7 +35,6 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -118,15 +117,14 @@ func TestChaosUpload(t *testing.T) {
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
-		Context:    ctx,
 		ScanDir:    scanDir,
 		ScanPeriod: scanPeriod,
 		Streamer:   faultyStreamer,
 		Clock:      clock,
 		AuditLog:   &events.DiscardAuditLog{},
-	}, &eventstest.MockSessionTrackerService{})
+	})
 	require.NoError(t, err)
-	go uploader.Serve()
+	go uploader.Serve(ctx)
 	// wait until uploader blocks on the clock
 	clock.BlockUntil(1)
 
@@ -174,7 +172,7 @@ func TestChaosUpload(t *testing.T) {
 	scansCh := make(chan error, parallelStreams)
 	for i := 0; i < parallelStreams; i++ {
 		go func() {
-			_, err := uploader.Scan()
+			_, err := uploader.Scan(ctx)
 			scansCh <- trace.Wrap(err)
 		}()
 	}
@@ -203,7 +201,7 @@ func TestChaosUpload(t *testing.T) {
 
 	for i := 0; i < parallelStreams; i++ {
 		// do scans to catch remaining uploads
-		_, err = uploader.Scan()
+		_, err = uploader.Scan(ctx)
 		require.NoError(t, err)
 
 		// wait for the upload events
