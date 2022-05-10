@@ -402,7 +402,7 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 
 	if len(resourceIDs) > 0 {
-		resourcesStr, err := services.ResourceIDsToString(resourceIDs)
+		resourcesStr, err := types.ResourceIDsToString(resourceIDs)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -185,9 +185,8 @@ type IdentityContext struct {
 	// CertAuthority is the Certificate Authority that signed the Certificate.
 	CertAuthority types.CertAuthority
 
-	// RoleSet is the roles this Teleport user is associated with. RoleSet is
-	// used to check RBAC permissions.
-	RoleSet services.RoleSet
+	// AccessChecker is used to check RBAC permissions.
+	AccessChecker services.AccessChecker
 
 	// UnmappedRoles lists the original roles of this Teleport user without
 	// trusted-cluster-related role mapping being applied.
@@ -371,7 +370,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		SessionRecordingConfig: recConfig,
 		Identity:               identityContext,
-		clientIdleTimeout:      identityContext.RoleSet.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
 	}
@@ -397,7 +396,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		childErr := child.Close()
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
-	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
+	disconnectExpiredCert := identityContext.AccessChecker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
@@ -421,7 +420,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
 		LockTargets:           lockTargets,
-		LockingMode:           identityContext.RoleSet.LockingMode(authPref.GetLockingMode()),
+		LockingMode:           identityContext.AccessChecker.LockingMode(authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
 		Clock:                 child.srv.GetClock(),
@@ -912,10 +911,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 	}
 
 	// If the identity has roles, extract the role names.
-	var roleNames []string
-	if len(c.Identity.RoleSet) > 0 {
-		roleNames = c.Identity.RoleSet.RoleNames()
-	}
+	roleNames := c.Identity.AccessChecker.RoleNames()
 
 	// Fill in the environment variables from the config and interpolate them if needed.
 	environment := make(map[string]string)
@@ -965,10 +961,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 // an *execCommand which can be re-sent to Teleport.
 func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	// If the identity has roles, extract the role names.
-	var roleNames []string
-	if len(c.Identity.RoleSet) > 0 {
-		roleNames = c.Identity.RoleSet.RoleNames()
-	}
+	roleNames := c.Identity.AccessChecker.RoleNames()
 
 	// Extract the command to be executed. This only exists if command execution
 	// (exec or shell) is being requested, port forwarding has no command to
@@ -1124,7 +1117,7 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
 	}
-	roles := apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...))
+	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
 	lockTargets = append(lockTargets,
 		services.RolesToLockTargets(roles)...,
 	)

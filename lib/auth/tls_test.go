@@ -1212,7 +1212,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(err, check.IsNil)
 
 	// Roles extracted from cert should contain the initial role and the role assigned with access request.
-	roles, _, err := services.ExtractFromCertificate(sshcert)
+	roles, err := services.ExtractRolesFromCert(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.HasLen, 2)
 
@@ -1253,7 +1253,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
 	c.Assert(err, check.IsNil)
 
-	roles, _, err = services.ExtractFromCertificate(sshcert)
+	roles, err = services.ExtractRolesFromCert(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.DeepEquals, []string{initialRole})
 

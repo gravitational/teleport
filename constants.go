@@ -439,7 +439,7 @@ const (
 	CertExtensionGeneration = "generation"
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
-	CertExtensionAllowedResources = "allowed-resources"
+	CertExtensionAllowedResources = "teleport-allowed-resources"
 )
 
 const (

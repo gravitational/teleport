@@ -368,12 +368,8 @@ func checkCerts(t *testing.T,
 		require.Equal(t, accessRequests, certAccessRequests)
 	}
 
-	for _, certResourcesStr := range []string{
-		sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources],
-		tlsIdentity.AllowedResourceIDs,
-	} {
-		certResources, err := services.ResourceIDsFromString(certResourcesStr)
-		require.NoError(t, err)
-		require.Equal(t, resourceIDs, certResources)
-	}
+	sshCertAllowedResources, err := types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+	require.NoError(t, err)
+	require.Equal(t, resourceIDs, sshCertAllowedResources)
+	require.Equal(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
 }

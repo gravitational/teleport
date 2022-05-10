@@ -415,7 +415,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
-	clusterName, err := s.GetClusterName()
+	clusterName, err := s.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -432,15 +432,16 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), s, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	checker := services.NewAccessChecker(accessInfo, clusterName)
 
 	// Return the host CA for this cluster only.
 	authority, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
-		DomainName: clusterName.GetClusterName(),
+		DomainName: clusterName,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

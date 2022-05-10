@@ -740,9 +740,6 @@ type certRequest struct {
 	// activeRequests tracks privilege escalation requests applied
 	// during the construction of the certificate.
 	activeRequests services.RequestIDs
-	// requestedResourceIDs lists the resources to which access has been
-	// requested.
-	requestedResourceIDs []types.ResourceID
 	// appSessionID is the session ID of the application session.
 	appSessionID string
 	// appPublicAddr is the public address of the application.
@@ -820,10 +817,12 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
+	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	checker := services.NewAccessChecker(accessInfo, clusterName)
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
 		ttl:            ttl,
@@ -864,10 +863,15 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName)
 	sessionID := req.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -917,10 +921,15 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName)
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -1051,7 +1060,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, "-teleport-internal-join")
 
-	requestedResourcesStr, err := services.ResourceIDsToString(req.requestedResourceIDs)
+	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1159,7 +1168,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		DisallowReissue:    req.disallowReissue,
 		Renewable:          req.renewable,
 		Generation:         req.generation,
-		AllowedResourceIDs: requestedResourcesStr,
+		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1303,15 +1312,16 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 // PreAuthenticatedSignIn is for MFA authentication methods where the password
 // is already checked before issuing the second factor challenge
 func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (types.WebSession, error) {
-	roles, traits, err := services.ExtractFromIdentity(a, identity)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:           user,
-		Roles:          roles,
-		Traits:         traits,
-		AccessRequests: identity.ActiveRequests,
+		User:                 user,
+		Roles:                accessInfo.Roles,
+		Traits:               accessInfo.Traits,
+		AccessRequests:       identity.ActiveRequests,
+		RequestedResourceIDs: accessInfo.AllowedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1818,13 +1828,15 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	roles, traits, err := services.ExtractFromIdentity(a, identity)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	roles := accessInfo.Roles
+	traits := accessInfo.Traits
+	allowedResourceIDs := accessInfo.AllowedResourceIDs
 	accessRequests := identity.ActiveRequests
-	requestedResourceIDs := []types.ResourceID{}
+
 	if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
@@ -1834,7 +1846,11 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		roles = append(roles, accessRequest.GetRoles()...)
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
-		requestedResourceIDs = accessRequest.GetRequestedResourceIDs()
+
+		if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
+			return nil, trace.BadParameter("cannot generate certificate with multiple search-based access requests")
+		}
+		allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
@@ -1852,6 +1868,9 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
+
+		// Reset any search-based access requests
+		allowedResourceIDs = nil
 
 		// Calculate expiry time.
 		roleSet, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
@@ -1874,7 +1893,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		Traits:               traits,
 		SessionTTL:           sessionTTL,
 		AccessRequests:       accessRequests,
-		RequestedResourceIDs: requestedResourceIDs,
+		RequestedResourceIDs: allowedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2313,10 +2332,20 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
+	roleSet, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(&services.AccessInfo{
+		Roles:              req.Roles,
+		Traits:             req.Traits,
+		RoleSet:            roleSet,
+		AllowedResourceIDs: req.RequestedResourceIDs,
+	}, clusterName)
 
 	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
 	if err != nil {
@@ -2332,13 +2361,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:                 user,
-		ttl:                  sessionTTL,
-		publicKey:            pub,
-		checker:              checker,
-		traits:               req.Traits,
-		activeRequests:       services.RequestIDs{AccessRequests: req.AccessRequests},
-		requestedResourceIDs: req.RequestedResourceIDs,
+		user:           user,
+		ttl:            sessionTTL,
+		publicKey:      pub,
+		checker:        checker,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2453,7 +2481,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Expires: req.GetAccessExpiry(),
 		},
 		Roles:                req.GetRoles(),
-		RequestedResourceIDs: services.EventResourceIDs(req.GetRequestedResourceIDs()),
+		RequestedResourceIDs: types.EventResourceIDs(req.GetRequestedResourceIDs()),
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),

@@ -214,10 +214,15 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
-	checker, err := services.FetchRoles(user.GetRoles(), s.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, s.Access)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	clusterName, err := s.GetDomainName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName)
 
 	certs, err := s.generateUserCert(certRequest{
 		user:              user,
