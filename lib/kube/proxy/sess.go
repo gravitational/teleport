@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
@@ -43,11 +42,13 @@ import (
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/remotecommand"
-	utilexec "k8s.io/client-go/util/exec"
 )
+
+const sessionRecorderID = "session-recorder"
 
 const PresenceVerifyInterval = time.Second * 15
 const PresenceMaxDifference = time.Minute
+const sessionMaxLifetime = time.Hour * 24
 
 // remoteClient is either a kubectl or websocket client.
 type remoteClient interface {
@@ -282,9 +283,6 @@ type session struct {
 
 	emitter apievents.Emitter
 
-	// tty is set if the session is using a TTY.
-	tty bool
-
 	podName string
 
 	started bool
@@ -324,7 +322,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
-	tty := utils.AsBool(q.Get("tty"))
 	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind)
 
 	io := srv.NewTermManager()
@@ -342,13 +339,12 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		state:                          types.SessionState_SessionStatePending,
 		accessEvaluator:                accessEvaluator,
 		emitter:                        events.NewDiscardEmitter(),
-		tty:                            tty,
 		terminalSizeQueue:              newMultiResizeQueue(),
 		started:                        false,
 		sess:                           sess,
 		closeC:                         make(chan struct{}),
 		initiator:                      initiator.ID,
-		expires:                        time.Now().UTC().Add(time.Hour * 24),
+		expires:                        time.Now().UTC().Add(sessionMaxLifetime),
 		PresenceEnabled:                ctx.Identity.GetIdentity().MFAVerified != "",
 		stateUpdate:                    sync.NewCond(&sync.Mutex{}),
 		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
@@ -451,7 +447,6 @@ func (s *session) launch() error {
 		stdin:              utils.AsBool(q.Get("stdin")),
 		stdout:             utils.AsBool(q.Get("stdout")),
 		stderr:             utils.AsBool(q.Get("stderr")),
-		tty:                utils.AsBool(q.Get("tty")),
 		httpRequest:        s.req,
 		httpResponseWriter: nil,
 		context:            s.req.Context(),
@@ -465,6 +460,12 @@ func (s *session) launch() error {
 	s.io.OnWriteError = func(idString string, err error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+
+		if idString == sessionRecorderID {
+			s.log.Error("Failed to write to session recorder, closing session.")
+			s.Close()
+		}
+
 		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
 		id, _ := uuid.Parse(idString)
 		if s.parties[id] != nil {
@@ -480,48 +481,46 @@ func (s *session) launch() error {
 		return trace.Wrap(err)
 	}
 
-	if request.tty {
-		termParams := tsession.TerminalParams{
-			W: 100,
-			H: 100,
-		}
+	termParams := tsession.TerminalParams{
+		W: 100,
+		H: 100,
+	}
 
-		sessionStartEvent := &apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type:        events.SessionStartEvent,
-				Code:        events.SessionStartCode,
-				ClusterName: s.forwarder.cfg.ClusterName,
-			},
-			ServerMetadata: apievents.ServerMetadata{
-				ServerID:        s.forwarder.cfg.ServerID,
-				ServerNamespace: s.forwarder.cfg.Namespace,
-				ServerHostname:  s.sess.teleportCluster.name,
-				ServerAddr:      s.sess.kubeAddress,
-			},
-			SessionMetadata: apievents.SessionMetadata{
-				SessionID: s.id.String(),
-				WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-			},
-			UserMetadata: apievents.UserMetadata{
-				User:         s.ctx.User.GetName(),
-				Login:        s.ctx.User.GetName(),
-				Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				RemoteAddr: s.req.RemoteAddr,
-				LocalAddr:  s.sess.kubeAddress,
-				Protocol:   events.EventProtocolKube,
-			},
-			TerminalSize:              termParams.Serialize(),
-			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
-			KubernetesPodMetadata:     eventPodMeta,
-			InitialCommand:            q["command"],
-			SessionRecording:          s.ctx.recordingConfig.GetMode(),
-		}
+	sessionStartEvent := &apievents.SessionStart{
+		Metadata: apievents.Metadata{
+			Type:        events.SessionStartEvent,
+			Code:        events.SessionStartCode,
+			ClusterName: s.forwarder.cfg.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        s.forwarder.cfg.ServerID,
+			ServerNamespace: s.forwarder.cfg.Namespace,
+			ServerHostname:  s.sess.teleportCluster.name,
+			ServerAddr:      s.sess.kubeAddress,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: s.id.String(),
+			WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         s.ctx.User.GetName(),
+			Login:        s.ctx.User.GetName(),
+			Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: s.req.RemoteAddr,
+			LocalAddr:  s.sess.kubeAddress,
+			Protocol:   events.EventProtocolKube,
+		},
+		TerminalSize:              termParams.Serialize(),
+		KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+		KubernetesPodMetadata:     eventPodMeta,
+		InitialCommand:            q["command"],
+		SessionRecording:          s.ctx.recordingConfig.GetMode(),
+	}
 
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
-			s.forwarder.log.WithError(err).Warn("Failed to emit event.")
-		}
+	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
+		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 
 	go func() {
@@ -555,7 +554,7 @@ func (s *session) launch() error {
 		Stdin:             s.io,
 		Stdout:            s.io,
 		Stderr:            s.io,
-		Tty:               request.tty,
+		Tty:               true,
 		TerminalSizeQueue: s.terminalSizeQueue,
 	}
 
@@ -576,7 +575,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 	s.started = true
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 
-	if !s.sess.noAuditEvents && s.tty {
+	if !s.sess.noAuditEvents {
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {
 			s.mu.Lock()
 			defer s.mu.Unlock()
@@ -630,36 +629,32 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
 	}
 
-	if !s.sess.noAuditEvents && request.tty {
-		streamer, err := s.forwarder.newStreamer(&s.ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		recorder, err := events.NewAuditWriter(events.AuditWriterConfig{
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed
-			Context:      s.forwarder.ctx,
-			Streamer:     streamer,
-			Clock:        s.forwarder.cfg.Clock,
-			SessionID:    tsession.ID(s.id.String()),
-			ServerID:     s.forwarder.cfg.ServerID,
-			Namespace:    s.forwarder.cfg.Namespace,
-			RecordOutput: s.ctx.recordingConfig.GetMode() != types.RecordOff,
-			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
-			ClusterName:  s.forwarder.cfg.ClusterName,
-		})
-
-		s.recorder = recorder
-		s.emitter = recorder
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		s.io.AddWriter("recorder", recorder)
-	} else if !s.sess.noAuditEvents {
-		s.emitter = s.forwarder.cfg.StreamEmitter
+	streamer, err := s.forwarder.newStreamer(&s.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	recorder, err := events.NewAuditWriter(events.AuditWriterConfig{
+		// Audit stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context:      s.forwarder.ctx,
+		Streamer:     streamer,
+		Clock:        s.forwarder.cfg.Clock,
+		SessionID:    tsession.ID(s.id.String()),
+		ServerID:     s.forwarder.cfg.ServerID,
+		Namespace:    s.forwarder.cfg.Namespace,
+		RecordOutput: s.ctx.recordingConfig.GetMode() != types.RecordOff,
+		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		ClusterName:  s.forwarder.cfg.ClusterName,
+	})
+
+	s.recorder = recorder
+	s.emitter = recorder
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.io.AddWriter(sessionRecorderID, recorder)
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.PresenceEnabled {
@@ -695,123 +690,76 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			}
 		}
 
-		if request.tty {
-			sessionDataEvent := &apievents.SessionData{
-				Metadata: apievents.Metadata{
-					Type:        events.SessionDataEvent,
-					Code:        events.SessionDataCode,
-					ClusterName: s.forwarder.cfg.ClusterName,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerID:        s.forwarder.cfg.ServerID,
-					ServerNamespace: s.forwarder.cfg.Namespace,
-				},
-				SessionMetadata: apievents.SessionMetadata{
-					SessionID: s.id.String(),
-					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-				},
-				UserMetadata: apievents.UserMetadata{
-					User:         s.ctx.User.GetName(),
-					Login:        s.ctx.User.GetName(),
-					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: s.req.RemoteAddr,
-					LocalAddr:  s.sess.kubeAddress,
-					Protocol:   events.EventProtocolKube,
-				},
-				// Bytes transmitted from user to pod.
-				BytesTransmitted: s.io.CountRead(),
-				// Bytes received from pod by user.
-				BytesReceived: s.io.CountWritten(),
-			}
+		sessionDataEvent := &apievents.SessionData{
+			Metadata: apievents.Metadata{
+				Type:        events.SessionDataEvent,
+				Code:        events.SessionDataCode,
+				ClusterName: s.forwarder.cfg.ClusterName,
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerID:        s.forwarder.cfg.ServerID,
+				ServerNamespace: s.forwarder.cfg.Namespace,
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: s.id.String(),
+				WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
+			},
+			UserMetadata: apievents.UserMetadata{
+				User:         s.ctx.User.GetName(),
+				Login:        s.ctx.User.GetName(),
+				Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: s.req.RemoteAddr,
+				LocalAddr:  s.sess.kubeAddress,
+				Protocol:   events.EventProtocolKube,
+			},
+			// Bytes transmitted from user to pod.
+			BytesTransmitted: s.io.CountRead(),
+			// Bytes received from pod by user.
+			BytesReceived: s.io.CountWritten(),
+		}
 
-			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionDataEvent); err != nil {
-				s.forwarder.log.WithError(err).Warn("Failed to emit session data event.")
-			}
+		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionDataEvent); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to emit session data event.")
+		}
 
-			sessionEndEvent := &apievents.SessionEnd{
-				Metadata: apievents.Metadata{
-					Type:        events.SessionEndEvent,
-					Code:        events.SessionEndCode,
-					ClusterName: s.forwarder.cfg.ClusterName,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerID:        s.forwarder.cfg.ServerID,
-					ServerNamespace: s.forwarder.cfg.Namespace,
-				},
-				SessionMetadata: apievents.SessionMetadata{
-					SessionID: s.id.String(),
-					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-				},
-				UserMetadata: apievents.UserMetadata{
-					User:         s.ctx.User.GetName(),
-					Login:        s.ctx.User.GetName(),
-					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: s.req.RemoteAddr,
-					LocalAddr:  s.sess.kubeAddress,
-					Protocol:   events.EventProtocolKube,
-				},
-				Interactive:               true,
-				Participants:              s.allParticipants(),
-				StartTime:                 sessionStart,
-				EndTime:                   s.forwarder.cfg.Clock.Now().UTC(),
-				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
-				KubernetesPodMetadata:     eventPodMeta,
-				InitialCommand:            request.cmd,
-				SessionRecording:          s.ctx.recordingConfig.GetMode(),
-			}
+		sessionEndEvent := &apievents.SessionEnd{
+			Metadata: apievents.Metadata{
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
+				ClusterName: s.forwarder.cfg.ClusterName,
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerID:        s.forwarder.cfg.ServerID,
+				ServerNamespace: s.forwarder.cfg.Namespace,
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: s.id.String(),
+				WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
+			},
+			UserMetadata: apievents.UserMetadata{
+				User:         s.ctx.User.GetName(),
+				Login:        s.ctx.User.GetName(),
+				Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: s.req.RemoteAddr,
+				LocalAddr:  s.sess.kubeAddress,
+				Protocol:   events.EventProtocolKube,
+			},
+			Interactive:               true,
+			Participants:              s.allParticipants(),
+			StartTime:                 sessionStart,
+			EndTime:                   s.forwarder.cfg.Clock.Now().UTC(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesPodMetadata:     eventPodMeta,
+			InitialCommand:            request.cmd,
+			SessionRecording:          s.ctx.recordingConfig.GetMode(),
+		}
 
-			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
-				s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
-			}
-		} else {
-			// send an exec event
-			execEvent := &apievents.Exec{
-				Metadata: apievents.Metadata{
-					Type:        events.ExecEvent,
-					ClusterName: s.forwarder.cfg.ClusterName,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerID:        s.forwarder.cfg.ServerID,
-					ServerNamespace: s.forwarder.cfg.Namespace,
-				},
-				SessionMetadata: apievents.SessionMetadata{
-					SessionID: s.id.String(),
-					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-				},
-				UserMetadata: apievents.UserMetadata{
-					User:         s.ctx.User.GetName(),
-					Login:        s.ctx.User.GetName(),
-					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: s.req.RemoteAddr,
-					LocalAddr:  s.sess.kubeAddress,
-					Protocol:   events.EventProtocolKube,
-				},
-				CommandMetadata: apievents.CommandMetadata{
-					Command: strings.Join(request.cmd, " "),
-				},
-				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
-				KubernetesPodMetadata:     eventPodMeta,
-			}
-
-			if err != nil {
-				execEvent.Code = events.ExecFailureCode
-				execEvent.Error = err.Error()
-				if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
-					execEvent.ExitCode = fmt.Sprintf("%d", exitErr.ExitStatus())
-				}
-			} else {
-				execEvent.Code = events.ExecCode
-			}
-
-			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
-				s.forwarder.log.WithError(err).Warn("Failed to emit event.")
-			}
+		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
 		}
 	}, nil
 }
@@ -892,12 +840,9 @@ func (s *session) join(p *party) error {
 	stringID := p.ID.String()
 	s.parties[p.ID] = p
 	s.partiesHistorical[p.ID] = p
+	s.terminalSizeQueue.add(stringID, p.Client.resizeQueue())
 
-	if s.tty {
-		s.terminalSizeQueue.add(stringID, p.Client.resizeQueue())
-	}
-
-	if s.tty && p.Mode == types.SessionPeerMode {
+	if p.Mode == types.SessionPeerMode {
 		s.io.AddReader(stringID, p.Client.stdinStream())
 	}
 
@@ -934,8 +879,6 @@ func (s *session) join(p *party) error {
 					s.log.WithError(err).Warning("Failed to launch Kubernetes session.")
 				}
 			}()
-		} else if !s.tty {
-			return trace.AccessDenied("insufficient permissions to launch non-interactive session")
 		} else if len(s.parties) == 1 {
 			base := "Waiting for required participants..."
 
@@ -951,12 +894,8 @@ func (s *session) join(p *party) error {
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) {
-	if s.accessEvaluator.IsModerated() && s.tty {
-		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
-
-		if err != nil {
-			s.log.Debugf("Failed to broadcast message: %v", err)
-		}
+	if s.accessEvaluator.IsModerated() {
+		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 }
 

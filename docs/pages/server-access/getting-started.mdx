@@ -42,9 +42,19 @@ This guide introduces some of these common scenarios and how to interact with Te
    We'll configure and launch our instance, then demonstrate how to use the
    `tsh` tool and Teleport in SSH mode.
 
-2. Install Teleport on your instance.
+2. <ScopedBlock scope={["oss", "enterprise"]}>
 
-   (!docs/pages/includes/install-linux.mdx!)
+    On the host where you will run your Teleport Node, follow the instructions for
+    your environment to install Teleport.
+
+    (!docs/pages/includes/install-linux.mdx!)
+
+    </ScopedBlock>
+    <ScopedBlock scope={["cloud"]}>
+
+    (!docs/pages/includes/install-agent-cloud.mdx!)
+
+    </ScopedBlock>
 
    Next, we'll create a **join token** so you can start the Teleport Node and
    add it to your cluster.

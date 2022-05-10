@@ -32,6 +32,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -176,7 +177,7 @@ type TestAuthServer struct {
 	AuthServer *Server
 	// AuditLog is an event audit log
 	AuditLog events.IAuditLog
-	// SessionLogger is a session logger
+	// SessionServer is a session service
 	SessionServer session.Service
 	// Backend is a backend for auth server
 	Backend backend.Backend
@@ -385,7 +386,7 @@ func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error
 // generateCertificate generates certificate for identity,
 // returns private public key pair
 func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
-	priv, pub, err := authServer.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -887,7 +888,7 @@ func (t *TestTLSServer) Stop() error {
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
-	priv, pub, err := clt.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

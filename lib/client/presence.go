@@ -86,7 +86,7 @@ func solveMFA(ctx context.Context, term io.Writer, tc *TeleportClient, challenge
 	// We don't support TOTP for live presence.
 	challenge.TOTP = nil
 
-	response, err := PromptMFAChallenge(ctx, challenge, tc.Config.WebProxyAddr, &PromptMFAChallengeOpts{
+	response, err := tc.PromptMFAChallenge(ctx, challenge, &PromptMFAChallengeOpts{
 		Quiet: true,
 	})
 	if err != nil {
