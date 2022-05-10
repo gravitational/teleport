@@ -63,7 +63,7 @@ type Engine struct {
 	clientConn net.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-
+	// HttpClient is the client being used to talk to Snowflake API.
 	HttpClient *http.Client
 
 	connectionToken string
@@ -122,13 +122,10 @@ func (e *Engine) SendError(err error) {
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
-	uri := sessionCtx.Database.GetURI()
-	uriParts := strings.Split(uri, ".")
-	if len(uriParts) != 5 && len(uriParts) != 3 && !strings.Contains(uri, "localhost") {
-		return trace.BadParameter("invalid Snowflake url: %s", uri)
+	accountName, err := extractAccountName(sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	accountName := uriParts[0]
 
 	if err := e.authorizeConnection(ctx); err != nil {
 		return trace.Wrap(err)
@@ -152,10 +149,19 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 }
 
-func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
-	//e.Log.Debugf("%+v", req)
-	//e.Log.Debugf("orig url: %s", req.URL.String())
+func extractAccountName(sessionCtx *common.Session) (string, error) {
+	uri := sessionCtx.Database.GetURI()
+	uriParts := strings.Split(uri, ".")
+	// TODO(jakule): Fix me....
+	if len(uriParts) != 5 && len(uriParts) != 3 && !strings.Contains(uri, "localhost") {
+		return "", trace.BadParameter("invalid Snowflake url: %s", uri)
+	}
 
+	accountName := uriParts[0]
+	return accountName, nil
+}
+
+func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
 	var err error
 	e.connectionToken, err = e.getConnectionToken(ctx, req)
 	if err != nil {
@@ -167,9 +173,6 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 		return trace.Wrap(err)
 	}
 
-	//e.Log.Debugf("new url: %s", req.URL.String())
-	//e.Log.Debugf("method: %s", req.Method)
-
 	reqCopy, err := e.copyRequest(ctx, req, requestBodyReader)
 	if err != nil {
 		return trace.Wrap(err)
@@ -180,6 +183,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 
 	e.setAuthorizationHeader(reqCopy)
 
+	// Send the request to Snowflake API
 	resp, err := e.HttpClient.Do(reqCopy)
 	if err != nil {
 		return trace.Wrap(err)
@@ -214,12 +218,7 @@ func (e *Engine) sendResponse(err error, resp *http.Response) error {
 
 func (e *Engine) setAuthorizationHeader(reqCopy *http.Request) {
 	if e.connectionToken != "" {
-		//e.Log.Debugf("setting Snowflake token %s", e.connectionToken)
-		if strings.Contains(e.connectionToken, "Snowflake Token") {
-			reqCopy.Header.Set("Authorization", e.connectionToken)
-		} else {
-			reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
-		}
+		reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
 	}
 }
 
@@ -228,8 +227,6 @@ func (e *Engine) processLoginResponse(ctx context.Context, resp *http.Response, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	//e.printBody(resp, resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
@@ -317,28 +314,6 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	return nil
 }
 
-//func (e *Engine) printBody(resp *http.Response, body io.ReadCloser) {
-//	var bodyReader io.Reader
-//	if resp.Header.Get("Content-Encoding") == "gzip" {
-//		gzipReader, err := gzip.NewReader(body)
-//		if err != nil {
-//			panic(err)
-//		}
-//		defer gzipReader.Close()
-//
-//		bodyReader = gzipReader
-//	} else {
-//		bodyReader = resp.Body
-//	}
-//
-//	body23, err := io.ReadAll(bodyReader)
-//	if err != nil {
-//		panic(err)
-//	}
-//
-//	e.Log.Debugf("response body: %s", string(body23))
-//}
-
 func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Session, respBody io.Reader, accountName string) ([]byte, error) {
 	if newResp, err := e.extractToken(respBody, func(sessionToken string) (string, error) {
 		snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
@@ -369,10 +344,6 @@ func (e *Engine) copyRequest(ctx context.Context, req *http.Request, body io.Rea
 	}
 
 	for k, v := range req.Header {
-		//if reqCopy.Header.Get(k) != "" {
-		//	continue
-		//}
-		//e.Log.Debugf("setting header %s: %s", k, strings.Join(v, ","))
 		reqCopy.Header.Set(k, strings.Join(v, ","))
 	}
 
@@ -391,22 +362,20 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// TODO(jakule): remove later
-		e.Log.Debugf("JWT token: %s", jwtToken)
 
-		body, err := readRequest(req)
+		body, err := readRequestBody(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		e.Log.Debugf("%s", string(body))
+		//e.Log.Debugf("%s", string(body))
 
 		if newBody, err := replaceToken(body, jwtToken, accountName); err == nil {
 			e.Log.Debugf("new body: %s", string(newBody))
 
 			body = newBody
 		} else {
-			e.Log.Errorf("failed to unmarshal login JSON: %v", err)
+			e.Log.Errorf("failed to unmarshal login JSON: %v", err) // TODO(jakule)
 		}
 
 		buf := &bytes.Buffer{}
@@ -427,7 +396,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 		newBody = buf
 		req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
 	case queryRequestPath:
-		body, err := readRequest(req)
+		body, err := readRequestBody(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -463,7 +432,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 	return newBody, nil
 }
 
-func readRequest(req *http.Request) ([]byte, error) {
+func readRequestBody(req *http.Request) ([]byte, error) {
 	// TODO(jakule): Add limiter
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -528,7 +497,11 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 
 func extractSnowflakeToken(req *http.Request) string {
 	sessionID := req.Header.Get("Authorization")
-	sessionID = strings.TrimPrefix(sessionID, "Snowflake Token=\"")
+	return extractSnowflakeTokenFromHeader(sessionID)
+}
+
+func extractSnowflakeTokenFromHeader(token string) string {
+	sessionID := strings.TrimPrefix(token, "Snowflake Token=\"")
 	sessionID = strings.TrimSuffix(sessionID, "\"")
 	return sessionID
 }
@@ -556,27 +529,6 @@ func extractSQLStmt(body []byte) (string, error) {
 }
 
 func (e *Engine) extractToken(respBody io.Reader, sessCb func(string) (string, error)) ([]byte, error) {
-	//respBytes := bytes.NewReader(dumpResp)
-	//respBufio := bufio.NewReader(respBytes)
-	//
-	//resp, err := http.ReadResponse(respBufio, nil)
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	//var bodyReader io.Reader
-	//if resp.Header.Get("Content-Encoding") == "gzip" {
-	//	gzipReader, err := gzip.NewReader(resp.Body)
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//	defer gzipReader.Close()
-	//
-	//	bodyReader = gzipReader
-	//} else {
-	//	bodyReader = resp.Body
-	//}
-
 	bodyBytes, err := io.ReadAll(respBody)
 	if err != nil {
 		return nil, err
@@ -591,7 +543,17 @@ func (e *Engine) extractToken(respBody io.Reader, sessCb func(string) (string, e
 		return nil, trace.Errorf("snowflake authentication failed: %s", loginResp.Message)
 	}
 
-	e.connectionToken = loginResp.Data["token"].(string)
+	dataToken, found := loginResp.Data["token"]
+	if !found {
+		return nil, trace.Errorf("")
+	}
+
+	connectionToken, ok := dataToken.(string)
+	if !ok {
+		return nil, trace.Errorf("session token returned by Snowflake API expected to be a string, got %T", dataToken)
+	}
+
+	e.connectionToken = extractSnowflakeTokenFromHeader(connectionToken)
 
 	sessionToken, err := sessCb(e.connectionToken)
 	if err != nil {
@@ -599,7 +561,7 @@ func (e *Engine) extractToken(respBody io.Reader, sessCb func(string) (string, e
 	}
 
 	loginResp.Data["token"] = sessionToken
-	loginResp.Data["masterToken"] = sessionToken
+	loginResp.Data["masterToken"] = sessionToken //TODO(jakule)
 
 	newResp, err := json.Marshal(loginResp)
 	if err != nil {
