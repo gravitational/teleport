@@ -215,24 +215,14 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 			conn.Close()
 			return
 		}
-		select {
-		case m.tlsListener.connC <- connWrapper:
-		case <-m.context.Done():
-			connWrapper.Close()
-			return
-		}
+		m.tlsListener.HandleConnection(m.context, connWrapper)
 	case ProtoSSH:
 		if m.DisableSSH {
 			m.Debug("Closing SSH connection: SSH listener is disabled.")
 			conn.Close()
 			return
 		}
-		select {
-		case m.sshListener.connC <- connWrapper:
-		case <-m.context.Done():
-			connWrapper.Close()
-			return
-		}
+		m.sshListener.HandleConnection(m.context, connWrapper)
 	case ProtoHTTP:
 		m.Debug("Detected an HTTP request. If this is for a health check, use an HTTPS request instead.")
 		conn.Close()
@@ -243,12 +233,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 			conn.Close()
 			return
 		}
-		select {
-		case m.dbListener.connC <- connWrapper:
-		case <-m.context.Done():
-			connWrapper.Close()
-			return
-		}
+		m.dbListener.HandleConnection(m.context, connWrapper)
 	default:
 		// should not get here, handle this just in case
 		connWrapper.Close()
