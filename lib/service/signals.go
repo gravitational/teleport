@@ -19,6 +19,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -278,6 +279,7 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]FileDescriptor, error
 func importFileDescriptors(log logrus.FieldLogger) ([]FileDescriptor, error) {
 	// These files may be passed in by the parent process
 	filesString := os.Getenv(teleportFilesEnvVar)
+	os.Unsetenv(teleportFilesEnvVar)
 	if filesString == "" {
 		return nil, nil
 	}
@@ -437,11 +439,11 @@ func (process *TeleportProcess) forkChild() error {
 	}
 
 	log.Infof("Passing %s to child", vals)
-	os.Setenv(teleportFilesEnvVar, vals)
+	env := append(os.Environ(), fmt.Sprintf("%s=%s", teleportFilesEnvVar, vals))
 
 	p, err := os.StartProcess(path, os.Args, &os.ProcAttr{
 		Dir:   workingDir,
-		Env:   os.Environ(),
+		Env:   env,
 		Files: files,
 		Sys:   &syscall.SysProcAttr{},
 	})
