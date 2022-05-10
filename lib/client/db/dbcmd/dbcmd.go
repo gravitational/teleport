@@ -55,6 +55,8 @@ const (
 	redisBin = "redis-cli"
 	// mssqlBin is the SQL Server client program name.
 	mssqlBin = "mssql-cli"
+	// snowsqlBin is the Snowflake client program name.
+	snowsqlBin = "snowsql"
 )
 
 // execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -461,16 +463,16 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 
 func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	args := []string{
-		"--noup",
-		"-a", "teleport",
+		"-a", "teleport", // Account name doesn't matter as it will be overridden in the backend anyway.
 		"-u", c.db.Username,
 		"-h", c.host,
 		"-p", strconv.Itoa(c.port),
 	}
 
-	// TODO(jakule): set "SNOWSQL_PWD=teleport"
+	cmd := exec.Command(snowsqlBin, args...)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SNOWSQL_PWD=%s", c.uid.New()))
 
-	return exec.Command("snowsql", args...)
+	return cmd
 }
 
 type connectionCommandOpts struct {

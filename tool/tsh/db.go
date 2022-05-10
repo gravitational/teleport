@@ -18,8 +18,8 @@ package main
 
 import (
 	"crypto/x509"
-	"encoding/pem"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"os"
@@ -327,7 +327,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 		host, port = tc.PostgresProxyHostPort()
 	case defaults.ProtocolMySQL:
 		host, port = tc.MySQLProxyHostPort()
-	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSQLServer:
+	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSQLServer, defaults.ProtocolSnowflake:
 		host, port = tc.WebProxyHostPort()
 	default:
 		return trace.BadParameter("unknown database protocol: %q", database)
@@ -343,7 +343,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(cmd.Path, strings.Join(cmd.Args[1:], " "))
+		fmt.Println(strings.Join(cmd.Env, " "), cmd.Path, strings.Join(cmd.Args[1:], " "))
 	case dbFormatJSON, dbFormatYAML:
 		configInfo := &dbConfigInfo{
 			database.ServiceName, host, port, database.Username,
@@ -399,12 +399,20 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 // connection scenario and returns a list of options to use in the connect
 // command.
 func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
-	database types.Database, cluster string) ([]dbcmd.ConnectCommandFunc, error) {
+	database types.Database, cluster string,
+) ([]dbcmd.ConnectCommandFunc, error) {
+	// Snowflake only works in the local tunnel mode.
+	localProxyTunnel := cf.LocalProxyTunnel
+	if db.Protocol == defaults.ProtocolSnowflake {
+		localProxyTunnel = true
+	}
 	// Local proxy is started if TLS routing is enabled, or if this is a SQL
 	// Server connection which always requires a local proxy.
 	if !tc.TLSRoutingEnabled && db.Protocol != defaults.ProtocolSQLServer {
 		return []dbcmd.ConnectCommandFunc{}, nil
 	}
+
+	log.Debugf("Starting local proxy")
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -412,12 +420,14 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	}
 
 	opts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:         cf,
-		teleportClient:  tc,
-		profile:         profile,
-		routeToDatabase: db,
-		database:        database,
-		listener:        listener})
+		cliConf:          cf,
+		teleportClient:   tc,
+		profile:          profile,
+		routeToDatabase:  db,
+		database:         database,
+		listener:         listener,
+		localProxyTunnel: localProxyTunnel,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -450,12 +460,13 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 
 // localProxyConfig is an argument pack used in prepareLocalProxyOptions().
 type localProxyConfig struct {
-	cliConf         *CLIConf
-	teleportClient  *client.TeleportClient
-	profile         *client.ProfileStatus
-	routeToDatabase *tlsca.RouteToDatabase
-	database        types.Database
-	listener        net.Listener
+	cliConf          *CLIConf
+	teleportClient   *client.TeleportClient
+	profile          *client.ProfileStatus
+	routeToDatabase  *tlsca.RouteToDatabase
+	database         types.Database
+	listener         net.Listener
+	localProxyTunnel bool
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
@@ -463,11 +474,9 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	// If user requested no client auth, open an authenticated tunnel using
 	// client cert/key of the database.
 	certFile := arg.cliConf.LocalProxyCertFile
-	if certFile == "" && arg.cliConf.LocalProxyTunnel {
-		certFile = arg.profile.DatabaseCertPathForCluster(arg.cliConf.SiteName, arg.routeToDatabase.ServiceName)
-	}
 	keyFile := arg.cliConf.LocalProxyKeyFile
-	if keyFile == "" && arg.cliConf.LocalProxyTunnel {
+	if certFile == "" && arg.localProxyTunnel {
+		certFile = arg.profile.DatabaseCertPathForCluster(arg.cliConf.SiteName, arg.routeToDatabase.ServiceName)
 		keyFile = arg.profile.KeyPath()
 	}
 
@@ -488,7 +497,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	}
 
 	// To set correct MySQL server version DB proxy needs additional protocol.
-	if !arg.cliConf.LocalProxyTunnel && arg.routeToDatabase.Protocol == defaults.ProtocolMySQL {
+	if !arg.localProxyTunnel && arg.routeToDatabase.Protocol == defaults.ProtocolMySQL {
 		if arg.database == nil {
 			var err error
 			arg.database, err = getDatabase(arg.cliConf, arg.teleportClient, arg.routeToDatabase.ServiceName)
