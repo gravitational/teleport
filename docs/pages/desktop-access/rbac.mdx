@@ -1,5 +1,5 @@
 ---
-title:  Role-Based Access Control for Desktop Access
+title: Role-Based Access Control for Desktop Access
 description: Role-based access control (RBAC) for Teleport Desktop Access
 ---
 
@@ -42,11 +42,11 @@ spec:
 ```
 
 <Admonition type="warning" title="Active Directory Configuration">
-Teleport's RBAC system is not a replacement for proper Active Directory
-administration. Teleport-issued Windows certificates are valid for a small
-amount of time, but they do apply to the entire domain. Proper care should be
-taken to ensure that each Teleport user's roles reflect only the necesary
-Windows logins, and that these Windows users are properly secured.
+  Teleport's RBAC system is not a replacement for proper Active Directory
+  administration. Teleport-issued Windows certificates are valid for a small
+  amount of time, but they do apply to the entire domain. Proper care should be
+  taken to ensure that each Teleport user's roles reflect only the necesary
+  Windows logins, and that these Windows users are properly secured.
 </Admonition>
 
 ## Labeling
@@ -67,7 +67,7 @@ For example, the following `host_labels` configuration would apply the
 and the `environment: prod` label to `desktop.prod.example.com`:
 
 ```yaml
-  host_labels:
+host_labels:
   - match: '^.*\.dev\.example\.com$'
     labels:
       environment: dev
@@ -78,14 +78,15 @@ and the `environment: prod` label to `desktop.prod.example.com`:
 
 For desktops discovered via LDAP, Teleport applies the following labels automatically:
 
-| Label | LDAP Attribute | Example |
-| ----- | -------------- | ------- |
-| `teleport.dev/computer_name` | `name` | `WIN-I5G06B8RT33`
-| `teleport.dev/dns_host_name` | [`dNSHostName`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-dnshostname) | `WIN-I5G06B8RT33.example.com`
-| `teleport.dev/os` | [`operatingSystem`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystem) | `Windows Server 2012`
-| `teleport.dev/os_version`| [`osVersion`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystemversion) | `4.0`
-| `teleport.dev/windows_domain`| Sourced from config | `example.com`
-| `teleport.dev/is_domain_controller` | `primaryGroupID` | `true`
+| Label                               | LDAP Attribute                                                                                  | Example                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------- |
+| `teleport.dev/computer_name`        | `name`                                                                                          | `WIN-I5G06B8RT33`             |
+| `teleport.dev/dns_host_name`        | [`dNSHostName`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-dnshostname)          | `WIN-I5G06B8RT33.example.com` |
+| `teleport.dev/os`                   | [`operatingSystem`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystem)  | `Windows Server 2012`         |
+| `teleport.dev/os_version`           | [`osVersion`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystemversion) | `4.0`                         |
+| `teleport.dev/windows_domain`       | Sourced from config                                                                             | `example.com`                 |
+| `teleport.dev/is_domain_controller` | `primaryGroupID`                                                                                | `true`                        |
+| `teleport.dev/ou`                   | Derived from `distinguishedName`                                                                | `OU=IT,DC=goteleport,DC=com`  |
 
 ## Logins
 
