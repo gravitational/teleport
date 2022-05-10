@@ -1,11 +1,8 @@
 <Tabs>
 <TabItem
   scope={["enterprise"]} label="Self-Hosted">
-
 - Installed Enterprise version of Teleport (downloaded via the [Enterprise dashboard](https://dashboard.gravitational.com/web/login)).
-
 - Maintain via the `tctl` enterprise admin tool via the Desktop (recommended) or have administrative access on the Teleport auth service machine.
-
 - For Desktop `tctl` interactions have the Enterprise `tctl` admin tool version >= (=teleport.version=) installed which you can download by visiting the
   [customer portal](https://dashboard.gravitational.com/web/login).
   ```code
@@ -13,7 +10,6 @@
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
   Teleport role with access to maintaining `saml` and `oidc` resources.  This is available in the default `editor` role.
-
 </TabItem>
 
 <TabItem scope={["cloud"]}
