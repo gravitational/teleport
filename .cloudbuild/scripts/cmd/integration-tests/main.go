@@ -101,12 +101,12 @@ func innerMain() error {
 		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
 	}()
 
-	log.Printf("Running root-only integration tests...")
-	err = runRootIntegrationTests(args.workspace, gomodcache)
-	if err != nil {
-		return trace.Wrap(err, "Root-only integration tests failed")
-	}
-	log.Println("Root-only integration tests passed.")
+	// log.Printf("Running root-only integration tests...")
+	// err = runRootIntegrationTests(args.workspace, gomodcache)
+	// if err != nil {
+	// 	return trace.Wrap(err, "Root-only integration tests failed")
+	// }
+	// log.Println("Root-only integration tests passed.")
 
 	if !args.skipChown {
 		// We run some build steps as root and others as a non user, and we
@@ -141,8 +141,8 @@ func innerMain() error {
 	}
 	defer etcdSvc.Stop()
 
-	log.Printf("Running nonroot integration tests...")
-	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)
+	log.Printf("Running nonroot integration tests AS ROOT FOR TESTING...")
+	err = runNonrootIntegrationTests(args.workspace, 0, 0, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "Nonroot integration tests failed")
 	}

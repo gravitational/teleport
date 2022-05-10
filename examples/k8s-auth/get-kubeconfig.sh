@@ -101,15 +101,20 @@ subjects:
   name: ${TELEPORT_SA}
   namespace: ${NAMESPACE}
 EOF
+
 # Get the service account token and CA cert.
+echo "Fetching service account ${NAMESPACE} sa/${TELEPORT_SA}"
 SA_SECRET_NAME=$(kubectl get -n ${NAMESPACE} sa/${TELEPORT_SA} -o "jsonpath={.secrets[0]..name}")
+
 # Note: service account token is stored base64-encoded in the secret but must
 # be plaintext in kubeconfig.
+echo "Fetching service account auth info from ${NAMESPACE} sa/${SA_SECRET_NAME}"
 SA_TOKEN=$(kubectl get -n ${NAMESPACE} secrets/${SA_SECRET_NAME} -o "jsonpath={.data['token']}" | base64 ${BASE64_DECODE_FLAG})
 CA_CERT=$(kubectl get -n ${NAMESPACE} secrets/${SA_SECRET_NAME} -o "jsonpath={.data['ca\.crt']}")
 
 # Extract cluster IP from the current context
 CURRENT_CONTEXT=$(kubectl config current-context)
+echo "Extracting address info from kubectl"
 CURRENT_CLUSTER=$(kubectl config view -o jsonpath="{.contexts[?(@.name == \"${CURRENT_CONTEXT}\"})].context.cluster}")
 CURRENT_CLUSTER_ADDR=$(kubectl config view -o jsonpath="{.clusters[?(@.name == \"${CURRENT_CLUSTER}\"})].cluster.server}")
 

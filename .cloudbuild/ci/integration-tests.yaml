@@ -12,17 +12,58 @@ options:
 steps:
   # Run the integration tests. Actual content of this job depends on the changes
   # detected in the PR
-  - name: quay.io/gravitational/teleport-buildbox:teleport10
+  - name: us-west2-docker.pkg.dev/ci-account/teleport-dev/buildbox-kind:teleport10
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash
     args:
-      - -c
-      - |
+      - -xeuc
+      - | 
+        {
+          apt-get update -y
+          apt-get install -y socat
+        } >/dev/null
+
+        curl -LO "https://dl.k8s.io/release/v1.24.0/bin/linux/amd64/kubectl"
+        chmod +x ./kubectl
+        mv ./kubectl /usr/local/bin
+
+        curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.12.0/kind-linux-amd64
+        chmod +x ./kind
+        mv ./kind /usr/local/bin
+
+        kind create cluster --name ci-$BUILD_ID        
+
+        startForwarder() {
+          local port
+          # Gets the apiServerPort from the KUBECONFIG file.
+          port="$( awk -F: '/server:/{ print $4 }' "$$KUBECONFIG" )"
+          socat \
+            TCP-LISTEN:${port},reuseaddr,fork \
+            "EXEC:docker run --rm -i --network=host alpine/socat 'STDIO TCP-CONNECT:localhost:${port}'"
+        }
+        startForwarder &
+
+        echo Configuring service account
+        TELEPORT_NAMESPACE="ci-teleport" /workspace/examples/k8s-auth/get-kubeconfig.sh
+
+        echo Configuring test roles
+        kubectl create -f /workspace/fixtures/ci-teleport-rbac/ci-teleport.yaml
+
+        echo tidying up
+        kubectl delete clusterrole/teleport-role
+        kubectl delete clusterrolebinding/teleport-crb
+
+        export KUBECONFIG=$$PWD/kubeconfig
+
         go run ./cmd/integration-tests          \
           -target "$_BASE_BRANCH"               \
           -bucket test-logs                     \
           -build "$BUILD_ID"                    \
           -key-secret "$_GITHUB_DEPLOY_KEY_SRC" \
           -a "test-logs/*.json"
+
     timeout: 25m
+    env:
+      - KUBECONFIG=/tmp/$BUILD_ID.kubeconfig
+
