@@ -185,7 +185,7 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 	defer process.Unlock()
 
 	var errors []error
-	openDescriptors := process.importedDescriptors[:0]
+	openDescriptors := make([]FileDescriptor, 0, len(process.importedDescriptors))
 	for _, d := range process.importedDescriptors {
 		if strings.HasPrefix(d.Type, prefix) {
 			process.log.Infof("Closing imported but unused descriptor %v %v.", d.Type, d.Address)
