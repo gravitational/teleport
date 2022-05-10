@@ -1021,6 +1021,9 @@ message AddMFADeviceSyncRequest {
     string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
     // NewMFAResponse is a user's new mfa response to a mfa register challenge.
     MFARegisterResponse NewMFAResponse = 3 [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
+    // DeviceUsage is the requested usage for the device.
+    // Defaults to DEVICE_USAGE_MFA.
+    DeviceUsage DeviceUsage = 4 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // AddMFADeviceSyncResponse is a response to AddMFADeviceSyncRequest.
