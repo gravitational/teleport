@@ -28,7 +28,10 @@ Relevant issue: [#7081](https://github.com/gravitational/teleport/issues/7081)
 
 New field will be added to role options definition:
 
-* `pin_source_ip` - defines if certificate should be pinned to the IP of the client requesting it.
+* `pin_source_ip` - defines if certificate should be pinned to the IP of the client requesting it. User won't be able to
+  use the certificate from different IP for example if one wants to move certificate to different machine without doing
+  login there or if one uses mobile internet that changes IP addresses frequently or network with multiple exit nodes
+  with different IPs.
 
 Example configuration:
 
@@ -86,5 +89,5 @@ certificate expires.
 ### Security
 
 This proposal does not protect against IP spoofing, but it should provide at least the same level of security as we have
-today (as this additional protection, not replacement for user authentication).
-Likewise, it won't prevent attacks that use certificates from original machine as malware, worms etc.
+today (as this additional protection, not replacement for user authentication). Likewise, it won't prevent attacks that
+use certificates from original machine as malware, worms etc.
