@@ -102,6 +102,9 @@ export default function StepSlider<T>(props: Props<T>) {
           }
           setAnimationDirectionPrefix('next');
         }}
+        willTransition={
+          !preMount && Number.isInteger(preMountState?.current?.step)
+        }
         {...stepProps}
       />
     );
@@ -254,4 +257,9 @@ export type SliderProps<T> = {
   // switchFlow switches to a different flow with different steps.
   // The isBack flag is used to apply the prev-slide-* transition.
   switchFlow?(flow: T, isBack?: boolean): void;
+  // willTransition is a flag that when true, transition will take place on click.
+  // Example of where this flag can be used:
+  //   - FieldInput.tsx: this flag is used to tell this component to autoFocus
+  //     after some transition property has ended.
+  willTransition: boolean;
 };

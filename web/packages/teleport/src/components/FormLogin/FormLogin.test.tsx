@@ -16,18 +16,22 @@
 
 import React from 'react';
 import FormLogin, { Props } from './FormLogin';
-import { render, fireEvent, waitFor } from 'design/utils/testing';
+import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 
-test('auth2faType: off', () => {
+test('primary username and password with mfa off', () => {
   const onLogin = jest.fn();
 
   const { getByText, getByPlaceholderText, queryByTestId } = render(
     <FormLogin {...props} onLogin={onLogin} />
   );
 
-  // Rendering of mfa dropdown.
+  // Test only user/pwd form was rendered.
+  expect(screen.queryByTestId('userpassword')).toBeVisible();
   expect(queryByTestId('mfa-select')).toBeNull();
+  expect(screen.queryByTestId('sso-list')).toBeNull();
+  expect(screen.queryByTestId('passwordless')).toBeNull();
 
+  // Test correct fn was called.
   fireEvent.change(getByPlaceholderText(/username/i), {
     target: { value: 'username' },
   });
@@ -35,7 +39,7 @@ test('auth2faType: off', () => {
     target: { value: '123' },
   });
 
-  fireEvent.click(getByText(/login/i));
+  fireEvent.click(getByText(/sign in/i));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '');
 });
@@ -60,7 +64,7 @@ test('auth2faType: otp', () => {
   fireEvent.change(getByPlaceholderText(/123 456/i), {
     target: { value: '456' },
   });
-  fireEvent.click(getByText(/login/i));
+  fireEvent.click(getByText(/sign in/i));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '456');
 });
@@ -87,7 +91,7 @@ test('auth2faType: webauthn', async () => {
     target: { value: '123' },
   });
 
-  fireEvent.click(getByText(/login/i));
+  fireEvent.click(getByText(/sign in/i));
   expect(onLoginWithWebauthn).toHaveBeenCalledWith({
     username: 'username',
     password: '123',
@@ -110,7 +114,7 @@ test('input validation error handling', async () => {
   );
 
   await waitFor(() => {
-    fireEvent.click(getByText(/login/i));
+    fireEvent.click(getByText(/sign in/i));
   });
 
   expect(onLogin).not.toHaveBeenCalled();
@@ -139,10 +143,10 @@ test('error rendering', () => {
   expect(getByText('errMsg')).toBeInTheDocument();
 });
 
-test('sso providers', () => {
+test('primary sso', () => {
   const onLoginWithSso = jest.fn();
 
-  const { getByText } = render(
+  render(
     <FormLogin
       {...props}
       authProviders={[
@@ -150,11 +154,35 @@ test('sso providers', () => {
         { name: 'google', type: 'saml', url: '' },
       ]}
       onLoginWithSso={onLoginWithSso}
+      primaryAuthType="sso"
     />
   );
 
-  fireEvent.click(getByText(/github/i));
+  // Test only sso form was rendered.
+  expect(screen.queryByTestId('sso-list')).toBeVisible();
+  expect(screen.queryByTestId('passwordless')).toBeNull();
+  expect(screen.queryByTestId('userpassword')).toBeNull();
+
+  // Test clicking calls the right fn.
+  fireEvent.click(screen.getByText(/github/i));
   expect(onLoginWithSso).toHaveBeenCalledTimes(1);
+});
+
+test('primary passwordless', () => {
+  const onLoginWithSso = jest.fn();
+
+  render(
+    <FormLogin
+      {...props}
+      onLoginWithSso={onLoginWithSso}
+      primaryAuthType="passwordless"
+    />
+  );
+
+  // Test only passwordless form was rendered.
+  expect(screen.queryByTestId('passwordless')).toBeVisible();
+  expect(screen.queryByTestId('sso-list')).toBeNull();
+  expect(screen.queryByTestId('userpassword')).toBeNull();
 });
 
 const props: Props = {
@@ -169,4 +197,6 @@ const props: Props = {
   onLogin: null,
   onLoginWithSso: null,
   onLoginWithWebauthn: null,
+  isPasswordlessEnabled: false,
+  primaryAuthType: 'local',
 };

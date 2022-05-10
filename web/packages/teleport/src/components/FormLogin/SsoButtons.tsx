@@ -44,7 +44,7 @@ const SSOBtnList = ({ providers, prefixText, isDisabled, onClick }: Props) => {
   }
 
   return (
-    <Box px={6} pt={2} pb={5}>
+    <Box px={6} pt={2} pb={5} data-testid="sso-list">
       {$btns}
     </Box>
   );

@@ -16,35 +16,35 @@
 
 import React from 'react';
 import {
-  Off,
-  Otp,
-  Optional,
-  Webauthn,
+  LocalOnly,
+  LocalWithOtp,
+  LocalWithOptional,
+  LocalWithWebauthn,
   Cloud,
   ServerError,
-  SSOProviders,
-  LocalAuthDisabled,
-  LocalAuthDisabledNoSSO,
+  PrimarySso,
+  LocalDisabledWithSso,
+  LocalDisabledNoSso,
 } from './FormLogin.story';
 import { render } from 'design/utils/testing';
 
 test('auth2faType: off', () => {
-  const { container } = render(<Off />);
+  const { container } = render(<LocalOnly />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('auth2faType: otp rendering', () => {
-  const { container } = render(<Otp />);
+  const { container } = render(<LocalWithOtp />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('auth2faType: webauthn rendering', () => {
-  const { container } = render(<Webauthn />);
+  const { container } = render(<LocalWithWebauthn />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('auth2faType: optional rendering', () => {
-  const { container } = render(<Optional />);
+  const { container } = render(<LocalWithOptional />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
@@ -59,16 +59,16 @@ test('server error rendering', () => {
 });
 
 test('sso providers rendering', () => {
-  const { container } = render(<SSOProviders />);
+  const { container } = render(<PrimarySso />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('nonrendering of user/pass/otp/login elements w/ local auth disabled', () => {
-  const { container } = render(<LocalAuthDisabled />);
+test('sso list still renders when local auth is disabled', () => {
+  const { container } = render(<LocalDisabledWithSso />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('nonrendering of SSO providers w/ local auth disabled and no providers', () => {
-  const { container } = render(<LocalAuthDisabledNoSSO />);
+test('no login enabled', () => {
+  const { container } = render(<LocalDisabledNoSso />);
   expect(container.firstChild).toMatchSnapshot();
 });

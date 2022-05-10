@@ -21,6 +21,7 @@ import {
   AuthProvider,
   Auth2faType,
   AuthType,
+  PrimaryAuthType,
   PreferredMfaType,
 } from 'shared/services';
 import { RecordingType } from 'teleport/services/recordings';
@@ -37,6 +38,12 @@ const cfg = {
 
   auth: {
     localAuthEnabled: true,
+    allowPasswordless: false,
+    // localConnectorName is used to determine primary "local" auth preference.
+    // Currently, there is only one bookmarked connector name "passwordless"
+    // that when used, passwordless is the preferred authn method. Empty means
+    // local user + password authn preference.
+    localConnectorName: '',
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
@@ -190,6 +197,20 @@ const cfg = {
 
   getLocalAuthFlag() {
     return cfg.auth.localAuthEnabled;
+  },
+
+  isPasswordlessEnabled() {
+    return cfg.auth.allowPasswordless;
+  },
+
+  getPrimaryAuthType(): PrimaryAuthType {
+    if (cfg.auth.localConnectorName === 'passwordless') {
+      return 'passwordless';
+    }
+
+    if (cfg.auth.authType === 'local') return 'local';
+
+    return 'sso';
   },
 
   getAuthType() {

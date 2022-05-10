@@ -17,8 +17,14 @@ limitations under the License.
 import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { Card, Text, Flex, ButtonLink, ButtonPrimary, Box } from 'design';
+import { Key, ArrowForward } from 'design/Icon';
 import * as Alerts from 'design/Alert';
-import { AuthProvider, Auth2faType, PreferredMfaType } from 'shared/services';
+import {
+  AuthProvider,
+  Auth2faType,
+  PreferredMfaType,
+  PrimaryAuthType,
+} from 'shared/services';
 import { useAttempt } from 'shared/hooks';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
@@ -28,6 +34,7 @@ import {
   requiredField,
 } from 'shared/components/Validation/rules';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import Slider, { SliderProps } from 'teleport/components/StepSlider';
 import { UserCredentials } from 'teleport/services/auth';
 import SSOButtonList from './SsoButtons';
 
@@ -35,38 +42,134 @@ export default function LoginForm(props: Props) {
   const {
     title,
     attempt,
-    onLoginWithWebauthn,
-    onLogin,
-    onLoginWithSso,
-    authProviders,
-    auth2faType = 'off',
-    preferredMfaType = '',
     isLocalAuthEnabled = true,
-    isRecoveryEnabled = false,
-    onRecover,
-    clearAttempt,
+    authProviders = [],
   } = props;
 
-  const ssoEnabled = authProviders && authProviders.length > 0;
+  const ssoEnabled = authProviders?.length > 0;
 
+  // If local auth was not enabled, disregard any primary auth type config
+  // and display sso providers if any.
+  if (!isLocalAuthEnabled && ssoEnabled) {
+    return (
+      <Card bg="primary.light" my="5" mx="auto" width="464px">
+        <Text typography="h3" pt={5} textAlign="center" color="light">
+          {title}
+        </Text>
+        {attempt.isFailed && (
+          <Alerts.Danger m={5} mb={0}>
+            {attempt.message}
+          </Alerts.Danger>
+        )}
+        <SsoList {...props} />
+      </Card>
+    );
+  }
+
+  if (!isLocalAuthEnabled) {
+    return (
+      <Card bg="primary.light" my="5" mx="auto" width="464px" px={5} pb={5}>
+        <Text typography="h3" pt={5} textAlign="center" color="light">
+          {title}
+        </Text>
+        <Alerts.Danger my={5}>Login has not been enabled</Alerts.Danger>
+        <Text mb={2} typography="paragraph2" width="100%">
+          The ability to login has not been enabled. Please contact your system
+          administrator for more information.
+        </Text>
+      </Card>
+    );
+  }
+
+  // Everything below requires local auth to be enabled.
+  return (
+    <Card bg="primary.light" my="5" mx="auto" width={464}>
+      <Text typography="h3" pt={5} textAlign="center" color="light">
+        {title}
+      </Text>
+      {attempt.isFailed && (
+        <Alerts.Danger m={5} mb={0}>
+          {attempt.message}
+        </Alerts.Danger>
+      )}
+      <Slider<typeof loginViews>
+        flows={loginViews}
+        currFlow={'default'}
+        {...props}
+      />
+    </Card>
+  );
+}
+
+const SsoList = ({ attempt, authProviders, onLoginWithSso }: Props) => {
+  const { isProcessing } = attempt;
+  return (
+    <SSOButtonList
+      prefixText="Login with"
+      isDisabled={isProcessing}
+      providers={authProviders}
+      onClick={onLoginWithSso}
+    />
+  );
+};
+
+const Passwordless = ({ onLoginWithWebauthn, attempt }: Props) => (
+  <Box px={5} pb={4} pt={2} data-testid="passwordless">
+    <StyledPaswordlessBtn
+      mt={3}
+      py={2}
+      px={3}
+      border={1}
+      borderRadius={2}
+      borderColor="text.placeholder"
+      width="100%"
+      onClick={() => onLoginWithWebauthn()}
+      disabled={attempt.isProcessing}
+    >
+      <Flex alignItems="center" justifyContent="space-between">
+        <Flex alignItems="center">
+          <Key mr={3} fontSize={16} />
+          <Box>
+            <Text typography="h6">Passwordless</Text>
+            <Text fontSize={1} color="text.secondary">
+              Follow the prompt from your browser
+            </Text>
+          </Box>
+        </Flex>
+        <ArrowForward fontSize={16} />
+      </Flex>
+    </StyledPaswordlessBtn>
+  </Box>
+);
+
+const LocalForm = ({
+  isRecoveryEnabled,
+  onRecover,
+  auth2faType,
+  attempt,
+  onLogin,
+  onLoginWithWebauthn,
+  clearAttempt,
+  autoFocusOnTransitionEnd = false,
+}: Props & { autoFocusOnTransitionEnd?: boolean }) => {
+  const { isProcessing } = attempt;
   const [pass, setPass] = useState('');
   const [user, setUser] = useState('');
   const [token, setToken] = useState('');
 
-  const mfaOptions = useMemo<MfaOption[]>(
-    () =>
-      createMfaOptions({
-        auth2faType: auth2faType,
-        preferredType: preferredMfaType,
-      }),
+  const mfaOptions = useMemo(
+    () => createMfaOptions({ auth2faType: auth2faType }),
     []
   );
 
-  const [mfaType, setMfaType] = useState<MfaOption>(mfaOptions[0]);
-  const [isExpanded, toggleExpander] = useState(
-    !(isLocalAuthEnabled && ssoEnabled)
-  );
-  const { isFailed, isProcessing, message } = attempt;
+  const [mfaType, setMfaType] = useState(mfaOptions[0]);
+
+  function onSetMfaOption(option: MfaOption, validator: Validator) {
+    setToken('');
+    clearAttempt();
+    validator.reset();
+    setMfaType(option);
+  }
 
   function onLoginClick(
     e: React.MouseEvent<HTMLButtonElement>,
@@ -86,173 +189,266 @@ export default function LoginForm(props: Props) {
     }
   }
 
-  function onSetMfaOption(option: MfaOption, validator: Validator) {
-    setToken('');
-    clearAttempt();
-    validator.reset();
-    setMfaType(option);
-  }
-
-  if (!ssoEnabled && !isLocalAuthEnabled) {
-    return <CardLoginEmpty title={title} />;
-  }
-
-  const bgColor =
-    ssoEnabled && isLocalAuthEnabled ? 'primary.main' : 'primary.light';
   return (
     <Validation>
       {({ validator }) => (
-        <CardLogin title={title}>
-          {isFailed && (
-            <Alerts.Danger m={5} mb={0}>
-              {message}
-            </Alerts.Danger>
-          )}
-          {ssoEnabled && (
-            <SSOButtonList
-              prefixText="Login with"
-              isDisabled={isProcessing}
-              providers={authProviders}
-              onClick={onLoginWithSso}
+        <Flex
+          as="form"
+          px="5"
+          pb="5"
+          pt="3"
+          justifyContent="center"
+          flexDirection="column"
+          borderBottomLeftRadius="3"
+          borderBottomRightRadius="3"
+          data-testid="userpassword"
+        >
+          <FieldInput
+            rule={requiredField('Username is required')}
+            label="Username"
+            autoFocus
+            transitionPropertyName={autoFocusOnTransitionEnd ? 'height' : ''}
+            value={user}
+            onChange={e => setUser(e.target.value)}
+            placeholder="Username"
+          />
+          <Box mb={isRecoveryEnabled ? 2 : 4}>
+            <FieldInput
+              rule={requiredField('Password is required')}
+              label="Password"
+              value={pass}
+              onChange={e => setPass(e.target.value)}
+              type="password"
+              placeholder="Password"
+              mb={0}
+              width="100%"
             />
-          )}
-          {ssoEnabled && isLocalAuthEnabled && (
-            <Flex
-              alignItems="center"
-              justifyContent="center"
-              style={{ position: 'relative' }}
-              flexDirection="column"
-            >
-              <StyledOr>Or</StyledOr>
-            </Flex>
-          )}
-          {ssoEnabled && isLocalAuthEnabled && !isExpanded && (
-            <FlexBordered bg={bgColor} flexDirection="row">
-              <ButtonLink autoFocus onClick={() => toggleExpander(!isExpanded)}>
-                Sign in with your Username and Password
-              </ButtonLink>
-            </FlexBordered>
-          )}
-          {isLocalAuthEnabled && isExpanded && (
-            <FlexBordered as="form" bg={bgColor}>
-              <FieldInput
-                rule={requiredField('Username is required')}
-                label="Username"
-                autoFocus
-                value={user}
-                onChange={e => setUser(e.target.value)}
-                placeholder="Username"
-              />
-              <Box mb={isRecoveryEnabled ? 2 : 4}>
-                <FieldInput
-                  rule={requiredField('Password is required')}
-                  label="Password"
-                  value={pass}
-                  onChange={e => setPass(e.target.value)}
-                  type="password"
-                  placeholder="Password"
-                  mb={0}
-                  width="100%"
-                />
-                {isRecoveryEnabled && (
-                  <Box textAlign="right">
-                    <ButtonLink
-                      style={{ padding: '0px', minHeight: 0 }}
-                      onClick={() => onRecover(true)}
-                    >
-                      Forgot Password?
-                    </ButtonLink>
-                  </Box>
-                )}
+            {isRecoveryEnabled && (
+              <Box textAlign="right">
+                <ButtonLink
+                  style={{ padding: '0px', minHeight: 0 }}
+                  onClick={() => onRecover(true)}
+                >
+                  Forgot Password?
+                </ButtonLink>
               </Box>
-              {auth2faType !== 'off' && (
-                <Box mb={isRecoveryEnabled ? 3 : 4}>
-                  <Flex alignItems="flex-end">
-                    <FieldSelect
-                      maxWidth="50%"
-                      width="100%"
-                      data-testid="mfa-select"
-                      label="Two-factor type"
-                      value={mfaType}
-                      options={mfaOptions}
-                      onChange={opt =>
-                        onSetMfaOption(opt as MfaOption, validator)
-                      }
-                      mr={3}
-                      mb={0}
-                      isDisabled={isProcessing}
-                    />
-                    {mfaType.value === 'otp' && (
-                      <FieldInput
-                        width="50%"
-                        label="Authenticator code"
-                        rule={requiredToken}
-                        autoComplete="one-time-code"
-                        inputMode="numeric"
-                        value={token}
-                        onChange={e => setToken(e.target.value)}
-                        placeholder="123 456"
-                        mb={0}
-                      />
-                    )}
-                  </Flex>
-                  {isRecoveryEnabled && (
-                    <ButtonLink
-                      style={{ padding: '0px', minHeight: 0 }}
-                      onClick={() => onRecover(false)}
-                    >
-                      Lost Two-Factor Device?
-                    </ButtonLink>
-                  )}
-                </Box>
+            )}
+          </Box>
+          {auth2faType !== 'off' && (
+            <Box mb={isRecoveryEnabled ? 3 : 4}>
+              <Flex alignItems="flex-end">
+                <FieldSelect
+                  maxWidth="50%"
+                  width="100%"
+                  data-testid="mfa-select"
+                  label="Two-factor type"
+                  value={mfaType}
+                  options={mfaOptions}
+                  onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
+                  mr={3}
+                  mb={0}
+                  isDisabled={isProcessing}
+                  menuIsOpen={true}
+                />
+                {mfaType.value === 'otp' && (
+                  <FieldInput
+                    width="50%"
+                    label="Authenticator code"
+                    rule={requiredToken}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    value={token}
+                    onChange={e => setToken(e.target.value)}
+                    placeholder="123 456"
+                    mb={0}
+                  />
+                )}
+              </Flex>
+              {isRecoveryEnabled && (
+                <ButtonLink
+                  style={{ padding: '0px', minHeight: 0 }}
+                  onClick={() => onRecover(false)}
+                >
+                  Lost Two-Factor Device?
+                </ButtonLink>
               )}
-              <ButtonPrimary
-                width="100%"
-                mt={3}
-                type="submit"
-                size="large"
-                onClick={e => onLoginClick(e, validator)}
-                disabled={isProcessing}
-              >
-                LOGIN
-              </ButtonPrimary>
-            </FlexBordered>
+            </Box>
           )}
-        </CardLogin>
+          <ButtonPrimary
+            width="100%"
+            mt={3}
+            type="submit"
+            size="large"
+            onClick={e => onLoginClick(e, validator)}
+            disabled={isProcessing}
+          >
+            Sign In
+          </ButtonPrimary>
+        </Flex>
       )}
     </Validation>
   );
-}
+};
 
-const FlexBordered = props => (
+const Primary = ({
+  next,
+  refCallback,
+  willTransition,
+  ...otherProps
+}: Props & SliderProps<'default'>) => {
+  const ssoEnabled = otherProps.authProviders?.length > 0;
+  let otherOptionsAvailable = true;
+  let $primary;
+
+  if (otherProps.primaryAuthType === 'passwordless') {
+    $primary = <Passwordless {...otherProps} />;
+  }
+
+  if (otherProps.primaryAuthType === 'local') {
+    otherOptionsAvailable = otherProps.isPasswordlessEnabled || ssoEnabled;
+    $primary = (
+      <LocalForm {...otherProps} autoFocusOnTransitionEnd={willTransition} />
+    );
+  }
+
+  if (otherProps.primaryAuthType === 'sso') {
+    $primary = <SsoList {...otherProps} />;
+  }
+
+  return (
+    <Box ref={refCallback}>
+      {$primary}
+      {otherOptionsAvailable && (
+        <Box pb={3} mt={-1} textAlign="center">
+          <StyledOptionBtn
+            disabled={otherProps.attempt.isProcessing}
+            onClick={() => {
+              otherProps.clearAttempt();
+              next();
+            }}
+          >
+            Other sign-in options
+          </StyledOptionBtn>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+const Secondary = ({
+  prev,
+  refCallback,
+  ...otherProps
+}: Props & SliderProps<'default'>) => {
+  const ssoEnabled = otherProps.authProviders?.length > 0;
+  const { primaryAuthType, isPasswordlessEnabled } = otherProps;
+
+  const $local = <LocalForm {...otherProps} autoFocusOnTransitionEnd={true} />;
+  const $sso = <SsoList {...otherProps} />;
+  const $passwordless = <Passwordless {...otherProps} />;
+
+  let $secondary;
+
+  if (primaryAuthType === 'passwordless') {
+    $secondary = (
+      <>
+        {ssoEnabled && (
+          <>
+            {$sso}
+            <Divider />
+          </>
+        )}
+        {$local}
+      </>
+    );
+  }
+
+  if (primaryAuthType === 'local') {
+    $secondary = (
+      <>
+        {isPasswordlessEnabled && $passwordless}
+        {isPasswordlessEnabled && ssoEnabled && <Divider />}
+        {ssoEnabled && $sso}
+      </>
+    );
+  }
+
+  if (primaryAuthType === 'sso') {
+    $secondary = (
+      <>
+        {isPasswordlessEnabled && (
+          <>
+            {$passwordless}
+            <Divider />
+          </>
+        )}
+        {$local}
+      </>
+    );
+  }
+
+  return (
+    <Box ref={refCallback}>
+      {$secondary}
+      <Box pb={3} textAlign="center">
+        <StyledOptionBtn
+          disabled={otherProps.attempt.isProcessing}
+          onClick={() => {
+            otherProps.clearAttempt();
+            prev();
+          }}
+        >
+          Back
+        </StyledOptionBtn>
+      </Box>
+    </Box>
+  );
+};
+
+const Divider = () => (
   <Flex
-    p="5"
+    alignItems="center"
     justifyContent="center"
     flexDirection="column"
-    borderBottomLeftRadius="3"
-    borderBottomRightRadius="3"
-    {...props}
-  />
+    borderBottom={1}
+    borderColor="text.placeholder"
+    mx={5}
+    mt={2}
+    mb={2}
+  >
+    <StyledOr>Or</StyledOr>
+  </Flex>
 );
 
-const CardLogin = ({ title = '', children, ...styles }) => (
-  <Card bg="primary.light" my="5" mx="auto" width="464px" {...styles}>
-    <Text typography="h3" pt={5} textAlign="center" color="light">
-      {title}
-    </Text>
-    {children}
-  </Card>
-);
+const StyledPaswordlessBtn = styled(Box)`
+  cursor: pointer;
+  transition: all 0.3s;
 
-const CardLoginEmpty = ({ title = '' }) => (
-  <CardLogin title={title} px={5} pb={5}>
-    <Alerts.Danger my={5}>Login has not been enabled</Alerts.Danger>
-    <Text mb={2} typography="paragraph2" width="100%">
-      The ability to login has not been enabled. Please contact your system
-      administrator for more information.
-    </Text>
-  </CardLogin>
-);
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.action.active};
+  }
+
+  &[disabled] {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+`;
+
+const StyledOptionBtn = styled(ButtonLink)`
+  display: inline-block;
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-weight: bold;
+  text-decoration: none;
+
+  &[disabled] {
+    pointer-events: none;
+    color: ${({ theme }) => theme.colors.action.disabled};
+  }
+
+  &:hover {
+    text-decoration: underline;
+  }
+`;
 
 const StyledOr = styled.div`
   background: ${props => props.theme.colors.primary.light};
@@ -261,24 +457,28 @@ const StyledOr = styled.div`
   font-size: 10px;
   height: 32px;
   width: 32px;
-  top: -16px;
   justify-content: center;
-  border-radius: 50%;
   position: absolute;
   z-index: 1;
 `;
 
+const loginViews = { default: [Primary, Secondary] };
+
 export type Props = {
   title?: string;
   isLocalAuthEnabled?: boolean;
+  isPasswordlessEnabled: boolean;
   authProviders?: AuthProvider[];
   auth2faType?: Auth2faType;
+  primaryAuthType: PrimaryAuthType;
   preferredMfaType?: PreferredMfaType;
-  attempt: ReturnType<typeof useAttempt>[0];
+  attempt: AttemptState;
   isRecoveryEnabled?: boolean;
   onRecover?: (isRecoverPassword: boolean) => void;
   clearAttempt?: () => void;
   onLoginWithSso(provider: AuthProvider): void;
-  onLoginWithWebauthn(creds: UserCredentials): void;
+  onLoginWithWebauthn(creds?: UserCredentials): void;
   onLogin(username: string, password: string, token: string): void;
 };
+
+type AttemptState = ReturnType<typeof useAttempt>[0];

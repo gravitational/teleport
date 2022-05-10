@@ -11,11 +11,17 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 
 .c14 {
   box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 50%;
+}
+
+.c15 {
+  box-sizing: border-box;
   margin-bottom: 4px;
   width: 100%;
 }
 
-.c17 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -43,25 +49,25 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   width: 45%;
 }
 
-.c17:active {
+.c18:active {
   opacity: 0.56;
 }
 
-.c17:hover,
-.c17:focus {
+.c18:hover,
+.c18:focus {
   background: #651FFF;
 }
 
-.c17:active {
+.c18:active {
   background: #354AA4;
 }
 
-.c17:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c18 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -88,21 +94,21 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   width: 30%;
 }
 
-.c18:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c18:hover,
-.c18:focus {
+.c19:hover,
+.c19:focus {
   background: #2C3A73;
 }
 
-.c18:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c15 {
+.c16 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -118,15 +124,15 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   background-color: #FFFFFF;
 }
 
-.c15::-ms-clear {
+.c16::-ms-clear {
   display: none;
 }
 
-.c15::placeholder {
+.c16::placeholder {
   opacity: 0.4;
 }
 
-.c15:read-only {
+.c16:read-only {
   cursor: not-allowed;
 }
 
@@ -247,7 +253,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   flex-direction: column;
 }
 
-.c16 {
+.c17 {
   box-sizing: border-box;
 }
 
@@ -435,9 +441,73 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
               </div>
             </div>
           </div>
+          <div
+            class="c14"
+            width="50%"
+          >
+            <label
+              class="c12"
+              font-size="0"
+            >
+              Allow Passwordless Login?
+            </label>
+            <div
+              class="c13"
+            >
+              <div
+                class="react-select-container css-2b097c-container"
+              >
+                <div
+                  class="react-select__control css-yk16xz-control"
+                >
+                  <div
+                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                  >
+                    <div
+                      class="react-select__single-value css-1uccc91-singleValue"
+                    >
+                      no
+                    </div>
+                    <input
+                      aria-autocomplete="list"
+                      class="css-62g3xt-dummyInput"
+                      id="react-select-3-input"
+                      readonly=""
+                      tabindex="0"
+                      value=""
+                    />
+                  </div>
+                  <div
+                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                  >
+                    <span
+                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                    />
+                    <div
+                      aria-hidden="true"
+                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="css-6q0nyr-Svg"
+                        focusable="false"
+                        height="20"
+                        viewBox="0 0 20 20"
+                        width="20"
+                      >
+                        <path
+                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div
-          class="c14"
+          class="c15"
           width="100%"
         >
           <label
@@ -448,7 +518,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
           </label>
           <input
             autocomplete="off"
-            class="c15"
+            class="c16"
             color="text.onLight"
             inputmode="text"
             placeholder="Name"
@@ -458,10 +528,10 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
         </div>
       </div>
       <div
-        class="c16"
+        class="c17"
       >
         <button
-          class="c17"
+          class="c18"
           kind="primary"
           type="submit"
           width="45%"
@@ -469,7 +539,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
           Add device
         </button>
         <button
-          class="c18"
+          class="c19"
           kind="secondary"
           width="30%"
         >
@@ -515,11 +585,17 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 
 .c15 {
   box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 50%;
+}
+
+.c16 {
+  box-sizing: border-box;
   margin-bottom: 4px;
   width: 100%;
 }
 
-.c18 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -547,25 +623,25 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   width: 45%;
 }
 
-.c18:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c18:hover,
-.c18:focus {
+.c19:hover,
+.c19:focus {
   background: #651FFF;
 }
 
-.c18:active {
+.c19:active {
   background: #354AA4;
 }
 
-.c18:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c19 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -592,21 +668,21 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   width: 30%;
 }
 
-.c19:active {
+.c20:active {
   opacity: 0.56;
 }
 
-.c19:hover,
-.c19:focus {
+.c20:hover,
+.c20:focus {
   background: #2C3A73;
 }
 
-.c19:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c16 {
+.c17 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -622,15 +698,15 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   background-color: #FFFFFF;
 }
 
-.c16::-ms-clear {
+.c17::-ms-clear {
   display: none;
 }
 
-.c16::placeholder {
+.c17::placeholder {
   opacity: 0.4;
 }
 
-.c16:read-only {
+.c17:read-only {
   cursor: not-allowed;
 }
 
@@ -751,7 +827,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   flex-direction: column;
 }
 
-.c17 {
+.c18 {
   box-sizing: border-box;
 }
 
@@ -912,7 +988,71 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-3-input"
+                      id="react-select-4-input"
+                      readonly=""
+                      tabindex="0"
+                      value=""
+                    />
+                  </div>
+                  <div
+                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                  >
+                    <span
+                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                    />
+                    <div
+                      aria-hidden="true"
+                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="css-6q0nyr-Svg"
+                        focusable="false"
+                        height="20"
+                        viewBox="0 0 20 20"
+                        width="20"
+                      >
+                        <path
+                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="c15"
+            width="50%"
+          >
+            <label
+              class="c13"
+              font-size="0"
+            >
+              Allow Passwordless Login?
+            </label>
+            <div
+              class="c14"
+            >
+              <div
+                class="react-select-container css-2b097c-container"
+              >
+                <div
+                  class="react-select__control css-yk16xz-control"
+                >
+                  <div
+                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                  >
+                    <div
+                      class="react-select__single-value css-1uccc91-singleValue"
+                    >
+                      no
+                    </div>
+                    <input
+                      aria-autocomplete="list"
+                      class="css-62g3xt-dummyInput"
+                      id="react-select-5-input"
                       readonly=""
                       tabindex="0"
                       value=""
@@ -948,7 +1088,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
           </div>
         </div>
         <div
-          class="c15"
+          class="c16"
           width="100%"
         >
           <label
@@ -959,7 +1099,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
           </label>
           <input
             autocomplete="off"
-            class="c16"
+            class="c17"
             color="text.onLight"
             inputmode="text"
             placeholder="Name"
@@ -969,10 +1109,10 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
         </div>
       </div>
       <div
-        class="c17"
+        class="c18"
       >
         <button
-          class="c18"
+          class="c19"
           kind="primary"
           type="submit"
           width="45%"
@@ -980,7 +1120,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
           Add device
         </button>
         <button
-          class="c19"
+          class="c20"
           kind="secondary"
           width="30%"
         >
@@ -1465,7 +1605,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-4-input"
+                      id="react-select-6-input"
                       readonly=""
                       tabindex="0"
                       value=""

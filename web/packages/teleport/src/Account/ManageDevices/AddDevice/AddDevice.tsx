@@ -38,11 +38,23 @@ import {
   requiredField,
 } from 'shared/components/Validation/rules';
 import FieldSelect from 'shared/components/FieldSelect';
+import { DeviceUsage } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import useAddDevice, { State, Props } from './useAddDevice';
 
 const secKeyGraphic = require('design/assets/images/sec-key-graphic.svg');
+
+const deviceUsageOpts: DeviceusageOpt[] = [
+  {
+    value: 'mfa',
+    label: 'no',
+  },
+  {
+    value: 'passwordless',
+    label: 'yes',
+  },
+];
 
 export default function Container(props: Props) {
   const ctx = useTeleport();
@@ -59,22 +71,17 @@ export function AddDevice({
   onClose,
   qrCode,
   auth2faType,
-  preferredMfaType,
 }: State) {
   const [otpToken, setOtpToken] = useState('');
   const [deviceName, setDeviceName] = useState('');
 
   const mfaOptions = useMemo(
-    () =>
-      createMfaOptions({
-        auth2faType: auth2faType,
-        preferredType: preferredMfaType,
-        required: true,
-      }),
+    () => createMfaOptions({ auth2faType: auth2faType, required: true }),
     []
   );
 
   const [mfaOption, setMfaOption] = useState(mfaOptions[0]);
+  const [usageOption, setUsageOption] = useState(deviceUsageOpts[0]);
 
   function onSetMfaOption(option: MfaOption) {
     setOtpToken('');
@@ -86,7 +93,7 @@ export function AddDevice({
     e.preventDefault();
 
     if (mfaOption.value === 'webauthn') {
-      addWebauthnDevice(deviceName, 'mfa');
+      addWebauthnDevice(deviceName, usageOption.value);
     }
     if (mfaOption.value === 'otp') {
       addTotpDevice(otpToken, deviceName);
@@ -200,6 +207,16 @@ export function AddDevice({
                   readonly={addDeviceAttempt.status === 'processing'}
                 />
               )}
+              {mfaOption.value === 'webauthn' && (
+                <FieldSelect
+                  width="50%"
+                  label="Allow Passwordless Login?"
+                  value={usageOption}
+                  options={deviceUsageOpts}
+                  onChange={(o: DeviceusageOpt) => setUsageOption(o)}
+                  isDisabled={addDeviceAttempt.status === 'processing'}
+                />
+              )}
             </Flex>
             <FieldInput
               rule={requiredField('Device name is required')}
@@ -234,3 +251,5 @@ export function AddDevice({
     </Validation>
   );
 }
+
+type DeviceusageOpt = { value: DeviceUsage; label: string };

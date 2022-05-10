@@ -24,7 +24,7 @@ export default {
   title: 'Teleport/Login',
 };
 
-export const Off = () => <Login {...sample} />;
+export const MfaOff = () => <Login {...sample} />;
 export const Otp = () => <Login {...sample} auth2faType="otp" />;
 export const Webauthn = () => <Login {...sample} auth2faType="webauthn" />;
 export const Optional = () => <Login {...sample} auth2faType="optional" />;
@@ -48,4 +48,6 @@ const sample: State = {
   preferredMfaType: 'webauthn',
   isLocalAuthEnabled: true,
   clearAttempt: () => null,
+  isPasswordlessEnabled: false,
+  primaryAuthType: 'local',
 };

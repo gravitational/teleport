@@ -58,7 +58,6 @@ const props: State = {
   clearAttempt: () => null,
   onClose: () => null,
   auth2faType: 'on',
-  preferredMfaType: 'webauthn',
   qrCode:
     'iVBORw0KGgoAAAANSUhEUgAAAcgAAAHIEAAAAAC/Wvl1AAAJV0lEQVR4nOzdsW4jORZA0fbC///LXowV' +
     'TFIWmqAefUtzTrDJeEtltS+YPDx+fn39ASL+99svAPzr85//+fj47df4ycr5ff1bXD9h/2f3vcenTf0L' +
