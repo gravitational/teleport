@@ -121,6 +121,9 @@ message Event {
         types.AppServerV3 AppServer = 29 [ (gogoproto.jsontag) = "app_server,omitempty" ];
         // App is an application resource.
         types.AppV3 App = 30 [ (gogoproto.jsontag) = "app,omitempty" ];
+
+        types.WebSessionV2 SnowflakeSession = 31
+            [ (gogoproto.jsontag) = "snowflake_session,omitempty" ];
     }
 }
 

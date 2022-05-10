@@ -33,9 +33,9 @@ import (
 	"net/http/httputil"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -219,6 +219,10 @@ func (e *Engine) sendResponse(err error, resp *http.Response) error {
 func (e *Engine) setAuthorizationHeader(reqCopy *http.Request) {
 	if e.connectionToken != "" {
 		reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
+	} else {
+		if reqCopy.Header.Get("Authorization") == "Basic" {
+			reqCopy.Header.Del("Authorization")
+		}
 	}
 }
 
@@ -285,7 +289,7 @@ func writeResponse(resp *http.Response, newResp []byte) (*bytes.Buffer, error) {
 	return buf, nil
 }
 
-// authorizeConnection does authorization check for Redis connection about
+// authorizeConnection does authorization check for Snowflake connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
 	ap, err := e.Auth.GetAuthPreference(ctx)
@@ -367,8 +371,6 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		//e.Log.Debugf("%s", string(body))
 
 		if newBody, err := replaceToken(body, jwtToken, accountName); err == nil {
 			e.Log.Debugf("new body: %s", string(newBody))
@@ -462,34 +464,18 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 
 		sessionID := extractSnowflakeToken(req)
 
-		var (
-			snowflakeSession types.WebSession
-			err              error
-		)
-		for i := 0; i < 10; i++ {
-			snowflakeSession, err = e.AuthClient.GetAppSession(ctx, types.GetAppSessionRequest{
-				SessionID: sessionID,
-			})
-			if err != nil {
-				if trace.IsNotFound(err) {
-					e.Log.Debugf("not found %s, retry", sessionID)
-					time.Sleep(time.Second)
-					continue
-				}
-				return "", trace.Wrap(err)
-			}
-
-			connectionToken = snowflakeSession.GetBearerToken()
-			break
+		if err := auth.WaitForSnowflakeSession(ctx, sessionID, e.sessionCtx.Identity.Username, e.AuthClient); err != nil {
+			return "", trace.Wrap(err)
 		}
 
+		snowflakeSession, err := e.AuthClient.GetAppSession(ctx, types.GetAppSessionRequest{
+			SessionID: sessionID,
+		})
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-	}
 
-	if req.Header.Get("Authorization") == "Basic" {
-		req.Header.Del("Authorization")
+		connectionToken = snowflakeSession.GetBearerToken()
 	}
 
 	return connectionToken, nil

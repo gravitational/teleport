@@ -856,7 +856,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	// If there is a way that NewWatcher() on line 1 could
 	// return without subscription established first,
 	// Code line 3 could execute and line 4 could miss event,
-	// wrapping up with out of sync replica.
+	// wrapping up without of sync replica.
 	// To avoid this, before doing fetch,
 	// cache process makes sure the connection is established
 	// by receiving init event first.
@@ -894,7 +894,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	// the cache was in a healthy state; broadcast OpInit.
 	// It is very important that OpInit is not broadcast until
 	// after we've placed the cache into a readable state.  This ensures
-	// that any derivative caches do not peform their fetch operations
+	// that any derivative caches do not perform their fetch operations
 	// until this cache has finished its apply operations.
 	c.eventsFanout.SetInit()
 	defer c.eventsFanout.Reset()
@@ -938,7 +938,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			//
 			// NOTE: The inconsistent state mentioned above is a symptom of a deeper issue with the cache
 			// design.  The cache should not expire individual items.  It should instead rely on OpDelete events
-			// from backend expiries.  As soon as the cache has expired at least one item, it is no longer
+			// from backend expires. As soon as the cache has expired at least one item, it is no longer
 			// a faithful representation of a real backend state, since it is 'anticipating' a change in
 			// backend state that may or may not have actually happened.  Instead, it aught to serve the
 			// most recent internally-consistent "view" of the backend, and individual consumers should

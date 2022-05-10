@@ -111,6 +111,14 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
 func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
+	return waitForWebSession(ctx, sessionID, user, ap, types.KindAppSession)
+}
+
+func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
+	return waitForWebSession(ctx, sessionID, user, ap, types.KindSnowflakeSession)
+}
+
+func waitForWebSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint, evenSubKind string) error {
 	_, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
 	if err == nil {
 		return nil
@@ -125,7 +133,7 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxy
 		Kinds: []types.WatchKind{
 			{
 				Kind:    types.KindWebSession,
-				SubKind: types.KindAppSession,
+				SubKind: evenSubKind,
 				Filter:  (&types.WebSessionFilter{User: user}).IntoMap(),
 			},
 		},
@@ -138,7 +146,7 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxy
 	matchEvent := func(event types.Event) (types.Resource, error) {
 		if event.Type == types.OpPut &&
 			event.Resource.GetKind() == types.KindWebSession &&
-			event.Resource.GetSubKind() == types.KindAppSession &&
+			event.Resource.GetSubKind() == evenSubKind &&
 			event.Resource.GetName() == sessionID {
 			return event.Resource, nil
 		}

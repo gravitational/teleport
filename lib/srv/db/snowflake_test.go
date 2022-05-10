@@ -146,7 +146,6 @@ func TestAccessSnowflake(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute a query.
-
 			result, err := dbConn.QueryContext(ctx, "select 42")
 			if test.err != "" {
 				require.Error(t, err)
