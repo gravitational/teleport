@@ -103,6 +103,9 @@ func (e *Engine) SendError(err error) {
 		ProtoMinor: 1,
 		StatusCode: 401, // TODO(jakule): set correct error code
 		Body:       io.NopCloser(bytes.NewBufferString(fmt.Sprintf(`{"success": false, "message:"%s"}`, err.Error()))),
+		Header: map[string][]string{
+			"Content-Type": {"application/json"},
+		},
 	}
 
 	dumpResponse, err := httputil.DumpResponse(response, true)
@@ -150,10 +153,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 }
 
 func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
-	e.Log.Debugf("%+v", req)
-
-	origURLPath := req.URL.String()
-	e.Log.Debugf("orig url: %s", req.URL.String())
+	//e.Log.Debugf("%+v", req)
+	//e.Log.Debugf("orig url: %s", req.URL.String())
 
 	var err error
 	e.connectionToken, err = e.getConnectionToken(ctx, req)
@@ -161,16 +162,15 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 		return trace.Wrap(err)
 	}
 
-	body, err := e.process(ctx, req, origURLPath, accountName)
+	requestBodyReader, err := e.process(ctx, req, accountName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	newUrl := req.URL.String()
-	e.Log.Debugf("new url: %s", newUrl)
-	e.Log.Debugf("method: %s", req.Method)
+	//e.Log.Debugf("new url: %s", req.URL.String())
+	//e.Log.Debugf("method: %s", req.Method)
 
-	reqCopy, err := e.copyRequest(ctx, req, newUrl, body)
+	reqCopy, err := e.copyRequest(ctx, req, requestBodyReader)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,14 +178,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = sessionCtx.Database.GetURI()
 
-	if e.connectionToken != "" {
-		e.Log.Debugf("setting Snowflake token %s", e.connectionToken)
-		if strings.Contains(e.connectionToken, "Snowflake Token") {
-			reqCopy.Header.Set("Authorization", e.connectionToken)
-		} else {
-			reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
-		}
-	}
+	e.setAuthorizationHeader(reqCopy)
 
 	resp, err := e.HttpClient.Do(reqCopy)
 	if err != nil {
@@ -195,9 +188,14 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 
 	if req.URL.Path == loginRequestPath {
 		err := e.processLoginResponse(ctx, resp, accountName)
+		// Return here - processLoginResponse sends the response.
 		return trace.Wrap(err)
 	}
 
+	return trace.Wrap(e.sendResponse(err, resp))
+}
+
+func (e *Engine) sendResponse(err error, resp *http.Response) error {
 	dumpResp, err := httputil.DumpResponse(resp, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -211,8 +209,18 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	if _, err := io.Copy(e.clientConn, resp.Body); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
+}
+
+func (e *Engine) setAuthorizationHeader(reqCopy *http.Request) {
+	if e.connectionToken != "" {
+		//e.Log.Debugf("setting Snowflake token %s", e.connectionToken)
+		if strings.Contains(e.connectionToken, "Snowflake Token") {
+			reqCopy.Header.Set("Authorization", e.connectionToken)
+		} else {
+			reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
+		}
+	}
 }
 
 func (e *Engine) processLoginResponse(ctx context.Context, resp *http.Response, accountName string) error {
@@ -244,19 +252,9 @@ func (e *Engine) processLoginResponse(ctx context.Context, resp *http.Response, 
 			return trace.Wrap(err)
 		}
 
-		buf := &bytes.Buffer{}
-		if resp.Header.Get("Content-Encoding") == "gzip" {
-			newGzBody := gzip.NewWriter(buf)
-
-			if _, err := newGzBody.Write(newResp); err != nil {
-				return trace.Wrap(err)
-			}
-
-			if err := newGzBody.Close(); err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			buf.Write(newResp)
+		buf, err := writeResponse(resp, newResp)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
 		dumpResp, err = copyResponse(resp, buf.Bytes())
@@ -270,6 +268,24 @@ func (e *Engine) processLoginResponse(ctx context.Context, resp *http.Response, 
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func writeResponse(resp *http.Response, newResp []byte) (*bytes.Buffer, error) {
+	buf := &bytes.Buffer{}
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		newGzBody := gzip.NewWriter(buf)
+
+		if _, err := newGzBody.Write(newResp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := newGzBody.Close(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		buf.Write(newResp)
+	}
+	return buf, nil
 }
 
 // authorizeConnection does authorization check for Redis connection about
@@ -301,46 +317,27 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) readBody(req *http.Request, body []byte) *bytes.Buffer {
-	buf := &bytes.Buffer{}
-	var wr io.Writer
-	if req.Header.Get("Content-Encoding") == "gzip" {
-		gzipWriter := gzip.NewWriter(buf)
-		defer gzipWriter.Close()
-
-		wr = gzipWriter
-	} else {
-		wr = bufio.NewWriter(buf)
-	}
-
-	if _, err := wr.Write(body); err != nil {
-		e.Log.Error(err)
-	}
-
-	return buf
-}
-
-func (e *Engine) printBody(resp *http.Response, body io.ReadCloser) {
-	var bodyReader io.Reader
-	if resp.Header.Get("Content-Encoding") == "gzip" {
-		gzipReader, err := gzip.NewReader(body)
-		if err != nil {
-			panic(err)
-		}
-		defer gzipReader.Close()
-
-		bodyReader = gzipReader
-	} else {
-		bodyReader = resp.Body
-	}
-
-	body23, err := io.ReadAll(bodyReader)
-	if err != nil {
-		panic(err)
-	}
-
-	e.Log.Debugf("response body: %s", string(body23))
-}
+//func (e *Engine) printBody(resp *http.Response, body io.ReadCloser) {
+//	var bodyReader io.Reader
+//	if resp.Header.Get("Content-Encoding") == "gzip" {
+//		gzipReader, err := gzip.NewReader(body)
+//		if err != nil {
+//			panic(err)
+//		}
+//		defer gzipReader.Close()
+//
+//		bodyReader = gzipReader
+//	} else {
+//		bodyReader = resp.Body
+//	}
+//
+//	body23, err := io.ReadAll(bodyReader)
+//	if err != nil {
+//		panic(err)
+//	}
+//
+//	e.Log.Debugf("response body: %s", string(body23))
+//}
 
 func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Session, respBody io.Reader, accountName string) ([]byte, error) {
 	if newResp, err := e.extractToken(respBody, func(sessionToken string) (string, error) {
@@ -365,28 +362,28 @@ func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Sessio
 	}
 }
 
-func (e *Engine) copyRequest(ctx context.Context, req *http.Request, newUrl string, body io.Reader) (*http.Request, error) {
-	reqCopy, err := http.NewRequestWithContext(ctx, req.Method, newUrl, body)
+func (e *Engine) copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.Request, error) {
+	reqCopy, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for k, v := range req.Header {
-		if reqCopy.Header.Get(k) != "" {
-			continue
-		}
-		e.Log.Debugf("setting header %s: %s", k, strings.Join(v, ","))
+		//if reqCopy.Header.Get(k) != "" {
+		//	continue
+		//}
+		//e.Log.Debugf("setting header %s: %s", k, strings.Join(v, ","))
 		reqCopy.Header.Set(k, strings.Join(v, ","))
 	}
 
 	return reqCopy, nil
 }
 
-func (e *Engine) process(ctx context.Context, req *http.Request, origURLPath string, accountName string) (io.Reader, error) {
+func (e *Engine) process(ctx context.Context, req *http.Request, accountName string) (io.Reader, error) {
 	var newBody io.Reader
 
-	switch {
-	case strings.HasPrefix(origURLPath, loginRequestPath):
+	switch req.URL.Path {
+	case loginRequestPath:
 		jwtToken, err := e.AuthClient.GenerateDatabaseJWT(ctx, types.GenerateSnowflakeJWT{
 			Username: e.sessionCtx.DatabaseUser,
 			Account:  accountName,
@@ -427,9 +424,9 @@ func (e *Engine) process(ctx context.Context, req *http.Request, origURLPath str
 			buf.Write(body)
 		}
 
-		newBody = buf //bytes.NewReader(body)
+		newBody = buf
 		req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
-	case strings.HasPrefix(origURLPath, queryRequestPath):
+	case queryRequestPath:
 		body, err := readRequest(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -457,7 +454,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, origURLPath str
 			buf.Write(body)
 		}
 
-		newBody = buf //bytes.NewReader(body)
+		newBody = buf
 		req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
 	default:
 		newBody = req.Body
@@ -494,9 +491,7 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 	if strings.Contains(req.Header.Get("Authorization"), "Snowflake Token") &&
 		!strings.Contains(req.Header.Get("Authorization"), "None") {
 
-		sessionID := req.Header.Get("Authorization")
-		sessionID = strings.TrimPrefix(sessionID, "Snowflake Token=\"")
-		sessionID = strings.TrimSuffix(sessionID, "\"")
+		sessionID := extractSnowflakeToken(req)
 
 		var (
 			snowflakeSession types.WebSession
@@ -529,6 +524,13 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 	}
 
 	return connectionToken, nil
+}
+
+func extractSnowflakeToken(req *http.Request) string {
+	sessionID := req.Header.Get("Authorization")
+	sessionID = strings.TrimPrefix(sessionID, "Snowflake Token=\"")
+	sessionID = strings.TrimSuffix(sessionID, "\"")
+	return sessionID
 }
 
 func copyResponse(resp *http.Response, body []byte) ([]byte, error) {
