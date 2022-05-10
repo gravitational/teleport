@@ -19,6 +19,7 @@ package cloud
 import (
 	"context"
 	"crypto/tls"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -131,6 +132,7 @@ func (m *RDSMock) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyD
 // IAMMock mocks AWS IAM API.
 type IAMMock struct {
 	iamiface.IAMAPI
+	mu sync.RWMutex
 	// attachedRolePolicies maps roleName -> policyName -> policyDocument
 	attachedRolePolicies map[string]map[string]string
 	// attachedUserPolicies maps userName -> policyName -> policyDocument
@@ -138,6 +140,8 @@ type IAMMock struct {
 }
 
 func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	policy, ok := m.attachedRolePolicies[*input.RoleName]
 	if !ok {
 		return nil, trace.NotFound("policy not found")
@@ -154,6 +158,8 @@ func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePo
 }
 
 func (m *IAMMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.attachedRolePolicies == nil {
 		m.attachedRolePolicies = make(map[string]map[string]string)
 	}
@@ -165,6 +171,8 @@ func (m *IAMMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePo
 }
 
 func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.DeleteRolePolicyInput, options ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if _, ok := m.attachedRolePolicies[*input.RoleName]; ok {
 		delete(m.attachedRolePolicies[*input.RoleName], *input.PolicyName)
 	}
@@ -172,6 +180,8 @@ func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.Delete
 }
 
 func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	policy, ok := m.attachedUserPolicies[*input.UserName]
 	if !ok {
 		return nil, trace.NotFound("policy not found")
@@ -188,6 +198,8 @@ func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPo
 }
 
 func (m *IAMMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.attachedUserPolicies == nil {
 		m.attachedUserPolicies = make(map[string]map[string]string)
 	}
@@ -199,6 +211,8 @@ func (m *IAMMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPo
 }
 
 func (m *IAMMock) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.DeleteUserPolicyInput, options ...request.Option) (*iam.DeleteUserPolicyOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if _, ok := m.attachedUserPolicies[*input.UserName]; ok {
 		delete(m.attachedUserPolicies[*input.UserName], *input.PolicyName)
 	}

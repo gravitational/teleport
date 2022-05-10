@@ -7,15 +7,23 @@ description: Teleport cloud frequently asked questions.
 
 Yes. Large organizations leverage Teleport Cloud to manage the vast number of resources in their organization. Teleport Cloud is audited regularly to ensure the most reliable and secure service possible is available to our customers.
 
-## What is the cloud SLA?
+## What is the Cloud SLA?
 
 Teleport Cloud commits to an SLA of (=cloud.sla.monthly_percentage=) of monthly uptime,
 a maximum of (=cloud.sla.monthly_downtime=) of downtime per month. While we routinely exceed this SLA,
 this number reflects risks in our architecture that we will improve over time.
 
+## Is there a status page available?
+
+[status.teleport.sh](https://status.teleport.sh)
+
 ## How does Cloud Billing work?
 
 [Reach out to sales](https://goteleport.com/signup/enterprise) to discuss pricing.
+
+## If I start with Teleport Cloud, can I move to Teleport Enterprise or Teleport Open Source, or do I need to start again?
+
+If you plan to use S3 and DynamoDB as storage backends, we can provide data for you to import. But you should reach out to us first. If you use a different backend, you will need to start over.
 
 ## Are you using AWS-managed encryption keys, or CMKs via KMS?
 
@@ -137,10 +145,6 @@ address traffic to any individual software instance within the cluster.
 ## Is it possible to enable proxy recording mode?
 
 Proxy recording mode is disabled for cloud customers
-
-## Is there a status page available?
-
-[status.teleport.sh](https://status.teleport.sh)
 
 ## Is there a way to download session recordings for easy playback?
 

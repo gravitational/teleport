@@ -620,6 +620,9 @@ const (
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
 
+	// TerminalSizeRequest is a request for the terminal size of the session.
+	TerminalSizeRequest = "x-teleport-terminal-size"
+
 	// MFAPresenceRequest is an SSH request to notify clients that MFA presence is required for a session.
 	MFAPresenceRequest = "x-teleport-mfa-presence"
 
@@ -635,6 +638,10 @@ const (
 	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
 	// requirement information should be printed.
 	EnvSSHSessionDisplayParticipantRequirements = "TELEPORT_SESSION_PARTICIPANT_REQUIREMENTS"
+
+	// SSHSessionJoinPrincipal is the SSH principal used when joining sessions.
+	// This starts with a hyphen so it isn't a valid unix login.
+	SSHSessionJoinPrincipal = "-teleport-internal-join"
 )
 
 const (

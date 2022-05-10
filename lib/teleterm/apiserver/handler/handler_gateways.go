@@ -27,9 +27,10 @@ import (
 // CreateGateway creates a gateway
 func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayRequest) (*api.Gateway, error) {
 	params := clusters.CreateGatewayParams{
-		TargetURI:  req.TargetUri,
-		TargetUser: req.TargetUser,
-		LocalPort:  req.LocalPort,
+		TargetURI:             req.TargetUri,
+		TargetUser:            req.TargetUser,
+		TargetSubresourceName: req.TargetSubresourceName,
+		LocalPort:             req.LocalPort,
 	}
 
 	gateway, err := s.DaemonService.CreateGateway(ctx, params)
@@ -68,13 +69,14 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 
 func newAPIGateway(gateway *gateway.Gateway) *api.Gateway {
 	return &api.Gateway{
-		Uri:          gateway.URI.String(),
-		TargetUri:    gateway.TargetURI,
-		TargetName:   gateway.TargetName,
-		TargetUser:   gateway.TargetUser,
-		Protocol:     gateway.Protocol,
-		LocalAddress: gateway.LocalAddress,
-		LocalPort:    gateway.LocalPort,
-		CliCommand:   gateway.CLICommand,
+		Uri:                   gateway.URI.String(),
+		TargetUri:             gateway.TargetURI,
+		TargetName:            gateway.TargetName,
+		TargetUser:            gateway.TargetUser,
+		TargetSubresourceName: gateway.TargetSubresourceName,
+		Protocol:              gateway.Protocol,
+		LocalAddress:          gateway.LocalAddress,
+		LocalPort:             gateway.LocalPort,
+		CliCommand:            gateway.CLICommand,
 	}
 }

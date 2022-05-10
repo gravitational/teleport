@@ -292,6 +292,11 @@ const (
 	// AbandonedUploadPollingRate defines how often to check for
 	// abandoned uploads which need to be completed.
 	AbandonedUploadPollingRate = SessionTrackerTTL / 6
+
+	// UploadGracePeriod is a period after which non-completed
+	// upload is considered abandoned and will be completed by the reconciler
+	// DELETE IN 11.0.0
+	UploadGracePeriod = 24 * time.Hour
 )
 
 var (
@@ -762,7 +767,7 @@ func Transport() (*http.Transport, error) {
 
 	// Set IdleConnTimeout on the transport. This defines the maximum amount of
 	// time before idle connections are closed. Leaving this unset will lead to
-	// connections open forever and will cause memory leaks in a long running
+	// connections open forever and will cause memory leaks in a long-running
 	// process.
 	tr.IdleConnTimeout = HTTPIdleTimeout
 

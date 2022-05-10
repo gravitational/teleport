@@ -46,7 +46,13 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 // NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(user string, roles ...string) (types.AccessRequest, error) {
-	req, err := types.NewAccessRequest(uuid.New().String(), user, roles...)
+	return NewAccessRequestWithResources(user, roles, nil)
+}
+
+// NewAccessRequestWithResources assembles an AccessRequest resource with
+// requested resources.
+func NewAccessRequestWithResources(user string, roles []string, resourceIDs []string) (types.AccessRequest, error) {
+	req, err := types.NewAccessRequestWithResources(uuid.New().String(), user, roles, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -812,6 +818,7 @@ type RequestValidator struct {
 	}
 	Roles struct {
 		AllowRequest, DenyRequest []parse.Matcher
+		AllowSearch, DenySearch   []string
 	}
 	Annotations struct {
 		Allow, Deny map[string][]string
@@ -901,12 +908,27 @@ func (m *RequestValidator) Validate(req types.AccessRequest) error {
 
 	// verify that all requested roles are permissible
 	for _, roleName := range req.GetRoles() {
-		if !m.CanRequestRole(roleName) {
-			return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+		if len(req.GetRequestedResourceIDs()) > 0 {
+			if !m.CanSearchAsRole(roleName) {
+				// since roles are normally determined automatically for
+				// search-based access requests, this role must have been
+				// explicitly requested or a new deny rule has been added
+				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+			}
+		} else {
+			if !m.CanRequestRole(roleName) {
+				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+			}
 		}
 	}
 
 	if m.opts.expandVars {
+		// determine the roles which should be requested for a search-based
+		// access requests, and write them to the request
+		if err := m.setRolesForSearchBasedRequest(req); err != nil {
+			return trace.Wrap(err)
+		}
+
 		// build the thresholds array and role-threshold-mapping.  the rtm encodes the
 		// relationship between a role, and the thresholds which must pass in order
 		// for that role to be considered approved.  when building the validator we
@@ -961,7 +983,7 @@ func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 }
 
 // push compiles a role's configuration into the request validator.
-// All of the requesint user's statically assigned roles must be pushed
+// All of the requesting user's statically assigned roles must be pushed
 // before validation begins.
 func (m *RequestValidator) push(role types.Role) error {
 	var err error
@@ -984,16 +1006,23 @@ func (m *RequestValidator) push(role types.Role) error {
 		return trace.Wrap(err)
 	}
 
+	m.Roles.AllowSearch = apiutils.Deduplicate(append(m.Roles.AllowSearch, allow.SearchAsRoles...))
+	m.Roles.DenySearch = apiutils.Deduplicate(append(m.Roles.DenySearch, deny.SearchAsRoles...))
+
 	if m.opts.expandVars {
 		// if this role added additional allow matchers, then we need to record the relationship
 		// between its matchers and its thresholds.  this information is used later to calculate
 		// the rtm and threshold list.
-		if len(m.Roles.AllowRequest) > astart {
+		newMatchers := m.Roles.AllowRequest[astart:]
+		for _, searchAsRoleName := range allow.SearchAsRoles {
+			newMatchers = append(newMatchers, literalMatcher{searchAsRoleName})
+		}
+		if len(newMatchers) > 0 {
 			m.ThresholdMatchers = append(m.ThresholdMatchers, struct {
 				Matchers   []parse.Matcher
 				Thresholds []types.AccessReviewThreshold
 			}{
-				Matchers:   m.Roles.AllowRequest[astart:],
+				Matchers:   newMatchers,
 				Thresholds: allow.Thresholds,
 			})
 		}
@@ -1006,6 +1035,40 @@ func (m *RequestValidator) push(role types.Role) error {
 
 		m.SuggestedReviewers = append(m.SuggestedReviewers, allow.SuggestedReviewers...)
 	}
+	return nil
+}
+
+// setRolesForSearchBasedRequest determines if the given access request is
+// search-based, and if so it determines which underlying roles are necessary and
+// adds them to the request
+func (m *RequestValidator) setRolesForSearchBasedRequest(req types.AccessRequest) error {
+	if !m.opts.expandVars {
+		// don't set the roles if expandVars is not set, they have probably
+		// already been set and we are just validating the request
+		return nil
+	}
+	if len(req.GetRequestedResourceIDs()) == 0 {
+		// this is not a search-based request
+		return nil
+	}
+	if len(req.GetRoles()) > 0 {
+		// roles were explicitly requested, don't change them
+		return nil
+	}
+
+	var rolesToRequest []string
+	for _, roleName := range m.Roles.AllowSearch {
+		if !m.CanSearchAsRole(roleName) {
+			continue
+		}
+		// TODO(nic): filter roles so that only the ones which actually grant
+		// access to the requested resources are requested (#10887)
+		rolesToRequest = append(rolesToRequest, roleName)
+	}
+	if len(rolesToRequest) == 0 {
+		return trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`)
+	}
+	req.SetRoles(rolesToRequest)
 	return nil
 }
 
@@ -1082,6 +1145,20 @@ func (m *RequestValidator) CanRequestRole(name string) bool {
 		}
 	}
 	return false
+}
+
+// CanSearchAsRole check if a given role can be requested through a search-based
+// access request
+func (m *RequestValidator) CanSearchAsRole(name string) bool {
+	if apiutils.SliceContainsStr(m.Roles.DenySearch, name) {
+		return false
+	}
+	for _, deny := range m.Roles.DenyRequest {
+		if deny.Match(name) {
+			return false
+		}
+	}
+	return apiutils.SliceContainsStr(m.Roles.AllowSearch, name)
 }
 
 // collectSetsForRole collects the threshold index sets which describe the various groups of
