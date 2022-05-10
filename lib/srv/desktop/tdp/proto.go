@@ -602,14 +602,14 @@ func DecodeMFAChallenge(in peekReader) (*MFA, error) {
 }
 
 type SharedDirectoryAnnounce struct {
-	DirectoryId uint32
+	DirectoryID uint32
 	Name        string
 }
 
 func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAnnounce))
-	binary.Write(buf, binary.BigEndian, s.DirectoryId)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
 	if err := encodeString(buf, s.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -624,12 +624,12 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 	if t != byte(TypeSharedDirectoryAnnounce) {
 		return SharedDirectoryAnnounce{}, trace.BadParameter("got message type %v, expected SharedDirectoryAnnounce(%v)", t, TypeSharedDirectoryAnnounce)
 	}
-	var completionId, directoryId uint32
+	var completionId, DirectoryID uint32
 	err = binary.Read(in, binary.BigEndian, &completionId)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
-	err = binary.Read(in, binary.BigEndian, &directoryId)
+	err = binary.Read(in, binary.BigEndian, &DirectoryID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
@@ -639,14 +639,14 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 	}
 
 	return SharedDirectoryAnnounce{
-		DirectoryId: directoryId,
+		DirectoryID: DirectoryID,
 		Name:        name,
 	}, nil
 }
 
 type SharedDirectoryAcknowledge struct {
 	Err         uint32
-	DirectoryId uint32
+	DirectoryID uint32
 }
 
 func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAcknowledge, error) {
@@ -667,7 +667,7 @@ func (s SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAcknowledge))
 	binary.Write(buf, binary.BigEndian, s.Err)
-	binary.Write(buf, binary.BigEndian, s.DirectoryId)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
 	return buf.Bytes(), nil
 }
 
