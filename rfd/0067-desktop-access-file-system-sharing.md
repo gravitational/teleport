@@ -541,3 +541,21 @@ DeviceReadResponse {
 ```
 
 This is clearly the "happy path" for this process, error mode handling thas been ommitted here. Note that not all `MajorFunctions` have such straightforward translations, and some will require multiple TDP messages to complete their translation.
+
+## Read-Only Mode
+
+Depending on customer demand, we may wish to add a "read-only" mode that allows users to share a local directory with the remote Windows machine for file transfer while disallowing any write operations for enhanced security.
+RDP doesn't offer such a feature natively, thus it would need to be implemented at the TDP layer only.
+
+To do so, we would extend `Shared Directory Announce` to include a read-only boolean field:
+
+```
+| message type (11) | directory_id uint32 | read_only bool | name_length uint32 | name []byte |
+```
+
+When set to true, any mutating TDP Requests such as `Shared Directory Write Request` and `Shared Directory Delete Request` will become invalid. An initial thought might be to have such messages always result in
+a corresponding Response with a non-null `err_code`, however this would make the read-only guarantee dependent on a friendly client implementation, which we can not rely on. Instead, this read-only setting will
+be enforced by the Windows Desktop Service itself: whenever we recieve an RDP message that in non-read-only mode would be translated into a mutating TDP Request, we will send back an RDP error.
+
+For example, if we recieve an `IRP_MJ_WRITE`, at the point where would ordinarily send a `Shared Directory Write Request` to our client (the browser), we will instead send the Windows machine an RDP `Device I/O Response` with `IoStatus`
+set to `STATUS_ACCESS_DENIED`. Realistically this situation might happen if the user is sharing a directory in read-only mode, opens a file in Notepad, changes it and then tries to save it.
