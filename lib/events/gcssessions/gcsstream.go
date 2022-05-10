@@ -43,6 +43,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 	upload := events.StreamUpload{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
+		Initiated: time.Now().UTC(),
 	}
 	if err := upload.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -251,7 +252,8 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	return parts, nil
 }
 
-// ListUploads lists uploads that have been initiated but not completed
+// ListUploads lists uploads that have been initiated but not completed with
+// earlier uploads returned first
 func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
 	i := h.gcsClient.Bucket(h.Config.Bucket).Objects(ctx, &storage.Query{
 		Prefix: h.uploadsPrefix(),
@@ -273,6 +275,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		upload.Initiated = attrs.Created
 		uploads = append(uploads, *upload)
 	}
 	return uploads, nil
