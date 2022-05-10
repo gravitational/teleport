@@ -253,13 +253,13 @@ func (process *TeleportProcess) importListener(typ listenerType, address string)
 
 // createListener creates listener and adds to a list of tracked listeners
 func (process *TeleportProcess) createListener(typ listenerType, address string) (net.Listener, error) {
-	listenersBlocked := func() bool {
+	listenersClosed := func() bool {
 		process.Lock()
 		defer process.Unlock()
-		return process.listenersBlocked
+		return process.listenersClosed
 	}
 
-	if listenersBlocked() {
+	if listenersClosed() {
 		process.log.Debug("Listening is blocked, not opening listener for type %v and address %v.", typ, address)
 		return nil, trace.BadParameter("listening is blocked")
 	}
@@ -273,7 +273,7 @@ func (process *TeleportProcess) createListener(typ listenerType, address string)
 	// check this again in case we stopped allowing new listeners halfway
 	// through the net.Listen (which can block, if the address is a hostname and
 	// needs a dns lookup, so we can't do it while holding the lock)
-	if process.listenersBlocked {
+	if process.listenersClosed {
 		listener.Close()
 		process.log.Debug("Listening is blocked, closing newly-created listener for type %v and address %v.", typ, address)
 		return nil, trace.BadParameter("listening is blocked")
@@ -286,7 +286,7 @@ func (process *TeleportProcess) createListener(typ listenerType, address string)
 func (process *TeleportProcess) stopListeners() error {
 	process.Lock()
 	defer process.Unlock()
-	process.listenersBlocked = true
+	process.listenersClosed = true
 	errors := make([]error, 0, len(process.registeredListeners))
 	for _, r := range process.registeredListeners {
 		errors = append(errors, r.listener.Close())
