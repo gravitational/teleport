@@ -3094,8 +3094,11 @@ message SessionTrackerSpecV1 {
     // AppName is the app server this session belongs to.
     string AppName = 18 [ (gogoproto.jsontag) = "app_name,omitempty" ];
 
+    // AppSessionID is the unique ID of the app access certificate used to start this app session.
+    string AppSessionID = 19 [ (gogoproto.jsontag) = "app_session_id,omitempty" ];
+
     // DesktopName is the windows desktop server this session belongs to.
-    string DesktopName = 19 [ (gogoproto.jsontag) = "desktop_name,omitempty" ];
+    string DesktopName = 20 [ (gogoproto.jsontag) = "desktop_name,omitempty" ];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

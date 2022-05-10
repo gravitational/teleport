@@ -134,7 +134,7 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 		case <-u.closeC:
 			return nil
 		case <-ctx.Done():
-			return trace.Wrap(ctx.Err(), "Context canceled")
+			return nil
 		}
 	}
 }

@@ -175,7 +175,7 @@ type Server struct {
 
 	proxyPort string
 
-	cache *sessionCache
+	cache *sessionChunkCache
 
 	awsSigner *appaws.SigningService
 
@@ -253,7 +253,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
-	s.cache, err = s.newSessionCache()
+	s.cache, err = s.newSessionChunkCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -687,7 +687,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 // getSession returns a request session used to proxy the request to the
 // target application. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
-func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*session, error) {
+func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
 	// If a cached forwarder exists, return it right away.
 	session, err := s.cache.get(identity.RouteToApp.SessionID)
 	if err == nil {
@@ -695,7 +695,7 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app t
 	}
 
 	// Create a new session with a recorder and forwarder in it.
-	session, err = s.newSession(ctx, identity, app)
+	session, err = s.newSessionChunk(ctx, identity, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
