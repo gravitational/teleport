@@ -295,10 +295,10 @@ type TeleportProcess struct {
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
 	importedDescriptors []FileDescriptor
-	// listenersBlocked is a flag that indicates that the process should not open
+	// listenersClosed is a flag that indicates that the process should not open
 	// new listeners (for instance, because we're shutting down and we've already
 	// closed all the listeners)
-	listenersBlocked bool
+	listenersClosed bool
 
 	// forkedPIDs is a collection of a teleport processes forked
 	// during restart used to collect their status in case if the
