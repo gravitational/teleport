@@ -1588,7 +1588,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
+	nodeLogin := teleport.SSHSessionJoinPrincipal
 	if semver.New(ping.ServerVersion).LessThan(*auth.MinSupportedModeratedSessionsVersion) {
+		nodeLogin = tc.HostLogin
 		sess, err = getLegacySession(site, namespace, string(sessionID), notFoundErrorMessage)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1620,7 +1622,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		Addr:      sess.ServerID,
 		Namespace: tc.Namespace,
 		Cluster:   tc.SiteName,
-	}, tc.Config.HostLogin, false)
+	}, nodeLogin, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -2005,7 +2005,6 @@ func onJoin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	cf.NodeLogin = teleport.SSHSessionJoinPrincipal
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
