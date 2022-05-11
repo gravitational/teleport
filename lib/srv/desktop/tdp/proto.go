@@ -45,18 +45,20 @@ type MessageType byte
 // For descriptions of each message type see:
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#message-types
 const (
-	TypeClientScreenSpec           = MessageType(1)
-	TypePNGFrame                   = MessageType(2)
-	TypeMouseMove                  = MessageType(3)
-	TypeMouseButton                = MessageType(4)
-	TypeKeyboardButton             = MessageType(5)
-	TypeClipboardData              = MessageType(6)
-	TypeClientUsername             = MessageType(7)
-	TypeMouseWheel                 = MessageType(8)
-	TypeError                      = MessageType(9)
-	TypeMFA                        = MessageType(10)
-	TypeSharedDirectoryAnnounce    = MessageType(11)
-	TypeSharedDirectoryAcknowledge = MessageType(12)
+	TypeClientScreenSpec            = MessageType(1)
+	TypePNGFrame                    = MessageType(2)
+	TypeMouseMove                   = MessageType(3)
+	TypeMouseButton                 = MessageType(4)
+	TypeKeyboardButton              = MessageType(5)
+	TypeClipboardData               = MessageType(6)
+	TypeClientUsername              = MessageType(7)
+	TypeMouseWheel                  = MessageType(8)
+	TypeError                       = MessageType(9)
+	TypeMFA                         = MessageType(10)
+	TypeSharedDirectoryAnnounce     = MessageType(11)
+	TypeSharedDirectoryAcknowledge  = MessageType(12)
+	TypeSharedDirectoryInfoRequest  = MessageType(13)
+	TypeSharedDirectoryInfoResponse = MessageType(14)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -111,6 +113,12 @@ func decode(in peekReader) (Message, error) {
 		return DecodeMFA(in)
 	case TypeSharedDirectoryAnnounce:
 		return decodeSharedDirectoryAnnounce(in)
+	case TypeSharedDirectoryAcknowledge:
+		return decodeSharedDirectoryAcknowledge(in)
+	case TypeSharedDirectoryInfoRequest:
+		return decodeSharedDirectoryInfoRequest(in)
+	case TypeSharedDirectoryInfoResponse:
+		return decodeSharedDirectoryInfoResponse(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -602,14 +610,14 @@ func DecodeMFAChallenge(in peekReader) (*MFA, error) {
 }
 
 type SharedDirectoryAnnounce struct {
-	DirectoryId uint32
+	DirectoryID uint32
 	Name        string
 }
 
 func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAnnounce))
-	binary.Write(buf, binary.BigEndian, s.DirectoryId)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
 	if err := encodeString(buf, s.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -639,14 +647,14 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 	}
 
 	return SharedDirectoryAnnounce{
-		DirectoryId: directoryId,
+		DirectoryID: directoryId,
 		Name:        name,
 	}, nil
 }
 
 type SharedDirectoryAcknowledge struct {
 	Err         uint32
-	DirectoryId uint32
+	DirectoryID uint32
 }
 
 func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAcknowledge, error) {
@@ -655,7 +663,7 @@ func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAcknowledge
 		return SharedDirectoryAcknowledge{}, trace.Wrap(err)
 	}
 	if t != byte(TypeSharedDirectoryAcknowledge) {
-		return SharedDirectoryAcknowledge{}, trace.BadParameter("got message type %v, expected SharedDirectoryAcknowledge(%v)", t, TypeSharedDirectoryAnnounce)
+		return SharedDirectoryAcknowledge{}, trace.BadParameter("got message type %v, expected SharedDirectoryAcknowledge(%v)", t, TypeSharedDirectoryAcknowledge)
 	}
 
 	var s SharedDirectoryAcknowledge
@@ -667,8 +675,150 @@ func (s SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAcknowledge))
 	binary.Write(buf, binary.BigEndian, s.Err)
-	binary.Write(buf, binary.BigEndian, s.DirectoryId)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
 	return buf.Bytes(), nil
+}
+
+type SharedDirectoryInfoRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	Path         string
+}
+
+func (s SharedDirectoryInfoRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryInfoRequest))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryInfoRequest(in peekReader) (SharedDirectoryInfoRequest, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryInfoRequest) {
+		return SharedDirectoryInfoRequest{}, trace.BadParameter("got message type %v, expected SharedDirectoryInfoRequest(%v)", t, TypeSharedDirectoryInfoRequest)
+	}
+	var completionId, directoryId uint32
+	err = binary.Read(in, binary.BigEndian, &completionId)
+	if err != nil {
+		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryId)
+	if err != nil {
+		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryInfoRequest{
+		CompletionID: completionId,
+		DirectoryID:  directoryId,
+		Path:         path,
+	}, nil
+}
+
+type SharedDirectoryInfoResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+	Fso          FileSystemObject
+}
+
+func (s SharedDirectoryInfoResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryInfoResponse))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.ErrCode)
+	fso, err := s.Fso.Encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	binary.Write(buf, binary.BigEndian, fso)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryInfoResponse(in peekReader) (SharedDirectoryInfoResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryInfoResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryInfoResponse) {
+		return SharedDirectoryInfoResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryInfoResponse(%v)", t, TypeSharedDirectoryInfoResponse)
+	}
+	var completionId, errCode uint32
+	err = binary.Read(in, binary.BigEndian, &completionId)
+	if err != nil {
+		return SharedDirectoryInfoResponse{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &errCode)
+	if err != nil {
+		return SharedDirectoryInfoResponse{}, trace.Wrap(err)
+	}
+	fso, err := decodeFileSystemObject(in)
+	if err != nil {
+		return SharedDirectoryInfoResponse{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryInfoResponse{
+		CompletionID: completionId,
+		ErrCode:      errCode,
+		Fso:          fso,
+	}, nil
+}
+
+const tdpMaxPathLength = tdpMaxErrorMessageLength
+
+type FileSystemObject struct {
+	LastModified uint32
+	Size         uint64
+	FileType     uint32
+	Path         string
+}
+
+func (s FileSystemObject) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, s.LastModified)
+	binary.Write(buf, binary.BigEndian, s.Size)
+	binary.Write(buf, binary.BigEndian, s.FileType)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeFileSystemObject(in peekReader) (FileSystemObject, error) {
+	var lastModified, fileType uint32
+	var size uint64
+	err := binary.Read(in, binary.BigEndian, &lastModified)
+	if err != nil {
+		return FileSystemObject{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &size)
+	if err != nil {
+		return FileSystemObject{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &fileType)
+	if err != nil {
+		return FileSystemObject{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return FileSystemObject{}, trace.Wrap(err)
+	}
+
+	return FileSystemObject{
+		LastModified: lastModified,
+		Size:         size,
+		FileType:     fileType,
+		Path:         path,
+	}, nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
