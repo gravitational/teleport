@@ -193,9 +193,41 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	}
 	defer resp.Body.Close()
 
-	if req.URL.Path == loginRequestPath {
-		//TODO(jakule): save token from refresh token response
-		err := e.processLoginResponse(ctx, resp, accountName)
+	switch req.URL.Path {
+	case loginRequestPath:
+		err := e.processResponse(resp, func(body []byte) ([]byte, error) {
+			newPayload, err := e.saveSessionToken(ctx, e.sessionCtx, body, accountName)
+			return newPayload, trace.Wrap(err)
+		})
+
+		// Return here - processLoginResponse sends the response.
+		return trace.Wrap(err)
+	case tokenRequestPath:
+		err := e.processResponse(resp, func(body []byte) ([]byte, error) {
+			renewSessResp := &renewSessionResponse{}
+			if err := json.Unmarshal(body, renewSessResp); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if renewSessResp.Data.SessionToken != "" {
+				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+					Username:             sessionCtx.Identity.Username,
+					SnowflakeAccountName: accountName,
+					SnowflakeUsername:    sessionCtx.DatabaseUser,
+					SessionToken:         renewSessResp.Data.SessionToken,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				e.connectionToken = renewSessResp.Data.SessionToken
+				renewSessResp.Data.SessionToken = snowflakeSession.GetName()
+			}
+
+			newBody, err := json.Marshal(renewSessResp)
+			return newBody, trace.Wrap(err)
+		})
+
 		// Return here - processLoginResponse sends the response.
 		return trace.Wrap(err)
 	}
@@ -230,7 +262,7 @@ func (e *Engine) setAuthorizationHeader(reqCopy *http.Request) {
 	}
 }
 
-func (e *Engine) processLoginResponse(ctx context.Context, resp *http.Response, accountName string) error {
+func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []byte) ([]byte, error)) error {
 	dumpResp, err := httputil.DumpResponse(resp, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -252,7 +284,13 @@ func (e *Engine) processLoginResponse(ctx context.Context, resp *http.Response, 
 			bodyReader = resp.Body
 		}
 
-		newPayload, err := e.saveSessionToken(ctx, e.sessionCtx, bodyReader, accountName)
+		// TODO(jakule) add limiter
+		body, err := io.ReadAll(bodyReader)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		newPayload, err := modifyReqFn(body)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -322,7 +360,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Session, respBody io.Reader, accountName string) ([]byte, error) {
+func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Session, respBody []byte, accountName string) ([]byte, error) {
 	if newResp, err := e.extractToken(respBody, func(sessionToken string) (string, error) {
 		snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 			Username:             sessionCtx.Identity.Username,
@@ -402,8 +440,16 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 	case tokenRequestPath:
 		var err error
 		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
-			//TODO(jakule): replace the session token with the Snowflake one
-			return body, nil
+			refreshReq := &renewSessionRequest{}
+			if err := json.Unmarshal(body, &refreshReq); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			refreshReq.OldSessionToken = e.connectionToken
+
+			newData, err := json.Marshal(refreshReq)
+
+			return newData, trace.Wrap(err)
 		})
 
 		if err != nil {
@@ -532,12 +578,7 @@ func extractSQLStmt(body []byte) (string, error) {
 	return queryRequest.SQLText, nil
 }
 
-func (e *Engine) extractToken(respBody io.Reader, sessCb func(string) (string, error)) ([]byte, error) {
-	bodyBytes, err := io.ReadAll(respBody)
-	if err != nil {
-		return nil, err
-	}
-
+func (e *Engine) extractToken(bodyBytes []byte, sessCb func(string) (string, error)) ([]byte, error) {
 	loginResp := &LoginResponse{}
 	if err := json.Unmarshal(bodyBytes, loginResp); err != nil {
 		return nil, trace.Wrap(err)
@@ -672,7 +713,10 @@ type RefreshTokenRequest struct {
 	RequestType     string `json:"requestType"`
 }
 
-// {"oldSessionToken":"48153e4b24271bb7d1ed3b524dba3940de6d6b3a6c3542ddeb42905f0a776420","requestType":"RENEW"}
+type renewSessionRequest struct {
+	OldSessionToken string `json:"oldSessionToken"`
+	RequestType     string `json:"requestType"` // "RENEW"
+}
 
 type renewSessionResponse struct {
 	Data    renewSessionResponseMain `json:"data"`

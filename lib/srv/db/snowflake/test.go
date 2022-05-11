@@ -47,12 +47,13 @@ func TestForceTokenRefresh() TestServerOption {
 }
 
 type TestServer struct {
-	cfg               common.TestServerConfig
-	listener          net.Listener
-	port              string
-	tlsConfig         *tls.Config
-	log               logrus.FieldLogger
-	forceTokenRefresh bool
+	cfg                common.TestServerConfig
+	listener           net.Listener
+	port               string
+	tlsConfig          *tls.Config
+	log                logrus.FieldLogger
+	authorizationToken string
+	forceTokenRefresh  bool
 }
 
 // NewTestServer returns a new instance of a test Postgres server.
@@ -85,6 +86,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 			trace.Component: defaults.ProtocolSnowflake,
 			"name":          config.Name,
 		}),
+		authorizationToken: "test-token-123",
 	}
 
 	for _, opt := range opts {
@@ -316,7 +318,7 @@ func (s *TestServer) Serve() error {
 		case queryRequestPath:
 			w.Header().Set("Content-Type", "application/json")
 
-			if r.Header.Get("Authorization") != "Snowflake Token=\"test-token-123\"" {
+			if r.Header.Get("Authorization") != fmt.Sprintf("Snowflake Token=\"%s\"", s.authorizationToken) {
 				w.WriteHeader(401)
 				return
 			}
@@ -338,6 +340,7 @@ func (s *TestServer) Serve() error {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Content-Length", strconv.Itoa(len(sessionTokenResponse)))
 			w.Write([]byte(sessionTokenResponse))
+			s.authorizationToken = "sessionToken-123"
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -372,7 +375,7 @@ type ClientOptions func(*ClientOptionsParams)
 
 // MakeTestClient returns Redis client connection according to the provided
 // parameters.
-func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ...ClientOptions) (*sql.DB, error) {
+func MakeTestClient(_ context.Context, config common.TestClientConfig, opts ...ClientOptions) (*sql.DB, error) {
 	clientOptions := &ClientOptionsParams{}
 
 	for _, opt := range opts {
