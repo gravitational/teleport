@@ -1587,7 +1587,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	// TODO(xacrimon): DELETE IN 10.0
 	nodeLogin := teleport.SSHSessionJoinPrincipal
 	if semver.New(ping.ServerVersion).LessThan(*auth.MinSupportedModeratedSessionsVersion) {
 		nodeLogin = tc.HostLogin
