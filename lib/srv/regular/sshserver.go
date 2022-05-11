@@ -822,7 +822,8 @@ func (s *Server) getRole() types.SystemRole {
 	return types.RoleNode
 }
 
-// getStaticLabels returns non-dynamic labels (static and ec2). TODO improve func name and doc
+// getStaticLabels gets the labels that the server should present as static,
+// which includes EC2 labels if available.
 func (s *Server) getStaticLabels() map[string]string {
 	if s.ec2Labels == nil {
 		return s.labels

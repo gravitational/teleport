@@ -1778,19 +1778,18 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// getStaticLabels gets all non-command (static and ec2) labels.
+// getStaticLabels gets the labels that the forwarder should present as static,
+// which includes EC2 labels if available.
 func (f *Forwarder) getStaticLabels() map[string]string {
-	m := make(map[string]string)
-	if f.cfg.EC2Labels != nil {
-		for k, v := range f.cfg.EC2Labels.Get() {
-			m[k] = v
-		}
+	if f.cfg.EC2Labels == nil {
+		return f.cfg.StaticLabels
 	}
+	labels := f.cfg.EC2Labels.Get()
 	// Let static labels override ec2 labels.
 	for k, v := range f.cfg.StaticLabels {
-		m[k] = v
+		labels[k] = v
 	}
-	return m
+	return labels
 }
 
 func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
