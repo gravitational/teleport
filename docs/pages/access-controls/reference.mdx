@@ -378,7 +378,8 @@ allow:
     - resources:
         - trusted_cluster
       verbs: [list, create, read, update, delete]
-    # Events: Determines whether a user view the audit log and session recordings.
+    # Events: Determines whether a user can view the audit log
+    # and session recordings.
     - resources:
         - event
       verbs: [list, read]
