@@ -822,8 +822,8 @@ func (s *Server) getRole() types.SystemRole {
 	return types.RoleNode
 }
 
-// getNonDynamicLabels returns non-dynamic labels (static and ec2). TODO improve func name and doc
-func (s *Server) getNonDynamicLabels() map[string]string {
+// getStaticLabels returns non-dynamic labels (static and ec2). TODO improve func name and doc
+func (s *Server) getStaticLabels() map[string]string {
 	if s.ec2Labels == nil {
 		return s.labels
 	}
@@ -858,7 +858,7 @@ func (s *Server) GetInfo() types.Server {
 		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),
-			Labels:    s.getNonDynamicLabels(),
+			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
 			CmdLabels: s.getDynamicLabels(),

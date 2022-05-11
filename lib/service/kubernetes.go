@@ -170,7 +170,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		}
 		dynLabels.Sync()
 		go dynLabels.Start()
-
 		defer func() {
 			if retErr != nil {
 				dynLabels.Close()

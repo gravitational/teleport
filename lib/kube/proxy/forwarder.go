@@ -1778,8 +1778,8 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// getNonDynamicLabels gets all non-command (static and ec2) labels.
-func (f *Forwarder) getNonDynamicLabels() map[string]string {
+// getStaticLabels gets all non-command (static and ec2) labels.
+func (f *Forwarder) getStaticLabels() map[string]string {
 	m := make(map[string]string)
 	if f.cfg.EC2Labels != nil {
 		for k, v := range f.cfg.EC2Labels.Get() {
@@ -1803,7 +1803,7 @@ func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
 	for n := range f.creds {
 		res = append(res, &types.KubernetesCluster{
 			Name:          n,
-			StaticLabels:  f.getNonDynamicLabels(),
+			StaticLabels:  f.getStaticLabels(),
 			DynamicLabels: dynLabels,
 		})
 	}

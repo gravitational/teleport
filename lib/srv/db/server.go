@@ -85,7 +85,8 @@ type Config struct {
 	AWSMatchers []services.AWSMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
-
+	// EC2Labels is a service that imports labels from EC2. The labels are shared
+	// between all databases.
 	EC2Labels *labels.EC2Labels
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
