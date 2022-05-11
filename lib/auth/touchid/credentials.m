@@ -1,5 +1,5 @@
-// go:build touchid
-//  +build touchid
+//go:build touchid
+// +build touchid
 
 // Copyright 2022 Gravitational, Inc
 //
@@ -19,10 +19,13 @@
 
 #import <CoreFoundation/CoreFoundation.h>
 #import <Foundation/Foundation.h>
+#import <LocalAuthentication/LocalAuthentication.h>
 #import <Security/Security.h>
 
 #include <limits.h>
 #include <stdlib.h>
+
+#include <dispatch/dispatch.h>
 
 #include "common.h"
 
@@ -37,7 +40,8 @@ BOOL matchesLabelFilter(LabelFilterKind kind, NSString *filter,
   return NO;
 }
 
-int FindCredentials(LabelFilter filter, CredentialInfo **infosOut) {
+int findCredentials(BOOL applyFilter, LabelFilter filter,
+                    CredentialInfo **infosOut) {
   NSDictionary *query = @{
     (id)kSecClass : (id)kSecClassKey,
     (id)kSecAttrKeyType : (id)kSecAttrKeyTypeECSECPrimeRandom,
@@ -75,7 +79,7 @@ int FindCredentials(LabelFilter filter, CredentialInfo **infosOut) {
 
     CFStringRef label = CFDictionaryGetValue(attrs, kSecAttrLabel);
     NSString *nsLabel = (__bridge NSString *)label;
-    if (!matchesLabelFilter(filter.kind, nsFilter, nsLabel)) {
+    if (applyFilter && !matchesLabelFilter(filter.kind, nsFilter, nsLabel)) {
       continue;
     }
 
@@ -112,4 +116,90 @@ int FindCredentials(LabelFilter filter, CredentialInfo **infosOut) {
 
   CFRelease(items);
   return infosLen;
+}
+
+int FindCredentials(LabelFilter filter, CredentialInfo **infosOut) {
+  return findCredentials(YES /* applyFilter */, filter, infosOut);
+}
+
+int ListCredentials(const char *reason, CredentialInfo **infosOut,
+                    char **errOut) {
+  LAContext *ctx = [[LAContext alloc] init];
+
+  __block LabelFilter filter;
+  filter.kind = LABEL_PREFIX;
+  filter.value = "";
+
+  __block int res;
+  __block NSString *nsError = NULL;
+
+  // A semaphore is needed, otherwise we return before the prompt has a chance
+  // to resolve.
+  dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+  [ctx evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
+      localizedReason:[NSString stringWithUTF8String:reason]
+                reply:^void(BOOL success, NSError *_Nullable error) {
+                  if (success) {
+                    res =
+                        findCredentials(NO /* applyFilter */, filter, infosOut);
+                  } else {
+                    res = -1;
+                    nsError = [error localizedDescription];
+                  }
+
+                  dispatch_semaphore_signal(sema);
+                }];
+  dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+  // sema released by ARC.
+
+  if (nsError) {
+    *errOut = CopyNSString(nsError);
+  }
+
+  return res;
+}
+
+OSStatus deleteCredential(const char *appLabel) {
+  NSData *nsAppLabel = [NSData dataWithBytes:appLabel length:strlen(appLabel)];
+  NSDictionary *query = @{
+    (id)kSecClass : (id)kSecClassKey,
+    (id)kSecAttrKeyType : (id)kSecAttrKeyTypeECSECPrimeRandom,
+    (id)kSecMatchLimit : (id)kSecMatchLimitOne,
+    (id)kSecAttrApplicationLabel : nsAppLabel,
+  };
+  return SecItemDelete((__bridge CFDictionaryRef)query);
+}
+
+int DeleteCredential(const char *reason, const char *appLabel, char **errOut) {
+  LAContext *ctx = [[LAContext alloc] init];
+
+  __block int res;
+  __block NSString *nsError = NULL;
+
+  // A semaphore is needed, otherwise we return before the prompt has a chance
+  // to resolve.
+  dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+  [ctx evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
+      localizedReason:[NSString stringWithUTF8String:reason]
+                reply:^void(BOOL success, NSError *_Nullable error) {
+                  if (success) {
+                    res = deleteCredential(appLabel);
+                  } else {
+                    res = -1;
+                    nsError = [error localizedDescription];
+                  }
+                  dispatch_semaphore_signal(sema);
+                }];
+  dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+  // sema released by ARC.
+
+  if (nsError) {
+    *errOut = CopyNSString(nsError);
+  } else if (res != errSecSuccess) {
+    CFStringRef err = SecCopyErrorMessageString(res, NULL);
+    NSString *nsErr = (__bridge_transfer NSString *)err;
+    *errOut = CopyNSString(nsErr);
+  }
+
+  return res;
 }
