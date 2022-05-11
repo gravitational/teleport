@@ -144,8 +144,9 @@ func (s *Server) closeSession(sess *sessionChunk) {
 	}
 }
 
-// newStreamWriter creates a streamer that will be used to stream the
-// requests that occur within this session chunk to the audit log.
+// newStreamWriter creates a session stream that will be used to record
+// requests that occur within this session chunk and upload the recording
+// to the Auth server.
 func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application, chunkID string) (events.StreamWriter, error) {
 	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
