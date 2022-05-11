@@ -330,6 +330,11 @@ const (
 	// AbandonedUploadPollingRate defines how often to check for
 	// abandoned uploads which need to be completed.
 	AbandonedUploadPollingRate = SessionTrackerTTL / 6
+
+	// UploadGracePeriod is a period after which non-completed
+	// upload is considered abandoned and will be completed by the reconciler
+	// DELETE IN 11.0.0
+	UploadGracePeriod = 24 * time.Hour
 )
 
 var (
