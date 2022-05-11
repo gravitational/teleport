@@ -420,7 +420,7 @@ func (a *Agent) run() {
 	// wrap up remaining business logic in closure for easy
 	// conditional execution.
 	doWork := func() {
-		a.log.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
+		a.log.Infof("Agent connected to proxy: %v.", a.getPrincipalsList())
 		a.setState(agentStateConnected)
 		// Notify waiters that the agent has connected.
 		if a.EventsC != nil {
@@ -447,7 +447,7 @@ func (a *Agent) run() {
 	// no other agents hold a claim.
 	if a.Tracker != nil {
 		if !a.Tracker.WithProxy(doWork, a.getPrincipalsList()...) {
-			a.log.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
+			a.log.Infof("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
 		}
 	} else {
 		doWork()
