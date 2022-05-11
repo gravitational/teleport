@@ -1749,7 +1749,7 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	})
 
 	// start the SSH agent
-	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
+	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0o600)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
@@ -1862,37 +1862,4 @@ func getLocalIP() (string, error) {
 		}
 	}
 	return "", trace.NotFound("No non-loopback local IP address found")
-}
-
-// eventually checks a given condition at regular intervals and returns
-// true if the condition is met within the specified duration.
-func eventually(cond func() bool, interval time.Duration, duration time.Duration) bool {
-	return check(cond, true, interval, duration)
-}
-
-// never checks a given condition at regular intervals and returns
-// false if the condition is met within the specified duration.
-func never(cond func() bool, interval time.Duration, duration time.Duration) bool {
-	return check(cond, false, interval, duration)
-}
-
-// check checks a given condition at regular intervals and returns
-// the value of shouldPassCheck if the condition is met within the specified
-// duration.
-func check(cond func() bool, shouldPassCheck bool, interval time.Duration, duration time.Duration) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), duration)
-	defer cancel()
-	for {
-		select {
-		case <-ctx.Done():
-			return !shouldPassCheck
-		default:
-			if cond() {
-				return shouldPassCheck
-			}
-			time.Sleep(interval)
-		}
-	}
-
-	return !shouldPassCheck
 }
