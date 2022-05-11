@@ -1565,16 +1565,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
-	var session types.SessionTracker
-	sessions, err := site.GetActiveSessionTrackers(ctx)
-	if err != nil {
+	session, err := site.GetSessionTracker(ctx, string(sessionID))
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
-	}
-
-	for _, sessionIter := range sessions {
-		if sessionIter.GetSessionID() == string(sessionID) {
-			session = sessionIter
-		}
 	}
 
 	if session == nil {
