@@ -1,7 +1,7 @@
 // Copyright 2021 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
+// you ma&y not use this file except in compliance with the License.
 // You may obtain a copy of the Li&cense at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
@@ -16,7 +16,9 @@ mod consts;
 mod flags;
 mod scard;
 
-use crate::errors::{invalid_data_error, not_implemented_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::errors::{
+    invalid_data_error, not_implemented_error, try_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE,
+};
 use crate::util;
 use crate::vchan;
 use crate::{
@@ -61,7 +63,7 @@ pub struct Client {
 
     // Completion-id-indexed maps of handlers for tdp messages coming from the browser client.
     pending_sd_info_resp_handlers:
-        HashMap<u32, Box<dyn FnOnce(SharedDirectoryInfoResponse) -> RdpResult<()>>>,
+        HashMap<u32, Box<dyn FnOnce(&mut Self, SharedDirectoryInfoResponse) -> RdpResult<()>>>,
 }
 
 impl Client {
@@ -285,61 +287,41 @@ impl Client {
                 // this handler will be called.
                 self.pending_sd_info_resp_handlers.insert(
                     completion_id,
-                    Box::new(|res: SharedDirectoryInfoResponse| -> RdpResult<()> {
-                        let rdp_req = rdp_req;
+                    Box::new(
+                        |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<()> {
+                            let rdp_req = rdp_req;
 
-                        if res.err == 2 {
-                            // "resource does not exist"
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
-                            let is_dir = rdp_req
-                                .create_options
-                                .contains(flags::CreateOptions::FILE_DIRECTORY_FILE);
+                            if res.err == 2 {
+                                // "resource does not exist"
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
+                                let is_dir = rdp_req
+                                    .create_options
+                                    .contains(flags::CreateOptions::FILE_DIRECTORY_FILE);
 
-                            if is_dir {
-                                if rdp_req
-                                    .create_disposition
-                                    .contains(flags::CreateDisposition::FILE_OPEN_IF)
-                                    || rdp_req
+                                if is_dir {
+                                    if rdp_req
                                         .create_disposition
-                                        .contains(flags::CreateDisposition::FILE_CREATE)
-                                {
-                                    let completion_id = self.get_completion_id();
-                                    (self.tdp_sd_create_request)(SharedDirectoryCreateRequest {
-                                        completion_id,
-                                        directory_id: rdp_req.device_io_request.device_id,
-                                        file_type: 1, // TODO(isaiah) make this a const
-                                        path: "todo!()".to_string(),
-                                    })?;
+                                        .contains(flags::CreateDisposition::FILE_OPEN_IF)
+                                        || rdp_req
+                                            .create_disposition
+                                            .contains(flags::CreateDisposition::FILE_CREATE)
+                                    {
+                                        let completion_id = cli.get_completion_id();
+                                        (cli.tdp_sd_create_request)(
+                                            SharedDirectoryCreateRequest {
+                                                completion_id,
+                                                directory_id: rdp_req.device_io_request.device_id,
+                                                file_type: 1, // TODO(isaiah) make this a const
+                                                path: "todo!()".to_string(),
+                                            },
+                                        )?;
+                                    }
                                 }
                             }
-                        }
-                        Ok(())
-                    }),
+                            Ok(())
+                        },
+                    ),
                 );
-
-                // self.pending_tdp_sd_info_requests.insert(completion_id, |res: SharedDirectoryInfoResponse|);
-                //
-
-                // let device_id = server_create_drive_request.device_io_request.device_id;
-                // let completion_id = server_create_drive_request.device_io_request.completion_id;
-                // let path = &server_create_drive_request.path; // TODO(isaiah): path needs to be converted from windows style path
-                // self.send_tdp_sd_info_request(server_create_drive_request, device_id, path)?;
-                // Ok(vec![])
-
-                // TODO(isaiah) assumes we only receive this after the initial ClientDeviceListAnnounce::new_drive,
-                // which will always be a "success". Will need to have logic for creating files/dirs over TDP
-                // and responding based on failure/success.
-                // let resp = DeviceCreateResponse::new(
-                //     &server_create_drive_request,
-                //     NTSTATUS::STATUS_SUCCESS,
-                // );
-                // debug!("replying with: {:?}", resp);
-                // let resp = self.add_headers_and_chunkify(
-                //     PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                //     resp.encode()?,
-                // )?;
-                // Ok(resp)
-
                 Ok(vec![])
             }
             _ => Err(invalid_data_error(&format!(
@@ -368,7 +350,22 @@ impl Client {
         Ok(())
     }
 
-    fn get_completion_id(&self) -> u32 {
+    pub fn handle_tdp_sd_info_response(
+        &mut self,
+        res: SharedDirectoryInfoResponse,
+    ) -> RdpResult<()> {
+        if let Some(resp_handler) = self.pending_sd_info_resp_handlers.get(&res.completion_id) {
+            resp_handler(self, res);
+            Ok(())
+        } else {
+            return Err(try_error(&format!(
+                "received invalid completion id: {}",
+                res.completion_id
+            )));
+        }
+    }
+
+    fn get_completion_id(&mut self) -> u32 {
         self.next_completion_id = self.next_completion_id.wrapping_add(1);
         self.next_completion_id
     }

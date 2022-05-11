@@ -248,7 +248,7 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
 
-    let tdp_sd_acknowledge = Box::new(|ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
+    let tdp_sd_acknowledge = Box::new(move |ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
         unsafe {
             if tdp_sd_acknowledge(go_ref, &mut CGOSharedDirectoryAcknowledge::from(ack))
                 != CGOErrCode::ErrCodeSuccess
@@ -261,7 +261,7 @@ fn connect_rdp_inner(
         Ok(())
     });
 
-    let tdp_sd_info_request = Box::new(|req: SharedDirectoryInfoRequest| -> RdpResult<()> {
+    let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
         // Create C compatible string from req.path
         match CString::new(req.path.clone()) {
             Ok(c_string) => {
@@ -296,36 +296,37 @@ fn connect_rdp_inner(
         }
     });
 
-    let tdp_sd_create_request = Box::new(|req: SharedDirectoryCreateRequest| -> RdpResult<()> {
-        match CString::new(req.path.clone()) {
-            Ok(c_string) => {
-                unsafe {
-                    if tdp_sd_create_request(
-                        go_ref,
-                        &mut CGOSharedDirectoryCreateRequest {
-                            completion_id: req.completion_id,
-                            directory_id: req.directory_id,
-                            file_type: req.file_type,
-                            path: c_string.into_raw(),
-                        },
-                    ) != CGOErrCode::ErrCodeSuccess
-                    {
-                        return Err(RdpError::TryError(String::from(
-                            "call to tdp_sd_create_request failed",
-                        )));
-                    };
+    let tdp_sd_create_request =
+        Box::new(move |req: SharedDirectoryCreateRequest| -> RdpResult<()> {
+            match CString::new(req.path.clone()) {
+                Ok(c_string) => {
+                    unsafe {
+                        if tdp_sd_create_request(
+                            go_ref,
+                            &mut CGOSharedDirectoryCreateRequest {
+                                completion_id: req.completion_id,
+                                directory_id: req.directory_id,
+                                file_type: req.file_type,
+                                path: c_string.into_raw(),
+                            },
+                        ) != CGOErrCode::ErrCodeSuccess
+                        {
+                            return Err(RdpError::TryError(String::from(
+                                "call to tdp_sd_create_request failed",
+                            )));
+                        };
+                    }
+                    return Ok(());
                 }
-                return Ok(());
+                Err(_) => {
+                    // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
+                    return Err(RdpError::TryError(String::from(format!(
+                        "path contained characters that couldn't be converted to a C string: {}",
+                        req.path
+                    ))));
+                }
             }
-            Err(_) => {
-                // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                return Err(RdpError::TryError(String::from(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
-                    req.path
-                ))));
-            }
-        }
-    });
+        });
 
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(
@@ -539,7 +540,7 @@ pub unsafe extern "C" fn update_clipboard(
     }
 }
 
-/// handle_tdp_sd_announce announces a new drivethat's ready to be
+/// handle_tdp_sd_announce announces a new drive that's ready to be
 /// redirected over RDP.
 ///
 /// # Safety
@@ -549,6 +550,38 @@ pub unsafe extern "C" fn update_clipboard(
 pub unsafe extern "C" fn handle_tdp_sd_announce(
     client_ptr: *mut Client,
     sd_announce: CGOSharedDirectoryAnnounce,
+) -> CGOErrCode {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let drive_name = from_go_string(sd_announce.name);
+    let new_drive =
+        rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, drive_name);
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+    match rdp_client.write_client_device_list_announce(new_drive) {
+        Ok(()) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("failed to announce new drive: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
+/// handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
+/// message
+///
+/// # Safety
+///
+/// The caller must ensure that drive_name points to a valid buffer.
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_sd_info_response(
+    client_ptr: *mut Client,
+    res: CGOSharedDirectoryInfoResponse,
 ) -> CGOErrCode {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
@@ -872,6 +905,7 @@ pub struct CGOSharedDirectoryInfoRequest {
     pub path: *mut c_char,
 }
 
+#[allow(dead_code)]
 struct SharedDirectoryInfoResponse {
     completion_id: u32,
     err: u32,
@@ -881,8 +915,8 @@ struct SharedDirectoryInfoResponse {
 #[repr(C)]
 pub struct CGOSharedDirectoryInfoResponse {
     pub completion_id: u32,
-    pub directory_id: u32,
-    pub path: *mut c_char,
+    pub err: u32,
+    pub fso: CGOFileSystemObject,
 }
 
 pub struct SharedDirectoryCreateRequest {
@@ -900,6 +934,7 @@ pub struct CGOSharedDirectoryCreateRequest {
     pub path: *mut c_char,
 }
 
+#[allow(dead_code)]
 pub struct FileSystemObject {
     last_modified: u32,
     size: u64,
