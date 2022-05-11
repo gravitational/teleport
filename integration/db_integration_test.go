@@ -269,7 +269,7 @@ func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 			Clock:     p.clock,
 			Client:    p.siteAPI,
 		},
-		WatchCertTypes: []types.CertAuthType{p.certType},
+		Types: []types.CertAuthType{p.certType},
 	})
 	if err != nil {
 		return err
@@ -280,16 +280,29 @@ func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 		return trace.Wrap(err)
 	}
 
+	sub, err := watcher.Subscribe(ctx, services.CertAuthorityTarget{
+		ClusterName: p.clusterRootName,
+		Type:        p.certType,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sub.Close()
+
 	var lastPhase string
 	for i := 0; i < 10; i++ {
 		select {
 		case <-ctx.Done():
+		case <-sub.Done():
 			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, ctx.Err())
-		case cas := <-watcher.CertAuthorityC:
-			for _, ca := range cas {
-				if ca.GetClusterName() == p.clusterRootName &&
-					ca.GetType() == p.certType &&
-					ca.GetRotation().Phase == phase {
+		case evt := <-sub.Events():
+			switch evt.Type {
+			case types.OpPut:
+				ca, ok := evt.Resource.(types.CertAuthority)
+				if !ok {
+					return trace.BadParameter("expected a ca got type %T", evt.Resource)
+				}
+				if ca.GetRotation().Phase == phase {
 					return nil
 				}
 				lastPhase = ca.GetRotation().Phase
