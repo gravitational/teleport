@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -265,8 +266,8 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 	var filteredSessions []types.SessionTracker
 
-	for _, session := range sessions {
-		evaluator := NewSessionAccessEvaluator(session.GetHostPolicySets(), session.GetSessionKind())
+	for _, sess := range sessions {
+		evaluator := NewSessionAccessEvaluator(sess.GetHostPolicySets(), sess.GetSessionKind())
 		joinerRoles, err := a.authServer.GetRoles(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -274,10 +275,42 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 		modes, err := evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles})
 		if err == nil || len(modes) > 0 {
-			filteredSessions = append(filteredSessions, session)
+			// Apply RFD 45 RBAC rules to the session if it's SSH.
+			// This is a bit of a hack. It converts to the old legacy format
+			// which we don't have all data for, luckily the fields we don't have aren't made available
+			// to the RBAC filter anyway.
+			if sess.GetKind() == types.KindSSHSession {
+				ruleCtx := &services.Context{User: a.context.User}
+				ruleCtx.SSHSession = &session.Session{
+					ID:             session.ID(sess.GetSessionID()),
+					Namespace:      apidefaults.Namespace,
+					Login:          sess.GetLogin(),
+					Created:        sess.GetCreated(),
+					LastActive:     a.authServer.GetClock().Now(),
+					ServerID:       sess.GetAddress(),
+					ServerAddr:     sess.GetAddress(),
+					ServerHostname: sess.GetHostname(),
+					ClusterName:    sess.GetClusterName(),
+				}
+
+				for _, participant := range sess.GetParticipants() {
+					// We only need to fill in User here since other fields get discarded anyway.
+					ruleCtx.SSHSession.Parties = append(ruleCtx.SSHSession.Parties, session.Party{
+						User: participant.User,
+					})
+				}
+
+				// Skip past it if there's a deny rule in place blocking access.
+				if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
+					continue
+				}
+			}
+
+			filteredSessions = append(filteredSessions, sess)
+		} else {
+			log.Warnf("Session %v is not allowed to join: %v", sess.GetSessionID(), err)
 		}
 	}
-
 	return filteredSessions, nil
 }
 
@@ -862,6 +895,27 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if req.UseSearchAsRoles {
+		// For search-based access requests, replace the current roles with all
+		// roles the user is allowed to search with.
+		if err := a.context.UseSearchAsRoles(services.RoleGetter(a.authServer)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
+			Metadata: apievents.Metadata{
+				Type: events.AccessRequestResourceSearch,
+				Code: events.AccessRequestResourceSearchCode,
+			},
+			UserMetadata:        ClientUserMetadata(ctx),
+			SearchAsRoles:       a.context.Checker.RoleNames(),
+			ResourceType:        req.ResourceType,
+			Namespace:           req.Namespace,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		})
+	}
+
 	// ListResources request coming through this auth layer gets request filters
 	// stripped off and saved to be applied later after items go through rbac checks.
 	// The list that gets returned from the backend comes back unfiltered and as
@@ -1209,11 +1263,11 @@ func (a *ServerWithRoles) GetReverseTunnel(name string, opts ...services.Marshal
 	return a.authServer.GetReverseTunnel(name, opts...)
 }
 
-func (a *ServerWithRoles) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (a *ServerWithRoles) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetReverseTunnels(opts...)
+	return a.authServer.GetReverseTunnels(ctx, opts...)
 }
 
 func (a *ServerWithRoles) DeleteReverseTunnel(domainName string) error {
@@ -1292,11 +1346,11 @@ func (a *ServerWithRoles) CreateWebSession(user string) (types.WebSession, error
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
-func (a *ServerWithRoles) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
+func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
 	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(req, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(ctx, req, a.context.Identity.GetIdentity())
 }
 
 // GetWebSessionInfo returns the web session for the given user specified with sid.
@@ -1351,10 +1405,8 @@ func (*webSessionsWithRoles) Upsert(ctx context.Context, session types.WebSessio
 
 // Delete removes the web session specified with req.
 func (r *webSessionsWithRoles) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
-	if err := r.c.currentUserAction(req.User); err != nil {
-		if err := r.c.action(apidefaults.Namespace, types.KindWebSession, types.VerbDelete); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := r.c.canDeleteWebSession(req.User); err != nil {
+		return trace.Wrap(err)
 	}
 	return r.ws.Delete(ctx, req)
 }
@@ -1441,6 +1493,7 @@ type webTokensWithRoles struct {
 type accessChecker interface {
 	action(namespace, resource string, verbs ...string) error
 	currentUserAction(user string) error
+	canDeleteWebSession(username string) error
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
@@ -1730,13 +1783,6 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	return a.authServer.DeleteUser(ctx, user)
 }
 
-func (a *ServerWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	if err := a.action(apidefaults.Namespace, types.KindKeyPair, types.VerbCreate); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return a.authServer.GenerateKeyPair(pass)
-}
-
 func (a *ServerWithRoles) GenerateHostCert(
 	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {
@@ -1904,34 +1950,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// add any applicable access request values.
 		req.AccessRequests = apiutils.Deduplicate(req.AccessRequests)
 		for _, reqID := range req.AccessRequests {
-			accessReq, err := services.GetAccessRequest(ctx, a.authServer, reqID)
+			newRoles, accessRequestExpiry, err := a.authServer.getRolesAndExpiryFromAccessRequest(ctx, req.Username, reqID)
 			if err != nil {
-				if trace.IsNotFound(err) {
-					return nil, trace.AccessDenied("invalid access request %q", reqID)
-				}
 				return nil, trace.Wrap(err)
 			}
-			if accessReq.GetUser() != req.Username {
-				return nil, trace.AccessDenied("invalid access request %q", reqID)
-			}
-			if !accessReq.GetState().IsApproved() {
-				if accessReq.GetState().IsDenied() {
-					return nil, trace.AccessDenied("access-request %q has been denied", reqID)
-				}
-				return nil, trace.AccessDenied("access-request %q is awaiting approval", reqID)
-			}
-			if err := services.ValidateAccessRequestForUser(a.authServer, accessReq); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			aexp := accessReq.GetAccessExpiry()
-			if aexp.Before(a.authServer.GetClock().Now()) {
-				return nil, trace.AccessDenied("access-request %q is expired", reqID)
-			}
-			if aexp.Before(req.Expires) {
+			if accessRequestExpiry.Before(req.Expires) {
 				// cannot generate a cert that would outlive the access request
-				req.Expires = aexp
+				req.Expires = accessRequestExpiry
 			}
-			roles = append(roles, accessReq.GetRoles()...)
+			roles = append(roles, newRoles...)
 		}
 		// nothing prevents an access-request from including roles already possessed by the
 		// user, so we must make sure to trim duplicate roles.
@@ -2253,7 +2280,8 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*
 
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err)
+		// TODO(Tener): Update `testFlow` flag once OIDC SSO starts supporting test flows.
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err, false)
 		return nil, trace.Wrap(err)
 	}
 
@@ -2328,18 +2356,57 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*
 		return nil, trace.Wrap(err)
 	}
 
+	// require additional permissions for executing SSO test flow.
+	if req.SSOTestFlow {
+		if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	samlReq, err := a.authServer.CreateSAMLAuthRequest(req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodSAML, err)
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
 		return nil, trace.Wrap(err)
 	}
 
 	return samlReq, nil
 }
 
-func (a *ServerWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
+// ValidateSAMLResponse validates SAML auth response.
+func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
-	return a.authServer.ValidateSAMLResponse(re)
+	return a.authServer.ValidateSAMLResponse(ctx, re)
+}
+
+// GetSAMLAuthRequest returns SAML auth request if found.
+func (a *ServerWithRoles) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetSAMLAuthRequest(ctx, id)
+}
+
+// GetSSODiagnosticInfo returns SSO diagnostic info records.
+func (a *ServerWithRoles) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
+	var resource string
+
+	switch authKind {
+	case types.KindSAML:
+		resource = types.KindSAMLRequest
+	case types.KindGithub:
+		resource = types.KindGithubRequest
+	case types.KindOIDC:
+		resource = types.KindOIDCRequest
+	default:
+		return nil, trace.BadParameter("unsupported authKind %q", authKind)
+	}
+
+	if err := a.action(apidefaults.Namespace, resource, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetSSODiagnosticInfo(ctx, authKind, authRequestID)
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
@@ -2435,7 +2502,8 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest
 
 	githubReq, err := a.authServer.CreateGithubAuthRequest(req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err)
+		// TODO(Tener): Update `testFlow` flag once GitHub SSO starts supporting test flows.
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, false)
 		return nil, trace.Wrap(err)
 	}
 
@@ -2549,30 +2617,6 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 		return trace.AccessDenied("failed to validate event metadata")
 	}
 	return s.stream.EmitAuditEvent(ctx, event)
-}
-
-func (a *ServerWithRoles) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
-	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.EmitAuditEventLegacy(event, fields)
-}
-
-func (a *ServerWithRoles) PostSessionSlice(slice events.SessionSlice) error {
-	if err := a.action(slice.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.PostSessionSlice(slice)
-}
-
-func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) error {
-	if err := r.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(r.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.UploadSessionRecording(r)
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
@@ -3465,11 +3509,9 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Users can only delete their own app sessions.
-	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbDelete); err != nil {
-			return trace.Wrap(err)
-		}
+	// Check if user can delete this web session.
+	if err := a.canDeleteWebSession(session.GetUser()); err != nil {
+		return trace.Wrap(err)
 	}
 	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -3486,6 +3528,32 @@ func (a *ServerWithRoles) DeleteAllAppSessions(ctx context.Context) error {
 	if err := a.authServer.DeleteAllAppSessions(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// DeleteUserAppSessions deletes all user’s application sessions.
+func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	// First, check if the current user can delete the request user sessions.
+	if err := a.canDeleteWebSession(req.Username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteUserAppSessions(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// canDeleteWebSession checks if the current user can delete
+// WebSessions from the provided `username`.
+func (a *ServerWithRoles) canDeleteWebSession(username string) error {
+	if err := a.currentUserAction(username); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -3580,6 +3648,29 @@ func (a *ServerWithRoles) filterKubeServices(server types.Server) error {
 	// MFA is not required to list the clusters, but will be required to
 	// connect to them.
 	mfaParams := services.AccessMFAParams{Verified: true}
+
+	// Filter out agents that don't have support for moderated sessions access
+	// checking if the user has any roles that require it.
+	if hasLocalUserRole(a.context.Checker) {
+		roles := a.context.Checker.(LocalUserRoleSet)
+		agentVersion, versionErr := semver.NewVersion(server.GetTeleportVersion())
+
+		hasK8SRequirePolicy := func() bool {
+			for _, role := range roles.RoleSet {
+				for _, policy := range role.GetSessionRequirePolicies() {
+					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
+						return true
+					}
+				}
+			}
+
+			return false
+		}
+
+		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
+			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
+		}
+	}
 
 	filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 	for _, kube := range server.GetKubernetesClusters() {
@@ -4296,11 +4387,16 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 	}, nil
 }
 
-func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error) {
+func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {
+	code := events.UserSSOLoginFailureCode
+	if testFlow {
+		code = events.UserSSOTestFlowLoginFailureCode
+	}
+
 	emitErr := emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
-			Code: events.UserSSOLoginFailureCode,
+			Code: code,
 		},
 		Method: method,
 		Status: apievents.Status{

@@ -635,7 +635,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	rc := NewInstance(InstanceConfig{

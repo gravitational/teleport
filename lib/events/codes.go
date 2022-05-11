@@ -64,6 +64,10 @@ const (
 	// RecoveryCodeUseFailureCode is an event code for when a
 	// recovery code was not used successfully.
 	RecoveryCodeUseFailureCode = "T1009W"
+	// UserSSOTestFlowLoginCode is the successful SSO test flow user login event code.
+	UserSSOTestFlowLoginCode = "T1010I"
+	// UserSSOTestFlowLoginFailureCode is the unsuccessful SSO test flow user login event code.
+	UserSSOTestFlowLoginFailureCode = "T1011W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
@@ -146,6 +150,20 @@ const (
 	MySQLStatementFetchCode = "TMY05I"
 	// MySQLStatementBulkExecuteCode is the db.session.mysql.statements.bulk_execute event code.
 	MySQLStatementBulkExecuteCode = "TMY06I"
+	// MySQLInitDBCode is the db.session.mysql.init_db event code.
+	MySQLInitDBCode = "TMY07I"
+	// MySQLCreateDBCode is the db.session.mysql.create_db event code.
+	MySQLCreateDBCode = "TMY08I"
+	// MySQLDropDBCode is the db.session.mysql.drop_db event code.
+	MySQLDropDBCode = "TMY09I"
+	// MySQLShutDownCode is the db.session.mysql.shut_down event code.
+	MySQLShutDownCode = "TMY10I"
+	// MySQLProcessKillCode is the db.session.mysql.process_kill event code.
+	MySQLProcessKillCode = "TMY11I"
+	// MySQLDebugCode is the db.session.mysql.debug event code.
+	MySQLDebugCode = "TMY12I"
+	// MySQLRefreshCode is the db.session.mysql.refresh event code.
+	MySQLRefreshCode = "TMY13I"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
@@ -215,6 +233,8 @@ const (
 	AccessRequestReviewCode = "T5002I"
 	// AccessRequestDeleteCode is the access request deleted code.
 	AccessRequestDeleteCode = "T5003I"
+	// AccessRequestResourceSearchCode is the access request resource search code.
+	AccessRequestResourceSearchCode = "T5004I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"

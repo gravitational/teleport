@@ -189,6 +189,9 @@ type Log struct {
 	// readyForQuery is used to determine if all indexes are in place
 	// for event queries.
 	readyForQuery *atomic.Bool
+
+	// isBillingModeProvisioned tracks if the table has provisioned capacity or not.
+	isBillingModeProvisioned bool
 }
 
 type event struct {
@@ -297,6 +300,11 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 		return nil, trace.Wrap(err)
 	}
 	err = b.turnOnTimeToLive(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	b.isBillingModeProvisioned, err = b.getBillingModeIsProvisioned(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -539,112 +547,12 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	return nil
 }
 
-// EmitAuditEventLegacy emits audit event
-func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) error {
-	sessionID := fields.GetString(events.SessionEventID)
-	eventIndex := fields.GetInt(events.EventIndex)
-	// no session id - global event gets a random uuid to get a good partition
-	// key distribution
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
-	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-	}
-	created := fields.GetTime(events.EventTime)
-	if created.IsZero() {
-		created = l.Clock.Now().UTC()
-	}
-	e := event{
-		SessionID:      sessionID,
-		EventIndex:     int64(eventIndex),
-		EventType:      fields.GetString(events.EventType),
-		EventNamespace: apidefaults.Namespace,
-		CreatedAt:      created.Unix(),
-		FieldsMap:      fields,
-		CreatedAtDate:  created.Format(iso8601DateFormat),
-	}
-	l.setExpiry(&e)
-	av, err := dynamodbattribute.MarshalMap(e)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	input := dynamodb.PutItemInput{
-		Item:      av,
-		TableName: aws.String(l.Tablename),
-	}
-	_, err = l.svc.PutItem(&input)
-	err = convertError(err)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 func (l *Log) setExpiry(e *event) {
 	if l.RetentionPeriod.Value() == 0 {
 		return
 	}
 
 	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod.Value()).Unix())
-}
-
-// PostSessionSlice sends chunks of recorded session to the event log
-func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
-	var requests []*dynamodb.WriteRequest
-	for _, chunk := range slice.Chunks {
-		// if legacy event with no type or print event, skip it
-		if chunk.EventType == events.SessionPrintEvent || chunk.EventType == "" {
-			continue
-		}
-		fields, err := events.EventFromChunk(slice.SessionID, chunk)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		timeAt := time.Unix(0, chunk.Time).In(time.UTC)
-
-		event := event{
-			SessionID:      slice.SessionID,
-			EventNamespace: apidefaults.Namespace,
-			EventType:      chunk.EventType,
-			EventIndex:     chunk.EventIndex,
-			CreatedAt:      timeAt.Unix(),
-			FieldsMap:      fields,
-			CreatedAtDate:  timeAt.Format(iso8601DateFormat),
-		}
-		l.setExpiry(&event)
-		item, err := dynamodbattribute.MarshalMap(event)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		requests = append(requests, &dynamodb.WriteRequest{
-			PutRequest: &dynamodb.PutRequest{
-				Item: item,
-			},
-		})
-	}
-	// no chunks to post (all chunks are print events)
-	if len(requests) == 0 {
-		return nil
-	}
-	input := dynamodb.BatchWriteItemInput{
-		RequestItems: map[string][]*dynamodb.WriteRequest{
-			l.Tablename: requests,
-		},
-	}
-	req, _ := l.svc.BatchWriteItemRequest(&input)
-	err := req.Send()
-	err = convertError(err)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (l *Log) UploadSessionRecording(events.SessionRecording) error {
-	return trace.BadParameter("not supported")
 }
 
 // GetSessionChunk returns a reader which can be used to read a byte stream
@@ -1158,6 +1066,24 @@ func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus
 	return tableStatusOK, nil
 }
 
+func (l *Log) getBillingModeIsProvisioned(ctx context.Context) (bool, error) {
+	res, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
+		TableName: aws.String(l.Tablename),
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// Guaranteed to be set.
+	table := res.Table
+
+	// Perform pessimistic nil-checks, assume the table is provisioned if they are true.
+	// Otherwise, actually check the billing mode.
+	return table.BillingModeSummary == nil ||
+		table.BillingModeSummary.BillingMode == nil ||
+		*table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned, nil
+}
+
 // indexExists checks if a given index exists on a given table and that it is active or updating.
 func (l *Log) indexExists(ctx context.Context, tableName, indexName string) (bool, error) {
 	tableDescription, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
@@ -1195,9 +1121,12 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 		return nil
 	}
 
-	provisionedThroughput := dynamodb.ProvisionedThroughput{
-		ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
-		WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
+	var provisionedThroughput *dynamodb.ProvisionedThroughput
+	if l.isBillingModeProvisioned {
+		provisionedThroughput = &dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
+			WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
+		}
 	}
 
 	// This defines the update event we send to DynamoDB.
@@ -1224,7 +1153,7 @@ func (l *Log) createV2GSI(ctx context.Context) error {
 					Projection: &dynamodb.Projection{
 						ProjectionType: aws.String("ALL"),
 					},
-					ProvisionedThroughput: &provisionedThroughput,
+					ProvisionedThroughput: provisionedThroughput,
 				},
 			},
 		},

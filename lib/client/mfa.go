@@ -48,21 +48,57 @@ func (p *mfaPrompt) PromptPIN() (string, error) {
 	return p.LoginPrompt.PromptPIN()
 }
 
+// PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
+type PromptMFAChallengeOpts struct {
+	// PromptDevicePrefix is an optional prefix printed before "security key" or
+	// "device". It is used to emphasize between different kinds of devices, like
+	// registered vs new.
+	PromptDevicePrefix string
+	// Quiet suppresses users prompts.
+	Quiet bool
+	// UseStrongestAuth prompts the user to solve only the strongest challenge
+	// available.
+	// If set it also avoids stdin hijacking, as only one prompt is necessary.
+	UseStrongestAuth bool
+	// AuthenticatorAttachment specifies the desired authenticator attachment.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+}
+
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
-// If promptDevicePrefix is set, it will be printed in prompts before "security
-// key" or "device". This is used to emphasize between different kinds of
-// devices, like registered vs new.
+// See client.PromptMFAChallenge.
+func (tc *TeleportClient) PromptMFAChallenge(
+	ctx context.Context, c *proto.MFAAuthenticateChallenge, optsOverride *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+	opts := &PromptMFAChallengeOpts{
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+	}
+	if optsOverride != nil {
+		opts.PromptDevicePrefix = optsOverride.PromptDevicePrefix
+		opts.Quiet = optsOverride.Quiet
+		opts.UseStrongestAuth = optsOverride.UseStrongestAuth
+		if optsOverride.AuthenticatorAttachment != wancli.AttachmentAuto {
+			opts.AuthenticatorAttachment = optsOverride.AuthenticatorAttachment
+		}
+	}
+	return PromptMFAChallenge(ctx, c, tc.WebProxyAddr, opts)
+}
+
+// PromptMFAChallenge prompts the user to complete MFA authentication
+// challenges.
 // PromptMFAChallenge makes an attempt to read OTPs from prompt.Stdin and
 // abandons the read if the user chooses WebAuthn instead. For this reason
 // callers must use prompt.Stdin exclusively after calling this function.
-func PromptMFAChallenge(
-	ctx context.Context,
-	proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+// Set opts.UseStrongestAuth to avoid stdin hijacking.
+func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
+	if opts == nil {
+		opts = &PromptMFAChallengeOpts{}
+	}
+	promptDevicePrefix := opts.PromptDevicePrefix
+	quiet := opts.Quiet
 
 	hasTOTP := c.TOTP != nil
 	hasWebauthn := c.WebauthnChallenge != nil
@@ -74,6 +110,11 @@ func PromptMFAChallenge(
 	case !wancli.HasPlatformSupport():
 		// Do not prompt for hardware devices, it won't work.
 		hasWebauthn = false
+	}
+
+	// Prompt only for the strongest auth method available?
+	if opts.UseStrongestAuth && hasWebauthn {
+		hasTOTP = false
 	}
 
 	var numGoroutines int
@@ -115,7 +156,7 @@ func PromptMFAChallenge(
 			var msg string
 			if !quiet {
 				if hasWebauthn {
-					msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
+					msg = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", promptDevicePrefix, promptDevicePrefix)
 				} else {
 					msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
 				}
@@ -135,8 +176,6 @@ func PromptMFAChallenge(
 				},
 			}
 		}()
-	} else if !quiet {
-		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 	}
 
 	// Fire Webauthn goroutine.
@@ -151,8 +190,15 @@ func PromptMFAChallenge(
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
 
 			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
-			prompt.FirstTouchMessage = "" // First prompt printed above.
+
+			// Let OTP take over the prompt if present, but otherwise delegate to
+			// WebAuthn.
+			prompt.FirstTouchMessage = ""
+			if !hasTOTP && !quiet {
+				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
+			}
 			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
+
 			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
 				otpCancel()
 				otpWait.Wait()
@@ -160,7 +206,8 @@ func PromptMFAChallenge(
 
 			const user = ""
 			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
-				User: user,
+				User:                    user,
+				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()

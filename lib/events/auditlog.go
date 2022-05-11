@@ -31,7 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -295,94 +294,6 @@ func (l *AuditLog) WaitForDelivery(context.Context) error {
 	return nil
 }
 
-// SessionRecording is a recording of a live session
-type SessionRecording struct {
-	// Namespace is a session namespace
-	Namespace string
-	// SessionID is a session ID
-	SessionID session.ID
-	// Recording is a packaged tarball recording
-	Recording io.Reader
-}
-
-// CheckAndSetDefaults checks and sets default parameters
-func (l *SessionRecording) CheckAndSetDefaults() error {
-	if l.Recording == nil {
-		return trace.BadParameter("missing parameter Recording")
-	}
-	if l.SessionID.IsZero() {
-		return trace.BadParameter("missing parameter session ID")
-	}
-	if l.Namespace == "" {
-		l.Namespace = apidefaults.Namespace
-	}
-	return nil
-}
-
-// UploadSessionRecording persists the session recording locally or to third
-// party storage.
-// TODO(zmb3): I don't think this is ever called anymore - remove it
-func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
-	if err := r.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Upload session recording to endpoint defined in file configuration. Like S3.
-	start := time.Now()
-	url, err := l.UploadHandler.Upload(context.TODO(), r.SessionID, r.Recording)
-	if err != nil {
-		l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
-		return trace.Wrap(err)
-	}
-	l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
-	return l.EmitAuditEvent(context.TODO(), &apievents.SessionUpload{
-		Metadata: apievents.Metadata{
-			Index: SessionUploadIndex,
-			ID:    uuid.New().String(),
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(r.SessionID),
-		},
-		SessionURL: url,
-	})
-}
-
-// PostSessionSlice submits slice of session chunks to the audit log server.
-func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
-	if slice.Namespace == "" {
-		return trace.BadParameter("missing parameter Namespace")
-	}
-	if len(slice.Chunks) == 0 {
-		return trace.BadParameter("missing session chunks")
-	}
-	if l.ExternalLog != nil {
-		return l.ExternalLog.PostSessionSlice(slice)
-	}
-	if slice.Version < V3 {
-		return trace.BadParameter("audit log rejected %v log entry, upgrade your components.", slice.Version)
-	}
-	// V3 API does not write session log to local session directory,
-	// instead it writes locally, this internal method captures
-	// non-print events to the global audit log
-	return l.processSlice(nil, &slice)
-}
-
-func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
-	for _, chunk := range slice.Chunks {
-		if chunk.EventType == SessionPrintEvent || chunk.EventType == "" {
-			continue
-		}
-		fields, err := EventFromChunk(slice.SessionID, chunk)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := l.EmitAuditEventLegacy(Event{Name: chunk.EventType}, fields); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 func getAuthServers(dataDir string) ([]string, error) {
 	// scan the log directory:
 	df, err := os.Open(dataDir)
@@ -587,18 +498,6 @@ func (l *AuditLog) createOrGetDownload(path string) (context.Context, context.Ca
 }
 
 func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
-	checker, ok := l.UploadHandler.(UnpackChecker)
-	if ok {
-		unpacked, err := checker.IsUnpacked(l.ctx, sid)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if unpacked {
-			l.log.Debugf("Recording %v is stored in legacy unpacked format.", sid)
-			return nil
-		}
-	}
-
 	tarballPath := filepath.Join(l.playbackDir, string(sid)+".tar")
 
 	ctx, cancel := l.createOrGetDownload(tarballPath)
@@ -946,25 +845,6 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEven
 	return nil
 }
 
-// EmitAuditEventLegacy adds a new event to the log.
-func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	// If an external logger has been set, use it as the emitter, otherwise
-	// fallback to the local disk based emitter.
-	var emitAuditEvent func(event Event, fields EventFields) error
-	if l.ExternalLog != nil {
-		emitAuditEvent = l.ExternalLog.EmitAuditEventLegacy
-	} else {
-		emitAuditEvent = l.getLocalLog().EmitAuditEventLegacy
-	}
-
-	err := emitAuditEvent(event, fields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // auditDirs returns directories used for audit log storage
 func (l *AuditLog) auditDirs() ([]string, error) {
 	authServers, err := getAuthServers(l.DataDir)
@@ -1161,75 +1041,4 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			return
 		}
 	}
-}
-
-// LegacyHandlerConfig configures
-// legacy local handler adapter
-type LegacyHandlerConfig struct {
-	// Handler is a handler that local handler wraps
-	Handler MultipartHandler
-	// Dir is a root directory with unpacked session records
-	// stored in legacy format
-	Dir string
-}
-
-// CheckAndSetDefaults checks and sets default values
-func (cfg *LegacyHandlerConfig) CheckAndSetDefaults() error {
-	if cfg.Handler == nil {
-		return trace.BadParameter("missing parameter Handler")
-	}
-	if cfg.Dir == "" {
-		return trace.BadParameter("missing parameter Dir")
-	}
-	return nil
-}
-
-// NewLegacyHandler returns new legacy handler
-func NewLegacyHandler(cfg LegacyHandlerConfig) (*LegacyHandler, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &LegacyHandler{
-		MultipartHandler: cfg.Handler,
-		cfg:              cfg,
-	}, nil
-}
-
-// LegacyHandler wraps local file uploader and handles
-// old style uploads stored directly on disk
-// TODO(zmb3): can we remove this now that 4.4 is unsupported?
-type LegacyHandler struct {
-	MultipartHandler
-	cfg LegacyHandlerConfig
-}
-
-// UnpackChecker is a workaround for 4.4 directory cases
-// when the session is unpacked
-type UnpackChecker interface {
-	// IsUnpacked returns true if session is already unpacked
-	IsUnpacked(ctx context.Context, sessionID session.ID) (bool, error)
-}
-
-// IsUnpacked returns true if session is already unpacked
-func (l *LegacyHandler) IsUnpacked(ctx context.Context, sessionID session.ID) (bool, error) {
-	// legacy format stores unpacked records in the directory
-	// in one of the sub-folders set up for the auth server ID
-	// if the file is present there, there no need to unpack and convert it
-	authServers, err := getAuthServers(l.cfg.Dir)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	_, err = readSessionIndex(l.cfg.Dir, authServers, apidefaults.Namespace, sessionID)
-	if err == nil {
-		return true, nil
-	}
-	if trace.IsNotFound(err) {
-		return false, nil
-	}
-	return false, trace.Wrap(err)
-}
-
-// Download downloads session tarball and writes it to writer
-func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
-	return l.cfg.Handler.Download(ctx, sessionID, writer)
 }

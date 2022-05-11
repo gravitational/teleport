@@ -27,9 +27,6 @@ import (
 // WebAPIVersion is a current webapi version
 const WebAPIVersion = "v1"
 
-// ForeverTTL means that object TTL will not expire unless deleted
-const ForeverTTL time.Duration = 0
-
 const (
 	// SSHAuthSock is the environment variable pointing to the
 	// Unix socket the SSH agent is running on.
@@ -145,9 +142,6 @@ const (
 
 	// ComponentBackend is a backend component
 	ComponentBackend = "backend"
-
-	// ComponentCachingClient is a caching auth client
-	ComponentCachingClient = "client:cache"
 
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
@@ -453,6 +447,10 @@ const (
 	// Ping is the common backend for all Ping Identity-branded identity
 	// providers (including PingOne, PingFederate, etc).
 	Ping = "ping"
+	// Okta should be used for Okta OIDC providers.
+	Okta = "okta"
+	// JumpCloud is an identity provider.
+	JumpCloud = "jumpcloud"
 )
 
 const (
@@ -525,6 +523,10 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitAWSRoleARNs is the name of the role variable used to store
+	// allowed AWS role ARNs.
+	TraitAWSRoleARNs = "aws_role_arns"
+
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
 	TraitTeams = "github_teams"
@@ -552,16 +554,14 @@ const (
 	// TraitInternalDBUsersVariable is the variable used to store allowed
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
+
+	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
+	// role ARNs for local accounts.
+	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
 )
 
 // SCP is Secure Copy.
 const SCP = "scp"
-
-// Root is *nix system administrator account name.
-const Root = "root"
-
-// Administrator is the Windows system administrator account name.
-const Administrator = "Administrator"
 
 // AdminRoleName is the name of the default admin role for all local users if
 // another role is not explicitly assigned
@@ -620,6 +620,9 @@ const (
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
 
+	// TerminalSizeRequest is a request for the terminal size of the session.
+	TerminalSizeRequest = "x-teleport-terminal-size"
+
 	// MFAPresenceRequest is an SSH request to notify clients that MFA presence is required for a session.
 	MFAPresenceRequest = "x-teleport-mfa-presence"
 
@@ -635,6 +638,10 @@ const (
 	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
 	// requirement information should be printed.
 	EnvSSHSessionDisplayParticipantRequirements = "TELEPORT_SESSION_PARTICIPANT_REQUIREMENTS"
+
+	// SSHSessionJoinPrincipal is the SSH principal used when joining sessions.
+	// This starts with a hyphen so it isn't a valid unix login.
+	SSHSessionJoinPrincipal = "-teleport-internal-join"
 )
 
 const (
@@ -646,15 +653,6 @@ const (
 
 	// KubeConfigFile is a default filename where k8s stores its user local config
 	KubeConfigFile = "config"
-
-	// EnvHome is home environment variable
-	EnvHome = "HOME"
-
-	// EnvUserProfile is the home directory environment variable on Windows.
-	EnvUserProfile = "USERPROFILE"
-
-	// KubeCAPath is a hardcode of mounted CA inside every pod of K8s
-	KubeCAPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
 	// KubeRunTests turns on kubernetes tests
 	KubeRunTests = "TEST_KUBE"
@@ -764,6 +762,3 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
-
-// StandardRDPPort is the default port used for RDP.
-const StandardRDPPort = 3389

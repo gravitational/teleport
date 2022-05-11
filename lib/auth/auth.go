@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -150,7 +151,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
-		cfg.KeyStoreConfig.RSAKeyPairSource = cfg.Authority.GenerateKeyPair
+		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	if cfg.KeyStoreConfig.HostUUID == "" {
 		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
@@ -1042,6 +1043,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Add the special join-only principal used for joining sessions.
+	// All users have access to this and join RBAC rules are checked after the connection is established.
+	allowedLogins = append(allowedLogins, "-teleport-internal-join")
+
 	params := services.UserCertParams{
 		CASigner:              caSigner,
 		CASigningAlg:          sshutils.GetSigningAlgName(userCA),
@@ -1775,8 +1780,8 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 //
 // If there is a switchback request, the roles will switchback to user's default roles and
 // the expiration time is derived from users recently logged in time.
-func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
-	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
+	prevSession, err := a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: req.PrevSessionID,
 	})
@@ -1799,7 +1804,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 
 	accessRequests := identity.ActiveRequests
 	if req.AccessRequestID != "" {
-		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
+		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1854,20 +1859,20 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 	// Keep preserving the login time.
 	sess.SetLoginTime(prevSession.GetLoginTime())
 
-	if err := a.upsertWebSession(context.TODO(), req.User, sess); err != nil {
+	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return sess, nil
 }
 
-func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string) ([]string, time.Time, error) {
+func (a *Server) getRolesAndExpiryFromAccessRequest(ctx context.Context, user, accessRequestID string) ([]string, time.Time, error) {
 	reqFilter := types.AccessRequestFilter{
 		User: user,
 		ID:   accessRequestID,
 	}
 
-	reqs, err := a.GetAccessRequests(context.TODO(), reqFilter)
+	reqs, err := a.GetAccessRequests(ctx, reqFilter)
 	if err != nil {
 		return nil, time.Time{}, trace.Wrap(err)
 	}
@@ -1877,6 +1882,11 @@ func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string
 	}
 
 	req := reqs[0]
+
+	if len(req.GetRequestedResourceIDs()) > 0 {
+		// TODO(nic): handle search-based access requests #10887
+		return nil, time.Time{}, trace.BadParameter("search-based access requests are not yet supported")
+	}
 
 	if !req.GetState().IsApproved() {
 		if req.GetState().IsDenied() {
@@ -2294,7 +2304,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		return nil, trace.Wrap(err)
 	}
 
-	priv, pub, err := a.GetNewKeyPairFromPool()
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2422,10 +2432,11 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
-		Roles:        req.GetRoles(),
-		RequestID:    req.GetName(),
-		RequestState: req.GetState().String(),
-		Reason:       req.GetRequestReason(),
+		Roles:                req.GetRoles(),
+		RequestedResourceIDs: req.GetRequestedResourceIDs(),
+		RequestID:            req.GetName(),
+		RequestState:         req.GetState().String(),
+		Reason:               req.GetRequestReason(),
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
@@ -2759,8 +2770,8 @@ func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourc
 }
 
 // GetReverseTunnels returns reverse tunnels from the cache
-func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	return a.GetCache().GetReverseTunnels(opts...)
+func (a *Server) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+	return a.GetCache().GetReverseTunnels(ctx, opts...)
 }
 
 // GetProxies returns proxies from the cache
@@ -3664,6 +3675,7 @@ const (
 type oidcClient struct {
 	client *oidc.Client
 	config oidc.ClientConfig
+	cancel context.CancelFunc
 }
 
 // samlProvider is internal structure that stores SAML client and its config
@@ -3760,7 +3772,7 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 				}
 			}
 		}
-		pool, err := DefaultClientCertPool(ap, clusterName)
+		pool, totalSubjectsLen, err := DefaultClientCertPool(ap, clusterName)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
 			// this falls back to the default config
@@ -3779,16 +3791,10 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 		// If the number of CAs turns out too large for the handshake, drop all but
 		// the current cluster CA. In the unlikely case where it's wrong, the
 		// client will be rejected.
-		var totalSubjectsLen int64
-		for _, s := range pool.Subjects() {
-			// Each subject in the list gets a separate 2-byte length prefix.
-			totalSubjectsLen += 2
-			totalSubjectsLen += int64(len(s))
-		}
 		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("Number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.", len(pool.Subjects()))
+			log.Debugf("Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.")
 
-			pool, err = DefaultClientCertPool(ap, currentClusterName)
+			pool, _, err = DefaultClientCertPool(ap, currentClusterName)
 			if err != nil {
 				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
 				// this falls back to the default config

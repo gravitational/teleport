@@ -92,7 +92,7 @@ func newSuite(t *testing.T) *integrationTestSuite {
 	suite := &integrationTestSuite{}
 
 	var err error
-	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair("")
+	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Find AllocatePortsNum free listening ports to use.
@@ -205,6 +205,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
+	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -235,6 +236,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
 		}, {
+			comment:          "recording proxy with upload to file server",
 			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
@@ -1007,32 +1009,23 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 
 	person := NewTerminal(250)
 
-	// commandsC receive commands
-	commandsC := make(chan string)
+	cl, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    Host,
+		Port:    teleport.GetPortSSHInt(),
+	})
+	require.NoError(t, err)
+	cl.Stdout = person
+	cl.Stdin = person
 
-	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
-	openSession := func() {
-		cl, err := teleport.NewClient(ClientConfig{
-			Login:   suite.me.Username,
-			Cluster: Site,
-			Host:    Host,
-			Port:    teleport.GetPortSSHInt(),
-		})
-		require.NoError(t, err)
-		cl.Stdout = person
-		cl.Stdin = person
-
-		go func() {
-			for command := range commandsC {
-				person.Type(command)
-			}
-		}()
-
-		err = cl.SSH(context.TODO(), []string{}, false)
-		require.NoError(t, err)
-	}
-
-	go openSession()
+	sshCtx, sshCancel := context.WithCancel(context.Background())
+	t.Cleanup(sshCancel)
+	sshErr := make(chan error)
+	go func() {
+		sshErr <- cl.SSH(sshCtx, nil, false)
+		sshCancel()
+	}()
 
 	retry := func(command, pattern string) {
 		person.Type(command)
@@ -1062,11 +1055,29 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.TODO()
 	shutdownContext := teleport.Process.StartShutdown(ctx)
 
+	require.Eventually(t, func() bool {
+		// TODO: check that we either get a connection that fully works or a connection refused error
+		c, err := net.DialTimeout("tcp", teleport.GetReverseTunnelAddr(), 250*time.Millisecond)
+		if err != nil {
+			require.True(t, utils.IsConnectionRefused(trace.Unwrap(err)))
+			return true
+		}
+		require.NoError(t, c.Close())
+		return false
+	}, time.Second*5, time.Millisecond*500, "proxy should not accept new connections while shutting down")
+
 	// make sure that terminal still works
 	retry("echo howdy \r\n", ".*howdy.*")
 
 	// now type exit and wait for shutdown to complete
 	person.Type("exit\n\r")
+
+	select {
+	case err := <-sshErr:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "failed to shutdown ssh session")
+	}
 
 	select {
 	case <-shutdownContext.Done():
@@ -1562,7 +1573,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.NoError(t, werr)
 	ok := roots.AppendCertsFromPEM(buffer)
 	require.True(t, ok)
-	require.Len(t, roots.Subjects(), 2)
 
 	// wait for active tunnel connections to be established
 	waitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
@@ -3701,7 +3711,20 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
+
+	require.Eventually(t, func() bool {
+		_, err := svc.GetIdentity(types.RoleNode)
+		return err == nil
+	}, 5*time.Second, 500*time.Millisecond)
+	checkSSHPrincipals := func(svc *service.TeleportProcess) {
+		id, err := svc.GetIdentity(types.RoleNode)
+		require.NoError(t, err)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname+"."+Site)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID+"."+Site)
+	}
+	checkSSHPrincipals(svc)
 
 	// Setup user in the cluster
 	err = SetupUser(svc, suite.me.Username, nil)
@@ -3738,7 +3761,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reload
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
 		Login:   suite.me.Username,
@@ -3752,6 +3774,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// client works as is before servers have been rotated
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
@@ -3769,7 +3792,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reloaded
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	// new credentials will work from this phase to others
 	newCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: suite.me.Username})
@@ -3781,6 +3803,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// new client works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
@@ -3798,11 +3821,11 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reloaded
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	// new client still works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Rotation has completed. Shutting down service.")
 
@@ -3829,6 +3852,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	tconf := s.rotationConfig(true)
 	teleport := s.newTeleportInstance()
+	defer teleport.StopAll()
 	logins := []string{s.me.Username}
 	for _, login := range logins {
 		teleport.AddUser(login, []string{login})
@@ -3851,6 +3875,20 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		_, err := svc.GetIdentity(types.RoleNode)
+		return err == nil
+	}, 5*time.Second, 500*time.Millisecond)
+	checkSSHPrincipals := func(svc *service.TeleportProcess) {
+		id, err := svc.GetIdentity(types.RoleNode)
+		require.NoError(t, err)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname+"."+Site)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID+"."+Site)
+	}
+	checkSSHPrincipals(svc)
 
 	// Setup user in the cluster
 	err = SetupUser(svc, s.me.Username, nil)
@@ -3897,6 +3935,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// client works as is before servers have been rotated
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseUpdateServers)
 
@@ -3927,6 +3966,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// old client works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Log("Service reloaded. Rotation has completed. Shuttting down service.")
 
@@ -5756,7 +5796,7 @@ func dumpGoroutineProfile() {
 
 // TestWebProxyInsecure makes sure that proxy endpoint works when TLS is disabled.
 func TestWebProxyInsecure(t *testing.T) {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	rc := NewInstance(InstanceConfig{
@@ -5799,7 +5839,7 @@ func TestWebProxyInsecure(t *testing.T) {
 func TestTraitsPropagation(t *testing.T) {
 	log := utils.NewLoggerForTests()
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Create root cluster.
@@ -5969,4 +6009,117 @@ outer:
 	}
 
 	t.FailNow()
+}
+
+// TestKubeAgentFiltering tests that kube-agent filtering for pre-v8 agents and
+// moderated sessions users works as expected.
+func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+
+	type testCase struct {
+		name     string
+		server   types.Server
+		role     types.Role
+		user     types.User
+		wantsLen int
+	}
+
+	v8Agent, err := types.NewServer("kube-h", types.KindKubeService, types.ServerSpecV2{
+		Version:            "8.0.0",
+		KubernetesClusters: []*types.KubernetesCluster{{Name: "foo"}},
+	})
+	require.NoError(t, err)
+
+	v9Agent, err := types.NewServer("kube-h", types.KindKubeService, types.ServerSpecV2{
+		Version:            "9.0.0",
+		KubernetesClusters: []*types.KubernetesCluster{{Name: "foo"}},
+	})
+	require.NoError(t, err)
+
+	plainRole, err := types.NewRole("plain", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	moderatedRole, err := types.NewRole("moderated", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{
+				{
+					Name:  "bar",
+					Kinds: []string{string(types.KubernetesSessionKind)},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	plainUser, err := types.NewUser("bob")
+	require.NoError(t, err)
+	plainUser.SetRoles([]string{plainRole.GetName()})
+
+	moderatedUser, err := types.NewUser("alice")
+	require.NoError(t, err)
+	moderatedUser.SetRoles([]string{moderatedRole.GetName()})
+
+	testCases := []testCase{
+		{
+			name:     "unrestricted user, v8 agent",
+			server:   v8Agent,
+			role:     plainRole,
+			user:     plainUser,
+			wantsLen: 1,
+		},
+		{
+			name:     "restricted user, v8 agent",
+			server:   v8Agent,
+			role:     moderatedRole,
+			user:     moderatedUser,
+			wantsLen: 0,
+		},
+		{
+			name:     "unrestricted user, v9 agent",
+			server:   v9Agent,
+			role:     plainRole,
+			user:     plainUser,
+			wantsLen: 1,
+		},
+		{
+			name:     "restricted user, v9 agent",
+			server:   v9Agent,
+			role:     moderatedRole,
+			user:     moderatedUser,
+			wantsLen: 1,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			teleport := suite.newTeleport(t, nil, true)
+			defer teleport.StopAll()
+
+			adminSite := teleport.Process.GetAuthServer()
+			_, err := adminSite.UpsertKubeServiceV2(ctx, testCase.server)
+			require.NoError(t, err)
+			err = adminSite.UpsertRole(ctx, testCase.role)
+			require.NoError(t, err)
+			err = adminSite.CreateUser(ctx, testCase.user)
+			require.NoError(t, err)
+
+			cl, err := teleport.NewClient(ClientConfig{
+				Login:   testCase.user.GetName(),
+				Cluster: Site,
+				Host:    Host,
+				Port:    teleport.GetPortSSHInt(),
+			})
+			require.NoError(t, err)
+
+			proxy, err := cl.ConnectToProxy(ctx)
+			require.NoError(t, err)
+
+			userSite, err := proxy.ConnectToCluster(ctx, Site, false)
+			require.NoError(t, err)
+
+			services, err := userSite.GetKubeServices(ctx)
+			require.NoError(t, err)
+			require.Len(t, services, testCase.wantsLen)
+		})
+	}
 }
