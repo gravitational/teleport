@@ -41,6 +41,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -3841,7 +3842,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// shut down the service
 	cancel()
 	// close the service without waiting for the connections to drain
-	svc.Close()
+	require.NoError(t, svc.Close())
 
 	select {
 	case err := <-runErrCh:
@@ -5725,6 +5726,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
 	cfg := service.MakeDefaultConfig()
 	cfg.Console = nil
 	cfg.Log = s.log
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return cfg
 }
 
@@ -5816,6 +5818,7 @@ func TestWebProxyInsecure(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	// DisableTLS flag should turn off TLS termination and multiplexing.
 	rcConf.Proxy.DisableTLS = true
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
@@ -5873,6 +5876,7 @@ func TestTraitsPropagation(t *testing.T) {
 	rcConf.SSH.Enabled = true
 	rcConf.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
 	rcConf.SSH.Labels = map[string]string{"env": "integration"}
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Make leaf cluster config.
 	lcConf := service.MakeDefaultConfig()
@@ -5884,6 +5888,7 @@ func TestTraitsPropagation(t *testing.T) {
 	lcConf.SSH.Enabled = true
 	lcConf.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
 	lcConf.SSH.Labels = map[string]string{"env": "integration"}
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Create identical user/role in both clusters.
 	me, err := user.Current()

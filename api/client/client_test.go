@@ -69,12 +69,6 @@ func (m *mockServer) Addr() string {
 
 type ConfigOpt func(*Config)
 
-func WithBreakerConfig(breakCfg breaker.Config) ConfigOpt {
-	return func(config *Config) {
-		config.BreakerConfig = breakCfg
-	}
-}
-
 func WithConfig(cfg Config) ConfigOpt {
 	return func(config *Config) {
 		*config = cfg
@@ -89,11 +83,6 @@ func (m *mockServer) NewClient(ctx context.Context, opts ...ConfigOpt) (*Client,
 		},
 		DialOpts: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-		BreakerConfig: breaker.Config{
-			Interval:      time.Second,
-			RecoveryLimit: 1,
-			Trip:          breaker.StaticTripper(false),
 		},
 	}
 
@@ -438,10 +427,6 @@ func TestNewDialBackground(t *testing.T) {
 		},
 		DialOpts: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-		BreakerConfig: breaker.Config{
-			Interval: time.Second,
-			Trip:     breaker.StaticTripper(false),
 		},
 	})
 	require.NoError(t, err)

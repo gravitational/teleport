@@ -16,6 +16,7 @@ package breaker
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -24,7 +25,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/status"
 )
 
 // Metrics tallies success and failure counts
@@ -176,6 +179,47 @@ func NonNilErrorIsSuccess(_ interface{}, err error) bool {
 	return err == nil
 }
 
+// IsResponseSuccessful determines whether the error provided should be ignored by the circuit breaker. This checks
+// for http status codes < 500 and a few unsuccessful grpc status codes.
+func IsResponseSuccessful(v interface{}, err error) bool {
+	switch t := v.(type) {
+	case nil:
+		break
+	case *http.Response:
+		if t == nil {
+			break
+		}
+		return t.StatusCode < http.StatusInternalServerError
+	}
+
+	code := status.Code(err)
+	switch {
+	case err == nil:
+		return true
+	case code == codes.Canceled || code == codes.Unknown || code == codes.Unavailable || code == codes.DeadlineExceeded:
+		return false
+	default:
+		return true
+	}
+}
+
+func DefaultBreakerConfig(clock clockwork.Clock) Config {
+	return Config{
+		Clock:        clock,
+		Interval:     defaults.BreakerInterval,
+		Trip:         RatioTripper(defaults.BreakerRatio, defaults.BreakerRatioMinExecutions),
+		IsSuccessful: IsResponseSuccessful,
+	}
+}
+
+func NoopBreakerConfig() Config {
+	return Config{
+		Interval:     defaults.BreakerInterval,
+		Trip:         StaticTripper(false),
+		IsSuccessful: func(v interface{}, err error) bool { return true },
+	}
+}
+
 // CheckAndSetDefaults checks and sets default config values.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Clock == nil {
@@ -230,6 +274,12 @@ type CircuitBreaker struct {
 	generation uint64
 	metrics    Metrics
 	expiry     time.Time
+}
+
+func NewNoop() *CircuitBreaker {
+	return &CircuitBreaker{
+		cfg: NoopBreakerConfig(),
+	}
 }
 
 // New returns a CircuitBreaker configured with the provided Config

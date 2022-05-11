@@ -117,6 +117,8 @@ type RegisterParams struct {
 	// ec2IdentityDocument is used for Simplified Node Joining to prove the
 	// identity of a joining EC2 instance.
 	ec2IdentityDocument []byte
+	// CircuitBreakerConfig defines how the circuit breaker should behave.
+	CircuitBreakerConfig breaker.Config
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -345,7 +347,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		BreakerConfig: breaker.Config{Clock: params.Clock},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -384,7 +386,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		BreakerConfig: breaker.Config{Clock: params.Clock},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -435,7 +437,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		BreakerConfig: breaker.Config{Clock: params.Clock},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

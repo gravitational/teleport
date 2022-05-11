@@ -270,8 +270,8 @@ type Config struct {
 	// for loading profiles when TELEPORT_HOME is set
 	TeleportHome string
 
-	// BreakerConfig configures the auth client circuit breaker (used in tests).
-	BreakerConfig breaker.Config
+	// CircuitBreakerConfig configures the auth client circuit breaker.
+	CircuitBreakerConfig breaker.Config
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -1297,6 +1297,7 @@ func ApplyDefaults(cfg *Config) {
 	}
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
+	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

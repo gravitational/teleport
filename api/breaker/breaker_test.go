@@ -16,11 +16,15 @@ package breaker
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestCircuitBreaker_generation(t *testing.T) {
@@ -541,4 +545,69 @@ func TestMetrics(t *testing.T) {
 	require.Equal(t, zero, m.Failures)
 	require.Equal(t, zero, m.ConsecutiveSuccesses)
 	require.Equal(t, zero, m.ConsecutiveFailures)
+}
+
+func TestIsResponseSuccessful(t *testing.T) {
+	cases := []struct {
+		name      string
+		err       error
+		response  *http.Response
+		assertion require.BoolAssertionFunc
+	}{
+		{
+			name:      "nil error",
+			assertion: require.True,
+		},
+		{
+			name:      "codes.Canceled error",
+			err:       status.Error(codes.Canceled, ""),
+			assertion: require.False,
+		},
+		{
+			name:      "codes.Unknown error",
+			err:       status.Error(codes.Unknown, ""),
+			assertion: require.False,
+		},
+		{
+			name:      "codes.Unavailable error",
+			err:       status.Error(codes.Unavailable, ""),
+			assertion: require.False,
+		},
+		{
+			name:      "codes.Unavailable error",
+			err:       status.Error(codes.DeadlineExceeded, ""),
+			assertion: require.False,
+		},
+		{
+			name:      "other error",
+			err:       trace.NotFound("not found"),
+			assertion: require.False,
+		},
+		{
+			name:      "error",
+			err:       trace.NotFound(""),
+			assertion: require.False,
+		},
+		{
+			name:      "200",
+			response:  &http.Response{StatusCode: http.StatusOK},
+			assertion: require.True,
+		},
+		{
+			name:      "500",
+			response:  &http.Response{StatusCode: http.StatusBadGateway},
+			assertion: require.False,
+		},
+		{
+			name:      "404",
+			response:  &http.Response{StatusCode: http.StatusNotFound},
+			assertion: require.True,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.assertion(t, IsResponseSuccessful(tt.response, tt.err))
+		})
+	}
 }

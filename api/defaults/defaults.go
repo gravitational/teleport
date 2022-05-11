@@ -69,8 +69,12 @@ const (
 	// from breaker.StateRecovering to breaker.StateStandby
 	RecoveryLimit = 3
 
+	// BreakerRatio is the default ratio of failed requests to successful requests that will
+	// result in the circuit breaker transitioning to breaker.StateTripped
 	BreakerRatio = 0.9
 
+	// BreakerRatioMinExecutions is the minimum number of requests before the ratio tripper
+	// will consider examining the request pass rate
 	BreakerRatioMinExecutions = 10
 )
 
