@@ -2046,7 +2046,9 @@ func onSSH(cf *CLIConf) error {
 		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			if _, ok := trace.Unwrap(err).(*ssh.ExitError); !ok {
+				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			}
 			return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 		}
 		return trace.Wrap(err)
