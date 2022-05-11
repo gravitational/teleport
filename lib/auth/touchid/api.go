@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -50,6 +51,12 @@ type nativeTID interface {
 	// FindCredentials finds credentials without user interaction.
 	// An empty user means "all users".
 	FindCredentials(rpID, user string) ([]CredentialInfo, error)
+
+	// ListCredentials lists all registered credentials.
+	// Requires user interaction.
+	ListCredentials() ([]CredentialInfo, error)
+
+	DeleteCredential(credentialID string) error
 }
 
 // CredentialInfo holds information about a Secure Enclave credential.
@@ -322,7 +329,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 	infos, err := native.FindCredentials(rpID, user)
 	switch {
 	case err != nil:
-		return nil, "", err
+		return nil, "", trace.Wrap(err)
 	case len(infos) == 0:
 		return nil, "", ErrCredentialNotFound
 	}
@@ -372,4 +379,34 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 			UserHandle:        cred.UserHandle,
 		},
 	}, cred.User, nil
+}
+
+// ListCredentials lists all registered Secure Enclave credentials.
+// Requires user interaction.
+func ListCredentials() ([]CredentialInfo, error) {
+	// Skipped IsAvailable check in favor of a direct call to native.
+	infos, err := native.ListCredentials()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Parse public keys.
+	for i := range infos {
+		info := &infos[i]
+		key, err := pubKeyFromRawAppleKey(info.publicKeyRaw)
+		if err != nil {
+			log.Warnf("Failed to convert public key: %v", err)
+		}
+		info.PublicKey = key // this is OK, even if it's nil
+		info.publicKeyRaw = nil
+	}
+
+	return infos, nil
+}
+
+// DeleteCredential deletes a Secure Enclave credential.
+// Requires user interaction.
+func DeleteCredential(credentialID string) error {
+	// Skipped IsAvailable check in favor of a direct call to native.
+	return native.DeleteCredential(credentialID)
 }
