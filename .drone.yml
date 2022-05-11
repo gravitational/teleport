@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -142,7 +142,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -245,7 +245,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -352,7 +352,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -512,7 +512,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.9
+    RUNTIME: go1.18.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -597,7 +597,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -700,7 +700,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -1060,7 +1060,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -1217,7 +1217,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -1373,7 +1373,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -1527,7 +1527,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -2371,7 +2371,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -2931,7 +2931,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.9
+    RUNTIME: go1.18.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3429,7 +3429,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -3583,7 +3583,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -4433,7 +4433,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -4585,7 +4585,7 @@ name: build-docker-images
 
 environment:
   BUILDBOX_VERSION: "teleport10"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 
 trigger:
   event:
@@ -5188,7 +5188,7 @@ steps:
       - if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then echo "---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos" && exit 78; fi
 
   - name: Check if tag is prerelease
-    image: golang:1.17-alpine
+    image: golang:1.18-alpine
     commands:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
       - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_TAG} packages to RPM and DEB repos' && exit 78)
@@ -5269,7 +5269,7 @@ steps:
   # that would cause apt users to downgrade. For more info see:
   #   https://github.com/gravitational/teleport/issues/8166
   - name: Check if tag is latest
-    image: golang:1.17-alpine
+    image: golang:1.18-alpine
     commands:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
       - go run ./cmd/check -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
@@ -5388,6 +5388,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: fce237c39d1cb94d4d9faaa5889b61717068d1602c9c3b9c4fd92ca4054e8569
+hmac: 911be33673b40e57c1d482bfcebeec7fef697e5cb52ceea9c4cddcd268bed4d1
 
 ...

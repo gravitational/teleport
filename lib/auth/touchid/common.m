@@ -1,3 +1,6 @@
+//go:build touchid
+// +build touchid
+
 // Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,9 +15,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build touchid
-// +build touchid
-
 #include "common.h"
 
 #import <Foundation/Foundation.h>
@@ -22,5 +22,8 @@
 #include <string.h>
 
 char *CopyNSString(NSString *val) {
-  return strdup([val UTF8String]);
+  if (val) {
+    return strdup([val UTF8String]);
+  }
+  return strdup("");
 }

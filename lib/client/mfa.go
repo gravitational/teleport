@@ -176,8 +176,6 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				},
 			}
 		}()
-	} else if !quiet {
-		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 	}
 
 	// Fire Webauthn goroutine.
@@ -192,8 +190,15 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
 
 			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
-			prompt.FirstTouchMessage = "" // First prompt printed above.
+
+			// Let OTP take over the prompt if present, but otherwise delegate to
+			// WebAuthn.
+			prompt.FirstTouchMessage = ""
+			if !hasTOTP && !quiet {
+				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
+			}
 			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
+
 			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
 				otpCancel()
 				otpWait.Wait()
