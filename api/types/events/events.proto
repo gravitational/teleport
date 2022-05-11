@@ -767,7 +767,9 @@ message AccessRequestCreate {
         [ (gogoproto.jsontag) = "resource_ids,omitempty", (gogoproto.nullable) = false ];
 }
 
-// ResourceID is a unique identifier for a teleport resource.
+// ResourceID is a unique identifier for a teleport resource. This is duplicated
+// from api/types/types.proto to decouple the api and events types and because
+// neither file currently imports the other.
 message ResourceID {
     // ClusterName is the name of the cluster the resource is in.
     string ClusterName = 1 [ (gogoproto.jsontag) = "cluster" ];
