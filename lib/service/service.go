@@ -3863,7 +3863,9 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
 	// by the time we get here we've already extracted the parent pipe, which is
-	// the only potential imported file descriptor that's not a listening socket
+	// the only potential imported file descriptor that's not a listening
+	// socket, so closing every imported FD with a prefix of "" will close all
+	// imported listeners that haven't been used so far
 	warnOnErr(process.closeImportedDescriptors(""), process.log)
 	warnOnErr(process.stopListeners(), process.log)
 
