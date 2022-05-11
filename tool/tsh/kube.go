@@ -105,18 +105,17 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 }
 
 func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.TeleportClient) (types.SessionTracker, error) {
-	sessions, err := tc.GetActiveSessions(ctx)
+	proxy, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, session := range sessions {
-		if session.GetSessionID() == c.session {
-			return session, nil
-		}
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return nil, trace.NotFound("session %q not found", c.session)
+	return site.GetSessionTracker(ctx, c.session)
 }
 
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
@@ -484,12 +483,23 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 }
 
 func (c *kubeSessionsCommand) run(cf *CLIConf) error {
+	ctx := context.Background()
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	sessions, err := tc.GetActiveSessions(cf.Context)
+	proxy, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	site, err := proxy.ConnectToCurrentCluster(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessions, err := site.GetActiveSessionTrackers(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
