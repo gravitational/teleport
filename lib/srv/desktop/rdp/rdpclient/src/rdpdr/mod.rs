@@ -22,8 +22,7 @@ use crate::errors::{
 use crate::util;
 use crate::vchan;
 use crate::{
-    Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest, SharedDirectoryInfoRequest,
-    SharedDirectoryInfoResponse,
+    Payload, SharedDirectoryAcknowledge, SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -54,16 +53,16 @@ pub struct Client {
 
     allow_directory_sharing: bool,
     active_device_ids: Vec<u32>,
-    next_completion_id: u32,
 
     // Functions for sending tdp messages to the browser client.
     tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
     tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
-    tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
 
     // Completion-id-indexed maps of handlers for tdp messages coming from the browser client.
-    pending_sd_info_resp_handlers:
-        HashMap<u32, Box<dyn FnOnce(&mut Self, SharedDirectoryInfoResponse) -> RdpResult<()>>>,
+    pending_sd_info_resp_handlers: HashMap<
+        u32,
+        Box<dyn FnOnce(&mut Self, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>,
+    >,
 }
 
 impl Client {
@@ -75,7 +74,6 @@ impl Client {
 
         tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
         tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
-        tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
     ) -> Self {
         Client {
             vchan: vchan::Client::new(),
@@ -83,11 +81,9 @@ impl Client {
 
             allow_directory_sharing,
             active_device_ids: vec![],
-            next_completion_id: 0,
 
             tdp_sd_acknowledge,
             tdp_sd_info_request,
-            tdp_sd_create_request,
 
             pending_sd_info_resp_handlers: HashMap::new(),
         }
@@ -274,51 +270,22 @@ impl Client {
                 debug!("got: {:?}", rdp_req);
 
                 // Send a TDP Shared Directory Info Request
-                let completion_id = self.get_completion_id();
-                // TODO(isaiah): SharedDirectoryInfoRequest::from(ServerCreateDriveRequest)
-                (self.tdp_sd_info_request)(SharedDirectoryInfoRequest {
-                    completion_id: completion_id,
-                    directory_id: rdp_req.device_io_request.device_id,
-                    path: rdp_req.path.clone(),
-                })?;
+                (self.tdp_sd_info_request)(SharedDirectoryInfoRequest::from(rdp_req.clone()))?;
 
                 // Add a TDP Shared Directory Info Response handler to the handler cache.
                 // When we receive a TDP Shared Directory Info Response with this completion_id,
                 // this handler will be called.
                 self.pending_sd_info_resp_handlers.insert(
-                    completion_id,
+                    rdp_req.device_io_request.completion_id,
                     Box::new(
-                        |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<()> {
-                            let rdp_req = rdp_req;
+                        |_cli: &mut Self,
+                         _res: SharedDirectoryInfoResponse|
+                         -> RdpResult<Vec<Vec<u8>>> {
+                            let _rdp_req = rdp_req;
 
-                            if res.err == 2 {
-                                // "resource does not exist"
-                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
-                                let is_dir = rdp_req
-                                    .create_options
-                                    .contains(flags::CreateOptions::FILE_DIRECTORY_FILE);
+                            // TODO(isaiah): see https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
 
-                                if is_dir {
-                                    if rdp_req
-                                        .create_disposition
-                                        .contains(flags::CreateDisposition::FILE_OPEN_IF)
-                                        || rdp_req
-                                            .create_disposition
-                                            .contains(flags::CreateDisposition::FILE_CREATE)
-                                    {
-                                        let completion_id = cli.get_completion_id();
-                                        (cli.tdp_sd_create_request)(
-                                            SharedDirectoryCreateRequest {
-                                                completion_id,
-                                                directory_id: rdp_req.device_io_request.device_id,
-                                                file_type: 1, // TODO(isaiah) make this a const
-                                                path: "todo!()".to_string(),
-                                            },
-                                        )?;
-                                    }
-                                }
-                            }
-                            Ok(())
+                            Ok(vec![])
                         },
                     ),
                 );
@@ -350,12 +317,20 @@ impl Client {
         Ok(())
     }
 
-    pub fn handle_tdp_sd_info_response(
+    pub fn handle_tdp_sd_info_response<S: Read + Write>(
         &mut self,
         res: SharedDirectoryInfoResponse,
+        mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        if let Some(resp_handler) = self.pending_sd_info_resp_handlers.get(&res.completion_id) {
-            resp_handler(self, res);
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_info_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
             Ok(())
         } else {
             return Err(try_error(&format!(
@@ -363,11 +338,6 @@ impl Client {
                 res.completion_id
             )));
         }
-    }
-
-    fn get_completion_id(&mut self) -> u32 {
-        self.next_completion_id = self.next_completion_id.wrapping_add(1);
-        self.next_completion_id
     }
 
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
@@ -799,12 +769,12 @@ impl ServerDeviceAnnounceResponse {
 
 /// 2.2.1.4 Device I/O Request (DR_DEVICE_IOREQUEST)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
-struct DeviceIoRequest {
-    device_id: u32,
+pub struct DeviceIoRequest {
+    pub device_id: u32,
     file_id: u32,
-    completion_id: u32,
+    pub completion_id: u32,
     major_function: MajorFunction,
     minor_function: MinorFunction,
 }
@@ -934,15 +904,15 @@ impl DeviceControlResponse {
 
 /// 2.2.3.3.1 Server Create Drive Request (DR_DRIVE_CREATE_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/95b16fd0-d530-407c-a310-adedc85e9897
-type ServerCreateDriveRequest = DeviceCreateRequest;
+pub type ServerCreateDriveRequest = DeviceCreateRequest;
 
 /// 2.2.1.4.1 Device Create Request (DR_CREATE_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
-struct DeviceCreateRequest {
+pub struct DeviceCreateRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_CREATE.
-    device_io_request: DeviceIoRequest,
+    pub device_io_request: DeviceIoRequest,
     desired_access: flags::DesiredAccess,
     allocation_size: u64,
     file_attributes: flags::FileAttributes,
@@ -950,7 +920,7 @@ struct DeviceCreateRequest {
     create_disposition: flags::CreateDisposition,
     create_options: flags::CreateOptions,
     path_length: u32,
-    path: String,
+    pub path: String,
 }
 
 #[allow(dead_code)]

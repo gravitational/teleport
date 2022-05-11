@@ -250,13 +250,6 @@ enum CGOErrCode close_rdp(struct Client *client_ptr);
  */
 void free_rdp(struct Client *client_ptr);
 
-/**
- * # Safety
- *
- * The passed pointer must point to a C-style string allocated by Rust.
- */
-void free_rust_string(char *s);
-
 extern enum CGOErrCode handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
 extern enum CGOErrCode handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
@@ -269,7 +262,5 @@ extern enum CGOErrCode tdp_sd_acknowledge(uintptr_t client_ref, struct CGOShared
 extern enum CGOErrCode tdp_sd_info_request(uintptr_t client_ref,
                                            struct CGOSharedDirectoryInfoRequest *req);
 
-extern enum CGOErrCode tdp_sd_create_request(uintptr_t client_ref,
-                                             struct CGOSharedDirectoryCreateRequest *req);
 extern enum CGOErrCode tdp_sd_acknowledge(uintptr_t client_ref,
                                           struct CGOSharedDirectoryAcknowledge *ack);

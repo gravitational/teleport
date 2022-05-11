@@ -36,6 +36,7 @@ use rdp::core::tpkt;
 use rdp::core::x224;
 use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
 use rdp::model::link::{Link, Stream};
+use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
@@ -296,38 +297,6 @@ fn connect_rdp_inner(
         }
     });
 
-    let tdp_sd_create_request =
-        Box::new(move |req: SharedDirectoryCreateRequest| -> RdpResult<()> {
-            match CString::new(req.path.clone()) {
-                Ok(c_string) => {
-                    unsafe {
-                        if tdp_sd_create_request(
-                            go_ref,
-                            &mut CGOSharedDirectoryCreateRequest {
-                                completion_id: req.completion_id,
-                                directory_id: req.directory_id,
-                                file_type: req.file_type,
-                                path: c_string.into_raw(),
-                            },
-                        ) != CGOErrCode::ErrCodeSuccess
-                        {
-                            return Err(RdpError::TryError(String::from(
-                                "call to tdp_sd_create_request failed",
-                            )));
-                        };
-                    }
-                    return Ok(());
-                }
-                Err(_) => {
-                    // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    return Err(RdpError::TryError(String::from(format!(
-                        "path contained characters that couldn't be converted to a C string: {}",
-                        req.path
-                    ))));
-                }
-            }
-        });
-
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(
         params.cert_der,
@@ -336,7 +305,6 @@ fn connect_rdp_inner(
         params.allow_directory_sharing,
         tdp_sd_acknowledge,
         tdp_sd_info_request,
-        tdp_sd_create_request,
     );
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -418,6 +386,13 @@ impl<S: Read + Write> RdpClient<S> {
     ) -> RdpResult<()> {
         self.rdpdr
             .write_client_device_list_announce(req, &mut self.mcs)
+    }
+
+    pub fn handle_tdp_sd_info_response(
+        &mut self,
+        res: SharedDirectoryInfoResponse,
+    ) -> RdpResult<()> {
+        self.rdpdr.handle_tdp_sd_info_response(res, &mut self.mcs)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -590,15 +565,11 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
         }
     };
 
-    let drive_name = from_go_string(sd_announce.name);
-    let new_drive =
-        rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, drive_name);
-
     let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.write_client_device_list_announce(new_drive) {
+    match rdp_client.handle_tdp_sd_info_response(SharedDirectoryInfoResponse::from(res)) {
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
-            error!("failed to announce new drive: {:?}", e);
+            error!("failed to handle Shared Directory Info Response: {:?}", e);
             CGOErrCode::ErrCodeFailure
         }
     }
@@ -837,14 +808,6 @@ pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
 
 /// # Safety
 ///
-/// The passed pointer must point to a C-style string allocated by Rust.
-#[no_mangle]
-pub unsafe extern "C" fn free_rust_string(s: *mut c_char) {
-    let _ = CString::from_raw(s);
-}
-
-/// # Safety
-///
 /// s must be a C-style null terminated string.
 /// s is cloned here, and the caller is responsible for
 /// ensuring its memory is freed.
@@ -905,8 +868,18 @@ pub struct CGOSharedDirectoryInfoRequest {
     pub path: *mut c_char,
 }
 
+impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
+    fn from(req: ServerCreateDriveRequest) -> SharedDirectoryInfoRequest {
+        SharedDirectoryInfoRequest {
+            completion_id: req.device_io_request.completion_id,
+            directory_id: req.device_io_request.device_id,
+            path: req.path,
+        }
+    }
+}
+
 #[allow(dead_code)]
-struct SharedDirectoryInfoResponse {
+pub struct SharedDirectoryInfoResponse {
     completion_id: u32,
     err: u32,
     fso: FileSystemObject,
@@ -919,26 +892,21 @@ pub struct CGOSharedDirectoryInfoResponse {
     pub fso: CGOFileSystemObject,
 }
 
-pub struct SharedDirectoryCreateRequest {
-    completion_id: u32,
-    directory_id: u32,
-    file_type: u32,
-    path: String,
-}
-
-#[repr(C)]
-pub struct CGOSharedDirectoryCreateRequest {
-    pub completion_id: u32,
-    pub directory_id: u32,
-    pub file_type: u32,
-    pub path: *mut c_char,
+impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
+    fn from(cgo_res: CGOSharedDirectoryInfoResponse) -> SharedDirectoryInfoResponse {
+        SharedDirectoryInfoResponse {
+            completion_id: cgo_res.completion_id,
+            err: cgo_res.err,
+            fso: FileSystemObject::from(cgo_res.fso),
+        }
+    }
 }
 
 #[allow(dead_code)]
 pub struct FileSystemObject {
     last_modified: u32,
     size: u64,
-    file_type: u32,
+    file_type: u32, // TODO(isaiah): make an enum
     path: String,
 }
 
@@ -946,8 +914,21 @@ pub struct FileSystemObject {
 pub struct CGOFileSystemObject {
     pub last_modified: u32,
     pub size: u64,
-    pub file_type: u32,
+    pub file_type: u32, // TODO(isaiah): make an enum
     pub path: *mut c_char,
+}
+
+impl From<CGOFileSystemObject> for FileSystemObject {
+    fn from(cgo_fso: CGOFileSystemObject) -> FileSystemObject {
+        unsafe {
+            FileSystemObject {
+                last_modified: cgo_fso.last_modified,
+                size: cgo_fso.size,
+                file_type: cgo_fso.file_type,
+                path: from_go_string(cgo_fso.path),
+            }
+        }
+    }
 }
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'
@@ -961,10 +942,6 @@ extern "C" {
     fn tdp_sd_info_request(
         client_ref: usize,
         req: *mut CGOSharedDirectoryInfoRequest,
-    ) -> CGOErrCode;
-    fn tdp_sd_create_request(
-        client_ref: usize,
-        req: *mut CGOSharedDirectoryCreateRequest,
     ) -> CGOErrCode;
 }
 
