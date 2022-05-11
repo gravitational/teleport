@@ -239,6 +239,35 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
 
+// TestMultiPortNoProxy tests that the reverse tunnel does NOT use http_proxy
+// when not in single-port mode.
+func TestMultiPortNoProxy(t *testing.T) {
+	// set the http_proxy environment variable
+	t.Setenv("http_proxy", "fakeproxy.example.com")
+
+	username := mustGetCurrentUser(t).Username
+	// httpproxy won't proxy when target address is localhost, so use this instead.
+	addr, err := getLocalIP()
+	require.NoError(t, err)
+
+	suite := newProxySuite(t,
+		withRootClusterConfig(rootClusterStandardConfig(t)),
+		withLeafClusterConfig(leafClusterStandardConfig(t)),
+		withRootClusterNodeName(addr),
+		withLeafClusterNodeName(addr),
+		withRootClusterPorts(standardPortSetup()),
+		withLeafClusterPorts(standardPortSetup()),
+		withRootAndLeafClusterRoles(createTestRole(username)),
+		withStandardRoleMapping(),
+	)
+
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, waitForClusters(suite.root.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(suite.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+}
+
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
 //SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestALPNSNIProxyKube(t *testing.T) {
