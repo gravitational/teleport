@@ -1,0 +1,30 @@
+When Teleport's Auth Service receives a request to list Teleport Nodes (e.g., to
+display Nodes in the Web UI or via `tsh ls`), it only returns the Nodes that the
+current user is authorized to access.
+
+For each Node in the user's Teleport cluster, the Auth Service applies the
+following checks in order and, if one check fails, hides the Node from the user:
+
+{/*
+
+ TODO: We might want to mention that the Auth Service checks the resource's
+ namespace as well, but we currently do not document resource namespaces.
+ This would not be the appropriate place to include our only namespace
+ documentation. See gravitational/teleport issue #12580.
+ 
+*/}
+
+- None of the user's roles contains a `deny` rule that matches the Node's labels.
+- None of the user's roles contains a `deny` rule that matches the user's
+  `traits.logins`.
+- At least one of the user's roles contains an `allow` rule that matches the
+  Node's labels.
+- At least one of the user's roles contains an `allow` rule that matches the
+  user's `traits.logins`.
+
+If you are not seeing Nodes when expected, make sure that your user's roles
+include the appropriate `allow` and `deny` rules as documented in the
+[Teleport Access Controls Reference](/docs/access-controls/reference).
+
+{/* TODO: Change the link above to a relative MDX file link when remark-includes
+supports this. */}
