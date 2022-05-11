@@ -1,5 +1,47 @@
 # Changelog
 
+## 8.3.10
+
+This release of Teleport contains multiple bug fixes and stability improvements.
+
+* Fixed issue with broken SSH connectivity after CA rotation. [#12332](https://github.com/gravitational/teleport/pull/12332)
+* Fixed issue with `tsh db ls` not working for leaf clusters. [#12319](https://github.com/gravitational/teleport/pull/12319)
+* Fixed issue with labels matching for dynamic databases. [#12452](https://github.com/gravitational/teleport/pull/12452)
+* Fixed issue with resource listing not respecting limit. [#12501](https://github.com/gravitational/teleport/pull/12501)
+* Improved DynamoDB pay-per-request mode support. [#12460](https://github.com/gravitational/teleport/pull/12460)
+* Improved expiration handling in the internal caching system. [#12246](https://github.com/gravitational/teleport/pull/12246)
+* Improved reliability of restart/shutdown in certain scenarios. [#12394](https://github.com/gravitational/teleport/pull/12394)
+
+## 8.3.9
+
+This release of Teleport contains several improvements and bug fixes.
+
+* Fixed issue with Teleport failing to restart after failed UUID generation. [#12223](https://github.com/gravitational/teleport/pull/12223)
+* Fixed regression issue with Teleport inadvertently starting to respect `HTTP_PROXY` for reverse tunnel connections. [#11990](https://github.com/gravitational/teleport/pull/11990)
+* Added extra flags to the `teleport configure` command. [#12265](https://github.com/gravitational/teleport/pull/12265)
+* Fixed issue with Teleport pods not becoming ready when running in Kubernetes. [#12242](https://github.com/gravitational/teleport/pull/12242)
+* Fixed issue with deleting many expired audit events when using Firestore backend. [#12176](https://github.com/gravitational/teleport/pull/12176)
+* Fixed issue where remote cluster cache could become unhealthy in certain situations. [#12250](https://github.com/gravitational/teleport/pull/12250)
+
+## 8.3.8
+
+This release of Teleport contains multiple bug fixes and stability improvements.
+
+* Made relogin attempts use strongest auth method. [#11848](https://github.com/gravitational/teleport/pull/11848)
+* Fixed issue with key principals not being used when using identity files. [#11792](https://github.com/gravitational/teleport/pull/11792)
+* Added gRPC latency metrics for auth and proxy services. [#11776](https://github.com/gravitational/teleport/pull/11776)
+* Fixed potential panic in CA rotation. [#12107](https://github.com/gravitational/teleport/pull/12107)
+* Fixed issue with Kubernetes services not reporting its readiness. [#12153](https://github.com/gravitational/teleport/pull/12153)
+* Added ability to sign database credentials with `tctl auth sign`. [#12044](https://github.com/gravitational/teleport/pull/12044)
+* Fixed issue with Database service not reporting readiness when using dynamic registration. [#12041](https://github.com/gravitational/teleport/pull/12041)
+* Fixed issue with connecting to self-hosted databases in insecure mode. [#11759](https://github.com/gravitational/teleport/pull/11759)
+* Updated `tsh db ls` to display available users. [#11941](https://github.com/gravitational/teleport/pull/11941)
+* Fixed issue with deleting MFA devices with `/` in names. [#12081](https://github.com/gravitational/teleport/pull/
+12081)
+* Updated Go to v1.17.9. [#11933](https://github.com/gravitational/teleport/pull/11933)
+* Fixed Okta OIDC connector. [#11718](https://github.com/gravitational/teleport/pull/11718)
+* Fixed goroutine leak in Okta OIDC client. [#12077](https://github.com/gravitational/teleport/pull/12077)
+
 ## 8.3.7
 
 This release of Teleport contains multiple fixes and improvements.

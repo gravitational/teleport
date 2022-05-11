@@ -644,6 +644,96 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
 }
 
+func TestListResourcesLimit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const limit = 10
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	// Create test databases.
+	for i := 0; i < limit*3; i++ {
+		name := uuid.New()
+		db, err := types.NewDatabaseServerV3(types.Metadata{
+			Name:   name,
+			Labels: map[string]string{"name": name},
+		}, types.DatabaseServerSpecV3{
+			Protocol: "postgres",
+			URI:      "example.com",
+			Hostname: "host",
+			HostID:   "hostid",
+		})
+		require.NoError(t, err)
+
+		_, err = srv.AuthServer.UpsertDatabaseServer(ctx, db)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.AuthServer.GetDatabaseServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user and role
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.AuthServer, username, nil)
+	require.NoError(t, err)
+	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.AuthServer.UpsertRole(ctx, role))
+	identity := TestUser(user.GetName())
+
+	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, identity.I))
+	require.NoError(t, err)
+	s := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
+		alog:       srv.AuditLog,
+		context:    *authContext,
+	}
+
+	// grab the first page of resources
+	resources, next, err := s.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseServer,
+		Namespace:    defaults.Namespace,
+		Limit:        limit,
+	})
+	require.NoError(t, err)
+	require.Len(t, resources, limit)
+
+	// validate that there is a second page
+	require.NotEmpty(t, next)
+
+	// grab the second page of resources
+	resources2, next2, err := s.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseServer,
+		Namespace:    defaults.Namespace,
+		Limit:        limit,
+		StartKey:     next,
+	})
+	require.NoError(t, err)
+	require.Len(t, resources2, limit)
+
+	// validate that there is a third page and that the first element from this
+	// page doesn't match the last element from the previous page
+	require.NotEmpty(t, next2)
+	require.NotEmpty(t, cmp.Diff(resources[limit-1], resources2[0]))
+	require.NotEqual(t, next, next2)
+
+	// grab the last page of resources
+	resources3, next3, err := s.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseServer,
+		Namespace:    defaults.Namespace,
+		Limit:        limit,
+		StartKey:     next2,
+	})
+	require.NoError(t, err)
+	require.Len(t, resources3, limit-1)
+
+	// validate that there are no more pages and that the first element from this
+	// page doesn't match the last element from the previous page
+	require.Empty(t, next3)
+	require.NotEmpty(t, cmp.Diff(resources2[limit-1], resources3[0]))
+	require.NotEqual(t, next2, next3)
+}
+
 // TestGetApplicationServers verifies RBAC is applied when fetching app servers.
 func TestGetApplicationServers(t *testing.T) {
 	t.Parallel()

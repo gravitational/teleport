@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -294,6 +295,14 @@ func (c *CLIConf) Stderr() io.Writer {
 	return os.Stderr
 }
 
+type exitCodeError struct {
+	code int
+}
+
+func (e *exitCodeError) Error() string {
+	return fmt.Sprintf("exit code %d", e.code)
+}
+
 func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
@@ -309,6 +318,10 @@ func main() {
 		cmdLine = cmdLineOrig
 	}
 	if err := Run(cmdLine); err != nil {
+		var exitError *exitCodeError
+		if errors.As(err, &exitError) {
+			os.Exit(exitError.code)
+		}
 		utils.FatalError(err)
 	}
 }
@@ -375,7 +388,7 @@ func Run(args []string, opts ...cliOption) error {
 			BoolVar(&cf.InsecureSkipVerify)
 	}
 
-	app.Flag("auth", "Specify the type of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
+	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
@@ -1174,7 +1187,7 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				os.Exit(1)
+				return trace.Wrap(&exitCodeError{code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -1538,9 +1551,34 @@ func makeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncat
 	return t
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
+func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+	// may happen if fetching the role set failed for any reason.
+	if roleSet == nil {
+		return "(unknown)"
+	}
+
+	dbUsers := roleSet.EnumerateDatabaseUsers(database)
+	allowed := dbUsers.Allowed()
+
+	if dbUsers.WildcardAllowed() {
+		// start the list with *
+		allowed = append([]string{types.Wildcard}, allowed...)
+	}
+
+	if len(allowed) == 0 {
+		return "(none)"
+	}
+
+	denied := dbUsers.Denied()
+	if len(denied) == 0 || !dbUsers.WildcardAllowed() {
+		return fmt.Sprintf("%v", allowed)
+	}
+	return fmt.Sprintf("%v, except: %v", allowed, denied)
+}
+
+func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	if verbose {
-		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
+		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
 			name := database.GetName()
 			var connect string
@@ -1550,12 +1588,14 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
+
 			t.AddRow([]string{
 				name,
 				database.GetDescription(),
 				database.GetProtocol(),
 				database.GetType(),
 				database.GetURI(),
+				getUsersForDb(database, roleSet),
 				database.LabelsString(),
 				connect,
 				database.Expiry().Format(constants.HumanDateFormatSeconds),
@@ -1576,11 +1616,12 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 			rows = append(rows, []string{
 				name,
 				database.GetDescription(),
+				getUsersForDb(database, roleSet),
 				formatDatabaseLabels(database),
 				connect,
 			})
 		}
-		t := makeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
+		t := makeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
 }
@@ -1706,15 +1747,14 @@ func onSSH(cf *CLIConf) error {
 			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 			fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 			fmt.Fprintf(os.Stderr, "\n")
-			os.Exit(1)
+			return trace.Wrap(&exitCodeError{code: 1})
 		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			os.Exit(tc.ExitStatus)
-		} else {
-			return trace.Wrap(err)
+			return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -1733,7 +1773,7 @@ func onBenchmark(cf *CLIConf) error {
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(255)
+		return trace.Wrap(&exitCodeError{code: 255})
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
@@ -1801,7 +1841,7 @@ func onSCP(cf *CLIConf) error {
 	// exit with the same exit status as the failed command:
 	if tc.ExitStatus != 0 {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(tc.ExitStatus)
+		return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 	}
 	return trace.Wrap(err)
 }
@@ -1876,6 +1916,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.IdentityFileIn != "" {
 		// Ignore local authentication methods when identity file is provided
 		c.SkipLocalAuth = true
+		// Force the use of the certificate principals so Unix
+		// username does not get used when logging in
+		c.UseKeyPrincipals = hostLogin == ""
+
 		var (
 			key          *client.Key
 			identityAuth ssh.AuthMethod

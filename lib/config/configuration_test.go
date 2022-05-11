@@ -430,7 +430,9 @@ func TestConfigReading(t *testing.T) {
 					Certificate: "/etc/teleport/proxy.crt",
 				},
 			},
-			CACerts: []string{"/etc/teleport/ca.crt"},
+			CACerts:           []string{"/etc/teleport/ca.crt"},
+			GRPCServerLatency: true,
+			GRPCClientLatency: true,
 		},
 		WindowsDesktop: WindowsDesktopService{
 			Service: Service{
@@ -1183,6 +1185,8 @@ func makeConfigFixture() string {
 	// Metrics service.
 	conf.Metrics.EnabledFlag = "yes"
 	conf.Metrics.ListenAddress = "tcp://metrics"
+	conf.Metrics.GRPCServerLatency = true
+	conf.Metrics.GRPCClientLatency = true
 	conf.Metrics.CACerts = []string{"/etc/teleport/ca.crt"}
 	conf.Metrics.KeyPairs = []KeyPair{
 		{

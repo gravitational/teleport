@@ -229,6 +229,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
 		ClusterFeatures: cfg.ClusterFeatures,
 	}
 
+	// for properly handling url-encoded parameter values.
+	h.UseRawPath = true
+
 	for _, o := range opts {
 		if err := o(h); err != nil {
 			return nil, trace.Wrap(err)
@@ -801,31 +804,53 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return response, nil
 	}
 
+	// collectorNames stores a list of the registered collector names so that
+	// in the event that no connector has matched, the list can be returned.
+	var collectorNames []string
+
 	// first look for a oidc connector with that name
-	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
+	oidcConnectors, err := authClient.GetOIDCConnectors(r.Context(), false)
 	if err == nil {
-		response.Auth = oidcSettings(oidcConnector, cap)
-		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
-		return response, nil
+		for index, value := range oidcConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
+			if value.GetMetadata().Name == connectorName {
+				response.Auth = oidcSettings(oidcConnectors[index], cap)
+				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				return response, nil
+			}
+		}
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
+	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
 	if err == nil {
-		response.Auth = samlSettings(samlConnector, cap)
-		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
-		return response, nil
+		for index, value := range samlConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
+			if value.GetMetadata().Name == connectorName {
+				response.Auth = samlSettings(samlConnectors[index], cap)
+				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				return response, nil
+			}
+		}
 	}
 
 	// look for github connector
-	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
+	githubConnectors, err := authClient.GetGithubConnectors(r.Context(), false)
 	if err == nil {
-		response.Auth = githubSettings(githubConnector, cap)
-		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
-		return response, nil
+		for index, value := range githubConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
+			if value.GetMetadata().Name == connectorName {
+				response.Auth = githubSettings(githubConnectors[index], cap)
+				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				return response, nil
+			}
+		}
 	}
 
-	return nil, trace.BadParameter("invalid connector name %v", connectorName)
+	return nil,
+		trace.BadParameter(
+			"invalid connector name: %v; valid options: %s",
+			connectorName, strings.Join(collectorNames, ", "))
 }
 
 // getWebConfig returns configuration for the web application.
@@ -1889,12 +1914,12 @@ func (h *Handler) siteNodeConnect(
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	clt, err := ctx.GetUserClient(site)
+	watcher, err := site.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	term, err := NewTerminal(r.Context(), *req, clt, ctx)
+	term, err := NewTerminal(*req, watcher, ctx)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -1918,11 +1943,6 @@ type siteSessionGenerateResponse struct {
 // siteSessionCreate generates a new site session that can be used by UI
 // The ServerID from request can be in the form of hostname, uuid, or ip address.
 func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var req *siteSessionGenerateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1930,12 +1950,12 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 
 	namespace := apidefaults.Namespace
 	if req.Session.ServerID != "" {
-		servers, err := clt.GetNodes(r.Context(), namespace)
+		watcher, err := site.NodeWatcher()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		hostname, _, err := resolveServerHostPort(req.Session.ServerID, servers)
+		hostname, _, err := resolveServerHostPort(req.Session.ServerID, watcher)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -399,7 +399,8 @@
         "first": "abcd123-insecure-do-not-use-this",
         "second": "efgh456-insecure-do-not-use-this",
         "third": "ijkl789-insecure-do-not-use-this"
-      }
+      },
+      "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "fedramp": {
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
@@ -408,6 +409,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
+      "version": "9.1.2", 
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -445,8 +447,8 @@
         "version": "8.3.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:8",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:8"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:8.3.9",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:8.3.9"
     }
   },
   "redirects": [

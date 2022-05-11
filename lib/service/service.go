@@ -93,9 +93,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
@@ -655,7 +655,18 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		} else {
 			switch cfg.JoinMethod {
 			case types.JoinMethodToken, types.JoinMethodUnspecified, types.JoinMethodIAM:
-				cfg.HostUUID = uuid.New()
+				// Checking error instead of the usual uuid.New() in case uuid generation
+				// fails due to not enough randomness. It's been known to happen happen when
+				// Teleport starts very early in the node initialization cycle and /dev/urandom
+				// isn't ready yet.
+				rawID, err := uuid.NewRandom()
+				if err != nil {
+					return nil, trace.BadParameter("" +
+						"Teleport failed to generate host UUID. " +
+						"This may happen if randomness source is not fully initialized when the node is starting up. " +
+						"Please try restarting Teleport again.")
+				}
+				cfg.HostUUID = rawID.String()
 			case types.JoinMethodEC2:
 				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
@@ -671,7 +682,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
-	if uuid.Parse(cfg.HostUUID) == nil {
+	if _, err := uuid.Parse(cfg.HostUUID); err != nil {
 		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
 	}
 
@@ -1354,6 +1365,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	go mux.Serve()
+	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1362,6 +1374,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Component:     teleport.Component(teleport.ComponentAuth, process.id),
 		ID:            process.id,
 		Listener:      mux.TLS(),
+		Metrics:       authMetrics,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2796,6 +2809,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	nodeWatcher, err := services.NewNodeWatcher(process.ExitContext(), services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	serverTLSConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2835,6 +2859,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Emitter:       streamEmitter,
 				Log:           process.log,
 				LockWatcher:   lockWatcher,
+				NodeWatcher:   nodeWatcher,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2963,6 +2988,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentProxy)),
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
+		regular.SetNodeWatcher(nodeWatcher),
 	)
 	if err != nil {
 		return trace.Wrap(err)
