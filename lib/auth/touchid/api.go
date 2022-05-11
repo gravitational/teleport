@@ -384,10 +384,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 // ListCredentials lists all registered Secure Enclave credentials.
 // Requires user interaction.
 func ListCredentials() ([]CredentialInfo, error) {
-	if !native.IsAvailable() {
-		return nil, ErrNotAvailable
-	}
-
+	// Skipped IsAvailable check in favor of a direct call to native.
 	infos, err := native.ListCredentials()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -410,8 +407,6 @@ func ListCredentials() ([]CredentialInfo, error) {
 // DeleteCredential deletes a Secure Enclave credential.
 // Requires user interaction.
 func DeleteCredential(credentialID string) error {
-	if !native.IsAvailable() {
-		return ErrNotAvailable
-	}
+	// Skipped IsAvailable check in favor of a direct call to native.
 	return native.DeleteCredential(credentialID)
 }

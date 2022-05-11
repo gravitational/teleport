@@ -19,9 +19,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
+
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 )
 

@@ -136,7 +136,7 @@ func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) 
 	filterC.value = C.CString(makeLabel(rpID, user))
 	defer C.free(unsafe.Pointer(filterC.value))
 
-	infos, res := findCredentialsImpl(func(infosC **C.CredentialInfo) C.int {
+	infos, res := readCredentialInfos(func(infosC **C.CredentialInfo) C.int {
 		return C.FindCredentials(filterC, infosC)
 	})
 	if res < 0 {
@@ -153,7 +153,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	var errMsgC *C.char
 	defer C.free(unsafe.Pointer(errMsgC))
 
-	infos, res := findCredentialsImpl(func(infosOut **C.CredentialInfo) C.int {
+	infos, res := readCredentialInfos(func(infosOut **C.CredentialInfo) C.int {
 		return C.ListCredentials(reasonC, infosOut, &errMsgC)
 	})
 	if res < 0 {
@@ -164,7 +164,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	return infos, nil
 }
 
-func findCredentialsImpl(find func(**C.CredentialInfo) C.int) ([]CredentialInfo, int) {
+func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo, int) {
 	var infosC *C.CredentialInfo
 	defer C.free(unsafe.Pointer(infosC))
 
@@ -244,12 +244,13 @@ func (touchIDImpl) DeleteCredential(credentialID string) error {
 	var errC *C.char
 	defer C.free(unsafe.Pointer(errC))
 
-	switch res := C.DeleteCredential(reasonC, idC, &errC); {
-	case res == errSecItemNotFound:
+	switch C.DeleteCredential(reasonC, idC, &errC) {
+	case 0: // aka success
+		return nil
+	case errSecItemNotFound:
 		return ErrCredentialNotFound
-	case res != 0:
+	default:
 		errMsg := C.GoString(errC)
 		return errors.New(errMsg)
 	}
-	return nil
 }
