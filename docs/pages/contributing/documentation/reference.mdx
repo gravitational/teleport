@@ -6,7 +6,47 @@ Teleport uses Next.js to generate its static documentation site. Next.js uses Ma
 
 This section briefly describes some of the features that are most relevant when writing documentation.
 
+## Code blocks
+
+You will often need to illustrate documentation with examples of commands, code,
+or configuration files. You can do this by adding a code block. Code blocks
+begin and end with three backticks. A label after the first row of backticks
+configures the way the block will be rendered:
+
+   ````md
+   ```yaml
+   key: value
+   array:
+   - val1
+   - val2
+   - val3
+   ```
+   ````
+
+If a code block's label is `code` or `bash`, the block will be optimized for
+example commands. Readers will be able to copy individual lines that begin with
+`$`. Comments and output will be highlighted differently than commands.
+
+Here is an example of a `code` block:
+
+   ````md
+   ```code
+   # Comment
+   $ tsh login
+   Output
+   ```
+   ````
+
+Here is the same block after rendering:
+
+   ```code
+   # Comment
+   $ tsh login
+   Output
+   ```
+
 ## Variables, templating, and interpolation
+
 Many documentation teams struggle with maintaining the vast number of articles
 and resources that are eventually created and consumed. Links and images have to
 be rechecked for accuracy and relevance.
@@ -20,6 +60,7 @@ To insert a variable into a page, use the `(\= path.to.variable \=)` syntax (rem
 Variables will be linted when a PR is created as part of our CI/CD process. If a variable does not exist in the config, you will see an error that you must remedy in order to merge your PR.
 
 ## Partials
+
 To prevent content duplication, it's useful to include code examples or Markdown
 content from a partial file into the current page. This allows our documentation
 to reduce maintenance overhead so we can focus on writing new articles.
@@ -61,6 +102,7 @@ Partials will only be included in these two cases:
 These will be inserted as-is, even in the case of `.mdx` files.
 
 ## Image pixel density markers
+
 Browsers can't distinguish between images that are suitable for Apple's Retina display and images that are not. Because of this, screenshots taken on Retina screens may look large on the page.
 
 To hint to browsers that an image is meant for a Retina display, we can add the
@@ -69,6 +111,7 @@ should have the suffix `filename@2x.png`. This will tell the browser to scale
 images down twice to show them in their actual size.
 
 ## Scopes
+
 There are three versions of Teleport: `oss`, `enterprise`, and `cloud`. Readers can switch the scope of the documentation using a dropdown menu at the top of the page.
 
 Based on the selector's value, some `.mdx` components can hide or show different content sections. Check the components' descriptions below to see which component can be affected by this selector. These components will include the `scope` property.
@@ -79,6 +122,7 @@ Possible values are `oss`, `enterprise`, and `cloud`. For an array of strings,
 use this syntax: `scope={["oss", "cloud"]}`.
 
 ## Notices
+
 <Notice type="tip">Notice content.</Notice>
 
 If you want to add notice like the one above to the page, use this syntax:
@@ -169,6 +213,7 @@ If `scopeOnly` is asasigned to `{true}`, the component will only be visible
 in the provided scope and invisible in all other scopes.
 
 ## Figures
+
 {/* TODO: Document all props */}
 
 The `Figure` component can help with using images, figures, and diagrams:
@@ -222,6 +267,7 @@ Any Markdown and MDX components can be included within a `ScopedBlock`.
 ```
 
 ## Videos
+
 To embed a video in a docs page, use the `video` tag:
 ```html
 <video autoPlay loop muted playsInline>
