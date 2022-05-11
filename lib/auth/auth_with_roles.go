@@ -264,14 +264,15 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 		return nil, trace.Wrap(err)
 	}
 
+	joinerRoles, err := a.authServer.GetRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	
 	var filteredSessions []types.SessionTracker
 
 	for _, sess := range sessions {
 		evaluator := NewSessionAccessEvaluator(sess.GetHostPolicySets(), sess.GetSessionKind())
-		joinerRoles, err := a.authServer.GetRoles(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 
 		modes, err := evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles})
 		if err == nil || len(modes) > 0 {
