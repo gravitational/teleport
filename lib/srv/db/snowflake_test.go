@@ -230,26 +230,54 @@ func TestAuditSnowflake(t *testing.T) {
 	})
 }
 
-func withSnowflake(name string) withDatabaseOption {
+func TestTokenRefresh(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSnowflake("snowflake", snowflake.TestForceTokenRefresh()))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
+
+	dbConn, proxy, err := testCtx.snowflakeClient(ctx, "alice", "snowflake", "admin", "")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxy.Close()
+	})
+
+	err = dbConn.PingContext(ctx)
+	require.NoError(t, err)
+
+	result, err := dbConn.QueryContext(ctx, "select 42")
+	require.NoError(t, err)
+	defer result.Close()
+
+	for result.Next() {
+		var res int
+		err = result.Scan(&res)
+		require.NoError(t, err)
+		require.Equal(t, 42, res)
+	}
+}
+
+func withSnowflake(name string, opts ...snowflake.TestServerOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
-		postgresServer, err := snowflake.NewTestServer(common.TestServerConfig{
+		snowflakeServer, err := snowflake.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 			ClientAuth: tls.RequireAndVerifyClientCert,
-		})
+		}, opts...)
 		require.NoError(t, err)
-		go postgresServer.Serve()
-		t.Cleanup(func() { postgresServer.Close() })
+		go snowflakeServer.Serve()
+		t.Cleanup(func() { snowflakeServer.Close() })
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolSnowflake,
-			URI:           net.JoinHostPort("localhost", postgresServer.Port()),
+			URI:           net.JoinHostPort("localhost", snowflakeServer.Port()),
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
 		testCtx.snowflake[name] = testSnowflake{
-			db:       postgresServer,
+			db:       snowflakeServer,
 			resource: database,
 		}
 		return database

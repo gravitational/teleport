@@ -35,16 +35,28 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// TestServerOption allows setting test server options.
+type TestServerOption func(*TestServer)
+
+// TestForceTokenRefresh made the test server to return sessionExpiredCode
+// error on the first query request.
+func TestForceTokenRefresh() TestServerOption {
+	return func(ts *TestServer) {
+		ts.forceTokenRefresh = true
+	}
+}
+
 type TestServer struct {
-	cfg       common.TestServerConfig
-	listener  net.Listener
-	port      string
-	tlsConfig *tls.Config
-	log       logrus.FieldLogger
+	cfg               common.TestServerConfig
+	listener          net.Listener
+	port              string
+	tlsConfig         *tls.Config
+	log               logrus.FieldLogger
+	forceTokenRefresh bool
 }
 
 // NewTestServer returns a new instance of a test Postgres server.
-func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	address := "localhost:0"
 	if config.Address != "" {
 		address = config.Address
@@ -64,7 +76,7 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &TestServer{
+	testServer := &TestServer{
 		cfg:       config,
 		listener:  listener,
 		port:      port,
@@ -73,7 +85,13 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 			trace.Component: defaults.ProtocolSnowflake,
 			"name":          config.Name,
 		}),
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(testServer)
+	}
+
+	return testServer, nil
 }
 
 const (
@@ -264,6 +282,25 @@ const (
   "success": true
 }
 `
+
+	forceTokenRefresh = `{
+  "code": "390112",
+  "message": null,
+  "success": false
+}
+`
+
+	sessionTokenResponse = `{
+  "data": {
+    "sessionToken": "sessionToken-123",
+    "validityInSecondsST": 3600,
+    "masterToken": "masterToken-123",
+    "validityInSecondsMT": 14400,
+    "sessionId": 2325132
+  },
+  "success": true
+}
+`
 )
 
 // Serve starts serving client connections.
@@ -277,17 +314,30 @@ func (s *TestServer) Serve() error {
 			w.Header().Set("Content-Length", strconv.Itoa(len(loginResponse)))
 			w.Write([]byte(loginResponse))
 		case queryRequestPath:
+			w.Header().Set("Content-Type", "application/json")
+
 			if r.Header.Get("Authorization") != "Snowflake Token=\"test-token-123\"" {
 				w.WriteHeader(401)
 				return
 			}
-			w.Header().Set("Content-Type", "application/json")
+
+			if s.forceTokenRefresh {
+				w.Write([]byte(forceTokenRefresh))
+				w.Header().Set("Content-Length", strconv.Itoa(len(forceTokenRefresh)))
+				s.forceTokenRefresh = false
+				return
+			}
+
 			w.Header().Set("Content-Length", strconv.Itoa(len(queryResponse)))
 			w.Write([]byte(queryResponse))
 		case sessionRequestPath:
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Content-Length", strconv.Itoa(len(sessionEndResponse)))
 			w.Write([]byte(sessionEndResponse))
+		case tokenRequestPath:
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", strconv.Itoa(len(sessionTokenResponse)))
+			w.Write([]byte(sessionTokenResponse))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

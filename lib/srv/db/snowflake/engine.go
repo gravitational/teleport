@@ -33,6 +33,7 @@ import (
 	"net/http/httputil"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -163,9 +164,11 @@ func extractAccountName(sessionCtx *common.Session) (string, error) {
 
 func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
 	var err error
-	e.connectionToken, err = e.getConnectionToken(ctx, req)
-	if err != nil {
-		return trace.Wrap(err)
+	if e.connectionToken == "" {
+		e.connectionToken, err = e.getConnectionToken(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	requestBodyReader, err := e.process(ctx, req, accountName)
@@ -191,15 +194,16 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	defer resp.Body.Close()
 
 	if req.URL.Path == loginRequestPath {
+		//TODO(jakule): save token from refresh token response
 		err := e.processLoginResponse(ctx, resp, accountName)
 		// Return here - processLoginResponse sends the response.
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(e.sendResponse(err, resp))
+	return trace.Wrap(e.sendResponse(resp))
 }
 
-func (e *Engine) sendResponse(err error, resp *http.Response) error {
+func (e *Engine) sendResponse(resp *http.Response) error {
 	dumpResp, err := httputil.DumpResponse(resp, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -248,12 +252,12 @@ func (e *Engine) processLoginResponse(ctx context.Context, resp *http.Response, 
 			bodyReader = resp.Body
 		}
 
-		newResp, err := e.saveSessionToken(ctx, e.sessionCtx, bodyReader, accountName)
+		newPayload, err := e.saveSessionToken(ctx, e.sessionCtx, bodyReader, accountName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		buf, err := writeResponse(resp, newResp)
+		buf, err := writeResponse(resp, newPayload)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -367,71 +371,85 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 			return nil, trace.Wrap(err)
 		}
 
-		body, err := readRequestBody(req)
+		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
+			newBody, err := replaceToken(body, jwtToken, accountName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return newBody, nil
+		})
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if newBody, err := replaceToken(body, jwtToken, accountName); err == nil {
-			e.Log.Debugf("new body: %s", string(newBody))
-
-			body = newBody
-		} else {
-			e.Log.Errorf("failed to unmarshal login JSON: %v", err) // TODO(jakule)
-		}
-
-		buf := &bytes.Buffer{}
-		if req.Header.Get("Content-Encoding") == "gzip" {
-			newGzBody := gzip.NewWriter(buf)
-
-			if _, err := newGzBody.Write(body); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if err := newGzBody.Close(); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			buf.Write(body)
-		}
-
-		newBody = buf
-		req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
 	case queryRequestPath:
-		body, err := readRequestBody(req)
+		var err error
+		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
+			query, err := extractSQLStmt(body)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to extract SQL query")
+			}
+			// TODO(jakule): Add request ID??
+			e.Audit.OnQuery(ctx, e.sessionCtx, common.Query{Query: query})
+
+			return body, nil
+		})
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case tokenRequestPath:
+		var err error
+		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
+			//TODO(jakule): replace the session token with the Snowflake one
+			return body, nil
+		})
 
-		query, err := extractSQLStmt(body)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to extract SQL query")
+			return nil, trace.Wrap(err)
 		}
-		// TODO(jakule): Add request ID??
-		e.Audit.OnQuery(ctx, e.sessionCtx, common.Query{Query: query})
-
-		buf := &bytes.Buffer{}
-		if req.Header.Get("Content-Encoding") == "gzip" {
-			newGzBody := gzip.NewWriter(buf)
-
-			if _, err := newGzBody.Write(body); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if err := newGzBody.Close(); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			buf.Write(body)
-		}
-
-		newBody = buf
-		req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
 	default:
 		newBody = req.Body
 	}
 
 	return newBody, nil
+}
+
+func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []byte) ([]byte, error)) (*bytes.Buffer, error) {
+	body, err := readRequestBody(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if newBody, err := modifyReqFn(body); err == nil {
+		e.Log.Debugf("new body: %s", string(newBody))
+
+		body = newBody
+	} else {
+		e.Log.Errorf("failed to unmarshal login JSON: %v", err) // TODO(jakule)
+
+		return nil, trace.Wrap(err)
+	}
+
+	buf := &bytes.Buffer{}
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		newGzBody := gzip.NewWriter(buf)
+
+		if _, err := newGzBody.Write(body); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := newGzBody.Close(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		buf.Write(body)
+	}
+
+	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+
+	return buf, nil
 }
 
 func readRequestBody(req *http.Request) ([]byte, error) {
@@ -525,6 +543,8 @@ func (e *Engine) extractToken(respBody io.Reader, sessCb func(string) (string, e
 		return nil, trace.Wrap(err)
 	}
 
+	//e.Log.Warnf("login response: %s", bodyBytes)
+
 	if loginResp.Success == false {
 		return nil, trace.Errorf("snowflake authentication failed: %s", loginResp.Message)
 	}
@@ -553,6 +573,8 @@ func (e *Engine) extractToken(respBody io.Reader, sessCb func(string) (string, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	//e.Log.Warnf("login new response: %s", newResp)
 
 	return newResp, err
 }
@@ -643,4 +665,26 @@ type LoginRequest struct {
 	//	} `json:"SESSION_PARAMETERS"`
 	//} `json:"data"`
 	Data map[string]interface{} `json:"data"`
+}
+
+type RefreshTokenRequest struct {
+	OldSessionToken string `json:"oldSessionToken"`
+	RequestType     string `json:"requestType"`
+}
+
+// {"oldSessionToken":"48153e4b24271bb7d1ed3b524dba3940de6d6b3a6c3542ddeb42905f0a776420","requestType":"RENEW"}
+
+type renewSessionResponse struct {
+	Data    renewSessionResponseMain `json:"data"`
+	Message string                   `json:"message"`
+	Code    string                   `json:"code"`
+	Success bool                     `json:"success"`
+}
+
+type renewSessionResponseMain struct {
+	SessionToken        string        `json:"sessionToken"`
+	ValidityInSecondsST time.Duration `json:"validityInSecondsST"`
+	MasterToken         string        `json:"masterToken"`
+	ValidityInSecondsMT time.Duration `json:"validityInSecondsMT"`
+	SessionID           int64         `json:"sessionId"`
 }
