@@ -1536,23 +1536,16 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 	}
 }
 
-func getLegacySession(site auth.ClientI, namespace string, sessionID string, errMsg string) (types.SessionTracker, error) {
+func getLegacySession(site auth.ClientI, namespace string, sessionID string, errMsg string) (*session.Session, error) {
 	sessions, err := site.GetSessions(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var sess types.SessionTracker
+	var sess *session.Session
 	for _, s := range sessions {
 		if s.ID == session.ID(sessionID) {
-			sess, err = types.NewSessionTracker(types.SessionTrackerSpecV1{
-				SessionID: string(s.ID),
-				Address:   s.ServerID,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
+			sess = &s
 			break
 		}
 	}
@@ -1589,20 +1582,17 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
-	var session types.SessionTracker
-	var addr string
+	var sess *session.Session
 	ping, err := site.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if semver.New(ping.ServerVersion).LessThan(*auth.MinSupportedModeratedSessionsVersion) {
-		session, err = getLegacySession(site, namespace, string(sessionID), notFoundErrorMessage)
+		sess, err = getLegacySession(site, namespace, string(sessionID), notFoundErrorMessage)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		addr = session.GetAddress()
 	} else {
 		sessions, err := site.GetActiveSessionTrackers(ctx)
 		if err != nil {
@@ -1611,20 +1601,23 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 
 		for _, sessionIter := range sessions {
 			if sessionIter.GetSessionID() == string(sessionID) {
-				session = sessionIter
-				addr = session.GetAddress() + ":0"
+				sess = &session.Session{
+					ID:        session.ID(sessionIter.GetSessionID()),
+					Namespace: apidefaults.Namespace,
+					ServerID:  sessionIter.GetAddress() + ":0",
+				}
 				break
 			}
 		}
 
-		if session == nil {
+		if sess == nil {
 			return trace.NotFound(notFoundErrorMessage)
 		}
 	}
 
 	// connect to server:
 	nc, err := proxyClient.ConnectToNode(ctx, NodeAddr{
-		Addr:      addr,
+		Addr:      sess.ServerID,
 		Namespace: tc.Namespace,
 		Cluster:   tc.SiteName,
 	}, tc.Config.HostLogin, false)
@@ -1643,13 +1636,13 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				runPresenceTask(presenceCtx, out, site, tc, session.GetSessionID())
+				runPresenceTask(presenceCtx, out, site, tc, string(sess.ID))
 			}
 		}
 	}
 
 	// running shell with a given session means "join" it:
-	err = tc.runShell(ctx, nc, mode, session, beforeStart)
+	err = tc.runShell(ctx, nc, mode, sess, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2154,7 +2147,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
+func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin *session.Session, beforeStart func(io.Writer)) error {
 	env := make(map[string]string)
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = tc.Config.Reason

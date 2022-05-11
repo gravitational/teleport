@@ -97,7 +97,7 @@ type NodeSession struct {
 // if 'joinSessin' is given, the session will join the existing session
 // of another user
 func newSession(client *NodeClient,
-	joinSession types.SessionTracker,
+	joinSession *session.Session,
 	env map[string]string,
 	stdin io.Reader,
 	stdout io.Writer,
@@ -129,21 +129,26 @@ func newSession(client *NodeClient,
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
 	if joinSession != nil {
-		sessionID := joinSession.GetSessionID()
-		terminalSize, err := client.GetRemoteTerminalSize(sessionID)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		id := string(joinSession.ID)
+		terminalSize := joinSession.TerminalParams
+
+		// if these are zero, we're receiving data from a session tracker
+		if terminalSize.H == 0 && terminalSize.W == 0 {
+			tsize, err := client.GetRemoteTerminalSize(id)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			terminalSize.W, terminalSize.H = int(tsize.Width), int(tsize.Height)
 		}
 
-		ns.id = session.ID(sessionID)
-		ns.namespace = joinSession.GetMetadata().Namespace
-
+		ns.id = session.ID(id)
+		ns.namespace = joinSession.Namespace
 		if ns.terminal.IsAttached() {
-			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))
+			err = ns.terminal.Resize(int16(terminalSize.W), int16(terminalSize.H))
 			if err != nil {
 				log.Error(err)
 			}
-
 		}
 		// new session!
 	} else {
