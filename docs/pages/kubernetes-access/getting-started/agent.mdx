@@ -79,7 +79,8 @@ role to a Kubernetes cluster.
     kubernetes_labels:
       '*': '*'
   # Sets which users in the Kubernetes the user should access as.  The user must
-  # already exist in the Kubernetes cluster. Example: alice@mycompany1.com
+  # The user must already exist in the Kubernetes cluster. 
+  # Example: alice@mycompany1.com
     kubernetes_users:
     - '{{internal.kubernetes_users}}'
 ```
