@@ -434,7 +434,7 @@ This message is sent by the client to the server in response to a `Shared Direct
 ##### File System Object (fso)
 
 ```
-| last_modified uint32 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
+| last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
 ```
 
 `last_modified` is the last modified time of the file, in milliseconds since the [UNIX epoch](https://en.wikipedia.org/wiki/Unix_time).
