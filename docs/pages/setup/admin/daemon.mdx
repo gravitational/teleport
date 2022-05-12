@@ -10,8 +10,8 @@ systemd.
 
 ## Prerequisites
 
-A Linux host where you will install Teleport. The host must be configured to run
-userspace programs with systemd. 
+A Linux host where you will install Teleport. The host must be configured to use
+systemd.
 
 If you're not sure, check whether `/sbin/init` is symbolically linked to
 `/lib/systemd/systemd` or similar:
@@ -82,12 +82,17 @@ $ sudo systemctl enable teleport.service
 Created symlink /etc/systemd/system/multi-user.target.wants/teleport.service → /lib/systemd/system/teleport.service.
 ```
 
-Restart your Linux host and log in again. You can confirm that Teleport is
-running as a systemd service with the following command, which should show an
-`Active` status of `active (running)`.
+Start the unit:
 
 ```code
-$ systemctl status teleport.service
+$ sudo systemctl start teleport.service
+```
+
+You can confirm that Teleport is running as a systemd service with the following
+command, which should show an `Active` status of `active (running)`:
+
+```code
+$ sudo systemctl status teleport.service
 ● teleport.service - Teleport SSH Service
      Loaded: loaded (/lib/systemd/system/teleport.service; enabled; vendor preset: enabled)
      Active: active (running) since Mon 2022-04-18 18:33:41 UTC; 41s ago
@@ -108,6 +113,9 @@ Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [PROXY
 Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [PROXY:SER] Starting TLS ALPN SNI proxy server on [::>
 Apr 18 18:33:51 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:51Z WARN [PROXY:1]   Restart watch on error: empty proxy list.>
 ```
+
+The next time you restart your host, `systemd` will run the `teleport` daemon
+automatically.
 
 ## Step 3/3. Restart the Teleport daemon
 
