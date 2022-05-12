@@ -653,7 +653,7 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 }
 
 type SharedDirectoryAcknowledge struct {
-	Err         uint32
+	ErrCode     uint32
 	DirectoryID uint32
 }
 
@@ -674,7 +674,7 @@ func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAcknowledge
 func (s SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAcknowledge))
-	binary.Write(buf, binary.BigEndian, s.Err)
+	binary.Write(buf, binary.BigEndian, s.ErrCode)
 	binary.Write(buf, binary.BigEndian, s.DirectoryID)
 	return buf.Bytes(), nil
 }
@@ -776,7 +776,7 @@ func decodeSharedDirectoryInfoResponse(in peekReader) (SharedDirectoryInfoRespon
 const tdpMaxPathLength = tdpMaxErrorMessageLength
 
 type FileSystemObject struct {
-	LastModified uint32
+	LastModified uint64
 	Size         uint64
 	FileType     uint32
 	Path         string
@@ -794,8 +794,8 @@ func (s FileSystemObject) Encode() ([]byte, error) {
 }
 
 func decodeFileSystemObject(in peekReader) (FileSystemObject, error) {
-	var lastModified, fileType uint32
-	var size uint64
+	var lastModified, size uint64
+	var fileType uint32
 	err := binary.Read(in, binary.BigEndian, &lastModified)
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)

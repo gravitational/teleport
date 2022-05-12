@@ -381,6 +381,24 @@ func (c *Client) start() {
 						return
 					}
 				}
+			case tdp.SharedDirectoryInfoResponse:
+				if c.cfg.AllowDirectorySharing {
+					path := C.CString(m.Fso.Path)
+					defer C.free(unsafe.Pointer(path))
+					if err := C.handle_tdp_sd_info_response(c.rustClient, C.CGOSharedDirectoryInfoResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      C.uint32_t(m.ErrCode),
+						fso: C.CGOFileSystemObject{
+							last_modified: C.uint64_t(m.Fso.LastModified),
+							size:          C.uint64_t(m.Fso.Size),
+							file_type:     C.uint32_t(m.Fso.FileType),
+							path:          path,
+						},
+					}); err != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryInfoResponse failed: %v", err)
+						return
+					}
+				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}
@@ -449,7 +467,7 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 //export tdp_sd_acknowledge
 func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge) C.CGOErrCode {
 	return cgo.Handle(handle).Value().(*Client).sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
-		Err:         uint32(ack.err),
+		ErrCode:     uint32(ack.err_code),
 		DirectoryID: uint32(ack.directory_id),
 	})
 }

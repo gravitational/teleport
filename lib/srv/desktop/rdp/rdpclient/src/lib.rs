@@ -839,20 +839,20 @@ pub struct CGOSharedDirectoryAnnounce {
 
 #[derive(Debug)]
 pub struct SharedDirectoryAcknowledge {
-    pub err: u32,
+    pub err_code: u32,
     pub directory_id: u32,
 }
 
 #[repr(C)]
 pub struct CGOSharedDirectoryAcknowledge {
-    pub err: u32,
+    pub err_code: u32,
     pub directory_id: u32,
 }
 
 impl From<SharedDirectoryAcknowledge> for CGOSharedDirectoryAcknowledge {
     fn from(ack: SharedDirectoryAcknowledge) -> CGOSharedDirectoryAcknowledge {
         CGOSharedDirectoryAcknowledge {
-            err: ack.err,
+            err_code: ack.err_code,
             directory_id: ack.directory_id,
         }
     }
@@ -886,14 +886,14 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
 #[allow(dead_code)]
 pub struct SharedDirectoryInfoResponse {
     completion_id: u32,
-    err: u32,
+    err_code: u32,
     fso: FileSystemObject,
 }
 
 #[repr(C)]
 pub struct CGOSharedDirectoryInfoResponse {
     pub completion_id: u32,
-    pub err: u32,
+    pub err_code: u32,
     pub fso: CGOFileSystemObject,
 }
 
@@ -901,7 +901,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
     fn from(cgo_res: CGOSharedDirectoryInfoResponse) -> SharedDirectoryInfoResponse {
         SharedDirectoryInfoResponse {
             completion_id: cgo_res.completion_id,
-            err: cgo_res.err,
+            err_code: cgo_res.err_code,
             fso: FileSystemObject::from(cgo_res.fso),
         }
     }
@@ -910,7 +910,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct FileSystemObject {
-    last_modified: u32,
+    last_modified: u64,
     size: u64,
     file_type: u32, // TODO(isaiah): make an enum
     path: String,
@@ -918,7 +918,7 @@ pub struct FileSystemObject {
 
 #[repr(C)]
 pub struct CGOFileSystemObject {
-    pub last_modified: u32,
+    pub last_modified: u64,
     pub size: u64,
     pub file_type: u32, // TODO(isaiah): make an enum
     pub path: *mut c_char,

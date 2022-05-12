@@ -186,7 +186,7 @@ impl Client {
 
         if !self.active_device_ids.contains(&req.device_id) {
             (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                err: 1,
+                err_code: 1,
                 directory_id: req.device_id,
             })?;
             Err(invalid_data_error(&format!(
@@ -195,7 +195,7 @@ impl Client {
             )))
         } else if req.result_code != NTSTATUS_OK {
             (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                err: 1,
+                err_code: 1,
                 directory_id: req.device_id,
             })?;
             Err(invalid_data_error(&format!(
@@ -206,7 +206,7 @@ impl Client {
             debug!("ServerDeviceAnnounceResponse was valid");
             if req.device_id != self.get_scard_device_id()? {
                 (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                    err: 0,
+                    err_code: 0,
                     directory_id: req.device_id,
                 })?;
             }

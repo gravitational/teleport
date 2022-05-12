@@ -76,7 +76,7 @@ typedef struct CGOSharedDirectoryAnnounce {
 } CGOSharedDirectoryAnnounce;
 
 typedef struct CGOFileSystemObject {
-  uint32_t last_modified;
+  uint64_t last_modified;
   uint64_t size;
   uint32_t file_type;
   char *path;
@@ -84,7 +84,7 @@ typedef struct CGOFileSystemObject {
 
 typedef struct CGOSharedDirectoryInfoResponse {
   uint32_t completion_id;
-  uint32_t err;
+  uint32_t err_code;
   struct CGOFileSystemObject fso;
 } CGOSharedDirectoryInfoResponse;
 
@@ -128,7 +128,7 @@ typedef struct CGOBitmap {
 } CGOBitmap;
 
 typedef struct CGOSharedDirectoryAcknowledge {
-  uint32_t err;
+  uint32_t err_code;
   uint32_t directory_id;
 } CGOSharedDirectoryAcknowledge;
 
