@@ -242,15 +242,10 @@ func TestMultiPortNoProxy(t *testing.T) {
 	t.Setenv("http_proxy", "fakeproxy.example.com")
 
 	username := mustGetCurrentUser(t).Username
-	// httpproxy won't proxy when target address is localhost, so use this instead.
-	addr, err := getLocalIP()
-	require.NoError(t, err)
 
 	suite := newProxySuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
-		withRootClusterNodeName(addr),
-		withLeafClusterNodeName(addr),
 		withRootClusterPorts(standardPortSetup()),
 		withLeafClusterPorts(standardPortSetup()),
 		withRootAndLeafClusterRoles(createTestRole(username)),
