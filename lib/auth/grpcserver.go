@@ -1908,7 +1908,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 		totpSecret:          regChallenge.GetTOTP().GetSecret(),
 		webIdentityOverride: webIdentity,
 		deviceResp:          regResp,
-		passwordless:        initReq.DeviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		deviceUsage:         initReq.DeviceUsage,
 	})
 
 	return dev, trace.Wrap(err)

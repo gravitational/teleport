@@ -94,11 +94,11 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 			require.NoError(t, err)
 
 			// Finish is the final step in registration.
-			newDevice, err := webRegistration.Finish(ctx, wanlib.RegistrationRequest{
-				User:         user,
-				DeviceName:   test.deviceName,
-				CreationResp: ccr,
-				Passwordless: test.passwordless,
+			newDevice, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+				User:             user,
+				DeviceName:       test.deviceName,
+				CreationResponse: ccr,
+				Passwordless:     test.passwordless,
 			})
 			require.NoError(t, err)
 			require.Equal(t, test.deviceName, newDevice.GetName())
@@ -369,7 +369,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			wantErr: "validating challenge",
 		},
 		{
-			name:         "NOK passwordless requested but resp is not capable",
+			name:         "NOK passwordless on Finish but not on Begin",
 			user:         user,
 			deviceName:   "webauthn2",
 			passwordless: true,
@@ -380,16 +380,16 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 				require.NoError(t, err)
 				return resp
 			},
-			wantErr: "not passwordless capable",
+			wantErr: "passwordless registration failed",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webRegistration.Finish(ctx, wanlib.RegistrationRequest{
-				User:         test.user,
-				DeviceName:   test.deviceName,
-				CreationResp: test.createResp(),
-				Passwordless: test.passwordless,
+			_, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+				User:             test.user,
+				DeviceName:       test.deviceName,
+				CreationResponse: test.createResp(),
+				Passwordless:     test.passwordless,
 			})
 			require.Error(t, err)
 			require.Contains(t, err.Error(), test.wantErr)
@@ -475,10 +475,10 @@ func TestRegistrationFlow_Finish_attestation(t *testing.T) {
 			ccr, err := dev.SignCredentialCreation(origin, cc)
 			require.NoError(t, err)
 
-			_, err = webRegistration.Finish(ctx, wanlib.RegistrationRequest{
-				User:         user,
-				DeviceName:   devName,
-				CreationResp: ccr,
+			_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+				User:             user,
+				DeviceName:       devName,
+				CreationResponse: ccr,
 			})
 			if ok := err == nil; ok != test.wantOK {
 				t.Errorf("Finish returned err = %v, wantOK = %v", err, test.wantOK)

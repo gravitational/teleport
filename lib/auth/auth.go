@@ -1633,7 +1633,7 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 		newDeviceName: req.GetNewDeviceName(),
 		tokenID:       privilegeToken.GetName(),
 		deviceResp:    req.GetNewMFAResponse(),
-		passwordless:  req.DeviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		deviceUsage:   req.DeviceUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1664,10 +1664,8 @@ type newMFADeviceFields struct {
 	webIdentityOverride wanlib.RegistrationIdentity
 	// deviceResp is the register response from the new device.
 	deviceResp *proto.MFARegisterResponse
-	// passwordless explicitly requests to register a passwordless device.
-	// This flag will be used to verify that the register response is
-	// passwordless capable.
-	passwordless bool
+	// deviceUsage describes the intended usage of the new device.
+	deviceUsage proto.DeviceUsage
 }
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
@@ -1776,11 +1774,11 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 		Identity: identity,
 	}
 	// Finish upserts the device on success.
-	dev, err := webRegistration.Finish(ctx, wanlib.RegistrationRequest{
-		User:         req.username,
-		DeviceName:   req.newDeviceName,
-		CreationResp: wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
-		Passwordless: req.passwordless,
+	dev, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             req.username,
+		DeviceName:       req.newDeviceName,
+		CreationResponse: wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
+		Passwordless:     req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	return dev, trace.Wrap(err)
 }

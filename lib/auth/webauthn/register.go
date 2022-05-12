@@ -228,34 +228,36 @@ func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIde
 	return wla.UserID, nil
 }
 
-// RegisterRequest represents fields needed to register a new webautn device.
-type RegistrationRequest struct {
-	// User is the user of the new device.
+// RegisterResponse represents fields needed to finish registering a new webautn device.
+type RegisterResponse struct {
+	// User is the device owner.
 	User string
 	// DeviceName is the name for the new device.
 	DeviceName string
-	// CreationResp is the response from the new device.
-	CreationResp *CredentialCreationResponse
-	// Passwordless explicitly requests to register a passwordless device.
-	// This flag will be used to verify that the device response is
-	// passwordless capable.
+	// CreationResponse is the response from the new device.
+	CreationResponse *CredentialCreationResponse
+	// Passwordless is true if this is expected to be a passwordless registration.
+	// Callers may make certain concessions when processing passwordless
+	// registration (such as skipping password validation), this flag reflects that.
+	// The data stored in the Begin SessionData must match the passwordless flag,
+	// otherwise the registration is denied.
 	Passwordless bool
 }
 
 // Finish is the second and last step of the registration ceremony.
 // If successful, it returns the created MFADevice. Finish has the side effect
 // or writing the device to storage (using its Identity interface).
-func (f *RegistrationFlow) Finish(ctx context.Context, req RegistrationRequest) (*types.MFADevice, error) {
+func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*types.MFADevice, error) {
 	switch {
 	case req.User == "":
 		return nil, trace.BadParameter("user required")
 	case req.DeviceName == "":
 		return nil, trace.BadParameter("device name required")
-	case req.CreationResp == nil:
+	case req.CreationResponse == nil:
 		return nil, trace.BadParameter("credential creation response required")
 	}
 
-	parsedResp, err := parseCredentialCreationResponse(req.CreationResp)
+	parsedResp, err := parseCredentialCreationResponse(req.CreationResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -281,18 +283,19 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegistrationRequest) 
 	}
 	sessionData := sessionFromPB(sessionDataPB)
 
-	requiredUserVerification := sessionData.UserVerification == protocol.VerificationRequired
-	// If requested passwordless, check that we required verification in the begin step.
-	if req.Passwordless && !requiredUserVerification {
-		return nil, trace.BadParameter("failed to finish webauthn registration: requested passwordless but device response is not passwordless capable")
+	// Activate passwordless switches (resident key, user verification) if we
+	// required verification in the begin step.
+	passwordless := sessionData.UserVerification == protocol.VerificationRequired
+	if req.Passwordless && !passwordless {
+		return nil, trace.BadParameter("passwordless registration failed, requested CredentialCreation was for an MFA registration")
 	}
 
 	web, err := newWebAuthn(webAuthnParams{
 		cfg:                     f.Webauthn,
 		rpID:                    f.Webauthn.RPID,
 		origin:                  origin,
-		requireResidentKey:      requiredUserVerification,
-		requireUserVerification: requiredUserVerification,
+		requireResidentKey:      passwordless,
+		requireUserVerification: passwordless,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -317,7 +320,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegistrationRequest) 
 			AttestationType:   credential.AttestationType,
 			Aaguid:            credential.Authenticator.AAGUID,
 			SignatureCounter:  credential.Authenticator.SignCount,
-			AttestationObject: req.CreationResp.AttestationResponse.AttestationObject,
+			AttestationObject: req.CreationResponse.AttestationResponse.AttestationObject,
 			ResidentKey:       req.Passwordless,
 		},
 	}

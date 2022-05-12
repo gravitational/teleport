@@ -404,12 +404,17 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		}
 	}
 
+	deviceUsage := proto.DeviceUsage_DEVICE_USAGE_MFA
+	if len(req.GetNewPassword()) == 0 {
+		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+	}
+
 	_, err = s.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:      token.GetUser(),
 		newDeviceName: deviceName,
 		tokenID:       token.GetName(),
 		deviceResp:    req.GetNewMFARegisterResponse(),
-		passwordless:  len(req.GetNewPassword()) == 0,
+		deviceUsage:   deviceUsage,
 	})
 	return trace.Wrap(err)
 }
