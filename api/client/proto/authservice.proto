@@ -1021,6 +1021,9 @@ message AddMFADeviceSyncRequest {
     string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
     // NewMFAResponse is a user's new mfa response to a mfa register challenge.
     MFARegisterResponse NewMFAResponse = 3 [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
+    // DeviceUsage is the requested usage for the device.
+    // Defaults to DEVICE_USAGE_MFA.
+    DeviceUsage DeviceUsage = 4 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // AddMFADeviceSyncResponse is a response to AddMFADeviceSyncRequest.
@@ -1279,10 +1282,15 @@ message CRL {
 }
 
 // ChangeUserAuthenticationRequest defines a request to change a password and if enabled
-// also adds a new MFA device from a user reset or from a new user invite. After successful changing
-// of authentications a new web session is created. Users may also receive new recovery codes if the
-// user meets the requirement to receive recovery codes. If a user previously had recovery codes,
-// the previous codes become invalid as it is replaced with newly generated ones.
+// also adds a new MFA device from a user reset or from a new user invite. User can also skip
+// setting a new password if passwordless is enabled and just provide a new webauthn register
+// response.
+//
+// After a successful request a new web session is created.
+//
+// Users may also receive new recovery codes if they meet the necessary requirements. If a user
+// previously had recovery codes, the previous codes become invalid as it is replaced with newly
+// generated ones.
 message ChangeUserAuthenticationRequest {
     // TokenID is the ID of a reset or invite token.
     // The token allows the user to change their credentials without being logged
