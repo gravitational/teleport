@@ -92,18 +92,25 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
-	//TODO(jakule): implement
-	e.Log.Errorf("snowflake error: %+v", trace.Unwrap(err))
+	e.Log.Errorf("snowflake error: %+v", trace.Unwrap(err)) // TODO(jakule): remove log
 
 	if e.clientConn == nil {
 		return
 	}
 
+	// Assume internal server error HTTP 500 and override if possible.
+	statusCode := http.StatusInternalServerError
+	if trace.IsAccessDenied(err) {
+		statusCode = http.StatusUnauthorized
+	}
+
+	jsonBody := fmt.Sprintf(`{"success": false, "message:"%s"}`, err.Error())
+
 	response := &http.Response{
 		ProtoMajor: 1,
 		ProtoMinor: 1,
-		StatusCode: 401, // TODO(jakule): set correct error code
-		Body:       io.NopCloser(bytes.NewBufferString(fmt.Sprintf(`{"success": false, "message:"%s"}`, err.Error()))),
+		StatusCode: statusCode,
+		Body:       io.NopCloser(bytes.NewBufferString(jsonBody)),
 		Header: map[string][]string{
 			"Content-Type": {"application/json"},
 		},
@@ -532,7 +539,7 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 			return "", trace.Wrap(err)
 		}
 
-		snowflakeSession, err := e.AuthClient.GetAppSession(ctx, types.GetAppSessionRequest{
+		snowflakeSession, err := e.AuthClient.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{
 			SessionID: sessionID,
 		})
 		if err != nil {

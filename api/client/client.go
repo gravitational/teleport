@@ -75,7 +75,7 @@ type Client struct {
 	// JoinServiceClient is a client for the JoinService, which runs on both the
 	// auth and proxy.
 	*JoinServiceClient
-	// closedFlag is set to indicate that the connnection is closed.
+	// closedFlag is set to indicate that the connection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
 	// callOpts configure calls made by this client.
@@ -1156,6 +1156,18 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 		SnowflakeUsername:    req.SnowflakeUsername,
 		SnowflakeAccountName: req.SnowflakeAccountName,
 		SessionToken:         req.SessionToken,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// GetSnowflakeSession gets a Snowflake web session.
+func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.GetSnowflakeSession(ctx, &proto.GetSnowflakeSessionRequest{
+		SessionID: req.SessionID,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)

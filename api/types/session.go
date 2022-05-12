@@ -281,6 +281,8 @@ func (r *GetAppSessionRequest) Check() error {
 	return nil
 }
 
+type GetSnowflakeSessionRequest = GetAppSessionRequest
+
 // CreateAppSessionRequest contains the parameters needed to request
 // creating an application web session.
 type CreateAppSessionRequest struct {

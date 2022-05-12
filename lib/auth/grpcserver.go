@@ -1203,6 +1203,28 @@ func (g *GRPCServer) GetAppSessions(ctx context.Context, _ *empty.Empty) (*proto
 	}, nil
 }
 
+func (g *GRPCServer) GetSnowflakeSession(ctx context.Context, req *proto.GetSnowflakeSessionRequest) (*proto.GetSnowflakeSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := auth.GetSnowflakeSession(ctx, types.GetAppSessionRequest{
+		SessionID: req.GetSessionID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, ok := session.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", session)
+	}
+
+	return &proto.GetSnowflakeSessionResponse{
+		Session: sess,
+	}, nil
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (*proto.CreateAppSessionResponse, error) {

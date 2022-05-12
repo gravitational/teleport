@@ -481,8 +481,6 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
-						// TODO(jakule): Remove the need to have KindWebSession here.
-						types.NewRule(types.KindWebSession, services.RO()),
 					},
 				},
 			})

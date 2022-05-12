@@ -756,8 +756,13 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			if err := filter.FromMap(kind.Filter); err != nil {
 				return nil, trace.Wrap(err)
 			}
+			resource := types.KindWebSession
+			// Allow reading Snowflake sessions to DB service.
+			if kind.SubKind == types.KindSnowflakeSession {
+				resource = types.KindDatabase
+			}
 			if filter.User == "" || a.currentUserAction(filter.User) != nil {
-				if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
+				if err := a.action(apidefaults.Namespace, resource, types.VerbRead); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -3643,6 +3648,24 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 	// Users can only fetch their own app sessions.
 	if err := a.currentUserAction(session.GetUser()); err != nil {
 		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return session, nil
+}
+
+// GetSnowflakeSession gets a Snowflake web session.
+func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+	session, err := a.authServer.GetAppSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if session.GetSubKind() != types.KindSnowflakeSession {
+		return nil, trace.AccessDenied("GetSnowflakeSession only allows reading sessions with SubKind Snowflake")
+	}
+	// Users can only fetch their own app sessions.
+	if err := a.currentUserAction(session.GetUser()); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

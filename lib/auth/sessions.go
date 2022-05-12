@@ -111,15 +111,18 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
 func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
-	return waitForWebSession(ctx, sessionID, user, ap, types.KindAppSession)
+	return waitForWebSession(ctx, sessionID, user, types.KindAppSession, ap.NewWatcher, ap.GetAppSession)
 }
 
-func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
-	return waitForWebSession(ctx, sessionID, user, ap, types.KindSnowflakeSession)
+func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap SnowflakeSessionWatcher) error {
+	return waitForWebSession(ctx, sessionID, user, types.KindSnowflakeSession, ap.NewWatcher, ap.GetSnowflakeSession)
 }
 
-func waitForWebSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint, evenSubKind string) error {
-	_, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind string,
+	newWatcherFn func(ctx context.Context, watch types.Watch) (types.Watcher, error),
+	getSessionFn func(context.Context, types.GetAppSessionRequest) (types.WebSession, error),
+) error {
+	_, err := getSessionFn(ctx, types.GetAppSessionRequest{SessionID: sessionID})
 	if err == nil {
 		return nil
 	}
@@ -128,7 +131,7 @@ func waitForWebSession(ctx context.Context, sessionID, user string, ap ReadProxy
 		logger.WithError(err).Debug("Failed to query application session.")
 	}
 	// Establish a watch on application session.
-	watcher, err := ap.NewWatcher(ctx, types.Watch{
+	watcher, err := newWatcherFn(ctx, types.Watch{
 		Name: teleport.ComponentAppProxy,
 		Kinds: []types.WatchKind{
 			{
@@ -156,7 +159,7 @@ func waitForWebSession(ctx context.Context, sessionID, user string, ap ReadProxy
 	if err != nil {
 		logger.WithError(err).Warn("Failed to wait for application session.")
 		// See again if we maybe missed the event but the session was actually created.
-		if _, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID}); err == nil {
+		if _, err := getSessionFn(ctx, types.GetAppSessionRequest{SessionID: sessionID}); err == nil {
 			return nil
 		}
 	}
