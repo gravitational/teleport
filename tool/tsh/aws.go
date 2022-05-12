@@ -45,6 +45,15 @@ const (
 )
 
 func onAWS(cf *CLIConf) error {
+	cmd := exec.Command(awsCLIBinaryName, cf.AWSCommandArgs...)
+	if cf.LocalExec {
+		if len(cf.AWSCommandArgs) == 0 {
+			return trace.BadParameter("Please provide a command to execute.")
+		}
+
+		cmd = exec.Command(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
+	}
+
 	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -61,7 +70,25 @@ func onAWS(cf *CLIConf) error {
 		}
 	}()
 
-	return awsApp.RunCommand(awsCLIBinaryName, cf.AWSCommandArgs...)
+	if cf.Verbose {
+		envVars, err := awsApp.GetEnvVars()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		templateData := map[string]interface{}{
+			"envVars":     envVars,
+			"address":     awsApp.GetForwardProxyAddr(),
+			"endpointURL": awsApp.GetEndpointURL(),
+			"command":     cmd.String(),
+		}
+
+		if err = awsExecCommandTemplate.Execute(os.Stdout, templateData); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return awsApp.RunCommand(cmd)
 }
 
 // awsApp is an AWS app that can start local proxies to serve AWS APIs.
@@ -124,7 +151,7 @@ func (a *awsApp) Close() error {
 // GetAWSCredentials generates fake AWS credentials that are used for
 // signing an AWS request during AWS API calls and verified on local AWS proxy
 // side.
-func (a *awsApp) GetAWSCredentials() *credentials.Credentials {
+func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 	// There is no specific format or value required for access key and secret,
 	// as long as the AWS clients and the local proxy are using the same
 	// credentials. The only constraint is the access key must have a length
@@ -133,13 +160,26 @@ func (a *awsApp) GetAWSCredentials() *credentials.Credentials {
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
 	a.credentialsOnce.Do(func() {
-		hashData := []byte(fmt.Sprintf("%v-%v-%v", a.profile.Name, a.profile.Username, a.appName))
+		keyPem, err := utils.ReadPath(a.profile.KeyPath())
+		if err != nil {
+			log.WithError(err).Errorf("Failed to read key.")
+			return
+		}
+
+		hashData := append(
+			keyPem,
+			[]byte(a.profile.Name+a.profile.Username+a.appName)...,
+		)
+
 		md5sum := md5.Sum(hashData)
 		md5Encoded := hex.EncodeToString(md5sum[:])
 		a.credentials = credentials.NewStaticCredentials(md5Encoded[:16], md5Encoded[16:], "")
 	})
 
-	return a.credentials
+	if a.credentials == nil {
+		return nil, trace.BadParameter("missing credentials")
+	}
+	return a.credentials, nil
 }
 
 // GetEnvVars returns required environment variables to configure the
@@ -149,7 +189,12 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		return nil, trace.NotFound("local proxies are not running")
 	}
 
-	credValues, err := a.GetAWSCredentials().Get()
+	cred, err := a.GetAWSCredentials()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credValues, err := cred.Get()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,13 +237,12 @@ func (a *awsApp) GetEndpointURL() string {
 }
 
 // RunCommand executes provided command.
-func (a *awsApp) RunCommand(commandName string, commandArgs ...string) error {
+func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 	environmentVariables, err := a.GetEnvVars()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
 	cmd.Stdin = os.Stdin
@@ -235,6 +279,11 @@ func (a *awsApp) startLocalALPNProxy() error {
 		return trace.Wrap(err)
 	}
 
+	cred, err := a.GetAWSCredentials()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	listenAddr := "localhost:0"
 	if a.cf.AWSEndpointURLPort != "" {
 		listenAddr = fmt.Sprintf("localhost:%s", a.cf.AWSEndpointURLPort)
@@ -257,7 +306,7 @@ func (a *awsApp) startLocalALPNProxy() error {
 		InsecureSkipVerify: a.cf.InsecureSkipVerify,
 		ParentContext:      a.cf.Context,
 		SNI:                address.Host(),
-		AWSCredentials:     a.GetAWSCredentials(),
+		AWSCredentials:     cred,
 		Certs:              []tls.Certificate{appCerts},
 	})
 	if err != nil {

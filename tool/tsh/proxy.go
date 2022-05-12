@@ -390,19 +390,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		"endpointURL": awsApp.GetEndpointURL(),
 	}
 
-	if len(cf.AWSCommandArgs) > 0 {
-		if cf.Verbose {
-			templateData["command"] = strings.Join(cf.AWSCommandArgs, " ")
-			err = awsProxyCommandTemplate.Execute(os.Stdout, templateData)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		return awsApp.RunCommand(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
-	}
-
-	err = awsProxyTemplate.Execute(os.Stdout, templateData)
-	if err != nil {
+	if err = awsProxyTemplate.Execute(os.Stdout, templateData); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -499,9 +487,9 @@ If HTTPS proxy setting cannot be configured for the application, try using
 "{{.endpointURL}}" as the AWS endpoint URL.
 `))
 
-// awsProxyCommandTemplate is the message that gets printed to a user when a
+// awsExecCommandTemplate is the message that gets printed to a user when a
 // command is executed after the AWS proxy is started.
-var awsProxyCommandTemplate = template.Must(template.New("").Parse(
+var awsExecCommandTemplate = template.Must(template.New("").Parse(
 	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
 
 The following environment variables are set for the command:
