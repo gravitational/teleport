@@ -130,7 +130,7 @@ func (e *Engine) SendError(err error) {
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
-	accountName, err := extractAccountName(sessionCtx)
+	accountName, err := extractAccountName(sessionCtx.Database.GetURI())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -157,16 +157,29 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 }
 
-func extractAccountName(sessionCtx *common.Session) (string, error) {
-	uri := sessionCtx.Database.GetURI()
-	uriParts := strings.Split(uri, ".")
-	// TODO(jakule): Fix me....
-	if len(uriParts) != 5 && len(uriParts) != 3 && !strings.Contains(uri, "localhost") {
-		return "", trace.BadParameter("invalid Snowflake url: %s", uri)
+// extractAccountName extracts account name from provided Snowflake URL
+// ref: https://docs.snowflake.com/en/user-guide/admin-account-identifier.html
+func extractAccountName(uri string) (string, error) {
+	if !strings.Contains(uri, "snowflakecomputing.com") {
+		return "", trace.Errorf("Snowflake address should contain snowflakecomputing.com")
 	}
 
-	accountName := uriParts[0]
-	return accountName, nil
+	if strings.HasPrefix(uri, "https://") {
+		uri = strings.TrimSuffix(uri, "https://")
+	}
+
+	uriParts := strings.Split(uri, ".")
+
+	switch len(uriParts) {
+	case 3:
+		// address in https://test.snowflakecomputing.com format
+		return uriParts[0], nil
+	case 5:
+		// address in https://test.us-east-2.aws.snowflakecomputing.com format
+		return strings.Join(uriParts[:3], "."), nil
+	default:
+		return "", trace.BadParameter("invalid Snowflake url: %s", uri)
+	}
 }
 
 func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {

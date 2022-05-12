@@ -50,6 +50,16 @@ func newTestSnowflakeEngine(ec common.EngineConfig) common.Engine {
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
 				},
+				// Test Snowflake mock instance listens on localhost, but Snowflake's test uses localhost.snowflakecomputing.com
+				// as the Snowflake URL. Here we map the fake URL to localhost, so tests connect to our mock not
+				// the real Snowflake instance.
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					_, port, err := net.SplitHostPort(addr)
+					if err != nil {
+						return nil, err
+					}
+					return (&net.Dialer{}).DialContext(ctx, network, "localhost:"+port)
+				},
 			},
 		},
 	}
@@ -272,7 +282,7 @@ func withSnowflake(name string, opts ...snowflake.TestServerOption) withDatabase
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolSnowflake,
-			URI:           net.JoinHostPort("localhost", snowflakeServer.Port()),
+			URI:           net.JoinHostPort("localhost.snowflakecomputing.com", snowflakeServer.Port()),
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
