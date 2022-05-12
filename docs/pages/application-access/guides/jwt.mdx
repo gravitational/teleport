@@ -69,6 +69,24 @@ The JWT will be sent with the header: `Teleport-Jwt-Assertion`.
 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiaHR0cDovLzEyNy4wLjAuMTozNDY3OSJdLCJleHAiOjE2MDM5NDM4MDAsImlzcyI6ImF3cyIsIm5iZiI6MTYwMzgzNTc5NSwicm9sZXMiOlsiYWRtaW4iXSwic3ViIjoiYmVuYXJlbnQiLCJ1c2VybmFtZSI6ImJlbmFyZW50In0.PZGUyFfhEWl22EDniWRLmKAjb3fL0D4cTmkxEfb-Q30hVMzVhka5WB8AUsPsLPVhTzsQ6Nkk1DnXHdz6oxrqDDfumuRrDnpJpjiXj_l0D3bExrchN61enzBHxSD13VkRIqP1V6l4i8yt8kXDIBWc-QejLTodA_GtczkDfnnpuAfaxIbD7jEwF27KI4kZu7uES9LMu2iCLdV9ZqarA-6HeDhXPA37OJ3P6eVQzYpgaOBYro5brEiVpuJLr1yA0gncmR4FqmhCpCj-KmHi2vmjmJAuuHId6HZoEZJjC9IAsNlrSA4GHH9j82o7FF1F4J2s38bRy3wZv46MT8X8-QBSpg
 ```
 
+## Inject JWT
+
+You can inject a JWT token into any header using [headers passthrough](./connecting-apps.mdx#headers-passthrough)
+configuration and the `{{internal.jwt}}` template variable. This variable will
+be replaced with JWT token signed by Teleport JWT CA containing user identity
+information like described above.
+
+For example:
+
+```yaml
+- name: "elasticsearch"
+  uri: https://localhost:4321
+  public_addr: elastic.example.com
+  rewrite:
+    headers:
+    - "Authorization: Bearer {{internal.jwt}}"
+```
+
 ## Validate JWT
 
 Teleport provides a JSON Web Key Set (`jwks`) endpoint to verify that the JWT
