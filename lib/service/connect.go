@@ -964,6 +964,8 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 			apiclient.LoadTLS(tlsConfig),
 		},
 		DialOpts: dialOpts,
+		// Deliberately ignore HTTP proxies for backwards compatibility.
+		IgnoreHTTPProxy: true,
 	}, cltParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
