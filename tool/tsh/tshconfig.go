@@ -91,12 +91,12 @@ func loadConfig(fullConfigPath string) (*TshConfig, error) {
 // loadAllConfigs loads all tsh configs and merges them in appropriate order.
 func loadAllConfigs(cf CLIConf) (*TshConfig, error) {
 	// default to globalTshConfigPathDefault
-	globalConfig := cf.GlobalTshConfigPath
-	if globalConfig == "" {
-		globalConfig = globalTshConfigPathDefault
+	globalConfigPath := cf.GlobalTshConfigPath
+	if globalConfigPath == "" {
+		globalConfigPath = globalTshConfigPathDefault
 	}
 
-	globalConf, err := loadConfig(globalConfig)
+	globalConf, err := loadConfig(globalConfigPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load global tsh config from %q", cf.GlobalTshConfigPath)
 	}
