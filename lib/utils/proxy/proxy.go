@@ -186,7 +186,13 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		conn = tls.Client(conn, conf)
+		tlsConn := tls.Client(conn, conf)
+		err = tlsConn.HandshakeContext(ctx)
+		if err != nil {
+			conn.Close()
+			return nil, trace.Wrap(err)
+		}
+		conn = tlsConn
 	}
 	return conn, nil
 }
