@@ -27,12 +27,12 @@ func TestConnectedProxyGetter(t *testing.T) {
 
 	var expectIDs []string
 	ids := proxies.GetProxyIDs()
-	require.Equal(t, expectIDs, ids)
+	require.True(t, ids == nil)
 
 	expectIDs = []string{}
 	proxies.setProxyIDs(expectIDs)
 	ids = proxies.GetProxyIDs()
-	require.Equal(t, expectIDs, ids)
+	require.True(t, ids == nil)
 
 	expectIDs = []string{"test1", "test2"}
 	proxies.setProxyIDs(expectIDs)
@@ -42,5 +42,5 @@ func TestConnectedProxyGetter(t *testing.T) {
 	expectIDs = nil
 	proxies.setProxyIDs(expectIDs)
 	ids = proxies.GetProxyIDs()
-	require.Equal(t, expectIDs, ids)
+	require.True(t, ids == nil)
 }
