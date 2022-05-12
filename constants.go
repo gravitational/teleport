@@ -531,6 +531,9 @@ const (
 	// membership information
 	TraitTeams = "github_teams"
 
+	// TraitJWT is the name of the trait containing JWT header for app access.
+	TraitJWT = "jwt"
+
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
@@ -558,6 +561,10 @@ const (
 	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
+
+	// TraitInternalJWTVariable is the variable used to store JWT token for
+	// app sessions.
+	TraitInternalJWTVariable = "{{internal.jwt}}"
 )
 
 // SCP is Secure Copy.
