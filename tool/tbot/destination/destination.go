@@ -21,7 +21,7 @@ type Destination interface {
 	// Init attempts to initialize this destination for writing. Init should be
 	// idempotent and may write informational log messages if resources are
 	// created.
-	Init() error
+	Init(subdirs []string) error
 
 	// Verify is run before renewals to check for any potential problems with
 	// the destination. These errors may be informational (logged warnings) or

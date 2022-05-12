@@ -42,12 +42,6 @@ func (d *DiscardAuditLog) WaitForDelivery(context.Context) error {
 func (d *DiscardAuditLog) Close() error {
 	return nil
 }
-func (d *DiscardAuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	return nil
-}
-func (d *DiscardAuditLog) PostSessionSlice(SessionSlice) error {
-	return nil
-}
 func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	return make([]byte, 0), nil
 }
@@ -59,9 +53,6 @@ func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 }
 func (d *DiscardAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
-}
-func (d *DiscardAuditLog) UploadSessionRecording(SessionRecording) error {
-	return nil
 }
 func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return nil

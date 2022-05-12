@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"crypto/x509"
 	"io"
+	stdlog "log"
 	"net"
 	"net/url"
 	"os"
@@ -32,8 +33,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-
-	stdlog "log"
 
 	"golang.org/x/crypto/ssh"
 
@@ -150,6 +149,9 @@ type CommandLineFlags struct {
 	DatabaseADDomain string
 	// DatabaseADSPN is the database Service Principal Name.
 	DatabaseADSPN string
+	// DatabaseMySQLServerVersion is the MySQL server version reported to a client
+	// if the value cannot be obtained from the database.
+	DatabaseMySQLServerVersion string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -635,14 +637,46 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Auth.CAKeyParams == nil {
 		return nil
 	}
-	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+
+	if fc.Auth.CAKeyParams.PKCS11.ModulePath != "" {
+		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.ModulePath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		const worldWritableBits = 0o002
+		if fi.Mode().Perm()&worldWritableBits != 0 {
+			return trace.Errorf(
+				"PKCS11 library (%s) must not be world-writable",
+				fc.Auth.CAKeyParams.PKCS11.ModulePath,
+			)
+		}
+
+		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+	}
+
 	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
 	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+
 	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
 	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
 		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
 		}
+
+		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		const worldReadableBits = 0o004
+		if fi.Mode().Perm()&worldReadableBits != 0 {
+			return trace.Errorf(
+				"HSM pin file (%s) must not be world-readable",
+				fc.Auth.CAKeyParams.PKCS11.PinPath,
+			)
+		}
+
 		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1082,6 +1116,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
+			MySQL: service.MySQLOptions{
+				ServerVersion: database.MySQL.ServerVersion,
+			},
 			TLS: service.DatabaseTLS{
 				CACert:     caBytes,
 				ServerName: database.TLS.ServerName,
@@ -1664,11 +1701,14 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			}
 		}
 		db := service.Database{
-			Name:          clf.DatabaseName,
-			Description:   clf.DatabaseDescription,
-			Protocol:      clf.DatabaseProtocol,
-			URI:           clf.DatabaseURI,
-			StaticLabels:  staticLabels,
+			Name:         clf.DatabaseName,
+			Description:  clf.DatabaseDescription,
+			Protocol:     clf.DatabaseProtocol,
+			URI:          clf.DatabaseURI,
+			StaticLabels: staticLabels,
+			MySQL: service.MySQLOptions{
+				ServerVersion: clf.DatabaseMySQLServerVersion,
+			},
 			DynamicLabels: dynamicLabels,
 			TLS: service.DatabaseTLS{
 				CACert: caBytes,

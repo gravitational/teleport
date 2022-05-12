@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -35,7 +36,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -46,6 +46,8 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/touchid"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -65,6 +67,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
+	"github.com/ghodss/yaml"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
@@ -72,6 +75,14 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTSH,
 })
+
+const (
+	// mfaModeAuto, mfaModeCrossPlatform and mfaModePlatform correspond to
+	// wancli.AuthenticatorAttachment values.
+	mfaModeAuto          = "auto"
+	mfaModeCrossPlatform = "cross-platform"
+	mfaModePlatform      = "platform"
+)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
@@ -87,6 +98,9 @@ type CLIConf struct {
 	SuggestedReviewers string
 	// NoWait can be used with an access request to exit without waiting for a request resolution.
 	NoWait bool
+	// RequestedResourceIDs is a list of resources to request access to
+	// separated by commas.
+	RequestedResourceIDs string
 	// RequestID is an access request ID
 	RequestID string
 	// ReviewReason indicates the reason for an access review.
@@ -197,6 +211,9 @@ type CLIConf struct {
 
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
+
+	// MFAMode is the preferred mode for MFA/Passwordless assertions.
+	MFAMode string
 
 	// SkipVersionCheck skips version checking for client and server
 	SkipVersionCheck bool
@@ -320,6 +337,14 @@ func (c *CLIConf) Stderr() io.Writer {
 	return os.Stderr
 }
 
+type exitCodeError struct {
+	code int
+}
+
+func (e *exitCodeError) Error() string {
+	return fmt.Sprintf("exit code %d", e.code)
+}
+
 func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
@@ -335,6 +360,10 @@ func main() {
 		cmdLine = cmdLineOrig
 	}
 	if err := Run(cmdLine); err != nil {
+		var exitError *exitCodeError
+		if errors.As(err, &exitError) {
+			os.Exit(exitError.code)
+		}
 		utils.FatalError(err)
 	}
 }
@@ -418,6 +447,10 @@ func Run(args []string, opts ...cliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform}
+	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
+		Default(mfaModeAuto).
+		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the version")
@@ -621,10 +654,13 @@ func Run(args []string, opts ...cliOption) error {
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	reqCreate := req.Command("new", "Create a new access request").Alias("create")
-	reqCreate.Flag("roles", "Roles to be requested").Required().StringVar(&cf.DesiredRoles)
+	reqCreate.Flag("roles", "Roles to be requested").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
+	// TODO(nic): unhide this command when the rest of search-based access
+	// requests is implemented (#10887)
+	reqCreate.Flag("resources", "List of resources to request access to separated by commas").Hidden().StringVar(&cf.RequestedResourceIDs)
 
 	reqReview := req.Command("review", "Review an access request")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -660,6 +696,12 @@ func Run(args []string, opts ...cliOption) error {
 
 	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
 	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
+
+	// touchid subcommands.
+	var tid *touchIDCommand
+	if touchid.IsAvailable() {
+		tid = newTouchIDCommand(app)
+	}
 
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
@@ -816,8 +858,16 @@ func Run(args []string, opts ...cliOption) error {
 	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
 	default:
-		// This should only happen when there's a missing switch case above.
-		err = trace.BadParameter("command %q not configured", command)
+		// Handle commands that might not be available.
+		switch {
+		case tid != nil && command == tid.ls.FullCommand():
+			err = tid.ls.run(&cf)
+		case tid != nil && command == tid.rm.FullCommand():
+			err = tid.rm.run(&cf)
+		default:
+			// This should only happen when there's a missing switch case above.
+			err = trace.BadParameter("command %q not configured", command)
+		}
 	}
 
 	if trace.IsNotImplemented(err) {
@@ -829,12 +879,20 @@ func Run(args []string, opts ...cliOption) error {
 
 // onVersion prints version info.
 func onVersion(cf *CLIConf) error {
+	proxyVersion, err := fetchProxyVersion(cf)
+	if err != nil {
+		fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+	}
+
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
 		utils.PrintVersion()
+		if proxyVersion != "" {
+			fmt.Printf("Proxy version: %s\n", proxyVersion)
+		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format)
+		out, err := serializeVersion(format, proxyVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -842,16 +900,50 @@ func onVersion(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
+
 	return nil
 }
 
-func serializeVersion(format string) (string, error) {
+// fetchProxyVersion returns the current version of the Teleport Proxy.
+func fetchProxyVersion(cf *CLIConf) (string, error) {
+	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return "", nil
+		}
+		return "", trace.Wrap(err)
+	}
+
+	if profile == nil {
+		return "", nil
+	}
+
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	ctx, cancel := context.WithTimeout(cf.Context, time.Second*5)
+	defer cancel()
+	pingRes, err := tc.Ping(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return pingRes.ServerVersion, nil
+}
+
+func serializeVersion(format string, proxyVersion string) (string, error) {
 	versionInfo := struct {
-		Version string `json:"version"`
-		Gitref  string `json:"gitref"`
-		Runtime string `json:"runtime"`
+		Version      string `json:"version"`
+		Gitref       string `json:"gitref"`
+		Runtime      string `json:"runtime"`
+		ProxyVersion string `json:"proxyVersion,omitempty"`
 	}{
-		teleport.Version, teleport.Gitref, runtime.Version(),
+		teleport.Version,
+		teleport.Gitref,
+		runtime.Version(),
+		proxyVersion,
 	}
 	var out []byte
 	var err error
@@ -1311,7 +1403,7 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				os.Exit(1)
+				return trace.Wrap(&exitCodeError{code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -1391,6 +1483,9 @@ func onListNodes(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	}
 	sort.Slice(nodes, func(i, j int) bool {
@@ -1405,8 +1500,8 @@ func onListNodes(cf *CLIConf) error {
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" && cf.RequestID == "" {
-		return trace.BadParameter("at least one role or a request ID must be specified")
+	if cf.DesiredRoles == "" && cf.RequestID == "" && cf.RequestedResourceIDs == "" {
+		return trace.BadParameter("at least one role or resource or a request ID must be specified")
 	}
 	if cf.Username == "" {
 		cf.Username = tc.Username
@@ -1443,7 +1538,14 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	} else {
 		roles := utils.SplitIdentifiers(cf.DesiredRoles)
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-		req, err = services.NewAccessRequest(cf.Username, roles...)
+		requestedResourceIDs := []types.ResourceID{}
+		if cf.RequestedResourceIDs != "" {
+			requestedResourceIDs, err = services.ResourceIDsFromString(cf.RequestedResourceIDs)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		req, err = services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1705,6 +1807,11 @@ func serializeDatabases(databases []types.Database, format string) (string, erro
 }
 
 func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+	// may happen if fetching the role set failed for any reason.
+	if roleSet == nil {
+		return "(unknown)"
+	}
+
 	dbUsers := roleSet.EnumerateDatabaseUsers(database)
 	allowed := dbUsers.Allowed()
 
@@ -1935,15 +2042,14 @@ func onSSH(cf *CLIConf) error {
 			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 			fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 			fmt.Fprintf(os.Stderr, "\n")
-			os.Exit(1)
+			return trace.Wrap(&exitCodeError{code: 1})
 		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			os.Exit(tc.ExitStatus)
-		} else {
-			return trace.Wrap(err)
+			return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -1962,7 +2068,7 @@ func onBenchmark(cf *CLIConf) error {
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(255)
+		return trace.Wrap(&exitCodeError{code: 255})
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
@@ -1999,6 +2105,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	cf.NodeLogin = teleport.SSHSessionJoinPrincipal
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2035,7 +2142,7 @@ func onSCP(cf *CLIConf) error {
 	// exit with the same exit status as the failed command:
 	if tc.ExitStatus != 0 {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(tc.ExitStatus)
+		return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 	}
 	return trace.Wrap(err)
 }
@@ -2278,6 +2385,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.AuthConnector != "" {
 		c.AuthConnector = cf.AuthConnector
 	}
+	c.AuthenticatorAttachment, err = mfaModeToAttachment(cf.MFAMode)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -2354,6 +2465,19 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	tc.Config.Invited = cf.Invited
 	tc.Config.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	return tc, nil
+}
+
+func mfaModeToAttachment(val string) (wancli.AuthenticatorAttachment, error) {
+	switch val {
+	case "", mfaModeAuto:
+		return wancli.AttachmentAuto, nil
+	case mfaModeCrossPlatform:
+		return wancli.AttachmentCrossPlatform, nil
+	case mfaModePlatform:
+		return wancli.AttachmentPlatform, nil
+	default:
+		return wancli.AttachmentAuto, fmt.Errorf("invalid MFA mode: %q", val)
+	}
 }
 
 // setX11Config sets X11 config using CLI and SSH option flags.
@@ -2791,6 +2915,9 @@ func onApps(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	}
 
