@@ -121,8 +121,8 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
 #[no_mangle]
 pub unsafe extern "C" fn connect_rdp(
     go_ref: usize,
-    go_addr: *mut c_char,
-    go_username: *mut c_char,
+    go_addr: *const c_char,
+    go_username: *const c_char,
     cert_der_len: u32,
     cert_der: *mut u8,
     key_der_len: u32,
@@ -252,7 +252,7 @@ fn connect_rdp_inner(
     let tdp_sd_acknowledge = Box::new(move |ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
         debug!("sending: {:?}", ack);
         unsafe {
-            if tdp_sd_acknowledge(go_ref, &mut CGOSharedDirectoryAcknowledge::from(ack))
+            if tdp_sd_acknowledge(go_ref, &CGOSharedDirectoryAcknowledge::from(ack))
                 != CGOErrCode::ErrCodeSuccess
             {
                 return Err(RdpError::TryError(String::from(
@@ -269,18 +269,14 @@ fn connect_rdp_inner(
         match CString::new(req.path.clone()) {
             Ok(c_string) => {
                 unsafe {
-                    // Convert C compatible string into raw pointer for passing into the CGO struct
-                    let c_string = c_string.into_raw();
                     let err = tdp_sd_info_request(
                         go_ref,
-                        &mut CGOSharedDirectoryInfoRequest {
+                        &CGOSharedDirectoryInfoRequest {
                             completion_id: req.completion_id,
                             directory_id: req.directory_id,
-                            path: c_string,
+                            path: c_string.as_ptr(),
                         },
                     );
-                    // Retake pointer to free memory
-                    let _ = CString::from_raw(c_string);
                     if err != CGOErrCode::ErrCodeSuccess {
                         return Err(RdpError::TryError(String::from(
                             "call to tdp_sd_info_request failed",
@@ -554,7 +550,7 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
 ///
 /// # Safety
 ///
-/// The caller must ensure that drive_name points to a valid buffer.
+/// The caller must ensure that res.fso.path points to a valid buffer.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_info_response(
     client_ptr: *mut Client,
@@ -813,7 +809,7 @@ pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
 /// s must be a C-style null terminated string.
 /// s is cloned here, and the caller is responsible for
 /// ensuring its memory is freed.
-unsafe fn from_go_string(s: *mut c_char) -> String {
+unsafe fn from_go_string(s: *const c_char) -> String {
     CStr::from_ptr(s).to_string_lossy().into_owned()
 }
 
@@ -834,7 +830,7 @@ pub enum CGOErrCode {
 #[repr(C)]
 pub struct CGOSharedDirectoryAnnounce {
     pub directory_id: u32,
-    pub name: *mut c_char,
+    pub name: *const c_char,
 }
 
 #[derive(Debug)]
@@ -869,7 +865,7 @@ pub struct SharedDirectoryInfoRequest {
 pub struct CGOSharedDirectoryInfoRequest {
     pub completion_id: u32,
     pub directory_id: u32,
-    pub path: *mut c_char,
+    pub path: *const c_char,
 }
 
 impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
@@ -921,7 +917,7 @@ pub struct CGOFileSystemObject {
     pub last_modified: u64,
     pub size: u64,
     pub file_type: u32, // TODO(isaiah): make an enum
-    pub path: *mut c_char,
+    pub path: *const c_char,
 }
 
 impl From<CGOFileSystemObject> for FileSystemObject {
@@ -943,11 +939,13 @@ extern "C" {
     fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
 
-    fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
-        -> CGOErrCode;
+    fn tdp_sd_acknowledge(
+        client_ref: usize,
+        ack: *const CGOSharedDirectoryAcknowledge,
+    ) -> CGOErrCode;
     fn tdp_sd_info_request(
         client_ref: usize,
-        req: *mut CGOSharedDirectoryInfoRequest,
+        req: *const CGOSharedDirectoryInfoRequest,
     ) -> CGOErrCode;
 }
 
