@@ -788,6 +788,15 @@ message DatabaseCertRequest {
     int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
     // ServerNames are SANs to include in the certificate.
     repeated string ServerNames = 4 [ (gogoproto.jsontag) = "server_names" ];
+    // Requester is a name of service that sent the request.
+    enum Requester {
+        // UNSPECIFIED is set when the requester in unknown.
+        UNSPECIFIED = 0;
+        // TCTL is set when request was sent by tctl tool.
+        TCTL = 1;
+    }
+    // RequesterName identifies who sent the request.
+    Requester RequesterName = 5 [ (gogoproto.jsontag) = "requester_name" ];
 }
 
 // DatabaseCertResponse contains the signed certificate.

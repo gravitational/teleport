@@ -33,4 +33,17 @@ typedef struct LabelFilter {
 // User interaction is not required.
 int FindCredentials(LabelFilter filter, CredentialInfo **infosOut);
 
+// ListCredentials finds all registered credentials.
+// Returns the numbers of credentials assigned to the infos array, or negative
+// on failure (typically an OSStatus code). The caller is expected to free infos
+// (and their contents!).
+// Requires user interaction.
+int ListCredentials(const char *reason, CredentialInfo **infosOut,
+                    char **errOut);
+
+// DeleteCredential deletes a credential by its app_label.
+// Requires user interaction.
+// Returns zero if successful, non-zero otherwise (typically an OSStatus).
+int DeleteCredential(const char *reason, const char *appLabel, char **errOut);
+
 #endif // CREDENTIALS_H_

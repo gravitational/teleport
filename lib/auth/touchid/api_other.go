@@ -36,3 +36,11 @@ func (noopNative) Authenticate(credentialID string, digest []byte) ([]byte, erro
 func (noopNative) FindCredentials(rpID, user string) ([]CredentialInfo, error) {
 	return nil, ErrNotAvailable
 }
+
+func (noopNative) ListCredentials() ([]CredentialInfo, error) {
+	return nil, ErrNotAvailable
+}
+
+func (noopNative) DeleteCredential(credentialID string) error {
+	return ErrNotAvailable
+}
