@@ -374,7 +374,7 @@ func (c *Client) start() {
 					driveName := C.CString(m.Name)
 					defer C.free(unsafe.Pointer(driveName))
 					if err := C.handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
-						directory_id: C.uint32_t(m.DirectoryId),
+						directory_id: C.uint32_t(m.DirectoryID),
 						name:         driveName,
 					}); err != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("Device announce failed: %v", err)
@@ -450,7 +450,7 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge) C.CGOErrCode {
 	return cgo.Handle(handle).Value().(*Client).sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
 		Err:         uint32(ack.err),
-		DirectoryId: uint32(ack.directory_id),
+		DirectoryID: uint32(ack.directory_id),
 	})
 }
 
@@ -465,10 +465,22 @@ func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) 
 }
 
 //export tdp_sd_info_request
-func tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoRequest) C.CGOError {
-	// TODO(isaiah): req is a pointer to memory created and managed by "C" (aka Rust). Copy the C-managed
-	// memory into Go-managed memory, and pass to a (c *Client) method. See tdp_sd_acknowledge for an example.
-	return nil
+func tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryInfoRequest(tdp.SharedDirectoryInfoRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+	})
+}
+
+func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) C.CGOErrCode {
+	if c.cfg.AllowDirectorySharing {
+		if err := c.cfg.Conn.OutputMessage(req); err != nil {
+			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+			return C.ErrCodeFailure
+		}
+	}
+	return C.ErrCodeSuccess
 }
 
 // Wait blocks until the client disconnects and runs the cleanup.

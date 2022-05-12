@@ -34,22 +34,19 @@
  */
 #define CHANNEL_CHUNK_LEGNTH 1600
 
-typedef enum CGOErrCode
-{
+typedef enum CGOErrCode {
   ErrCodeSuccess = 0,
   ErrCodeFailure = 1,
 } CGOErrCode;
 
-typedef enum CGOPointerButton
-{
+typedef enum CGOPointerButton {
   PointerButtonNone,
   PointerButtonLeft,
   PointerButtonRight,
   PointerButtonMiddle,
 } CGOPointerButton;
 
-typedef enum CGOPointerWheel
-{
+typedef enum CGOPointerWheel {
   PointerWheelNone,
   PointerWheelVertical,
   PointerWheelHorizontal,
@@ -68,20 +65,34 @@ typedef enum CGOPointerWheel
  */
 typedef struct Client Client;
 
-typedef struct ClientOrError
-{
+typedef struct ClientOrError {
   struct Client *client;
   enum CGOErrCode err;
 } ClientOrError;
 
+typedef struct CGOSharedDirectoryAnnounce {
+  uint32_t directory_id;
+  char *name;
+} CGOSharedDirectoryAnnounce;
+
+typedef struct CGOFileSystemObject {
+  uint32_t last_modified;
+  uint64_t size;
+  uint32_t file_type;
+  char *path;
+} CGOFileSystemObject;
+
+typedef struct CGOSharedDirectoryInfoResponse {
+  uint32_t completion_id;
+  uint32_t err;
+  struct CGOFileSystemObject fso;
+} CGOSharedDirectoryInfoResponse;
+
 /**
- * @brief
- *
+ * CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
+ * PointerEvent is a mouse move or click update from the user.
  */
-*PointerEvent is a mouse move or click update from the user.
-                                         * /
-                                     typedef struct CGOMousePointerEvent
-{
+typedef struct CGOMousePointerEvent {
   uint16_t x;
   uint16_t y;
   enum CGOPointerButton button;
@@ -94,8 +105,7 @@ typedef struct ClientOrError
  * CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
  * KeyboardEvent is a keyboard update from the user.
  */
-typedef struct CGOKeyboardEvent
-{
+typedef struct CGOKeyboardEvent {
   uint16_t code;
   bool down;
 } CGOKeyboardEvent;
@@ -104,8 +114,7 @@ typedef struct CGOKeyboardEvent
  * CGOBitmap is a CGO-compatible version of BitmapEvent that we pass back to Go.
  * BitmapEvent is a video output update from the server.
  */
-typedef struct CGOBitmap
-{
+typedef struct CGOBitmap {
   uint16_t dest_left;
   uint16_t dest_top;
   uint16_t dest_right;
@@ -118,51 +127,16 @@ typedef struct CGOBitmap
   uintptr_t data_cap;
 } CGOBitmap;
 
-typedef struct CGOSharedDirectoryAnnounce
-{
-  uint32_t directory_id;
-  char *name;
-} CGOSharedDirectoryAnnounce;
-
-/**
- * CGOSharedDirectoryAcknowledge is a CGO-compatible version of
- * the TDP Shared Directory Knowledge message that we pass back to Go.
- */
-typedef struct CGOSharedDirectoryAcknowledge
-{
+typedef struct CGOSharedDirectoryAcknowledge {
   uint32_t err;
   uint32_t directory_id;
 } CGOSharedDirectoryAcknowledge;
 
-typedef struct CGOSharedDirectoryInfoRequest
-{
+typedef struct CGOSharedDirectoryInfoRequest {
   uint32_t completion_id;
   uint32_t directory_id;
   char *path;
 } CGOSharedDirectoryInfoRequest;
-
-typedef struct CGOSharedDirectoryInfoResponse
-{
-  uint32_t completion_id;
-  uint32_t directory_id;
-  char *path;
-} CGOSharedDirectoryInfoResponse;
-
-typedef struct CGOSharedDirectoryCreateRequest
-{
-  uint32_t completion_id;
-  uint32_t directory_id;
-  uint32_t file_type;
-  char *path;
-} CGOSharedDirectoryCreateRequest;
-
-typedef struct CGOFileSystemObject
-{
-  uint32_t last_modified;
-  uint64_t size;
-  uint32_t file_type;
-  char *path;
-} CGOFileSystemObject;
 
 void init(void);
 
@@ -199,7 +173,7 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
 enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
 
 /**
- * handle_tdp_sd_announce announces a new drivethat's ready to be
+ * handle_tdp_sd_announce announces a new drive that's ready to be
  * redirected over RDP.
  *
  * # Safety
@@ -208,6 +182,17 @@ enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint3
  */
 enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
                                        struct CGOSharedDirectoryAnnounce sd_announce);
+
+/**
+ * handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
+ * message
+ *
+ * # Safety
+ *
+ * The caller must ensure that drive_name points to a valid buffer.
+ */
+enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
+                                            struct CGOSharedDirectoryInfoResponse res);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
@@ -254,13 +239,8 @@ extern enum CGOErrCode handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
 extern enum CGOErrCode handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
 
-/**
- * Shared Directory Acknowledge
- */
-extern enum CGOErrCode tdp_sd_acknowledge(uintptr_t client_ref, struct CGOSharedDirectoryAcknowledge *ack);
+extern enum CGOErrCode tdp_sd_acknowledge(uintptr_t client_ref,
+                                          struct CGOSharedDirectoryAcknowledge *ack);
 
 extern enum CGOErrCode tdp_sd_info_request(uintptr_t client_ref,
                                            struct CGOSharedDirectoryInfoRequest *req);
-
-extern enum CGOErrCode tdp_sd_acknowledge(uintptr_t client_ref,
-                                          struct CGOSharedDirectoryAcknowledge *ack);

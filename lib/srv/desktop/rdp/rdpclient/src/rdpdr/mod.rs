@@ -279,10 +279,10 @@ impl Client {
                     rdp_req.device_io_request.completion_id,
                     Box::new(
                         |_cli: &mut Self,
-                         _res: SharedDirectoryInfoResponse|
+                         res: SharedDirectoryInfoResponse|
                          -> RdpResult<Vec<Vec<u8>>> {
                             let _rdp_req = rdp_req;
-
+                            debug!("got {:?}", res);
                             // TODO(isaiah): see https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
 
                             Ok(vec![])

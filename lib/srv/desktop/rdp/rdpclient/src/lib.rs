@@ -250,6 +250,7 @@ fn connect_rdp_inner(
     );
 
     let tdp_sd_acknowledge = Box::new(move |ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
+        debug!("sending: {:?}", ack);
         unsafe {
             if tdp_sd_acknowledge(go_ref, &mut CGOSharedDirectoryAcknowledge::from(ack))
                 != CGOErrCode::ErrCodeSuccess
@@ -263,6 +264,7 @@ fn connect_rdp_inner(
     });
 
     let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
+        debug!("sending: {:?}", req);
         // Create C compatible string from req.path
         match CString::new(req.path.clone()) {
             Ok(c_string) => {
@@ -835,6 +837,7 @@ pub struct CGOSharedDirectoryAnnounce {
     pub name: *mut c_char,
 }
 
+#[derive(Debug)]
 pub struct SharedDirectoryAcknowledge {
     pub err: u32,
     pub directory_id: u32,
@@ -855,6 +858,7 @@ impl From<SharedDirectoryAcknowledge> for CGOSharedDirectoryAcknowledge {
     }
 }
 
+#[derive(Debug)]
 pub struct SharedDirectoryInfoRequest {
     completion_id: u32,
     directory_id: u32,
@@ -878,6 +882,7 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
     }
 }
 
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct SharedDirectoryInfoResponse {
     completion_id: u32,
@@ -902,6 +907,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
     }
 }
 
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct FileSystemObject {
     last_modified: u32,
