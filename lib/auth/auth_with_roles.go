@@ -3462,7 +3462,7 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //  - Database service when initiating connection to a database instance to
 //    produce a client certificate.
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	// Check if this is a local cluster admin, or a datababase service, or a
+	// Check if this is a local cluster admin, or a database service, or a
 	// user that is allowed to impersonate database service.
 	if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
 		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
@@ -3474,8 +3474,9 @@ func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.D
 	return a.authServer.GenerateDatabaseCert(ctx, req)
 }
 
-func (a *ServerWithRoles) GenerateDatabaseJWT(ctx context.Context, req *proto.DatabaseJWTRequest) (*proto.DatabaseJWTResponse, error) {
-	// Check if this is a local cluster admin, or a datababase service, or a
+// GenerateDatabaseJWT generates JWT in Snowflake required format.
+func (a *ServerWithRoles) GenerateDatabaseJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
+	// Check if this is a local cluster admin, or a database service, or a
 	// user that is allowed to impersonate database service.
 	if !a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleAdmin)) {
 		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {

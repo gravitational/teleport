@@ -1002,7 +1002,8 @@ func (g *GRPCServer) GenerateDatabaseCert(ctx context.Context, req *proto.Databa
 	return response, nil
 }
 
-func (g *GRPCServer) GenerateDatabaseJWT(ctx context.Context, req *proto.DatabaseJWTRequest) (*proto.DatabaseJWTResponse, error) {
+// GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
+func (g *GRPCServer) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1259,10 +1260,8 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *proto.Crea
 	}
 
 	session, err := auth.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
-		Username:             req.GetUsername(),
-		SnowflakeAccountName: req.GetSnowflakeAccountName(),
-		SnowflakeUsername:    req.GetSnowflakeUsername(),
-		SessionToken:         req.GetSessionToken(),
+		Username:     req.GetUsername(),
+		SessionToken: req.GetSessionToken(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

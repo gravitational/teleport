@@ -281,6 +281,8 @@ func (r *GetAppSessionRequest) Check() error {
 	return nil
 }
 
+// GetSnowflakeSessionRequest is an alias to GetAppSessionRequest as
+// both structs contains the same fields.
 type GetSnowflakeSessionRequest = GetAppSessionRequest
 
 // CreateAppSessionRequest contains the parameters needed to request
@@ -311,14 +313,12 @@ func (r CreateAppSessionRequest) Check() error {
 	return nil
 }
 
+// CreateSnowflakeSessionRequest contains the parameters needed to request
+// creating a Snowflake web session.
 type CreateSnowflakeSessionRequest struct {
 	// Username is the identity of the user requesting the session.
 	Username string `json:"username"`
-
-	SnowflakeUsername string
-
-	SnowflakeAccountName string
-
+	// SessionToken is the Snowflake server session token.
 	SessionToken string
 }
 

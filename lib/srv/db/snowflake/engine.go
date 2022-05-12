@@ -231,10 +231,8 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 
 			if renewSessResp.Data.SessionToken != "" {
 				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
-					Username:             sessionCtx.Identity.Username,
-					SnowflakeAccountName: accountName,
-					SnowflakeUsername:    sessionCtx.DatabaseUser,
-					SessionToken:         renewSessResp.Data.SessionToken,
+					Username:     sessionCtx.Identity.Username,
+					SessionToken: renewSessResp.Data.SessionToken,
 				})
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -383,10 +381,8 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Session, respBody []byte, accountName string) ([]byte, error) {
 	newResp, err := e.extractToken(respBody, func(sessionToken string) (string, error) {
 		snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
-			Username:             sessionCtx.Identity.Username,
-			SnowflakeAccountName: accountName,
-			SnowflakeUsername:    sessionCtx.DatabaseUser,
-			SessionToken:         e.connectionToken,
+			Username:     sessionCtx.Identity.Username,
+			SessionToken: e.connectionToken,
 		})
 		if err != nil {
 			return "", trace.Wrap(err)

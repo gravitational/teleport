@@ -218,7 +218,8 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}, nil
 }
 
-func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.DatabaseJWTRequest) (*proto.DatabaseJWTResponse, error) {
+// GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
+func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
 	if !modules.GetModules().Features().DB {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
@@ -280,7 +281,7 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.DatabaseJW
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.DatabaseJWTResponse{
+	return &proto.SnowflakeJWTResponse{
 		Token: token,
 	}, nil
 }

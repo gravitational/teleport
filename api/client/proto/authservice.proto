@@ -121,7 +121,7 @@ message Event {
         types.AppServerV3 AppServer = 29 [ (gogoproto.jsontag) = "app_server,omitempty" ];
         // App is an application resource.
         types.AppV3 App = 30 [ (gogoproto.jsontag) = "app,omitempty" ];
-
+        // SnowflakeSession is a Snowflake web session.
         types.WebSessionV2 SnowflakeSession = 31
             [ (gogoproto.jsontag) = "snowflake_session,omitempty" ];
     }
@@ -663,14 +663,15 @@ message CreateAppSessionResponse {
     types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
 }
 
+// CreateSnowflakeSessionRequest contains data required to create Snowflake web session.
 message CreateSnowflakeSessionRequest {
     // Username is the name of the user requesting the session.
     string Username = 1 [ (gogoproto.jsontag) = "username" ];
-    string SnowflakeUsername = 2 [ (gogoproto.jsontag) = "snowflake_username" ];
-    string SnowflakeAccountName = 3 [ (gogoproto.jsontag) = "snowflake_account_name" ];
+    // SessionToken is the Snowflake server session token.
     string SessionToken = 4 [ (gogoproto.jsontag) = "session_token" ];
 }
 
+// CreateSnowflakeSessionResponse contains Snowflake WebSession.
 message CreateSnowflakeSessionResponse {
     types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
 }
@@ -834,12 +835,14 @@ message DatabaseCertResponse {
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
 }
 
-message DatabaseJWTRequest {
+// SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.
+message SnowflakeJWTRequest {
     string AccountName = 1 [ (gogoproto.jsontag) = "account_name" ];
     string UserName = 2 [ (gogoproto.jsontag) = "user_name" ];
 }
 
-message DatabaseJWTResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
+// SnowflakeJWTResponse contains signed JWT that can be used for Snowflake authentication.
+message SnowflakeJWTResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
 
 // GetRoleRequest is a request to query a role.
 message GetRoleRequest {
@@ -1883,10 +1886,11 @@ service AuthService {
     // CreateAppSession creates an application web session. Application web
     // sessions represent a browser session the client holds.
     rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);
-
+    // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
+    // Snowflake integration.
     rpc CreateSnowflakeSession(CreateSnowflakeSessionRequest)
         returns (CreateSnowflakeSessionResponse);
-
+    // GetSnowflakeSession returns web session with sub kind Snowflake.
     rpc GetSnowflakeSession(GetSnowflakeSessionRequest) returns (GetSnowflakeSessionResponse);
     // DeleteAppSession removes an application web session.
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
@@ -1951,8 +1955,8 @@ service AuthService {
     // GenerateDatabaseCert generates client certificate used by a database
     // service to authenticate with the database instance.
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
-
-    rpc GenerateDatabaseJWT(DatabaseJWTRequest) returns (DatabaseJWTResponse);
+    /// GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
+    rpc GenerateSnowflakeJWT(SnowflakeJWTRequest) returns (SnowflakeJWTResponse);
 
     // GetRole retrieves a role described by the given request.
     rpc GetRole(GetRoleRequest) returns (types.RoleV5);

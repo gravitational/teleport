@@ -1152,10 +1152,8 @@ func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 
 func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateSnowflakeSession(ctx, &proto.CreateSnowflakeSessionRequest{
-		Username:             req.Username,
-		SnowflakeUsername:    req.SnowflakeUsername,
-		SnowflakeAccountName: req.SnowflakeAccountName,
-		SessionToken:         req.SessionToken,
+		Username:     req.Username,
+		SessionToken: req.SessionToken,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1212,7 +1210,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 }
 
 func (c *Client) GenerateDatabaseJWT(ctx context.Context, req types.GenerateSnowflakeJWT) (string, error) {
-	resp, err := c.grpc.GenerateDatabaseJWT(ctx, &proto.DatabaseJWTRequest{
+	resp, err := c.grpc.GenerateSnowflakeJWT(ctx, &proto.SnowflakeJWTRequest{
 		UserName:    req.Username,
 		AccountName: req.Account,
 	})
