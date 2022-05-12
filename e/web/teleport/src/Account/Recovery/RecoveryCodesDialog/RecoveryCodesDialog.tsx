@@ -55,7 +55,7 @@ export function RecoveryCodesDialog({
       {attempt.status === 'success' && (
         <RecoveryCodes
           recoveryCodes={recoveryCodes}
-          redirect={closeWithDateRefresh}
+          onContinue={closeWithDateRefresh}
           continueText={'Close dialog'}
           isNewCodes={isNewCodes}
         />

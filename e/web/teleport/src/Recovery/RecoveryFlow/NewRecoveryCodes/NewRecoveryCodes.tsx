@@ -29,7 +29,7 @@ export function NewRecoveryCodes({ attempt, recoveryCodes, redirect }: State) {
   return (
     <RecoveryCodes
       recoveryCodes={recoveryCodes}
-      redirect={redirect}
+      onContinue={redirect}
       isNewCodes={true}
       continueText="Return to login"
     />
