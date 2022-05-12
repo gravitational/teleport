@@ -402,6 +402,9 @@ export class CreateGatewayRequest extends jspb.Message {
     getLocalPort(): string;
     setLocalPort(value: string): CreateGatewayRequest;
 
+    getTargetSubresourceName(): string;
+    setTargetSubresourceName(value: string): CreateGatewayRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateGatewayRequest.AsObject;
@@ -418,6 +421,7 @@ export namespace CreateGatewayRequest {
         targetUri: string,
         targetUser: string,
         localPort: string,
+        targetSubresourceName: string,
     }
 }
 

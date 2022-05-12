@@ -26,6 +26,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
@@ -41,12 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -82,15 +80,9 @@ type TerminalRequest struct {
 	KeepAliveInterval time.Duration
 }
 
-// AuthProvider is a subset of the full Auth API.
-type AuthProvider interface {
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
-}
-
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext) (*TerminalHandler, error) {
+func NewTerminal(req TerminalRequest, getter NodesGetter, sessCtx *SessionContext) (*TerminalHandler, error) {
 	// Make sure whatever session is requested is a valid session.
 	_, err := session.ParseID(string(req.SessionID))
 	if err != nil {
@@ -104,16 +96,11 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := authProvider.GetNodes(ctx, req.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// DELETE IN: 5.0
 	//
 	// All proxies will support lookup by uuid, so host/port lookup
 	// and fallback can be dropped entirely.
-	hostName, hostPort, err := resolveServerHostPort(req.Server, servers)
+	hostName, hostPort, err := resolveServerHostPort(req.Server, getter)
 	if err != nil {
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
@@ -122,15 +109,14 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
 		}),
-		params:       req,
-		ctx:          sessCtx,
-		hostName:     hostName,
-		hostPort:     hostPort,
-		hostUUID:     req.Server,
-		authProvider: authProvider,
-		encoder:      unicode.UTF8.NewEncoder(),
-		decoder:      unicode.UTF8.NewDecoder(),
-		wsLock:       &sync.Mutex{},
+		params:   req,
+		ctx:      sessCtx,
+		hostName: hostName,
+		hostPort: hostPort,
+		hostUUID: req.Server,
+		encoder:  unicode.UTF8.NewEncoder(),
+		decoder:  unicode.UTF8.NewDecoder(),
+		wsLock:   &sync.Mutex{},
 	}, nil
 }
 
@@ -163,9 +149,6 @@ type TerminalHandler struct {
 
 	// terminalCancel is used to signal when the terminal session is closing.
 	terminalCancel context.CancelFunc
-
-	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
 
 	// encoder is used to encode strings into UTF-8.
 	encoder *encoding.Encoder
@@ -558,9 +541,15 @@ func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) error {
 	return nil
 }
 
+// NodesGetter is a function that retrieves a subset of nodes matching
+// the filter criteria.
+type NodesGetter interface {
+	GetNodes(fn func(n services.Node) bool) []types.Server
+}
+
 // resolveServerHostPort parses server name and attempts to resolve hostname
 // and port.
-func resolveServerHostPort(servername string, existingServers []types.Server) (string, int, error) {
+func resolveServerHostPort(servername string, getter NodesGetter) (string, int, error) {
 	// If port is 0, client wants us to figure out which port to use.
 	defaultPort := 0
 
@@ -568,12 +557,20 @@ func resolveServerHostPort(servername string, existingServers []types.Server) (s
 		return "", defaultPort, trace.BadParameter("empty server name")
 	}
 
+	var hostname string
 	// Check if servername is UUID.
-	for i := range existingServers {
-		node := existingServers[i]
-		if node.GetName() == servername {
-			return node.GetHostname(), defaultPort, nil
+	getter.GetNodes(func(n services.Node) bool {
+		if hostname != "" {
+			return false
 		}
+		if n.GetName() == servername {
+			hostname = n.GetHostname()
+		}
+		return false
+	})
+
+	if hostname != "" {
+		return hostname, defaultPort, nil
 	}
 
 	if !strings.Contains(servername, ":") {
