@@ -158,47 +158,6 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 	return trace.ConvertSystemError(err)
 }
 
-// EmitAuditEventLegacy adds a new event to the log. Part of auth.IFileLog interface.
-func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	l.rw.RLock()
-	defer l.rw.RUnlock()
-
-	// see if the log needs to be rotated
-	if l.mightNeedRotation() {
-		// log might need rotation; switch to write-lock
-		// to avoid rotating during concurrent event emission.
-		l.rw.RUnlock()
-		l.rw.Lock()
-
-		// perform rotation if still necessary (rotateLog rechecks the
-		// requirements internally, since rotation may have been performed
-		// during our switch from read to write locks)
-		err := l.rotateLog()
-
-		// switch back to read lock
-		l.rw.Unlock()
-		l.rw.RLock()
-		if err != nil {
-			log.Error(err)
-		}
-	}
-
-	err := UpdateEventFields(event, fields, l.Clock, l.UIDGenerator)
-	if err != nil {
-		log.Error(err)
-	}
-	// line is the text to be logged
-	line, err := json.Marshal(fields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// log it to the main log file:
-	if l.file != nil {
-		fmt.Fprintln(l.file, string(line))
-	}
-	return nil
-}
-
 // SearchEvents is a flexible way to find events.
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
@@ -392,42 +351,6 @@ func (l *FileLog) Close() error {
 }
 
 func (l *FileLog) WaitForDelivery(context.Context) error {
-	return nil
-}
-
-func (l *FileLog) UploadSessionRecording(SessionRecording) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (l *FileLog) PostSessionSlice(slice SessionSlice) error {
-	if slice.Namespace == "" {
-		return trace.BadParameter("missing parameter Namespace")
-	}
-	if len(slice.Chunks) == 0 {
-		return trace.BadParameter("missing session chunks")
-	}
-	if slice.Version < V3 {
-		return trace.BadParameter("audit log rejected V%v log entry, upgrade your components.", slice.Version)
-	}
-	// V3 API does not write session log to local session directory,
-	// instead it writes locally, this internal method captures
-	// non-print events to the global audit log
-	return l.processSlice(nil, &slice)
-}
-
-func (l *FileLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
-	for _, chunk := range slice.Chunks {
-		if chunk.EventType == SessionPrintEvent || chunk.EventType == "" {
-			continue
-		}
-		fields, err := EventFromChunk(slice.SessionID, chunk)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := l.EmitAuditEventLegacy(Event{Name: chunk.EventType}, fields); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 

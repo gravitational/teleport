@@ -1379,6 +1379,10 @@ message AccessRequestSpecV3 {
     // that is not a requirement.
     repeated string SuggestedReviewers = 13
         [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
+
+    // RequestedResourceIDs is a set of resources to which access is being requested.
+    repeated ResourceID RequestedResourceIDs = 14
+        [ (gogoproto.jsontag) = "resource_ids,omitempty", (gogoproto.nullable) = false ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -1413,6 +1417,16 @@ message AccessCapabilitiesRequest {
     // SuggestedReviewers is a flag indicating that we would like to view the list of all
     // reviewers which are suggested by the user's roles.
     bool SuggestedReviewers = 3 [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
+}
+
+// ResourceID is a unique identifier for a teleport resource.
+message ResourceID {
+    // ClusterName is the name of the cluster the resource is in.
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster" ];
+    // Kind is the resource kind.
+    string Kind = 2 [ (gogoproto.jsontag) = "kind" ];
+    // Name is the name of the specific resource.
+    string Name = 3 [ (gogoproto.jsontag) = "name" ];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -1600,6 +1614,11 @@ message RoleOptions {
     // CertExtensions specifies the key/values
     repeated CertExtension CertExtensions = 17
         [ (gogoproto.jsontag) = "cert_extensions,omitempty" ];
+
+    // MaxKubernetesConnections defines the maximum number of concurrent
+    // Kubernetes sessions a user may hold.
+    int64 MaxKubernetesConnections = 18
+        [ (gogoproto.jsontag) = "max_kubernetes_connections,omitempty" ];
 }
 
 message RecordSession {
@@ -1833,6 +1852,16 @@ message ClaimMapping {
     // Claim is a claim name.
     string Claim = 1 [ (gogoproto.jsontag) = "claim" ];
     // Value is a claim value to match.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    // Roles is a list of static teleport roles to match.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+}
+
+// TraitMapping maps a trait to teleport roles.
+message TraitMapping {
+    // Trait is a trait name.
+    string Trait = 1 [ (gogoproto.jsontag) = "trait" ];
+    // Value is a trait value to match.
     string Value = 2 [ (gogoproto.jsontag) = "value" ];
     // Roles is a list of static teleport roles to match.
     repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
@@ -2637,6 +2666,92 @@ message GithubConnectorSpecV3 {
     string Display = 5 [ (gogoproto.jsontag) = "display" ];
 }
 
+// SSOWarnings conveys a user-facing main message along with auxiliary warnings.
+message SSOWarnings {
+    // Message is main user-facing message to be shown.
+    string Message = 1 [ (gogoproto.jsontag) = "message,omitempty" ];
+    // Warnings is a set of distinct warnings to be reported.
+    repeated string Warnings = 2 [ (gogoproto.jsontag) = "warnings,omitempty" ];
+}
+
+// CreateUserParams represents the user creation parameters as called during SSO login flow.
+message CreateUserParams {
+    // ConnectorName is the name of the connector used for SSO login flow.
+    string ConnectorName = 1 [ (gogoproto.jsontag) = "connector_name,omitempty" ];
+    // Username is the name of the user to be created.
+    string Username = 2 [ (gogoproto.jsontag) = "username,omitempty" ];
+    // Logins is a list of available unix logins.
+    repeated string Logins = 3 [ (gogoproto.jsontag) = "logins,omitempty" ];
+    // KubeGroups is a list of assigned kube groups.
+    repeated string KubeGroups = 4 [ (gogoproto.jsontag) = "kube_groups,omitempty" ];
+    // KubeUsers is a list of available kube users.
+    repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kube_users,omitempty" ];
+    // Roles is a list of assigned roles.
+    repeated string Roles = 6 [ (gogoproto.jsontag) = "roles,omitempty" ];
+
+    // Traits is the set of traits the user is assigned.
+    wrappers.LabelValues Traits = 7 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "traits,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // SessionTTL determines the TTL.
+    int64 SessionTTL = 8
+        [ (gogoproto.jsontag) = "session_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
+}
+
+// SSODiagnosticInfo is a single SSO diagnostic info entry.
+message SSODiagnosticInfo {
+    // TestFlow indicates the SSO flow was a test one.
+    bool TestFlow = 1 [ (gogoproto.jsontag) = "test_flow" ];
+
+    // Error stores user-friendly error message.
+    string Error = 2 [ (gogoproto.jsontag) = "error" ];
+
+    // Success if present, marks the flow as finished with success.
+    bool Success = 3 [ (gogoproto.jsontag) = "success" ];
+
+    // CreateUserParams represents the user creation parameters as called during SSO login flow.
+    CreateUserParams CreateUserParams = 4 [ (gogoproto.jsontag) = "create_user_params,omitempty" ];
+
+    // SAMLAttributesToRoles represents mapping from attributes to roles, as used during SAML login
+    // flow.
+    repeated AttributeMapping SAMLAttributesToRoles = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "attributes_to_roles,omitempty" ];
+
+    // SAMLAttributesToRolesWarnings contains warnings produced during the process of mapping the
+    // SAML attributes to roles.
+    SSOWarnings SAMLAttributesToRolesWarnings = 6
+        [ (gogoproto.jsontag) = "saml_attributes_to_roles_warnings,omitempty" ];
+
+    // SAMLAttributeStatements represents SAML attribute statements.
+    wrappers.LabelValues SAMLAttributeStatements = 7 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_attribute_statements,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // SAMLAssertionInfo represents raw SAML assertion info as returned by IdP during SAML flow.
+    bytes SAMLAssertionInfo = 8 [
+        (gogoproto.jsontag) = "saml_assertion_info,omitempty",
+        (gogoproto.customtype) = "AssertionInfo"
+    ];
+
+    // SAMLTraitsFromAssertions represents traits translated from SAML assertions.
+    wrappers.LabelValues SAMLTraitsFromAssertions = 9 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_traits_from_assertions,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // SAMLConnectorTraitMapping represents connector-specific trait mapping.
+    repeated TraitMapping SAMLConnectorTraitMapping = 10 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_connector_trait_mapping,omitempty"
+    ];
+}
+
 // TeamMapping represents a single team membership mapping.
 message TeamMapping {
     // Organization is a Github organization a user belongs to.
@@ -2983,6 +3098,18 @@ message SessionTrackerSpecV1 {
     // creation.
     repeated SessionTrackerPolicySet HostPolicies = 16
         [ (gogoproto.jsontag) = "host_roles,omitempty" ];
+
+    // DatabaseName is the database server this session belongs to.
+    string DatabaseName = 17 [ (gogoproto.jsontag) = "database_name,omitempty" ];
+
+    // AppName is the app server this session belongs to.
+    string AppName = 18 [ (gogoproto.jsontag) = "app_name,omitempty" ];
+
+    // AppSessionID is the unique ID of the app access certificate used to start this app session.
+    string AppSessionID = 19 [ (gogoproto.jsontag) = "app_session_id,omitempty" ];
+
+    // DesktopName is the windows desktop server this session belongs to.
+    string DesktopName = 20 [ (gogoproto.jsontag) = "desktop_name,omitempty" ];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

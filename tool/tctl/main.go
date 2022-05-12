@@ -25,7 +25,7 @@ func main() {
 	commands := []common.CLICommand{
 		&common.UserCommand{},
 		&common.NodeCommand{},
-		&common.TokenCommand{},
+		&common.TokensCommand{},
 		&common.AuthCommand{},
 		&common.ResourceCommand{},
 		&common.StatusCommand{},
