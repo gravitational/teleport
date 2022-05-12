@@ -133,6 +133,18 @@ func (f *fakeGithub) ListWorkflowRuns(ctx context.Context, organization string, 
 	return nil, nil
 }
 
+func (f *fakeGithub) ListWorkflowJobs(ctx context.Context, organization string, repository string, runID int64) ([]github.Job, error) {
+	return nil, nil
+}
+
 func (f *fakeGithub) DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error {
 	return nil
+}
+
+func (f *fakeGithub) CreateComment(ctx context.Context, organization string, repository string, number int, comment string) error {
+	return nil
+}
+
+func (f *fakeGithub) CreatePullRequest(ctx context.Context, organization string, repository string, title string, head string, base string, body string, draft bool) (int, error) {
+	return 0, nil
 }

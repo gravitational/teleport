@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -982,7 +981,7 @@ func TestSessionHijack(t *testing.T) {
 	t.Parallel()
 	_, err := user.Lookup(teleportTestUser)
 	if err != nil {
-		t.Skip(fmt.Sprintf("user %v is not found, skipping test", teleportTestUser))
+		t.Skipf("user %v is not found, skipping test", teleportTestUser)
 	}
 
 	f := newFixture(t)
@@ -1126,6 +1125,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:                   f.testSrv.ClusterName(),
@@ -1142,6 +1142,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Emitter:                       proxyClient,
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1167,6 +1168,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1249,6 +1251,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	logger := logrus.WithField("test", "TestProxyDirectAccess")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     proxyClient.TLSConfig(),
@@ -1265,6 +1268,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		Emitter:                       proxyClient,
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
 	})
 	require.NoError(t, err)
 
@@ -1291,6 +1295,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1542,63 +1547,6 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	response, err = strconv.ParseBool(string(responseBytes))
 	require.NoError(t, err)
 	require.True(t, response)
-}
-
-// TestSessionTracker tests session tracker lifecycle
-func TestSessionTracker(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	f := newFixture(t)
-
-	se, err := f.ssh.clt.NewSession()
-	require.NoError(t, err)
-	t.Cleanup(func() { se.Close() })
-
-	// start interactive SSH session (new shell):
-	err = se.Shell()
-	require.NoError(t, err)
-
-	// session tracker should be created
-	var tracker types.SessionTracker
-	trackerFound := func() bool {
-		trackers, err := f.testSrv.Auth().GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
-
-		if len(trackers) == 1 {
-			tracker = trackers[0]
-			return true
-		}
-		return false
-	}
-	require.Eventually(t, trackerFound, time.Second*5, time.Second)
-
-	// Advance the clock to trigger the session tracker expiration to be extended
-	f.clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
-
-	// The session's expiration should be updated
-	trackerUpdated := func() bool {
-		updatedTracker, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
-		require.NoError(t, err)
-		return updatedTracker.Expiry().Equal(tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval))
-	}
-	require.Eventually(t, trackerUpdated, time.Second*5, time.Millisecond*1000)
-
-	// Close the session from the client side
-	err = se.Close()
-	require.NoError(t, err)
-
-	f.clock.BlockUntil(3)
-	f.clock.Advance(defaults.SessionIdlePeriod)
-
-	// Once the session is closed, the tracker should be termianted.
-	// Once the last set expiration is up, the tracker should be delted.
-	f.clock.Advance(defaults.SessionTrackerTTL)
-
-	trackerExpired := func() bool {
-		_, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
-		return trace.IsNotFound(err)
-	}
-	require.Eventually(t, trackerExpired, time.Second*5, time.Millisecond*100)
 }
 
 // rawNode is a basic non-teleport node which holds a
@@ -2001,6 +1949,18 @@ func newLockWatcher(ctx context.Context, t *testing.T, client types.Events) *ser
 	require.NoError(t, err)
 	t.Cleanup(lockWatcher.Close)
 	return lockWatcher
+}
+
+func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *services.NodeWatcher {
+	nodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(nodeWatcher.Close)
+	return nodeWatcher
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating

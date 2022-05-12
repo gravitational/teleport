@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
@@ -236,6 +237,9 @@ func (c *NodeCommand) ListActive(clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case err != nil:
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	default:
 		nodes, err = types.ResourcesWithLabels(resources).AsServers()
