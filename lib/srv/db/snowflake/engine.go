@@ -610,8 +610,6 @@ func (e *Engine) extractToken(bodyBytes []byte, sessCb func(string) (string, err
 		return nil, trace.Wrap(err)
 	}
 
-	//e.Log.Warnf("login response: %s", bodyBytes)
-
 	if loginResp.Success == false {
 		return nil, trace.Errorf("snowflake authentication failed: %s", loginResp.Message)
 	}
@@ -640,8 +638,6 @@ func (e *Engine) extractToken(bodyBytes []byte, sessCb func(string) (string, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	//e.Log.Warnf("login new response: %s", newResp)
 
 	return newResp, err
 }

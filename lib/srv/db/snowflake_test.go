@@ -20,11 +20,16 @@
 package db
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -266,6 +271,74 @@ func TestTokenRefresh(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 42, res)
 	}
+}
+
+func TestTokenSession(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSnowflake("snowflake"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
+
+	dbConn, proxy, err := testCtx.snowflakeClient(ctx, "alice", "snowflake", "admin", "")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxy.Close()
+	})
+
+	err = dbConn.PingContext(ctx)
+	require.NoError(t, err)
+
+	result, err := dbConn.QueryContext(ctx, "select 42")
+	require.NoError(t, err)
+	defer result.Close()
+
+	for result.Next() {
+		var res int
+		err = result.Scan(&res)
+		require.NoError(t, err)
+		require.Equal(t, 42, res)
+	}
+
+	require.NoError(t, err)
+
+	appSessions, err := testCtx.authServer.GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, appSessions, 1)
+
+	snowflakeSess := appSessions[0]
+	require.Equal(t, types.KindSnowflakeSession, snowflakeSess.GetSubKind())
+
+	const queryBody = `{
+  "sqlText": "select 42"
+}
+`
+	mockProxyQueryURL := "http://" + proxy.GetAddr() + "/queries/v1/query-request"
+
+	queryReq, err := http.NewRequestWithContext(ctx, "POST", mockProxyQueryURL, bytes.NewReader([]byte(queryBody)))
+	require.NoError(t, err)
+
+	queryReq.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", snowflakeSess.GetName()))
+	queryReq.Header.Set("Content-Type", "application/json")
+	queryReq.Header.Set("Content-Length", strconv.Itoa(len(queryBody)))
+
+	resp, err := (&http.Client{}).Do(queryReq)
+	require.NoError(t, err)
+
+	require.Equal(t, 200, resp.StatusCode)
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+
+	jsonMap := struct {
+		Data struct {
+			Rowset [][]string `json:"rowset"`
+		} `json:"data"`
+	}{}
+	err = json.Unmarshal(respBody, &jsonMap)
+	require.NoError(t, err)
+
+	require.Equal(t, jsonMap.Data.Rowset[0][0], "42")
 }
 
 func withSnowflake(name string, opts ...snowflake.TestServerOption) withDatabaseOption {
