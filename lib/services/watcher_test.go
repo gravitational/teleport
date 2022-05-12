@@ -20,13 +20,19 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -34,9 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 var _ types.Events = (*errorWatcher)(nil)
@@ -656,4 +659,73 @@ func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) type
 	})
 	require.NoError(t, err)
 	return ca
+}
+
+func TestNodeWatcher(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Presence
+		types.Events
+	}
+
+	presence := local.NewPresenceService(bk)
+	w, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				Presence: presence,
+				Events:   local.NewEventsService(bk, nil),
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Add some node servers.
+	nodes := make([]types.Server, 0, 5)
+	for i := 0; i < 5; i++ {
+		node := newNodeServer(t, fmt.Sprintf("node%d", i), "127.0.0.1:2023", i%2 == 0)
+		_, err = presence.UpsertNode(ctx, node)
+		require.NoError(t, err)
+		nodes = append(nodes, node)
+	}
+
+	require.Eventually(t, func() bool {
+		filtered := w.GetNodes(func(n services.Node) bool {
+			return true
+		})
+		return len(filtered) == len(nodes)
+	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
+
+	require.Len(t, w.GetNodes(func(n services.Node) bool { return n.GetUseTunnel() }), 3)
+
+	require.NoError(t, presence.DeleteNode(ctx, apidefaults.Namespace, nodes[0].GetName()))
+
+	require.Eventually(t, func() bool {
+		filtered := w.GetNodes(func(n services.Node) bool {
+			return true
+		})
+		return len(filtered) == len(nodes)-1
+	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
+
+	require.Empty(t, w.GetNodes(func(n services.Node) bool { return n.GetName() == nodes[0].GetName() }))
+
+}
+
+func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {
+	s, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
+		Addr:       addr,
+		PublicAddr: addr,
+		UseTunnel:  tunnel,
+	})
+	require.NoError(t, err)
+	return s
 }

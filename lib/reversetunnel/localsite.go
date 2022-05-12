@@ -22,8 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -34,11 +32,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSite, error) {
@@ -127,6 +126,11 @@ func (s *localSite) GetTunnelsCount() int {
 // CachingAccessPoint returns a auth.AccessPoint for this cluster.
 func (s *localSite) CachingAccessPoint() (auth.AccessPoint, error) {
 	return s.accessPoint, nil
+}
+
+// NodeWatcher returns a services.NodeWatcher for this cluster.
+func (s *localSite) NodeWatcher() (*services.NodeWatcher, error) {
+	return s.srv.NodeWatcher, nil
 }
 
 // GetClient returns a client to the full Auth Server API.
@@ -518,14 +522,7 @@ func (s *localSite) periodicFunctions() {
 
 // sshTunnelStats reports SSH tunnel statistics for the cluster.
 func (s *localSite) sshTunnelStats() error {
-	servers, err := s.accessPoint.GetNodes(s.srv.ctx, apidefaults.Namespace)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var missing []string
-
-	for _, server := range servers {
+	missing := s.srv.NodeWatcher.GetNodes(func(server services.Node) bool {
 		// Skip over any servers that that have a TTL larger than announce TTL (10
 		// minutes) and are non-IoT SSH servers (they won't have tunnels).
 		//
@@ -534,10 +531,10 @@ func (s *localSite) sshTunnelStats() error {
 		// their TTL value.
 		ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
 		if server.Expiry().Before(ttl) {
-			continue
+			return false
 		}
 		if !server.GetUseTunnel() {
-			continue
+			return false
 		}
 
 		// Check if the tunnel actually exists.
@@ -545,12 +542,9 @@ func (s *localSite) sshTunnelStats() error {
 			ServerID: fmt.Sprintf("%v.%v", server.GetName(), s.domainName),
 			ConnType: types.NodeTunnel,
 		})
-		if err == nil {
-			continue
-		}
 
-		missing = append(missing, server.GetName())
-	}
+		return err != nil
+	})
 
 	// Update Prometheus metrics and also log if any tunnels are missing.
 	missingSSHTunnels.Set(float64(len(missing)))

@@ -2487,6 +2487,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	nodeWatcher, err := services.NewNodeWatcher(process.ExitContext(), services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnel.Server
@@ -2520,6 +2531,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Emitter:       streamEmitter,
 				Log:           process.log,
 				LockWatcher:   lockWatcher,
+				NodeWatcher:   nodeWatcher,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2750,6 +2762,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}),
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
+		regular.SetNodeWatcher(nodeWatcher),
 	)
 	if err != nil {
 		return trace.Wrap(err)
