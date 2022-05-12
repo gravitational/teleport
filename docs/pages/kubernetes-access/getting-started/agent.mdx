@@ -70,7 +70,8 @@ The `kubernetes_groups`, `kubernetes_labels` and `kubernetes_users` determine th
 role to a Kubernetes cluster.
 
 ```yaml
-  # Sets which groups in the Kubernetes the user should access as.  The group must
+  # Sets which Kubernetes groups the user can access the cluster as.
+  # Each group must
   # already exist in the Kubernetes cluster. Example: system:masters
     kubernetes_groups:
     - '{{internal.kubernetes_groups}}'
