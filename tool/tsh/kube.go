@@ -483,18 +483,17 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 }
 
 func (c *kubeSessionsCommand) run(cf *CLIConf) error {
-	ctx := context.Background()
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	proxy, err := tc.ConnectToProxy(ctx)
+	proxy, err := tc.ConnectToProxy(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(ctx, true)
+	site, err := proxy.ConnectToCurrentCluster(cf.Context, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}

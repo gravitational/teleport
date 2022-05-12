@@ -273,46 +273,46 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 
 }
 
-func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker) (bool, error) {
+func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker) bool {
 	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind())
-	modes, err := evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles})
+	modes := evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles})
 
-	if err == nil || len(modes) > 0 {
-		// Apply RFD 45 RBAC rules to the session if it's SSH.
-		// This is a bit of a hack. It converts to the old legacy format
-		// which we don't have all data for, luckily the fields we don't have aren't made available
-		// to the RBAC filter anyway.
-		if tracker.GetKind() == types.KindSSHSession {
-			ruleCtx := &services.Context{User: a.context.User}
-			ruleCtx.SSHSession = &session.Session{
-				ID:             session.ID(tracker.GetSessionID()),
-				Namespace:      apidefaults.Namespace,
-				Login:          tracker.GetLogin(),
-				Created:        tracker.GetCreated(),
-				LastActive:     a.authServer.GetClock().Now(),
-				ServerID:       tracker.GetAddress(),
-				ServerAddr:     tracker.GetAddress(),
-				ServerHostname: tracker.GetHostname(),
-				ClusterName:    tracker.GetClusterName(),
-			}
-
-			for _, participant := range tracker.GetParticipants() {
-				// We only need to fill in User here since other fields get discarded anyway.
-				ruleCtx.SSHSession.Parties = append(ruleCtx.SSHSession.Parties, session.Party{
-					User: participant.User,
-				})
-			}
-
-			// Skip past it if there's a deny rule in place blocking access.
-			if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
-				return false, nil
-			}
-		}
-
-		return true, nil
+	if len(modes) == 0 {
+		return false
 	}
 
-	return false, nil
+	// Apply RFD 45 RBAC rules to the session if it's SSH.
+	// This is a bit of a hack. It converts to the old legacy format
+	// which we don't have all data for, luckily the fields we don't have aren't made available
+	// to the RBAC filter anyway.
+	if tracker.GetKind() == types.KindSSHSession {
+		ruleCtx := &services.Context{User: a.context.User}
+		ruleCtx.SSHSession = &session.Session{
+			ID:             session.ID(tracker.GetSessionID()),
+			Namespace:      apidefaults.Namespace,
+			Login:          tracker.GetLogin(),
+			Created:        tracker.GetCreated(),
+			LastActive:     a.authServer.GetClock().Now(),
+			ServerID:       tracker.GetAddress(),
+			ServerAddr:     tracker.GetAddress(),
+			ServerHostname: tracker.GetHostname(),
+			ClusterName:    tracker.GetClusterName(),
+		}
+
+		for _, participant := range tracker.GetParticipants() {
+			// We only need to fill in User here since other fields get discarded anyway.
+			ruleCtx.SSHSession.Parties = append(ruleCtx.SSHSession.Parties, session.Party{
+				User: participant.User,
+			})
+		}
+
+		// Skip past it if there's a deny rule in place blocking access.
+		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
+			return false
+		}
+	}
+
+	return false
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
@@ -331,13 +331,9 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return nil, trace.Wrap(err)
 	}
 
-	ok, err := a.filterSessionTracker(ctx, joinerRoles, tracker)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	ok := a.filterSessionTracker(ctx, joinerRoles, tracker)
 	if !ok {
-		return nil, trace.AccessDenied("access denied to session %v", sessionID)
+		return nil, trace.NotFound("session %v not found", sessionID)
 	}
 
 	return tracker, nil
@@ -357,11 +353,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 	}
 
 	for _, sess := range sessions {
-		ok, err := a.filterSessionTracker(ctx, joinerRoles, sess)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
+		ok := a.filterSessionTracker(ctx, joinerRoles, sess)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
