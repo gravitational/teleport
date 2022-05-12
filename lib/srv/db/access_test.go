@@ -1281,7 +1281,7 @@ type testContext struct {
 	redis map[string]testRedis
 	// sqlServer is a collection of SQL Server databases the test uses.
 	sqlServer map[string]testSQLServer
-
+	// snowflake is a collection of Snowflake databases the test uses.
 	snowflake map[string]testSnowflake
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
@@ -1640,6 +1640,7 @@ func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, telepo
 	return proxy, nil
 }
 
+// snowflakeClient returns a Snowflake test DB client.
 func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*sql.DB, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,

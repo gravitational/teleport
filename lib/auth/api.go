@@ -271,10 +271,11 @@ type ReadProxyAccessPoint interface {
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
+// SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
 type SnowflakeSessionWatcher interface {
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
-
+	// GetSnowflakeSession get a Snowflake web session for a given request.
 	GetSnowflakeSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 }
 

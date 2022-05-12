@@ -530,7 +530,7 @@ type Config struct {
 	Apps services.Apps
 	// Databases is a databases service.
 	Databases services.Databases
-
+	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.AppSession
 	// AppSession holds application sessions.
 	AppSession services.AppSession

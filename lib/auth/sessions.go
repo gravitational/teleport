@@ -114,10 +114,13 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxy
 	return waitForWebSession(ctx, sessionID, user, types.KindAppSession, ap.NewWatcher, ap.GetAppSession)
 }
 
+// WaitForSnowflakeSession waits until the requested Snowflake session shows up int the cache
+// or a timeout occurs.
 func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap SnowflakeSessionWatcher) error {
 	return waitForWebSession(ctx, sessionID, user, types.KindSnowflakeSession, ap.NewWatcher, ap.GetSnowflakeSession)
 }
 
+// waitForWebSession is an implementation for web session wait functions.
 func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind string,
 	newWatcherFn func(ctx context.Context, watch types.Watch) (types.Watcher, error),
 	getSessionFn func(context.Context, types.GetAppSessionRequest) (types.WebSession, error),
@@ -247,7 +250,9 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 	return certs.SSH, certs.TLS, nil
 }
 
-func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest, _ types.User, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest,
+	identity tlsca.Identity, checker services.AccessChecker,
+) (types.WebSession, error) {
 	if !modules.GetModules().Features().DB {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
@@ -279,7 +284,7 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
-	UserLoginCount.Inc()
+	log.Debugf("Generated Snowflake web session for %v with TTL %v.", req.Username, ttl)
+
 	return session, nil
 }

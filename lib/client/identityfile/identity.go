@@ -72,6 +72,8 @@ const (
 	// configuring a Redis database for mutual TLS.
 	FormatRedis Format = "redis"
 
+	// FormatSnowflake produces public key in the format suitable for
+	// configuration Snowflake JWT access.
 	FormatSnowflake Format = "snowflake"
 
 	// DefaultFormat is what Teleport uses by default

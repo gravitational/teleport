@@ -38,7 +38,7 @@ import (
 // TestServerOption allows setting test server options.
 type TestServerOption func(*TestServer)
 
-// TestForceTokenRefresh made the test server to return sessionExpiredCode
+// TestForceTokenRefresh makes the test server return sessionExpiredCode
 // error on the first query request.
 func TestForceTokenRefresh() TestServerOption {
 	return func(ts *TestServer) {
@@ -56,7 +56,7 @@ type TestServer struct {
 	forceTokenRefresh  bool
 }
 
-// NewTestServer returns a new instance of a test Postgres server.
+// NewTestServer returns a new instance of a test Snowflake server.
 func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	address := "localhost:0"
 	if config.Address != "" {
@@ -97,6 +97,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 }
 
 const (
+	// loginResponse is a successful login response returned by the Snowflake mock server
+	// used in tests.
 	loginResponse = `
 {
   "data": {
@@ -104,6 +106,8 @@ const (
   },
   "success": true
 }`
+	// queryResponse is a successful query response returned by the Snowflake mock server
+	// used in tests.
 	queryResponse = `{
   "data": {
     "parameters": [
@@ -276,7 +280,7 @@ const (
   "success": true
 }
 `
-
+	// sessionEndResponse is the response returned by the Snowflake mock server on the session end request.
 	sessionEndResponse = `{
   "data": null,
   "code": null,
@@ -285,13 +289,15 @@ const (
 }
 `
 
+	// forceTokenRefresh is the response returned by the Snowflake mock server to force client to renew
+	// the session token.
 	forceTokenRefresh = `{
   "code": "390112",
   "message": null,
   "success": false
 }
 `
-
+	// sessionTokenResponse is the response returned by the Snowflake mock server on token renew request.
 	sessionTokenResponse = `{
   "data": {
     "sessionToken": "sessionToken-123",

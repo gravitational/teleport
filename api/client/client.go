@@ -1150,6 +1150,7 @@ func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	return resp.GetSession(), nil
 }
 
+// CreateSnowflakeSession creates a Snowflake web session.
 func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateSnowflakeSession(ctx, &proto.CreateSnowflakeSessionRequest{
 		Username:     req.Username,
@@ -1209,7 +1210,8 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 	return resp.GetToken(), nil
 }
 
-func (c *Client) GenerateDatabaseJWT(ctx context.Context, req types.GenerateSnowflakeJWT) (string, error) {
+// GenerateSnowflakeJWT generates JWT in the Snowflake required format.
+func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSnowflakeJWT) (string, error) {
 	resp, err := c.grpc.GenerateSnowflakeJWT(ctx, &proto.SnowflakeJWTRequest{
 		UserName:    req.Username,
 		AccountName: req.Account,

@@ -98,6 +98,7 @@ const (
 	// KindAppSession represents an application specific web session.
 	KindAppSession = "app_session"
 
+	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
 	// KindEvent is structured audit logging event

@@ -415,7 +415,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 
 	switch req.URL.Path {
 	case loginRequestPath:
-		jwtToken, err := e.AuthClient.GenerateDatabaseJWT(ctx, types.GenerateSnowflakeJWT{
+		jwtToken, err := e.AuthClient.GenerateSnowflakeJWT(ctx, types.GenerateSnowflakeJWT{
 			Username: e.sessionCtx.DatabaseUser,
 			Account:  accountName,
 		})

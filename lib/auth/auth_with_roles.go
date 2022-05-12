@@ -3474,7 +3474,7 @@ func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.D
 	return a.authServer.GenerateDatabaseCert(ctx, req)
 }
 
-// GenerateDatabaseJWT generates JWT in Snowflake required format.
+// GenerateDatabaseJWT generates JWT in the Snowflake required format.
 func (a *ServerWithRoles) GenerateDatabaseJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
 	// Check if this is a local cluster admin, or a database service, or a
 	// user that is allowed to impersonate database service.
@@ -3700,16 +3700,17 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req types.Create
 	return session, nil
 }
 
+// CreateSnowflakeSession creates a Snowflake web session.
 func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
 	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := a.authServer.CreateSnowflakeSession(ctx, req, a.context.User, a.context.Identity.GetIdentity(), a.context.Checker)
+	snowflakeSession, err := a.authServer.CreateSnowflakeSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return session, nil
+	return snowflakeSession, nil
 }
 
 // UpsertAppSession not implemented: can only be called locally.
