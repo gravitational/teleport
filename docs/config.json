@@ -239,16 +239,12 @@
           "slug": "/application-access/getting-started/"
         },
         {
-          "title": "Guides",
+          "title": "Access Guides",
           "slug": "/application-access/guides/",
           "entries": [
             {
               "title": "Connecting Apps",
               "slug": "/application-access/guides/connecting-apps/"
-            },
-            {
-              "title": "Integrating with JWT",
-              "slug": "/application-access/guides/jwt/"
             },
             {
               "title": "API Access",
@@ -261,6 +257,20 @@
             {
               "title": "Dynamic Registration",
               "slug": "/application-access/guides/dynamic-registration/"
+            }
+          ]
+        },
+        {
+          "title": "JWT Guides",
+          "slug": "/application-access/jwt/",
+          "entries": [
+            {
+              "title": "Introduction",
+              "slug": "/application-access/jwt/introduction/"
+            },
+            {
+              "title": "ElasticSearch",
+              "slug": "/application-access/jwt/elasticsearch/"
             }
           ]
         },
@@ -1174,6 +1184,11 @@
     {
       "source": "/cluster/",
       "destination": "/kubernetes-access/guides/multiple-clusters/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/jwt/",
+      "destination": "/application-access/jwt/",
       "permanent": true
     }
   ]
