@@ -45,7 +45,7 @@ func init() {
 func newTestSnowflakeEngine(ec common.EngineConfig) common.Engine {
 	return &snowflake.Engine{
 		EngineConfig: ec,
-		HttpClient: &http.Client{
+		HTTPClient: &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,

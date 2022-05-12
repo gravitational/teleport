@@ -1661,6 +1661,9 @@ func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbServi
 		Username:        teleportUser,
 		RouteToDatabase: route,
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	return db, proxy, nil
 }

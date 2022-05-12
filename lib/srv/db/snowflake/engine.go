@@ -53,7 +53,7 @@ func init() {
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
-		HttpClient:   getDefaultHttpClient(),
+		HTTPClient:   getDefaultHTTPClient(),
 	}
 }
 
@@ -64,8 +64,8 @@ type Engine struct {
 	clientConn net.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-	// HttpClient is the client being used to talk to Snowflake API.
-	HttpClient *http.Client
+	// HTTPClient is the client being used to talk to Snowflake API.
+	HTTPClient *http.Client
 
 	connectionToken string
 }
@@ -77,7 +77,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	return nil
 }
 
-func getDefaultHttpClient() *http.Client {
+func getDefaultHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -207,7 +207,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	e.setAuthorizationHeader(reqCopy)
 
 	// Send the request to Snowflake API
-	resp, err := e.HttpClient.Do(reqCopy)
+	resp, err := e.HTTPClient.Do(reqCopy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -381,7 +381,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 }
 
 func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Session, respBody []byte, accountName string) ([]byte, error) {
-	if newResp, err := e.extractToken(respBody, func(sessionToken string) (string, error) {
+	newResp, err := e.extractToken(respBody, func(sessionToken string) (string, error) {
 		snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 			Username:             sessionCtx.Identity.Username,
 			SnowflakeAccountName: accountName,
@@ -393,14 +393,12 @@ func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Sessio
 		}
 
 		return snowflakeSession.GetName(), nil
-	}); err == nil {
-		e.Log.Debugf("extracted token")
-
-		return newResp, nil
-	} else {
-		e.Log.Debugf("failed to extract token: %v", err)
-		return nil, trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to extract Snowflake session token")
 	}
+
+	return newResp, nil
 }
 
 func (e *Engine) copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.Request, error) {
@@ -579,9 +577,9 @@ func extractSnowflakeTokenFromHeader(token string) string {
 func copyResponse(resp *http.Response, body []byte) ([]byte, error) {
 	resp.Body = io.NopCloser(bytes.NewBuffer(body))
 	resp.ContentLength = int64(len(body))
-	if _, ok := resp.Header["Content-Length"]; ok {
-		delete(resp.Header, "Content-Length")
-	}
+
+	delete(resp.Header, "Content-Length")
+
 	return httputil.DumpResponse(resp, true)
 }
 
@@ -650,13 +648,8 @@ func replaceToken(loginReq []byte, jwtToken string, accountName string) ([]byte,
 	logReq.Data["ACCOUNT_NAME"] = accountName
 	logReq.Data["AUTHENTICATOR"] = "SNOWFLAKE_JWT"
 
-	if _, ok := logReq.Data["PASSWORD"]; ok {
-		delete(logReq.Data, "PASSWORD")
-	}
-
-	if _, ok := logReq.Data["EXT_AUTHN_DUO_METHOD"]; ok {
-		delete(logReq.Data, "EXT_AUTHN_DUO_METHOD")
-	}
+	delete(logReq.Data, "PASSWORD")
+	delete(logReq.Data, "EXT_AUTHN_DUO_METHOD")
 
 	return json.Marshal(logReq)
 }
