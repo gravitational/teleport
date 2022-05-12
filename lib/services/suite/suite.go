@@ -515,14 +515,14 @@ func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunn
 }
 
 func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *check.C) {
-	out, err := s.PresenceS.GetReverseTunnels()
+	out, err := s.PresenceS.GetReverseTunnels(context.Background())
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
 	tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
 	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel), check.IsNil)
 
-	out, err = s.PresenceS.GetReverseTunnels()
+	out, err = s.PresenceS.GetReverseTunnels(context.Background())
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	tunnel.SetResourceID(out[0].GetResourceID())
@@ -531,7 +531,7 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *check.C) {
 	err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
 	c.Assert(err, check.IsNil)
 
-	out, err = s.PresenceS.GetReverseTunnels()
+	out, err = s.PresenceS.GetReverseTunnels(context.Background())
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
@@ -1691,7 +1691,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
 				c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel), check.IsNil)
 
-				out, err := s.PresenceS.GetReverseTunnels()
+				out, err := s.PresenceS.GetReverseTunnels(context.Background())
 				c.Assert(err, check.IsNil)
 
 				err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)

@@ -171,7 +171,7 @@ type mockAuthClient struct {
 	reverseTunnelsErr error
 }
 
-func (c mockAuthClient) GetReverseTunnels(...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (c mockAuthClient) GetReverseTunnels(context.Context, ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	return c.reverseTunnels, c.reverseTunnelsErr
 }
 

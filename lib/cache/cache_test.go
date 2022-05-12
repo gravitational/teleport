@@ -1454,7 +1454,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetReverseTunnels()
+	out, err := p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 
@@ -1467,7 +1467,7 @@ func TestReverseTunnels(t *testing.T) {
 	err = p.presenceS.UpsertReverseTunnel(tunnel)
 	require.NoError(t, err)
 
-	out, err = p.presenceS.GetReverseTunnels()
+	out, err = p.presenceS.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	tunnel = out[0]
@@ -1479,7 +1479,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetReverseTunnels()
+	out, err = p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 
@@ -1495,7 +1495,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetReverseTunnels()
+	out, err = p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Empty(t, out)
 }
