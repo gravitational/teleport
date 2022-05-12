@@ -354,19 +354,16 @@ func (a *agent) connect() error {
 	a.unclaim = unclaim
 
 	startupCtx, cancel := context.WithCancel(a.ctx)
-	done := make(chan struct{})
 
 	// Temporarily reply to global requests during startup. This is necessary
 	// due to the server sending a version request when we connect.
 	go func() {
 		a.handleGlobalRequests(startupCtx, a.client.GlobalRequests())
-		close(done)
 	}()
 
-	// Ensure we stop handling global requests before returning.
+	// Stop handling global requests before returning.
 	defer func() {
 		cancel()
-		<-done
 	}()
 
 	err = a.sendFirstHeartbeat(a.ctx)
@@ -465,12 +462,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 }
 
 func (a *agent) isDraining() bool {
-	select {
-	case <-a.drainCtx.Done():
-		return true
-	default:
-		return false
-	}
+	return a.drainCtx.Err() != nil
 }
 
 // signalDraining will signal one time when the draining context is canceled.
