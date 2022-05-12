@@ -96,7 +96,7 @@ func loadAllConfigs(cf CLIConf) (*TshConfig, error) {
 		globalConfig = globalTshConfigPathDefault
 	}
 
-	globalConf, err := loadConfig(cf.GlobalTshConfigPath)
+	globalConf, err := loadConfig(globalConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load global tsh config from %q", cf.GlobalTshConfigPath)
 	}
