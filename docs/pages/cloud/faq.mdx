@@ -40,7 +40,7 @@ Currently there is no way to provide your own bucket.
 
 ## How long will Teleport Cloud retain my data?
 
-See our documentation on [data retention](./architecture.mdx#data-retention)
+See our documentation on [data retention](./architecture.mdx#data-retention).
 
 ## How do I add nodes to Teleport Cloud?
 
@@ -51,9 +51,9 @@ There is no need to open any ports on your infrastructure for inbound traffic.
 
 ## How can I access the tctl admin tool?
 
-Find the appropriate download at [Teleport Cloud Downloads](./downloads.mdx). Use the enterprise version of `tctl` and `tsh`.
+Find the appropriate download at [Teleport Cloud Downloads](./downloads.mdx). Use the Enterprise version of `tctl`.
 
-After downloading the tools, first log into your cluster using `tsh`, then use `tctl` remotely:
+After downloading the tools, first log in to your cluster using `tsh`, then use `tctl` remotely:
 
 ```code
 $ tsh login --proxy=myinstance.teleport.sh
@@ -81,11 +81,11 @@ $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
 
 ## Is an independent security audit available?
 
-A security audit has been completed and is available [here](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/).
+A security audit has been completed and is available at our [Audit Report 2021](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/) page.
 
 ## Where does Teleport Cloud run?
 
-Teleport Cloud is deployed within AWS, using S3 and DynamoDB for storage with AWS managed encryption keys. All data is currently hosted in us-west-2.
+Teleport Cloud is deployed within AWS, using S3 and DynamoDB for storage with AWS-managed encryption keys. All data is currently hosted in us-west-2.
 Currently there is no option to select an alternative region for storage.
 
 ## Will Teleport be automatically upgraded with each release?
