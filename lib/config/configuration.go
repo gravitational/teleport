@@ -433,6 +433,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.Proxy.DisableWebInterface {
+		cfg.Proxy.DisableWebInterface = true
+	}
+
 	return nil
 }
 
