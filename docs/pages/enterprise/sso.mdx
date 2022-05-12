@@ -94,7 +94,7 @@ To configure SSO, a Teleport administrator must:
   a YAML file (like `connector.yaml`).
 - Create the connector using `tctl create connector.yaml`.
 
-To set the default authentication type as `saml` or `oidc`, <ScopedBlock scope={["oss", "enterprise"]}>either modify your Auth Service configuration file or</ScopedBlock>create a `cluster_auth_preference` resource.
+To set the default authentication type as `saml` or `oidc`, <ScopedBlock scope={["oss", "enterprise"]}>either modify your Auth Service configuration file or </ScopedBlock>create a `cluster_auth_preference` resource.
 <Tabs>
   <TabItem label="Static Config (Self-Hosted)">
  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
