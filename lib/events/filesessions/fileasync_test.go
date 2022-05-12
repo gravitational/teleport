@@ -32,7 +32,6 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -396,6 +395,8 @@ func TestUploadBackoff(t *testing.T) {
 // TestUploadBadSession creates a corrupted session file
 // and makes sure the uploader marks it as faulty
 func TestUploadBadSession(t *testing.T) {
+	ctx := context.Background()
+
 	p := newUploaderPack(t, nil)
 	defer p.Close(t)
 
@@ -423,7 +424,7 @@ func TestUploadBadSession(t *testing.T) {
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
 
-	stats, err := p.uploader.Scan()
+	stats, err := p.uploader.Scan(ctx)
 	require.NoError(t, err)
 	// Bad records have been scanned, but uploads have not started
 	require.Equal(t, 1, stats.Scanned)
@@ -476,17 +477,16 @@ func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
 	}
 
 	uploader, err := NewUploader(UploaderConfig{
-		Context:    pack.ctx,
 		ScanDir:    pack.scanDir,
 		ScanPeriod: pack.scanPeriod,
 		Streamer:   pack.streamer,
 		Clock:      pack.clock,
 		EventsC:    pack.eventsC,
 		AuditLog:   &events.DiscardAuditLog{},
-	}, &eventstest.MockSessionTrackerService{})
+	})
 	require.NoError(t, err)
 	pack.uploader = uploader
-	go pack.uploader.Serve()
+	go pack.uploader.Serve(pack.ctx)
 	return pack
 }
 
@@ -514,15 +514,14 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
 		EventsC:    eventsC,
-		Context:    ctx,
 		ScanDir:    scanDir,
 		ScanPeriod: scanPeriod,
 		Streamer:   test.streamer,
 		Clock:      clock,
 		AuditLog:   &events.DiscardAuditLog{},
-	}, &eventstest.MockSessionTrackerService{})
+	})
 	require.Nil(t, err)
-	go uploader.Serve()
+	go uploader.Serve(ctx)
 	// wait until uploader blocks on the clock
 	clock.BlockUntil(1)
 

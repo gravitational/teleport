@@ -65,7 +65,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(sshProxyWithTLSRouting(cf, tc, targetHost, targetPort))
 	}
 
-	return trace.Wrap(sshProxy(cf, tc, targetHost, targetPort))
+	return trace.Wrap(sshProxy(tc, targetHost, targetPort))
 }
 
 // cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
@@ -94,7 +94,7 @@ func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHos
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpncommon.ProtocolProxySSH,
+		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolProxySSH},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
@@ -114,7 +114,7 @@ func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHos
 	return nil
 }
 
-func sshProxy(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort string) error {
+func sshProxy(tc *libclient.TeleportClient, targetHost, targetPort string) error {
 	sshPath, err := getSSHPath()
 	if err != nil {
 		return trace.Wrap(err)
@@ -148,7 +148,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := pickActiveDatabase(cf)
+	routeToDatabase, err := pickActiveDatabase(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -175,25 +175,17 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 	}()
 
-	// If user requested no client auth, open an authenticated tunnel using
-	// client cert/key of the database.
-	certFile := cf.LocalProxyCertFile
-	if certFile == "" && cf.LocalProxyTunnel {
-		certFile = profile.DatabaseCertPathForCluster(cf.SiteName, database.ServiceName)
-	}
-	keyFile := cf.LocalProxyKeyFile
-	if keyFile == "" && cf.LocalProxyTunnel {
-		keyFile = profile.KeyPath()
+	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
+		cliConf:         cf,
+		teleportClient:  client,
+		profile:         profile,
+		routeToDatabase: routeToDatabase,
+		listener:        listener})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	lp, err := mkLocalProxy(cf.Context, localProxyOpts{
-		proxyAddr: client.WebProxyAddr,
-		protocol:  database.Protocol,
-		listener:  listener,
-		insecure:  cf.InsecureSkipVerify,
-		certFile:  certFile,
-		keyFile:   keyFile,
-	})
+	lp, err := mkLocalProxy(cf.Context, proxyOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -207,7 +199,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cmd, err := dbcmd.NewCmdBuilder(client, profile, database, cf.SiteName,
+		cmd, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, cf.SiteName,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
@@ -216,8 +208,8 @@ func onProxyCommandDB(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		err = dbProxyAuthTpl.Execute(os.Stdout, map[string]string{
-			"database": database.ServiceName,
-			"type":     dbProtocolToText(database.Protocol),
+			"database": routeToDatabase.ServiceName,
+			"type":     dbProtocolToText(routeToDatabase.Protocol),
 			"cluster":  profile.Cluster,
 			"command":  cmd.String(),
 			"address":  listener.Addr().String(),
@@ -227,10 +219,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]string{
-			"database": database.ServiceName,
+			"database": routeToDatabase.ServiceName,
 			"address":  listener.Addr().String(),
 			"ca":       profile.CACertPathForCluster(rootCluster),
-			"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, database.ServiceName),
+			"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
 			"key":      profile.KeyPath(),
 		})
 		if err != nil {
@@ -248,14 +240,22 @@ func onProxyCommandDB(cf *CLIConf) error {
 type localProxyOpts struct {
 	proxyAddr string
 	listener  net.Listener
-	protocol  string
+	protocols []alpncommon.Protocol
 	insecure  bool
 	certFile  string
 	keyFile   string
 }
 
+// protocol returns the first protocol or string if configuration doesn't contain any protocols.
+func (l *localProxyOpts) protocol() string {
+	if len(l.protocols) == 0 {
+		return ""
+	}
+	return string(l.protocols[0])
+}
+
 func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol)
+	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -270,7 +270,7 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		InsecureSkipVerify: opts.insecure,
 		RemoteProxyAddr:    opts.proxyAddr,
-		Protocol:           alpnProtocol,
+		Protocols:          append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...),
 		Listener:           opts.listener,
 		ParentContext:      ctx,
 		SNI:                address.Host(),
@@ -325,7 +325,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpncommon.ProtocolHTTP,
+		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolHTTP},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),

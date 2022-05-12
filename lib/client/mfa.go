@@ -60,6 +60,27 @@ type PromptMFAChallengeOpts struct {
 	// available.
 	// If set it also avoids stdin hijacking, as only one prompt is necessary.
 	UseStrongestAuth bool
+	// AuthenticatorAttachment specifies the desired authenticator attachment.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+}
+
+// PromptMFAChallenge prompts the user to complete MFA authentication
+// challenges.
+// See client.PromptMFAChallenge.
+func (tc *TeleportClient) PromptMFAChallenge(
+	ctx context.Context, c *proto.MFAAuthenticateChallenge, optsOverride *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+	opts := &PromptMFAChallengeOpts{
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+	}
+	if optsOverride != nil {
+		opts.PromptDevicePrefix = optsOverride.PromptDevicePrefix
+		opts.Quiet = optsOverride.Quiet
+		opts.UseStrongestAuth = optsOverride.UseStrongestAuth
+		if optsOverride.AuthenticatorAttachment != wancli.AttachmentAuto {
+			opts.AuthenticatorAttachment = optsOverride.AuthenticatorAttachment
+		}
+	}
+	return PromptMFAChallenge(ctx, c, tc.WebProxyAddr, opts)
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
@@ -135,7 +156,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 			var msg string
 			if !quiet {
 				if hasWebauthn {
-					msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
+					msg = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", promptDevicePrefix, promptDevicePrefix)
 				} else {
 					msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
 				}
@@ -155,8 +176,6 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				},
 			}
 		}()
-	} else if !quiet {
-		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 	}
 
 	// Fire Webauthn goroutine.
@@ -171,8 +190,15 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
 
 			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
-			prompt.FirstTouchMessage = "" // First prompt printed above.
+
+			// Let OTP take over the prompt if present, but otherwise delegate to
+			// WebAuthn.
+			prompt.FirstTouchMessage = ""
+			if !hasTOTP && !quiet {
+				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
+			}
 			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
+
 			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
 				otpCancel()
 				otpWait.Wait()
@@ -180,7 +206,8 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 
 			const user = ""
 			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
-				User: user,
+				User:                    user,
+				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()

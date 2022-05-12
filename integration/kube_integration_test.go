@@ -1526,8 +1526,19 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		},
 	})
 	require.NoError(t, err)
+	joinRole, err := types.NewRoleV3("participant", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "foo",
+				Roles: []string{"kubemaster"},
+				Kinds: []string{string(types.KubernetesSessionKind)},
+				Modes: []string{string(types.SessionPeerMode)},
+			}},
+		},
+	})
+	require.NoError(t, err)
 	teleport.AddUserWithRole(hostUsername, role)
-	teleport.AddUserWithRole(participantUsername, role)
+	teleport.AddUserWithRole(participantUsername, joinRole)
 
 	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)

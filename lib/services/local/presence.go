@@ -473,9 +473,9 @@ func (s *PresenceService) GetReverseTunnel(name string, opts ...services.Marshal
 }
 
 // GetReverseTunnels returns a list of registered servers
-func (s *PresenceService) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (s *PresenceService) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	startKey := backend.Key(reverseTunnelsPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -671,7 +671,7 @@ func (s *PresenceService) DeleteTunnelConnections(clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing cluster name")
 	}
-	startKey := backend.Key(tunnelConnectionsPrefix, clusterName)
+	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
 	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
