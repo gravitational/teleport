@@ -19,8 +19,8 @@ import { Route, Switch, useParams } from 'teleport/components/Router';
 import history from 'teleport/services/history';
 import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
-import NewCredentials from './NewCredentials';
-import CardWelcome from './CardWelcome';
+import { NewCredentials } from './NewCredentials';
+import { CardWelcome } from './CardWelcome';
 
 export default function Welcome() {
   const { tokenId } = useParams<{ tokenId: string }>();
@@ -47,26 +47,17 @@ export default function Welcome() {
         </Route>
         <Route exact path={cfg.routes.userReset}>
           <CardWelcome
-            title="Reset Password"
+            title="Reset Authentication"
             subTitle="Please click the button below to begin recovery of your account"
             btnText="Continue"
             onClick={handleOnResetContinue}
           />
         </Route>
         <Route path={cfg.routes.userInviteContinue}>
-          <NewCredentials
-            tokenId={tokenId}
-            title="Welcome to Teleport"
-            submitBtnText="Create Account"
-          />
+          <NewCredentials tokenId={tokenId} />
         </Route>
         <Route path={cfg.routes.userResetContinue}>
-          <NewCredentials
-            resetMode={true}
-            tokenId={tokenId}
-            title="Reset Password"
-            submitBtnText="Change Password"
-          />
+          <NewCredentials resetMode={true} tokenId={tokenId} />
         </Route>
       </Switch>
     </>

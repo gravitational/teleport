@@ -16,7 +16,15 @@ limitations under the License.
 
 import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
-import { Card, Text, Flex, ButtonLink, ButtonPrimary, Box } from 'design';
+import {
+  Card,
+  Text,
+  Flex,
+  ButtonLink,
+  ButtonPrimary,
+  Box,
+  ButtonText,
+} from 'design';
 import { Key, ArrowForward } from 'design/Icon';
 import * as Alerts from 'design/Alert';
 import {
@@ -52,8 +60,8 @@ export default function LoginForm(props: Props) {
   // and display sso providers if any.
   if (!isLocalAuthEnabled && ssoEnabled) {
     return (
-      <Card bg="primary.light" my="5" mx="auto" width="464px">
-        <Text typography="h3" pt={5} textAlign="center" color="light">
+      <Card bg="primary.light" my="5" mx="auto" width="464px" pb={4}>
+        <Text typography="h3" pt={4} textAlign="center" color="light">
           {title}
         </Text>
         {attempt.isFailed && (
@@ -68,8 +76,8 @@ export default function LoginForm(props: Props) {
 
   if (!isLocalAuthEnabled) {
     return (
-      <Card bg="primary.light" my="5" mx="auto" width="464px" px={5} pb={5}>
-        <Text typography="h3" pt={5} textAlign="center" color="light">
+      <Card bg="primary.light" my="5" mx="auto" width="464px" px={5} pb={4}>
+        <Text typography="h3" pt={4} textAlign="center" color="light">
           {title}
         </Text>
         <Alerts.Danger my={5}>Login has not been enabled</Alerts.Danger>
@@ -83,8 +91,8 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
-    <Card bg="primary.light" my="5" mx="auto" width={464}>
-      <Text typography="h3" pt={5} textAlign="center" color="light">
+    <Card bg="primary.light" my="5" mx="auto" width={464} pb={4}>
+      <Text typography="h3" pt={4} textAlign="center" color="light">
         {title}
       </Text>
       {attempt.isFailed && (
@@ -114,14 +122,11 @@ const SsoList = ({ attempt, authProviders, onLoginWithSso }: Props) => {
 };
 
 const Passwordless = ({ onLoginWithWebauthn, attempt }: Props) => (
-  <Box px={5} pb={4} pt={2} data-testid="passwordless">
+  <Box px={5} pt={2} data-testid="passwordless" pb={1}>
     <StyledPaswordlessBtn
       mt={3}
       py={2}
       px={3}
-      border={1}
-      borderRadius={2}
-      borderColor="text.placeholder"
       width="100%"
       onClick={() => onLoginWithWebauthn()}
       disabled={attempt.isProcessing}
@@ -195,7 +200,6 @@ const LocalForm = ({
         <Flex
           as="form"
           px="5"
-          pb="5"
           pt="3"
           justifyContent="center"
           flexDirection="column"
@@ -277,6 +281,7 @@ const LocalForm = ({
           <ButtonPrimary
             width="100%"
             mt={3}
+            mb={1}
             type="submit"
             size="large"
             onClick={e => onLoginClick(e, validator)}
@@ -319,8 +324,8 @@ const Primary = ({
     <Box ref={refCallback}>
       {$primary}
       {otherOptionsAvailable && (
-        <Box pb={3} mt={-1} textAlign="center">
-          <StyledOptionBtn
+        <Box pt={3} mt={-1} textAlign="center">
+          <ButtonText
             disabled={otherProps.attempt.isProcessing}
             onClick={() => {
               otherProps.clearAttempt();
@@ -328,7 +333,7 @@ const Primary = ({
             }}
           >
             Other sign-in options
-          </StyledOptionBtn>
+          </ButtonText>
         </Box>
       )}
     </Box>
@@ -390,8 +395,8 @@ const Secondary = ({
   return (
     <Box ref={refCallback}>
       {$secondary}
-      <Box pb={3} textAlign="center">
-        <StyledOptionBtn
+      <Box pt={3} textAlign="center">
+        <ButtonText
           disabled={otherProps.attempt.isProcessing}
           onClick={() => {
             otherProps.clearAttempt();
@@ -399,7 +404,7 @@ const Secondary = ({
           }}
         >
           Back
-        </StyledOptionBtn>
+        </ButtonText>
       </Box>
     </Box>
   );
@@ -413,40 +418,28 @@ const Divider = () => (
     borderBottom={1}
     borderColor="text.placeholder"
     mx={5}
-    mt={2}
+    mt={5}
     mb={2}
   >
     <StyledOr>Or</StyledOr>
   </Flex>
 );
 
-const StyledPaswordlessBtn = styled(Box)`
-  cursor: pointer;
-  transition: all 0.3s;
+const StyledPaswordlessBtn = styled(ButtonText)`
+  display: block;
+  text-align: left;
+  border: 1px solid ${({ theme }) => theme.colors.text.placeholder};
 
-  &:hover {
+  &:hover,
+  &:active,
+  &:focus {
     border-color: ${({ theme }) => theme.colors.action.active};
+    text-decoration: none;
   }
 
   &[disabled] {
     pointer-events: none;
     opacity: 0.7;
-  }
-`;
-
-const StyledOptionBtn = styled(ButtonLink)`
-  display: inline-block;
-  color: ${({ theme }) => theme.colors.text.primary};
-  font-weight: bold;
-  text-decoration: none;
-
-  &[disabled] {
-    pointer-events: none;
-    color: ${({ theme }) => theme.colors.action.disabled};
-  }
-
-  &:hover {
-    text-decoration: underline;
   }
 `;
 

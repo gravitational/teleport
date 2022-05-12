@@ -21,6 +21,7 @@ import Button, {
   ButtonWarning,
   ButtonSecondary,
   ButtonBorder,
+  ButtonText,
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
@@ -52,6 +53,7 @@ export {
   ButtonPrimary,
   ButtonSecondary,
   ButtonWarning,
+  ButtonText,
   Card,
   CardSuccess,
   CardSuccessLogin,

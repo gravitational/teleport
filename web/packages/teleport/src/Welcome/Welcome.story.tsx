@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import Welcome from './Welcome';
-import CardWelcome from './CardWelcome';
+import { CardWelcome } from './CardWelcome';
 
 export default { title: 'Teleport/Welcome' };
 

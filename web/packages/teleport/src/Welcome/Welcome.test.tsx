@@ -106,7 +106,7 @@ describe('teleport/components/Welcome', () => {
     expect(history.push).toHaveBeenCalledWith(resetContinuePath);
     expect(auth.fetchPasswordToken).toHaveBeenCalled();
 
-    expect(screen.getByText(/change password/i)).toBeInTheDocument();
+    expect(screen.getByText(/submit/i)).toBeInTheDocument();
   });
 
   it('reset password', async () => {
@@ -141,72 +141,133 @@ describe('teleport/components/Welcome', () => {
 
     await act(async () => renderInvite());
 
+    // Fill out password.
     const pwdField = screen.getByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
-    const otpField = screen.getByPlaceholderText('123 456');
-
-    // fill out input boxes and trigger submit
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
+
+    // Go to the next view.
+    fireEvent.click(screen.getByText(/next/i));
+
+    // Fill out otp code and trigger submit.
+    const otpField = screen.getByPlaceholderText('123 456');
     fireEvent.change(otpField, { target: { value: '2222' } });
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByText(/submit/i));
 
     expect(auth.resetPassword).toHaveBeenCalledWith({
       tokenId: '5182',
       password: 'pwd_value',
       otpCode: '2222',
-      deviceName: '',
+      deviceName: 'otp-device',
     });
   });
 
   it('reset password with webauthn', async () => {
     jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'webauthn');
     jest
-      .spyOn(auth, 'resetPassword')
+      .spyOn(auth, 'resetPasswordWithWebauthn')
       .mockImplementation(() => new Promise(() => null));
+
+    await act(async () => renderInvite());
+
+    // Fill out password.
+    const pwdField = screen.getByPlaceholderText('Password');
+    const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
+    fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
+    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
+
+    // Go to the next view.
+    fireEvent.click(screen.getByText(/next/i));
+
+    // Trigger submit.
+    fireEvent.click(screen.getByText(/submit/i));
+
+    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith({
+      tokenId: '5182',
+      password: 'pwd_value',
+      deviceName: 'webauthn-device',
+    });
+  });
+
+  it('reset password with passwordless', async () => {
+    jest
+      .spyOn(cfg, 'getPrimaryAuthType')
+      .mockImplementation(() => 'passwordless');
     jest
       .spyOn(auth, 'resetPasswordWithWebauthn')
       .mockImplementation(() => new Promise(() => null));
 
     await act(async () => renderInvite());
 
-    // fill out input boxes and trigger submit
-    const pwdField = screen.getByPlaceholderText('Password');
-    const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
-    fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
-    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
-    fireEvent.click(screen.getByRole('button'));
+    // Trigger submit.
+    fireEvent.click(screen.getByText(/submit/i));
 
     expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith({
       tokenId: '5182',
-      password: 'pwd_value',
-      deviceName: '',
+      password: '',
+      deviceName: 'passwordless-device',
     });
   });
 
-  it('reset password error', async () => {
-    let reject;
-    jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'off');
-    jest.spyOn(auth, 'resetPassword').mockImplementation(() => {
-      return new Promise((resolve, _reject) => {
-        reject = _reject;
-      });
-    });
+  it('switch between primary password to passwordless and vice versa', async () => {
+    jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
+    jest.spyOn(cfg, 'isPasswordlessEnabled').mockImplementation(() => true);
 
     await act(async () => renderInvite());
 
-    // fill out input boxes and trigger submit
+    // Switch to passwordless.
+    fireEvent.click(screen.getByText(/go passwordless/i));
+    expect(screen.getByTestId('passwordless')).toBeVisible();
+
+    // Switch back to password.
+    fireEvent.click(screen.getByText(/back/i));
+    expect(screen.getByTestId('password')).toBeVisible();
+  });
+
+  it('switch between primary passwordless to password and vice versa', async () => {
+    jest
+      .spyOn(cfg, 'getPrimaryAuthType')
+      .mockImplementation(() => 'passwordless');
+
+    await act(async () => renderInvite());
+
+    // Switch to password.
+    fireEvent.click(screen.getByText(/use password/i));
+    expect(screen.getByTestId('password')).toBeVisible();
+
+    // Switch back to passwordless.
+    fireEvent.click(screen.getByText(/back/i));
+    expect(screen.getByTestId('passwordless')).toBeVisible();
+  });
+
+  it('switch between radio buttons when mfa is optional', async () => {
+    jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
+    jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
+
+    await act(async () => renderInvite());
+
+    // Fill out password to get to the next screen.
     const pwdField = screen.getByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
+    fireEvent.click(screen.getByText(/next/i));
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button'));
-      reject(new Error('server_error'));
-    });
+    // Default radio selection should be webauthn.
+    expect(screen.getByDisplayValue('webauthn-device')).toBeInTheDocument();
 
-    expect(screen.getByText('server_error')).toBeDefined();
+    // Switch to otp.
+    fireEvent.click(screen.getByText(/authenticator/i));
+    expect(screen.getByDisplayValue('otp-device')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('123 456')).toBeInTheDocument();
+
+    // Switch to none.
+    fireEvent.click(screen.getByText(/none/i));
+    expect(
+      screen.queryByDisplayValue('webauthn-device')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('otp-device')).not.toBeInTheDocument();
   });
 });
 

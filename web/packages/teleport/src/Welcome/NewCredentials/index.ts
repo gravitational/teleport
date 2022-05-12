@@ -14,5 +14,4 @@
  * limitations under the License.
  */
 
-import NewCredentials from './NewCredentials';
-export default NewCredentials;
+export { Container as NewCredentials } from './NewCredentials';

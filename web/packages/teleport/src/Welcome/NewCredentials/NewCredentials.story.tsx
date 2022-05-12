@@ -15,46 +15,97 @@ limitations under the License.
 */
 
 import React from 'react';
+import { Card } from 'design';
+import { SliderProps } from 'teleport/components/StepSlider';
 import { Props, NewCredentials } from './NewCredentials';
+import { NewMfaDevice } from './NewMfaDevice';
 
 export default {
   title: 'Teleport/Welcome/Form',
   component: NewCredentials,
 };
 
-export const MfaOff = () => <NewCredentials {...props} />;
+export const PasswordOnly = () => (
+  <NewCredentials {...props} isPasswordlessEnabled={false} />
+);
 
-export const MfaOtp = () => <NewCredentials {...props} auth2faType={'otp'} />;
-
-export const MfaOtpError = () => (
+export const PasswordOnlyError = () => (
   <NewCredentials
     {...props}
-    auth2faType={'otp'}
+    isPasswordlessEnabled={false}
     submitAttempt={{
       status: 'failed',
-      statusText:
-        'Server error with a long teeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeext',
+      statusText: 'some server error message',
     }}
   />
 );
 
-export const MfaWebauthn = () => (
-  <NewCredentials {...props} auth2faType="webauthn" />
-);
+export const PrimaryPasswordNoMfa = () => <NewCredentials {...props} />;
 
-export const MfaWebauthnError = () => (
-  <NewCredentials
-    {...props}
-    auth2faType="webauthn"
-    submitAttempt={{ status: 'failed', statusText: 'Some error message' }}
-  />
-);
-
-export const MfaOptional = () => (
+export const PrimaryPasswordWithMfa = () => (
   <NewCredentials {...props} auth2faType="optional" />
 );
 
-export const MfaOn = () => <NewCredentials {...props} auth2faType="on" />;
+export const PrimaryPasswordlessNoMfa = () => (
+  <NewCredentials {...props} primaryAuthType="passwordless" />
+);
+
+export const PrimaryPasswordlessWithMfa = () => (
+  <NewCredentials
+    {...props}
+    primaryAuthType="passwordless"
+    auth2faType="optional"
+  />
+);
+
+export const PrimaryPasswordlessError = () => (
+  <NewCredentials
+    {...props}
+    primaryAuthType="passwordless"
+    submitAttempt={{
+      status: 'failed',
+      statusText: 'some server error message',
+    }}
+  />
+);
+
+export const MfaDeviceOtp = () => (
+  <CardWrapper>
+    <NewMfaDevice {...props} {...sliderProps} auth2faType={'otp'} />
+  </CardWrapper>
+);
+
+export const MfaDeviceWebauthn = () => (
+  <CardWrapper>
+    <NewMfaDevice {...props} {...sliderProps} auth2faType={'webauthn'} />
+  </CardWrapper>
+);
+
+export const MfaDeviceOptional = () => (
+  <CardWrapper>
+    <NewMfaDevice {...props} {...sliderProps} auth2faType={'optional'} />
+  </CardWrapper>
+);
+
+export const MfaDeviceOn = () => (
+  <CardWrapper>
+    <NewMfaDevice {...props} {...sliderProps} auth2faType={'on'} />
+  </CardWrapper>
+);
+
+export const MfaDeviceError = () => (
+  <CardWrapper>
+    <NewMfaDevice
+      {...props}
+      {...sliderProps}
+      auth2faType={'otp'}
+      submitAttempt={{
+        status: 'failed',
+        statusText: 'some server error message',
+      }}
+    />
+  </CardWrapper>
+);
 
 export const ExpiredInvite = () => (
   <NewCredentials {...props} fetchAttempt={{ status: 'failed' }} />
@@ -84,19 +135,47 @@ const recoveryCodes = {
   createdDate: new Date('2019-08-30T11:00:00.00Z'),
 };
 
+export const SuccessRegister = () => (
+  <NewCredentials {...props} success={true} />
+);
+export const SuccessReset = () => (
+  <NewCredentials {...props} success={true} resetMode={true} />
+);
+
+function CardWrapper({ children }) {
+  return (
+    <Card as="form" bg="primary.light" my={5} mx="auto" width={464}>
+      {children}
+    </Card>
+  );
+}
+
+const sliderProps: SliderProps<any> & {
+  password: string;
+  updatePassword(): void;
+} = {
+  next: () => null,
+  prev: () => null,
+  switchFlow: () => null,
+  refCallback: () => null,
+  willTransition: false,
+  password: '',
+  updatePassword: () => null,
+};
 const props: Props = {
-  submitBtnText: 'Some Button Text',
-  title: 'Some Title',
   auth2faType: 'off',
-  preferredMfaType: 'webauthn',
+  primaryAuthType: 'local',
+  isPasswordlessEnabled: true,
   submitAttempt: { status: '' },
   clearSubmitAttempt: () => null,
   fetchAttempt: { status: 'success' },
   onSubmitWithWebauthn: () => null,
   onSubmit: () => null,
   redirect: () => null,
+  success: false,
+  finishedRegister: () => null,
   recoveryCodes: null,
-  passwordToken: {
+  resetToken: {
     user: 'john@example.com',
     tokenId: 'test123',
     qrCode:

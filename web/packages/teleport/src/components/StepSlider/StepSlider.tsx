@@ -53,7 +53,6 @@ export default function StepSlider<T>(props: Props<T>) {
 
   // Sets the initial height.
   useEffect(() => {
-    if (!rootRef?.current) return;
     const { height } = rootRef.current.getBoundingClientRect();
     setHeight(height);
   }, []);
@@ -85,22 +84,25 @@ export default function StepSlider<T>(props: Props<T>) {
           preMountState.current.step = step + 1;
           setPreMount(true);
           setAnimationDirectionPrefix('next');
+          rootRef.current.style.height = `${height}px`;
         }}
         prev={() => {
           preMountState.current.step = step - 1;
           setPreMount(true);
           setAnimationDirectionPrefix('prev');
+          rootRef.current.style.height = `${height}px`;
         }}
-        switchFlow={(flow, isBack = false) => {
+        switchFlow={(flow, applyNextAnimation = false) => {
           preMountState.current.step = 0;
           preMountState.current.flow = flow;
+          rootRef.current.style.height = `${height}px`;
 
           setPreMount(true);
-          if (isBack) {
-            setAnimationDirectionPrefix('prev');
+          if (applyNextAnimation) {
+            setAnimationDirectionPrefix('next');
             return;
           }
-          setAnimationDirectionPrefix('next');
+          setAnimationDirectionPrefix('prev');
         }}
         willTransition={
           !preMount && Number.isInteger(preMountState?.current?.step)
@@ -134,8 +136,9 @@ export default function StepSlider<T>(props: Props<T>) {
     // so these children's position themselves relative to parent.
     position: 'relative',
     // Height 'auto' is only ever used on the initial render to let it
-    // take up as much space it needs.
-    height: height || 'auto',
+    // take up as much space it needs. Afterwards, it sets the starting
+    // height.
+    height: rootRef?.current?.style.height || 'auto',
     transition: `height ${tDuration}ms ease`,
   };
 
@@ -152,11 +155,16 @@ export default function StepSlider<T>(props: Props<T>) {
             onEnter={() => {
               // When steps are translating (sliding), hides overflow content
               rootRef.current.style.overflow = 'hidden';
+              // The next height to transition into.
+              rootRef.current.style.height = `${height}px`;
             }}
             onExited={() => {
               // Set it back to auto because the parent component might contain elements
               // that may want it to be overflowed e.g. long drop down menu in a small card.
               rootRef.current.style.overflow = 'auto';
+              // Set height back to auto to allow the parent component to grow as needed
+              // e.g. rendering of a error banner
+              rootRef.current.style.height = 'auto';
             }}
           >
             {$content}
@@ -255,8 +263,9 @@ export type SliderProps<T> = {
   // prev goes back a step in the flow.
   prev(): void;
   // switchFlow switches to a different flow with different steps.
-  // The isBack flag is used to apply the prev-slide-* transition.
-  switchFlow?(flow: T, isBack?: boolean): void;
+  // The applyNextAnimation flag when true applies the next-slide-* transition,
+  // otherwise prev-slide-* transitions are applied.
+  switchFlow?(flow: T, applyNextAnimation?: boolean): void;
   // willTransition is a flag that when true, transition will take place on click.
   // Example of where this flag can be used:
   //   - FieldInput.tsx: this flag is used to tell this component to autoFocus

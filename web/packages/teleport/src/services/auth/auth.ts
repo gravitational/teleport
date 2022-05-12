@@ -138,6 +138,7 @@ const auth = {
           token: req.tokenId,
           password: req.password ? base64EncodeUnicode(req.password) : null,
           webauthnCreationResponse: makeWebauthnCreationResponse(res),
+          deviceName: req.deviceName,
         };
 
         return api.put(cfg.getPasswordTokenUrl(), request);
@@ -150,6 +151,7 @@ const auth = {
       password: base64EncodeUnicode(req.password),
       second_factor_token: req.otpCode,
       token: req.tokenId,
+      deviceName: req.deviceName,
     };
 
     return api.put(cfg.getPasswordTokenUrl(), request).then(makeRecoveryCodes);

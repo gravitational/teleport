@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Card, Text } from 'design';
 
-export default function Expired({ resetMode = false }) {
+export function Expired({ resetMode = false }) {
   const titleCodeTxt = resetMode ? 'Reset' : 'Invitation';
   const paraCodeTxt = resetMode ? 'reset' : 'invite';
 

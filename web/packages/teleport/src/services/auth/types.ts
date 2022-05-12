@@ -46,3 +46,9 @@ export type NewCredentialRequest = {
   otpCode?: string;
   deviceName?: string;
 };
+
+export type ResetToken = {
+  tokenId: string;
+  qrCode: string;
+  user: string;
+};

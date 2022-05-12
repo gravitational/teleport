@@ -17,12 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Card, Box, Text, ButtonPrimary } from 'design';
 
-export default function CardWelcome({
-  title,
-  subTitle,
-  btnText,
-  onClick,
-}: Props) {
+export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {
   return (
     <Card bg="primary.light" my={6} mx="auto" width="464px">
       <Box p={6}>

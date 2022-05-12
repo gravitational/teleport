@@ -18,27 +18,32 @@ import React from 'react';
 import { render } from 'design/utils/testing';
 import * as story from './NewCredentials.story';
 
-test('story.off', () => {
-  const { container } = render(<story.MfaOff />);
+test('story.PasswordOnlyError', () => {
+  const { container } = render(<story.PasswordOnlyError />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('story.Otp', () => {
-  const { container } = render(<story.MfaOtp />);
+test('story.PrimaryPasswordlessError', () => {
+  const { container } = render(<story.PrimaryPasswordlessError />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('story.OtpError', () => {
-  const { container } = render(<story.MfaOtpError />);
+test('story.MfaDeviceError', () => {
+  const { container } = render(<story.MfaDeviceError />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('story.Webauthn', () => {
-  const { container } = render(<story.MfaWebauthn />);
+test('story.MfaDeviceOtp', () => {
+  const { container } = render(<story.MfaDeviceOtp />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('story.Webauthn Error', () => {
-  const { container } = render(<story.MfaWebauthnError />);
+test('story.MfaDeviceWebauthn', () => {
+  const { container } = render(<story.MfaDeviceWebauthn />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('story.MfaDeviceOn', () => {
+  const { container } = render(<story.MfaDeviceOn />);
   expect(container.firstChild).toMatchSnapshot();
 });

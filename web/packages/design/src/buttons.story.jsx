@@ -24,6 +24,7 @@ import Button, {
   ButtonSecondary,
   ButtonWarning,
   ButtonBorder,
+  ButtonText,
 } from './Button';
 
 export default {
@@ -54,7 +55,8 @@ export const Buttons = () => (
       Focused
     </Button>
     <div />
-    <ButtonLink href="">Link Button</ButtonLink>
+    <ButtonLink href="">Button Link</ButtonLink>
+    <ButtonText>Button Text</ButtonText>
     <Flex mb={3}>
       <ButtonIcon size={2}>
         <AddUsers />

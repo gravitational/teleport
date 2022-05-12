@@ -36,6 +36,6 @@ const props = {
     ],
     createdDate: new Date('2019-08-30T11:00:00.00Z'),
   },
-  redirect: () => null,
+  onContinue: () => null,
   isNewCodes: false,
 };

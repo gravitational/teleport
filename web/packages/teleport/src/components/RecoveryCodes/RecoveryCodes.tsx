@@ -23,7 +23,7 @@ import { RecoveryCodes } from 'teleport/services/auth';
 
 export default function RecoveryCodesDialog({
   recoveryCodes,
-  redirect,
+  onContinue,
   isNewCodes,
   continueText = 'Continue',
 }: Props) {
@@ -113,7 +113,7 @@ export default function RecoveryCodesDialog({
               size="large"
               width="100%"
               className="no-print"
-              onClick={redirect}
+              onClick={onContinue}
             >
               {btnText}
             </ButtonPrimary>
@@ -191,7 +191,7 @@ const MiniActionButton = styled(ButtonPrimary)`
 
 export type Props = {
   recoveryCodes: RecoveryCodes;
-  redirect: () => void;
+  onContinue: () => void;
   isNewCodes: boolean;
   continueText?: string;
 };

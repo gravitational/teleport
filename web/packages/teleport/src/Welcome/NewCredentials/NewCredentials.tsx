@@ -14,55 +14,38 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState, useMemo } from 'react';
-import { Text, Card, ButtonPrimary, Flex, Box } from 'design';
-import { Danger } from 'design/Alert';
-import Validation, { Validator } from 'shared/components/Validation';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
-import FieldSelect from 'shared/components/FieldSelect';
-import FieldInput from 'shared/components/FieldInput';
-import {
-  requiredToken,
-  requiredPassword,
-  requiredConfirmedPassword,
-} from 'shared/components/Validation/rules';
+import React, { useState } from 'react';
+import { Card } from 'design';
+import { PrimaryAuthType } from 'shared/services';
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
+import StepSlider from 'teleport/components/StepSlider';
 import useToken, { State } from '../useToken';
-import Expired from './Expired';
-import TwoFAData from './TwoFaInfo';
+import { Expired } from './Expired';
+import { RegisterSuccess } from './Success';
+import { NewMfaDevice } from './NewMfaDevice';
+import { NewPasswordlessDevice } from './NewPasswordlessDevice';
+import { NewPassword } from './NewPassword';
 
-export default function Container({
-  tokenId = '',
-  title = '',
-  submitBtnText = '',
-  resetMode = false,
-}) {
+export type LoginFlow = Extract<PrimaryAuthType, 'passwordless' | 'local'>;
+const loginFlows = {
+  local: [NewPassword, NewMfaDevice],
+  passwordless: [NewPasswordlessDevice],
+};
+
+export function Container({ tokenId = '', resetMode = false }) {
   const state = useToken(tokenId);
-  return (
-    <NewCredentials
-      {...state}
-      title={title}
-      submitBtnText={submitBtnText}
-      resetMode={resetMode}
-    />
-  );
+  return <NewCredentials {...state} resetMode={resetMode} />;
 }
 
-export function NewCredentials(props: Props) {
+export function NewCredentials(props: State & Props) {
   const {
     fetchAttempt,
-    submitAttempt,
-    clearSubmitAttempt,
-    passwordToken,
     recoveryCodes,
     resetMode,
     redirect,
-    auth2faType,
-    preferredMfaType,
-    onSubmit,
-    onSubmitWithWebauthn,
-    title,
-    submitBtnText,
+    primaryAuthType,
+    success,
+    finishedRegister,
   } = props;
 
   if (fetchAttempt.status === 'failed') {
@@ -73,156 +56,51 @@ export function NewCredentials(props: Props) {
     return null;
   }
 
+  if (success) {
+    return <RegisterSuccess redirect={redirect} resetMode={resetMode} />;
+  }
+
   if (recoveryCodes) {
     return (
       <RecoveryCodes
         recoveryCodes={recoveryCodes}
-        redirect={redirect}
+        onContinue={finishedRegister}
         isNewCodes={resetMode}
       />
     );
   }
 
-  const { user, qrCode } = passwordToken;
+  // Check which flow to render as default.
   const [password, setPassword] = useState('');
-  const [passwordConfirmed, setPasswordConfirmed] = useState('');
-  const [token, setToken] = useState('');
-
-  const mfaOptions = useMemo<MfaOption[]>(
-    () =>
-      createMfaOptions({
-        auth2faType: auth2faType,
-        preferredType: preferredMfaType,
-      }),
-    []
-  );
-  const [mfaType, setMfaType] = useState(mfaOptions[0]);
-
-  const secondFactorEnabled = auth2faType !== 'off';
-  const showSideNote =
-    secondFactorEnabled &&
-    mfaType.value !== 'optional' &&
-    mfaType.value !== 'webauthn';
-  const boxWidth = (showSideNote ? 720 : 464) + 'px';
-
-  function onBtnClick(
-    e: React.MouseEvent<HTMLButtonElement>,
-    validator: Validator
-  ) {
-    e.preventDefault();
-    if (!validator.validate()) {
-      return;
+  const [flow, setFlow] = useState<LoginFlow>(() => {
+    if (primaryAuthType === 'sso' || primaryAuthType === 'local') {
+      return 'local';
     }
+    return 'passwordless';
+  });
 
-    switch (mfaType?.value) {
-      case 'webauthn':
-        onSubmitWithWebauthn(password);
-        break;
-      default:
-        onSubmit(password, token);
-    }
+  function onSwitchFlow(flow: keyof typeof loginFlows) {
+    setFlow(flow);
   }
 
-  function onSetMfaOption(option: MfaOption, validator: Validator) {
-    setToken('');
-    clearSubmitAttempt();
-    validator.reset();
-    setMfaType(option);
+  function updatePassword(password: string) {
+    setPassword(password);
   }
 
   return (
-    <Validation>
-      {({ validator }) => (
-        <Card as="form" bg="primary.light" my={6} mx="auto" width={boxWidth}>
-          <Flex>
-            <Box flex="3" p="6">
-              <Text typography="h2" mb={3} textAlign="center" color="light">
-                {title}
-              </Text>
-              {submitAttempt.status === 'failed' && (
-                <Danger children={submitAttempt.statusText} />
-              )}
-              <Text typography="h4" breakAll mb={3}>
-                {user}
-              </Text>
-              <FieldInput
-                rule={requiredPassword}
-                autoFocus
-                autoComplete="off"
-                label="Password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                type="password"
-                placeholder="Password"
-              />
-              <FieldInput
-                rule={requiredConfirmedPassword(password)}
-                autoComplete="off"
-                label="Confirm Password"
-                value={passwordConfirmed}
-                onChange={e => setPasswordConfirmed(e.target.value)}
-                type="password"
-                placeholder="Confirm Password"
-              />
-              {secondFactorEnabled && (
-                <Flex alignItems="center">
-                  <FieldSelect
-                    maxWidth="50%"
-                    width="100%"
-                    data-testid="mfa-select"
-                    label="Two-factor type"
-                    value={mfaType}
-                    options={mfaOptions}
-                    onChange={opt =>
-                      onSetMfaOption(opt as MfaOption, validator)
-                    }
-                    mr={3}
-                    isDisabled={submitAttempt.status === 'processing'}
-                  />
-                  {mfaType.value === 'otp' && (
-                    <FieldInput
-                      width="50%"
-                      label="Authenticator code"
-                      rule={requiredToken}
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      value={token}
-                      onChange={e => setToken(e.target.value)}
-                      placeholder="123 456"
-                    />
-                  )}
-                </Flex>
-              )}
-              <ButtonPrimary
-                width="100%"
-                mt={3}
-                disabled={submitAttempt.status === 'processing'}
-                size="large"
-                onClick={e => onBtnClick(e, validator)}
-              >
-                {submitBtnText}
-              </ButtonPrimary>
-            </Box>
-            {showSideNote && (
-              <Box
-                flex="1"
-                bg="primary.main"
-                p={6}
-                borderTopRightRadius={3}
-                borderBottomRightRadius={3}
-              >
-                <TwoFAData auth2faType={mfaType.value} qr={qrCode} />
-              </Box>
-            )}
-          </Flex>
-        </Card>
-      )}
-    </Validation>
+    <Card as="form" bg="primary.light" my={5} mx="auto" width={464}>
+      <StepSlider<typeof loginFlows>
+        flows={loginFlows}
+        currFlow={flow}
+        onSwitchFlow={onSwitchFlow}
+        {...props}
+        password={password}
+        updatePassword={updatePassword}
+      />
+    </Card>
   );
 }
 
 export type Props = State & {
-  submitBtnText: string;
-  title: string;
   resetMode?: boolean;
 };

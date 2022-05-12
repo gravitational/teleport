@@ -29,6 +29,7 @@ export default function FieldInput({
   type = 'text',
   autoFocus = false,
   transitionPropertyName = '',
+  refocusIndicator = '',
   autoComplete = 'off',
   inputMode = 'text',
   readonly = false,
@@ -56,16 +57,34 @@ export default function FieldInput({
     function autoFocusOnTransitionEnd(e: TransitionEvent) {
       if (e.propertyName !== transitionPropertyName) return;
       inputRef.current.focus();
+      // Since we only need to auto focus one time, the listener's are no longer needed.
+      removeListeners();
+    }
+
+    // autoFocusOnTransitionCancel is fallback to autoFocusOnTransitionEnd when the transition
+    // we are expecting gets canceled (sometimes happens in chrome, but strangely not in firefox).
+    function autoFocusOnTransitionCancel(e: TransitionEvent) {
+      if (e.propertyName !== transitionPropertyName) return;
+      inputRef.current.focus();
       // Since we only need to auto focus one time, the listener is no longer needed.
+      removeListeners();
+    }
+
+    function removeListeners() {
       window.removeEventListener('transitionend', autoFocusOnTransitionEnd);
+      window.removeEventListener(
+        'transitioncancel',
+        autoFocusOnTransitionCancel
+      );
     }
 
     window.addEventListener('transitionend', autoFocusOnTransitionEnd);
+    window.addEventListener('transitioncancel', autoFocusOnTransitionCancel);
 
     return () => {
-      window.removeEventListener('transitionend', autoFocusOnTransitionEnd);
+      removeListeners();
     };
-  }, []);
+  }, [refocusIndicator]);
 
   return (
     <Box mb="4" {...styles}>
@@ -108,6 +127,9 @@ type Props = {
   // to determine if input element should be auto focused after
   // a transition has ended.
   transitionPropertyName?: string;
+  // refocusIndicator is used as a listener for change (with any text value)
+  // for the useEffect that handles the auto-focusing.
+  refocusIndicator?: string;
   type?: 'email' | 'text' | 'password' | 'number' | 'date' | 'week';
   inputMode?: 'text' | 'numeric';
   rule?: (options: unknown) => () => unknown;

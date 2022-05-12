@@ -18,11 +18,12 @@ import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
-import auth, { RecoveryCodes } from 'teleport/services/auth';
+import auth, { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 
 export default function useToken(tokenId: string) {
-  const [passwordToken, setPswToken] = useState<ResetToken>();
+  const [resetToken, setResetToken] = useState<ResetToken>();
   const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
+  const [success, setSuccess] = useState(false); // TODO rename
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
   const auth2faType = cfg.getAuth2faType();
@@ -31,11 +32,11 @@ export default function useToken(tokenId: string) {
     fetchAttempt.run(() =>
       auth
         .fetchPasswordToken(tokenId)
-        .then(resetToken => setPswToken(resetToken))
+        .then(resetToken => setResetToken(resetToken))
     );
   }, []);
 
-  function onSubmit(password: string, otpCode: string, deviceName = '') {
+  function onSubmit(password: string, otpCode = '', deviceName = '') {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
       .resetPassword({ tokenId, password, otpCode, deviceName })
@@ -43,7 +44,7 @@ export default function useToken(tokenId: string) {
         if (recoveryCodes.createdDate) {
           setRecoveryCodes(recoveryCodes);
         } else {
-          redirect();
+          finishedRegister();
         }
       })
       .catch(submitAttempt.handleError);
@@ -57,7 +58,7 @@ export default function useToken(tokenId: string) {
         if (recoveryCodes.createdDate) {
           setRecoveryCodes(recoveryCodes);
         } else {
-          redirect();
+          finishedRegister();
         }
       })
       .catch(submitAttempt.handleError);
@@ -71,24 +72,25 @@ export default function useToken(tokenId: string) {
     submitAttempt.setAttempt({ status: '' });
   }
 
+  function finishedRegister() {
+    setSuccess(true);
+  }
+
   return {
     auth2faType,
-    preferredMfaType: cfg.getPreferredMfaType(),
+    primaryAuthType: cfg.getPrimaryAuthType(),
+    isPasswordlessEnabled: cfg.isPasswordlessEnabled(),
     fetchAttempt: fetchAttempt.attempt,
     submitAttempt: submitAttempt.attempt,
     clearSubmitAttempt,
     onSubmit,
     onSubmitWithWebauthn,
-    passwordToken,
+    resetToken,
     recoveryCodes,
     redirect,
+    success,
+    finishedRegister,
   };
 }
-
-type ResetToken = {
-  tokenId: string;
-  qrCode: string;
-  user: string;
-};
 
 export type State = ReturnType<typeof useToken>;

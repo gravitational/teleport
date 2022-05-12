@@ -19,6 +19,13 @@ import Button, {
   ButtonWarning,
   ButtonSecondary,
   ButtonBorder,
+  ButtonText,
 } from './Button';
 export default Button;
-export { ButtonPrimary, ButtonWarning, ButtonSecondary, ButtonBorder };
+export {
+  ButtonPrimary,
+  ButtonWarning,
+  ButtonSecondary,
+  ButtonBorder,
+  ButtonText,
+};
