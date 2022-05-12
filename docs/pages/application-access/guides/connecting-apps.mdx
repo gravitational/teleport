@@ -270,9 +270,11 @@ requests forwarded to a web application.
     headers:
     # Inject a static header.
     - "X-Custom-Header: example"
-    # Inject hedaers with internal/external user traits.
+    # Inject headers with internal/external user traits.
     - "X-Internal-Trait: {{internal.logins}}"
     - "X-External-Trait: {{external.env}}"
+    # Inject header with Teleport-signed JWT token.
+    - "Authorization: Bearer {{internal.jwt}}"
     # Override Host header.
     - "Host: dashboard.example.com"
 ```
@@ -285,6 +287,10 @@ Rewritten header values support the same templating variables as [role templates
 In the example above, `X-Internal-Trait` header will be populated with the value
 of internal user trait `logins` and `X-External-Trait` header will get the value
 of the user's external `env` trait coming from the identity provider.
+
+Additionally, the `{{internal.jwt}}` template variable will be replaced with
+a JWT token signed by Teleport that contains user identity information. See
+[Integrating with JWTs](./jwt.mdx) for more details.
 
 ## View applications in Teleport
 

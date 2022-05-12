@@ -1138,6 +1138,31 @@
       "source": "/docs/setup/reference/license/",
       "destination": "/docs/enterprise/license/",
       "permanent": true
+    },
+    {
+      "source": "/architecture/",
+      "destination": "/architecture/overview/",
+      "permanent": true
+    },
+    {
+      "source": "/intro/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/",
+      "destination": "/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/ansible/",
+      "destination": "/machine-id/guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/cluster/",
+      "destination": "/kubernetes-access/guides/multiple-clusters/",
+      "permanent": true
     }
   ]
 }
