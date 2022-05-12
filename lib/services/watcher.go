@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -819,6 +820,60 @@ func (c *caCollector) GetCurrent() []types.CertAuthority {
 
 func (c *caCollector) notifyStale() {}
 
+// NodeWatcherConfig is a NodeWatcher configuration.
+type NodeWatcherConfig struct {
+	ResourceWatcherConfig
+	// NodesGetter is used to directly fetch the list of active nodes.
+	NodesGetter
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *NodeWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.NodesGetter == nil {
+		getter, ok := cfg.Client.(NodesGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter NodesGetter and Client not usable as NodesGetter")
+		}
+		cfg.NodesGetter = getter
+	}
+	return nil
+}
+
+// NewNodeWatcher returns a new instance of NodeWatcher.
+func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*NodeWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &nodeCollector{
+		NodeWatcherConfig: cfg,
+		current:           map[string]types.Server{},
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &NodeWatcher{watcher, collector}, nil
+}
+
+// NodeWatcher is built on top of resourceWatcher to monitor additions
+// and deletions to the set of nodes.
+type NodeWatcher struct {
+	*resourceWatcher
+	*nodeCollector
+}
+
+// nodeCollector accompanies resourceWatcher when monitoring nodes.
+type nodeCollector struct {
+	NodeWatcherConfig
+	// current holds a map of the currently known nodes (keyed by server name,
+	// RWMutex protected).
+	current map[string]types.Server
+	rw      sync.RWMutex
+}
+
 func casToSlice(host map[string]types.CertAuthority, user map[string]types.CertAuthority) []types.CertAuthority {
 	slice := make([]types.CertAuthority, 0, len(host)+len(user))
 	for _, ca := range host {
@@ -829,3 +884,106 @@ func casToSlice(host map[string]types.CertAuthority, user map[string]types.CertA
 	}
 	return slice
 }
+
+// Node is a readonly subset of the types.Server interface which
+// users may filter by in GetNodes.
+type Node interface {
+	// Resource provides common resource headers
+	types.Resource
+	// GetTeleportVersion returns the teleport version the server is running on
+	GetTeleportVersion() string
+	// GetAddr return server address
+	GetAddr() string
+	// GetHostname returns server hostname
+	GetHostname() string
+	// GetNamespace returns server namespace
+	GetNamespace() string
+	// GetLabels returns server's static label key pairs
+	GetLabels() map[string]string
+	// GetCmdLabels gets command labels
+	GetCmdLabels() map[string]types.CommandLabel
+	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+	GetPublicAddr() string
+	// GetRotation gets the state of certificate authority rotation.
+	GetRotation() types.Rotation
+	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
+	GetUseTunnel() bool
+	// GetAllLabels returns all resource's labels.
+	GetAllLabels() map[string]string
+}
+
+// GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The
+// returned servers are a copy and can be safely modified. It is intentionally hard to retrieve
+// the full set of nodes to reduce the number of copies needed since the number of nodes can get
+// quite large and doing so can be expensive.
+func (n *nodeCollector) GetNodes(fn func(n Node) bool) []types.Server {
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+
+	var matched []types.Server
+	for _, server := range n.current {
+		if fn(server) {
+			matched = append(matched, server.DeepCopy())
+		}
+	}
+
+	return matched
+}
+
+func (n *nodeCollector) NodeCount() int {
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+	return len(n.current)
+}
+
+// resourceKind specifies the resource kind to watch.
+func (n *nodeCollector) resourceKind() string {
+	return types.KindNode
+}
+
+// getResourcesAndUpdateCurrent is called when the resources should be
+// (re-)fetched directly.
+func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	nodes, err := n.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(nodes) == 0 {
+		return nil
+	}
+	newCurrent := make(map[string]types.Server, len(nodes))
+	for _, node := range nodes {
+		newCurrent[node.GetName()] = node
+	}
+	n.rw.Lock()
+	defer n.rw.Unlock()
+	n.current = newCurrent
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (n *nodeCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindNode {
+		n.Log.Warningf("Unexpected event: %v.", event)
+		return
+	}
+
+	n.rw.Lock()
+	defer n.rw.Unlock()
+
+	switch event.Type {
+	case types.OpDelete:
+		delete(n.current, event.Resource.GetName())
+	case types.OpPut:
+		server, ok := event.Resource.(types.Server)
+		if !ok {
+			n.Log.Warningf("Unexpected type %T.", event.Resource)
+			return
+		}
+		n.current[server.GetName()] = server
+	default:
+		n.Log.Warningf("Skipping unsupported event type %s.", event.Type)
+	}
+}
+
+func (n *nodeCollector) notifyStale() {}

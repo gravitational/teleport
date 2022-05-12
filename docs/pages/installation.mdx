@@ -7,107 +7,251 @@ h1: Installation
 Teleport core service [`teleport`](./setup/reference/cli.mdx#teleport) and admin tool [`tctl`](./setup/reference/cli.mdx#tctl) have been designed to run on **Linux** and **Mac** operating systems. The Teleport user client [`tsh`](./setup/reference/cli.mdx#tsh) and UI are available for **Linux, Mac**, and **Windows** operating systems.
 
 <Admonition type="tip" title="First time trying Teleport?">
-If you are new to Teleport, we recommend following our [getting started guides](getting-started.mdx).
+
+If you are new to Teleport, we recommend following our
+[getting started guides](getting-started.mdx).
+
 </Admonition>
 
+## Operating system support
+
+Teleport is officially supported on the platforms listed below. It is worth
+noting that the open-source community has been successful in building and
+running Teleport on UNIX variants other than Linux \[1].
+
+| Operating System | `teleport` Daemon | `tctl` Admin Tool | `tsh` User Client | Web UI (via the browser) | `tbot` Daemon |
+| - | - | - | - | - | - |
+| Linux v2.6.23+ \[2] | yes | yes | yes | yes | yes |
+| macOS v10.12+ | yes | yes | yes | yes | yes |
+| Windows \[3] | no | no | yes | yes | no |
+
+\[1] *Teleport is written in Go and it's possible to build it on
+any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
+
+\[2] *Enhanced Session Recording requires Linux kernel v5.8+*.
+
+\[3] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
+supports most features on Windows 10 and later.*
 
 ## Linux
 
-The following examples install the 64-bit version of Teleport binaries, but
-32-bit (i386) and ARM binaries are also available. Check the [Latest
-Release](https://goteleport.com/download/) page for the most
-up-to-date information.
+All installations include `teleport`, `tsh`, `tctl`, and `tbot`.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
 (!docs/pages/includes/install-linux.mdx!)
 
+Check the [Downloads](https://goteleport.com/download/) page for the most
+up-to-date information.
+
 ## Docker
 
-Please follow our [Getting started with Teleport using Docker](./setup/guides/docker.mdx) or with [Teleport Enterprise using Docker](enterprise/getting-started.mdx#run-teleport-enterprise-using-docker) for install and setup instructions.
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+We provide pre-built Docker images for every version of Teleport.
 
-```code
-$ docker pull (=teleport.latest_oss_docker_image=)
-```
+These images are hosted on quay.io. All tags under
+`quay.io/gravitational/teleport`
+[are Teleport Open Source images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags).
+
+The table below gives an idea of how our image naming scheme works. We offer
+images that point to a static version of Teleport as well as images that are
+automatically rebuilt every night. These nightly images point to the latest
+version of Teleport from the three most recent release branches. They are
+stable, and we recommend their use to keep your Teleport installation up to
+date.
+
+|Image name|Teleport version|Image automatically updated?|Image base|
+|-|-|-|-|
+|`(=teleport.latest_oss_docker_image=)`|The latest version of Teleport Open Source|Yes|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
+|`quay.io/gravitational/teleport:(=teleport.version=)`|The version specified in the image's tag (i.e. (=teleport.version=))|No|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
+
+For testing, we always recommend that you use the latest released version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
+
+For instructions on running containers with these images, see
+[Getting started with Teleport using Docker](./setup/guides/docker.mdx).
+
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
+We provide pre-built Docker images for every version of Teleport.
+
+(!docs/pages/includes/enterprise/docker-images.mdx!)
+
+For instructions on running containers with these images, see
+[Teleport Enterprise using Docker](enterprise/getting-started.mdx#run-teleport-enterprise-using-docker).
+
+</TabItem>
+</Tabs>
 
 ## Helm
 
-Please follow our [Helm Chart Readme](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) for install and setup instructions.
+We host our own Helm chart repository, which you can add with the following
+command:
 
 ```code
 $ helm repo add teleport https://charts.releases.teleport.dev
 $ helm install teleport teleport/teleport
 ```
 
-## MacOS
+There are two charts available to install. Please see our guide for using each
+chart.
+
+|Chart|Included Services|Values Reference|
+|-|-|-|
+|`teleport-cluster`|Auth Service<br/>Proxy Service<br/>Other Teleport services if using a custom configuration|[Reference](kubernetes-access/helm/reference.mdx#teleport-cluster)
+|`teleport-kube-agent`|Kubernetes Service<br/>Application Service<br/>Database Service|[Reference](kubernetes-access/helm/reference.mdx#teleport-kube-agent)|
+
+
+## macOS
 
 <Tabs>
-  <TabItem label="Download">
-    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=mac) (tsh client only, signed) file, double-click to run the Installer.
+  <TabItem label="Installer">
 
-    <Admonition type="note">
-      This method only installs the `tsh` client for interacting with Teleport clusters.
-      If you need the `teleport` server or `tctl` admin tool, use the "Terminal" method instead.
-    </Admonition>
+  You can download one of the following .pkg installers for macOS:
+
+  |Link|Binaries|
+  |-|-|
+  |[`teleport-(=teleport.version=).pkg`](https://get.gravitational.com/teleport-(=teleport.version=).pkg)|`teleport`<br/>`tctl`<br/>`tsh`<br/>`tbot`|
+  |[`tsh-(=teleport.version=).pkg`](https://get.gravitational.com/tsh-(=teleport.version=).pkg)|`tsh`|
+
+  You can also fetch an installer via the command line: 
+
+  ```code
+  $ curl -O https://get.gravitational.com/teleport-(=teleport.version=).pkg
+  # Installs on Macintosh HD
+  $ sudo installer -pkg teleport-(=teleport.version=).pkg -target / 
+  # Password:
+  # installer: Package name is teleport-(=teleport.version=)
+  # installer: Upgrading at base path /
+  # installer: The upgrade was successful.
+  $ which teleport
+  # /usr/local/bin/teleport
+  ```
+
   </TabItem>
 
   <TabItem label="Homebrew">
+
+  <Notice type="danger">
+
+  The Teleport package in Homebrew is not maintained by Teleport and we can't
+  guarantee its reliability or security. We recommend the use of our [official
+  Teleport packages](https://goteleport.com/teleport/download?os=mac).
+
+  </Notice>
+
+    Run the following command:
+
     ```code
     $ brew install teleport
     ```
 
-    <Admonition type="note">
-      The Teleport package in Homebrew is not maintained by Teleport and we can't
-      guarantee its reliability or security. We recommend the use of our [own
-      Teleport packages](https://goteleport.com/teleport/download?os=mac).
-    </Admonition>
+    If you choose to use Homebrew, you must verify that the versions of `tsh`
+    and `tctl` you run on your local machine are compatible with the versions
+    you run on your infrastructure. Homebrew usually ships the latest release of
+    Teleport, which may be incompatible with older versions. See our
+    [compatibility policy](./setup/operations/upgrading.mdx) for details.
 
-    <Admonition type="note">
-      If you choose to use Homebrew, you must verify that the versions of `tsh` and
-      `tctl` are compatible with the versions you run server-side.  Homebrew usually
-      ships the latest release of Teleport, which may be incompatible with older
-      versions.  See our [compatibility
-      policy](./setup/operations/upgrading.mdx) for details.
-    </Admonition>
-  </TabItem>
+    Log in to your cluster:
 
-  <TabItem label="Terminal">
+    <ScopedBlock scope="cloud">
+
     ```code
-    $ curl -O https://get.gravitational.com/teleport-(=teleport.version=).pkg
-    $ sudo installer -pkg teleport-(=teleport.version=).pkg -target / # Installs on Macintosh HD
-    # Password:
-    # installer: Package name is teleport-(=teleport.version=)
-    # installer: Upgrading at base path /
-    # installer: The upgrade was successful.
-    $ which teleport
-    # /usr/local/bin/teleport
+    $ tsh login --proxy=mytenant.teleport.sh --user=myuser
     ```
+
+    </ScopedBlock>
+    <ScopedBlock scope={["oss", "enterprise"]}>
+
+    ```code
+    $ tsh login --proxy=teleport.example.com --user=myuser
+    ```
+
+    </ScopedBlock>
+
+    Get the version of your Teleport cluster:
+
+    <ScopedBlock scope="cloud">
+
+    ```code
+    $ tctl status
+    tctl status
+    Cluster  mytenant.teleport.sh                                           
+    Version  (=teleport.version=)                                                                   
+    Host CA  never updated                                                           
+    User CA  never updated                                                           
+    Jwt CA   never updated                                                           
+    CA pin   (=presets.ca_pin=)
+    ```
+
+    </ScopedBlock>
+    <ScopedBlock scope={["oss", "enterprise"]}>
+
+    ```code
+    $ tctl status
+    tctl status
+    Cluster  teleport.example.com
+    Version  (=teleport.version=)                                                                   
+    Host CA  never updated                                                           
+    User CA  never updated                                                           
+    Jwt CA   never updated                                                           
+    CA pin   (=presets.ca_pin=)
+    ```
+
+    </ScopedBlock>
+
+    Get your local tsh version:
+
+    ```code
+    $ tsh version
+    Teleport v(=teleport.version=) git:v(=teleport.version=) go(=teleport.golang=)
+    ```
+    
+    Get your local tctl version:
+
+    ```code
+    $ tctl version
+    Teleport v(=teleport.version=) git:v(=teleport.version=) go(=teleport.golang=)
+    ```
+    
   </TabItem>
+
 </Tabs>
 
 ## Windows (tsh client only)
 
-As of version v3.0.1 we have `tsh` client binary available for Windows 64-bit
-architecture - `teleport` and `tctl` are not supported. Most `tsh` features are
-supported under Windows 10 1607+ as of Teleport v7.2. We support running
-`tsh ssh` under `cmd.exe`, PowerShell, and the Windows Terminal app.
+Starting with Teleport v7.2.0, most `tsh` features are supported for Windows 10
+1607+. The `tsh ssh` command can be run under `cmd.exe`, PowerShell, and Windows
+Terminal.
 
-<Tabs>
-  <TabItem label="Powershell">
-    ```code
-    $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip.sha256
-    # <checksum> <filename>
-    $ curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
-    $ echo %PATH% # Edit %PATH% if necessary
-    $ certUtil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip SHA256
-    # SHA256 hash of teleport-v(=teleport.version=)-windows-amd64-bin.zip:
-    # <checksum> <filename>
-    # CertUtil: -hashfile command completed successfully.
-    # Verify that the checksums match
-    # Move `tsh` to your %PATH%
-    ```
-  </TabItem>
-</Tabs>
+To install `tsh` on Windows, run the following commands in PowerShell:
+
+  ```code
+  # Get the expected checksum for the Windows tsh package
+  $ $Resp = Invoke-WebRequest https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip.sha256
+  # PowerShell will return the binary representation of the response content
+  # by default, so you need to convert it to a string
+  $ [System.Text.Encoding]::UTF8.getstring($Resp.Content)
+  # <checksum> <filename>
+  $ curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+  $ certUtil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip SHA256
+  # SHA256 hash of teleport-v(=teleport.version=)-windows-amd64-bin.zip:
+  # <checksum>
+  # CertUtil: -hashfile command completed successfully.
+  ```
+
+  After you have verified that the checksums match, you can extract the archive.
+  The executable will be available at
+  `teleport-v(=teleport.version=)-windows-amd64-bin\teleport\tsh.exe`.
+
+  ```code
+  $ Expand-Archive teleport-v(=teleport.version=)-windows-amd64-bin.zip
+  $ cd teleport-v(=teleport.version=)-windows-amd64-bin\teleport
+  $ .\tsh.exe version
+  Teleport v(=teleport.version=) git:v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  Make sure to move `tsh.exe` into your PATH.
 
 ## Installing from source
 
@@ -150,7 +294,9 @@ If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the d
 
 ## Checksums
 
-Gravitational Teleport provides a checksum from the [Downloads](https://gravitational.com/teleport/download/). This should be used to verify the integrity of our binary.
+If you want to verify the integrity of a Teleport binary, SHA256 checksums are
+available for all downloads on our
+[downloads page](https://goteleport.com/download/).
 
 ![Teleport Checksum](../img/teleport-sha.png)
 
@@ -160,28 +306,13 @@ in the installation examples.
 
 ```code
 $ export version=v(=teleport.version=)
-$ export os=linux # 'darwin' 'linux' or 'windows'
-$ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
+# 'darwin' 'linux' or 'windows'
+$ export os=linux 
+# '386' 'arm' on linux or 'amd64' for all distros
+$ export arch=amd64 
 $ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha256
 # <checksum> <filename>
 ```
-
-## Operating System support
-
-Teleport is officially supported on the platforms listed below. It is worth noting
-that the open-source community has been successful in building and running Teleport on UNIX variants other than Linux \[1].
-
-| Operating System | Teleport Client | Teleport Server |
-| - | - | - |
-| Linux v2.6.23+ | yes | yes |
-| MacOS v10.12+ | yes | yes |
-| Windows \[2] | yes \[2] | no |
-
-\[1] *Teleport is written in Go and it's possible to build it on
-any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
-
-\[2] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
-supports most features on Windows 10 and later.*
 
 ## Next steps
 

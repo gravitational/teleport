@@ -26,6 +26,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
 	"golang.org/x/text/encoding"
@@ -43,11 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/sirupsen/logrus"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -141,7 +139,7 @@ type TerminalHandler struct {
 	// params is the initial PTY size.
 	params TerminalRequest
 
-	// ctx is a web session context for the currently logged in user.
+	// ctx is a web session context for the currently logged zin user.
 	ctx *SessionContext
 
 	// hostName is the hostname of the server.
@@ -156,7 +154,7 @@ type TerminalHandler struct {
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession *ssh.Session
 
-	// terminalContext is used to signal when the terminal sesson is closing.
+	// terminalContext is used to signal when the terminal session is closing.
 	terminalContext context.Context
 
 	// terminalCancel is used to signal when the terminal session is closing.
