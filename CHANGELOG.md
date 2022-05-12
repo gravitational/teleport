@@ -1,5 +1,26 @@
 # Changelog
 
+## 9.2.2
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `HTTP_PROXY` being inadvertently respected in reverse tunnel connections. [#12335](https://github.com/gravitational/teleport/pull/12335)
+* Added `--format` flag to `tctl token add` command. [#12588](https://github.com/gravitational/teleport/pull/12588)
+* Fixed backwards compatibility issues with session upload. [#12535](https://github.com/gravitational/teleport/pull/12535)
+* Added support for persistency in custom mode in Helm charts. [#12218](https://github.com/gravitational/teleport/pull/12218)
+* Fixed issue with PostgreSQL backend not respecting username from certificate. [#12553](https://github.com/gravitational/teleport/pull/12553)
+* Fixed issues with `kubectl cp` and `kubectl exec` not working through Kubernetes Access. [#12541](https://github.com/gravitational/teleport/pull/12541)
+* Fixed issues with dynamic registration logic for cloud databases. [#12451](https://github.com/gravitational/teleport/pull/12451)
+* Fixed issue with automatic Add Application script failing to join the cluster. [#12539](https://github.com/gravitational/teleport/pull/12539)
+* Fixed issue with `tctl` crashing when PAM is enabled. [#12572](https://github.com/gravitational/teleport/pull/12572)
+* Added support for setting priority class and extra labels in Helm charts. [#12568](https://github.com/gravitational/teleport/pull/12568)
+* Fixed issue with App Access JWT tokens not including `iat` claim. [#12589](https://github.com/gravitational/teleport/pull/12589)
+* Added ability to inject App Access JWT tokens in rewritten headers. [#12589](https://github.com/gravitational/teleport/pull/12589)
+* Desktop Access automatically adds a `teleport.dev/ou` label for desktops discovered via LDAP. [#12502](https://github.com/gravitational/teleport/pull/12502)
+* Updated Machine ID to generates identity files compatible with `tctl` and `tsh`. [#12500](https://github.com/gravitational/teleport/pull/12500)
+* Updated internal build infrastructure to Go 1.17.10. [#12607](https://github.com/gravitational/teleport/pull/12607)
+* Improved proxy memory usage in clusters with large number of nodes. [#12573](https://github.com/gravitational/teleport/pull/12573)
+
 ## 9.2.1
 
 This release of Teleport contains an improvement and several bug fixes.
