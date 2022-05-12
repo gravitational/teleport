@@ -72,14 +72,14 @@ typedef struct ClientOrError {
 
 typedef struct CGOSharedDirectoryAnnounce {
   uint32_t directory_id;
-  char *name;
+  const char *name;
 } CGOSharedDirectoryAnnounce;
 
 typedef struct CGOFileSystemObject {
   uint64_t last_modified;
   uint64_t size;
   uint32_t file_type;
-  char *path;
+  const char *path;
 } CGOFileSystemObject;
 
 typedef struct CGOSharedDirectoryInfoResponse {
@@ -135,7 +135,7 @@ typedef struct CGOSharedDirectoryAcknowledge {
 typedef struct CGOSharedDirectoryInfoRequest {
   uint32_t completion_id;
   uint32_t directory_id;
-  char *path;
+  const char *path;
 } CGOSharedDirectoryInfoRequest;
 
 void init(void);
@@ -151,8 +151,8 @@ void init(void);
  * to their corresponding parameters.
  */
 struct ClientOrError connect_rdp(uintptr_t go_ref,
-                                 char *go_addr,
-                                 char *go_username,
+                                 const char *go_addr,
+                                 const char *go_username,
                                  uint32_t cert_der_len,
                                  uint8_t *cert_der,
                                  uint32_t key_der_len,
@@ -189,7 +189,7 @@ enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
  *
  * # Safety
  *
- * The caller must ensure that drive_name points to a valid buffer.
+ * The caller must ensure that res.fso.path points to a valid buffer.
  */
 enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
                                             struct CGOSharedDirectoryInfoResponse res);

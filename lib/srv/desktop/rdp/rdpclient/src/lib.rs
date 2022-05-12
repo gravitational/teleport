@@ -252,7 +252,7 @@ fn connect_rdp_inner(
     let tdp_sd_acknowledge = Box::new(move |ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
         debug!("sending: {:?}", ack);
         unsafe {
-            if tdp_sd_acknowledge(go_ref, &CGOSharedDirectoryAcknowledge::from(ack))
+            if tdp_sd_acknowledge(go_ref, &mut CGOSharedDirectoryAcknowledge::from(ack))
                 != CGOErrCode::ErrCodeSuccess
             {
                 return Err(RdpError::TryError(String::from(
@@ -271,7 +271,7 @@ fn connect_rdp_inner(
                 unsafe {
                     let err = tdp_sd_info_request(
                         go_ref,
-                        &CGOSharedDirectoryInfoRequest {
+                        &mut CGOSharedDirectoryInfoRequest {
                             completion_id: req.completion_id,
                             directory_id: req.directory_id,
                             path: c_string.as_ptr(),
@@ -939,13 +939,11 @@ extern "C" {
     fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
 
-    fn tdp_sd_acknowledge(
-        client_ref: usize,
-        ack: *const CGOSharedDirectoryAcknowledge,
-    ) -> CGOErrCode;
+    fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
+        -> CGOErrCode;
     fn tdp_sd_info_request(
         client_ref: usize,
-        req: *const CGOSharedDirectoryInfoRequest,
+        req: *mut CGOSharedDirectoryInfoRequest,
     ) -> CGOErrCode;
 }
 
