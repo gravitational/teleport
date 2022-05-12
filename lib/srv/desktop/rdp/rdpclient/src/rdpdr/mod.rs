@@ -1,8 +1,8 @@
 // Copyright 2021 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-// you ma&y not use this file except in compliance with the License.
-// You may obtain a copy of the Li&cense at
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
 //
@@ -75,6 +75,11 @@ impl Client {
         tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
         tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
     ) -> Self {
+        if allow_directory_sharing {
+            debug!("creating rdpdr client with directory sharing enabled")
+        } else {
+            debug!("creating rdpdr client with directory sharing disabled")
+        }
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),

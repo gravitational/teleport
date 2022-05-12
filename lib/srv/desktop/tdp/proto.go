@@ -632,12 +632,12 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 	if t != byte(TypeSharedDirectoryAnnounce) {
 		return SharedDirectoryAnnounce{}, trace.BadParameter("got message type %v, expected SharedDirectoryAnnounce(%v)", t, TypeSharedDirectoryAnnounce)
 	}
-	var completionId, directoryId uint32
-	err = binary.Read(in, binary.BigEndian, &completionId)
+	var completionID, directoryID uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
-	err = binary.Read(in, binary.BigEndian, &directoryId)
+	err = binary.Read(in, binary.BigEndian, &directoryID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
@@ -647,7 +647,7 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 	}
 
 	return SharedDirectoryAnnounce{
-		DirectoryID: directoryId,
+		DirectoryID: directoryID,
 		Name:        name,
 	}, nil
 }
