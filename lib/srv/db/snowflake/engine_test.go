@@ -20,6 +20,7 @@
 package snowflake
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,6 +52,54 @@ func Test_extractAccountName(t *testing.T) {
 				return
 			}
 
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_extractSnowflakeToken(t *testing.T) {
+	tests := []struct {
+		name    string
+		headers http.Header
+		want    string
+	}{
+		{
+			name: "extract correct header",
+			headers: map[string][]string{
+				"Authorization": {"Snowflake Token=\"token123\""},
+			},
+			want: "token123",
+		},
+		{
+			name: "empty Authorization returns nothing",
+			headers: map[string][]string{
+				"Authorization": {},
+			},
+			want: "",
+		},
+		{
+			name:    "missing Authorization returns nothing",
+			headers: map[string][]string{},
+			want:    "",
+		},
+		{
+			name: "incorrect format returns nothing",
+			headers: map[string][]string{
+				"Authorization": {"Token=\"token123\""},
+			},
+			want: "",
+		},
+		{
+			name: "incorrect format returns nothing #2",
+			headers: map[string][]string{
+				"Authorization": {"Snowflake Token=\""},
+			},
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractSnowflakeToken(tt.headers)
 			require.Equal(t, tt.want, got)
 		})
 	}

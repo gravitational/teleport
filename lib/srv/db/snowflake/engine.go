@@ -544,7 +544,7 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 	if strings.Contains(req.Header.Get("Authorization"), "Snowflake Token") &&
 		!strings.Contains(req.Header.Get("Authorization"), "None") {
 
-		sessionID := extractSnowflakeToken(req)
+		sessionID := extractSnowflakeToken(req.Header)
 
 		if err := auth.WaitForSnowflakeSession(ctx, sessionID, e.sessionCtx.Identity.Username, e.AuthClient); err != nil {
 			return "", trace.Wrap(err)
@@ -563,15 +563,23 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 	return connectionToken, nil
 }
 
-func extractSnowflakeToken(req *http.Request) string {
-	sessionID := req.Header.Get("Authorization")
+func extractSnowflakeToken(headers http.Header) string {
+	sessionID := headers.Get("Authorization")
 	return extractSnowflakeTokenFromHeader(sessionID)
 }
 
 func extractSnowflakeTokenFromHeader(token string) string {
-	sessionID := strings.TrimPrefix(token, "Snowflake Token=\"")
-	sessionID = strings.TrimSuffix(sessionID, "\"")
-	return sessionID
+	const (
+		tokenPrefix = "Snowflake Token=\""
+		tokenSuffix = "\""
+	)
+
+	if len(token) > len(tokenPrefix)+len(tokenSuffix) &&
+		strings.HasPrefix(token, tokenPrefix) && strings.HasSuffix(token, tokenSuffix) {
+		return token[len(tokenPrefix) : len(token)-len(tokenSuffix)]
+	}
+
+	return ""
 }
 
 func copyResponse(resp *http.Response, body []byte) ([]byte, error) {
@@ -618,7 +626,7 @@ func (e *Engine) extractToken(bodyBytes []byte, sessCb func(string) (string, err
 		return nil, trace.Errorf("session token returned by Snowflake API expected to be a string, got %T", dataToken)
 	}
 
-	e.connectionToken = extractSnowflakeTokenFromHeader(connectionToken)
+	e.connectionToken = connectionToken
 
 	sessionToken, err := sessCb(e.connectionToken)
 	if err != nil {
