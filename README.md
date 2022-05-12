@@ -130,7 +130,7 @@ If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current 
 development branch for an upcoming major version.  Get the latest release tags 
 listed at https://goteleport.com/download/ and then use that tag in the `git clone`. 
-For example `git clone https://github.com/gravitational/teleport.gi -b v9.1.2` gets release v9.1.2. 
+For example `git clone https://github.com/gravitational/teleport.git -b v9.1.2` gets release v9.1.2. 
 
 ### Dockerized Build
 
