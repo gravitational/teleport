@@ -26,6 +26,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -68,6 +69,13 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 		return nil, trace.Wrap(err)
 	}
 
+	// Add JWT token to the traits so it can be used in headers templating.
+	traits := identity.Traits
+	if traits == nil {
+		traits = make(wrappers.Traits)
+	}
+	traits[teleport.TraitJWT] = []string{jwt}
+
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(s.closeContext,
 		&transportConfig{
@@ -76,7 +84,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 			publicPort:   s.proxyPort,
 			cipherSuites: s.c.CipherSuites,
 			jwt:          jwt,
-			traits:       identity.Traits,
+			traits:       traits,
 			log:          s.log,
 			user:         identity.Username,
 		})
