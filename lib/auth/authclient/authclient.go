@@ -55,6 +55,8 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
+		// Deliberately ignore HTTP proxies for backwards compatibility.
+		IgnoreHTTPProxy: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)

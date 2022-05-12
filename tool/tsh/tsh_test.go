@@ -1945,7 +1945,8 @@ func TestSerializeKubeSessions(t *testing.T) {
     "kind": "session_tracker",
     "version": "v1",
     "metadata": {
-      "name": "id"
+      "name": "id",
+      "expires": "1970-01-01T00:00:00Z"
     },
     "spec": {
       "session_id": "id",

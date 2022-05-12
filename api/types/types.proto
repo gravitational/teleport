@@ -1380,8 +1380,9 @@ message AccessRequestSpecV3 {
     repeated string SuggestedReviewers = 13
         [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
 
-    // RequestedResourceIDs is a list of resources to which access is being requested.
-    repeated string RequestedResourceIDs = 14 [ (gogoproto.jsontag) = "resource_ids,omitempty" ];
+    // RequestedResourceIDs is a set of resources to which access is being requested.
+    repeated ResourceID RequestedResourceIDs = 14
+        [ (gogoproto.jsontag) = "resource_ids,omitempty", (gogoproto.nullable) = false ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -1416,6 +1417,16 @@ message AccessCapabilitiesRequest {
     // SuggestedReviewers is a flag indicating that we would like to view the list of all
     // reviewers which are suggested by the user's roles.
     bool SuggestedReviewers = 3 [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
+}
+
+// ResourceID is a unique identifier for a teleport resource.
+message ResourceID {
+    // ClusterName is the name of the cluster the resource is in.
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster" ];
+    // Kind is the resource kind.
+    string Kind = 2 [ (gogoproto.jsontag) = "kind" ];
+    // Name is the name of the specific resource.
+    string Name = 3 [ (gogoproto.jsontag) = "name" ];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -3087,6 +3098,18 @@ message SessionTrackerSpecV1 {
     // creation.
     repeated SessionTrackerPolicySet HostPolicies = 16
         [ (gogoproto.jsontag) = "host_roles,omitempty" ];
+
+    // DatabaseName is the database server this session belongs to.
+    string DatabaseName = 17 [ (gogoproto.jsontag) = "database_name,omitempty" ];
+
+    // AppName is the app server this session belongs to.
+    string AppName = 18 [ (gogoproto.jsontag) = "app_name,omitempty" ];
+
+    // AppSessionID is the unique ID of the app access certificate used to start this app session.
+    string AppSessionID = 19 [ (gogoproto.jsontag) = "app_session_id,omitempty" ];
+
+    // DesktopName is the windows desktop server this session belongs to.
+    string DesktopName = 20 [ (gogoproto.jsontag) = "desktop_name,omitempty" ];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

@@ -46,6 +46,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
@@ -696,6 +697,12 @@ func Run(args []string, opts ...cliOption) error {
 	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
 	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
 
+	// touchid subcommands.
+	var tid *touchIDCommand
+	if touchid.IsAvailable() {
+		tid = newTouchIDCommand(app)
+	}
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
@@ -851,8 +858,16 @@ func Run(args []string, opts ...cliOption) error {
 	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
 	default:
-		// This should only happen when there's a missing switch case above.
-		err = trace.BadParameter("command %q not configured", command)
+		// Handle commands that might not be available.
+		switch {
+		case tid != nil && command == tid.ls.FullCommand():
+			err = tid.ls.run(&cf)
+		case tid != nil && command == tid.rm.FullCommand():
+			err = tid.rm.run(&cf)
+		default:
+			// This should only happen when there's a missing switch case above.
+			err = trace.BadParameter("command %q not configured", command)
+		}
 	}
 
 	if trace.IsNotImplemented(err) {
@@ -1523,8 +1538,14 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	} else {
 		roles := utils.SplitIdentifiers(cf.DesiredRoles)
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-		resourceIDs := utils.SplitIdentifiers(cf.RequestedResourceIDs)
-		req, err = services.NewAccessRequestWithResources(cf.Username, roles, resourceIDs)
+		requestedResourceIDs := []types.ResourceID{}
+		if cf.RequestedResourceIDs != "" {
+			requestedResourceIDs, err = services.ResourceIDsFromString(cf.RequestedResourceIDs)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		req, err = services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
