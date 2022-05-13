@@ -27,6 +27,7 @@ import (
 // With those we can reference it with an option like so: `(gogoproto.customtype) = "OIDCClaims"`
 type OIDCClaims map[string]interface{}
 
+// Size returns size of the object when marshaled
 func (a *OIDCClaims) Size() int {
 	bytes, err := json.Marshal(a)
 	if err != nil {
@@ -35,10 +36,12 @@ func (a *OIDCClaims) Size() int {
 	return len(bytes)
 }
 
+// Unmarshal the object from provided buffer.
 func (a *OIDCClaims) Unmarshal(bytes []byte) error {
 	return trace.Wrap(json.Unmarshal(bytes, a))
 }
 
+// MarshalTo marshals the object to sized buffer
 func (a *OIDCClaims) MarshalTo(bytes []byte) (int, error) {
 	out, err := json.Marshal(a)
 	if err != nil {
@@ -57,12 +60,17 @@ func (a *OIDCClaims) MarshalTo(bytes []byte) (int, error) {
 // OIDCIdentity is a redefinition of oidc.Identity with additional methods, required for serialization to/from protobuf.
 // With those we can reference it with an option like so: `(gogoproto.customtype) = "OIDCIdentity"`
 type OIDCIdentity struct {
-	ID        string
-	Name      string
-	Email     string
+	// ID is populated from "subject" claim.
+	ID string
+	// Name of user. Empty in current version of library.
+	Name string
+	// Email is populated from "email" claim.
+	Email string
+	// ExpiresAt populated from "exp" claim, represents expiry time.
 	ExpiresAt time.Time
 }
 
+// Size returns size of the object when marshaled
 func (a *OIDCIdentity) Size() int {
 	bytes, err := json.Marshal(a)
 	if err != nil {
@@ -71,10 +79,12 @@ func (a *OIDCIdentity) Size() int {
 	return len(bytes)
 }
 
+// Unmarshal the object from provided buffer.
 func (a *OIDCIdentity) Unmarshal(bytes []byte) error {
 	return trace.Wrap(json.Unmarshal(bytes, a))
 }
 
+// MarshalTo marshals the object to sized buffer
 func (a *OIDCIdentity) MarshalTo(bytes []byte) (int, error) {
 	out, err := json.Marshal(a)
 	if err != nil {
