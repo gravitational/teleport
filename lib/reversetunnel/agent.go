@@ -156,6 +156,8 @@ type agent struct {
 	hbChannel ssh.Channel
 	// hbRequests are requests going over the heartbeat channel.
 	hbRequests <-chan *ssh.Request
+	// discoveryC receives new discovery channels.
+	discoveryC <-chan ssh.NewChannel
 	// unclaim releases the claim to the proxy in the tracker.
 	unclaim func()
 	// ctx is the internal context used to release resources used by  the agent.
@@ -354,6 +356,9 @@ func (a *agent) connect() error {
 	a.unclaim = unclaim
 
 	startupCtx, cancel := context.WithCancel(a.ctx)
+
+	// Add channel handlers immediately to avoid rejecting a channel.
+	a.discoveryC = a.client.HandleChannelOpen(chanDiscovery)
 
 	// Temporarily reply to global requests during startup. This is necessary
 	// due to the server sending a version request when we connect.
@@ -558,15 +563,13 @@ func (a *agent) handleDrainChannels() error {
 
 // handleChannels handles channels that should run for the entire lifetime of the agent.
 func (a *agent) handleChannels() error {
-	newDiscoveryC := a.client.HandleChannelOpen(chanDiscovery)
-
 	for {
 		select {
 		// need to exit:
 		case <-a.ctx.Done():
 			return trace.Wrap(a.ctx.Err())
 		// new discovery request channel
-		case nch := <-newDiscoveryC:
+		case nch := <-a.discoveryC:
 			if nch == nil {
 				continue
 			}
