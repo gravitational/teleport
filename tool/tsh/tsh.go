@@ -36,7 +36,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -47,6 +46,8 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/touchid"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
+	"github.com/ghodss/yaml"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
@@ -73,6 +75,14 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTSH,
 })
+
+const (
+	// mfaModeAuto, mfaModeCrossPlatform and mfaModePlatform correspond to
+	// wancli.AuthenticatorAttachment values.
+	mfaModeAuto          = "auto"
+	mfaModeCrossPlatform = "cross-platform"
+	mfaModePlatform      = "platform"
+)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
@@ -201,6 +211,9 @@ type CLIConf struct {
 
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
+
+	// MFAMode is the preferred mode for MFA/Passwordless assertions.
+	MFAMode string
 
 	// SkipVersionCheck skips version checking for client and server
 	SkipVersionCheck bool
@@ -434,6 +447,10 @@ func Run(args []string, opts ...cliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform}
+	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
+		Default(mfaModeAuto).
+		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the version")
@@ -680,6 +697,12 @@ func Run(args []string, opts ...cliOption) error {
 	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
 	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
 
+	// touchid subcommands.
+	var tid *touchIDCommand
+	if touchid.IsAvailable() {
+		tid = newTouchIDCommand(app)
+	}
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
@@ -835,8 +858,16 @@ func Run(args []string, opts ...cliOption) error {
 	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
 	default:
-		// This should only happen when there's a missing switch case above.
-		err = trace.BadParameter("command %q not configured", command)
+		// Handle commands that might not be available.
+		switch {
+		case tid != nil && command == tid.ls.FullCommand():
+			err = tid.ls.run(&cf)
+		case tid != nil && command == tid.rm.FullCommand():
+			err = tid.rm.run(&cf)
+		default:
+			// This should only happen when there's a missing switch case above.
+			err = trace.BadParameter("command %q not configured", command)
+		}
 	}
 
 	if trace.IsNotImplemented(err) {
@@ -1507,8 +1538,14 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	} else {
 		roles := utils.SplitIdentifiers(cf.DesiredRoles)
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-		resourceIDs := utils.SplitIdentifiers(cf.RequestedResourceIDs)
-		req, err = services.NewAccessRequestWithResources(cf.Username, roles, resourceIDs)
+		requestedResourceIDs := []types.ResourceID{}
+		if cf.RequestedResourceIDs != "" {
+			requestedResourceIDs, err = services.ResourceIDsFromString(cf.RequestedResourceIDs)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		req, err = services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2348,6 +2385,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.AuthConnector != "" {
 		c.AuthConnector = cf.AuthConnector
 	}
+	c.AuthenticatorAttachment, err = mfaModeToAttachment(cf.MFAMode)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -2424,6 +2465,19 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	tc.Config.Invited = cf.Invited
 	tc.Config.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	return tc, nil
+}
+
+func mfaModeToAttachment(val string) (wancli.AuthenticatorAttachment, error) {
+	switch val {
+	case "", mfaModeAuto:
+		return wancli.AttachmentAuto, nil
+	case mfaModeCrossPlatform:
+		return wancli.AttachmentCrossPlatform, nil
+	case mfaModePlatform:
+		return wancli.AttachmentPlatform, nil
+	default:
+		return wancli.AttachmentAuto, fmt.Errorf("invalid MFA mode: %q", val)
+	}
 }
 
 // setX11Config sets X11 config using CLI and SSH option flags.

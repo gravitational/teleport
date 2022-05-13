@@ -21,11 +21,14 @@ Teleport Cloud Proxy does not terminate SSH sessions when using OpenSSH and `tsh
 The Cloud Proxy terminates TLS for Application, Database and Kubernetes sessions.
 
 ## Data retention
-Data retention cannot currently be configured by customers. Until we roll out the ability to make data retention configurable,
-all customers are set to unlimited data retention. When data retention policies are introduced, customers will be contacted and
-able to set their data retention with us.
+Data retention cannot currently be configured by customers. All Teleport Cloud
+customers have audit logs retained in DynamoDB for 1 year, cluster configuration
+retained in DynamoDB indefinitely, and session recordings retained in S3 indefinitely.
+When data retention policies are introduced, customers will be contacted and
+able to specify their preferred data retention schedules.
 
-Customers whose subscriptions lapse will have all session recordings, audit, and cluster state deleted between 7 and 30 days of the lapse.
+Customers whose subscriptions lapse will have all session recordings, audit logs, and
+cluster state deleted between 7 and 30 days after the lapse.
 
 ## High Availability
 

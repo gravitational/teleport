@@ -195,10 +195,24 @@ func (a *ServerWithRoles) actionForKindSSHSession(namespace, verb string, sid se
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSSHSession, verb, extendContext))
 }
 
-// hasBuiltinRole checks the type of the role set returned and the name.
-// Returns true if role set is builtin and the name matches.
-func (a *ServerWithRoles) hasBuiltinRole(name string) bool {
-	return HasBuiltinRole(a.context.Checker, name)
+// serverAction returns an access denied error if the role is not one of the builtin server roles.
+func (a *ServerWithRoles) serverAction() error {
+	role, ok := a.context.Identity.(BuiltinRole)
+	if !ok || !role.IsServer() {
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
+	}
+	return nil
+}
+
+// hasBuiltinRole checks that the attached checker is a BuiltinRoleSet
+// and whether any of the given roles match the role set.
+func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
+	for _, role := range roles {
+		if HasBuiltinRole(a.context.Checker, string(role)) {
+			return true
+		}
+	}
+	return false
 }
 
 // HasBuiltinRole checks the type of the role set returned and the name.
@@ -240,18 +254,23 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
-		return nil, trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	if err := a.serverAction(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.CreateSessionTracker(ctx, req)
+	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tracker, nil
+
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
 func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
-		return nil, trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	if err := a.serverAction(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.GetSessionTracker(ctx, sessionID)
@@ -316,8 +335,8 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
-		return trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	if err := a.serverAction(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.RemoveSessionTracker(ctx, sessionID)
@@ -325,8 +344,8 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
-		return trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	if err := a.serverAction(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.UpdateSessionTracker(ctx, req)
@@ -337,7 +356,7 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 func (a *ServerWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
-	if !a.hasBuiltinRole(string(types.RoleProxy)) {
+	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.AuthenticateWebUser(req)
@@ -348,7 +367,7 @@ func (a *ServerWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (type
 func (a *ServerWithRoles) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
-	if !a.hasBuiltinRole(string(types.RoleProxy)) {
+	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.AuthenticateSSHUser(req)
@@ -599,7 +618,7 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 //
 // This logic has moved to KeepAliveServer.
 func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle types.KeepAlive) error {
-	if !a.hasBuiltinRole(string(types.RoleNode)) {
+	if !a.hasBuiltinRole(types.RoleNode) {
 		return trace.AccessDenied("[10] access denied")
 	}
 	clusterName, err := a.GetDomainName()
@@ -635,7 +654,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if serverName != handle.Name {
 			return trace.AccessDenied("access denied")
 		}
-		if !a.hasBuiltinRole(string(types.RoleNode)) {
+		if !a.hasBuiltinRole(types.RoleNode) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindNode, types.VerbUpdate); err != nil {
@@ -651,7 +670,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 				return trace.AccessDenied("access denied")
 			}
 		}
-		if !a.hasBuiltinRole(string(types.RoleApp)) {
+		if !a.hasBuiltinRole(types.RoleApp) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindAppServer, types.VerbUpdate); err != nil {
@@ -664,7 +683,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if serverName != handle.HostID {
 			return trace.AccessDenied("access denied")
 		}
-		if !a.hasBuiltinRole(string(types.RoleDatabase)) {
+		if !a.hasBuiltinRole(types.RoleDatabase) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindDatabaseServer, types.VerbUpdate); err != nil {
@@ -674,14 +693,14 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if serverName != handle.Name {
 			return trace.AccessDenied("access denied")
 		}
-		if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveKube:
-		if serverName != handle.Name || !a.hasBuiltinRole(string(types.RoleKube)) {
+		if serverName != handle.Name || !a.hasBuiltinRole(types.RoleKube) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbUpdate); err != nil {
@@ -763,9 +782,9 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		}
 	}
 	switch {
-	case a.hasBuiltinRole(string(types.RoleProxy)):
+	case a.hasBuiltinRole(types.RoleProxy):
 		watch.QueueSize = defaults.ProxyQueueSize
-	case a.hasBuiltinRole(string(types.RoleNode)):
+	case a.hasBuiltinRole(types.RoleNode):
 		watch.QueueSize = defaults.NodeQueueSize
 	}
 	return a.authServer.NewWatcher(ctx, watch)
@@ -798,8 +817,7 @@ func (a *ServerWithRoles) checkAccessToNode(server types.Server) error {
 	// In addition, allow proxy (and remote proxy) to access all nodes for its
 	// smart resolution address resolution. Once the smart resolution logic is
 	// moved to the auth server, this logic can be removed.
-	if a.hasBuiltinRole(string(types.RoleAdmin)) ||
-		a.hasBuiltinRole(string(types.RoleProxy)) ||
+	if a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy) ||
 		a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) {
 		return nil
 	}
@@ -1585,7 +1603,7 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, params types.A
 
 	// review author must match calling user, except in the case of the builtin admin role.  we make this
 	// exception in order to allow for convenient testing with local tctl connections.
-	if !a.hasBuiltinRole(string(types.RoleAdmin)) {
+	if !a.hasBuiltinRole(types.RoleAdmin) {
 		if params.Review.Author != a.context.User.GetName() {
 			return nil, trace.AccessDenied("user %q cannot submit reviews on behalf of %q", a.context.User.GetName(), params.Review.Author)
 		}
@@ -1711,7 +1729,7 @@ func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
-		if !a.hasBuiltinRole(string(types.RoleAdmin)) {
+		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
 			log.Warning(err)
 			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
@@ -1742,7 +1760,7 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
-		if !a.hasBuiltinRole(string(types.RoleAdmin)) {
+		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.context.User.GetName(), name)
 			log.Warning(err)
 			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
@@ -1852,7 +1870,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
 	// from enumerating local users and hitting database
-	if !a.hasBuiltinRole(string(types.RoleAdmin)) && !a.context.Checker.CanImpersonateSomeone() && req.Username != a.context.User.GetName() {
+	if !a.hasBuiltinRole(types.RoleAdmin) && !a.context.Checker.CanImpersonateSomeone() && req.Username != a.context.User.GetName() {
 		return nil, trace.AccessDenied("access denied: impersonation is not allowed")
 	}
 
@@ -1973,7 +1991,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	checker := services.NewRoleSet(parsedRoles...)
 
 	switch {
-	case a.hasBuiltinRole(string(types.RoleAdmin)):
+	case a.hasBuiltinRole(types.RoleAdmin):
 		// builtin admins can impersonate anyone
 		// this is required for local tctl commands to work
 	case req.Username == a.context.User.GetName():
@@ -2043,7 +2061,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
 		compatibility:     req.Format,
 		publicKey:         req.PublicKey,
-		overrideRoleTTL:   a.hasBuiltinRole(string(types.RoleAdmin)),
+		overrideRoleTTL:   a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:    req.RouteToCluster,
 		kubernetesCluster: req.KubernetesCluster,
 		dbService:         req.RouteToDatabase.ServiceName,
@@ -3215,7 +3233,7 @@ func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.Sema
 // signed certificate if successful.
 func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	// limits the requests types to proxies to make it harder to break
-	if !a.hasBuiltinRole(string(types.RoleProxy)) {
+	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.ProcessKubeCSR(req)
@@ -3272,7 +3290,7 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
 	// Only proxy is allowed to request this certificate when proxying
 	// database client connection to a remote database service.
-	if !a.hasBuiltinRole(string(types.RoleProxy)) {
+	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can only be executed by a proxy service")
 	}
 	return a.authServer.SignDatabaseCSR(ctx, req)
@@ -3294,7 +3312,7 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	// Check if this is a local cluster admin, or a datababase service, or a
 	// user that is allowed to impersonate database service.
-	if !a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleAdmin)) {
+	if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
 		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
 			log.WithError(err).Warnf("User %v tried to generate database certificate but is not allowed to impersonate %q system role.",
 				a.context.User.GetName(), types.RoleDatabase)
@@ -4259,9 +4277,7 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 
 func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop) ([]types.WindowsDesktop, error) {
 	// For certain built-in roles allow full access
-	if a.hasBuiltinRole(string(types.RoleAdmin)) ||
-		a.hasBuiltinRole(string(types.RoleProxy)) ||
-		a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+	if a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy, types.RoleWindowsDesktop) {
 		return desktops, nil
 	}
 
@@ -4288,7 +4304,7 @@ func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) er
 // authentication.
 func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	// Only windows_desktop_service should be requesting Windows certificates.
-	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+	if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
 		return nil, trace.AccessDenied("access denied")
 	}
 	return a.authServer.GenerateWindowsDesktopCert(ctx, req)
@@ -4350,7 +4366,7 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Only windows_desktop_service should be requesting CRLs
-	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+	if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
 		return nil, trace.AccessDenied("access denied")
 	}
 	crl, err := a.authServer.GenerateCertAuthorityCRL(ctx, caType)
