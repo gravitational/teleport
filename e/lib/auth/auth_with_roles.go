@@ -223,7 +223,7 @@ func (ac *cloudWithRoles) hasBuiltinProxyRole(ctx context.Context) error {
 		return trace.AccessDenied("access denied")
 	}
 
-	if !auth.HasBuiltinRole(authCtx.Checker, string(types.RoleProxy)) {
+	if !auth.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
 		return trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
