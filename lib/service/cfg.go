@@ -707,6 +707,8 @@ type DatabaseAWS struct {
 	Redshift DatabaseAWSRedshift
 	// RDS contains RDS specific settings.
 	RDS DatabaseAWSRDS
+	// ElastiCache contains ElastiCache specific settings.
+	ElastiCache DatabaseAWSElastiCache
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -721,6 +723,12 @@ type DatabaseAWSRDS struct {
 	InstanceID string
 	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
+}
+
+// DatabaseAWSElastiCache contains settings for ElastiCache databases.
+type DatabaseAWSElastiCache struct {
+	// ReplicationGroupID is the ElastiCache replication group ID.
+	ReplicationGroupID string
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
