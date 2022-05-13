@@ -20,6 +20,7 @@
 package snowflake
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -101,6 +102,85 @@ func Test_extractSnowflakeToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := extractSnowflakeToken(tt.headers)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_replaceLoginReqToken(t *testing.T) {
+	const loginResponse = `{"data":{"CLIENT_APP_ID":"","CLIENT_APP_VERSION":"","SVN_REVISION":"","ACCOUNT_NAME":"testAccountName","AUTHENTICATOR":"SNOWFLAKE_JWT","CLIENT_ENVIRONMENT":null,"TOKEN":"testJWT"}}`
+
+	type args struct {
+		loginReq    map[string]interface{}
+		jwtToken    string
+		accountName string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "base case",
+			args: args{
+				loginReq: map[string]interface{}{
+					"TOKEN":        "testJWT",
+					"ACCOUNT_NAME": "testAccountName",
+				},
+				jwtToken:    "testJWT",
+				accountName: "testAccountName",
+			},
+			want: loginResponse,
+		},
+		{
+			name: "remove password",
+			args: args{
+				loginReq: map[string]interface{}{
+					"TOKEN":        "testJWT",
+					"ACCOUNT_NAME": "testAccountName",
+					"PASSWORD":     "password",
+				},
+				jwtToken:    "testJWT",
+				accountName: "testAccountName",
+			},
+			want: loginResponse,
+		},
+		{
+			name: "remove username",
+			args: args{
+				loginReq: map[string]interface{}{
+					"TOKEN":        "testJWT",
+					"ACCOUNT_NAME": "testAccountName",
+					"LOGIN_NAME":   "alice",
+				},
+				jwtToken:    "testJWT",
+				accountName: "testAccountName",
+			},
+			want: loginResponse,
+		},
+		{
+			name: "replace authenticator username",
+			args: args{
+				loginReq: map[string]interface{}{
+					"TOKEN":         "testJWT",
+					"ACCOUNT_NAME":  "testAccountName",
+					"AUTHENTICATOR": "PASSWORD",
+				},
+				jwtToken:    "testJWT",
+				accountName: "testAccountName",
+			},
+			want: loginResponse,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload, err := json.Marshal(tt.args.loginReq)
+			require.NoError(t, err)
+
+			got, err := replaceLoginReqToken(payload, tt.args.jwtToken, tt.args.accountName)
+
+			require.NoError(t, err)
+			require.JSONEq(t, tt.want, string(got))
 		})
 	}
 }

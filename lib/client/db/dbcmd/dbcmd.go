@@ -534,11 +534,11 @@ func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 }
 
 // WithTolerateMissingCLIClient is the connect command option that makes CLICommandBuilder not
-// return an error in case a specific binary couldn't be found in the system. Instead it should
+// return an error in case a specific binary couldn't be found in the system. Instead, it should
 // return the command with just a base version of the binary name, without an absolute path.
 //
 // In general CLICommandBuilder doesn't return an error in that scenario as it uses exec.Command
-// underneath. However, there are some specific situations where we need to execute some of the
+// underneath. However, there are some specific situations where we need to execute some
 // binaries before returning the final command.
 //
 // The flag is mostly for scenarios where the caller doesn't care that the final command might not

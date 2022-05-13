@@ -103,18 +103,18 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 }
 
 const (
-	// loginResponse is a successful login response returned by the Snowflake mock server
+	// testLoginResponse is a successful login response returned by the Snowflake mock server
 	// used in tests.
-	loginResponse = `
+	testLoginResponse = `
 {
   "data": {
     "token": "test-token-123"
   },
   "success": true
 }`
-	// queryResponse is a successful query response returned by the Snowflake mock server
+	// testQueryResponse is a successful query response returned by the Snowflake mock server
 	// used in tests.
-	queryResponse = `{
+	testQueryResponse = `{
   "data": {
     "parameters": [
       {
@@ -286,8 +286,8 @@ const (
   "success": true
 }
 `
-	// sessionEndResponse is the response returned by the Snowflake mock server on the session end request.
-	sessionEndResponse = `{
+	// testSessionEndResponse is the response returned by the Snowflake mock server on the session end request.
+	testSessionEndResponse = `{
   "data": null,
   "code": null,
   "message": null,
@@ -295,16 +295,16 @@ const (
 }
 `
 
-	// forceTokenRefresh is the response returned by the Snowflake mock server to force client to renew
+	// testForceTokenRefresh is the response returned by the Snowflake mock server to force client to renew
 	// the session token.
-	forceTokenRefresh = `{
+	testForceTokenRefresh = `{
   "code": "390112",
   "message": null,
   "success": false
 }
 `
-	// sessionTokenResponse is the response returned by the Snowflake mock server on token renew request.
-	sessionTokenResponse = `{
+	// testSessionTokenResponse is the response returned by the Snowflake mock server on token renew request.
+	testSessionTokenResponse = `{
   "data": {
     "sessionToken": "sessionToken-123",
     "validityInSecondsST": 3600,
@@ -365,7 +365,7 @@ func (s *TestServer) Serve() error {
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case loginRequestPath:
-			loginReq := &authRequest{}
+			loginReq := &loginRequest{}
 			if err := json.NewDecoder(r.Body).Decode(loginReq); err != nil {
 				w.WriteHeader(400)
 				return
@@ -378,8 +378,8 @@ func (s *TestServer) Serve() error {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Length", strconv.Itoa(len(loginResponse)))
-			w.Write([]byte(loginResponse))
+			w.Header().Set("Content-Length", strconv.Itoa(len(testLoginResponse)))
+			w.Write([]byte(testLoginResponse))
 		case queryRequestPath:
 			w.Header().Set("Content-Type", "application/json")
 
@@ -389,22 +389,22 @@ func (s *TestServer) Serve() error {
 			}
 
 			if s.forceTokenRefresh {
-				w.Write([]byte(forceTokenRefresh))
-				w.Header().Set("Content-Length", strconv.Itoa(len(forceTokenRefresh)))
+				w.Write([]byte(testForceTokenRefresh))
+				w.Header().Set("Content-Length", strconv.Itoa(len(testForceTokenRefresh)))
 				s.forceTokenRefresh = false
 				return
 			}
 
-			w.Header().Set("Content-Length", strconv.Itoa(len(queryResponse)))
-			w.Write([]byte(queryResponse))
+			w.Header().Set("Content-Length", strconv.Itoa(len(testQueryResponse)))
+			w.Write([]byte(testQueryResponse))
 		case sessionRequestPath:
 			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Length", strconv.Itoa(len(sessionEndResponse)))
-			w.Write([]byte(sessionEndResponse))
+			w.Header().Set("Content-Length", strconv.Itoa(len(testSessionEndResponse)))
+			w.Write([]byte(testSessionEndResponse))
 		case tokenRequestPath:
 			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Length", strconv.Itoa(len(sessionTokenResponse)))
-			w.Write([]byte(sessionTokenResponse))
+			w.Header().Set("Content-Length", strconv.Itoa(len(testSessionTokenResponse)))
+			w.Write([]byte(testSessionTokenResponse))
 			s.authorizationToken = "sessionToken-123"
 		default:
 			w.WriteHeader(http.StatusNotFound)

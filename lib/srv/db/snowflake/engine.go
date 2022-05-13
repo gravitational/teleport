@@ -33,7 +33,6 @@ import (
 	"net/http/httputil"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -212,8 +211,22 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	switch req.URL.Path {
 	case loginRequestPath:
 		err := e.processResponse(resp, func(body []byte) ([]byte, error) {
-			newPayload, err := e.saveSessionToken(ctx, e.sessionCtx, body, accountName)
-			return newPayload, trace.Wrap(err)
+			newResp, err := e.processLoginResponse(body, func(sessionToken string) (string, error) {
+				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+					Username:     sessionCtx.Identity.Username,
+					SessionToken: sessionToken,
+				})
+				if err != nil {
+					return "", trace.Wrap(err)
+				}
+
+				return snowflakeSession.GetName(), nil
+			})
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to extract Snowflake session token")
+			}
+
+			return newResp, nil
 		})
 
 		// Return here - processLoginResponse sends the response.
@@ -361,25 +374,6 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) saveSessionToken(ctx context.Context, sessionCtx *common.Session, respBody []byte, accountName string) ([]byte, error) {
-	newResp, err := e.extractToken(respBody, func(sessionToken string) (string, error) {
-		snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
-			Username:     sessionCtx.Identity.Username,
-			SessionToken: e.connectionToken,
-		})
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		return snowflakeSession.GetName(), nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to extract Snowflake session token")
-	}
-
-	return newResp, nil
-}
-
 func (e *Engine) copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.Request, error) {
 	reqCopy, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), body)
 	if err != nil {
@@ -497,29 +491,20 @@ func readRequestBody(req *http.Request) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Header.Get("Content-Encoding") == "gzip" {
-		bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer bodyGZ.Close()
-
-		body, err = io.ReadAll(bodyGZ)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return body, nil
+	return readBody(req.Header, body)
 }
 
-func readResponseBody(req *http.Response) ([]byte, error) {
-	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+func readResponseBody(resp *http.Response) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, teleport.MaxHTTPRequestSize))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Header.Get("Content-Encoding") == "gzip" {
+	return readBody(resp.Header, body)
+}
+
+func readBody(headers http.Header, body []byte) ([]byte, error) {
+	if headers.Get("Content-Encoding") == "gzip" {
 		bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -588,10 +573,6 @@ func copyResponse(resp *http.Response, body []byte) ([]byte, error) {
 	return httputil.DumpResponse(resp, true)
 }
 
-type queryRequest struct {
-	SQLText string `json:"sqlText"`
-}
-
 func extractSQLStmt(body []byte) (string, error) {
 	queryRequest := &queryRequest{}
 	if err := json.Unmarshal(body, queryRequest); err != nil {
@@ -601,8 +582,8 @@ func extractSQLStmt(body []byte) (string, error) {
 	return queryRequest.SQLText, nil
 }
 
-func (e *Engine) extractToken(bodyBytes []byte, sessCb func(string) (string, error)) ([]byte, error) {
-	loginResp := &LoginResponse{}
+func (e *Engine) processLoginResponse(bodyBytes []byte, sessCb func(string) (string, error)) ([]byte, error) {
+	loginResp := &loginResponse{}
 	if err := json.Unmarshal(bodyBytes, loginResp); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -623,7 +604,7 @@ func (e *Engine) extractToken(bodyBytes []byte, sessCb func(string) (string, err
 
 	e.connectionToken = connectionToken
 
-	sessionToken, err := sessCb(e.connectionToken)
+	sessionToken, err := sessCb(connectionToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -640,129 +621,19 @@ func (e *Engine) extractToken(bodyBytes []byte, sessCb func(string) (string, err
 }
 
 func replaceLoginReqToken(loginReq []byte, jwtToken string, accountName string) ([]byte, error) {
-	logReq := &LoginRequest{}
+	logReq := &loginRequest{}
 	if err := json.Unmarshal(loginReq, logReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	logReq.Data["TOKEN"] = jwtToken
-	logReq.Data["ACCOUNT_NAME"] = accountName
-	logReq.Data["AUTHENTICATOR"] = "SNOWFLAKE_JWT"
+	logReq.Data.Token = jwtToken
+	logReq.Data.AccountName = accountName
+	logReq.Data.Authenticator = "SNOWFLAKE_JWT"
 
-	delete(logReq.Data, "PASSWORD")
-	delete(logReq.Data, "EXT_AUTHN_DUO_METHOD")
+	// Erase other authentication methods as we're using JWT method
+	logReq.Data.LoginName = ""
+	logReq.Data.Password = ""
+	logReq.Data.ExtAuthnDuoMethod = ""
 
 	return json.Marshal(logReq)
-}
-
-type LoginResponse struct {
-	Data map[string]interface{} `json:"data"`
-	//Data struct {
-	//	MasterToken             string      `json:"masterToken"`
-	//	Token                   string      `json:"token"`
-	//	ValidityInSeconds       int         `json:"validityInSeconds"`
-	//	MasterValidityInSeconds int         `json:"masterValidityInSeconds"`
-	//	DisplayUserName         string      `json:"displayUserName"`
-	//	ServerVersion           string      `json:"serverVersion"`
-	//	FirstLogin              bool        `json:"firstLogin"`
-	//	RemMeToken              interface{} `json:"remMeToken"`
-	//	RemMeValidityInSeconds  int         `json:"remMeValidityInSeconds"`
-	//	HealthCheckInterval     int         `json:"healthCheckInterval"`
-	//	NewClientForUpgrade     interface{} `json:"newClientForUpgrade"`
-	//	SessionID               int64       `json:"sessionId"`
-	//	//Parameters              []struct {
-	//	//	Name  string `json:"name"`
-	//	//	Value int    `json:"value"`
-	//	//} `json:"parameters"`
-	//	SessionInfo struct {
-	//		DatabaseName  interface{} `json:"databaseName"`
-	//		SchemaName    interface{} `json:"schemaName"`
-	//		WarehouseName interface{} `json:"warehouseName"`
-	//		RoleName      string      `json:"roleName"`
-	//	} `json:"sessionInfo"`
-	//	IDToken                   interface{} `json:"idToken"`
-	//	IDTokenValidityInSeconds  int         `json:"idTokenValidityInSeconds"`
-	//	ResponseData              interface{} `json:"responseData"`
-	//	MfaToken                  interface{} `json:"mfaToken"`
-	//	MfaTokenValidityInSeconds int         `json:"mfaTokenValidityInSeconds"`
-	//} `json:"data"`
-	Code    interface{} `json:"code"`
-	Message interface{} `json:"message"`
-	Success bool        `json:"success"`
-}
-
-type LoginRequest struct {
-	//Data struct {
-	//	ClientAppID       string      `json:"CLIENT_APP_ID"`
-	//	ClientAppVersion  string      `json:"CLIENT_APP_VERSION"`
-	//	SvnRevision       interface{} `json:"SVN_REVISION"`
-	//	AccountName       string      `json:"ACCOUNT_NAME"`
-	//	LoginName         string      `json:"LOGIN_NAME"`
-	//	ClientEnvironment struct {
-	//		Application    string      `json:"APPLICATION"`
-	//		Os             string      `json:"OS"`
-	//		OsVersion      string      `json:"OS_VERSION"`
-	//		PythonVersion  string      `json:"PYTHON_VERSION"`
-	//		PythonRuntime  string      `json:"PYTHON_RUNTIME"`
-	//		PythonCompiler string      `json:"PYTHON_COMPILER"`
-	//		OcspMode       string      `json:"OCSP_MODE"`
-	//		Tracing        interface{} `json:"TRACING"`
-	//		LoginTimeout   int         `json:"LOGIN_TIMEOUT"`
-	//		NetworkTimeout interface{} `json:"NETWORK_TIMEOUT"`
-	//	} `json:"CLIENT_ENVIRONMENT"`
-	//	Authenticator     string `json:"AUTHENTICATOR"`
-	//	Token             string `json:"TOKEN"`
-	//	SessionParameters struct {
-	//		AbortDetachedQuery     bool `json:"ABORT_DETACHED_QUERY"`
-	//		Autocommit             bool `json:"AUTOCOMMIT"`
-	//		ClientSessionKeepAlive bool `json:"CLIENT_SESSION_KEEP_ALIVE"`
-	//		ClientPrefetchThreads  int  `json:"CLIENT_PREFETCH_THREADS"`
-	//	} `json:"SESSION_PARAMETERS"`
-	//} `json:"data"`
-	Data map[string]interface{} `json:"data"`
-}
-
-type authRequest struct {
-	Data struct {
-		ClientAppID             string          `json:"CLIENT_APP_ID"`
-		ClientAppVersion        string          `json:"CLIENT_APP_VERSION"`
-		SvnRevision             string          `json:"SVN_REVISION"`
-		AccountName             string          `json:"ACCOUNT_NAME"`
-		LoginName               string          `json:"LOGIN_NAME,omitempty"`
-		Password                string          `json:"PASSWORD,omitempty"`
-		RawSAMLResponse         string          `json:"RAW_SAML_RESPONSE,omitempty"`
-		ExtAuthnDuoMethod       string          `json:"EXT_AUTHN_DUO_METHOD,omitempty"`
-		Passcode                string          `json:"PASSCODE,omitempty"`
-		Authenticator           string          `json:"AUTHENTICATOR,omitempty"`
-		SessionParameters       json.RawMessage `json:"SESSION_PARAMETERS,omitempty"`
-		ClientEnvironment       json.RawMessage `json:"CLIENT_ENVIRONMENT"`
-		BrowserModeRedirectPort string          `json:"BROWSER_MODE_REDIRECT_PORT,omitempty"`
-		ProofKey                string          `json:"PROOF_KEY,omitempty"`
-		Token                   string          `json:"TOKEN,omitempty"`
-	} `json:"data"`
-}
-
-type RefreshTokenRequest struct {
-	OldSessionToken string `json:"oldSessionToken"`
-	RequestType     string `json:"requestType"`
-}
-
-type renewSessionRequest struct {
-	OldSessionToken string `json:"oldSessionToken"`
-	RequestType     string `json:"requestType"` // "RENEW"
-}
-
-type renewSessionResponse struct {
-	Data    renewSessionResponseMain `json:"data"`
-	Message string                   `json:"message"`
-	Code    string                   `json:"code"`
-	Success bool                     `json:"success"`
-}
-
-type renewSessionResponseMain struct {
-	SessionToken        string        `json:"sessionToken"`
-	ValidityInSecondsST time.Duration `json:"validityInSecondsST"`
-	MasterToken         string        `json:"masterToken"`
-	ValidityInSecondsMT time.Duration `json:"validityInSecondsMT"`
-	SessionID           int64         `json:"sessionId"`
 }
