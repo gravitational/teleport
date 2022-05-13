@@ -661,7 +661,8 @@
       "source": "/kubernetes-access/guides/migration/",
       "destination": "/kubernetes-access/introduction/",
       "permanent": true
-    },{
+    },
+    {
       "source": "/architecture/",
       "destination": "/architecture/overview/",
       "permanent": true
