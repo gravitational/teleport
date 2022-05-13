@@ -17,6 +17,7 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -220,6 +221,36 @@ func (s *localSite) IsClosed() bool { return false }
 
 // Close always returns nil because a localSite isn't closed.
 func (s *localSite) Close() error { return nil }
+
+// adviceReconnect sends reconnects to agents in the background blocking until
+// the requests complete or the context is done.
+func (s *localSite) adviceReconnect(ctx context.Context) {
+	wg := &sync.WaitGroup{}
+	s.remoteConnsMtx.Lock()
+	for _, conns := range s.remoteConns {
+		for _, conn := range conns {
+			s.log.Debugf("Sending reconnect: %s", conn.nodeID)
+
+			wg.Add(1)
+			go func(conn *remoteConn) {
+				conn.adviseReconnect()
+				wg.Done()
+			}(conn)
+		}
+	}
+	s.remoteConnsMtx.Unlock()
+
+	wait := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(wait)
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-wait:
+	}
+}
 
 func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	if params.GetUserAgent == nil {
