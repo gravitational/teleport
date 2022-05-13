@@ -913,7 +913,7 @@ func TestEnvFlags(t *testing.T) {
 		t.Run("nothing set", testEnvFlag(testCase{
 			outCLIConf: CLIConf{},
 		}))
-		t.Run("TELEPORT_TSH_CONFIG set", testEnvFlag(testCase{
+		t.Run("TELEPORT_GLOBAL_TSH_CONFIG set", testEnvFlag(testCase{
 			envMap: map[string]string{
 				globalTshConfigEnvVar: "/opt/teleport/tsh.yaml",
 			},

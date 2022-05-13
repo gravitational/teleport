@@ -287,7 +287,7 @@ type CLIConf struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
-	// GlobalTshConfigPath is a path to global TSH config. Can be overridden with TELEPORT_TSH_CONFIG.
+	// GlobalTshConfigPath is a path to global TSH config. Can be overridden with TELEPORT_GLOBAL_TSH_CONFIG.
 	GlobalTshConfigPath string
 
 	// LocalProxyPort is a port used by local proxy listener.
@@ -383,7 +383,7 @@ const (
 	userEnvVar             = "TELEPORT_USER"
 	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
-	globalTshConfigEnvVar  = "TELEPORT_TSH_CONFIG"
+	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"

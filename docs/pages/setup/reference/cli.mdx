@@ -698,12 +698,12 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_USER | A Teleport user name | alice |
 | TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
-| TELEPORT_TSH_CONFIG | Override location of global `tsh` config file from default `/etc/tsh.yaml` | /opt/teleport/tsh.yaml |
+| TELEPORT_GLOBAL_TSH_CONFIG | Override location of global `tsh` config file from default `/etc/tsh.yaml` | /opt/teleport/tsh.yaml |
 
 ### tsh configuration files
 
 `tsh` has an optional configuration files:
-- global, shared config: `/etc/tsh.yaml`. Location can be overridden with `$TELEPORT_TSH_CONFIG`.
+- global, shared config: `/etc/tsh.yaml`. Location can be overridden with `$TELEPORT_GLOBAL_TSH_CONFIG`.
 - user specific config: `$TELEPORT_HOME/config/config.yaml`.
 
 The settings from both are merged, with the user config taking precedence.
