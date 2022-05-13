@@ -1008,7 +1008,7 @@ func (g *GRPCServer) GenerateSnowflakeJWT(ctx context.Context, req *proto.Snowfl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.GenerateDatabaseJWT(ctx, req)
+	response, err := auth.GenerateSnowflakeJWT(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

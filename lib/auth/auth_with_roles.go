@@ -3474,11 +3474,11 @@ func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.D
 	return a.authServer.GenerateDatabaseCert(ctx, req)
 }
 
-// GenerateDatabaseJWT generates JWT in the Snowflake required format.
-func (a *ServerWithRoles) GenerateDatabaseJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
+// GenerateSnowflakeJWT generates JWT in the Snowflake required format.
+func (a *ServerWithRoles) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
 	// Check if this is a local cluster admin, or a database service, or a
 	// user that is allowed to impersonate database service.
-	if !a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleAdmin)) {
+	if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
 		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
 			log.WithError(err).Warnf("User %v tried to generate database certificate but is not allowed to impersonate %q system role.",
 				a.context.User.GetName(), types.RoleDatabase)
