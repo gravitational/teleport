@@ -563,10 +563,7 @@ func (s *Suite) checkHTTPResponse(c *check.C, clientCert tls.Certificate, checkR
 	checkResp(resp)
 	c.Assert(resp.Body.Close(), check.IsNil)
 
-	// Context will close because of the net.Pipe, expect a context canceled
-	// error here.
-	err = s.appServer.Close()
-	c.Assert(err, check.NotNil)
+	s.appServer.Close()
 
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners
