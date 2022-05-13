@@ -762,9 +762,21 @@ message AccessRequestCreate {
     // variant).
     string ProposedState = 11 [ (gogoproto.jsontag) = "proposed_state,omitempty" ];
 
-    // RequestedResourceIDs is a list of resources to which access is being
-    // requested.
-    repeated string RequestedResourceIDs = 12 [ (gogoproto.jsontag) = "resource_ids,omitempty" ];
+    // RequestedResourceIDs is the set of resources to which access is being requested.
+    repeated ResourceID RequestedResourceIDs = 12
+        [ (gogoproto.jsontag) = "resource_ids,omitempty", (gogoproto.nullable) = false ];
+}
+
+// ResourceID is a unique identifier for a teleport resource. This is duplicated
+// from api/types/types.proto to decouple the api and events types and because
+// neither file currently imports the other.
+message ResourceID {
+    // ClusterName is the name of the cluster the resource is in.
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster" ];
+    // Kind is the resource kind.
+    string Kind = 2 [ (gogoproto.jsontag) = "kind" ];
+    // Name is the name of the specific resource.
+    string Name = 3 [ (gogoproto.jsontag) = "name" ];
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.

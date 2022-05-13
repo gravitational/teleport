@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -76,7 +77,14 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the auth server.
-	err = process.initUploaderService(accessPoint, conn.Client, conn.Client)
+	uploaderCfg := filesessions.UploaderConfig{
+		Streamer: accessPoint,
+		AuditLog: conn.Client,
+	}
+	completerCfg := events.UploadCompleterConfig{
+		SessionTracker: conn.Client,
+	}
+	err = process.initUploaderService(uploaderCfg, completerCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -110,6 +118,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					RDS: types.RDS{
 						InstanceID: db.AWS.RDS.InstanceID,
 						ClusterID:  db.AWS.RDS.ClusterID,
+					},
+					ElastiCache: types.ElastiCache{
+						ReplicationGroupID: db.AWS.ElastiCache.ReplicationGroupID,
 					},
 				},
 				GCP: types.GCPCloudSQL{

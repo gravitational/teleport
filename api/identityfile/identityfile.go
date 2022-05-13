@@ -107,6 +107,16 @@ func Write(idFile *IdentityFile, path string) error {
 	return nil
 }
 
+// Encode encodes the given identityFile to bytes.
+func Encode(idFile *IdentityFile) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := encodeIdentityFile(buf, idFile); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return buf.Bytes(), nil
+}
+
 // Read reads an identity file from generic io.Reader interface.
 func Read(r io.Reader) (*IdentityFile, error) {
 	ident, err := decodeIdentityFile(r)
