@@ -101,6 +101,11 @@
                 "additionalProperties": false
             }
         },
+        "dbCustomCASecretName": {
+            "$id": "#/properties/dbCustomCASecretName",
+            "type": "string",
+            "default": ""
+        },
         "databases": {
             "$id": "#/properties/databases",
             "type": "array",
