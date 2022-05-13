@@ -619,20 +619,21 @@ func TestOIDCAuthRequest(t *testing.T) {
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-			} else {
-				if err != nil {
-					if reporter, ok := err.(trace.DebugReporter); ok {
-						fmt.Println(reporter.DebugReport())
-					}
-				}
-				require.NoError(t, err)
-				require.NotEmpty(t, request.StateToken)
-				require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
-
-				requestCopy, err := clientReader.GetOIDCAuthRequest(ctx, request.StateToken)
-				require.NoError(t, err)
-				require.Equal(t, request, requestCopy)
+				return
 			}
+			
+			if err != nil {
+				if reporter, ok := err.(trace.DebugReporter); ok {
+					fmt.Println(reporter.DebugReport())
+				}
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, request.StateToken)
+			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
+
+			requestCopy, err := clientReader.GetOIDCAuthRequest(ctx, request.StateToken)
+			require.NoError(t, err)
+			require.Equal(t, request, requestCopy)
 		})
 	}
 }
