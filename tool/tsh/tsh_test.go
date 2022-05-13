@@ -908,6 +908,20 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 	})
+
+	t.Run("tsh global config path", func(t *testing.T) {
+		t.Run("nothing set", testEnvFlag(testCase{
+			outCLIConf: CLIConf{},
+		}))
+		t.Run("TELEPORT_GLOBAL_TSH_CONFIG set", testEnvFlag(testCase{
+			envMap: map[string]string{
+				globalTshConfigEnvVar: "/opt/teleport/tsh.yaml",
+			},
+			outCLIConf: CLIConf{
+				GlobalTshConfigPath: "/opt/teleport/tsh.yaml",
+			},
+		}))
+	})
 }
 
 func TestKubeConfigUpdate(t *testing.T) {

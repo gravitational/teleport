@@ -77,11 +77,11 @@
               "slug": "/setup/admin/troubleshooting/"
             },
             {
-              "title": "Graceful Restarts",
+              "title": "Upgrading the Teleport Binary",
               "slug": "/setup/admin/graceful-restarts/"
             },
             {
-              "title": "Daemon",
+              "title": "Run Teleport as a Daemon",
               "slug": "/setup/admin/daemon/"
             }
           ]
@@ -113,7 +113,7 @@
               "slug": "/setup/operations/scaling/"
             },
             {
-              "title": "Upgrading",
+              "title": "Upgrading a Cluster",
               "slug": "/setup/operations/upgrading/"
             },
             {
@@ -217,6 +217,10 @@
             {
               "title": "Predicate Language",
               "slug": "/setup/reference/predicate-language/"
+            },
+            {
+              "title": "Signals",
+              "slug": "/setup/reference/signals/"
             }
           ]
         }
