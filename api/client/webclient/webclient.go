@@ -30,6 +30,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
@@ -60,6 +61,8 @@ type Config struct {
 	ExtraHeaders map[string]string
 	// IgnoreHTTPProxy disables support for HTTP proxying when true.
 	IgnoreHTTPProxy bool
+	// Timeout is a timeout for requests.
+	Timeout time.Duration
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -71,7 +74,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.ProxyAddr == "" && os.Getenv(defaults.TunnelPublicAddrEnvar) == "" {
 		return trace.BadParameter(message, "missing parameter ProxyAddr")
 	}
-
+	if c.Timeout == 0 {
+		c.Timeout = defaults.DefaultDialTimeout
+	}
 	return nil
 }
 
@@ -93,6 +98,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 	}
 	return &http.Client{
 		Transport: proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
+		Timeout:   cfg.Timeout,
 	}, nil
 }
 
