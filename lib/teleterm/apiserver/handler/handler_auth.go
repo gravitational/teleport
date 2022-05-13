@@ -16,6 +16,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 
@@ -29,6 +30,8 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Println("------ req: ", req)
+
 	if req.Params == nil {
 		return nil, trace.BadParameter("missing login parameters")
 	}
@@ -40,6 +43,12 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		}
 
 		return &api.EmptyResponse{}, nil
+	// case *api.LoginRequest_Passwordless:
+	// 	if err := cluster.PwdlessLogin(ctx, params.Passwordless.User); err != nil {
+	// 		return nil, trace.Wrap(err)
+	// 	}
+
+	// 	return &api.EmptyResponse{}, nil
 	case *api.LoginRequest_Sso:
 		if err := cluster.SSOLogin(ctx, params.Sso.ProviderType, params.Sso.ProviderName); err != nil {
 			return nil, trace.Wrap(err)
@@ -49,6 +58,33 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 	default:
 		return nil, trace.BadParameter("unsupported login parameters")
 	}
+
+}
+
+// Login logs in a user to a cluster
+func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordlessServer) error {
+	// 1. receive client Init
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("------ req: ", req)
+
+	// if req.Params == nil {
+	// 	return nil, trace.BadParameter("missing login parameters")
+	// }
+
+	if err := cluster.PwdlessLogin(stream.Context(), req.User, stream); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 
 }
 
@@ -74,10 +110,13 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 	}
 
 	result := &api.AuthSettings{
-		PreferredMfa:     string(preferences.PreferredLocalMFA),
-		SecondFactor:     string(preferences.SecondFactor),
-		LocalAuthEnabled: preferences.LocalAuthEnabled,
-		AuthProviders:    []*api.AuthProvider{},
+		PreferredMfa:       string(preferences.PreferredLocalMFA),
+		SecondFactor:       string(preferences.SecondFactor),
+		LocalAuthEnabled:   preferences.LocalAuthEnabled,
+		AuthProviders:      []*api.AuthProvider{},
+		AuthType:           preferences.AuthType,
+		AllowPasswordless:  preferences.AllowPasswordless,
+		LocalConnectorName: preferences.LocalConnectorName,
 	}
 
 	for _, provider := range preferences.Providers {

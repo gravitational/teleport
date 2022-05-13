@@ -77,6 +77,56 @@ export namespace LogoutRequest {
     }
 }
 
+export class LoginPasswordlessResponse extends jspb.Message { 
+    getPrompt(): WebauthnPrompt;
+    setPrompt(value: WebauthnPrompt): LoginPasswordlessResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): LoginPasswordlessResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: LoginPasswordlessResponse): LoginPasswordlessResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: LoginPasswordlessResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): LoginPasswordlessResponse;
+    static deserializeBinaryFromReader(message: LoginPasswordlessResponse, reader: jspb.BinaryReader): LoginPasswordlessResponse;
+}
+
+export namespace LoginPasswordlessResponse {
+    export type AsObject = {
+        prompt: WebauthnPrompt,
+    }
+}
+
+export class LoginPasswordlessRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): LoginPasswordlessRequest;
+
+    getUser(): string;
+    setUser(value: string): LoginPasswordlessRequest;
+
+    getPin(): string;
+    setPin(value: string): LoginPasswordlessRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): LoginPasswordlessRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: LoginPasswordlessRequest): LoginPasswordlessRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: LoginPasswordlessRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): LoginPasswordlessRequest;
+    static deserializeBinaryFromReader(message: LoginPasswordlessRequest, reader: jspb.BinaryReader): LoginPasswordlessRequest;
+}
+
+export namespace LoginPasswordlessRequest {
+    export type AsObject = {
+        clusterUri: string,
+        user: string,
+        pin: string,
+    }
+}
+
 export class LoginRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): LoginRequest;
@@ -92,6 +142,12 @@ export class LoginRequest extends jspb.Message {
     clearSso(): void;
     getSso(): LoginRequest.SsoParams | undefined;
     setSso(value?: LoginRequest.SsoParams): LoginRequest;
+
+
+    hasPasswordless(): boolean;
+    clearPasswordless(): void;
+    getPasswordless(): LoginRequest.PasswordlessParams | undefined;
+    setPasswordless(value?: LoginRequest.PasswordlessParams): LoginRequest;
 
 
     getParamsCase(): LoginRequest.ParamsCase;
@@ -111,6 +167,7 @@ export namespace LoginRequest {
         clusterUri: string,
         local?: LoginRequest.LocalParams.AsObject,
         sso?: LoginRequest.SsoParams.AsObject,
+        passwordless?: LoginRequest.PasswordlessParams.AsObject,
     }
 
 
@@ -168,6 +225,27 @@ export namespace LoginRequest {
         }
     }
 
+    export class PasswordlessParams extends jspb.Message { 
+        getUser(): string;
+        setUser(value: string): PasswordlessParams;
+
+
+        serializeBinary(): Uint8Array;
+        toObject(includeInstance?: boolean): PasswordlessParams.AsObject;
+        static toObject(includeInstance: boolean, msg: PasswordlessParams): PasswordlessParams.AsObject;
+        static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+        static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+        static serializeBinaryToWriter(message: PasswordlessParams, writer: jspb.BinaryWriter): void;
+        static deserializeBinary(bytes: Uint8Array): PasswordlessParams;
+        static deserializeBinaryFromReader(message: PasswordlessParams, reader: jspb.BinaryReader): PasswordlessParams;
+    }
+
+    export namespace PasswordlessParams {
+        export type AsObject = {
+            user: string,
+        }
+    }
+
 
     export enum ParamsCase {
         PARAMS_NOT_SET = 0,
@@ -175,6 +253,8 @@ export namespace LoginRequest {
     LOCAL = 2,
 
     SSO = 3,
+
+    PASSWORDLESS = 4,
 
     }
 
@@ -618,4 +698,11 @@ export class EmptyResponse extends jspb.Message {
 export namespace EmptyResponse {
     export type AsObject = {
     }
+}
+
+export enum WebauthnPrompt {
+    WEBAUTHN_PROMPT_UNSPECIFIED = 0,
+    WEBAUTHN_PROMPT_PIN = 1,
+    WEBAUTHN_PROMPT_TAP = 2,
+    WEBAUTHN_PROMPT_RETAP = 3,
 }

@@ -59,6 +59,8 @@ service TerminalService {
     rpc GetCluster(GetClusterRequest) returns (Cluster);
     // Login logs in a user to a cluster
     rpc Login(LoginRequest) returns (EmptyResponse);
+    // LoginPasswordless logs in a user to a cluster
+    rpc LoginPasswordless(stream LoginPasswordlessRequest) returns (stream LoginPasswordlessResponse);
     // ClusterLogin logs out a user from cluster
     rpc Logout(LogoutRequest) returns (EmptyResponse);
 }
@@ -72,6 +74,33 @@ message GetClusterRequest { string cluster_uri = 1; }
 // LogoutRequest describes LogoutRequest
 message LogoutRequest { string cluster_uri = 1; }
 
+enum WebauthnPrompt {
+    WEBAUTHN_PROMPT_UNSPECIFIED = 0;
+
+    // WEBAUTHN intended for MFA use, but not for passwordless.
+    // Allows both FIDO and FIDO2 WEBAUTHNs.
+    // Resident keys not required.
+    WEBAUTHN_PROMPT_PIN = 1;
+
+    // WEBAUTHN intended for both MFA and passwordless.
+    // Requires a FIDO2 WEBAUTHN and takes a resident key slot.
+    WEBAUTHN_PROMPT_TAP = 2;
+
+    // WEBAUTHN intended for both MFA and passwordless.
+    // Requires a FIDO2 WEBAUTHN and takes a resident key slot.
+    WEBAUTHN_PROMPT_RETAP = 3;
+}
+
+// WebauthnPrompt describes WebauthnPrompt
+message LoginPasswordlessResponse { WebauthnPrompt prompt = 1; }
+
+// LoginPasswordlessRequest describes LoginPasswordlessRequest
+message LoginPasswordlessRequest { 
+    string cluster_uri = 1;
+string user = 2; // can be optional if user wants to use system name
+string pin = 3;
+}
+
 // LoginRequest describes cluster login request
 message LoginRequest {
     // cluster_uri is the cluster uri
@@ -82,6 +111,8 @@ message LoginRequest {
       LocalParams local = 2;
       // sso holds parameters for sso logins
       SsoParams sso = 3;
+      // passwordless holds parameters for pwdless logins
+      PasswordlessParams passwordless = 4;
     }
 
     // LocalParams describes parameters for local user logins
@@ -100,6 +131,12 @@ message LoginRequest {
         string provider_type = 1;
         // provider_name is the provider name
         string provider_name = 2;
+    }
+
+    // PwdlessParams describes passwordless parameters
+    message PasswordlessParams {
+        // user is the username registered with the pwdless device
+        string user = 1;
     }
 }
 

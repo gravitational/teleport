@@ -3,7 +3,8 @@ ARG BUILDBOX_VERSION
 ARG GRPC_NODE_PLUGIN_BINARY_TYPE
 FROM quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION as base
 
-ARG BUILDARCH
+# TODO, doesn't work for me otherwise, ubuntu 18.04
+ARG BUILDARCH=x64 
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
@@ -16,9 +17,11 @@ RUN BIN="/usr/local/bin" && \
 
 # Install node
 ARG NODE_VERSION=v15.14.0
-ENV NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
-ENV NODE_PATH="/usr/local/lib/node-${NODE_VERSION}-linux-${BUILDARCH}"
+ENV NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.xz"
+ENV NODE_PATH="/usr/local/lib/node-${NODE_VERSION}-linux-x64"
 ENV PATH="$PATH:${NODE_PATH}/bin"
+# returns amd64? which doesn't exit for nodejs.org
+RUN echo ${BUILDARCH} 
 RUN (curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib)
 
 # Install js proto tools

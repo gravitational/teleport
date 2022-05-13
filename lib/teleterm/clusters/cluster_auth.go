@@ -19,6 +19,7 @@ package clusters
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -26,6 +27,10 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 
 	"github.com/gravitational/trace"
 )
@@ -129,6 +134,107 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 	return nil
 }
 
+// LocalLogin processes local logins for this cluster
+func (c *Cluster) PwdlessLogin(ctx context.Context, user string, stream api.TerminalService_LoginPasswordlessServer) error {
+	pr, err := c.clusterClient.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(alex-kovoy): SiteName needs to be reset if trying to login to a cluster with
+	// existing profile for the first time (investigate why)
+	c.clusterClient.SiteName = ""
+
+	pwdlessEnabled := pr.Auth.Type == constants.Local && pr.Auth.Local != nil
+	if !pwdlessEnabled || !pr.Auth.AllowPasswordless {
+		return trace.BadParameter("passwordless disallowed by cluster settings")
+	}
+
+	key, err := client.NewKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("---- pwdlessLogin, username, explicitusername: ", c.clusterClient.Username, c.clusterClient.ExplicitUsername)
+
+	response, err := client.SSHAgentPwdlessLogin(ctx, client.SSHLoginMFA{
+		SSHLogin: client.SSHLogin{
+			ProxyAddr: c.clusterClient.WebProxyAddr,
+			PubKey:    key.Pub,
+			TTL:       c.clusterClient.KeyTTL,
+			Insecure:  c.clusterClient.InsecureSkipVerify,
+			// Pool:              loopbackPool(c.clusterClient.WebProxyAddr), //todo what is this??
+			Compatibility:     c.clusterClient.CertificateFormat,
+			RouteToCluster:    c.clusterClient.SiteName,
+			KubernetesCluster: c.clusterClient.KubernetesCluster,
+		},
+		User:                    user, // todo
+		AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
+		ExplicitUsername:        c.clusterClient.ExplicitUsername,
+		Stderr:                  c.clusterClient.Stderr,
+		Prompt:                  NewWrapperPrompt(ctx, c.clusterClient.Stderr, stream),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := c.processAuthResponse(ctx, key, response); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DefaultPrompt is a default implementation for LoginPrompt and
+// RegistrationPrompt.
+type WrapperPrompt struct {
+	DefaultPrompt *wancli.DefaultPrompt
+	Stream        api.TerminalService_LoginPasswordlessServer
+}
+
+// NewDefaultPrompt creates a new default prompt.
+// Default messages are suitable for login / authorization. Messages may be
+// customized by setting the appropriate fields.
+func NewWrapperPrompt(ctx context.Context, out io.Writer, stream api.TerminalService_LoginPasswordlessServer) *WrapperPrompt {
+	fmt.Println("------------------- NEW WRAPPER PROMPT IN AFFECT")
+	df := wancli.NewDefaultPrompt(ctx, out)
+	return &WrapperPrompt{
+		DefaultPrompt: df,
+		Stream:        stream,
+	}
+}
+
+// PromptPIN prompts the user for a PIN.
+func (p *WrapperPrompt) PromptPIN() (string, error) {
+	if err := p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.WebauthnPrompt_WEBAUTHN_PROMPT_PIN}); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	req, err := p.Stream.Recv()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	fmt.Println("***********************************  got PIN!: ", req.Pin)
+
+	return req.Pin, nil
+}
+
+// PromptTouch prompts the user for a security key touch, using different
+// messages for first and second prompts.
+func (p *WrapperPrompt) PromptTouch() {
+	if p.DefaultPrompt.Count > 0 {
+		if err := p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.WebauthnPrompt_WEBAUTHN_PROMPT_RETAP}); err != nil {
+			return // todo need to return error somehow
+		}
+	} else {
+		if err := p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.WebauthnPrompt_WEBAUTHN_PROMPT_TAP}); err != nil {
+			return
+		}
+	}
+
+	p.DefaultPrompt.PromptTouch()
+}
+
 // SSOLogin logs in a user to the Teleport cluster using supported SSO provider
 func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName string) error {
 	if _, err := c.clusterClient.Ping(ctx); err != nil {
@@ -196,7 +302,7 @@ func (c *Cluster) localMFALogin(ctx context.Context, user, password string) erro
 		return trace.Wrap(err)
 	}
 
-	return err
+	return nil
 }
 
 func (c *Cluster) localLogin(ctx context.Context, user, password, otpToken string) error {
