@@ -2431,7 +2431,7 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRe
 
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
 func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
-	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
+	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req, c.callOpts...)
 	return resp, trail.FromGRPC(err)
 }
 
@@ -2532,21 +2532,48 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (c *Client) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	resp, err := c.grpc.CreateSessionTracker(ctx, req)
-	return resp, trail.FromGRPC(err)
+func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
+	v1, ok := st.(*types.SessionTrackerV1)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T, expected *types.SessionTrackerV1", st)
+	}
+
+	req := &proto.CreateSessionTrackerRequest{SessionTracker: v1}
+
+	// DELETE IN 11.0.0
+	// Early v9 versions use a flattened out types.SessionTrackerV1
+	req.ID = v1.Spec.SessionID
+	req.Type = v1.Spec.Kind
+	req.Reason = v1.Spec.Reason
+	req.Invited = v1.Spec.Invited
+	req.Hostname = v1.Spec.Hostname
+	req.Address = v1.Spec.Address
+	req.ClusterName = v1.Spec.ClusterName
+	req.Login = v1.Spec.Login
+	req.Expires = v1.Spec.Expires
+	req.KubernetesCluster = v1.Spec.KubernetesCluster
+	req.HostUser = v1.Spec.HostUser
+	if len(v1.Spec.Participants) > 0 {
+		req.Initiator = &v1.Spec.Participants[0]
+	}
+
+	tracker, err := c.grpc.CreateSessionTracker(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return tracker, nil
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
 func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	req := &proto.GetSessionTrackerRequest{SessionID: sessionID}
-	resp, err := c.grpc.GetSessionTracker(ctx, req)
+	resp, err := c.grpc.GetSessionTracker(ctx, req, c.callOpts...)
 	return resp, trail.FromGRPC(err)
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.
 func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &empty.Empty{})
+	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &empty.Empty{}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2570,18 +2597,18 @@ func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionT
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (c *Client) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	_, err := c.grpc.RemoveSessionTracker(ctx, &proto.RemoveSessionTrackerRequest{SessionID: sessionID})
+	_, err := c.grpc.RemoveSessionTracker(ctx, &proto.RemoveSessionTrackerRequest{SessionID: sessionID}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (c *Client) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	_, err := c.grpc.UpdateSessionTracker(ctx, req)
+	_, err := c.grpc.UpdateSessionTracker(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
 // MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
 func (c *Client) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
-	stream, err := c.grpc.MaintainSessionPresence(ctx)
+	stream, err := c.grpc.MaintainSessionPresence(ctx, c.callOpts...)
 	return stream, trail.FromGRPC(err)
 }

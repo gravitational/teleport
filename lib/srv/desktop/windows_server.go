@@ -777,23 +777,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		log.Infof("desktop session %v will not be recorded, user %v's roles disable recording", string(sessionID), authCtx.User.GetName())
 	}
 
-	sw, err := s.newStreamWriter(recordSession, string(sessionID))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Closing the stream writer is needed to flush all recorded data
-	// and trigger the upload. Do it in a goroutine since depending on
-	// the session size it can take a while, and we don't want to block
-	// the client.
-	defer func() {
-		go func() {
-			if err := sw.Close(context.Background()); err != nil {
-				log.WithError(err).Errorf("closing stream writer for desktop session %v", sessionID.String())
-			}
-		}()
-	}()
-
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
@@ -813,6 +796,29 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	// is closed.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	sw, err := s.newStreamWriter(recordSession, string(sessionID))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Closing the stream writer is needed to flush all recorded data
+	// and trigger the upload. Do it in a goroutine since depending on
+	// the session size it can take a while, and we don't want to block
+	// the client.
+	defer func() {
+		go func() {
+			if err := sw.Close(context.Background()); err != nil {
+				log.WithError(err).Errorf("closing stream writer for desktop session %v", sessionID.String())
+			}
+		}()
+	}()
 
 	delay := timer()
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
@@ -1250,6 +1256,49 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 	certBlock, _ := pem.Decode(genResp.Cert)
 	certDER = certBlock.Bytes
 	return certDER, keyDER, nil
+}
+
+// trackSession creates a session tracker for the given sessionID and
+// attributes, and starts a goroutine to continually extend the tracker
+// expiration while the session is active. Once the given ctx is closed,
+// the tracker will be marked as terminated.
+func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, windowsUser string, sessionID string, desktop types.WindowsDesktop) error {
+	trackerSpec := types.SessionTrackerSpecV1{
+		SessionID:   sessionID,
+		Kind:        string(types.WindowsDesktopSessionKind),
+		State:       types.SessionState_SessionStateRunning,
+		Hostname:    s.cfg.Hostname,
+		Address:     desktop.GetAddr(),
+		DesktopName: desktop.GetName(),
+		ClusterName: s.clusterName,
+		Login:       windowsUser,
+		Participants: []types.Participant{{
+			User: id.Username,
+		}},
+		HostUser: id.Username,
+		Created:  s.cfg.Clock.Now(),
+	}
+
+	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
+			s.cfg.Log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionID)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		if err := tracker.Close(s.closeCtx); err != nil {
+			s.cfg.Log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionID)
+		}
+	}()
+
+	return nil
 }
 
 // The following vars contain the various object identifiers required for smartcard
