@@ -11,3 +11,16 @@ tests:
       - isKind:
           of: PodDisruptionBudget
       - matchSnapshot: {}
+
+  - it: sets PodDisruptionBudget labels when specified
+    values:
+      - ../.lint/pdb.yaml
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.app\.kubernetes\.io/name
+          value: teleport-kube-agent
+      - equal:
+          path: metadata.labels.resource
+          value: poddisruptionbudget
+      - matchSnapshot: {}

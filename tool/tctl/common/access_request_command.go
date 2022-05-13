@@ -50,6 +50,7 @@ type AccessRequestCommand struct {
 	format string
 
 	dryRun bool
+	force  bool
 
 	approve, deny bool
 
@@ -96,6 +97,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 
 	c.requestDelete = requests.Command("rm", "Delete an access request")
 	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
+	c.requestDelete.Flag("force", "Force the deletion of an active access request").Short('f').BoolVar(&c.force)
 
 	c.requestCaps = requests.Command("capabilities", "Check a user's access capabilities").Alias("caps").Hidden()
 	c.requestCaps.Arg("username", "Name of target user").Required().StringVar(&c.user)
@@ -278,10 +280,42 @@ func (c *AccessRequestCommand) Create(client auth.ClientI) error {
 }
 
 func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
+	ctx := context.TODO()
+	var approvedTokens []string
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.DeleteAccessRequest(context.TODO(), reqID); err != nil {
+		// Fetch the requests first to see if they were approved to provide the
+		// proper messaging.
+		reqs, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
+			ID: reqID,
+		})
+		if err != nil {
 			return trace.Wrap(err)
 		}
+		if len(reqs) != 1 {
+			return trace.BadParameter("request with ID %q not found", reqID)
+		}
+		if reqs[0].GetState().String() == "APPROVED" {
+			approvedTokens = append(approvedTokens, reqID)
+		}
+	}
+
+	if len(approvedTokens) == 0 || c.force {
+		for _, reqID := range strings.Split(c.reqIDs, ",") {
+			if err := client.DeleteAccessRequest(context.TODO(), reqID); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		fmt.Println("Access request deleted successfully.")
+	}
+
+	if !c.force && len(approvedTokens) > 0 {
+		fmt.Println("\nThis access request has already been approved, deleting the request now will NOT remove")
+		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the")
+		fmt.Printf("requested roles instead, you can run:\n\n")
+		for _, reqID := range approvedTokens {
+			fmt.Printf("> tctl lock --access_request %s\n", reqID)
+		}
+		fmt.Printf("\nTo disregard this warning and delete the request anyway, re-run this command with --force.\n\n")
 	}
 	return nil
 }
