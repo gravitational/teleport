@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -39,6 +40,9 @@ import (
 
 // onListDatabases implements "tsh db ls" command.
 func onListDatabases(cf *CLIConf) error {
+	if cf.ListAll {
+		return trace.Wrap(listDatabasesAllClusters(cf))
+	}
 	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -83,6 +87,96 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
+}
+
+type databaseListing struct {
+	Proxy    string           `json:"proxy"`
+	Cluster  string           `json:"cluster"`
+	roleSet  services.RoleSet `json:"-"`
+	Database types.Database   `json:"database"`
+}
+
+func listDatabasesAllClusters(cf *CLIConf) error {
+	profile, profiles, err := client.Status(cf.HomePath, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if profile != nil {
+		profiles = append(profiles, profile)
+	}
+
+	dbListings := make([]databaseListing, 0)
+	for _, p := range profiles {
+		cf.Proxy = p.ProxyURL.Host
+		tc, err := makeClient(cf, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		proxy, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = client.RetryWithRelogin(cf.Context, tc, func() error {
+			result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
+			if err != nil {
+				return err
+			}
+			for clusterName, databases := range result {
+				cluster, err := proxy.ConnectToCluster(cf.Context, clusterName, false)
+				if err != nil {
+					return err
+				}
+				roleSet, err := services.FetchRoles(p.Roles, cluster, p.Traits)
+				if err != nil {
+					return err
+				}
+				for _, database := range databases {
+					dbListings = append(dbListings, databaseListing{
+						Proxy:    cf.Proxy,
+						Cluster:  clusterName,
+						roleSet:  roleSet,
+						Database: database,
+					})
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	sort.Slice(dbListings, func(i, j int) bool {
+		if dbListings[i].Proxy != dbListings[j].Proxy {
+			return dbListings[i].Proxy < dbListings[j].Proxy
+		}
+		if dbListings[i].Cluster != dbListings[j].Cluster {
+			return dbListings[i].Cluster < dbListings[j].Cluster
+		}
+		return dbListings[i].Database.GetName() < dbListings[j].Database.GetName()
+	})
+
+	var active []tlsca.RouteToDatabase
+	if profile != nil {
+		active = profile.Databases
+	}
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		printDatabasesWithClusters(cf.SiteName, dbListings, active, cf.Verbose)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeDatabasesAllClusters(dbListings, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
+	return nil
 }
 
 // onDatabaseLogin implements "tsh db login" command.

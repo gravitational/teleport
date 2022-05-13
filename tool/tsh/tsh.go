@@ -1840,6 +1840,20 @@ func serializeDatabases(databases []types.Database, format string) (string, erro
 	return string(out), trace.Wrap(err)
 }
 
+func serializeDatabasesAllClusters(dbListings []databaseListing, format string) (string, error) {
+	if dbListings == nil {
+		dbListings = []databaseListing{}
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(dbListings, "", "  ")
+	} else {
+		out, err = yaml.Marshal(dbListings)
+	}
+	return string(out), trace.Wrap(err)
+}
+
 func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
 	dbUsers := roleSet.EnumerateDatabaseUsers(database)
 	allowed := dbUsers.Allowed()
@@ -1860,52 +1874,104 @@ func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
 	return fmt.Sprintf("%v, except: %v", allowed, denied)
 }
 
+func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) []string {
+	name := database.GetName()
+	var connect string
+	for _, a := range active {
+		if a.ServiceName == name {
+			name = formatActiveDB(a)
+			connect = formatConnectCommand(clusterFlag, a)
+		}
+	}
+
+	row := make([]string, 0)
+	if proxy != "" && cluster != "" {
+		row = append(row, proxy, cluster)
+	}
+
+	if verbose {
+		row = append(row,
+			name,
+			database.GetDescription(),
+			database.GetProtocol(),
+			database.GetType(),
+			database.GetURI(),
+			getUsersForDb(database, roleSet),
+			database.LabelsString(),
+			connect,
+			database.Expiry().Format(constants.HumanDateFormatSeconds),
+		)
+	} else {
+		row = append(row,
+			name,
+			database.GetDescription(),
+			getUsersForDb(database, roleSet),
+			formatDatabaseLabels(database),
+			connect,
+		)
+	}
+
+	return row
+}
+
 func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
-			name := database.GetName()
-			var connect string
-			for _, a := range active {
-				if a.ServiceName == name {
-					name = formatActiveDB(a)
-					connect = formatConnectCommand(clusterFlag, a)
-				}
-			}
-
-			t.AddRow([]string{
-				name,
-				database.GetDescription(),
-				database.GetProtocol(),
-				database.GetType(),
-				database.GetURI(),
-				getUsersForDb(database, roleSet),
-				database.LabelsString(),
-				connect,
-				database.Expiry().Format(constants.HumanDateFormatSeconds),
-			})
+			t.AddRow(getDatabaseRow("", "",
+				clusterFlag,
+				database,
+				active,
+				roleSet,
+				verbose))
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
 		var rows [][]string
 		for _, database := range databases {
-			name := database.GetName()
-			var connect string
-			for _, a := range active {
-				if a.ServiceName == name {
-					name = formatActiveDB(a)
-					connect = formatConnectCommand(clusterFlag, a)
-				}
-			}
-			rows = append(rows, []string{
-				name,
-				database.GetDescription(),
-				getUsersForDb(database, roleSet),
-				formatDatabaseLabels(database),
-				connect,
-			})
+			rows = append(rows, getDatabaseRow("", "",
+				clusterFlag,
+				database,
+				active,
+				roleSet,
+				verbose))
 		}
 		t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
+		fmt.Println(t.AsBuffer().String())
+	}
+}
+
+func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
+	if verbose {
+		t := asciitable.MakeTable([]string{"Proxy", "Cluster", "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
+		for _, listing := range dbListings {
+			t.AddRow(getDatabaseRow(
+				listing.Proxy,
+				listing.Cluster,
+				clusterFlag,
+				listing.Database,
+				active,
+				listing.roleSet,
+				verbose))
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		var rows [][]string
+		for _, listing := range dbListings {
+			rows = append(rows, getDatabaseRow(
+				listing.Proxy,
+				listing.Cluster,
+				clusterFlag,
+				listing.Database,
+				active,
+				listing.roleSet,
+				verbose))
+		}
+		t := asciitable.MakeTableWithTruncatedColumn(
+			[]string{"Proxy", "Cluster", "Name", "Description", "Allowed Users", "Labels", "Connect"},
+			rows,
+			"Labels",
+		)
 		fmt.Println(t.AsBuffer().String())
 	}
 }
