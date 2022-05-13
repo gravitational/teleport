@@ -41,6 +41,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/google/uuid"
@@ -359,6 +360,9 @@ type Server struct {
 
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
+
+	// getClaimsFun is used in tests for overriding the implementation of getClaims method used in OIDC.
+	getClaimsFun func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
 }
 
 // SetCache sets cache used by auth server

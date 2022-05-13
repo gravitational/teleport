@@ -180,8 +180,6 @@ func TestUserInfoBadStatus(t *testing.T) {
 	fixtures.AssertAccessDenied(t, err)
 }
 
-var getClaimsFunDefault = getClaimsFun
-
 func TestSSODiagnostic(t *testing.T) {
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
@@ -231,7 +229,7 @@ func TestSSODiagnostic(t *testing.T) {
 	}
 
 	// override getClaimsFun.
-	getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
+	s.a.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
 		cc := map[string]interface{}{
 			"email_verified": true,
 			"groups":         []string{"everyone", "idp-admin", "idp-dev"},
@@ -241,7 +239,6 @@ func TestSSODiagnostic(t *testing.T) {
 		}
 		return cc, nil
 	}
-	defer func() { getClaimsFun = getClaimsFunDefault }()
 
 	resp, err := s.a.ValidateOIDCAuthCallback(context.Background(), values)
 	require.NoError(t, err)

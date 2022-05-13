@@ -772,11 +772,16 @@ func mergeClaims(a jose.Claims, b jose.Claims) (jose.Claims, error) {
 
 // getClaims gets claims from ID token and UserInfo and returns UserInfo claims merged into ID token claims.
 func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
-	return getClaimsFun(a.closeCtx, oidcClient, connector, code)
+	fun := a.getClaimsFun
+	if fun == nil {
+		fun = getClaims
+	}
+
+	return fun(a.closeCtx, oidcClient, connector, code)
 }
 
 // getClaimsFun implements Server.getClaims, but allows that code path to be overridden for testing.
-var getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
+func getClaims(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
 	oac, err := getOAuthClient(oidcClient, connector)
 
 	if err != nil {
