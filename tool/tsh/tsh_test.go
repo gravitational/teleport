@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -2192,6 +2193,63 @@ func Test_getUsersForDb(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := getUsersForDb(tc.database, tc.roles)
 			require.Equal(t, tc.result, got)
+		})
+	}
+}
+
+func Test_getTeleportEnvironment(t *testing.T) {
+	tests := []struct {
+		name    string
+		init    func(t *testing.T)
+		profile *client.ProfileStatus
+		want    map[string]string
+	}{
+		{
+			name:    "empty profile",
+			profile: nil,
+			want:    map[string]string{},
+		},
+		{
+			name:    "normal profile, no kube",
+			profile: &client.ProfileStatus{ProxyURL: url.URL{Host: "teleport.example.com"}, Cluster: "example.com"},
+			want: map[string]string{
+				proxyEnvVar:   "teleport.example.com",
+				clusterEnvVar: "example.com",
+			},
+		},
+		{
+			name: "normal profile, with kube",
+			init: func(t *testing.T) {
+				customKubeConfigPath := path.Join(t.TempDir(), "kubeconfig")
+				t.Setenv(teleport.EnvKubeConfig, customKubeConfigPath)
+
+				creds, err := client.KeyFromIdentityFile("../../fixtures/certs/identities/tls.pem")
+				require.NoError(t, err)
+
+				err = kubeconfig.Update(customKubeConfigPath, kubeconfig.Values{
+					TeleportClusterName: "example.com-hoorah",
+					ClusterAddr:         "teleport.example.com",
+					Credentials:         creds,
+				})
+				require.NoError(t, err)
+			},
+			profile: &client.ProfileStatus{ProxyURL: url.URL{Host: "teleport.example.com"}, Cluster: "example.com"},
+			want: map[string]string{
+				proxyEnvVar:            "teleport.example.com",
+				clusterEnvVar:          "example.com",
+				kubeClusterEnvVar:      "hoorah",
+				teleport.EnvKubeConfig: "keys/-kube/example.com/hoorah-kubeconfig",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.init != nil {
+				tt.init(t)
+			}
+
+			out := getTeleportEnvironment(tt.profile)
+			require.Equal(t, tt.want, out)
 		})
 	}
 }

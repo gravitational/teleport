@@ -687,6 +687,9 @@ func Run(args []string, opts ...cliOption) error {
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
+	// tsh exec
+	execute := newExecCommand(app)
+
 	config := app.Command("config", "Print OpenSSH configuration details")
 
 	// config-proxy is a wrapper to ensure Windows clients can properly use
@@ -819,6 +822,9 @@ func Run(args []string, opts ...cliOption) error {
 		err = onProxyCommandDB(&cf)
 	case proxyApp.FullCommand():
 		err = onProxyCommandApp(&cf)
+
+	case execute.cmd.FullCommand():
+		err = execute.runCommand(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -2976,16 +2982,27 @@ func onEnvironment(cf *CLIConf) error {
 	return nil
 }
 
-func serializeEnvironment(profile *client.ProfileStatus, format string) (string, error) {
-	env := map[string]string{
-		proxyEnvVar:   profile.ProxyURL.Host,
-		clusterEnvVar: profile.Cluster,
+func getTeleportEnvironment(profile *client.ProfileStatus) map[string]string {
+	env := map[string]string{}
+
+	if profile == nil {
+		return env
 	}
+
+	env[proxyEnvVar] = profile.ProxyURL.Host
+	env[clusterEnvVar] = profile.Cluster
+
 	kubeName := selectedKubeCluster(profile.Cluster)
 	if kubeName != "" {
 		env[kubeClusterEnvVar] = kubeName
 		env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)
 	}
+
+	return env
+}
+
+func serializeEnvironment(profile *client.ProfileStatus, format string) (string, error) {
+	env := getTeleportEnvironment(profile)
 	var out []byte
 	var err error
 	if format == teleport.JSON {

@@ -69,7 +69,7 @@ in `$TELEPORT_HOME/config/config.yaml` using the following syntax:
 
 ```yaml
 aliases:
-    "<alias>": "<command>"
+  "<alias>": "<command>"
 ```
 
 The `<alias>` can only be a top-level subcommand. In other words, users can
@@ -77,12 +77,17 @@ define a new `tsh mycommand` alias but cannot define `tsh my command` command.
 
 A few notes regarding the `<command>`:
 
-- Unlike `git` aliases explored above, proposal is to always require the binary
-  name instead of defaulting to `tsh` and requiring special syntax otherwise.
+- Similar to `git` aliases explored above, the commands are understood to be in
+  the context of the `tsh` binary. We will avoid the need for special
+  syntax (`!bash ... `) by adding a new `tsh` command, `tsh exec`, which will
+  be used by the aliases to execute external commands.
 - The `<command>` will be fed to `exec.Command` for execution. To chain multiple
-  commands, use pipes, etc. users will explicitly use `bash -c`.
-- The `<command>` will require `$@`, `$1`, etc. to reference the arguments
-  provided to the alias command.
+  commands, use pipes, etc. users will explicitly use `tsh exec -- -c`,
+  optionally specifying the shell to use: `tsh exec --shell=zsh -- -c`.
+- To simplify implementation, no special support will be given to `$@`, `$1`
+  etc. However, the additional arguments will be given to whatever shell is
+  being executed, making the use of positional arguments possible via existing
+  shell features: `tsh exec -- -c "echo $1 $0" foo bar` will display `bar foo`.
 
 ### Examples
 
@@ -91,7 +96,7 @@ every morning and want to alias it to something shorter e.g. `tsh l`:
 
 ```yaml
 aliases:
-    "l": "tsh login $@"
+  "l": "login"
 ```
 
 As a more practical example, the following alias will make `tsh login` default
@@ -99,7 +104,7 @@ to the specific auth connector and username:
 
 ```yaml
 aliases:
-    "login": "tsh login --auth=local --user=alice $@"
+  "login": "login --auth=local --user=alice"
 ```
 
 Similarly, as discussed in the search-based access requests RFD, some users
@@ -108,7 +113,7 @@ to the node upon encountering an access denied error:
 
 ```yaml
 aliases:
-    "ssh": "tsh ssh -P $@"
+  "ssh": "ssh -P"
 ```
 
 Note: command arguments will be resolved prior to invoking the alias. So in the
@@ -126,9 +131,34 @@ the same command again. For example, `TSH_ALIAS=login`. This will prevent other
 `login` commands from being expanded but will allow using aliases in other
 aliases (see below for an example).
 
-Each alias will also set `TSH` environment variable to the path of the `tsh`
-binary that invoked the alias and `SHELL` environment variable to the default
-shell of the user invoking the command.
+### The `tsh exec` command
+
+To improve the modularity of the solution, as well as provide a standalone
+feature, new command will be added: `tsh exec`.
+
+The command can be used to run external executables, defaulting to a shell. To
+find a usable shell, `tsh exec` will try in order: `$SHELL` env variable, `sh`
+, `bash`. The flag `--shell` allows for overriding of the executable to run,
+while all arguments passed to command are fed as-is.
+
+The command will be executed under modified environment, enriched with the following variables:
+
+| Name          | Value                                                |
+|---------------|------------------------------------------------------|
+| `TSH_COMMAND` | The program being executed.                          |
+| `TSH`         | The path of the `tsh` binary that invoked the alias. |
+
+Additionally, any variables reported by `tsh env` will also be included. If
+the `tsh env` reports no variables (e.g. because the user is not logged in), no
+variables will be added. Currently, the list of variables from `tsh env` may
+include: `TELEPORT_PROXY`, `TELEPORT_CLUSTER`, `TELEPORT_KUBE_CLUSTER`
+, `KUBECONFIG`.
+
+When run with `--debug` flag, the `tsh exec` command will report details such as:
+
+- The command being executed, together with any arguments.
+- The additional environment variables set.
+- The command exit code.
 
 ### More examples
 
@@ -138,23 +168,23 @@ using `tsh connect leaf ubuntu@node-1` command:
 
 ```yaml
 aliases:
-    "connect": "bash -c '$TSH login $1 && $TSH ssh $2'"
+  "connect": "exec -- -c '$TSH login $0 && $TSH ssh $1'"
 ```
 
 The following alias will list nodes in all clusters:
 
 ```yaml
 aliases:
-    "lsall": "bash -c 'for cluster in $($TSH clusters | tail -3 | head -2 | cut -d \' \' -f1); $TSH ls --cluster=$cluster; done'"
+  "lsall": "exec -- -c 'for cluster in $($TSH clusters | tail -3 | head -2 | cut -d \' \' -f1); $TSH ls --cluster=$cluster; done'"
 ```
 
 Multiple aliases can be defined in the config and can reference each other:
 
 ```yaml
 aliases:
-    "login": "$TSH login --auth=local --user=alice $@"
-    "ssh": "$TSH ssh -P $@"
-    "connect": "bash -c '$TSH login $1 && $TSH ssh $2'"
+  "login": "login --auth=local --user=alice"
+  "ssh": "ssh -P"
+  "connect": "exec -- -c '$TSH login $0 && $TSH ssh $1'"
 ```
 
 In this example, `tsh login` and `tsh ssh` will use the aliases when invoked
