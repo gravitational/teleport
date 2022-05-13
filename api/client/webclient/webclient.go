@@ -48,6 +48,7 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 				InsecureSkipVerify: insecure,
 			},
 		},
+		Timeout: defaults.DefaultDialTimeout,
 	}
 }
 
