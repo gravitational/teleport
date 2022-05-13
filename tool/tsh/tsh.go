@@ -471,6 +471,7 @@ func Run(args []string, opts ...cliOption) error {
 	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	lsApps.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.UserHost)
+	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
@@ -2914,6 +2915,9 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 }
 
 func onApps(cf *CLIConf) error {
+	if cf.ListAll {
+		return trace.Wrap(listAppsAllClusters(cf))
+	}
 	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2941,6 +2945,138 @@ func onApps(cf *CLIConf) error {
 	})
 
 	return trace.Wrap(showApps(apps, profile.Apps, cf.Format, cf.Verbose))
+}
+
+type appListing struct {
+	Proxy   string            `json:"proxy"`
+	Cluster string            `json:"cluster"`
+	App     types.Application `json:"app"`
+}
+
+func listAppsAllClusters(cf *CLIConf) error {
+	profile, profiles, err := client.Status(cf.HomePath, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if profile != nil {
+		profiles = append(profiles, profile)
+	}
+
+	appListings := make([]appListing, 0)
+	for _, p := range profiles {
+		cf.Proxy = p.ProxyURL.Host
+		tc, err := makeClient(cf, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = client.RetryWithRelogin(cf.Context, tc, func() error {
+			result, err := tc.ListAppsAllClusters(cf.Context, nil /* custom filter */)
+			if err != nil {
+				return err
+			}
+			for clusterName, apps := range result {
+				for _, app := range apps {
+					appListings = append(appListings, appListing{
+						Proxy:   cf.Proxy,
+						Cluster: clusterName,
+						App:     app,
+					})
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	sort.Slice(appListings, func(i, j int) bool {
+		if appListings[i].Proxy != appListings[j].Proxy {
+			return appListings[i].Proxy < appListings[j].Proxy
+		}
+		if appListings[i].Cluster != appListings[j].Cluster {
+			return appListings[i].Cluster < appListings[j].Cluster
+		}
+		return appListings[i].App.GetName() < appListings[j].App.GetName()
+	})
+
+	var active []tlsca.RouteToApp
+	if profile != nil {
+		active = profile.Apps
+	}
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		printAppsWithClusters(appListings, active, cf.Verbose)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeAppsWithClusters(appListings, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
+	return nil
+}
+
+func printAppsWithClusters(apps []appListing, active []tlsca.RouteToApp, verbose bool) {
+	// In verbose mode, print everything on a single line and include host UUID.
+	// In normal mode, chunk the labels, print two per line and allow multiple
+	// lines per node.
+	if verbose {
+		t := asciitable.MakeTable([]string{"Proxy", "Cluster", "Application", "Description", "Public Address", "URI", "Labels"})
+		for _, listing := range apps {
+			app := listing.App
+			name := app.GetName()
+			for _, a := range active {
+				if name == a.Name {
+					name = fmt.Sprintf("> %v", name)
+				}
+			}
+			t.AddRow([]string{
+				listing.Proxy,
+				listing.Cluster,
+				name,
+				app.GetDescription(),
+				app.GetPublicAddr(),
+				app.GetURI(),
+				sortedLabels(app.GetAllLabels()),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		var rows [][]string
+		for _, listing := range apps {
+			app := listing.App
+			name := app.GetName()
+			for _, a := range active {
+				if name == a.Name {
+					name = fmt.Sprintf("> %v", name)
+				}
+			}
+			desc := app.GetDescription()
+			addr := app.GetPublicAddr()
+			labels := sortedLabels(app.GetAllLabels())
+			rows = append(rows, []string{listing.Proxy, listing.Cluster, name, desc, addr, labels})
+		}
+		t := asciitable.MakeTableWithTruncatedColumn(
+			[]string{"Proxy", "Cluster", "Application", "Description", "Public Address", "Labels"}, rows, "Labels")
+		fmt.Println(t.AsBuffer().String())
+	}
+}
+
+func serializeAppsWithClusters(apps []appListing, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(apps, "", "  ")
+	} else {
+		out, err = yaml.Marshal(apps)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // onEnvironment handles "tsh env" command.

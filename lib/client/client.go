@@ -654,10 +654,19 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 	return servers, nil
 }
 
-// FindAppServersByFilters returns a list of application servers which have filters matched.
 func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.AppServer, error) {
+	cluster, err := proxy.currentCluster()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := proxy.FindAppServersByFiltersForCluster(ctx, req, *cluster)
+	return servers, trace.Wrap(err)
+}
+
+// FindAppServersByFilters returns a list of application servers which have filters matched.
+func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster types.Site) ([]types.AppServer, error) {
 	req.ResourceType = types.KindAppServer
-	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	authClient, err := proxy.ClusterAccessPoint(ctx, cluster.Name, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

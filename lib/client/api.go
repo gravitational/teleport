@@ -1970,7 +1970,7 @@ func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers := make(map[string][]types.Server)
+	servers := make(map[string][]types.Server, len(clusters))
 	for _, cluster := range clusters {
 		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
@@ -2012,6 +2012,38 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	return servers, nil
 }
 
+func (tc *TeleportClient) ListAppServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.AppServer, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	filter := customFilter
+	if customFilter == nil {
+		filter = &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		}
+	}
+
+	clusters, err := proxyClient.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make(map[string][]types.AppServer, len(clusters))
+	for _, cluster := range clusters {
+		s, err := proxyClient.FindAppServersByFiltersForCluster(ctx, *filter, cluster)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[cluster.Name] = s
+	}
+	return servers, nil
+}
+
 // ListApps returns all registered applications.
 func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Application, error) {
 	servers, err := tc.ListAppServersWithFilters(ctx, customFilter)
@@ -2023,6 +2055,22 @@ func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.List
 		apps = append(apps, server.GetApp())
 	}
 	return types.DeduplicateApps(apps), nil
+}
+
+func (tc *TeleportClient) ListAppsAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Application, error) {
+	serversByCluster, err := tc.ListAppServersWithFiltersAllClusters(ctx, customFilter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters := make(map[string][]types.Application, len(serversByCluster))
+	for cluster, servers := range serversByCluster {
+		var apps []types.Application
+		for _, server := range servers {
+			apps = append(apps, server.GetApp())
+		}
+		clusters[cluster] = types.DeduplicateApps(apps)
+	}
+	return clusters, nil
 }
 
 // CreateAppSession creates a new application access session.

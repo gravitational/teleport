@@ -206,7 +206,8 @@ func TestIntegrations(t *testing.T) {
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
-	t.Run("TestListNodesAcrossProxies", suite.bind(testListNodesAcrossProxies))
+	t.Run("TestListNodesAcrossClusters", suite.bind(testListNodesAcrossClusters))
+	t.Run("TestListAppsAcrossClusters", suite.bind(testListAppsAcrossClusters))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -6096,17 +6097,16 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func testListNodesAcrossProxies(t *testing.T, suite *integrationTestSuite) {
+func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *TeleInstance, *TeleInstance)) *client.TeleportClient {
 	ctx := context.Background()
 	username := suite.me.Username
 
 	name := "test"
-	rootNodes := []string{"root-one", "root-two", "root-three"}
-	leafNodes := []string{"leaf-one", "leaf-two", "leaf-three"}
 
 	rootName := fmt.Sprintf("root-%s", name)
 	leafName := fmt.Sprintf("leaf-%s", name)
 
+	// Create root and leaf clusters.
 	root := NewInstance(InstanceConfig{
 		ClusterName: rootName,
 		HostID:      HostID,
@@ -6148,8 +6148,9 @@ func testListNodesAcrossProxies(t *testing.T, suite *integrationTestSuite) {
 
 	require.NoError(t, root.CreateEx(makeConfig()))
 	require.NoError(t, leaf.CreateEx(makeConfig()))
-
 	require.NoError(t, leaf.Process.GetAuthServer().UpsertRole(ctx, role))
+
+	// Connect leaf to root.
 	tcToken := "trusted-cluster-token"
 	tokenResource, err := types.NewProvisionToken(tcToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
 	require.NoError(t, err)
@@ -6173,31 +6174,13 @@ func testListNodesAcrossProxies(t *testing.T, suite *integrationTestSuite) {
 	leafProxyWebPort := ports.PopInt()
 	require.NoError(t, leaf.StartNodeAndProxy("leaf-zero", leafSSHPort, leafProxyWebPort, leafProxySSHPort))
 
-	for _, node := range rootNodes {
-		conf := suite.defaultServiceConfig()
-		conf.Hostname = node
-		conf.SSH.Enabled = true
-		conf.SSH.Addr = utils.NetAddr{
-			Addr: fmt.Sprintf("%s:%d", Host, ports.PopInt()),
-		}
-		_, err := root.StartNode(conf)
-		require.NoError(t, err)
-	}
-
-	for _, node := range leafNodes {
-		conf := suite.defaultServiceConfig()
-		conf.Hostname = node
-		conf.SSH.Enabled = true
-		conf.SSH.Addr = utils.NetAddr{
-			Addr: fmt.Sprintf("%s:%d", Host, ports.PopInt()),
-		}
-		_, err := leaf.StartNode(conf)
-		require.NoError(t, err)
-	}
+	// Add any extra services.
+	extraServices(t, root, leaf)
 
 	require.Eventually(t, waitForClusters(root.Tunnel, 1), 10*time.Second, 1*time.Second)
 	require.Eventually(t, waitForClusters(leaf.Tunnel, 1), 10*time.Second, 1*time.Second)
 
+	// Create client.
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:        root.Process,
 		Username:       username,
@@ -6218,6 +6201,36 @@ func testListNodesAcrossProxies(t *testing.T, suite *integrationTestSuite) {
 	for _, leafCA := range leafCAs {
 		require.NoError(t, tc.AddTrustedCA(leafCA))
 	}
+
+	return tc
+}
+
+func testListNodesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
+	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *TeleInstance) {
+		rootNodes := []string{"root-one", "root-two", "root-three"}
+		leafNodes := []string{"leaf-one", "leaf-two", "leaf-three"}
+		for _, node := range rootNodes {
+			conf := suite.defaultServiceConfig()
+			conf.Hostname = node
+			conf.SSH.Enabled = true
+			conf.SSH.Addr = utils.NetAddr{
+				Addr: fmt.Sprintf("%s:%d", Host, ports.PopInt()),
+			}
+			_, err := root.StartNode(conf)
+			require.NoError(t, err)
+
+		}
+		for _, node := range leafNodes {
+			conf := suite.defaultServiceConfig()
+			conf.Hostname = node
+			conf.SSH.Enabled = true
+			conf.SSH.Addr = utils.NetAddr{
+				Addr: fmt.Sprintf("%s:%d", Host, ports.PopInt()),
+			}
+			_, err := leaf.StartNode(conf)
+			require.NoError(t, err)
+		}
+	})
 
 	tests := []struct {
 		name     string
@@ -6248,7 +6261,7 @@ func testListNodesAcrossProxies(t *testing.T, suite *integrationTestSuite) {
 			} else {
 				tc.SearchKeywords = nil
 			}
-			clusters, err := tc.ListNodesWithFiltersAllClusters(ctx)
+			clusters, err := tc.ListNodesWithFiltersAllClusters(context.TODO())
 			require.NoError(t, err)
 			nodes := make([]string, 0)
 			for _, v := range clusters {
@@ -6258,6 +6271,83 @@ func testListNodesAcrossProxies(t *testing.T, suite *integrationTestSuite) {
 			}
 
 			require.ElementsMatch(t, test.expected, nodes)
+		})
+	}
+}
+
+func testListAppsAcrossClusters(t *testing.T, suite *integrationTestSuite) {
+	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *TeleInstance) {
+		rootNodes := []string{"root-one", "root-two", "root-three"}
+		leafNodes := []string{"leaf-one", "leaf-two", "leaf-three"}
+
+		var rootApps []service.App
+		for _, app := range rootNodes {
+			rootApps = append(rootApps, service.App{
+				Name: app,
+				URI:  app,
+			})
+		}
+		var leafApps []service.App
+		for _, app := range leafNodes {
+			leafApps = append(leafApps, service.App{
+				Name: app,
+				URI:  app,
+			})
+		}
+
+		appConf := suite.defaultServiceConfig()
+		appConf.Auth.Enabled = false
+		appConf.Proxy.Enabled = false
+		appConf.SSH.Enabled = false
+		appConf.Apps.Enabled = true
+		appConf.Apps.Apps = rootApps
+		_, err := root.StartApp(appConf)
+		require.NoError(t, err)
+
+		appConf.Apps.Apps = leafApps
+		_, err = leaf.StartApp(appConf)
+		require.NoError(t, err)
+	})
+
+	tests := []struct {
+		name     string
+		search   string
+		expected []string
+	}{
+		{
+			name: "all",
+			expected: []string{"root-one", "root-two", "root-three",
+				"leaf-one", "leaf-two", "leaf-three"},
+		},
+		{
+			name:     "leaf only",
+			search:   "leaf",
+			expected: []string{"leaf-one", "leaf-two", "leaf-three"},
+		},
+		{
+			name:     "two only",
+			search:   "two",
+			expected: []string{"root-two", "leaf-two"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("apps - %s", test.name), func(t *testing.T) {
+			if test.search != "" {
+				tc.SearchKeywords = strings.Split(test.search, " ")
+			} else {
+				tc.SearchKeywords = nil
+			}
+			clusters, err := tc.ListAppsAllClusters(context.TODO(), nil)
+			require.NoError(t, err)
+			apps := make([]string, 0)
+			for _, v := range clusters {
+				for _, app := range v {
+					apps = append(apps, app.GetName())
+				}
+			}
+
+			require.ElementsMatch(t, test.expected, apps)
 		})
 	}
 }
