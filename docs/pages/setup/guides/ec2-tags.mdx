@@ -27,7 +27,7 @@ fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Nam
 <Tabs>
 <TabItem scope={["oss"]} label="Self-Hosted">
 
-- A Teleport cluster running on an AWS EC2 instance For details on setting this up, see [Getting
+- A Teleport cluster running on an AWS EC2 instance. For details on setting this up, see [Getting
   Started on a Linux Server](../../getting-started/linux-server.mdx).
 
   See [Installation](../../installation.mdx) for details.
@@ -36,15 +36,16 @@ fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Nam
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
-- A Teleport cluster running on an AWS EC2 instance For details on setting this up, see our
+- A Teleport cluster running on an AWS EC2 instance. For details on setting this up, see our
   [Enterprise getting started guide](../../enterprise/getting-started.mdx).
 
 </TabItem>
 </Tabs>
 
 <Admonition type="note" title="Note">
-  Instances that are not running on the [Nitro system](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html#ec2-nitro-instances)
-  [will not update tags until they are restarted](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS).
+  Only instances that are running on the [Nitro system](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html#ec2-nitro-instances)
+  will update their tags while running. All other instance types [must be restarted](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS)
+  to update tags.
 </Admonition>
 
 ## Enable tags in instance metadata

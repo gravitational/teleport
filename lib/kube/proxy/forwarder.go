@@ -139,7 +139,7 @@ type ForwarderConfig struct {
 	DynamicLabels *labels.Dynamic
 	// EC2Labels is a map of labels imported from EC2 associated with this
 	// cluster. Used for RBAC.
-	EC2Labels *labels.EC2Labels
+	EC2Labels *labels.EC2
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CheckImpersonationPermissions is an optional override of the default

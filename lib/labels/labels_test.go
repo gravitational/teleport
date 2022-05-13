@@ -120,7 +120,7 @@ func TestEC2LabelsSync(t *testing.T) {
 	imdsClient := &mockIMDSClient{
 		tags: tags,
 	}
-	ec2Labels, err := NewEC2Labels(context.Background(), &EC2LabelConfig{
+	ec2Labels, err := NewEC2Labels(context.Background(), &EC2Config{
 		Client: imdsClient,
 	})
 	require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestEC2LabelsSync(t *testing.T) {
 func TestEC2LabelsAsync(t *testing.T) {
 	imdsClient := &mockIMDSClient{}
 	clock := clockwork.NewFakeClock()
-	ec2Labels, err := NewEC2Labels(context.Background(), &EC2LabelConfig{
+	ec2Labels, err := NewEC2Labels(context.Background(), &EC2Config{
 		Client: imdsClient,
 		Clock:  clock,
 	})
@@ -161,12 +161,12 @@ func TestEC2LabelsAsync(t *testing.T) {
 	// Check that tags are updated over time.
 	updatedTags := map[string]string{"a": "3", "c": "4"}
 	imdsClient.tags = updatedTags
-	clock.Advance(types.EC2LabelUpdatePeriod)
+	clock.Advance(ec2LabelUpdatePeriod)
 	require.Eventually(t, compareLabels(toAWSLabels(updatedTags)), time.Second, 100*time.Millisecond)
 
 	// Check that service stops updating when closed.
 	ec2Labels.Close()
 	imdsClient.tags = map[string]string{"x": "8", "y": "9", "z": "10"}
-	clock.Advance(types.EC2LabelUpdatePeriod)
+	clock.Advance(ec2LabelUpdatePeriod)
 	require.Eventually(t, compareLabels(toAWSLabels(updatedTags)), time.Second, 100*time.Millisecond)
 }

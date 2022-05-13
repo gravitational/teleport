@@ -333,6 +333,20 @@ type keyPairKey struct {
 	reason string
 }
 
+// initConfig is the configuration for service initialization.
+type initConfig struct {
+	ec2Labels *labels.EC2
+}
+
+type initOption func(*initConfig)
+
+// withEC2Labels adds EC2 labels to a service.
+func withEC2Labels(ec2Labels *labels.EC2) initOption {
+	return func(initConf *initConfig) {
+		initConf.ec2Labels = ec2Labels
+	}
+}
+
 // processIndex is an internal process index
 // to help differentiate between two different teleport processes
 // during in-process reload.
@@ -603,11 +617,6 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	return newSrv, nil
 }
 
-// initConfig is the configuration for service initialization.
-type initConfig struct {
-	ec2Labels *labels.EC2Labels
-}
-
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
@@ -713,7 +722,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
-	initConf := initConfig{}
+	initOpts := []initOption{}
 
 	// Check if we're on an EC2 instance, and if we should override the node's hostname.
 	imClient, err := utils.NewInstanceMetadataClient(context.TODO())
@@ -787,13 +796,13 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if ec2Available {
-		ec2Labels, err := labels.NewEC2Labels(process.ExitContext(), &labels.EC2LabelConfig{
+		ec2Labels, err := labels.NewEC2Labels(process.ExitContext(), &labels.EC2Config{
 			Client: imClient,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		initConf.ec2Labels = ec2Labels
+		initOpts = append(initOpts, withEC2Labels(ec2Labels))
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -843,7 +852,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.SSH.Enabled {
-		if err := process.initSSH(initConf); err != nil {
+		if err := process.initSSH(initOpts...); err != nil {
 			return nil, err
 		}
 		serviceStarted = true
@@ -861,7 +870,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.Kube.Enabled {
-		process.initKubernetes(initConf)
+		process.initKubernetes(initOpts...)
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentKube), process.log)
@@ -869,14 +878,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	// If this process is proxying applications, start application access server.
 	if cfg.Apps.Enabled {
-		process.initApps(initConf)
+		process.initApps(initOpts...)
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp), process.log)
 	}
 
 	if cfg.Databases.Enabled {
-		process.initDatabases(initConf)
+		process.initDatabases(initOpts...)
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDatabase), process.log)
@@ -1799,7 +1808,11 @@ func (process *TeleportProcess) newAsyncEmitter(clt apievents.Emitter) (*events.
 }
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
-func (process *TeleportProcess) initSSH(initConf initConfig) error {
+func (process *TeleportProcess) initSSH(opts ...initOption) error {
+	initConf := &initConfig{}
+	for _, opt := range opts {
+		opt(initConf)
+	}
 	process.registerWithAuthServer(types.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
@@ -3511,7 +3524,11 @@ var appDependEvents = []string{
 	ProxyReverseTunnelReady,
 }
 
-func (process *TeleportProcess) initApps(initConf initConfig) {
+func (process *TeleportProcess) initApps(opts ...initOption) {
+	initConf := &initConfig{}
+	for _, opt := range opts {
+		opt(initConf)
+	}
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".

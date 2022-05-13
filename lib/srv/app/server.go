@@ -89,7 +89,7 @@ type Config struct {
 
 	// EC2Labels is a service that imports labels from EC2. The labels are shared
 	// between all apps.
-	EC2Labels *labels.EC2Labels
+	EC2Labels *labels.EC2
 
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)

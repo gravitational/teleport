@@ -30,7 +30,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (process *TeleportProcess) initDatabases(initConf initConfig) {
+func (process *TeleportProcess) initDatabases(opts ...initOption) {
+	initConf := &initConfig{}
+	for _, opt := range opts {
+		opt(initConf)
+	}
 	if len(process.Config.Databases.Databases) == 0 &&
 		len(process.Config.Databases.ResourceMatchers) == 0 &&
 		len(process.Config.Databases.AWSMatchers) == 0 {
@@ -40,7 +44,7 @@ func (process *TeleportProcess) initDatabases(initConf initConfig) {
 	process.RegisterCriticalFunc("db.init", func() error { return process.initDatabaseService(initConf) })
 }
 
-func (process *TeleportProcess) initDatabaseService(initConf initConfig) (retErr error) {
+func (process *TeleportProcess) initDatabaseService(initConf *initConfig) (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 

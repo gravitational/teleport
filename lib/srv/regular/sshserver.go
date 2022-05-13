@@ -99,7 +99,7 @@ type Server struct {
 	dynamicLabels *labels.Dynamic
 
 	// ec2Labels are the labels imported from EC2.
-	ec2Labels *labels.EC2Labels
+	ec2Labels *labels.EC2
 
 	proxyMode        bool
 	proxyTun         reversetunnel.Tunnel
@@ -448,7 +448,7 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 }
 
 // SetEC2Labels sets the EC2 label service for this server.
-func SetEC2Labels(ec2Labels *labels.EC2Labels) ServerOption {
+func SetEC2Labels(ec2Labels *labels.EC2) ServerOption {
 	return func(s *Server) error {
 		s.ec2Labels = ec2Labels
 		return nil

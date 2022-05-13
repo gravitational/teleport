@@ -16,8 +16,6 @@ limitations under the License.
 
 package types
 
-import "time"
-
 const (
 	// DefaultAPIGroup is a default group of permissions API,
 	// lets us to add different permission types
@@ -325,15 +323,8 @@ const (
 	OriginCloud = "cloud"
 )
 
-const (
-	// AWSNamespace is used as the namespace prefix for any labels
-	// imported from AWS.
-	AWSNamespace = "aws"
-	// EC2LabelUpdatePeriod is the period for updating EC2 labels.
-	EC2LabelUpdatePeriod = time.Hour
-	// EC2Hostname is the name of the EC2 tag used to override a node's hostname.
-	EC2Hostname = "TeleportHostname"
-)
+// EC2Hostname is the name of the EC2 tag used to override a node's hostname.
+const EC2Hostname = "TeleportHostname"
 
 // OriginValues lists all possible origin values.
 var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}

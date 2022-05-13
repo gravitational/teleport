@@ -35,7 +35,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func (process *TeleportProcess) initKubernetes(initConf initConfig) {
+func (process *TeleportProcess) initKubernetes(opts ...initOption) {
+	initConf := &initConfig{}
+	for _, opt := range opts {
+		opt(initConf)
+	}
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentKube, process.id),
 	})
@@ -68,7 +72,7 @@ func (process *TeleportProcess) initKubernetes(initConf initConfig) {
 	})
 }
 
-func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *Connector, ec2Labels *labels.EC2Labels) (retErr error) {
+func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *Connector, ec2Labels *labels.EC2) (retErr error) {
 	// clean up unused descriptors passed for proxy, but not used by it
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentKube); err != nil {
