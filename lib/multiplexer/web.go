@@ -21,15 +21,15 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
-	"sync/atomic"
 	"time"
-
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // WebListenerConfig is the web listener configuration.
@@ -81,7 +81,6 @@ type WebListener struct {
 	dbListener  *Listener
 	cancel      context.CancelFunc
 	context     context.Context
-	isClosed    int32
 }
 
 // Web returns web listener.
@@ -96,19 +95,18 @@ func (l *WebListener) DB() net.Listener {
 
 // Serve starts accepting and forwarding tls connections to appropriate listeners.
 func (l *WebListener) Serve() error {
-	backoffTimer := time.NewTicker(5 * time.Second)
-	defer backoffTimer.Stop()
 	for {
 		conn, err := l.cfg.Listener.Accept()
 		if err != nil {
-			if atomic.LoadInt32(&l.isClosed) == 1 {
-				return trace.ConnectionProblem(nil, "listener is closed")
+			if utils.IsUseOfClosedNetworkError(err) {
+				<-l.context.Done()
+				return trace.Wrap(err, "listener is closed")
 			}
 			select {
-			case <-backoffTimer.C:
-				l.log.WithError(err).Warn("Backoff on network error.")
 			case <-l.context.Done():
-				return trace.ConnectionProblem(nil, "listener is closed")
+				return trace.Wrap(net.ErrClosed, "listener is closed")
+			case <-time.After(5 * time.Second):
+				l.log.WithError(err).Warn("Backoff on accept error.")
 			}
 			continue
 		}
@@ -173,7 +171,6 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 // Any blocked Accept operations will be unblocked and return errors.
 func (l *WebListener) Close() error {
 	defer l.cancel()
-	atomic.StoreInt32(&l.isClosed, 1)
 	return l.cfg.Listener.Close()
 }
 
