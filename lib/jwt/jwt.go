@@ -21,6 +21,11 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -220,17 +225,34 @@ func (p *VerifyParams) Check() error {
 	return nil
 }
 
-// Verify will validate the passed in JWT token.
-func (k *Key) Verify(p VerifyParams) (*Claims, error) {
+type SnowflakeVerifyParams struct {
+	AccountName string
+	LoginName   string
+	RawToken    string
+}
+
+func (p *SnowflakeVerifyParams) Check() error {
+	if p.AccountName == "" {
+		return trace.BadParameter("account name missing")
+	}
+
+	if p.LoginName == "" {
+		return trace.BadParameter("login name is missing")
+	}
+
+	if p.RawToken == "" {
+		return trace.BadParameter("raw token missing")
+	}
+
+	return nil
+}
+
+func (k *Key) verify(rawToken string, expectedClaims josejwt.Expected) (*Claims, error) {
 	if k.config.PublicKey == nil {
 		return nil, trace.BadParameter("can not verify token without public key")
 	}
-	if err := p.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Parse the token.
-	tok, err := josejwt.ParseSigned(p.RawToken)
+	tok, err := josejwt.ParseSigned(rawToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -242,17 +264,55 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	}
 
 	// Validate the claims on the JWT token.
+	if err = out.Validate(expectedClaims); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &out, nil
+}
+
+// Verify will validate the passed in JWT token.
+func (k *Key) Verify(p VerifyParams) (*Claims, error) {
+	if err := p.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	expectedClaims := josejwt.Expected{
 		Issuer:   k.config.ClusterName,
 		Subject:  p.Username,
 		Audience: jwt.Audience{p.URI},
 		Time:     k.config.Clock.Now(),
 	}
-	if err = out.Validate(expectedClaims); err != nil {
+
+	return k.verify(p.RawToken, expectedClaims)
+}
+
+// VerifySnowflake will validate the passed in JWT token.
+func (k *Key) VerifySnowflake(p SnowflakeVerifyParams) (*Claims, error) {
+	if err := p.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &out, nil
+	pubKey, err := x509.MarshalPKIXPublicKey(k.config.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyFp := sha256.Sum256(pubKey)
+	keyFpStr := base64.StdEncoding.EncodeToString(keyFp[:])
+
+	accName := strings.ToUpper(p.AccountName)
+	loginName := strings.ToUpper(p.LoginName)
+
+	// Generate issuer name in the Snowflake required format.
+	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accName, loginName, keyFpStr)
+
+	// Validate the claims on the JWT token.
+	expectedClaims := josejwt.Expected{
+		Issuer:  issuer,
+		Subject: fmt.Sprintf("%s.%s", accName, loginName),
+		Time:    k.config.Clock.Now(),
+	}
+	return k.verify(p.RawToken, expectedClaims)
 }
 
 // Claims represents public and private claims for a JWT token.

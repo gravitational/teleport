@@ -293,7 +293,7 @@ func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []by
 		if resp.Header.Get("Content-Encoding") == "gzip" {
 			gzipReader, err := gzip.NewReader(resp.Body)
 			if err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 			defer gzipReader.Close()
 
@@ -424,7 +424,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 		}
 
 		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
-			newBody, err := replaceToken(body, jwtToken, accountName)
+			newBody, err := replaceLoginReqToken(body, jwtToken, accountName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -607,12 +607,12 @@ func (e *Engine) extractToken(bodyBytes []byte, sessCb func(string) (string, err
 	}
 
 	if loginResp.Success == false {
-		return nil, trace.Errorf("snowflake authentication failed: %s", loginResp.Message)
+		return nil, trace.Errorf("Snowflake authentication failed: %s", loginResp.Message)
 	}
 
 	dataToken, found := loginResp.Data["token"]
 	if !found {
-		return nil, trace.Errorf("")
+		return nil, trace.Errorf("Snowflake login response doesn't contain token")
 	}
 
 	connectionToken, ok := dataToken.(string)
@@ -638,7 +638,7 @@ func (e *Engine) extractToken(bodyBytes []byte, sessCb func(string) (string, err
 	return newResp, err
 }
 
-func replaceToken(loginReq []byte, jwtToken string, accountName string) ([]byte, error) {
+func replaceLoginReqToken(loginReq []byte, jwtToken string, accountName string) ([]byte, error) {
 	logReq := &LoginRequest{}
 	if err := json.Unmarshal(loginReq, logReq); err != nil {
 		return nil, trace.Wrap(err)
@@ -719,6 +719,26 @@ type LoginRequest struct {
 	//	} `json:"SESSION_PARAMETERS"`
 	//} `json:"data"`
 	Data map[string]interface{} `json:"data"`
+}
+
+type authRequest struct {
+	Data struct {
+		ClientAppID             string          `json:"CLIENT_APP_ID"`
+		ClientAppVersion        string          `json:"CLIENT_APP_VERSION"`
+		SvnRevision             string          `json:"SVN_REVISION"`
+		AccountName             string          `json:"ACCOUNT_NAME"`
+		LoginName               string          `json:"LOGIN_NAME,omitempty"`
+		Password                string          `json:"PASSWORD,omitempty"`
+		RawSAMLResponse         string          `json:"RAW_SAML_RESPONSE,omitempty"`
+		ExtAuthnDuoMethod       string          `json:"EXT_AUTHN_DUO_METHOD,omitempty"`
+		Passcode                string          `json:"PASSCODE,omitempty"`
+		Authenticator           string          `json:"AUTHENTICATOR,omitempty"`
+		SessionParameters       json.RawMessage `json:"SESSION_PARAMETERS,omitempty"`
+		ClientEnvironment       json.RawMessage `json:"CLIENT_ENVIRONMENT"`
+		BrowserModeRedirectPort string          `json:"BROWSER_MODE_REDIRECT_PORT,omitempty"`
+		ProofKey                string          `json:"PROOF_KEY,omitempty"`
+		Token                   string          `json:"TOKEN,omitempty"`
+	} `json:"data"`
 }
 
 type RefreshTokenRequest struct {

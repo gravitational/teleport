@@ -22,16 +22,22 @@ package snowflake
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
@@ -311,13 +317,66 @@ const (
 `
 )
 
+func (s *TestServer) verifyJWT(ctx context.Context, accName, loginName, token string) error {
+	clusterName := "root.example.com"
+
+	caCert, err := s.cfg.AuthClient.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: clusterName,
+		Type:       types.DatabaseCA,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clock := clockwork.NewRealClock()
+	publicKey := caCert.GetActiveKeys().TLS[0].Cert
+
+	block, _ := pem.Decode(publicKey)
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := jwt.New(&jwt.Config{
+		Clock:       clock,
+		PublicKey:   cert.PublicKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: clusterName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = key.VerifySnowflake(jwt.SnowflakeVerifyParams{
+		RawToken:    token,
+		LoginName:   loginName,
+		AccountName: accName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
 	mux := http.NewServeMux()
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case loginRequestPath:
-			// TODO(jakule): verify JWT
+			loginReq := &authRequest{}
+			if err := json.NewDecoder(r.Body).Decode(loginReq); err != nil {
+				w.WriteHeader(400)
+				return
+			}
+			data := loginReq.Data
+			// Verify received JWT and return HTTP 401 if verification fails.
+			if err := s.verifyJWT(r.Context(), data.AccountName, data.LoginName, data.Token); err != nil {
+				w.WriteHeader(401)
+				return
+			}
+
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Content-Length", strconv.Itoa(len(loginResponse)))
 			w.Write([]byte(loginResponse))
@@ -388,7 +447,9 @@ func MakeTestClient(_ context.Context, config common.TestClientConfig, opts ...C
 		opt(clientOptions)
 	}
 
-	db, err := sql.Open("snowflake", fmt.Sprintf("username:password@%s/dbname/schemaname?account=acn123&protocol=http&loginTimeout=5", config.Address))
+	snowflakeDSN := fmt.Sprintf("%s:password@%s/dbname/schemaname?account=acn123&protocol=http&loginTimeout=5",
+		config.RouteToDatabase.Username, config.Address)
+	db, err := sql.Open("snowflake", snowflakeDSN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
