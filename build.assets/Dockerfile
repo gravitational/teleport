@@ -142,8 +142,8 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install golangci-lint.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.44.0/golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+     cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
 # Install helm.
