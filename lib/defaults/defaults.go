@@ -282,16 +282,9 @@ const (
 	// no name is provided at connection time.
 	DefaultRedisUsername = "default"
 
-	// SessionTrackerTTL defines the default base ttl of a session tracker.
-	SessionTrackerTTL = time.Hour
-
-	// SessionTrackerExpirationUpdateInterval is the default interval on which an active
-	// session's expiration will be extended.
-	SessionTrackerExpirationUpdateInterval = SessionTrackerTTL / 6
-
 	// AbandonedUploadPollingRate defines how often to check for
 	// abandoned uploads which need to be completed.
-	AbandonedUploadPollingRate = SessionTrackerTTL / 6
+	AbandonedUploadPollingRate = defaults.SessionTrackerTTL / 6
 
 	// UploadGracePeriod is a period after which non-completed
 	// upload is considered abandoned and will be completed by the reconciler
