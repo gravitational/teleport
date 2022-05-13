@@ -137,8 +137,6 @@ type CommandLineFlags struct {
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
-	// DatabaseAWSElastiCacheReplicationGroupID is ElastiCache replication group ID.
-	DatabaseAWSElastiCacheReplicationGroupID string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -1694,9 +1692,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: clf.DatabaseAWSRDSInstanceID,
 					ClusterID:  clf.DatabaseAWSRDSClusterID,
-				},
-				ElastiCache: service.DatabaseAWSElastiCache{
-					ReplicationGroupID: clf.DatabaseAWSElastiCacheReplicationGroupID,
 				},
 			},
 			GCP: service.DatabaseGCP{

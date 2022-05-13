@@ -137,7 +137,7 @@ func TestParseRedshiftEndpoint(t *testing.T) {
 	}
 }
 
-func TestParseElastiCacheRedisEndpoint(t *testing.T) {
+func TestParseElastiCacheEndpoint(t *testing.T) {
 	tests := []struct {
 		name        string
 		inputURI    string
@@ -258,7 +258,7 @@ func TestParseElastiCacheRedisEndpoint(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actualInfo, err := ParseElastiCacheRedisEndpoint(test.inputURI)
+			actualInfo, err := ParseElastiCacheEndpoint(test.inputURI)
 			if test.expectError {
 				require.Error(t, err)
 			} else {

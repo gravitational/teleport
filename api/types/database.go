@@ -452,7 +452,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.Spec.AWS.Region = region
 		}
 	case awsutils.IsElastiCacheEndpoint(d.Spec.URI):
-		endpointInfo, err := awsutils.ParseElastiCacheRedisEndpoint(d.Spec.URI)
+		endpointInfo, err := awsutils.ParseElastiCacheEndpoint(d.Spec.URI)
 		if err != nil {
 			logrus.WithError(err).Warnf("Failed to parse %v as ElastiCache endpoint", d.Spec.URI)
 			break

@@ -168,11 +168,11 @@ const (
 	ElastiCacheNodeEndpoint = "node"
 )
 
-// ParseElastiCacheRedisEndpoint extracts the details from the provided
+// ParseElastiCacheEndpoint extracts the details from the provided
 // ElastiCache Redis endpoint.
 //
 // https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/GettingStarted.ConnectToCacheNode.html
-func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) {
+func ParseElastiCacheEndpoint(endpoint string) (*RedisEndpointInfo, error) {
 	// Remove schema and port.
 	if !strings.Contains(endpoint, "://") {
 		endpoint = "redis://" + endpoint

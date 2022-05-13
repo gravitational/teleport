@@ -289,7 +289,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        name,
 		Description: fmt.Sprintf("ElastiCache cluster in %v (%v endpoint)", metadata.Region, endpointType),
-		Labels:      labelsFromElastiCacheCluster(cluster, metadata, endpointType, extraLabels),
+		Labels:      labelsFromElastiCacheCluster(metadata, endpointType, extraLabels),
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
@@ -462,7 +462,7 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 
 // labelsFromElastiCacheCluster creates database labels for the provided
 // ElastiCache cluster.
-func labelsFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
+func labelsFromElastiCacheCluster(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
 	labels := make(map[string]string)
 	for key, value := range extraLabels {
 		labels[key] = value

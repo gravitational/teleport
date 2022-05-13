@@ -35,6 +35,10 @@ func IsUSGovRegion(region string) bool {
 // ShortRegionToRegion converts short region codes to regular region names. For
 // example, a short region "use1" maps to region "us-east-1".
 //
+// There is no official documentation on this mapping. Here is gist of others
+// collecting these naming schemes:
+// https://gist.github.com/colinvh/14e4b7fb6b66c29f79d3
+//
 // This function currently does not support regions in secert partitions.
 func ShortRegionToRegion(shortRegion string) (string, bool) {
 	var prefix, direction string
