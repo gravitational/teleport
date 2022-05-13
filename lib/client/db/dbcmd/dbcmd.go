@@ -469,6 +469,10 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 		"-p", strconv.Itoa(c.port),
 	}
 
+	if c.db.Database != "" {
+		args = append(args, "-w", c.db.Database)
+	}
+
 	cmd := exec.Command(snowsqlBin, args...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SNOWSQL_PWD=%s", c.uid.New()))
 

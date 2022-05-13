@@ -35,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -88,13 +89,7 @@ func getDefaultHTTPClient() *http.Client {
 }
 
 func (e *Engine) SendError(err error) {
-	if err == nil || utils.IsOKNetworkError(err) {
-		return
-	}
-
-	e.Log.Errorf("snowflake error: %+v", trace.Unwrap(err)) // TODO(jakule): remove log
-
-	if e.clientConn == nil {
+	if e.clientConn == nil || err == nil || utils.IsOKNetworkError(err) {
 		return
 	}
 
@@ -112,7 +107,8 @@ func (e *Engine) SendError(err error) {
 		StatusCode: statusCode,
 		Body:       io.NopCloser(bytes.NewBufferString(jsonBody)),
 		Header: map[string][]string{
-			"Content-Type": {"application/json"},
+			"Content-Type":   {"application/json"},
+			"Content-Length": {strconv.Itoa(len(jsonBody))},
 		},
 	}
 
@@ -161,7 +157,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 // ref: https://docs.snowflake.com/en/user-guide/admin-account-identifier.html
 func extractAccountName(uri string) (string, error) {
 	if !strings.Contains(uri, "snowflakecomputing.com") {
-		return "", trace.Errorf("Snowflake address should contain snowflakecomputing.com")
+		return "", trace.BadParameter("Snowflake address should contain snowflakecomputing.com")
 	}
 
 	if strings.HasPrefix(uri, "https://") {
@@ -183,8 +179,8 @@ func extractAccountName(uri string) (string, error) {
 }
 
 func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
-	var err error
 	if e.connectionToken == "" {
+		var err error
 		e.connectionToken, err = e.getConnectionToken(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
@@ -289,21 +285,7 @@ func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []by
 	if resp.StatusCode != http.StatusOK {
 		e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
 	} else {
-		var bodyReader io.Reader
-		if resp.Header.Get("Content-Encoding") == "gzip" {
-			gzipReader, err := gzip.NewReader(resp.Body)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer gzipReader.Close()
-
-			bodyReader = gzipReader
-		} else {
-			bodyReader = resp.Body
-		}
-
-		// TODO(jakule) add limiter
-		body, err := io.ReadAll(bodyReader)
+		body, err := readResponseBody(resp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -335,6 +317,7 @@ func writeResponse(resp *http.Response, newResp []byte) (*bytes.Buffer, error) {
 	buf := &bytes.Buffer{}
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		newGzBody := gzip.NewWriter(buf)
+		defer newGzBody.Close()
 
 		if _, err := newGzBody.Write(newResp); err != nil {
 			return nil, trace.Wrap(err)
@@ -442,7 +425,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 			if err != nil {
 				return nil, trace.Wrap(err, "failed to extract SQL query")
 			}
-			// TODO(jakule): Add request ID??
+
 			e.Audit.OnQuery(ctx, e.sessionCtx, common.Query{Query: query})
 
 			return body, nil
@@ -483,12 +466,8 @@ func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []by
 	}
 
 	if newBody, err := modifyReqFn(body); err == nil {
-		e.Log.Debugf("new body: %s", string(newBody))
-
 		body = newBody
 	} else {
-		e.Log.Errorf("failed to unmarshal login JSON: %v", err) // TODO(jakule)
-
 		return nil, trace.Wrap(err)
 	}
 
@@ -513,8 +492,7 @@ func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []by
 }
 
 func readRequestBody(req *http.Request) ([]byte, error) {
-	// TODO(jakule): Add limiter
-	body, err := io.ReadAll(req.Body)
+	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -524,6 +502,29 @@ func readRequestBody(req *http.Request) ([]byte, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		defer bodyGZ.Close()
+
+		body, err = io.ReadAll(bodyGZ)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return body, nil
+}
+
+func readResponseBody(req *http.Response) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer bodyGZ.Close()
 
 		body, err = io.ReadAll(bodyGZ)
 		if err != nil {
