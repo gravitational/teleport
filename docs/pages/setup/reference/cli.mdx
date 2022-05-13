@@ -703,8 +703,8 @@ Environment variables configure your tsh client and can help you avoid using fla
 ### tsh configuration files
 
 `tsh` has an optional configuration files:
-- global, shared config: `/etc/tsh.yaml`. Location can be overridden with `$TELEPORT_GLOBAL_TSH_CONFIG`.
-- user specific config: `$TELEPORT_HOME/config/config.yaml`.
+- global, shared config: `/etc/tsh.yaml`. Location can be overridden with `TELEPORT_GLOBAL_TSH_CONFIG` environment variable.
+- user specific config: `$TELEPORT_HOME/config/config.yaml`. Unless changed, `TELEPORT_HOME` defaults to `~/.tsh`.
 
 The settings from both are merged, with the user config taking precedence.
 

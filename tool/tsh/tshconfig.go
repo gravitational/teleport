@@ -52,7 +52,7 @@ type ExtraProxyHeaders struct {
 	Headers map[string]string `yaml:"headers,omitempty"`
 }
 
-// Merge two configs into one. The config from parameter has higher priority.
+// Merge two configs into one. The passed in otherConfig argument has higher priority.
 func (config *TshConfig) Merge(otherConfig *TshConfig) TshConfig {
 	baseConfig := config
 	if baseConfig == nil {
