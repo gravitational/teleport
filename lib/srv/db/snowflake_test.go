@@ -304,9 +304,9 @@ func TestTokenSession(t *testing.T) {
 
 	appSessions, err := testCtx.authServer.GetAppSessions(ctx)
 	require.NoError(t, err)
-	require.Len(t, appSessions, 1)
+	require.Len(t, appSessions, 2)
 
-	snowflakeSess := appSessions[0]
+	snowflakeSess := appSessions[1] //TODO(jakule): fix me. Order is random.
 	require.Equal(t, types.KindSnowflakeSession, snowflakeSess.GetSubKind())
 
 	const queryBody = `{
@@ -318,7 +318,7 @@ func TestTokenSession(t *testing.T) {
 	queryReq, err := http.NewRequestWithContext(ctx, "POST", mockProxyQueryURL, bytes.NewReader([]byte(queryBody)))
 	require.NoError(t, err)
 
-	queryReq.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", snowflakeSess.GetName()))
+	queryReq.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"Teleport:%s\"", snowflakeSess.GetName()))
 	queryReq.Header.Set("Content-Type", "application/json")
 	queryReq.Header.Set("Content-Length", strconv.Itoa(len(queryBody)))
 

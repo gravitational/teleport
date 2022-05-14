@@ -54,8 +54,11 @@ func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		HTTPClient:   getDefaultHTTPClient(),
+		tokens:       make(tokenCache),
 	}
 }
+
+type tokenCache map[string]string
 
 type Engine struct {
 	// EngineConfig is the common database engine configuration.
@@ -67,13 +70,13 @@ type Engine struct {
 	// HTTPClient is the client being used to talk to Snowflake API.
 	HTTPClient *http.Client
 
-	connectionToken string
+	tokens tokenCache
 }
 
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.clientConn = clientConn
 	e.sessionCtx = sessionCtx
-
+	e.tokens = map[string]string{} //TODO(jakule)
 	return nil
 }
 
@@ -178,12 +181,9 @@ func extractAccountName(uri string) (string, error) {
 }
 
 func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
-	if e.connectionToken == "" {
-		var err error
-		e.connectionToken, err = e.getConnectionToken(ctx, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	snowflakeToken, err := e.getConnectionToken(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	requestBodyReader, err := e.process(ctx, req, accountName)
@@ -199,7 +199,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = sessionCtx.Database.GetURI()
 
-	e.setAuthorizationHeader(reqCopy)
+	e.setAuthorizationHeader(reqCopy, snowflakeToken)
 
 	// Send the request to Snowflake API
 	resp, err := e.HTTPClient.Do(reqCopy)
@@ -211,16 +211,26 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	switch req.URL.Path {
 	case loginRequestPath:
 		err := e.processResponse(resp, func(body []byte) ([]byte, error) {
-			newResp, err := e.processLoginResponse(body, func(sessionToken string) (string, error) {
+			newResp, err := e.processLoginResponse(body, func(sessionToken, masterToken string) (string, string, error) {
+				// Create one session for connection token.
 				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 					Username:     sessionCtx.Identity.Username,
 					SessionToken: sessionToken,
 				})
 				if err != nil {
-					return "", trace.Wrap(err)
+					return "", "", trace.Wrap(err)
 				}
 
-				return snowflakeSession.GetName(), nil
+				// And another one for master/renew one.
+				snowflakeMasterSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+					Username:     sessionCtx.Identity.Username,
+					SessionToken: masterToken,
+				})
+				if err != nil {
+					return "", "", trace.Wrap(err)
+				}
+
+				return snowflakeSession.GetName(), snowflakeMasterSession.GetName(), nil
 			})
 			if err != nil {
 				return nil, trace.Wrap(err, "failed to extract Snowflake session token")
@@ -247,8 +257,8 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 					return nil, trace.Wrap(err)
 				}
 
-				e.connectionToken = renewSessResp.Data.SessionToken
-				renewSessResp.Data.SessionToken = snowflakeSession.GetName()
+				e.tokens[snowflakeSession.GetName()] = renewSessResp.Data.SessionToken
+				renewSessResp.Data.SessionToken = "Teleport:" + snowflakeSession.GetName()
 			}
 
 			newBody, err := json.Marshal(renewSessResp)
@@ -279,9 +289,9 @@ func (e *Engine) sendResponse(resp *http.Response) error {
 	return nil
 }
 
-func (e *Engine) setAuthorizationHeader(reqCopy *http.Request) {
-	if e.connectionToken != "" {
-		reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", e.connectionToken))
+func (e *Engine) setAuthorizationHeader(reqCopy *http.Request, snowflakeToken string) {
+	if snowflakeToken != "" {
+		reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", snowflakeToken))
 	} else {
 		if reqCopy.Header.Get("Authorization") == "Basic" {
 			reqCopy.Header.Del("Authorization")
@@ -436,7 +446,11 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 				return nil, trace.Wrap(err)
 			}
 
-			refreshReq.OldSessionToken = e.connectionToken
+			sessionToken := strings.TrimPrefix(refreshReq.OldSessionToken, "Teleport:")
+			refreshReq.OldSessionToken, err = e.getSnowflakeToken(ctx, sessionToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
 			newData, err := json.Marshal(refreshReq)
 
@@ -521,28 +535,44 @@ func readBody(headers http.Header, body []byte) ([]byte, error) {
 }
 
 func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (string, error) {
-	var connectionToken string
+	sessionToken := extractSnowflakeToken(req.Header)
 
-	if strings.Contains(req.Header.Get("Authorization"), "Snowflake Token") &&
-		!strings.Contains(req.Header.Get("Authorization"), "None") {
-
-		sessionID := extractSnowflakeToken(req.Header)
-
-		if err := auth.WaitForSnowflakeSession(ctx, sessionID, e.sessionCtx.Identity.Username, e.AuthClient); err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		snowflakeSession, err := e.AuthClient.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{
-			SessionID: sessionID,
-		})
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		connectionToken = snowflakeSession.GetBearerToken()
+	if !strings.Contains(sessionToken, "Teleport:") {
+		// Python SDK does that
+		return "", nil
 	}
 
-	return connectionToken, nil
+	sessionToken = strings.TrimPrefix(sessionToken, "Teleport:")
+
+	snowflakeToken, err := e.getSnowflakeToken(ctx, sessionToken)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return snowflakeToken, nil
+}
+
+func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (string, error) {
+	snowflakeToken, found := e.tokens[sessionToken]
+	if found {
+		return snowflakeToken, nil
+	}
+
+	// Fetch the token from the auth server if not found in the local cache.
+	if err := auth.WaitForSnowflakeSession(ctx, sessionToken, e.sessionCtx.Identity.Username, e.AuthClient); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	snowflakeSession, err := e.AuthClient.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{
+		SessionID: sessionToken,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Add token to the local cache, so we don't need to fetch it every time.
+	e.tokens[sessionToken] = snowflakeSession.GetBearerToken()
+	return snowflakeSession.GetBearerToken(), nil
 }
 
 func extractSnowflakeToken(headers http.Header) string {
@@ -582,7 +612,7 @@ func extractSQLStmt(body []byte) (string, error) {
 	return queryRequest.SQLText, nil
 }
 
-func (e *Engine) processLoginResponse(bodyBytes []byte, sessCb func(string) (string, error)) ([]byte, error) {
+func (e *Engine) processLoginResponse(bodyBytes []byte, sessCb func(string, string) (string, string, error)) ([]byte, error) {
 	loginResp := &loginResponse{}
 	if err := json.Unmarshal(bodyBytes, loginResp); err != nil {
 		return nil, trace.Wrap(err)
@@ -592,25 +622,40 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, sessCb func(string) (str
 		return nil, trace.Errorf("Snowflake authentication failed: %s", loginResp.Message)
 	}
 
-	dataToken, found := loginResp.Data["token"]
-	if !found {
-		return nil, trace.Errorf("Snowflake login response doesn't contain token")
+	getField := func(name string) (string, error) {
+		dataToken, found := loginResp.Data[name]
+		if !found {
+			return "", trace.Errorf("Snowflake login response doesn't contain expected %s field", name)
+		}
+
+		token, ok := dataToken.(string)
+		if !ok {
+			return "", trace.Errorf("%s field returned by Snowflake API expected to be a string, got %T", name, dataToken)
+		}
+
+		return token, nil
 	}
 
-	connectionToken, ok := dataToken.(string)
-	if !ok {
-		return nil, trace.Errorf("session token returned by Snowflake API expected to be a string, got %T", dataToken)
-	}
-
-	e.connectionToken = connectionToken
-
-	sessionToken, err := sessCb(connectionToken)
+	snowflakeSessionToken, err := getField("token")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	loginResp.Data["token"] = sessionToken
-	loginResp.Data["masterToken"] = sessionToken //TODO(jakule)
+	snowflakeMasterToken, err := getField("masterToken")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessionToken, masterToken, err := sessCb(snowflakeSessionToken, snowflakeMasterToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	e.tokens[sessionToken] = snowflakeSessionToken
+	e.tokens[masterToken] = snowflakeMasterToken
+
+	loginResp.Data["token"] = "Teleport:" + sessionToken
+	loginResp.Data["masterToken"] = "Teleport:" + masterToken
 
 	newResp, err := json.Marshal(loginResp)
 	if err != nil {
@@ -631,7 +676,7 @@ func replaceLoginReqToken(loginReq []byte, jwtToken string, accountName string) 
 	logReq.Data.Authenticator = "SNOWFLAKE_JWT"
 
 	// Erase other authentication methods as we're using JWT method
-	logReq.Data.LoginName = ""
+	//logReq.Data.LoginName = "" TODO(jakule)
 	logReq.Data.Password = ""
 	logReq.Data.ExtAuthnDuoMethod = ""
 

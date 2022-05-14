@@ -102,13 +102,154 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 	return testServer, nil
 }
 
+// Serve starts serving client connections.
+func (s *TestServer) Serve() error {
+	mux := http.NewServeMux()
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case loginRequestPath:
+			loginReq := &loginRequest{}
+			if err := json.NewDecoder(r.Body).Decode(loginReq); err != nil {
+				w.WriteHeader(400)
+				return
+			}
+			data := loginReq.Data
+			// Verify received JWT and return HTTP 401 if verification fails.
+			if err := s.verifyJWT(r.Context(), data.AccountName, data.LoginName, data.Token); err != nil {
+				w.WriteHeader(401)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", strconv.Itoa(len(testLoginResponse)))
+			w.Write([]byte(testLoginResponse))
+		case queryRequestPath:
+			w.Header().Set("Content-Type", "application/json")
+
+			if r.Header.Get("Authorization") != fmt.Sprintf("Snowflake Token=\"%s\"", s.authorizationToken) {
+				w.WriteHeader(401)
+				return
+			}
+
+			if s.forceTokenRefresh {
+				w.Write([]byte(testForceTokenRefresh))
+				w.Header().Set("Content-Length", strconv.Itoa(len(testForceTokenRefresh)))
+				s.forceTokenRefresh = false
+				return
+			}
+
+			w.Header().Set("Content-Length", strconv.Itoa(len(testQueryResponse)))
+			w.Write([]byte(testQueryResponse))
+		case sessionRequestPath:
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", strconv.Itoa(len(testSessionEndResponse)))
+			w.Write([]byte(testSessionEndResponse))
+		case tokenRequestPath:
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", strconv.Itoa(len(testSessionTokenResponse)))
+			w.Write([]byte(testSessionTokenResponse))
+			s.authorizationToken = "sessionToken-123"
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}
+	mux.HandleFunc("/", handler)
+
+	srv := &httptest.Server{
+		Listener: s.listener,
+		Config:   &http.Server{Handler: mux},
+	}
+
+	srv.StartTLS()
+
+	return nil
+}
+
+func (s *TestServer) verifyJWT(ctx context.Context, accName, loginName, token string) error {
+	clusterName := "root.example.com"
+
+	caCert, err := s.cfg.AuthClient.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: clusterName,
+		Type:       types.DatabaseCA,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clock := clockwork.NewRealClock()
+	publicKey := caCert.GetActiveKeys().TLS[0].Cert
+
+	block, _ := pem.Decode(publicKey)
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := jwt.New(&jwt.Config{
+		Clock:       clock,
+		PublicKey:   cert.PublicKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: clusterName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = key.VerifySnowflake(jwt.SnowflakeVerifyParams{
+		RawToken:    token,
+		LoginName:   loginName,
+		AccountName: accName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (s *TestServer) Port() string {
+	return s.port
+}
+
+// Close starts serving client connections.
+func (s *TestServer) Close() error {
+	return s.listener.Close()
+}
+
+// ClientOptionsParams is a struct for client configuration options.
+type ClientOptionsParams struct {
+}
+
+// ClientOptions allows setting test client options.
+type ClientOptions func(*ClientOptionsParams)
+
+// MakeTestClient returns Redis client connection according to the provided
+// parameters.
+func MakeTestClient(_ context.Context, config common.TestClientConfig, opts ...ClientOptions) (*sql.DB, error) {
+	clientOptions := &ClientOptionsParams{}
+
+	for _, opt := range opts {
+		opt(clientOptions)
+	}
+
+	snowflakeDSN := fmt.Sprintf("%s:password@%s/dbname/schemaname?account=acn123&protocol=http&loginTimeout=5",
+		config.RouteToDatabase.Username, config.Address)
+	db, err := sql.Open("snowflake", snowflakeDSN)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return db, nil
+}
+
 const (
 	// testLoginResponse is a successful login response returned by the Snowflake mock server
 	// used in tests.
 	testLoginResponse = `
 {
   "data": {
-    "token": "test-token-123"
+    "token": "test-token-123",
+    "masterToken": "master-token-123"
   },
   "success": true
 }`
@@ -316,143 +457,3 @@ const (
 }
 `
 )
-
-func (s *TestServer) verifyJWT(ctx context.Context, accName, loginName, token string) error {
-	clusterName := "root.example.com"
-
-	caCert, err := s.cfg.AuthClient.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: clusterName,
-		Type:       types.DatabaseCA,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clock := clockwork.NewRealClock()
-	publicKey := caCert.GetActiveKeys().TLS[0].Cert
-
-	block, _ := pem.Decode(publicKey)
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	key, err := jwt.New(&jwt.Config{
-		Clock:       clock,
-		PublicKey:   cert.PublicKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: clusterName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = key.VerifySnowflake(jwt.SnowflakeVerifyParams{
-		RawToken:    token,
-		LoginName:   loginName,
-		AccountName: accName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// Serve starts serving client connections.
-func (s *TestServer) Serve() error {
-	mux := http.NewServeMux()
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case loginRequestPath:
-			loginReq := &loginRequest{}
-			if err := json.NewDecoder(r.Body).Decode(loginReq); err != nil {
-				w.WriteHeader(400)
-				return
-			}
-			data := loginReq.Data
-			// Verify received JWT and return HTTP 401 if verification fails.
-			if err := s.verifyJWT(r.Context(), data.AccountName, data.LoginName, data.Token); err != nil {
-				w.WriteHeader(401)
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Length", strconv.Itoa(len(testLoginResponse)))
-			w.Write([]byte(testLoginResponse))
-		case queryRequestPath:
-			w.Header().Set("Content-Type", "application/json")
-
-			if r.Header.Get("Authorization") != fmt.Sprintf("Snowflake Token=\"%s\"", s.authorizationToken) {
-				w.WriteHeader(401)
-				return
-			}
-
-			if s.forceTokenRefresh {
-				w.Write([]byte(testForceTokenRefresh))
-				w.Header().Set("Content-Length", strconv.Itoa(len(testForceTokenRefresh)))
-				s.forceTokenRefresh = false
-				return
-			}
-
-			w.Header().Set("Content-Length", strconv.Itoa(len(testQueryResponse)))
-			w.Write([]byte(testQueryResponse))
-		case sessionRequestPath:
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Length", strconv.Itoa(len(testSessionEndResponse)))
-			w.Write([]byte(testSessionEndResponse))
-		case tokenRequestPath:
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Length", strconv.Itoa(len(testSessionTokenResponse)))
-			w.Write([]byte(testSessionTokenResponse))
-			s.authorizationToken = "sessionToken-123"
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}
-	mux.HandleFunc("/", handler)
-
-	srv := &httptest.Server{
-		Listener: s.listener,
-		Config:   &http.Server{Handler: mux},
-	}
-
-	srv.StartTLS()
-
-	return nil
-}
-
-func (s *TestServer) Port() string {
-	return s.port
-}
-
-// Close starts serving client connections.
-func (s *TestServer) Close() error {
-	return s.listener.Close()
-}
-
-// ClientOptionsParams is a struct for client configuration options.
-type ClientOptionsParams struct {
-}
-
-// ClientOptions allows setting test client options.
-type ClientOptions func(*ClientOptionsParams)
-
-// MakeTestClient returns Redis client connection according to the provided
-// parameters.
-func MakeTestClient(_ context.Context, config common.TestClientConfig, opts ...ClientOptions) (*sql.DB, error) {
-	clientOptions := &ClientOptionsParams{}
-
-	for _, opt := range opts {
-		opt(clientOptions)
-	}
-
-	snowflakeDSN := fmt.Sprintf("%s:password@%s/dbname/schemaname?account=acn123&protocol=http&loginTimeout=5",
-		config.RouteToDatabase.Username, config.Address)
-	db, err := sql.Open("snowflake", snowflakeDSN)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return db, nil
-}
