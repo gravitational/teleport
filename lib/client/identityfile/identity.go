@@ -284,6 +284,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 	case FormatSnowflake:
 		pubPath := cfg.OutputPath + ".pub"
+		filesWritten = append(filesWritten, pubPath)
 
 		if err := checkOverwrite(writer, cfg.OverwriteDestination, pubPath); err != nil {
 			return nil, trace.Wrap(err)
