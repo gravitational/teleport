@@ -306,7 +306,12 @@ func TestTokenSession(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, appSessions, 2)
 
-	snowflakeSess := appSessions[1] //TODO(jakule): fix me. Order is random.
+	// At that point we should have to sessions, one with the session token and second with the master/renew token.
+	// Renew token must expire after the session token, so we can find it by comparing the token expiration time.
+	snowflakeSess := appSessions[0]
+	if appSessions[1].GetBearerTokenExpiryTime().Before(snowflakeSess.GetBearerTokenExpiryTime()) {
+		snowflakeSess = appSessions[1]
+	}
 	require.Equal(t, types.KindSnowflakeSession, snowflakeSess.GetSubKind())
 
 	const queryBody = `{

@@ -1155,6 +1155,7 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	resp, err := c.grpc.CreateSnowflakeSession(ctx, &proto.CreateSnowflakeSessionRequest{
 		Username:     req.Username,
 		SessionToken: req.SessionToken,
+		TokenTTL:     proto.Duration(req.TokenTTL),
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)

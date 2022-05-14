@@ -668,7 +668,9 @@ message CreateSnowflakeSessionRequest {
     // Username is the name of the user requesting the session.
     string Username = 1 [ (gogoproto.jsontag) = "username" ];
     // SessionToken is the Snowflake server session token.
-    string SessionToken = 4 [ (gogoproto.jsontag) = "session_token" ];
+    string SessionToken = 2 [ (gogoproto.jsontag) = "session_token" ];
+    // TokenTTL is the token validity period.
+    int64 TokenTTL = 3 [ (gogoproto.jsontag) = "token_ttl", (gogoproto.casttype) = "Duration" ];
 }
 
 // CreateSnowflakeSessionResponse contains Snowflake WebSession.

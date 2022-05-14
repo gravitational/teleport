@@ -317,9 +317,11 @@ func (r CreateAppSessionRequest) Check() error {
 // creating a Snowflake web session.
 type CreateSnowflakeSessionRequest struct {
 	// Username is the identity of the user requesting the session.
-	Username string `json:"username"`
+	Username string
 	// SessionToken is the Snowflake server session token.
 	SessionToken string
+	// TokenTTL is the token validity period.
+	TokenTTL time.Duration
 }
 
 // DeleteAppSessionRequest are the parameters used to request removal of

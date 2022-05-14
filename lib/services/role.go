@@ -646,7 +646,7 @@ type AccessChecker interface {
 	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
 
-	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
+	// AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
 	AdjustSessionTTL(ttl time.Duration) time.Duration
 
@@ -1076,7 +1076,7 @@ func (set RoleSet) WithoutImplicit() (out RoleSet) {
 	return out
 }
 
-// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
+// AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	for _, role := range set {

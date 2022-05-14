@@ -1262,6 +1262,7 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *proto.Crea
 	session, err := auth.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 		Username:     req.GetUsername(),
 		SessionToken: req.GetSessionToken(),
+		TokenTTL:     time.Duration(req.TokenTTL),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

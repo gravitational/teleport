@@ -33,6 +33,7 @@ import (
 	"net/http/httputil"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -54,11 +55,40 @@ func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		HTTPClient:   getDefaultHTTPClient(),
-		tokens:       make(tokenCache),
 	}
 }
 
-type tokenCache map[string]string
+type tokenCache struct {
+	sessionToken      string
+	teleportSessionID string
+
+	masterToken      string
+	teleportMasterID string
+}
+
+func (t *tokenCache) getSessionToken(sessionID string) string {
+	if t.teleportSessionID == sessionID {
+		return t.sessionToken
+	}
+	return ""
+}
+
+func (t *tokenCache) setSessionToken(sessionID, snowflakeToken string) {
+	t.sessionToken = snowflakeToken
+	t.teleportSessionID = sessionID
+}
+
+func (t *tokenCache) getMasterToken(masterID string) string {
+	if t.teleportMasterID == masterID {
+		return t.masterToken
+	}
+	return ""
+}
+
+func (t *tokenCache) setMasterToken(masterID, snowflakeMasterToken string) {
+	t.sessionToken = snowflakeMasterToken
+	t.teleportSessionID = masterID
+}
 
 type Engine struct {
 	// EngineConfig is the common database engine configuration.
@@ -76,7 +106,6 @@ type Engine struct {
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.clientConn = clientConn
 	e.sessionCtx = sessionCtx
-	e.tokens = map[string]string{} //TODO(jakule)
 	return nil
 }
 
@@ -216,6 +245,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 					Username:     sessionCtx.Identity.Username,
 					SessionToken: sessionToken,
+					TokenTTL:     time.Hour, //TOOD(jakule)
 				})
 				if err != nil {
 					return "", "", trace.Wrap(err)
@@ -225,6 +255,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 				snowflakeMasterSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 					Username:     sessionCtx.Identity.Username,
 					SessionToken: masterToken,
+					TokenTTL:     4 * time.Hour,
 				})
 				if err != nil {
 					return "", "", trace.Wrap(err)
@@ -257,7 +288,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 					return nil, trace.Wrap(err)
 				}
 
-				e.tokens[snowflakeSession.GetName()] = renewSessResp.Data.SessionToken
+				e.tokens.setSessionToken(snowflakeSession.GetName(), renewSessResp.Data.SessionToken)
 				renewSessResp.Data.SessionToken = "Teleport:" + snowflakeSession.GetName()
 			}
 
@@ -293,9 +324,7 @@ func (e *Engine) setAuthorizationHeader(reqCopy *http.Request, snowflakeToken st
 	if snowflakeToken != "" {
 		reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", snowflakeToken))
 	} else {
-		if reqCopy.Header.Get("Authorization") == "Basic" {
-			reqCopy.Header.Del("Authorization")
-		}
+		reqCopy.Header.Del("Authorization")
 	}
 }
 
@@ -411,12 +440,12 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 		}
 
 		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
-			newBody, err := replaceLoginReqToken(body, jwtToken, accountName)
+			newLoginPayload, err := replaceLoginReqToken(body, jwtToken, accountName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			return newBody, nil
+			return newLoginPayload, nil
 		})
 
 		if err != nil {
@@ -473,9 +502,8 @@ func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []by
 		return nil, trace.Wrap(err)
 	}
 
-	if newBody, err := modifyReqFn(body); err == nil {
-		body = newBody
-	} else {
+	body, err = modifyReqFn(body)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -553,8 +581,8 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 }
 
 func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (string, error) {
-	snowflakeToken, found := e.tokens[sessionToken]
-	if found {
+	snowflakeToken := e.tokens.getSessionToken(sessionToken)
+	if snowflakeToken != "" {
 		return snowflakeToken, nil
 	}
 
@@ -571,7 +599,7 @@ func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (st
 	}
 
 	// Add token to the local cache, so we don't need to fetch it every time.
-	e.tokens[sessionToken] = snowflakeSession.GetBearerToken()
+	e.tokens.setSessionToken(sessionToken, snowflakeSession.GetBearerToken())
 	return snowflakeSession.GetBearerToken(), nil
 }
 
@@ -651,8 +679,8 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, sessCb func(string, stri
 		return nil, trace.Wrap(err)
 	}
 
-	e.tokens[sessionToken] = snowflakeSessionToken
-	e.tokens[masterToken] = snowflakeMasterToken
+	e.tokens.setSessionToken(sessionToken, snowflakeSessionToken)
+	e.tokens.setMasterToken(masterToken, snowflakeMasterToken)
 
 	loginResp.Data["token"] = "Teleport:" + sessionToken
 	loginResp.Data["masterToken"] = "Teleport:" + masterToken

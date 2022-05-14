@@ -276,7 +276,7 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 		User:               req.Username,
 		Expires:            s.clock.Now().Add(ttl),
 		BearerToken:        req.SessionToken,
-		BearerTokenExpires: time.Now().Add(time.Hour), // TODO(jakule): fix me
+		BearerTokenExpires: s.clock.Now().Add(req.TokenTTL),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
