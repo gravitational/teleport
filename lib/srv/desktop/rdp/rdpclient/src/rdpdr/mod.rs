@@ -22,7 +22,8 @@ use crate::errors::{
 use crate::util;
 use crate::vchan;
 use crate::{
-    Payload, SharedDirectoryAcknowledge, SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
+    FileSystemObject, Payload, SharedDirectoryAcknowledge, SharedDirectoryInfoRequest,
+    SharedDirectoryInfoResponse,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -39,6 +40,7 @@ use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
+use std::fs::File;
 use std::io::{Read, Write};
 
 pub use consts::CHANNEL_NAME;
@@ -53,12 +55,14 @@ pub struct Client {
 
     allow_directory_sharing: bool,
     active_device_ids: Vec<u32>,
+    /// FileId-indexed cache of FileCacheObjects
+    file_cache: HashMap<u32, FileCacheObject>,
 
     // Functions for sending tdp messages to the browser client.
     tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
     tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
 
-    // Completion-id-indexed maps of handlers for tdp messages coming from the browser client.
+    // CompletionId-indexed maps of handlers for tdp messages coming from the browser client.
     pending_sd_info_resp_handlers: HashMap<
         u32,
         Box<dyn FnOnce(&mut Self, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>,
@@ -86,6 +90,7 @@ impl Client {
 
             allow_directory_sharing,
             active_device_ids: vec![],
+            file_cache: HashMap::new(),
 
             tdp_sd_acknowledge,
             tdp_sd_info_request,
@@ -374,7 +379,10 @@ impl Client {
                             {
                                 // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
                                 if res.err_code == 0 {
-                                    // TODO(isaiah)
+                                    cli.file_cache.insert(
+                                        rdp_req.device_io_request.file_id,
+                                        FileCacheObject::new(rdp_req.path),
+                                    );
                                 } else {
                                     return cli.prep_device_create_response(
                                         &rdp_req,
@@ -397,6 +405,14 @@ impl Client {
                                 == flags::CreateDisposition::FILE_OPEN_IF
                             {
                                 // If the file already exists, open it. If it does not, create the given file.
+                                if res.err_code == 0 {
+                                    cli.file_cache.insert(
+                                        rdp_req.device_io_request.file_id,
+                                        FileCacheObject::new(rdp_req.path),
+                                    );
+                                } else {
+                                    // TODO(isaiah)
+                                }
                             } else if rdp_req.create_disposition
                                 == flags::CreateDisposition::FILE_OVERWRITE
                             {
@@ -512,6 +528,24 @@ impl Client {
             return Ok(self.active_device_ids[0]);
         }
         return Err(RdpError::TryError("no active device ids".to_string()));
+    }
+}
+
+struct FileCacheObject {
+    path: String,
+    delete_pending: bool,
+    fsos: Vec<FileSystemObject>,
+    fsos_index: u32,
+}
+
+impl FileCacheObject {
+    fn new(path: String) -> Self {
+        return Self {
+            path,
+            delete_pending: false,
+            fsos: Vec::new(),
+            fsos_index: 0,
+        };
     }
 }
 
