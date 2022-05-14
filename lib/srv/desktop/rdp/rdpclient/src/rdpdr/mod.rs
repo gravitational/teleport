@@ -271,10 +271,12 @@ impl Client {
                 Ok(resp)
             }
             MajorFunction::IRP_MJ_CREATE => {
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
                 let rdp_req = ServerCreateDriveRequest::decode(device_io_request, payload)?;
                 debug!("got: {:?}", rdp_req);
 
                 // Send a TDP Shared Directory Info Request
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
                 (self.tdp_sd_info_request)(SharedDirectoryInfoRequest::from(rdp_req.clone()))?;
 
                 // Add a TDP Shared Directory Info Response handler to the handler cache.
@@ -283,12 +285,135 @@ impl Client {
                 self.pending_sd_info_resp_handlers.insert(
                     rdp_req.device_io_request.completion_id,
                     Box::new(
-                        |_cli: &mut Self,
+                        |cli: &mut Self,
                          res: SharedDirectoryInfoResponse|
                          -> RdpResult<Vec<Vec<u8>>> {
-                            let _rdp_req = rdp_req;
+                            let rdp_req = rdp_req;
                             debug!("got {:?}", res);
-                            // TODO(isaiah): see https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
+                            if res.err_code == 0 {
+                                // The file exists
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L214
+                                if res.fso.file_type == 1 {
+                                    if rdp_req.create_disposition
+                                        == flags::CreateDisposition::FILE_CREATE
+                                    {
+                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L221
+                                        // ERROR_ALREADY_EXISTS --> STATUS_OBJECT_NAME_COLLISION: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L102
+                                        return cli.prep_device_create_response(
+                                            &rdp_req,
+                                            NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
+                                        );
+                                    }
+
+                                    if rdp_req
+                                        .create_options
+                                        .contains(flags::CreateOptions::FILE_NON_DIRECTORY_FILE)
+                                    {
+                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L227
+                                        // ERROR_ACCESS_DENIED --> STATUS_ACCESS_DENIED: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L81
+                                        return cli.prep_device_create_response(
+                                            &rdp_req,
+                                            NTSTATUS::STATUS_ACCESS_DENIED,
+                                        );
+                                    }
+                                } else {
+                                    if rdp_req
+                                        .create_options
+                                        .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
+                                    {
+                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
+                                        // ERROR_DIRECTORY --> STATUS_NOT_A_DIRECTORY: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L118
+                                        return cli.prep_device_create_response(
+                                            &rdp_req,
+                                            NTSTATUS::STATUS_NOT_A_DIRECTORY,
+                                        );
+                                    }
+                                }
+                            } else if res.err_code == 2 {
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
+                                if rdp_req
+                                    .create_options
+                                    .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
+                                {
+                                    if rdp_req.create_disposition.intersects(
+                                        flags::CreateDisposition::FILE_OPEN_IF
+                                            | flags::CreateDisposition::FILE_CREATE,
+                                    ) {
+                                        // TODO(isaiah): shared directory create request
+                                    } else {
+                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
+                                        // ERROR_FILE_NOT_FOUND --> STATUS_NO_SUCH_FILE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L85
+                                        return cli.prep_device_create_response(
+                                            &rdp_req,
+                                            NTSTATUS::STATUS_NO_SUCH_FILE,
+                                        );
+                                    }
+                                }
+                            } else {
+                                // generic RDP error
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_UNSUCCESSFUL,
+                                );
+                            }
+
+                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L263
+                            // Note: the above line in FreeRDP will always evaluate to true:
+                            // - drive_file_init is called here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L362
+                            // - it is always passed a file where file->file_handle = INVALID_HANDLE_VALUE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L351
+                            // - None of the calls up to the line in question can have changed it
+
+                            // The actual creation of files and error mapping based on disposition happens here, for reference:
+                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L781
+                            if rdp_req.create_disposition
+                                == flags::CreateDisposition::FILE_SUPERSEDE
+                            {
+                                // If the file already exists, replace it with the given file. If it does not, create the given file.
+                            } else if rdp_req.create_disposition
+                                == flags::CreateDisposition::FILE_OPEN
+                            {
+                                // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
+                                if res.err_code == 0 {
+                                    // TODO(isaiah)
+                                } else {
+                                    return cli.prep_device_create_response(
+                                        &rdp_req,
+                                        NTSTATUS::STATUS_NO_SUCH_FILE,
+                                    );
+                                }
+                            } else if rdp_req.create_disposition
+                                == flags::CreateDisposition::FILE_CREATE
+                            {
+                                // If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
+                                if res.err_code == 0 {
+                                    return cli.prep_device_create_response(
+                                        &rdp_req,
+                                        NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
+                                    );
+                                } else {
+                                    // TODO(isaiah)
+                                }
+                            } else if rdp_req.create_disposition
+                                == flags::CreateDisposition::FILE_OPEN_IF
+                            {
+                                // If the file already exists, open it. If it does not, create the given file.
+                            } else if rdp_req.create_disposition
+                                == flags::CreateDisposition::FILE_OVERWRITE
+                            {
+                                // If the file already exists, open it and overwrite it. If it does not, fail the request.
+                                if res.err_code == 0 {
+                                    // TODO(isaiah)
+                                } else {
+                                    return cli.prep_device_create_response(
+                                        &rdp_req,
+                                        NTSTATUS::STATUS_NO_SUCH_FILE,
+                                    );
+                                }
+                            } else if rdp_req.create_disposition
+                                == flags::CreateDisposition::FILE_OVERWRITE_IF
+                            {
+                                // If the file already exists, open it and overwrite it. If it does not, create the given file.
+                            }
 
                             Ok(vec![])
                         },
@@ -343,6 +468,18 @@ impl Client {
                 res.completion_id
             )));
         }
+    }
+
+    fn prep_device_create_response(
+        &self,
+        req: &DeviceCreateRequest,
+        io_status: NTSTATUS,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let resp = DeviceCreateResponse::new(req, io_status);
+        debug!("replying with: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        return Ok(resp);
     }
 
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
@@ -992,18 +1129,21 @@ struct DeviceCreateResponse {
     information: flags::Information,
 }
 
-#[allow(dead_code)]
 impl DeviceCreateResponse {
     fn new(device_create_request: &DeviceCreateRequest, io_status: NTSTATUS) -> Self {
         let device_io_request = &device_create_request.device_io_request;
 
         let information: flags::Information;
-        if device_create_request.create_disposition.intersects(
-            flags::CreateDisposition::FILE_SUPERSEDE
-                | flags::CreateDisposition::FILE_OPEN
-                | flags::CreateDisposition::FILE_CREATE
-                | flags::CreateDisposition::FILE_OVERWRITE,
-        ) {
+        if io_status != NTSTATUS::STATUS_SUCCESS
+            || device_create_request.create_disposition.intersects(
+                flags::CreateDisposition::FILE_SUPERSEDE
+                    | flags::CreateDisposition::FILE_OPEN
+                    | flags::CreateDisposition::FILE_CREATE
+                    | flags::CreateDisposition::FILE_OVERWRITE,
+            )
+        {
+            // if io_status != NTSTATUS::STATUS_SUCCESS because that's what FreeRDP sets information to in the case of failure, see
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L191
             information = flags::Information::FILE_SUPERSEDED;
         } else if device_create_request.create_disposition == flags::CreateDisposition::FILE_OPEN_IF
         {
