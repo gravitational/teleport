@@ -22,8 +22,8 @@ use crate::errors::{
 use crate::util;
 use crate::vchan;
 use crate::{
-    FileSystemObject, Payload, SharedDirectoryAcknowledge, SharedDirectoryInfoRequest,
-    SharedDirectoryInfoResponse,
+    FileSystemObject, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
+    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -61,6 +61,7 @@ pub struct Client {
     // Functions for sending tdp messages to the browser client.
     tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
     tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
+    tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
 
     // CompletionId-indexed maps of handlers for tdp messages coming from the browser client.
     pending_sd_info_resp_handlers: HashMap<
@@ -78,6 +79,7 @@ impl Client {
 
         tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
         tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
+        tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
     ) -> Self {
         if allow_directory_sharing {
             debug!("creating rdpdr client with directory sharing enabled")
@@ -94,6 +96,7 @@ impl Client {
 
             tdp_sd_acknowledge,
             tdp_sd_info_request,
+            tdp_sd_create_request,
 
             pending_sd_info_resp_handlers: HashMap::new(),
         }

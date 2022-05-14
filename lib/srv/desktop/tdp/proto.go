@@ -45,20 +45,21 @@ type MessageType byte
 // For descriptions of each message type see:
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#message-types
 const (
-	TypeClientScreenSpec            = MessageType(1)
-	TypePNGFrame                    = MessageType(2)
-	TypeMouseMove                   = MessageType(3)
-	TypeMouseButton                 = MessageType(4)
-	TypeKeyboardButton              = MessageType(5)
-	TypeClipboardData               = MessageType(6)
-	TypeClientUsername              = MessageType(7)
-	TypeMouseWheel                  = MessageType(8)
-	TypeError                       = MessageType(9)
-	TypeMFA                         = MessageType(10)
-	TypeSharedDirectoryAnnounce     = MessageType(11)
-	TypeSharedDirectoryAcknowledge  = MessageType(12)
-	TypeSharedDirectoryInfoRequest  = MessageType(13)
-	TypeSharedDirectoryInfoResponse = MessageType(14)
+	TypeClientScreenSpec             = MessageType(1)
+	TypePNGFrame                     = MessageType(2)
+	TypeMouseMove                    = MessageType(3)
+	TypeMouseButton                  = MessageType(4)
+	TypeKeyboardButton               = MessageType(5)
+	TypeClipboardData                = MessageType(6)
+	TypeClientUsername               = MessageType(7)
+	TypeMouseWheel                   = MessageType(8)
+	TypeError                        = MessageType(9)
+	TypeMFA                          = MessageType(10)
+	TypeSharedDirectoryAnnounce      = MessageType(11)
+	TypeSharedDirectoryAcknowledge   = MessageType(12)
+	TypeSharedDirectoryInfoRequest   = MessageType(13)
+	TypeSharedDirectoryInfoResponse  = MessageType(14)
+	TypeSharedDirectoryCreateRequest = MessageType(15)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -119,6 +120,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeSharedDirectoryInfoRequest(in)
 	case TypeSharedDirectoryInfoResponse:
 		return decodeSharedDirectoryInfoResponse(in)
+	case TypeSharedDirectoryCreateRequest:
+		return decodeSharedDirectoryCreateRequest(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -819,6 +822,61 @@ func decodeFileSystemObject(in peekReader) (FileSystemObject, error) {
 		FileType:     fileType,
 		Path:         path,
 	}, nil
+}
+
+type SharedDirectoryCreateRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	FileType     uint32
+	Path         string
+}
+
+func (s SharedDirectoryCreateRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryCreateRequest))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	binary.Write(buf, binary.BigEndian, s.FileType)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryCreateRequest(in peekReader) (SharedDirectoryCreateRequest, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryCreateRequest) {
+		return SharedDirectoryCreateRequest{}, trace.BadParameter("got message type %v, expected SharedDirectoryCreateRequest(%v)", t, TypeSharedDirectoryCreateRequest)
+	}
+	var completionId, directoryId, fileType uint32
+	err = binary.Read(in, binary.BigEndian, &completionId)
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryId)
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &fileType)
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryCreateRequest{
+		CompletionID: completionId,
+		DirectoryID:  directoryId,
+		FileType:     fileType,
+		Path:         path,
+	}, nil
+
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
