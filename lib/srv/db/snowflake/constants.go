@@ -31,3 +31,5 @@ const (
 	sessionRequestPath       = "/session"
 	heartBeatPath            = "/session/heartbeat"
 )
+
+const teleportAuthHeaderPrefix = "Teleport:"

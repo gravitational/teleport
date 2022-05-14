@@ -35,7 +35,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -58,36 +57,15 @@ func newEngine(ec common.EngineConfig) common.Engine {
 	}
 }
 
-type tokenCache struct {
-	sessionToken      string
-	teleportSessionID string
-
-	masterToken      string
-	teleportMasterID string
-}
-
-func (t *tokenCache) getSessionToken(sessionID string) string {
-	if t.teleportSessionID == sessionID {
-		return t.sessionToken
+// getDefaultHTTPClient returns default HTTP client used by the Snowflake engine.
+func getDefaultHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		},
 	}
-	return ""
-}
-
-func (t *tokenCache) setSessionToken(sessionID, snowflakeToken string) {
-	t.sessionToken = snowflakeToken
-	t.teleportSessionID = sessionID
-}
-
-func (t *tokenCache) getMasterToken(masterID string) string {
-	if t.teleportMasterID == masterID {
-		return t.masterToken
-	}
-	return ""
-}
-
-func (t *tokenCache) setMasterToken(masterID, snowflakeMasterToken string) {
-	t.sessionToken = snowflakeMasterToken
-	t.teleportSessionID = masterID
 }
 
 type Engine struct {
@@ -99,7 +77,8 @@ type Engine struct {
 	sessionCtx *common.Session
 	// HTTPClient is the client being used to talk to Snowflake API.
 	HTTPClient *http.Client
-
+	// tokens is a tokens cache that holds the current session and master token
+	// used in the communication with the Snowflake.
 	tokens tokenCache
 }
 
@@ -107,16 +86,6 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	e.clientConn = clientConn
 	e.sessionCtx = sessionCtx
 	return nil
-}
-
-func getDefaultHTTPClient() *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			},
-		},
-	}
 }
 
 func (e *Engine) SendError(err error) {
@@ -184,31 +153,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 }
 
-// extractAccountName extracts account name from provided Snowflake URL
-// ref: https://docs.snowflake.com/en/user-guide/admin-account-identifier.html
-func extractAccountName(uri string) (string, error) {
-	if !strings.Contains(uri, "snowflakecomputing.com") {
-		return "", trace.BadParameter("Snowflake address should contain snowflakecomputing.com")
-	}
-
-	if strings.HasPrefix(uri, "https://") {
-		uri = strings.TrimSuffix(uri, "https://")
-	}
-
-	uriParts := strings.Split(uri, ".")
-
-	switch len(uriParts) {
-	case 3:
-		// address in https://test.snowflakecomputing.com format
-		return uriParts[0], nil
-	case 5:
-		// address in https://test.us-east-2.aws.snowflakecomputing.com format
-		return strings.Join(uriParts[:3], "."), nil
-	default:
-		return "", trace.BadParameter("invalid Snowflake url: %s", uri)
-	}
-}
-
 func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
 	snowflakeToken, err := e.getConnectionToken(ctx, req)
 	if err != nil {
@@ -220,7 +164,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 		return trace.Wrap(err)
 	}
 
-	reqCopy, err := e.copyRequest(ctx, req, requestBodyReader)
+	reqCopy, err := copyRequest(ctx, req, requestBodyReader)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -240,12 +184,12 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	switch req.URL.Path {
 	case loginRequestPath:
 		err := e.processResponse(resp, func(body []byte) ([]byte, error) {
-			newResp, err := e.processLoginResponse(body, func(sessionToken, masterToken string) (string, string, error) {
+			newResp, err := e.processLoginResponse(body, func(tokens sessionTokens) (string, string, error) {
 				// Create one session for connection token.
 				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 					Username:     sessionCtx.Identity.Username,
-					SessionToken: sessionToken,
-					TokenTTL:     time.Hour, //TOOD(jakule)
+					SessionToken: tokens.session.token,
+					TokenTTL:     tokens.session.ttl,
 				})
 				if err != nil {
 					return "", "", trace.Wrap(err)
@@ -254,8 +198,8 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 				// And another one for master/renew one.
 				snowflakeMasterSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 					Username:     sessionCtx.Identity.Username,
-					SessionToken: masterToken,
-					TokenTTL:     4 * time.Hour,
+					SessionToken: tokens.master.token,
+					TokenTTL:     tokens.master.ttl,
 				})
 				if err != nil {
 					return "", "", trace.Wrap(err)
@@ -279,17 +223,19 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 				return nil, trace.Wrap(err)
 			}
 
+			//TODO(jakule): create master token entry.
 			if renewSessResp.Data.SessionToken != "" {
 				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 					Username:     sessionCtx.Identity.Username,
 					SessionToken: renewSessResp.Data.SessionToken,
+					TokenTTL:     renewSessResp.Data.ValidityInSecondsST,
 				})
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
 				e.tokens.setSessionToken(snowflakeSession.GetName(), renewSessResp.Data.SessionToken)
-				renewSessResp.Data.SessionToken = "Teleport:" + snowflakeSession.GetName()
+				renewSessResp.Data.SessionToken = teleportAuthHeaderPrefix + snowflakeSession.GetName()
 			}
 
 			newBody, err := json.Marshal(renewSessResp)
@@ -365,25 +311,6 @@ func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []by
 	return nil
 }
 
-func writeResponse(resp *http.Response, newResp []byte) (*bytes.Buffer, error) {
-	buf := &bytes.Buffer{}
-	if resp.Header.Get("Content-Encoding") == "gzip" {
-		newGzBody := gzip.NewWriter(buf)
-		defer newGzBody.Close()
-
-		if _, err := newGzBody.Write(newResp); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := newGzBody.Close(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		buf.Write(newResp)
-	}
-	return buf, nil
-}
-
 // authorizeConnection does authorization check for Snowflake connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
@@ -411,19 +338,6 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-func (e *Engine) copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.Request, error) {
-	reqCopy, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for k, v := range req.Header {
-		reqCopy.Header.Set(k, strings.Join(v, ","))
-	}
-
-	return reqCopy, nil
 }
 
 func (e *Engine) process(ctx context.Context, req *http.Request, accountName string) (io.Reader, error) {
@@ -475,7 +389,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 				return nil, trace.Wrap(err)
 			}
 
-			sessionToken := strings.TrimPrefix(refreshReq.OldSessionToken, "Teleport:")
+			sessionToken := strings.TrimPrefix(refreshReq.OldSessionToken, teleportAuthHeaderPrefix)
 			refreshReq.OldSessionToken, err = e.getSnowflakeToken(ctx, sessionToken)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -527,50 +441,14 @@ func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []by
 	return buf, nil
 }
 
-func readRequestBody(req *http.Request) ([]byte, error) {
-	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return readBody(req.Header, body)
-}
-
-func readResponseBody(resp *http.Response) ([]byte, error) {
-	body, err := io.ReadAll(io.LimitReader(resp.Body, teleport.MaxHTTPRequestSize))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return readBody(resp.Header, body)
-}
-
-func readBody(headers http.Header, body []byte) ([]byte, error) {
-	if headers.Get("Content-Encoding") == "gzip" {
-		bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer bodyGZ.Close()
-
-		body, err = io.ReadAll(bodyGZ)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return body, nil
-}
-
 func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (string, error) {
 	sessionToken := extractSnowflakeToken(req.Header)
 
-	if !strings.Contains(sessionToken, "Teleport:") {
-		// Python SDK does that
+	if !strings.Contains(sessionToken, teleportAuthHeaderPrefix) {
 		return "", nil
 	}
 
-	sessionToken = strings.TrimPrefix(sessionToken, "Teleport:")
+	sessionToken = strings.TrimPrefix(sessionToken, teleportAuthHeaderPrefix)
 
 	snowflakeToken, err := e.getSnowflakeToken(ctx, sessionToken)
 	if err != nil {
@@ -603,16 +481,74 @@ func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (st
 	return snowflakeSession.GetBearerToken(), nil
 }
 
-func extractSnowflakeToken(headers http.Header) string {
-	sessionID := headers.Get("Authorization")
-	return extractSnowflakeTokenFromHeader(sessionID)
+func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tokens sessionTokens) (string, string, error)) ([]byte, error) {
+	loginResp := &loginResponse{}
+	decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
+	decoder.UseNumber()
+	if err := decoder.Decode(loginResp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !loginResp.Success {
+		return nil, trace.Errorf("Snowflake authentication failed: %s", loginResp.Message)
+	}
+
+	tokens, err := loginResp.getTokens()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessionToken, masterToken, err := createSessionFn(tokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	e.tokens.setSessionToken(sessionToken, tokens.session.token)
+	e.tokens.setMasterToken(masterToken, tokens.master.token)
+
+	loginResp.Data["token"] = teleportAuthHeaderPrefix + sessionToken
+	loginResp.Data["masterToken"] = teleportAuthHeaderPrefix + masterToken
+
+	newResp, err := json.Marshal(loginResp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newResp, err
 }
 
-func extractSnowflakeTokenFromHeader(token string) string {
+// extractAccountName extracts account name from provided Snowflake URL
+// ref: https://docs.snowflake.com/en/user-guide/admin-account-identifier.html
+func extractAccountName(uri string) (string, error) {
+	if !strings.Contains(uri, "snowflakecomputing.com") {
+		return "", trace.BadParameter("Snowflake address should contain snowflakecomputing.com")
+	}
+
+	if strings.HasPrefix(uri, "https://") {
+		uri = strings.TrimSuffix(uri, "https://")
+	}
+
+	uriParts := strings.Split(uri, ".")
+
+	switch len(uriParts) {
+	case 3:
+		// address in https://test.snowflakecomputing.com format
+		return uriParts[0], nil
+	case 5:
+		// address in https://test.us-east-2.aws.snowflakecomputing.com format
+		return strings.Join(uriParts[:3], "."), nil
+	default:
+		return "", trace.BadParameter("invalid Snowflake url: %s", uri)
+	}
+}
+
+func extractSnowflakeToken(headers http.Header) string {
 	const (
 		tokenPrefix = "Snowflake Token=\""
 		tokenSuffix = "\""
 	)
+
+	token := headers.Get("Authorization")
 
 	if len(token) > len(tokenPrefix)+len(tokenSuffix) &&
 		strings.HasPrefix(token, tokenPrefix) && strings.HasSuffix(token, tokenSuffix) {
@@ -622,13 +558,14 @@ func extractSnowflakeTokenFromHeader(token string) string {
 	return ""
 }
 
-func copyResponse(resp *http.Response, body []byte) ([]byte, error) {
-	resp.Body = io.NopCloser(bytes.NewBuffer(body))
-	resp.ContentLength = int64(len(body))
+type tokenTTL struct {
+	token string
+	ttl   time.Duration
+}
 
-	delete(resp.Header, "Content-Length")
-
-	return httputil.DumpResponse(resp, true)
+type sessionTokens struct {
+	session tokenTTL
+	master  tokenTTL
 }
 
 func extractSQLStmt(body []byte) (string, error) {
@@ -638,59 +575,6 @@ func extractSQLStmt(body []byte) (string, error) {
 	}
 
 	return queryRequest.SQLText, nil
-}
-
-func (e *Engine) processLoginResponse(bodyBytes []byte, sessCb func(string, string) (string, string, error)) ([]byte, error) {
-	loginResp := &loginResponse{}
-	if err := json.Unmarshal(bodyBytes, loginResp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if loginResp.Success == false {
-		return nil, trace.Errorf("Snowflake authentication failed: %s", loginResp.Message)
-	}
-
-	getField := func(name string) (string, error) {
-		dataToken, found := loginResp.Data[name]
-		if !found {
-			return "", trace.Errorf("Snowflake login response doesn't contain expected %s field", name)
-		}
-
-		token, ok := dataToken.(string)
-		if !ok {
-			return "", trace.Errorf("%s field returned by Snowflake API expected to be a string, got %T", name, dataToken)
-		}
-
-		return token, nil
-	}
-
-	snowflakeSessionToken, err := getField("token")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	snowflakeMasterToken, err := getField("masterToken")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessionToken, masterToken, err := sessCb(snowflakeSessionToken, snowflakeMasterToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	e.tokens.setSessionToken(sessionToken, snowflakeSessionToken)
-	e.tokens.setMasterToken(masterToken, snowflakeMasterToken)
-
-	loginResp.Data["token"] = "Teleport:" + sessionToken
-	loginResp.Data["masterToken"] = "Teleport:" + masterToken
-
-	newResp, err := json.Marshal(loginResp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return newResp, err
 }
 
 func replaceLoginReqToken(loginReq []byte, jwtToken string, accountName string) ([]byte, error) {
