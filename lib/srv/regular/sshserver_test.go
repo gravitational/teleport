@@ -981,7 +981,7 @@ func TestSessionHijack(t *testing.T) {
 	t.Parallel()
 	_, err := user.Lookup(teleportTestUser)
 	if err != nil {
-		t.Skip(fmt.Sprintf("user %v is not found, skipping test", teleportTestUser))
+		t.Skipf("user %v is not found, skipping test", teleportTestUser)
 	}
 
 	f := newFixture(t)

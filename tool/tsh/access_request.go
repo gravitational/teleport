@@ -359,6 +359,12 @@ func onRequestSearch(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	clusterNameResource, err := authClient.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterName := clusterNameResource.GetClusterName()
+
 	req := proto.ListResourcesRequest{
 		ResourceType:        cf.ResourceKind,
 		Labels:              tc.Labels,
@@ -371,26 +377,41 @@ func onRequestSearch(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	table := asciitable.MakeTable([]string{"Kind", "Hostname", "ID"})
-	var resourceIDs []string
+	rows := [][]string{}
+	resourceIDs := []types.ResourceID{}
 	for _, resource := range resources {
-		id := resource.GetKind() + ":" + resource.GetName()
-		resourceIDs = append(resourceIDs, id)
-
-		var hostName string
+		resourceIDs = append(resourceIDs, types.ResourceID{
+			ClusterName: clusterName,
+			Kind:        resource.GetKind(),
+			Name:        resource.GetName(),
+		})
+		hostName := ""
 		if r, ok := resource.(interface{ GetHostname() string }); ok {
 			hostName = r.GetHostname()
 		}
-
-		table.AddRow([]string{resource.GetKind(), hostName, id})
+		rows = append(rows, []string{
+			resource.GetKind(),
+			hostName,
+			sortedLabels(resource.GetAllLabels()),
+			resource.GetName(),
+		})
 	}
+	table := asciitable.MakeTableWithTruncatedColumn([]string{"Kind", "Hostname", "Labels", "ID"}, rows, "Labels")
 	if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if len(resourceIDs) > 0 {
-		fmt.Fprintf(os.Stdout, "\nTo request access to these resources, run\n")
-		fmt.Fprintf(os.Stdout, "> tsh request create --resources %s --reason <request reason>\n\n", strings.Join(resourceIDs, ","))
+		resourcesStr, err := services.ResourceIDsToString(resourceIDs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(os.Stdout, `
+To request access to these resources, run
+> tsh request create --resources '%s' \
+    --reason <request reason>
+
+`, resourcesStr)
 	}
 
 	return nil

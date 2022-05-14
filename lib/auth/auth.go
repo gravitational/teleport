@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -1627,10 +1628,12 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 		return nil, trace.Wrap(err)
 	}
 
-	dev, err := a.verifyMFARespAndAddDevice(ctx, req.GetNewMFAResponse(), &newMFADeviceFields{
+	dev, err := a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:      privilegeToken.GetUser(),
 		newDeviceName: req.GetNewDeviceName(),
 		tokenID:       privilegeToken.GetName(),
+		deviceResp:    req.GetNewMFAResponse(),
+		deviceUsage:   req.DeviceUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1659,10 +1662,14 @@ type newMFADeviceFields struct {
 	// Identity with an in-memory SessionData storage.
 	// Defaults to the Server's IdentityService.
 	webIdentityOverride wanlib.RegistrationIdentity
+	// deviceResp is the register response from the new device.
+	deviceResp *proto.MFARegisterResponse
+	// deviceUsage describes the intended usage of the new device.
+	deviceUsage proto.DeviceUsage
 }
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
-func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
+func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADeviceFields) (*types.MFADevice, error) {
 	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1673,19 +1680,19 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.M
 	}
 
 	var dev *types.MFADevice
-	switch regResp.GetResponse().(type) {
+	switch req.deviceResp.GetResponse().(type) {
 	case *proto.MFARegisterResponse_TOTP:
-		dev, err = a.registerTOTPDevice(ctx, regResp, req)
+		dev, err = a.registerTOTPDevice(ctx, req.deviceResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case *proto.MFARegisterResponse_Webauthn:
-		dev, err = a.registerWebauthnDevice(ctx, regResp, req)
+		dev, err = a.registerWebauthnDevice(ctx, req.deviceResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
-		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", regResp.Response)
+		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", req.deviceResp.Response)
 	}
 
 	clusterName, err := a.GetClusterName()
@@ -1767,8 +1774,12 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 		Identity: identity,
 	}
 	// Finish upserts the device on success.
-	dev, err := webRegistration.Finish(
-		ctx, req.username, req.newDeviceName, wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()))
+	dev, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             req.username,
+		DeviceName:       req.newDeviceName,
+		CreationResponse: wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
+		Passwordless:     req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
 	return dev, trace.Wrap(err)
 }
 
@@ -2433,7 +2444,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Expires: req.GetAccessExpiry(),
 		},
 		Roles:                req.GetRoles(),
-		RequestedResourceIDs: req.GetRequestedResourceIDs(),
+		RequestedResourceIDs: services.EventResourceIDs(req.GetRequestedResourceIDs()),
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
@@ -2930,8 +2941,17 @@ func (a *Server) GetApp(ctx context.Context, name string) (types.Application, er
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (a *Server) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	return a.SessionTrackerService.CreateSessionTracker(ctx, req)
+func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	// Don't allow sessions that require moderation without the enterprise feature enabled.
+	for _, policySet := range tracker.GetHostPolicySets() {
+		if len(policySet.RequireSessionJoin) != 0 {
+			if !modules.GetModules().Features().ModeratedSessions {
+				return nil, trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			}
+		}
+	}
+
+	return a.SessionTrackerService.CreateSessionTracker(ctx, tracker)
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.

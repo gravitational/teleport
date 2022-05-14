@@ -1,12 +1,21 @@
 <Details title="Before you begin: read security tips" opened={false}>
-  The examples below may include the use of the `sudo` keyword, token UUIDs, and users with
-  elevated privileges to make following each step easier. 
 
-  We recommend you follow the best practices to avoid security incidents:
+  When running Teleport in production, we recommend that you follow the
+  practices below to avoid security incidents. These practices may differ from
+  the examples used in this guide, which are intended for demo environments:
 
-  1. Avoid using `sudo` in production environments unless it's necessary.
-  2. Create new, non-root, users and use test instances for experimenting with Teleport.
-  3. You can run many Teleport's services as a non root. For example, auth, proxy, application access, kubernetes access, and database access services can run as a non-root user. Only the SSH/node service requires root access. You will need root permissions (or the `CAP_NET_BIND_SERVICE` capability) to make Teleport listen on a port numbered < `1024` (e.g. `443`)
-  4. Follow the "Principle of Least Privilege" (PoLP) and "Zero Admin" best practices. Don't give users permissive roles when giving them more restrictive `access,editor` roles will do instead.
-  5. Save tokens into a file rather than sharing tokens directly as strings.
+  - Avoid using `sudo` in production environments unless it's necessary.
+  - Create new, non-root, users and use test instances for experimenting with Teleport.
+  - Run Teleport's services as a non-root user unless required. Only the SSH
+    Service requires root access. Note that you will need root permissions (or
+    the `CAP_NET_BIND_SERVICE` capability) to make Teleport listen on a port
+    numbered < `1024` (e.g. `443`).
+  - Follow the "Principle of Least Privilege" (PoLP). Don't give users
+    permissive roles when giving them more restrictive roles will do instead.
+    For example, assign users the built-in `access,editor` roles.
+  - When joining a Teleport agent to a cluster, save the invitation token to a
+    file. Otherwise, the token will be visible when examining the `teleport`
+    command that started the agent, e.g., via the `history` command on a
+    compromised system.
+
 </Details>
