@@ -105,55 +105,10 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
 	mux := http.NewServeMux()
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case loginRequestPath:
-			loginReq := &loginRequest{}
-			if err := json.NewDecoder(r.Body).Decode(loginReq); err != nil {
-				w.WriteHeader(400)
-				return
-			}
-			data := loginReq.Data
-			// Verify received JWT and return HTTP 401 if verification fails.
-			if err := s.verifyJWT(r.Context(), data.AccountName, data.LoginName, data.Token); err != nil {
-				w.WriteHeader(401)
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Length", strconv.Itoa(len(testLoginResponse)))
-			w.Write([]byte(testLoginResponse))
-		case queryRequestPath:
-			w.Header().Set("Content-Type", "application/json")
-
-			if r.Header.Get("Authorization") != fmt.Sprintf("Snowflake Token=\"%s\"", s.authorizationToken) {
-				w.WriteHeader(401)
-				return
-			}
-
-			if s.forceTokenRefresh {
-				w.Write([]byte(testForceTokenRefresh))
-				w.Header().Set("Content-Length", strconv.Itoa(len(testForceTokenRefresh)))
-				s.forceTokenRefresh = false
-				return
-			}
-
-			w.Header().Set("Content-Length", strconv.Itoa(len(testQueryResponse)))
-			w.Write([]byte(testQueryResponse))
-		case sessionRequestPath:
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Length", strconv.Itoa(len(testSessionEndResponse)))
-			w.Write([]byte(testSessionEndResponse))
-		case tokenRequestPath:
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Length", strconv.Itoa(len(testSessionTokenResponse)))
-			w.Write([]byte(testSessionTokenResponse))
-			s.authorizationToken = "sessionToken-123"
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}
-	mux.HandleFunc("/", handler)
+	mux.HandleFunc(loginRequestPath, s.handleLogin)
+	mux.HandleFunc(queryRequestPath, s.handleQuery)
+	mux.HandleFunc(sessionRequestPath, s.handleSession)
+	mux.HandleFunc(tokenRequestPath, s.handleToken)
 
 	srv := &httptest.Server{
 		Listener: s.listener,
@@ -165,6 +120,62 @@ func (s *TestServer) Serve() error {
 	return nil
 }
 
+// handleLogin is the test server /session/v1/login-request HTTP handler.
+func (s *TestServer) handleLogin(w http.ResponseWriter, r *http.Request) {
+	loginReq := &loginRequest{}
+	if err := json.NewDecoder(r.Body).Decode(loginReq); err != nil {
+		w.WriteHeader(400)
+		return
+	}
+	data := loginReq.Data
+	// Verify received JWT and return HTTP 401 if verification fails.
+	if err := s.verifyJWT(r.Context(), data.AccountName, data.LoginName, data.Token); err != nil {
+		w.WriteHeader(401)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(testLoginResponse)))
+	w.Write([]byte(testLoginResponse))
+}
+
+// handleQuery is the test server /queries/v1/query-request HTTP handler.
+func (s *TestServer) handleQuery(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Header.Get("Authorization") != fmt.Sprintf("Snowflake Token=\"%s\"", s.authorizationToken) {
+		w.WriteHeader(401)
+		return
+	}
+
+	if s.forceTokenRefresh {
+		w.Write([]byte(testForceTokenRefresh))
+		w.Header().Set("Content-Length", strconv.Itoa(len(testForceTokenRefresh)))
+		s.forceTokenRefresh = false
+		return
+	}
+
+	w.Header().Set("Content-Length", strconv.Itoa(len(testQueryResponse)))
+	w.Write([]byte(testQueryResponse))
+}
+
+// handleSession is the test server /session HTTP handler.
+func (s *TestServer) handleSession(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(testSessionEndResponse)))
+	w.Write([]byte(testSessionEndResponse))
+}
+
+// handleToken is the test server /session/token-request HTTP handler.
+func (s *TestServer) handleToken(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(testSessionTokenResponse)))
+	w.Write([]byte(testSessionTokenResponse))
+	s.authorizationToken = "sessionToken-123"
+}
+
+// verifyJWT verifies the provided JWT token. It checks if the token was signed with the Database CA
+// and asserts token claims.
 func (s *TestServer) verifyJWT(ctx context.Context, accName, loginName, token string) error {
 	clusterName := "root.example.com"
 
