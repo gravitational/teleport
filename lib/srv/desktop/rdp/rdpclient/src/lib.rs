@@ -1019,6 +1019,12 @@ pub struct CGOSharedDirectoryCreateRequest {
 }
 
 #[derive(Debug)]
+pub struct SharedDirectoryCreateResponse {
+    completion_id: u32,
+    err_code: u32,
+}
+
+#[derive(Debug)]
 pub struct SharedDirectoryDeleteRequest {
     completion_id: u32,
     directory_id: u32,
@@ -1030,6 +1036,12 @@ pub struct CGOSharedDirectoryDeleteRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: *const c_char,
+}
+
+#[derive(Debug)]
+pub struct SharedDirectoryDeleteResponse {
+    completion_id: u32,
+    err_code: u32,
 }
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'

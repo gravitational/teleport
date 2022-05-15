@@ -23,7 +23,8 @@ use crate::util;
 use crate::vchan;
 use crate::{
     FileSystemObject, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
-    SharedDirectoryDeleteRequest, SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
+    SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
+    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -56,6 +57,7 @@ pub struct Client {
     active_device_ids: Vec<u32>,
     /// FileId-indexed cache of FileCacheObjects
     file_cache: HashMap<u32, FileCacheObject>,
+    next_file_id: u32, // used to generate file id's
 
     // Functions for sending tdp messages to the browser client.
     tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
@@ -67,6 +69,14 @@ pub struct Client {
     pending_sd_info_resp_handlers: HashMap<
         u32,
         Box<dyn FnOnce(&mut Self, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>,
+    >,
+    pending_sd_create_resp_handlers: HashMap<
+        u32,
+        Box<dyn FnOnce(&mut Self, SharedDirectoryCreateResponse) -> RdpResult<Vec<Vec<u8>>>>,
+    >,
+    pending_sd_delete_resp_handlers: HashMap<
+        u32,
+        Box<dyn FnOnce(&mut Self, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>,
     >,
 }
 
@@ -94,6 +104,7 @@ impl Client {
             allow_directory_sharing,
             active_device_ids: vec![],
             file_cache: HashMap::new(),
+            next_file_id: 0,
 
             tdp_sd_acknowledge,
             tdp_sd_info_request,
@@ -101,6 +112,8 @@ impl Client {
             tdp_sd_delete_request,
 
             pending_sd_info_resp_handlers: HashMap::new(),
+            pending_sd_create_resp_handlers: HashMap::new(),
+            pending_sd_delete_resp_handlers: HashMap::new(),
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
@@ -349,7 +362,8 @@ impl Client {
                                         flags::CreateDisposition::FILE_OPEN_IF
                                             | flags::CreateDisposition::FILE_CREATE,
                                     ) {
-                                        // TODO(isaiah): shared directory create request
+                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
+                                        return cli.tdp_sd_create(rdp_req, 1);
                                     } else {
                                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
                                         // ERROR_FILE_NOT_FOUND --> STATUS_NO_SUCH_FILE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L85
@@ -373,7 +387,7 @@ impl Client {
                             // - it is always passed a file where file->file_handle = INVALID_HANDLE_VALUE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L351
                             // - None of the calls up to the line in question can have changed it
 
-                            // The actual creation of files and error mapping based on disposition happens here, for reference:
+                            // The actual creation of files and error mapping badevice_io_request.completion_id happens here, for reference:
                             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L781
                             if rdp_req.create_disposition
                                 == flags::CreateDisposition::FILE_SUPERSEDE
@@ -386,7 +400,7 @@ impl Client {
                                 if res.err_code == 0 {
                                     cli.file_cache.insert(
                                         rdp_req.device_io_request.file_id,
-                                        FileCacheObject::new(rdp_req.path),
+                                        FileCacheObject::new(rdp_req.path.clone()),
                                     );
                                 } else {
                                     return cli.prep_device_create_response(
@@ -404,7 +418,7 @@ impl Client {
                                         NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
                                     );
                                 } else {
-                                    // TODO(isaiah)
+                                    return cli.tdp_sd_create(rdp_req, 0);
                                 }
                             } else if rdp_req.create_disposition
                                 == flags::CreateDisposition::FILE_OPEN_IF
@@ -416,14 +430,14 @@ impl Client {
                                         FileCacheObject::new(rdp_req.path),
                                     );
                                 } else {
-                                    // TODO(isaiah)
+                                    return cli.tdp_sd_create(rdp_req, 0);
                                 }
                             } else if rdp_req.create_disposition
                                 == flags::CreateDisposition::FILE_OVERWRITE
                             {
                                 // If the file already exists, open it and overwrite it. If it does not, fail the request.
                                 if res.err_code == 0 {
-                                    // TODO(isaiah)
+                                    return cli.tdp_sd_overwrite(rdp_req);
                                 } else {
                                     return cli.prep_device_create_response(
                                         &rdp_req,
@@ -434,8 +448,12 @@ impl Client {
                                 == flags::CreateDisposition::FILE_OVERWRITE_IF
                             {
                                 // If the file already exists, open it and overwrite it. If it does not, create the given file.
+                                if res.err_code == 0 {
+                                    return cli.tdp_sd_overwrite(rdp_req);
+                                } else {
+                                    return cli.tdp_sd_create(rdp_req, 0);
+                                }
                             }
-
                             Ok(vec![])
                         },
                     ),
@@ -492,15 +510,76 @@ impl Client {
     }
 
     fn prep_device_create_response(
-        &self,
+        &mut self,
         req: &DeviceCreateRequest,
         io_status: NTSTATUS,
     ) -> RdpResult<Vec<Vec<u8>>> {
-        let resp = DeviceCreateResponse::new(req, io_status);
+        let resp = DeviceCreateResponse::new(req, io_status, self.generate_file_id());
         debug!("replying with: {:?}", resp);
         let resp = self
             .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         return Ok(resp);
+    }
+
+    /// Helper function for sending a TDP SharedDirectoryCreateRequest based on an
+    /// RDP DeviceCreateRequest and handling the TDP SharedDirectoryCreateResponse.
+    fn tdp_sd_create(
+        &mut self,
+        rdp_req: DeviceCreateRequest,
+        file_type: u32,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        (self.tdp_sd_create_request)(SharedDirectoryCreateRequest {
+            completion_id: rdp_req.device_io_request.completion_id,
+            directory_id: rdp_req.device_io_request.device_id,
+            file_type,
+            path: rdp_req.path.clone(),
+        })?;
+        self.pending_sd_create_resp_handlers.insert(
+            rdp_req.device_io_request.completion_id,
+            Box::new(
+                move |cli: &mut Self,
+                      res: SharedDirectoryCreateResponse|
+                      -> RdpResult<Vec<Vec<u8>>> {
+                    debug!("got {:?}", res);
+                    if res.err_code == 0 {
+                        cli.file_cache.insert(
+                            rdp_req.device_io_request.file_id,
+                            FileCacheObject::new(rdp_req.path.clone()),
+                        );
+                        return cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS);
+                    } else {
+                        return cli
+                            .prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+                    }
+                },
+            ),
+        );
+        Ok(vec![])
+    }
+
+    /// Helper function for combining a TDP SharedDirectoryDeleteRequest
+    /// with a TDP SharedDirectoryCreateRequest to overwrite a file, based
+    /// on an RDP DeviceCreateRequest.
+    fn tdp_sd_overwrite(&mut self, rdp_req: DeviceCreateRequest) -> RdpResult<Vec<Vec<u8>>> {
+        (self.tdp_sd_delete_request)(SharedDirectoryDeleteRequest {
+            completion_id: rdp_req.device_io_request.completion_id,
+            directory_id: rdp_req.device_io_request.device_id,
+            path: rdp_req.path.clone(),
+        })?;
+        self.pending_sd_delete_resp_handlers.insert(
+            rdp_req.device_io_request.completion_id,
+            Box::new(
+                |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
+                    if res.err_code == 0 {
+                        return cli.tdp_sd_create(rdp_req, 0);
+                    } else {
+                        return cli
+                            .prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+                    }
+                },
+            ),
+        );
+        Ok(vec![])
     }
 
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
@@ -534,8 +613,14 @@ impl Client {
         }
         return Err(RdpError::TryError("no active device ids".to_string()));
     }
+
+    fn generate_file_id(&mut self) -> u32 {
+        self.next_file_id = self.next_file_id.wrapping_add(1);
+        self.next_file_id
+    }
 }
 
+#[allow(dead_code)]
 struct FileCacheObject {
     path: String,
     delete_pending: bool,
@@ -1169,7 +1254,7 @@ struct DeviceCreateResponse {
 }
 
 impl DeviceCreateResponse {
-    fn new(device_create_request: &DeviceCreateRequest, io_status: NTSTATUS) -> Self {
+    fn new(device_create_request: &DeviceCreateRequest, io_status: NTSTATUS, file_id: u32) -> Self {
         let device_io_request = &device_create_request.device_io_request;
 
         let information: flags::Information;
@@ -1200,7 +1285,7 @@ impl DeviceCreateResponse {
                 device_io_request,
                 NTSTATUS::to_u32(&io_status).unwrap(),
             ),
-            file_id: device_io_request.file_id, // TODO(isaiah): this is false, the client should be generating the file_id here
+            file_id,
             information,
         }
     }
@@ -1279,7 +1364,7 @@ impl FsInformationClass {
         match self {
             Self::FileBasicInformation(file_basic_info) => file_basic_info.encode(),
             Self::FileStandardInformation(file_standard_info) => file_standard_info.encode(),
-            Self::FileBothDirectoryInformation(fil_both_dir_info) => fil_both_dir_info.encode(), // TODO(isaiah)
+            Self::FileBothDirectoryInformation(fil_both_dir_info) => fil_both_dir_info.encode(),
         }
     }
 }
@@ -1470,7 +1555,6 @@ struct ClientDriveQueryInformationResponse {
 impl ClientDriveQueryInformationResponse {
     /// Constructs a ClientDriveQueryInformationResponse from a ServerDriveQueryInformationRequest and an NTSTATUS.
     /// If the ServerDriveQueryInformationRequest.fs_information_class_lvl is currently unsupported, the program will panic.
-    /// TODO(isaiah): We will pass some sort of file structure into here.
     fn new(req: &ServerDriveQueryInformationRequest, io_status: NTSTATUS) -> RdpResult<Self> {
         let (length, buffer) = match req.fs_information_class_lvl {
             FsInformationClassLevel::FileBasicInformation => (
