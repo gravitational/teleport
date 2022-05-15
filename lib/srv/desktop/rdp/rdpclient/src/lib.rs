@@ -329,6 +329,39 @@ fn connect_rdp_inner(
             }
         });
 
+    let tdp_sd_delete_request =
+        Box::new(move |req: SharedDirectoryDeleteRequest| -> RdpResult<()> {
+            debug!("sending: {:?}", req);
+            // Create C compatible string from req.path
+            match CString::new(req.path.clone()) {
+                Ok(c_string) => {
+                    unsafe {
+                        let err = tdp_sd_delete_request(
+                            go_ref,
+                            &mut CGOSharedDirectoryDeleteRequest {
+                                completion_id: req.completion_id,
+                                directory_id: req.directory_id,
+                                path: c_string.as_ptr(),
+                            },
+                        );
+                        if err != CGOErrCode::ErrCodeSuccess {
+                            return Err(RdpError::TryError(String::from(
+                                "call to tdp_sd_delete_request failed",
+                            )));
+                        };
+                    }
+                    return Ok(());
+                }
+                Err(_) => {
+                    // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
+                    return Err(RdpError::TryError(String::from(format!(
+                        "path contained characters that couldn't be converted to a C string: {}",
+                        req.path
+                    ))));
+                }
+            }
+        });
+
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(
         params.cert_der,
@@ -338,6 +371,7 @@ fn connect_rdp_inner(
         tdp_sd_acknowledge,
         tdp_sd_info_request,
         tdp_sd_create_request,
+        tdp_sd_delete_request,
     );
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -984,6 +1018,20 @@ pub struct CGOSharedDirectoryCreateRequest {
     pub path: *const c_char,
 }
 
+#[derive(Debug)]
+pub struct SharedDirectoryDeleteRequest {
+    completion_id: u32,
+    directory_id: u32,
+    path: String,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryDeleteRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *const c_char,
+}
+
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
@@ -999,6 +1047,10 @@ extern "C" {
     fn tdp_sd_create_request(
         client_ref: usize,
         req: *mut CGOSharedDirectoryCreateRequest,
+    ) -> CGOErrCode;
+    fn tdp_sd_delete_request(
+        client_ref: usize,
+        req: *mut CGOSharedDirectoryDeleteRequest,
     ) -> CGOErrCode;
 }
 

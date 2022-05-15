@@ -521,6 +521,25 @@ func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateReque
 	return C.ErrCodeSuccess
 }
 
+//export tdp_sd_delete_request
+func tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDeleteRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryDeleteRequest(tdp.SharedDirectoryDeleteRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+	})
+}
+
+func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteRequest) C.CGOErrCode {
+	if c.cfg.AllowDirectorySharing {
+		if err := c.cfg.Conn.OutputMessage(req); err != nil {
+			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+			return C.ErrCodeFailure
+		}
+	}
+	return C.ErrCodeSuccess
+}
+
 // Wait blocks until the client disconnects and runs the cleanup.
 func (c *Client) Wait() error {
 	c.wg.Wait()

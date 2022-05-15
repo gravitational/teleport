@@ -60,6 +60,7 @@ const (
 	TypeSharedDirectoryInfoRequest   = MessageType(13)
 	TypeSharedDirectoryInfoResponse  = MessageType(14)
 	TypeSharedDirectoryCreateRequest = MessageType(15)
+	TypeSharedDirectoryDeleteRequest = MessageType(17)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -122,6 +123,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeSharedDirectoryInfoResponse(in)
 	case TypeSharedDirectoryCreateRequest:
 		return decodeSharedDirectoryCreateRequest(in)
+	case TypeSharedDirectoryDeleteRequest:
+		return decodeSharedDirectoryDeleteRequest(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -877,6 +880,53 @@ func decodeSharedDirectoryCreateRequest(in peekReader) (SharedDirectoryCreateReq
 		Path:         path,
 	}, nil
 
+}
+
+type SharedDirectoryDeleteRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	Path         string
+}
+
+func (s SharedDirectoryDeleteRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryDeleteRequest))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryDeleteRequest(in peekReader) (SharedDirectoryDeleteRequest, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryDeleteRequest) {
+		return SharedDirectoryDeleteRequest{}, trace.BadParameter("got message type %v, expected SharedDirectoryDeleteRequest(%v)", t, TypeSharedDirectoryDeleteRequest)
+	}
+	var completionId, directoryId uint32
+	err = binary.Read(in, binary.BigEndian, &completionId)
+	if err != nil {
+		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryId)
+	if err != nil {
+		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryDeleteRequest{
+		CompletionID: completionId,
+		DirectoryID:  directoryId,
+		Path:         path,
+	}, nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
