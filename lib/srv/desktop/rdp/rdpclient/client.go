@@ -399,6 +399,26 @@ func (c *Client) start() {
 						return
 					}
 				}
+			case tdp.SharedDirectoryCreateResponse:
+				if c.cfg.AllowDirectorySharing {
+					if errCode := C.handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      C.uint32_t(m.ErrCode),
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", errCode)
+						return
+					}
+				}
+			case tdp.SharedDirectoryDeleteResponse:
+				if c.cfg.AllowDirectorySharing {
+					if errCode := C.handle_tdp_sd_delete_response(c.rustClient, C.CGOSharedDirectoryDeleteResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      C.uint32_t(m.ErrCode),
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryDeleteResponse failed: %v", errCode)
+						return
+					}
+				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}

@@ -45,22 +45,24 @@ type MessageType byte
 // For descriptions of each message type see:
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#message-types
 const (
-	TypeClientScreenSpec             = MessageType(1)
-	TypePNGFrame                     = MessageType(2)
-	TypeMouseMove                    = MessageType(3)
-	TypeMouseButton                  = MessageType(4)
-	TypeKeyboardButton               = MessageType(5)
-	TypeClipboardData                = MessageType(6)
-	TypeClientUsername               = MessageType(7)
-	TypeMouseWheel                   = MessageType(8)
-	TypeError                        = MessageType(9)
-	TypeMFA                          = MessageType(10)
-	TypeSharedDirectoryAnnounce      = MessageType(11)
-	TypeSharedDirectoryAcknowledge   = MessageType(12)
-	TypeSharedDirectoryInfoRequest   = MessageType(13)
-	TypeSharedDirectoryInfoResponse  = MessageType(14)
-	TypeSharedDirectoryCreateRequest = MessageType(15)
-	TypeSharedDirectoryDeleteRequest = MessageType(17)
+	TypeClientScreenSpec              = MessageType(1)
+	TypePNGFrame                      = MessageType(2)
+	TypeMouseMove                     = MessageType(3)
+	TypeMouseButton                   = MessageType(4)
+	TypeKeyboardButton                = MessageType(5)
+	TypeClipboardData                 = MessageType(6)
+	TypeClientUsername                = MessageType(7)
+	TypeMouseWheel                    = MessageType(8)
+	TypeError                         = MessageType(9)
+	TypeMFA                           = MessageType(10)
+	TypeSharedDirectoryAnnounce       = MessageType(11)
+	TypeSharedDirectoryAcknowledge    = MessageType(12)
+	TypeSharedDirectoryInfoRequest    = MessageType(13)
+	TypeSharedDirectoryInfoResponse   = MessageType(14)
+	TypeSharedDirectoryCreateRequest  = MessageType(15)
+	TypeSharedDirectoryCreateResponse = MessageType(16)
+	TypeSharedDirectoryDeleteRequest  = MessageType(17)
+	TypeSharedDirectoryDeleteResponse = MessageType(18)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -123,8 +125,12 @@ func decode(in peekReader) (Message, error) {
 		return decodeSharedDirectoryInfoResponse(in)
 	case TypeSharedDirectoryCreateRequest:
 		return decodeSharedDirectoryCreateRequest(in)
+	case TypeSharedDirectoryCreateResponse:
+		return decodeSharedDirectoryCreateResponse(in)
 	case TypeSharedDirectoryDeleteRequest:
 		return decodeSharedDirectoryDeleteRequest(in)
+	case TypeSharedDirectoryDeleteResponse:
+		return decodeSharedDirectoryDeleteResponse(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -882,6 +888,32 @@ func decodeSharedDirectoryCreateRequest(in peekReader) (SharedDirectoryCreateReq
 
 }
 
+type SharedDirectoryCreateResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+}
+
+func (s SharedDirectoryCreateResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryCreateResponse))
+	binary.Write(buf, binary.BigEndian, s)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryCreateResponse(in peekReader) (SharedDirectoryCreateResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryCreateResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryCreateRequest) {
+		return SharedDirectoryCreateResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryCreateResponse(%v)", t, TypeSharedDirectoryCreateRequest)
+	}
+
+	var res SharedDirectoryCreateResponse
+	err = binary.Read(in, binary.BigEndian, &res)
+	return res, err
+}
+
 type SharedDirectoryDeleteRequest struct {
 	CompletionID uint32
 	DirectoryID  uint32
@@ -927,6 +959,32 @@ func decodeSharedDirectoryDeleteRequest(in peekReader) (SharedDirectoryDeleteReq
 		DirectoryID:  directoryId,
 		Path:         path,
 	}, nil
+}
+
+type SharedDirectoryDeleteResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+}
+
+func (s SharedDirectoryDeleteResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryDeleteResponse))
+	binary.Write(buf, binary.BigEndian, s)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryDeleteResponse(in peekReader) (SharedDirectoryDeleteResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryDeleteResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryDeleteRequest) {
+		return SharedDirectoryDeleteResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryDeleteResponse(%v)", t, TypeSharedDirectoryDeleteRequest)
+	}
+
+	var res SharedDirectoryDeleteResponse
+	err = binary.Read(in, binary.BigEndian, &res)
+	return res, err
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
