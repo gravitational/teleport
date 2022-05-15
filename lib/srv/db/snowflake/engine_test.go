@@ -107,12 +107,13 @@ func Test_extractSnowflakeToken(t *testing.T) {
 }
 
 func Test_replaceLoginReqToken(t *testing.T) {
-	const loginResponse = `{"data":{"CLIENT_APP_ID":"","CLIENT_APP_VERSION":"","SVN_REVISION":"","ACCOUNT_NAME":"testAccountName","AUTHENTICATOR":"SNOWFLAKE_JWT","CLIENT_ENVIRONMENT":null,"TOKEN":"testJWT"}}`
+	const loginResponse = `{"data":{"CLIENT_APP_ID":"","CLIENT_APP_VERSION":"","SVN_REVISION":"","ACCOUNT_NAME":"testAccountName","AUTHENTICATOR":"SNOWFLAKE_JWT","CLIENT_ENVIRONMENT":null,"LOGIN_NAME":"alice","TOKEN":"testJWT"}}`
 
 	type args struct {
 		loginReq    map[string]interface{}
 		jwtToken    string
 		accountName string
+		loginName   string
 	}
 	tests := []struct {
 		name string
@@ -127,6 +128,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 					"ACCOUNT_NAME": "testAccountName",
 				},
 				jwtToken:    "testJWT",
+				loginName:   "alice",
 				accountName: "testAccountName",
 			},
 			want: loginResponse,
@@ -140,6 +142,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 					"PASSWORD":     "password",
 				},
 				jwtToken:    "testJWT",
+				loginName:   "alice",
 				accountName: "testAccountName",
 			},
 			want: loginResponse,
@@ -153,6 +156,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 					"LOGIN_NAME":   "alice",
 				},
 				jwtToken:    "testJWT",
+				loginName:   "alice",
 				accountName: "testAccountName",
 			},
 			want: loginResponse,
@@ -166,6 +170,22 @@ func Test_replaceLoginReqToken(t *testing.T) {
 					"AUTHENTICATOR": "PASSWORD",
 				},
 				jwtToken:    "testJWT",
+				loginName:   "alice",
+				accountName: "testAccountName",
+			},
+			want: loginResponse,
+		},
+		{
+			name: "replace login name",
+			args: args{
+				loginReq: map[string]interface{}{
+					"TOKEN":         "testJWT",
+					"ACCOUNT_NAME":  "testAccountName",
+					"AUTHENTICATOR": "PASSWORD",
+					"LOGIN_NAME":    "bob",
+				},
+				jwtToken:    "testJWT",
+				loginName:   "alice",
 				accountName: "testAccountName",
 			},
 			want: loginResponse,
@@ -177,7 +197,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 			payload, err := json.Marshal(tt.args.loginReq)
 			require.NoError(t, err)
 
-			got, err := replaceLoginReqToken(payload, tt.args.jwtToken, tt.args.accountName)
+			got, err := replaceLoginReqToken(payload, tt.args.jwtToken, tt.args.accountName, tt.args.loginName)
 
 			require.NoError(t, err)
 			require.JSONEq(t, tt.want, string(got))

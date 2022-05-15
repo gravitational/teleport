@@ -379,7 +379,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 				return nil, trace.Wrap(err)
 			}
 
-			newLoginPayload, err := replaceLoginReqToken(body, jwtToken, accountName)
+			newLoginPayload, err := replaceLoginReqToken(body, jwtToken, accountName, e.sessionCtx.DatabaseUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -603,7 +603,7 @@ func extractSQLStmt(body []byte) (string, error) {
 	return queryRequest.SQLText, nil
 }
 
-func replaceLoginReqToken(loginReq []byte, jwtToken string, accountName string) ([]byte, error) {
+func replaceLoginReqToken(loginReq []byte, jwtToken, accountName, dbUser string) ([]byte, error) {
 	logReq := &loginRequest{}
 	if err := json.Unmarshal(loginReq, logReq); err != nil {
 		return nil, trace.Wrap(err)
@@ -611,10 +611,10 @@ func replaceLoginReqToken(loginReq []byte, jwtToken string, accountName string) 
 
 	logReq.Data.Token = jwtToken
 	logReq.Data.AccountName = accountName
+	logReq.Data.LoginName = dbUser
 	logReq.Data.Authenticator = "SNOWFLAKE_JWT"
 
-	// Erase other authentication methods as we're using JWT method
-	//logReq.Data.LoginName = "" TODO(jakule)
+	// Erase other authentication methods as we're using JWT.
 	logReq.Data.Password = ""
 	logReq.Data.ExtAuthnDuoMethod = ""
 
