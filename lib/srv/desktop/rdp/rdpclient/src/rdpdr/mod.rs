@@ -509,6 +509,52 @@ impl Client {
         }
     }
 
+    pub fn handle_tdp_sd_create_response<S: Read + Write>(
+        &mut self,
+        res: SharedDirectoryCreateResponse,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_create_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
+            Ok(())
+        } else {
+            return Err(try_error(&format!(
+                "received invalid completion id: {}",
+                res.completion_id
+            )));
+        }
+    }
+
+    pub fn handle_tdp_sd_delete_response<S: Read + Write>(
+        &mut self,
+        res: SharedDirectoryDeleteResponse,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_delete_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
+            Ok(())
+        } else {
+            return Err(try_error(&format!(
+                "received invalid completion id: {}",
+                res.completion_id
+            )));
+        }
+    }
+
     fn prep_device_create_response(
         &mut self,
         req: &DeviceCreateRequest,

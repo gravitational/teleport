@@ -462,6 +462,20 @@ impl<S: Read + Write> RdpClient<S> {
         self.rdpdr.handle_tdp_sd_info_response(res, &mut self.mcs)
     }
 
+    pub fn handle_tdp_sd_create_response(
+        &mut self,
+        res: SharedDirectoryCreateResponse,
+    ) -> RdpResult<()> {
+        self.rdpdr.handle_tdp_sd_create_response(res, &mut self.mcs)
+    }
+
+    pub fn handle_tdp_sd_delete_response(
+        &mut self,
+        res: SharedDirectoryDeleteResponse,
+    ) -> RdpResult<()> {
+        self.rdpdr.handle_tdp_sd_delete_response(res, &mut self.mcs)
+    }
+
     pub fn shutdown(&mut self) -> RdpResult<()> {
         self.mcs.shutdown()
     }
@@ -637,6 +651,54 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to handle Shared Directory Info Response: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
+/// handle_tdp_sd_create_response handles a TDP Shared Directory Create Response
+/// message
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_sd_create_response(
+    client_ptr: *mut Client,
+    res: CGOSharedDirectoryCreateResponse,
+) -> CGOErrCode {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+    match rdp_client.handle_tdp_sd_create_response(res) {
+        Ok(()) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("failed to handle Shared Directory Create Response: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
+/// handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response
+/// message
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_sd_delete_response(
+    client_ptr: *mut Client,
+    res: CGOSharedDirectoryDeleteResponse,
+) -> CGOErrCode {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+    match rdp_client.handle_tdp_sd_delete_response(res) {
+        Ok(()) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("failed to handle Shared Directory Create Response: {:?}", e);
             CGOErrCode::ErrCodeFailure
         }
     }
@@ -903,25 +965,13 @@ pub struct CGOSharedDirectoryAnnounce {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct SharedDirectoryAcknowledge {
     pub err_code: u32,
     pub directory_id: u32,
 }
 
-#[repr(C)]
-pub struct CGOSharedDirectoryAcknowledge {
-    pub err_code: u32,
-    pub directory_id: u32,
-}
-
-impl From<SharedDirectoryAcknowledge> for CGOSharedDirectoryAcknowledge {
-    fn from(ack: SharedDirectoryAcknowledge) -> CGOSharedDirectoryAcknowledge {
-        CGOSharedDirectoryAcknowledge {
-            err_code: ack.err_code,
-            directory_id: ack.directory_id,
-        }
-    }
-}
+pub type CGOSharedDirectoryAcknowledge = SharedDirectoryAcknowledge;
 
 #[derive(Debug)]
 pub struct SharedDirectoryInfoRequest {
@@ -1019,10 +1069,13 @@ pub struct CGOSharedDirectoryCreateRequest {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct SharedDirectoryCreateResponse {
-    completion_id: u32,
-    err_code: u32,
+    pub completion_id: u32,
+    pub err_code: u32,
 }
+
+type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
 
 #[derive(Debug)]
 pub struct SharedDirectoryDeleteRequest {
@@ -1038,11 +1091,8 @@ pub struct CGOSharedDirectoryDeleteRequest {
     pub path: *const c_char,
 }
 
-#[derive(Debug)]
-pub struct SharedDirectoryDeleteResponse {
-    completion_id: u32,
-    err_code: u32,
-}
+pub type SharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
+pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
