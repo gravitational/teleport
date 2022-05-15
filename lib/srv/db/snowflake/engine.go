@@ -189,7 +189,11 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 					Username:     sessionCtx.Identity.Username,
 					SessionToken: tokens.session.token,
-					TokenTTL:     tokens.session.ttl,
+					// TokenTTL is the TTL of the token in auth server. Technically we could remove the token when
+					// the Snowflake token expires too, but Snowflake API requires the old token to be added as a part
+					// of the renewal request. Because of that adding extra 10 minutes should allow the client to
+					// renew the token even if it's not in our "tokens" cache.
+					TokenTTL: tokens.session.ttl + 600, // add 10 minutes
 				})
 				if err != nil {
 					return "", "", trace.Wrap(err)
@@ -199,7 +203,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 				snowflakeMasterSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 					Username:     sessionCtx.Identity.Username,
 					SessionToken: tokens.master.token,
-					TokenTTL:     tokens.master.ttl,
+					TokenTTL:     tokens.master.ttl + 600, // add 10 minutes
 				})
 				if err != nil {
 					return "", "", trace.Wrap(err)
@@ -223,23 +227,42 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 				return nil, trace.Wrap(err)
 			}
 
-			//TODO(jakule): create master token entry.
-			if renewSessResp.Data.SessionToken != "" {
-				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+			if renewSessResp.Data.SessionToken == "" {
+				return nil, trace.Errorf("Snowflake renew token response doesn't contain new session token")
+			}
+
+			snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+				Username:     sessionCtx.Identity.Username,
+				SessionToken: renewSessResp.Data.SessionToken,
+				TokenTTL:     renewSessResp.Data.ValidityInSecondsST,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			e.tokens.setSessionToken(snowflakeSession.GetName(), renewSessResp.Data.SessionToken)
+			renewSessResp.Data.SessionToken = teleportAuthHeaderPrefix + snowflakeSession.GetName()
+
+			if renewSessResp.Data.MasterToken != "" {
+				masterToken, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 					Username:     sessionCtx.Identity.Username,
-					SessionToken: renewSessResp.Data.SessionToken,
-					TokenTTL:     renewSessResp.Data.ValidityInSecondsST,
+					SessionToken: renewSessResp.Data.MasterToken,
+					TokenTTL:     renewSessResp.Data.ValidityInSecondsMT,
 				})
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
-				e.tokens.setSessionToken(snowflakeSession.GetName(), renewSessResp.Data.SessionToken)
-				renewSessResp.Data.SessionToken = teleportAuthHeaderPrefix + snowflakeSession.GetName()
+				e.tokens.setMasterToken(masterToken.GetName(), renewSessResp.Data.MasterToken)
+				renewSessResp.Data.MasterToken = teleportAuthHeaderPrefix + masterToken.GetName()
 			}
 
 			newBody, err := json.Marshal(renewSessResp)
-			return newBody, trace.Wrap(err)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return newBody, nil
 		})
 
 		// Return here - processLoginResponse sends the response.
@@ -280,9 +303,8 @@ func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []by
 		return trace.Wrap(err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		e.Log.Warnf("Not 200 response code: %d", resp.StatusCode)
-	} else {
+	// Process response only if successful. Send to the client otherwise.
+	if resp.StatusCode == http.StatusOK {
 		body, err := readResponseBody(resp)
 		if err != nil {
 			return trace.Wrap(err)
@@ -341,19 +363,22 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 }
 
 func (e *Engine) process(ctx context.Context, req *http.Request, accountName string) (io.Reader, error) {
-	var newBody io.Reader
+	var (
+		newBody io.Reader
+		err     error
+	)
 
 	switch req.URL.Path {
 	case loginRequestPath:
-		jwtToken, err := e.AuthClient.GenerateSnowflakeJWT(ctx, types.GenerateSnowflakeJWT{
-			Username: e.sessionCtx.DatabaseUser,
-			Account:  accountName,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
+			jwtToken, err := e.AuthClient.GenerateSnowflakeJWT(ctx, types.GenerateSnowflakeJWT{
+				Username: e.sessionCtx.DatabaseUser,
+				Account:  accountName,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			newLoginPayload, err := replaceLoginReqToken(body, jwtToken, accountName)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -366,7 +391,6 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 			return nil, trace.Wrap(err)
 		}
 	case queryRequestPath:
-		var err error
 		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
 			query, err := extractSQLStmt(body)
 			if err != nil {
@@ -382,7 +406,6 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 			return nil, trace.Wrap(err)
 		}
 	case tokenRequestPath:
-		var err error
 		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
 			refreshReq := &renewSessionRequest{}
 			if err := json.Unmarshal(body, &refreshReq); err != nil {
@@ -396,8 +419,11 @@ func (e *Engine) process(ctx context.Context, req *http.Request, accountName str
 			}
 
 			newData, err := json.Marshal(refreshReq)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-			return newData, trace.Wrap(err)
+			return newData, nil
 		})
 
 		if err != nil {

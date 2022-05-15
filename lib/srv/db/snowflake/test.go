@@ -251,7 +251,7 @@ const (
     "token": "test-token-123",
 	"validityInSeconds": 3600,
     "masterToken": "master-token-123",
-	"masterValidityInSeconds": 144000
+	"masterValidityInSeconds": 14400
   },
   "success": true
 }`
