@@ -5069,6 +5069,7 @@ steps:
   - export VERSION="$(echo v9.0.0 | cut -d. -f1)"
   - export RELEASE_CHANNEL="stable"
   - printenv
+  - go run ./cmd/build-apt-repos -h
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -artifact-major-version
     "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL" -artifact-path "$ARTIFACT_PATH"
     -log-level 5
@@ -5484,6 +5485,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 15b1fb80dbca3510a480c6f29178da0cef00e400cae0bde0f05a76aab9043f3c
+hmac: 7586af01e44b55b3ad3d25835e668dad6b016c4d5a5363022f650f80e2abe7ce
 
 ...
