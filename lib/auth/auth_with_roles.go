@@ -312,7 +312,7 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 		}
 	}
 
-	return false
+	return true
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
