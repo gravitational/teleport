@@ -104,6 +104,9 @@ func promoteAptPipeline() pipeline {
 				"APT_S3_BUCKET": {
 					fromSecret: "APT_REPO_NEW_AWS_S3_BUCKET",
 				},
+				"AWS_REGION": {
+					raw: "us-west-2",
+				},
 				"AWS_ACCESS_KEY_ID": {
 					fromSecret: "APT_REPO_NEW_AWS_ACCESS_KEY_ID",
 				},
