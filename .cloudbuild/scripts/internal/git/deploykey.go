@@ -29,7 +29,7 @@ func writeKey(deployKey []byte) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err, "failed formatting key")
 	}
-	
+
 	if err = keyFile.Close(); err != nil {
 		return "", trace.Wrap(err, "failed writing key")
 	}
