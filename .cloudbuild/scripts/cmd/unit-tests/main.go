@@ -51,6 +51,7 @@ type commandlineArgs struct {
 	targetBranch string
 	commitSHA    string
 	githubKeySrc string
+	skipUnshallow          bool
 }
 
 func parseCommandLine() (commandlineArgs, error) {
@@ -60,6 +61,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	flag.StringVar(&args.targetBranch, "target", "", "The PR's target branch")
 	flag.StringVar(&args.commitSHA, "commit", "HEAD", "The PR's latest commit SHA")
 	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
+	flag.BoolVar(&args.skipUnshallow, "skip-unshallow", false, "Skip unshallowing the repository.")
 
 	flag.Parse()
 
@@ -103,11 +105,13 @@ func innerMain() error {
 		}
 	}
 
-	unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer unshallowCancel()
-	err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
-	if err != nil {
-		return trace.Wrap(err, "unshallow failed")
+	if !args.skipUnshallow {
+		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer unshallowCancel()
+		err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
+		if err != nil {
+			return trace.Wrap(err, "unshallow failed")
+		}
 	}
 
 	log.Println("Analysing code changes")

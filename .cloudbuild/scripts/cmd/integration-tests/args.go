@@ -24,11 +24,12 @@ import (
 )
 
 type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
-	skipChown    bool
-	githubKeySrc string
+	workspace              string
+	targetBranch           string
+	commitSHA              string
+	skipChown              bool
+	githubKeySrc           string
+	skipUnshallow          bool
 }
 
 // validate ensures the suplied arguments are valid & internally consistent.
@@ -61,6 +62,7 @@ func parseCommandLine() (*commandlineArgs, error) {
 	flag.StringVar(&args.commitSHA, "commit", "HEAD", "The PR's latest commit SHA")
 	flag.BoolVar(&args.skipChown, "skip-chown", false, "Skip reconfiguring the workspace for a nonroot user.")
 	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
+	flag.BoolVar(&args.skipUnshallow, "skip-unshallow", false, "Skip unshallowing the repository.")
 
 	flag.Parse()
 
