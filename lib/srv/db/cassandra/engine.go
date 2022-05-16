@@ -20,6 +20,7 @@
 package cassandra
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -109,8 +110,22 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 
 		e.Log.Infof("frame: %v", f)
+		e.Log.Infof("OpCode: %+v", rawFrame.Header.OpCode)
 
 		switch rawFrame.Header.OpCode {
+		case primitive.OpCodeAuthResponse:
+			body, err := codec.ConvertFromRawFrame(rawFrame)
+			if err != nil {
+				return trace.Wrap(err, "failed to decode auth response")
+			}
+
+			if authResp, ok := body.Body.Message.(*message.AuthResponse); ok {
+				data := bytes.Split(authResp.Token, []byte{0})
+				if len(data) != 3 {
+					return trace.BadParameter("failed to extract username from auth package.")
+				}
+				e.Log.Infof("auth response: %s, %s", string(data[1]), string(data[2]))
+			}
 		case primitive.OpCodeQuery:
 			body, err := codec.ConvertFromRawFrame(rawFrame)
 			if err != nil {
