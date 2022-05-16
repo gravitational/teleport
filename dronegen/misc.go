@@ -34,7 +34,7 @@ func promoteAptPipeline() pipeline {
 		{
 			Name: debVolumeName,
 			Claim: &volumeClaim{
-				Name: "drone-s3-debrepo-rfd0058-pvc",
+				Name: "drone-s3-debrepo-new-pvc",
 			},
 		},
 	}
@@ -44,13 +44,13 @@ func promoteAptPipeline() pipeline {
 			Image: "golang:1.18.1-bullseye",
 			Environment: map[string]value{
 				"APT_S3_BUCKET": {
-					fromSecret: "APT_REPO_RFD0058_AWS_S3_BUCKET",
+					fromSecret: "APT_REPO_NEW_AWS_S3_BUCKET",
 				},
 				"AWS_ACCESS_KEY_ID": {
-					fromSecret: "APT_REPO_RFD0058_AWS_ACCESS_KEY_ID",
+					fromSecret: "APT_REPO_NEW_AWS_ACCESS_KEY_ID",
 				},
 				"AWS_SECRET_ACCESS_KEY": {
-					fromSecret: "APT_REPO_RFD0058_AWS_SECRET_ACCESS_KEY",
+					fromSecret: "APT_REPO_NEW_AWS_SECRET_ACCESS_KEY",
 				},
 			},
 			Commands: []string{

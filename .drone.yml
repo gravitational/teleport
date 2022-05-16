@@ -5041,18 +5041,18 @@ steps:
     -log-level 4
   environment:
     APT_S3_BUCKET:
-      from_secret: APT_REPO_RFD0058_AWS_S3_BUCKET
+      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
     AWS_ACCESS_KEY_ID:
-      from_secret: APT_REPO_RFD0058_AWS_ACCESS_KEY_ID
+      from_secret: APT_REPO_NEW_AWS_ACCESS_KEY_ID
     AWS_SECRET_ACCESS_KEY:
-      from_secret: APT_REPO_RFD0058_AWS_SECRET_ACCESS_KEY
+      from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
   volumes:
   - name: debrepo
     path: /repo_bucket
 volumes:
 - name: debrepo
   claim:
-    name: drone-s3-debrepo-rfd0058-pvc
+    name: drone-s3-debrepo-new-pvc
 
 ---
 kind: pipeline
@@ -5442,6 +5442,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 5a8f84f75e2c0454cbc5ec75ea529cd7e9832c71007824e4efce1505caed6a75
+hmac: cb30d2191c8244d05b118838202fef230e002f2ebb04875544645fccb5351fb4
 
 ...
