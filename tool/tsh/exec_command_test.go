@@ -16,9 +16,10 @@ package main
 
 import (
 	"os"
-	os_exec "os/exec"
 	"path"
 	"testing"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/kingpin"
 	"github.com/stretchr/testify/require"
@@ -117,98 +118,88 @@ echo $TSH >> tsh.env`, tmp}
 }
 
 func Test_findShell(t *testing.T) {
-	mkshell := func(fn string) {
-		// use existing `sh` binary for tests.
-		shPath, err := os_exec.LookPath("sh")
-		require.NoError(t, err)
-
-		file, err := os.ReadFile(shPath)
-		require.NoError(t, err)
-
-		err = os.WriteFile(fn, file, 0777)
-		require.NoError(t, err)
-	}
-
-	tmp := t.TempDir()
-
 	tests := []struct {
-		name string
-		init func(t *testing.T) string
-		want string
+		name           string
+		customShell    string
+		shellEnvVar    string
+		binariesInPath map[string]string
+		want           string
+		wantError      bool
 	}{
 		{
-			name: "return custom shell",
-			init: func(t *testing.T) string {
-				err := os.MkdirAll(path.Join(tmp, "custom"), 0777)
-				require.NoError(t, err)
-
-				dummyShell := path.Join(tmp, "custom", "dummysh")
-				mkshell(dummyShell)
-
-				return dummyShell
-			},
-			want: path.Join(tmp, "custom", "dummysh"),
+			name:           "return custom shell",
+			customShell:    "dummysh",
+			binariesInPath: map[string]string{"dummysh": "/opt/dummysh"},
+			want:           "/opt/dummysh",
 		},
 
 		{
-			name: "return $SHELL",
-			init: func(t *testing.T) string {
-				err := os.MkdirAll(path.Join(tmp, "SHELL"), 0777)
-				require.NoError(t, err)
-
-				dummyShell := path.Join(tmp, "SHELL", "dummysh")
-				mkshell(dummyShell)
-
-				t.Setenv("SHELL", dummyShell)
-
-				return ""
-			},
-			want: path.Join(tmp, "SHELL", "dummysh"),
+			name:           "missing custom shell",
+			customShell:    "dummysh",
+			binariesInPath: map[string]string{},
+			wantError:      true,
 		},
 
 		{
-			name: "return sh from PATH",
-			init: func(t *testing.T) string {
-				err := os.MkdirAll(path.Join(tmp, "PATH_SH"), 0777)
-				require.NoError(t, err)
-
-				dummyShell := path.Join(tmp, "PATH_SH", "sh")
-				mkshell(dummyShell)
-
-				// unset shell, set path
-				t.Setenv("SHELL", "")
-				t.Setenv("PATH", path.Join(tmp, "PATH_SH"))
-
-				return ""
-			},
-			want: path.Join(tmp, "PATH_SH", "sh"),
+			name:           "return sh from PATH",
+			binariesInPath: map[string]string{"sh": "/bin/sh"},
+			want:           "/bin/sh",
 		},
 
 		{
 			name: "return bash from PATH",
-			init: func(t *testing.T) string {
-				err := os.MkdirAll(path.Join(tmp, "PATH_BASH"), 0777)
-				require.NoError(t, err)
-
-				dummyShell := path.Join(tmp, "PATH_BASH", "bash")
-				mkshell(dummyShell)
-
-				// unset shell, set path
-				t.Setenv("SHELL", "")
-				t.Setenv("PATH", path.Join(tmp, "PATH_BASH"))
-
-				return ""
+			binariesInPath: map[string]string{
+				"sh":   "/bin/sh",
+				"bash": "/bin/bash",
 			},
-			want: path.Join(tmp, "PATH_BASH", "bash"),
+			want: "/bin/bash",
+		},
+
+		{
+			name:        "return $SHELL",
+			shellEnvVar: "shellEnvVar",
+			binariesInPath: map[string]string{
+				"shellEnvVar": "/opt/shellEnvVar",
+				"sh":          "/bin/sh",
+				"bash":        "/bin/bash",
+			},
+			want: "/opt/shellEnvVar",
+		},
+
+		{
+			name:           "nothing found, shell set",
+			shellEnvVar:    "shellEnvVar",
+			binariesInPath: map[string]string{},
+			wantError:      true,
+		},
+		{
+			name:           "nothing found, shell unset",
+			binariesInPath: map[string]string{},
+			wantError:      true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			customShell := tt.init(t)
-			shell, err := findShell(customShell)
-			require.NoError(t, err)
-			require.Equal(t, tt.want, shell)
+			if tt.shellEnvVar != "" {
+				t.Setenv("SHELL", tt.shellEnvVar)
+			}
+
+			lookPath := func(file string) (string, error) {
+				if fp, found := tt.binariesInPath[file]; found {
+					return fp, nil
+				}
+
+				return "", trace.NotFound("not found: %v", file)
+			}
+			out, err := findShell(tt.customShell, lookPath)
+
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.want, out)
+			}
 		})
 	}
 }

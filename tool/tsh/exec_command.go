@@ -35,10 +35,10 @@ type execCommand struct {
 	cmd *kingpin.CmdClause
 }
 
-func findShell(shell string) (string, error) {
+func findShell(shell string, lookPath func(file string) (string, error)) (string, error) {
 	// if shell is explicit, don't try heuristics.
 	if shell != "" {
-		return exec.LookPath(shell)
+		return lookPath(shell)
 	}
 
 	// try to find usable shell.
@@ -49,7 +49,7 @@ func findShell(shell string) (string, error) {
 			continue
 		}
 
-		fp, err := exec.LookPath(option)
+		fp, err := lookPath(option)
 		if err == nil {
 			return fp, nil
 		}
@@ -60,7 +60,7 @@ func findShell(shell string) (string, error) {
 }
 
 func (c *execCommand) runCommand(cf *CLIConf) error {
-	shell, err := findShell(c.shell)
+	shell, err := findShell(c.shell, exec.LookPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to find a working shell/executable")
 	}
