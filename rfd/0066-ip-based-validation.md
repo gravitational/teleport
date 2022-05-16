@@ -84,7 +84,12 @@ This change should be mostly transparent for the user. Administrator will add re
 should work for all users.
 
 If user tries to use certificate on other machine (different IP) `tsh` will force relogin as it currently does when
-certificate expires.
+certificate expires:
+
+```shell
+~$ ./teleport/tsh ssh node1.cluster.local
+Enter password for Teleport user admin:
+```
 
 ### Security
 
