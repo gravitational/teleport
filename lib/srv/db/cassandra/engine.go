@@ -31,7 +31,9 @@ import (
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -74,6 +76,11 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	err := e.authorizeConnection(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	codec := frame.NewRawCodec()
 
 	e.Log.Info("Accepted new connection")
@@ -87,6 +94,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		buff: make([]byte, 0),
 		r:    e.clientConn,
 	}
+
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
 	srvConn, err := tls.Dial("tcp", sessionCtx.Database.GetURI(), tlsConfig)
 	if err != nil {
@@ -104,13 +114,13 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err, "failed to decode frame")
 		}
 
-		f, err := rawFrame.Dump()
-		if err != nil {
-			return trace.Wrap(err, "failed to dump frame")
-		}
+		//f, err := rawFrame.Dump()
+		//if err != nil {
+		//	return trace.Wrap(err, "failed to dump frame")
+		//}
 
-		e.Log.Infof("frame: %v", f)
-		e.Log.Infof("OpCode: %+v", rawFrame.Header.OpCode)
+		//e.Log.Infof("frame: %v", f)
+		//e.Log.Infof("OpCode: %+v", rawFrame.Header.OpCode)
 
 		switch rawFrame.Header.OpCode {
 		case primitive.OpCodeAuthResponse:
@@ -124,7 +134,13 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 				if len(data) != 3 {
 					return trace.BadParameter("failed to extract username from auth package.")
 				}
-				e.Log.Infof("auth response: %s, %s", string(data[1]), string(data[2]))
+				username := string(data[1])
+
+				e.Log.Infof("auth response: %s, %s", username, string(data[2]))
+
+				if e.sessionCtx.DatabaseUser != username {
+					return trace.AccessDenied("user %s is not authorized to access the database", username)
+				}
 			}
 		case primitive.OpCodeQuery:
 			body, err := codec.ConvertFromRawFrame(rawFrame)
@@ -133,7 +149,10 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			}
 
 			if query, ok := body.Body.Message.(*message.Query); ok {
-				e.Log.Infof("query: %s", query.Query)
+				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+					Query:      query.Query,
+					Parameters: []string{"keyspace", query.Options.Keyspace}, //TODO(jakule): What is the correct format?
+				})
 			}
 		}
 
@@ -144,6 +163,35 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 		bconn.Reset()
 	}
+}
+
+// authorizeConnection does authorization check for Cassandra connection about
+// to be established.
+func (e *Engine) authorizeConnection(ctx context.Context) error {
+	ap, err := e.Auth.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       e.sessionCtx.Identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
+
+	dbRoleMatchers := role.DatabaseRoleMatchers(
+		e.sessionCtx.Database.GetProtocol(),
+		e.sessionCtx.DatabaseUser,
+		e.sessionCtx.DatabaseName,
+	)
+	err = e.sessionCtx.Checker.CheckAccess(
+		e.sessionCtx.Database,
+		mfaParams,
+		dbRoleMatchers...,
+	)
+	if err != nil {
+		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 type buffConn struct {
