@@ -120,6 +120,10 @@ message KubernetesClusterMetadata {
     repeated string KubernetesUsers = 2 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
     // KubernetesGroups is a list of kubernetes groups for the user.
     repeated string KubernetesGroups = 3 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
+    // KubernetesClusterLabels are the labels (static and dynamic) of the kubernetes cluster the
+    // session occurred on.
+    map<string, string> KubernetesClusterLabels = 4
+        [ (gogoproto.jsontag) = "kubernetes_cluster_labels,omitempty" ];
 }
 
 // KubernetesPodMetadata contains common metadata for kubernetes pod-related

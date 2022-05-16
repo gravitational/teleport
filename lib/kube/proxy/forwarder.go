@@ -311,11 +311,12 @@ func (f *Forwarder) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
 	auth.Context
-	kubeGroups      map[string]struct{}
-	kubeUsers       map[string]struct{}
-	kubeCluster     string
-	teleportCluster teleportClusterClient
-	recordingConfig types.SessionRecordingConfig
+	kubeGroups        map[string]struct{}
+	kubeUsers         map[string]struct{}
+	kubeClusterLabels map[string]string
+	kubeCluster       string
+	teleportCluster   teleportClusterClient
+	recordingConfig   types.SessionRecordingConfig
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
 	// disconnectExpiredCert if set, controls the time when the connection
@@ -337,9 +338,10 @@ func (c *authContext) key() string {
 
 func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
 	return apievents.KubernetesClusterMetadata{
-		KubernetesCluster: c.kubeCluster,
-		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
-		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
+		KubernetesCluster:       c.kubeCluster,
+		KubernetesUsers:         utils.StringsSliceFromSet(c.kubeUsers),
+		KubernetesGroups:        utils.StringsSliceFromSet(c.kubeGroups),
+		KubernetesClusterLabels: c.kubeClusterLabels,
 	}
 }
 
@@ -535,6 +537,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
 	}
+
 	isRemoteCluster := f.cfg.ClusterName != teleportClusterName
 
 	if isRemoteCluster && isRemoteUser {
@@ -556,7 +559,10 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		}
 	}
 
-	var kubeUsers, kubeGroups []string
+	var (
+		kubeUsers, kubeGroups []string
+		kubeLabels            map[string]string
+	)
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
@@ -564,7 +570,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	if !isRemoteCluster {
 		var err error
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
-		kubeGroups, kubeUsers, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
+		kubeGroups, kubeUsers, kubeLabels, err = f.getKubeGroupsUsersAndLabels(roles, kubeCluster, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -651,6 +657,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
+		kubeClusterLabels: kubeLabels,
 		recordingConfig:   recordingConfig,
 		kubeCluster:       kubeCluster,
 		teleportCluster: teleportClusterClient{
@@ -675,14 +682,14 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	return authCtx, nil
 }
 
-// getKubeGroupsAndUsers returns the allowed kube groups/users names for a local kube cluster.
-func (f *Forwarder) getKubeGroupsAndUsers(
+// getKubeGroupsUsersAndLabels returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
+func (f *Forwarder) getKubeGroupsUsersAndLabels(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (groups, users []string, err error) {
+	sessionTTL time.Duration) (groups, users []string, labels map[string]string, err error) {
 	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
@@ -697,13 +704,13 @@ func (f *Forwarder) getKubeGroupsAndUsers(
 			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
 			groups, users, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
 			if err != nil {
-				return nil, nil, trace.Wrap(err)
+				return nil, nil, nil, trace.Wrap(err)
 			}
-			return groups, users, nil
+			return groups, users, labels, nil
 		}
 	}
 	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
-	return []string{}, []string{}, nil
+	return []string{}, []string{}, nil, nil
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
