@@ -649,6 +649,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if r.Spec.Options.DesktopClipboard == nil {
 		r.Spec.Options.DesktopClipboard = NewBoolOption(true)
 	}
+	if r.Spec.Options.DesktopDirectorySharing == nil {
+		r.Spec.Options.DesktopDirectorySharing = NewBoolOption(false)
+	}
 
 	switch r.Version {
 	case V3:
@@ -1001,6 +1004,15 @@ func NewBoolOption(b bool) *BoolOption {
 func BoolDefaultTrue(v *BoolOption) bool {
 	if v == nil {
 		return true
+	}
+	return v.Value
+}
+
+// BoolDefaultFalse returns false if v is not set (pointer is nil)
+// otherwise returns real boolean value
+func BoolDefaultFalse(v *BoolOption) bool {
+	if v == nil {
+		return false
 	}
 	return v.Value
 }
