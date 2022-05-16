@@ -1729,7 +1729,6 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	if !ok {
 		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeCluster)
 	}
-	f.log.Debugf("local Servername: %v", creds.tlsConfig.ServerName)
 
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
 	return &clusterSession{
@@ -1781,7 +1780,11 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sess.tlsConfig.NextProtos = nil
+		// when certificate-authority-data is not provided in kubeconfig the tlsConfig can be nil,
+		// meaning that we will use the system default CA store.
+		if sess.tlsConfig != nil {
+			sess.tlsConfig.NextProtos = nil
+		}
 	}
 
 	rt := http.RoundTripper(transport)
