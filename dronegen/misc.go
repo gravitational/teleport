@@ -62,6 +62,9 @@ func promoteAptPipeline() pipeline {
 				"AWS_SECRET_ACCESS_KEY": {
 					fromSecret: "APT_REPO_NEW_AWS_SECRET_ACCESS_KEY",
 				},
+				"GNUPGHOME": {
+					raw: "/tmpfs/gnupg",
+				},
 			},
 			Commands: []string{
 				"mkdir -m0700 $GNUPGHOME",
