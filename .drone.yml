@@ -5047,7 +5047,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - mkdir -pv /go/artifacts
-  - aws s3 sync --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5481,6 +5481,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 1f1436d875d817a7a0c25d09a1d90d2ad91b84efe86ff284eb533dc73ff89760
+hmac: f24266d1628ea87cf47933db2dfbf3156a2e2468d16d7df54090d39d117b79e4
 
 ...
