@@ -25,7 +25,7 @@ func promoteBuildPipeline() pipeline {
 
 // This function calls the build-apt-repos tool which handles the APT portion of RFD 0058.
 func promoteAptPipeline() pipeline {
-	debVolumeName := "debrepo"
+	aptVolumeName := "aptrepo"
 
 	p := newKubePipeline("publish-apt-new-repos")
 	// p.Trigger = triggerPromote
@@ -42,9 +42,9 @@ func promoteAptPipeline() pipeline {
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
 		{
-			Name: debVolumeName,
+			Name: aptVolumeName,
 			Claim: &volumeClaim{
-				Name: "drone-s3-debrepo-new-pvc",
+				Name: "drone-s3-aptrepo-pvc",
 			},
 		},
 	}
@@ -87,7 +87,7 @@ func promoteAptPipeline() pipeline {
 			},
 			Volumes: []volumeRef{
 				{
-					Name: debVolumeName,
+					Name: aptVolumeName,
 					Path: "/repo_bucket",
 				},
 			},

@@ -5051,12 +5051,12 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
   volumes:
-  - name: debrepo
+  - name: aptrepo
     path: /repo_bucket
 volumes:
-- name: debrepo
+- name: aptrepo
   claim:
-    name: drone-s3-debrepo-new-pvc
+    name: drone-s3-aptrepo-pvc
 
 ---
 kind: pipeline
@@ -5446,6 +5446,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 6f4aeab8dc9e2d5d0f021552a73e6ff9c84266be831f84cd9e0822f1d09e72d8
+hmac: 066a9f96288996db744f19eaae0e4d0b2811f3bdc23a998a643ec671418f5ada
 
 ...
