@@ -617,6 +617,10 @@ func replaceLoginReqToken(loginReq []byte, jwtToken, accountName, dbUser string)
 	// Erase other authentication methods as we're using JWT.
 	logReq.Data.Password = ""
 	logReq.Data.ExtAuthnDuoMethod = ""
+	logReq.Data.RawSAMLResponse = ""
+	logReq.Data.Passcode = ""
+	logReq.Data.BrowserModeRedirectPort = ""
+	logReq.Data.ProofKey = ""
 
 	return json.Marshal(logReq)
 }
