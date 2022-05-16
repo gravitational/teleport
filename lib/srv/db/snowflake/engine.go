@@ -30,7 +30,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"strconv"
 	"strings"
 	"time"
@@ -117,14 +116,7 @@ func (e *Engine) SendError(err error) {
 		},
 	}
 
-	dumpResponse, err := httputil.DumpResponse(response, true)
-	if err != nil {
-		e.Log.Errorf("snowflake error: %+v", trace.Unwrap(err))
-		return
-	}
-
-	_, err = e.clientConn.Write(dumpResponse)
-	if err != nil {
+	if err := response.Write(e.clientConn); err != nil {
 		e.Log.Errorf("snowflake error: %+v", trace.Unwrap(err))
 		return
 	}
@@ -281,19 +273,10 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 
 // sendResponse sends the response back to the Snowflake client.
 func (e *Engine) sendResponse(resp *http.Response) error {
-	dumpResp, err := httputil.DumpResponse(resp, false)
-	if err != nil {
+	if err := resp.Write(e.clientConn); err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = e.clientConn.Write(dumpResp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := io.Copy(e.clientConn, resp.Body); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
@@ -306,11 +289,6 @@ func (e *Engine) setAuthorizationHeader(reqCopy *http.Request, snowflakeToken st
 }
 
 func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []byte) ([]byte, error)) error {
-	dumpResp, err := httputil.DumpResponse(resp, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Process response only if successful. Send to the client otherwise.
 	if resp.StatusCode == http.StatusOK {
 		body, err := readResponseBody(resp)
@@ -328,16 +306,14 @@ func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []by
 			return trace.Wrap(err)
 		}
 
-		dumpResp, err = copyResponse(resp, buf.Bytes())
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		resp.Body = io.NopCloser(buf)
+		resp.ContentLength = int64(buf.Len())
 	}
 
-	_, err = e.clientConn.Write(dumpResp)
-	if err != nil {
+	if err := resp.Write(e.clientConn); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 

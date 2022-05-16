@@ -25,7 +25,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"net/http/httputil"
 	"strings"
 
 	"github.com/gravitational/teleport"
@@ -62,15 +61,6 @@ func copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.
 	}
 
 	return reqCopy, nil
-}
-
-func copyResponse(resp *http.Response, body []byte) ([]byte, error) {
-	resp.Body = io.NopCloser(bytes.NewBuffer(body))
-	resp.ContentLength = int64(len(body))
-
-	delete(resp.Header, "Content-Length")
-
-	return httputil.DumpResponse(resp, true)
 }
 
 func readRequestBody(req *http.Request) ([]byte, error) {
