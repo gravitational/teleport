@@ -86,10 +86,10 @@ func promoteAptPipeline() pipeline {
 				},
 			},
 			Commands: []string{
-				"mkdir -pv ${ARTIFACT_PATH}",
+				"mkdir -pv \"$ARTIFACT_PATH\"",
 				// TODO re-enable this after done more testing
 				// "aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/",
-				"aws s3 sync --no-progress --delete --exclude \"*\" --include \"*.deb*\" \"s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/\" \"${ARTIFACT_PATH}\"",
+				"aws s3 sync --no-progress --delete --exclude \"*\" --include \"*.deb*\" \"s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/\" \"$ARTIFACT_PATH\"",
 			},
 		},
 		{
@@ -136,7 +136,7 @@ func promoteAptPipeline() pipeline {
 						"-bucket \"$APT_S3_BUCKET\"",
 						"-artifact-major-version \"$VERSION\"",
 						"-artifact-release-channel \"$RELEASE_CHANNEL\"",
-						"-artifact-path \"${ARTIFACT_PATH}\"",
+						"-artifact-path \"$ARTIFACT_PATH\"",
 						"-log-level 5", // Set this to 5 for debug logging
 					},
 					" ",
