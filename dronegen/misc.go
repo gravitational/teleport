@@ -14,7 +14,10 @@
 
 package main
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 func promoteBuildPipeline() pipeline {
 	// TODO: migrate
@@ -25,6 +28,7 @@ func promoteBuildPipeline() pipeline {
 
 // This function calls the build-apt-repos tool which handles the APT portion of RFD 0058.
 func promoteAptPipeline() pipeline {
+	testVersion := "9.2.3"
 	aptVolumeName := "aptrepo"
 	artifactPath := "/go/artifacts"
 
@@ -81,9 +85,19 @@ func promoteAptPipeline() pipeline {
 			},
 			Commands: []string{
 				"mkdir -pv \"$ARTIFACT_PATH\"",
-				// TODO re-enable this after done more testing
-				// "aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/",
-				"aws s3 sync --no-progress --delete --exclude \"*\" --include \"*.deb*\" \"s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/\" \"$ARTIFACT_PATH\"",
+				strings.Join(
+					[]string{
+						"aws s3 sync",
+						"--no-progress",
+						"--delete",
+						"--exclude \"*\"",
+						"--include \"*.deb*\"",
+						// TODO change from sprintf to `s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/` after testing
+						fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", testVersion),
+						"\"$ARTIFACT_PATH\"",
+					},
+					" ",
+				),
 			},
 		},
 		{
@@ -126,7 +140,7 @@ func promoteAptPipeline() pipeline {
 				"cd /go/src/github.com/gravitational/teleport/build.assets/tooling",
 				// TODO uncomment after more testing
 				// "export VERSION=\"$(echo $DRONE_TAG | cut -d. -f1)\"",
-				"export VERSION=\"$(echo v9.0.0 | cut -d. -f1)\"",
+				fmt.Sprintf("export VERSION=\"$(echo v%s | cut -d. -f1)\"", testVersion),
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
 				strings.Join(
 					[]string{

@@ -5004,7 +5004,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:31
+# Generated at dronegen/misc.go:35
 ################################################
 
 kind: pipeline
@@ -5022,12 +5022,6 @@ workspace:
   path: /go
 clone:
   disable: true
-depends_on:
-- build-linux-amd64-deb
-- build-linux-amd64-fips-deb
-- build-linux-386-deb
-- build-linux-arm-deb
-- build-linux-arm64-deb
 steps:
 - name: Check out code
   image: alpine/git:latest
@@ -5047,7 +5041,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" "s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/9.2.3/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -5066,7 +5060,7 @@ steps:
   - apt update
   - apt install aptly -y
   - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-  - export VERSION="$(echo v9.0.0 | cut -d. -f1)"
+  - export VERSION="$(echo v9.2.3 | cut -d. -f1)"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -artifact-major-version
     "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL" -artifact-path "$ARTIFACT_PATH"
@@ -5484,6 +5478,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: c07c4c9abae68a631eb0ef14422cec79b61bc5dc6f57a3c2d9723ca4d2f3f72c
+hmac: 2d4a8fb44c0da6a6ee716dc379363f2709d382b77cc7f087d3cc35ae160fbc80
 
 ...
