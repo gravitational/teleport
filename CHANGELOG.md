@@ -1,5 +1,17 @@
 # Changelog
 
+## 8.3.10
+
+This release of Teleport contains multiple bug fixes and stability improvements.
+
+* Fixed issue with broken SSH connectivity after CA rotation. [#12332](https://github.com/gravitational/teleport/pull/12332)
+* Fixed issue with `tsh db ls` not working for leaf clusters. [#12319](https://github.com/gravitational/teleport/pull/12319)
+* Fixed issue with labels matching for dynamic databases. [#12452](https://github.com/gravitational/teleport/pull/12452)
+* Fixed issue with resource listing not respecting limit. [#12501](https://github.com/gravitational/teleport/pull/12501)
+* Improved DynamoDB pay-per-request mode support. [#12460](https://github.com/gravitational/teleport/pull/12460)
+* Improved expiration handling in the internal caching system. [#12246](https://github.com/gravitational/teleport/pull/12246)
+* Improved reliability of restart/shutdown in certain scenarios. [#12394](https://github.com/gravitational/teleport/pull/12394)
+
 ## 8.3.9
 
 This release of Teleport contains several improvements and bug fixes.
