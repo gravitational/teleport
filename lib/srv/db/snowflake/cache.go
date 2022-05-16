@@ -19,6 +19,7 @@
 
 package snowflake
 
+// tokenCache is a simple in memory map between Teleport WebSession ID and Snowflake tokens.
 type tokenCache struct {
 	sessionToken      string
 	teleportSessionID string

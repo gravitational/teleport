@@ -153,13 +153,15 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 }
 
+// processRequest reads request from connected Snowflake client, processes the requests/responses and send data back
+// to the client.
 func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
 	snowflakeToken, err := e.getConnectionToken(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	requestBodyReader, err := e.process(ctx, req, accountName)
+	requestBodyReader, err := e.processPath(ctx, req, accountName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -272,6 +274,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 	return trace.Wrap(e.sendResponse(resp))
 }
 
+// sendResponse sends the response back to the Snowflake client.
 func (e *Engine) sendResponse(resp *http.Response) error {
 	dumpResp, err := httputil.DumpResponse(resp, false)
 	if err != nil {
@@ -362,7 +365,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) process(ctx context.Context, req *http.Request, accountName string) (io.Reader, error) {
+func (e *Engine) processPath(ctx context.Context, req *http.Request, accountName string) (io.Reader, error) {
 	var (
 		newBody io.Reader
 		err     error
@@ -484,6 +487,8 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 	return snowflakeToken, nil
 }
 
+// getSnowflakeToken returns the Snowflake token from local in memory cache or from auth server if local cache doesn't have it.
+// This function may time out if auth server doesn't respond in reasonable time.
 func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (string, error) {
 	snowflakeToken := e.tokens.getSessionToken(sessionToken)
 	if snowflakeToken != "" {
@@ -507,6 +512,9 @@ func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (st
 	return snowflakeSession.GetBearerToken(), nil
 }
 
+// processLoginResponse extracts session and master token from /queries/v1/query-request and store in auth server as
+// web session. Session ID replaces the session/master token returned to the Snowflake client, so only Teleport
+// has access to the Snowflake access tokens.
 func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tokens sessionTokens) (string, string, error)) ([]byte, error) {
 	loginResp := &loginResponse{}
 	decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
@@ -603,6 +611,7 @@ func extractSQLStmt(body []byte) (string, error) {
 	return queryRequest.SQLText, nil
 }
 
+// replaceLoginReqToken modifies the login request sent by Snowflake client with Teleport's credentials.
 func replaceLoginReqToken(loginReq []byte, jwtToken, accountName, dbUser string) ([]byte, error) {
 	logReq := &loginRequest{}
 	if err := json.Unmarshal(loginReq, logReq); err != nil {
