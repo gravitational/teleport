@@ -127,7 +127,9 @@ func promoteAptPipeline() pipeline {
 				"apt update",
 				"apt install aptly -y",
 				"cd /go/src/github.com/gravitational/teleport/build.assets/tooling",
-				"export VERSION=\"v`cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt`\"",
+				// TODO uncomment after more testing
+				// "export VERSION=\"$(cut -d. -f1 - <<< $DRONE_TAG)\"",
+				"export VERSION=\"$(cut -d. -f1 - <<< v9.0.0)\"",
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
 				strings.Join(
 					[]string{
