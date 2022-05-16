@@ -77,6 +77,55 @@ func TestDatabaseStatus(t *testing.T) {
 	require.Equal(t, awsMeta, database.GetAWS())
 }
 
+func TestDatabaseElastiCacheEndpoint(t *testing.T) {
+	t.Run("valid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "elasticache",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "ca-central-1",
+			ElastiCache: ElastiCache{
+				ReplicationGroupID:       "my-redis-cluster",
+				TransitEncryptionEnabled: true,
+				EndpointType:             "configuration",
+			},
+		}, database.GetAWS())
+		require.True(t, database.IsElastiCache())
+		require.True(t, database.IsAWSHosted())
+		require.True(t, database.IsCloudHosted())
+	})
+
+	t.Run("invalid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "elasticache",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "some.endpoint.cache.amazonaws.com:6379",
+			AWS: AWS{
+				Region: "us-east-5",
+				ElastiCache: ElastiCache{
+					ReplicationGroupID: "some-id",
+				},
+			},
+		})
+
+		// A warning is logged, no error is returned, and AWS metadata is not
+		// updated.
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "us-east-5",
+			ElastiCache: ElastiCache{
+				ReplicationGroupID: "some-id",
+			},
+		}, database.GetAWS())
+	})
+}
+
 func TestMySQLVersionValidation(t *testing.T) {
 	t.Parallel()
 
