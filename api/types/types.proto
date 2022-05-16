@@ -288,6 +288,9 @@ message AWS {
     RDS RDS = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rds,omitempty" ];
     // AccountID is the AWS account ID this database belongs to.
     string AccountID = 4 [ (gogoproto.jsontag) = "account_id,omitempty" ];
+    // ElastiCache contains AWS ElastiCache Redis specific metadata.
+    ElastiCache ElastiCache = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "elasticache,omitempty" ];
 }
 
 // Redshift contains AWS Redshift specific database metadata.
@@ -306,6 +309,19 @@ message RDS {
     string ResourceID = 3 [ (gogoproto.jsontag) = "resource_id,omitempty" ];
     // IAMAuth indicates whether database IAM authentication is enabled.
     bool IAMAuth = 4 [ (gogoproto.jsontag) = "iam_auth" ];
+}
+
+// ElastiCache contains AWS ElastiCache Redis specific metadata.
+message ElastiCache {
+    // ReplicationGroupID is the Redis replication group ID.
+    string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id,omitempty" ];
+    // UserGroupIDs is a list of user group IDs.
+    repeated string UserGroupIDs = 2 [ (gogoproto.jsontag) = "user_group_ids,omitempty" ];
+    // TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.
+    bool TransitEncryptionEnabled = 3
+        [ (gogoproto.jsontag) = "transit_encryption_enabled,omitempty" ];
+    // EndpointType is the type of the endpoint.
+    string EndpointType = 4 [ (gogoproto.jsontag) = "endpoint_type,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -3098,6 +3114,18 @@ message SessionTrackerSpecV1 {
     // creation.
     repeated SessionTrackerPolicySet HostPolicies = 16
         [ (gogoproto.jsontag) = "host_roles,omitempty" ];
+
+    // DatabaseName is the database server this session belongs to.
+    string DatabaseName = 17 [ (gogoproto.jsontag) = "database_name,omitempty" ];
+
+    // AppName is the app server this session belongs to.
+    string AppName = 18 [ (gogoproto.jsontag) = "app_name,omitempty" ];
+
+    // AppSessionID is the unique ID of the app access certificate used to start this app session.
+    string AppSessionID = 19 [ (gogoproto.jsontag) = "app_session_id,omitempty" ];
+
+    // DesktopName is the windows desktop server this session belongs to.
+    string DesktopName = 20 [ (gogoproto.jsontag) = "desktop_name,omitempty" ];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

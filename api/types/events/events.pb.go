@@ -1655,7 +1655,9 @@ func (m *AccessRequestCreate) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AccessRequestCreate proto.InternalMessageInfo
 
-// ResourceID is a unique identifier for a teleport resource.
+// ResourceID is a unique identifier for a teleport resource. This is duplicated
+// from api/types/types.proto to decouple the api and events types and because
+// neither file currently imports the other.
 type ResourceID struct {
 	// ClusterName is the name of the cluster the resource is in.
 	ClusterName string `protobuf:"bytes,1,opt,name=ClusterName,proto3" json:"cluster"`

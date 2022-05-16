@@ -127,7 +127,9 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConn, err := tls.Dial("tcp", address, conf)
+		tlsConn, err := tls.DialWithDialer(&net.Dialer{
+			Timeout: timeout,
+		}, "tcp", address, conf)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -184,7 +186,12 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		conn = tls.Client(conn, conf)
+		tlsConn := tls.Client(conn, conf)
+		if err = tlsConn.HandshakeContext(ctx); err != nil {
+			conn.Close()
+			return nil, trace.Wrap(err)
+		}
+		conn = tlsConn
 	}
 	return conn, nil
 }

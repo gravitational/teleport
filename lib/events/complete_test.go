@@ -233,7 +233,7 @@ func (m *mockSessionTrackerService) GetSessionTracker(ctx context.Context, sessi
 	return nil, trace.NotFound("tracker not found")
 }
 
-func (m *mockSessionTrackerService) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
+func (m *mockSessionTrackerService) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
 	return nil, trace.NotImplemented("CreateSessionTracker is not implemented")
 }
 
