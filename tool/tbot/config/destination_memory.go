@@ -50,7 +50,7 @@ func (dm *DestinationMemory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dm *DestinationMemory) Init() error {
+func (dm *DestinationMemory) Init(subdirs []string) error {
 	// Nothing to do.
 	return nil
 }

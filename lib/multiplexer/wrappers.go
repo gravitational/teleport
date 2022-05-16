@@ -120,10 +120,10 @@ func (l *Listener) Addr() net.Addr {
 func (l *Listener) Accept() (net.Conn, error) {
 	select {
 	case <-l.context.Done():
-		return nil, trace.ConnectionProblem(nil, "listener is closed")
+		return nil, trace.ConnectionProblem(net.ErrClosed, "listener is closed")
 	case conn := <-l.connC:
 		if conn == nil {
-			return nil, trace.ConnectionProblem(nil, "listener is closed")
+			return nil, trace.ConnectionProblem(net.ErrClosed, "listener is closed")
 		}
 		return conn, nil
 	}

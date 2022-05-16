@@ -368,58 +368,6 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 	require.NoError(t, err)
 }
 
-// TestSessionTracker tests session tracker lifecycle
-func TestSessionTracker(t *testing.T) {
-	ctx := context.Background()
-
-	srv := newMockServer(t)
-
-	// Use a separate clock from srv so we can use BlockUntil.
-	regClock := clockwork.NewFakeClock()
-	reg, err := NewSessionRegistry(SessionRegistryConfig{
-		Srv:                   srv,
-		SessionTrackerService: srv.auth,
-		clock:                 regClock,
-	})
-
-	require.NoError(t, err)
-	t.Cleanup(func() { reg.Close() })
-
-	// Session tracker should be created for a new session
-	sess := testOpenSession(t, reg)
-	tracker, err := srv.auth.GetSessionTracker(ctx, sess.ID())
-	require.NoError(t, err)
-
-	// Session tracker's expiration should be updated on an interval
-	// while the session is active.
-	regClock.BlockUntil(1)
-	regClock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
-	srv.clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
-
-	trackerUpdated := func() bool {
-		updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.ID())
-		require.NoError(t, err)
-		return updatedTracker.Expiry().Equal(tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval))
-	}
-	require.Eventually(t, trackerUpdated, time.Second*5, time.Millisecond*500)
-
-	// Once the sesssion is closed and the last set
-	// expiration is up, the tracker should be deleted.
-	sess.Close()
-	regClock.Advance(defaults.SessionTrackerTTL)
-	srv.clock.Advance(defaults.SessionTrackerTTL)
-
-	trackerDeleted := func() bool {
-		_, err := srv.auth.GetSessionTracker(ctx, sess.ID())
-		if err == nil {
-			return false
-		}
-		require.True(t, trace.IsNotFound(err))
-		return true
-	}
-	require.Eventually(t, trackerDeleted, time.Second*5, time.Millisecond*500)
-}
-
 func testOpenSession(t *testing.T, reg *SessionRegistry) *session {
 	scx := newTestServerContext(t, reg.Srv)
 
