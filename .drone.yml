@@ -5051,6 +5051,8 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
     GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
   volumes:
   - name: aptrepo
     path: /repo_bucket
@@ -5452,6 +5454,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: e526dae0c8820abda042de34bb23ba616a7bf3babdf79999083653d4fd24d198
+hmac: ddac899a2cdcfa4939cf4cedaf364d3128fe168134fc48100927324ccbb13446
 
 ...

@@ -66,6 +66,9 @@ func promoteAptPipeline() pipeline {
 				"GNUPGHOME": {
 					raw: "/tmpfs/gnupg",
 				},
+				"GPG_RPM_SIGNING_ARCHIVE": {
+					fromSecret: "GPG_RPM_SIGNING_ARCHIVE",
+				},
 			},
 			Commands: []string{
 				"mkdir -m0700 $GNUPGHOME",
