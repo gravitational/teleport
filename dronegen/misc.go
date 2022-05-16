@@ -71,7 +71,7 @@ func promoteAptPipeline() pipeline {
 			Name:  "Download artifacts",
 			Image: "amazon/aws-cli",
 			Environment: map[string]value{
-				"APT_S3_BUCKET": {
+				"AWS_S3_BUCKET": {
 					fromSecret: "AWS_S3_BUCKET",
 				},
 				"AWS_ACCESS_KEY_ID": {

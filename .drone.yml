@@ -5050,10 +5050,10 @@ steps:
   - aws s3 sync --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/10.0.0/
     /go/artifacts/
   environment:
-    APT_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
     AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
 - name: Publish debs to APT repos
@@ -5481,6 +5481,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 9bea0cded036d570a2db0f1ee32450dc694dfac9c49c5e3e9103e8b4fb917ac1
+hmac: 8d4fc7cfa9a48d8ee14988f9c76d1e151d8a120a7f7775b6e0c0af388ab428db
 
 ...
