@@ -386,3 +386,18 @@ func (s DatabaseServers) GetFieldVals(field string) ([]string, error) {
 
 	return vals, nil
 }
+
+// DeduplicateDatabaseServers deduplicates dbservers with the same database name.
+func DeduplicateDatabaseServers(servers []DatabaseServer) []DatabaseServer {
+	seen := make(map[string]struct{})
+	result := make([]DatabaseServer, 0, len(servers))
+	for _, server := range servers {
+		dbName := server.GetDatabase().GetName()
+		if _, ok := seen[dbName]; ok {
+			continue
+		}
+		seen[dbName] = struct{}{}
+		result = append(result, server)
+	}
+	return result
+}
