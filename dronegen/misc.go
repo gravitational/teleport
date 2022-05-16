@@ -58,7 +58,7 @@ func promoteAptPipeline() pipeline {
 					fromSecret: "GITHUB_PRIVATE_KEY",
 				},
 			},
-			Commands: tagCheckoutCommands(false),
+			Commands: aptToolCheckoutCommands(),
 		},
 		{
 			Name:  "Publish debs to APT repos",
@@ -113,6 +113,32 @@ func promoteAptPipeline() pipeline {
 	}
 
 	return p
+}
+
+func aptToolCheckoutCommands() []string {
+	commands := []string{
+		`mkdir -p /go/src/github.com/gravitational/teleport`,
+		`cd /go/src/github.com/gravitational/teleport`,
+		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
+		`git checkout ${DRONE_COMMIT}`,
+		// fetch enterprise submodules
+		`mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
+		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
+		// `git submodule update --init e`,
+		// // this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+		// `git submodule update --init --recursive webassets || true`,
+		`rm -f /root/.ssh/id_rsa`,
+		// // create necessary directories
+		// `mkdir -p /go/cache /go/artifacts`,
+		// 		// set version
+		// 		`VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+		// if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+		//   echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+		//   exit 1
+		// fi
+		// echo "$$VERSION" > /go/.version.txt`,
+	}
+	return commands
 }
 
 func updateDocsPipeline() pipeline {
