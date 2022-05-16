@@ -52,7 +52,7 @@ func promoteAptPipeline() pipeline {
 	p.Steps = []step{
 		{
 			Name:  "Check out code",
-			Image: "alpine:git",
+			Image: "alpine/git:latest",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {
 					fromSecret: "GITHUB_PRIVATE_KEY",

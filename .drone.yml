@@ -5030,7 +5030,7 @@ depends_on:
 - build-linux-arm64-deb
 steps:
 - name: Check out code
-  image: alpine:git
+  image: alpine/git:latest
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -5478,6 +5478,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 9d9f11e6f5720fb5f533fc5f21ee24ff470b287d34096df3e4a3fa8ce47a5ea3
+hmac: e7a8f33ffb93a1317ccdaf901dcfa0ce2529cb4009de772a1a902ad87960305c
 
 ...
