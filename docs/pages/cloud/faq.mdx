@@ -17,9 +17,13 @@ this number reflects risks in our architecture that we will improve over time.
 
 [status.teleport.sh](https://status.teleport.sh)
 
+## Can I get push notifications of Teleport Cloud downtime?
+
+Yes. Customers can subscribe to Teleport Cloud updates at [status.teleport.sh](https://status.teleport.sh).
+
 ## How does Cloud Billing work?
 
-[Reach out to sales](https://goteleport.com/signup/enterprise) to discuss pricing.
+Please [reach out to sales](https://goteleport.com/signup/enterprise) to discuss pricing.
 
 ## If I start with Teleport Cloud, can I move to Teleport Enterprise or Teleport Open Source, or do I need to start again?
 
@@ -34,6 +38,10 @@ We use AWS-managed keys. Currently there is no option to provide your own key.
 It's a Teleport-managed S3 bucket with AWS-managed keys.
 Currently there is no way to provide your own bucket.
 
+## How long will Teleport Cloud retain my data?
+
+See our documentation on [data retention](./architecture.mdx#data-retention).
+
 ## How do I add nodes to Teleport Cloud?
 
 You can connect servers, kubernetes clusters, databases and applications
@@ -43,14 +51,15 @@ There is no need to open any ports on your infrastructure for inbound traffic.
 
 ## How can I access the tctl admin tool?
 
-We have made changes to allow you to log into your cluster using `tsh`, then use `tctl` remotely:
+Find the appropriate download at [Teleport Cloud Downloads](./downloads.mdx). Use the Enterprise version of `tctl`.
+
+After downloading the tools, first log in to your cluster using `tsh`, then use `tctl` remotely:
 
 ```code
 $ tsh login --proxy=myinstance.teleport.sh
 $ tctl status
 ```
 
-You must use the enterprise version of `tctl`.
 
 ## Why am I getting `permission denied` errors when using `tctl`?
 
@@ -70,18 +79,18 @@ After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Clo
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
 ```
 
-## When will a security audit be available?
+## Is an independent security audit available?
 
-Security audit has been completed and is available [here](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/).
+A security audit has been completed and is available at our [Audit Report 2021](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/) page.
 
 ## Where does Teleport Cloud run?
 
-Teleport Cloud is deployed within AWS, using S3 and DynamoDB for storage with AWS managed encryption keys. All data is currently hosted in us-west-2. 
+Teleport Cloud is deployed within AWS, using S3 and DynamoDB for storage with AWS-managed encryption keys. All data is currently hosted in us-west-2.
 Currently there is no option to select an alternative region for storage.
 
 ## Will Teleport be automatically upgraded with each release?
 
-The Teleport control plane is routinely upgraded within 1-2 weeks of a Teleport Core or Enterprise Release. 
+The Teleport control plane is routinely upgraded within 1-2 weeks of a Teleport Core or Enterprise Release.
 New features may not be available to cloud users until compatibility is tested and fixed, and some features may not work in the cloud environment.
 Individual customers may not be upgraded to the latest release if they are running agents that are outside of the supported compatibility of the control plane.
 
@@ -124,7 +133,7 @@ We are also investigating additional and new features that can be used as a defe
 
 ## Is IPv6 Supported for connections to Teleport Cloud?
 
-We don't currently support IPv6 connections to Teleport Cloud. 
+We don't currently support IPv6 connections to Teleport Cloud.
 
 ## Can I change the domain name of my Cloud instance after it's been created?
 
@@ -134,13 +143,12 @@ We're currently researching whether this can be done, so please contact support 
 
 We currently don't expose any metrics interfaces for a tenant.
 
-For our own metrics collection, we're rolling out mTLS, so that only authorized internal clients may collect or scrape metrics from the running instances. 
+For our own metrics collection, we're rolling out mTLS, so that only authorized internal clients may collect or scrape metrics from the running instances.
 This design does not include a mechanism to issue mTLS certificates to external clients, while maintaining isolation guarantees that one tenant cannot interact with another tenant.
 
 Teleport cloud tenants are made up of a cluster of processes, with designated processes sitting behind a load balancer. To scrape the entire cluster would require each component of
-the Teleport cluster to be individually addressable and accessible from external sources. This could allow individual components to be selectively attacked, if an adversary is able to 
-address traffic to any individual software instance within the cluster. 
-
+the Teleport cluster to be individually addressable and accessible from external sources. This could allow individual components to be selectively attacked, if an adversary is able to
+address traffic to any individual software instance within the cluster.
 
 ## Is it possible to enable proxy recording mode?
 
@@ -149,6 +157,10 @@ Proxy recording mode is disabled for cloud customers
 ## Is there a way to download session recordings for easy playback?
 
 The ability to download recordings for offline viewing will be available in a future release.
+
+## Is there a way to forward Teleport Cloud audit events to my company's internal Security Information and Event Management (SIEM)?
+
+Yes. We recommend Teleport's [event handler plugin](../setup/guides/fluentd.mdx) to export Teleport Cloud audit events.
 
 ## I'm noticing high latency / terminal sessions are slow ?
 
