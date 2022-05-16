@@ -34,12 +34,6 @@ func promoteAptPipeline() pipeline {
 		Event:  triggerRef{Include: []string{"push"}},
 		Branch: triggerRef{Include: []string{"rfd/0058-package-distribution"}},
 	}
-	for _, pipeline := range tagPipelines() {
-		if !strings.Contains(pipeline.Name, debPackage) {
-			continue
-		}
-		p.DependsOn = append(p.DependsOn, pipeline.Name)
-	}
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
 		{
