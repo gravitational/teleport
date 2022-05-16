@@ -23,10 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -53,7 +50,7 @@ func (s *sessionTracker) loadSession(ctx context.Context, sessionID string) (typ
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := unmarshalSession(sessionJSON.Value)
+	session, err := services.UnmarshalSessionTracker(sessionJSON.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,7 +66,7 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 			return trace.Wrap(err)
 		}
 
-		session, err := unmarshalSession(sessionItem.Value)
+		session, err := services.UnmarshalSessionTracker(sessionItem.Value)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -79,7 +76,7 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 			return trace.Wrap(err)
 		}
 
-		sessionJSON, err := marshalSession(session)
+		sessionJSON, err := services.MarshalSessionTracker(session)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -129,7 +126,7 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 	var noExpiry []backend.Item
 	now := s.bk.Clock().Now()
 	for _, item := range result.Items {
-		session, err := unmarshalSession(item.Value)
+		session, err := services.UnmarshalSessionTracker(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -171,62 +168,23 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	// Don't allow sessions that require moderation without the enterprise feature enabled.
-	for _, policySet := range req.HostPolicies {
-		if len(policySet.RequireSessionJoin) != 0 {
-			if !modules.GetModules().Features().ModeratedSessions {
-				return nil, trace.AccessDenied(
-					"this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
-			}
-		}
-	}
-
-	now := s.bk.Clock().Now()
-	spec := types.SessionTrackerSpecV1{
-		SessionID:         req.ID,
-		Kind:              req.Type,
-		State:             types.SessionState_SessionStatePending,
-		Created:           now,
-		Reason:            req.Reason,
-		Invited:           req.Invited,
-		Hostname:          req.Hostname,
-		Address:           req.Address,
-		ClusterName:       req.ClusterName,
-		Login:             req.Login,
-		Participants:      []types.Participant{*req.Initiator},
-		Expires:           req.Expires,
-		KubernetesCluster: req.KubernetesCluster,
-		HostUser:          req.HostUser,
-	}
-
-	session, err := types.NewSessionTracker(spec)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// By default, resource expiration should match session expiration.
-	session.SetExpiry(session.GetExpires())
-	if session.Expiry().IsZero() {
-		session.SetExpiry(now.Add(defaults.SessionTrackerTTL))
-	}
-
-	json, err := marshalSession(session)
+func (s *sessionTracker) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	json, err := services.MarshalSessionTracker(tracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(sessionPrefix, session.GetSessionID()),
+		Key:     backend.Key(sessionPrefix, tracker.GetSessionID()),
 		Value:   json,
-		Expires: session.Expiry(),
+		Expires: tracker.Expiry(),
 	}
 	_, err = s.bk.Put(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return session, nil
+	return tracker, nil
 }
 
 // UpdateSessionTracker updates a tracker resource for an active session.
@@ -237,7 +195,7 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			return trace.Wrap(err)
 		}
 
-		session, err := unmarshalSession(sessionItem.Value)
+		session, err := services.UnmarshalSessionTracker(sessionItem.Value)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -258,7 +216,7 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			return trace.BadParameter("unrecognized session version %T", session)
 		}
 
-		sessionJSON, err := marshalSession(session)
+		sessionJSON, err := services.MarshalSessionTracker(session)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -287,60 +245,4 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (s *sessionTracker) RemoveSessionTracker(ctx context.Context, sessionID string) error {
 	return trace.Wrap(s.bk.Delete(ctx, backend.Key(sessionPrefix, sessionID)))
-}
-
-// unmarshalSession unmarshals the Session resource from JSON.
-func unmarshalSession(bytes []byte, opts ...services.MarshalOption) (types.SessionTracker, error) {
-	var session types.SessionTrackerV1
-
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := utils.FastUnmarshal(bytes, &session); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-
-	if err := session.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.ID != 0 {
-		session.SetResourceID(cfg.ID)
-	}
-
-	if !cfg.Expires.IsZero() {
-		session.SetExpiry(cfg.Expires)
-	}
-
-	return &session, nil
-}
-
-// marshalSession marshals the Session resource to JSON.
-func marshalSession(session types.SessionTracker, opts ...services.MarshalOption) ([]byte, error) {
-	if err := session.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch session := session.(type) {
-	case *types.SessionTrackerV1:
-		if !cfg.PreserveResourceID {
-			copy := *session
-			copy.SetResourceID(0)
-			session = &copy
-		}
-		return utils.FastMarshal(session)
-	default:
-		return nil, trace.BadParameter("unrecognized session version %T", session)
-	}
 }

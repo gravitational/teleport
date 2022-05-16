@@ -18,6 +18,8 @@ package postgres
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -60,6 +62,17 @@ func (d *pgDriver) open(ctx context.Context, u *url.URL) (sqlbk.DB, error) {
 		return nil, trace.Wrap(err)
 	}
 	connConfig.Logger = d.sqlLogger
+
+	// extract the user from the first client certificate in TLSConfig.
+	if connConfig.TLSConfig != nil {
+		connConfig.User, err = tlsConfigUser(connConfig.TLSConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if connConfig.User == "" {
+			return nil, trace.BadParameter("storage backend certificate CommonName field is blank; database username is required")
+		}
+	}
 
 	// Attempt to create backend database if it does not exist.
 	err = d.maybeCreateDatabase(ctx, connConfig)
@@ -226,6 +239,19 @@ func convertError(err error) error {
 		}
 	}
 	return trace.Wrap(err)
+}
+
+// tlsConfigUser returns the user defined in the CommonName field of the first
+// client certificate in tlsConfig.
+func tlsConfigUser(tlsConfig *tls.Config) (user string, err error) {
+	if tlsConfig == nil || len(tlsConfig.Certificates) == 0 || len(tlsConfig.Certificates[0].Certificate) == 0 {
+		return "", trace.BadParameter("unable to extract user from TLS Config")
+	}
+	cert, err := x509.ParseCertificate(tlsConfig.Certificates[0].Certificate[0])
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return cert.Subject.CommonName, nil
 }
 
 const (

@@ -63,10 +63,12 @@ func TestDiscoveryLDAPFilter(t *testing.T) {
 func TestAppliesLDAPLabels(t *testing.T) {
 	l := make(map[string]string)
 	entry := ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-		attrDNSHostName: {"foo.example.com"},
-		attrName:        {"foo"},
-		attrOS:          {"Windows Server"},
-		attrOSVersion:   {"6.1"},
+		attrDNSHostName:       {"foo.example.com"},
+		attrName:              {"foo"},
+		attrOS:                {"Windows Server"},
+		attrOSVersion:         {"6.1"},
+		attrDistinguishedName: {"CN=foo,OU=IT,DC=goteleport,DC=com"},
+		attrCommonName:        {"foo"},
 	})
 	applyLabelsFromLDAP(entry, l)
 
@@ -75,6 +77,7 @@ func TestAppliesLDAPLabels(t *testing.T) {
 	require.Equal(t, l[types.TeleportNamespace+"/computer_name"], "foo")
 	require.Equal(t, l[types.TeleportNamespace+"/os"], "Windows Server")
 	require.Equal(t, l[types.TeleportNamespace+"/os_version"], "6.1")
+	require.Equal(t, l[types.TeleportNamespace+"/ou"], "OU=IT,DC=goteleport,DC=com")
 }
 
 func TestLabelsDomainControllers(t *testing.T) {
