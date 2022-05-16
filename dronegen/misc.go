@@ -132,6 +132,7 @@ func promoteAptPipeline() pipeline {
 				"export VERSION=\"$(echo v9.0.0 | cut -d. -f1)\"",
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
 				"printenv",
+				"go run ./cmd/build-apt-repos -h",
 				strings.Join(
 					[]string{
 						// This just makes the (long) command a little more readable

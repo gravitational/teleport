@@ -39,7 +39,7 @@ type Config struct {
 // Parses and validates the provided flags, returning the parsed arguments in a struct.
 func ParseFlags() (*Config, error) {
 	config := &Config{
-		artifactPath:    *flag.String("artifact-path", "/artifacts", "Path to the filesystem tree containing the *.deb files to add to the APT repos"),
+		artifactPath:    *flag.String("artifact-path", "/artifacts-default", "Path to the filesystem tree containing the *.deb files to add to the APT repos"),
 		bucketName:      *flag.String("bucket", "", "The name of the S3 bucket where the repo should be synced to/from"),
 		localBucketPath: *flag.String("local-bucket-path", "/bucket", "The local path where the bucket should be synced to"),
 		majorVersion:    *flag.String("artifact-major-version", "", "The major version of the artifacts that will be added to the APT repos"),
