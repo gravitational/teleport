@@ -2033,12 +2033,11 @@ func (set RoleSet) DesktopClipboard() bool {
 // enabled it.
 func (set RoleSet) DesktopDirectorySharing() bool {
 	for _, role := range set {
-		fmt.Printf("role.GetOptions().DesktopDirectorySharing = %v\n", role.GetOptions().DesktopDirectorySharing)
-		if types.BoolDefaultFalse(role.GetOptions().DesktopDirectorySharing) {
-			return true
+		if !types.BoolDefaultTrue(role.GetOptions().DesktopDirectorySharing) {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // MaybeCanReviewRequests attempts to guess if this RoleSet belongs

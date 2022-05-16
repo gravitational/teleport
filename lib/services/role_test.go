@@ -194,7 +194,7 @@ func TestRoleParse(t *testing.T) {
 						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
-						DesktopDirectorySharing: types.NewBoolOption(false),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -228,7 +228,7 @@ func TestRoleParse(t *testing.T) {
 						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
-						DesktopDirectorySharing: types.NewBoolOption(false),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -254,7 +254,8 @@ func TestRoleParse(t *testing.T) {
 							"client_idle_timeout": "17m",
 							"disconnect_expired_cert": "yes",
 							"enhanced_recording": ["command", "network"],
-							"desktop_clipboard": true
+							"desktop_clipboard": true,
+							"desktop_directory_sharing": true
 						},
 						"allow": {
 							"node_labels": {"a": "b", "c-d": "e"},
@@ -298,7 +299,7 @@ func TestRoleParse(t *testing.T) {
 						DisconnectExpiredCert:   types.NewBool(true),
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
-						DesktopDirectorySharing: types.NewBoolOption(false),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -342,7 +343,8 @@ func TestRoleParse(t *testing.T) {
 							  "client_idle_timeout": "never",
 							  "disconnect_expired_cert": "no",
 							  "enhanced_recording": ["command", "network"],
-							  "desktop_clipboard": true
+							  "desktop_clipboard": true,
+								"desktop_directory_sharing": true
 							},
 							"allow": {
 							  "node_labels": {"a": "b"},
@@ -384,7 +386,7 @@ func TestRoleParse(t *testing.T) {
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
-						DesktopDirectorySharing: types.NewBoolOption(false),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -426,7 +428,8 @@ func TestRoleParse(t *testing.T) {
 							  "client_idle_timeout": "never",
 							  "disconnect_expired_cert": "no",
 							  "enhanced_recording": ["command", "network"],
-							  "desktop_clipboard": true
+							  "desktop_clipboard": true,
+								"desktop_directory_sharing": true
 							},
 							"allow": {
 							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
@@ -457,7 +460,7 @@ func TestRoleParse(t *testing.T) {
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
-						DesktopDirectorySharing: types.NewBoolOption(false),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
@@ -2394,14 +2397,14 @@ func TestBoolOptions(t *testing.T) {
 		// agent forwarding false (default disabled),
 		// desktop session recording to true (default enabled),
 		// desktop clipboard sharing to true (default enabled),
-		// and desktop directory sharing to false (default disabled).
+		// and desktop directory sharing to true (default enabled).
 		{
 			inOptions:                  types.RoleOptions{},
 			outCanPortForward:          true,
 			outCanForwardAgents:        false,
 			outRecordDesktopSessions:   true,
 			outDesktopClipboard:        true,
-			outDesktopDirectorySharing: false,
+			outDesktopDirectorySharing: true,
 		},
 		// Explicitly enabling should enable them.
 		{
@@ -3417,8 +3420,8 @@ func TestDesktopClipboard(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			var roles []types.Role
-			for _, r := range test.roles {
-				roles = append(roles, &r)
+			for i := range test.roles {
+				roles = append(roles, &test.roles[i])
 			}
 			rs := NewRoleSet(roles...)
 			require.Equal(t, test.hasClipboard, rs.DesktopClipboard())
@@ -3432,51 +3435,43 @@ func TestDesktopDirectorySharing(t *testing.T) {
 		roles               []types.RoleV5
 		hasDirectorySharing bool
 	}{
-		// {
-		// 	desc:                "single role, unspecified, defaults false",
-		// 	roles:               []types.RoleV5{newRole(func(r *types.RoleV5) {})},
-		// 	hasDirectorySharing: false,
-		// },
-		// {
-		// 	desc: "single role, explicitly enabled",
-		// 	roles: []types.RoleV5{
-		// 		newRole(func(r *types.RoleV5) {
-		// 			r.SetOptions(types.RoleOptions{
-		// 				DesktopDirectorySharing: types.NewBoolOption(true),
-		// 			})
-		// 		}),
-		// 	},
-		// 	hasDirectorySharing: true,
-		// },
 		{
-			desc: "multiple conflicting roles, enable wins",
+			desc:                "single role, unspecified, defaults true",
+			roles:               []types.RoleV5{newRole(func(r *types.RoleV5) {})},
+			hasDirectorySharing: true,
+		},
+		{
+			desc: "single role, explicitly disabled",
 			roles: []types.RoleV5{
-				newRole(func(r *types.RoleV5) {
-					r.SetOptions(types.RoleOptions{
-						DesktopDirectorySharing: types.NewBoolOption(true),
-					})
-				}),
 				newRole(func(r *types.RoleV5) {
 					r.SetOptions(types.RoleOptions{
 						DesktopDirectorySharing: types.NewBoolOption(false),
 					})
 				}),
 			},
-			hasDirectorySharing: true,
+			hasDirectorySharing: false,
+		},
+		{
+			desc: "multiple conflicting roles, disable wins",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.SetOptions(types.RoleOptions{
+						DesktopDirectorySharing: types.NewBoolOption(false),
+					})
+				}),
+				newRole(func(r *types.RoleV5) {
+					r.SetOptions(types.RoleOptions{
+						DesktopDirectorySharing: types.NewBoolOption(true),
+					})
+				}),
+			},
+			hasDirectorySharing: false,
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			var roles []types.Role
-			for _, r := range test.roles {
-				fmt.Printf("top1: %v\n", r.GetOptions().DesktopDirectorySharing)
-				roles = append(roles, &r)
-				role := roles[len(roles)-1]
-				fmt.Printf("top2: %v\n", role.GetOptions().DesktopDirectorySharing)
-				// fmt.Printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! %v\n", roles[len(roles)-1].GetOptions().DesktopDirectorySharing)
-			}
-			for i, role := range roles {
-				fmt.Printf("bottom1: %v\n", role.GetOptions().DesktopDirectorySharing)
-				fmt.Printf("bottom2: %v\n", roles[i].GetOptions().DesktopDirectorySharing)
+			roles := []types.Role{}
+			for i := range test.roles {
+				roles = append(roles, &test.roles[i])
 			}
 			rs := NewRoleSet(roles...)
 			require.Equal(t, test.hasDirectorySharing, rs.DesktopDirectorySharing())
