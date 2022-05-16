@@ -26,6 +26,7 @@ func promoteBuildPipeline() pipeline {
 // This function calls the build-apt-repos tool which handles the APT portion of RFD 0058.
 func promoteAptPipeline() pipeline {
 	aptVolumeName := "aptrepo"
+	artifactPath := "/go/artifacts"
 
 	p := newKubePipeline("publish-apt-new-repos")
 	// p.Trigger = triggerPromote
@@ -80,16 +81,24 @@ func promoteAptPipeline() pipeline {
 				"AWS_SECRET_ACCESS_KEY": {
 					fromSecret: "AWS_SECRET_ACCESS_KEY",
 				},
+				"ARTIFACT_PATH": {
+					raw: artifactPath,
+				},
 			},
 			Commands: []string{
-				"mkdir -pv /go/artifacts",
+				"mkdir -pv ${ARTIFACT_PATH}",
 				// TODO re-enable this after done more testing
 				// "aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/",
-				"aws s3 sync --no-progress --delete --exclude \"*\" --include \"*.deb*\" s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/ /go/artifacts/",
+				"aws s3 sync --no-progress --delete --exclude \"*\" --include \"*.deb*\" \"s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/\" \"${ARTIFACT_PATH}\"",
 			},
 		},
 		{
-			Name:  "Publish debs to APT repos",
+			Name: "Publish debs to APT repos",
+			// TODO set this if `step` support s https://docs.drone.io/pipeline/ssh/syntax/parallelism/ in the future
+			// DependsOn: []string {
+			// 	"Check out code",
+			// 	"Download artifacts",
+			// },
 			Image: "golang:1.18.1-bullseye",
 			Environment: map[string]value{
 				"APT_S3_BUCKET": {
@@ -100,6 +109,9 @@ func promoteAptPipeline() pipeline {
 				},
 				"AWS_SECRET_ACCESS_KEY": {
 					fromSecret: "APT_REPO_NEW_AWS_SECRET_ACCESS_KEY",
+				},
+				"ARTIFACT_PATH": {
+					raw: artifactPath,
 				},
 				"GNUPGHOME": {
 					raw: "/tmpfs/gnupg",
@@ -124,7 +136,7 @@ func promoteAptPipeline() pipeline {
 						"-bucket \"$APT_S3_BUCKET\"",
 						"-artifact-major-version \"$VERSION\"",
 						"-artifact-release-channel \"$RELEASE_CHANNEL\"",
-						"-artifact-path \"/go/artifacts/\"",
+						"-artifact-path \"${ARTIFACT_PATH}\"",
 						"-log-level 4", // Set this to 5 for debug logging
 					},
 					" ",

@@ -5004,7 +5004,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:30
+# Generated at dronegen/misc.go:31
 ################################################
 
 kind: pipeline
@@ -5046,10 +5046,11 @@ steps:
 - name: Download artifacts
   image: amazon/aws-cli
   commands:
-  - mkdir -pv /go/artifacts
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/
-    /go/artifacts/
+  - mkdir -pv ${ARTIFACT_PATH}
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" "s3://$AWS_S3_BUCKET/teleport/tag/9.0.0/"
+    "${ARTIFACT_PATH}"
   environment:
+    ARTIFACT_PATH: /go/artifacts
     AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
     AWS_S3_BUCKET:
@@ -5068,11 +5069,12 @@ steps:
   - export VERSION="v`cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt`"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -artifact-major-version
-    "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL" -artifact-path "/go/artifacts/"
+    "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL" -artifact-path "${ARTIFACT_PATH}"
     -log-level 4
   environment:
     APT_S3_BUCKET:
       from_secret: APT_REPO_NEW_AWS_S3_BUCKET
+    ARTIFACT_PATH: /go/artifacts
     AWS_ACCESS_KEY_ID:
       from_secret: APT_REPO_NEW_AWS_ACCESS_KEY_ID
     AWS_SECRET_ACCESS_KEY:
@@ -5481,6 +5483,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f24266d1628ea87cf47933db2dfbf3156a2e2468d16d7df54090d39d117b79e4
+hmac: c13cb5b17bcb551a8860eaebb4df5b03dda752a5565d2e65b7126a3448b1df96
 
 ...
