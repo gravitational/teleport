@@ -28,7 +28,11 @@ func promoteAptPipeline() pipeline {
 	debVolumeName := "debrepo"
 
 	p := newKubePipeline("publish-apt-rfd0058-repos")
-	p.Trigger = triggerPromote
+	// p.Trigger = triggerPromote
+	p.Trigger = trigger{
+		Event:  triggerRef{Include: []string{"push"}},
+		Branch: triggerRef{Include: []string{"rfd/0058-package-distribution"}},
+	}
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
 		{
