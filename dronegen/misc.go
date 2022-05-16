@@ -137,7 +137,7 @@ func promoteAptPipeline() pipeline {
 						"-artifact-major-version \"$VERSION\"",
 						"-artifact-release-channel \"$RELEASE_CHANNEL\"",
 						"-artifact-path \"${ARTIFACT_PATH}\"",
-						"-log-level 4", // Set this to 5 for debug logging
+						"-log-level 5", // Set this to 5 for debug logging
 					},
 					" ",
 				),

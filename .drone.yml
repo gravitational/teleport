@@ -5070,7 +5070,7 @@ steps:
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -artifact-major-version
     "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL" -artifact-path "${ARTIFACT_PATH}"
-    -log-level 4
+    -log-level 5
   environment:
     APT_S3_BUCKET:
       from_secret: APT_REPO_NEW_AWS_S3_BUCKET
@@ -5483,6 +5483,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: c13cb5b17bcb551a8860eaebb4df5b03dda752a5565d2e65b7126a3448b1df96
+hmac: fc894203ada6955afaaef3697888fe688426fa9f9e14d3b168758da08171b8a5
 
 ...
