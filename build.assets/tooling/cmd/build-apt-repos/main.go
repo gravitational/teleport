@@ -54,6 +54,7 @@ func main() {
 	}
 
 	setupLogger(config)
+	log.Debugf("Starting tool with config: %v", config)
 
 	art, err := NewAptRepoTool(config, supportedOSs)
 	if err != nil {
