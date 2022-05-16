@@ -47,6 +47,7 @@ func promoteAptPipeline() pipeline {
 				Name: "drone-s3-aptrepo-pvc",
 			},
 		},
+		volumeTmpfs,
 	}
 	p.Steps = []step{
 		{
@@ -93,6 +94,7 @@ func promoteAptPipeline() pipeline {
 					Name: aptVolumeName,
 					Path: "/repo_bucket",
 				},
+				volumeRefTmpfs,
 			},
 		},
 	}

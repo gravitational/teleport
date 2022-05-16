@@ -5054,10 +5054,15 @@ steps:
   volumes:
   - name: aptrepo
     path: /repo_bucket
+  - name: tmpfs
+    path: /tmpfs
 volumes:
 - name: aptrepo
   claim:
     name: drone-s3-aptrepo-pvc
+- name: tmpfs
+  temp:
+    medium: memory
 
 ---
 kind: pipeline
@@ -5447,6 +5452,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 7a5104a63cf1876d3ceaba0ad6ba8a673952dd0fe9c397da8ff05b8ccdbc76de
+hmac: e526dae0c8820abda042de34bb23ba616a7bf3babdf79999083653d4fd24d198
 
 ...
