@@ -42,7 +42,7 @@ func init() {
 	common.RegisterEngine(newEngine, defaults.ProtocolCassandra)
 }
 
-// newEngine create new Redis engine.
+// newEngine create new Cassandra engine.
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
@@ -114,12 +114,12 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err, "failed to decode frame")
 		}
 
-		//f, err := rawFrame.Dump()
-		//if err != nil {
-		//	return trace.Wrap(err, "failed to dump frame")
-		//}
+		f, err := rawFrame.Dump()
+		if err != nil {
+			return trace.Wrap(err, "failed to dump frame")
+		}
 
-		//e.Log.Infof("frame: %v", f)
+		e.Log.Infof("frame: %v", f)
 		//e.Log.Infof("OpCode: %+v", rawFrame.Header.OpCode)
 
 		switch rawFrame.Header.OpCode {
