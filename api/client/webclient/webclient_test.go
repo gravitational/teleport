@@ -339,3 +339,80 @@ func TestNewWebClientIgnoreProxy(t *testing.T) {
 	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
 	require.Contains(t, err.Error(), "no such host")
 }
+
+func TestSSHProxyHostPort(t *testing.T) {
+	tests := []struct {
+		testName        string
+		inProxySettings ProxySettings
+		outHost         string
+		outPort         string
+	}{
+		{
+			testName: "TLS routing enabled, web public addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					PublicAddr:    "proxy.example.com:443",
+					WebListenAddr: "127.0.0.1:3080",
+				},
+				TLSRoutingEnabled: true,
+			},
+			outHost: "proxy.example.com",
+			outPort: "443",
+		},
+		{
+			testName: "TLS routing enabled, web listen addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					WebListenAddr: "127.0.0.1:3080",
+				},
+				TLSRoutingEnabled: true,
+			},
+			outHost: "127.0.0.1",
+			outPort: "3080",
+		},
+		{
+			testName: "TLS routing disabled, SSH public addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					SSHPublicAddr: "ssh.example.com:3023",
+					PublicAddr:    "proxy.example.com:443",
+					ListenAddr:    "127.0.0.1:3023",
+				},
+				TLSRoutingEnabled: false,
+			},
+			outHost: "ssh.example.com",
+			outPort: "3023",
+		},
+		{
+			testName: "TLS routing disabled, web public addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					PublicAddr: "proxy.example.com:443",
+					ListenAddr: "127.0.0.1:3023",
+				},
+				TLSRoutingEnabled: false,
+			},
+			outHost: "proxy.example.com",
+			outPort: "3023",
+		},
+		{
+			testName: "TLS routing disabled, SSH listen addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					ListenAddr: "127.0.0.1:3023",
+				},
+				TLSRoutingEnabled: false,
+			},
+			outHost: "127.0.0.1",
+			outPort: "3023",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			host, port, err := test.inProxySettings.SSHProxyHostPort()
+			require.NoError(t, err)
+			require.Equal(t, test.outHost, host)
+			require.Equal(t, test.outPort, port)
+		})
+	}
+}

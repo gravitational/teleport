@@ -281,6 +281,8 @@ type PingResponse struct {
 	ServerVersion string `json:"server_version"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
+	// ClusterName contains the name of the Teleport cluster.
+	ClusterName string `json:"cluster_name"`
 }
 
 // PingErrorResponse contains the error message if the requested connector
@@ -327,6 +329,9 @@ type SSHProxySettings struct {
 	// TunnelListenAddr is the address that the SSH reverse tunnel is
 	// listening for connections on.
 	TunnelListenAddr string `json:"tunnel_listen_addr,omitempty"`
+
+	// WebListenAddr is the address where the proxy web handler is listening.
+	WebListenAddr string `json:"web_listen_addr,omitempty"`
 
 	// PublicAddr is the public address of the HTTP proxy.
 	PublicAddr string `json:"public_addr,omitempty"`
@@ -428,6 +433,32 @@ type GithubSettings struct {
 	Display string `json:"display"`
 }
 
+// SSHProxyHostPort returns the SSH proxy address for this ping response.
+func (ps *ProxySettings) SSHProxyHostPort() (host, port string, err error) {
+	// If the cluster has TLS routing enabled, SSH proxy is served on the web
+	// handler. Prefer public web address with a fallback to listen address.
+	if ps.TLSRoutingEnabled {
+		if ps.SSH.PublicAddr != "" {
+			return parseHostPortWithDefault(ps.SSH.PublicAddr, defaults.ProxyWebListenPort)
+		}
+		return parseHostPortWithDefault(ps.SSH.WebListenAddr, defaults.ProxyWebListenPort)
+	}
+	// Without TLS routing, there is a separate SSH proxy handler. Prefer
+	// SSH public address, then a web public address with SSH proxy port,
+	// then SSH listen address.
+	if ps.SSH.SSHPublicAddr != "" {
+		return parseHostPortWithDefault(ps.SSH.SSHPublicAddr, defaults.SSHProxyListenPort)
+	}
+	if ps.SSH.PublicAddr != "" {
+		host, _, err := parseHostPort(ps.SSH.PublicAddr)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		return host, strconv.Itoa(defaults.SSHProxyListenPort), nil
+	}
+	return parseHostPortWithDefault(ps.SSH.ListenAddr, defaults.SSHProxyListenPort)
+}
+
 // The tunnel addr is retrieved in the following preference order:
 //  1. If proxy support ALPN listener where all services are exposed on single port return ProxyPublicAddr/ProxyAddr.
 //  2. Reverse Tunnel Public Address.
@@ -506,6 +537,35 @@ func tunnelAddrForTLSRouting(proxyAddr string, settings ProxySettings) (string, 
 	// If proxyAddr doesn't contain any port it means that HTTPS port should be used because during Find call
 	// The destination URL is constructed by the fmt.Sprintf("https://%s/webapi/find", proxyAddr) function.
 	return net.JoinHostPort(host, strconv.Itoa(defaults.StandardHTTPSPort)), nil
+}
+
+// parseHostPortWithDefault splits the provided address into host and port.
+func parseHostPort(addr string) (host, port string, err error) {
+	hostPort, err := extractHostPort(addr)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	host, port, err = net.SplitHostPort(hostPort)
+	if err != nil {
+		if strings.Contains(err.Error(), "missing port in address") {
+			return hostPort, "", nil
+		}
+		return "", "", trace.Wrap(err)
+	}
+	return host, port, nil
+}
+
+// parseHostPortWithDefault splits the provided address into host and port. If
+// the address doesn't include a port, default port is returned.
+func parseHostPortWithDefault(addr string, defaultPort int) (host, port string, err error) {
+	host, port, err = parseHostPort(addr)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	if port == "" {
+		port = strconv.Itoa(defaultPort)
+	}
+	return host, port, nil
 }
 
 // extractHostPort takes addresses like "tcp://host:port/path" and returns "host:port".

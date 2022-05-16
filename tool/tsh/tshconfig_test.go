@@ -207,3 +207,56 @@ func TestTshConfigMerge(t *testing.T) {
 		})
 	}
 }
+
+// TestProxyTemplates verifies proxy templates matching functionality.
+func TestProxyTemplates(t *testing.T) {
+	tshConfig := &TshConfig{
+		ProxyTemplates: ProxyTemplates{
+			{
+				Template: `^(.+)\.(us.example.com):(.+)$`,
+				Proxy:    "$2:443",
+				Host:     "$1:$3",
+			},
+			{
+				Template: `^(.+)\.(eu.example.com):(.+)$`,
+				Proxy:    "$2:3080",
+			},
+		},
+	}
+	require.NoError(t, tshConfig.Check())
+	tests := []struct {
+		testName       string
+		inFullHostname string
+		outProxy       string
+		outHost        string
+		outMatch       bool
+	}{
+		{
+			testName:       "matches first template",
+			inFullHostname: "node-1.us.example.com:3022",
+			outProxy:       "us.example.com:443",
+			outHost:        "node-1:3022",
+			outMatch:       true,
+		},
+		{
+			testName:       "matches second template",
+			inFullHostname: "node-1.eu.example.com:3022",
+			outProxy:       "eu.example.com:3080",
+			outHost:        "node-1.eu.example.com:3022",
+			outMatch:       true,
+		},
+		{
+			testName:       "does not match templates",
+			inFullHostname: "node-1.cn.example.com:3022",
+			outMatch:       false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			proxy, host, match := tshConfig.ProxyTemplates.Apply(test.inFullHostname)
+			require.Equal(t, test.outProxy, proxy)
+			require.Equal(t, test.outHost, host)
+			require.Equal(t, test.outMatch, match)
+		})
+	}
+}

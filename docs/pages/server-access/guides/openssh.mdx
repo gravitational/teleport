@@ -395,3 +395,66 @@ $ tsh ssh --port=22 dev@database.root.mytenant.teleport.sh
 To revoke the current Teleport CA and generate a new one, run `tctl auth rotate`. Unless you've highly automated your
 infrastructure, we would suggest you proceed with caution as this will invalidate the user
 and host CAs, meaning that the new CAs will need to be exported to every OpenSSH-based machine again using `tctl auth export` as above.
+
+## Connect to leaf clusters using jump proxies
+
+Normally, you connect to leaf cluster SSH nodes through the root cluster proxy.
+In scenarios where leaf proxies are reachable by SSH clients, you might prefer
+to connect directly through the leaf proxies to avoid potential latency issues
+of the connection being routed through the root cluster.
+
+To support this scenario, the `tsh proxy ssh` command provides the `-J` flag.
+This flag points at a cluster's web proxy address and indicates that the
+OpenSSH client will be connecting through that proxy instead of the proxy
+you're currently logged into:
+
+```txt
+Host *.leaf1.example.com
+   HostName %h
+   Port 3022
+   ProxyCommand tsh proxy ssh -J proxy.leaf1.example.com:443 %r@%h:%p
+```
+
+The jump proxy address and the node name to connect to can be dynamically
+determined from the SSH config's full hostname spec (`%h:%p`) using `{{proxy}}`
+template variable:
+
+```txt
+Host *.example.com
+   HostName %h
+   Port 3022
+   ProxyCommand tsh proxy ssh -J {{proxy}} %r@%h:%p
+```
+
+The rules of how to parse the proxy address and node name from the full host
+spec can be defined in the `tsh` configuration file (`~/.tsh/config/config.yaml`
+or a global `/etc/tsh.yaml`):
+
+```yaml
+proxy_templates:
+- template: '^(\w+)\.(leaf1\.example\.com):(.*)$'
+  proxy: "$2:443"
+- template: '^(\w+)\.(leaf2\.example\.com):(.*)$'
+  proxy: "$2:3080"
+  host: "$1"
+```
+
+| Field      | Description |
+| ---------- | ----------- |
+| `template` | (Required) Regular expression full SSH config host spec is matched against. |
+| `proxy`    | (Required) Web proxy address to use. Can reference regex groups from `template`. |
+| `host`     | (Optional) Node name to use. Can reference regex groups from `template`. Defaults to full host spec. |
+
+Given the configuration above, the following command will connect to the node
+`node-1.leaf1.example.com:3022` through the proxy `leaf1.example.com:443`:
+
+```code
+$ ssh -p 3022 root@node-1.leaf1.example.com
+```
+
+The following command will connect to the node `node-1:3022` through the proxy
+`leaf2.example.com:3080`:
+
+```code
+$ ssh -p 3022 root@node-1.leaf2.example.com
+```
