@@ -51,6 +51,16 @@ func promoteAptPipeline() pipeline {
 	}
 	p.Steps = []step{
 		{
+			Name:  "Check out code",
+			Image: "alpine:git",
+			Environment: map[string]value{
+				"GITHUB_PRIVATE_KEY": {
+					fromSecret: "GITHUB_PRIVATE_KEY",
+				},
+			},
+			Commands: tagCheckoutCommands(false),
+		},
+		{
 			Name:  "Publish debs to APT repos",
 			Image: "golang:1.18.1-bullseye",
 			Environment: map[string]value{
