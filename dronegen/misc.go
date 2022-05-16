@@ -27,7 +27,7 @@ func promoteBuildPipeline() pipeline {
 func promoteAptPipeline() pipeline {
 	debVolumeName := "debrepo"
 
-	p := newKubePipeline("publish-apt-rfd0058-repos")
+	p := newKubePipeline("publish-apt-new-repos")
 	// p.Trigger = triggerPromote
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}},

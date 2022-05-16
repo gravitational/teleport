@@ -5009,7 +5009,7 @@ volumes:
 
 kind: pipeline
 type: kubernetes
-name: publish-apt-rfd0058-repos
+name: publish-apt-new-repos
 trigger:
   event:
     include:
@@ -5440,6 +5440,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 266387931c84365900c60f70b4956fdb99685c349d167ae943fcdb8b2c3567fa
+hmac: 84f5e3b9ff532b29a1ba9b0f49a67a5b074dc7631556de18c56aa72183950398
 
 ...
