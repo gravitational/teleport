@@ -1,5 +1,15 @@
 # Changelog
 
+## 7.3.20
+
+This release of Teleport contains multiple performance and stability improvements.
+
+* Fixed issue with broken SSH connectivity after CA rotation. [#12334](https://github.com/gravitational/teleport/pull/12334)
+* Fixed issues with bulk deletions when using Firestore backend. [#12175](https://github.com/gravitational/teleport/pull/12175)
+* Improved reliability of auth/proxy services restart. [#12546](https://github.com/gravitational/teleport/pull/12546), [#12634](https://github.com/gravitational/teleport/pull/12634), [#12561](https://github.com/gravitational/teleport/pull/12561)
+* Improved reliability of the internal cache system. [#12245](https://github.com/gravitational/teleport/pull/12245), [#12249](https://github.com/gravitational/teleport/pull/12249)
+* Improved proxy service memory usage in large clusters. [#12562](https://github.com/gravitational/teleport/pull/12562)
+
 ## 7.3.19
 
 This release of Teleport contains multiple bug fixes and stability improvements.
