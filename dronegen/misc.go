@@ -131,6 +131,7 @@ func promoteAptPipeline() pipeline {
 				// "export VERSION=\"$(cut -d. -f1 - <<< $DRONE_TAG)\"",
 				"export VERSION=\"$(cut -d. -f1 - <<< v9.0.0)\"",
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
+				"printenv",
 				strings.Join(
 					[]string{
 						// This just makes the (long) command a little more readable
