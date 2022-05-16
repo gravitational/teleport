@@ -706,6 +706,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
+	// SecretStore contains settings for managing secrets.
+	SecretStore types.SecretStore
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.

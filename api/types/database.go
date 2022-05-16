@@ -545,9 +545,9 @@ func (d *DatabaseV3) GetIAMResources() []string {
 
 // GetSecretStore returns secret store configurations.
 func (d *DatabaseV3) GetSecretStore() (ret SecretStore) {
-	if d.IsAWSHosted() {
-		ret = d.GetAWS().SecretStore
-		if ret.Region == "" {
+	ret = d.GetAWS().SecretStore
+	if ret.Region == "" {
+		if d.IsAWSHosted() {
 			ret.Region = d.GetAWS().Region
 		}
 	}
