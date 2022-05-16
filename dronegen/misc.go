@@ -131,8 +131,6 @@ func promoteAptPipeline() pipeline {
 				// "export VERSION=\"$(echo $DRONE_TAG | cut -d. -f1)\"",
 				"export VERSION=\"$(echo v9.0.0 | cut -d. -f1)\"",
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
-				"printenv",
-				"go run ./cmd/build-apt-repos -h",
 				strings.Join(
 					[]string{
 						// This just makes the (long) command a little more readable
@@ -141,7 +139,7 @@ func promoteAptPipeline() pipeline {
 						"-artifact-major-version \"$VERSION\"",
 						"-artifact-release-channel \"$RELEASE_CHANNEL\"",
 						"-artifact-path \"$ARTIFACT_PATH\"",
-						"-log-level 5", // Set this to 5 for debug logging
+						"-log-level 4", // Set this to 5 for debug logging
 					},
 					" ",
 				),
@@ -164,6 +162,7 @@ func aptToolCheckoutCommands() []string {
 		`mkdir -p /go/src/github.com/gravitational/teleport`,
 		`cd /go/src/github.com/gravitational/teleport`,
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
+		// TODO change to drone tag
 		`git checkout ${DRONE_COMMIT}`,
 		// fetch enterprise submodules
 		`mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,

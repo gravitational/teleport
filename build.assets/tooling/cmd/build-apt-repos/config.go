@@ -38,15 +38,14 @@ type Config struct {
 
 // Parses and validates the provided flags, returning the parsed arguments in a struct.
 func ParseFlags() (*Config, error) {
-	config := &Config{
-		artifactPath:    *flag.String("artifact-path", "/go/artifacts", "Path to the filesystem tree containing the *.deb files to add to the APT repos"),
-		bucketName:      *flag.String("bucket", "", "The name of the S3 bucket where the repo should be synced to/from"),
-		localBucketPath: *flag.String("local-bucket-path", "/bucket", "The local path where the bucket should be synced to"),
-		majorVersion:    *flag.String("artifact-major-version", "", "The major version of the artifacts that will be added to the APT repos"),
-		releaseChannel:  *flag.String("artifact-release-channel", "", "The release channel of the APT repos that the artifacts should be added to"),
-		logLevel:        *flag.Uint("log-level", uint(logrus.InfoLevel), "Log level from 0 to 6, 6 being the most verbose"),
-		logJSON:         *flag.Bool("log-json", false, "True if the log entries should use JSON format, false for text logging"),
-	}
+	config := &Config{}
+	flag.StringVar(&config.artifactPath, "artifact-path", "/artifacts", "Path to the filesystem tree containing the *.deb files to add to the APT repos")
+	flag.StringVar(&config.bucketName, "bucket", "", "The name of the S3 bucket where the repo should be synced to/from")
+	flag.StringVar(&config.localBucketPath, "local-bucket-path", "/bucket", "The local path where the bucket should be synced to")
+	flag.StringVar(&config.majorVersion, "artifact-major-version", "", "The major version of the artifacts that will be added to the APT repos")
+	flag.StringVar(&config.releaseChannel, "artifact-release-channel", "", "The release channel of the APT repos that the artifacts should be added to")
+	flag.UintVar(&config.logLevel, "log-level", uint(logrus.InfoLevel), "Log level from 0 to 6, 6 being the most verbose")
+	flag.BoolVar(&config.logJSON, "log-json", false, "True if the log entries should use JSON format, false for text logging")
 
 	flag.Parse()
 	if err := Check(config); err != nil {
