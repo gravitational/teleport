@@ -5043,11 +5043,12 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Checkout artifacts
+- name: Download artifacts
   image: amazon/aws-cli
   commands:
   - mkdir -pv /go/artifacts
-  - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/10.0.0/ /go/artifacts/
+  - aws s3 sync --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/10.0.0/
+    /go/artifacts/
   environment:
     APT_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
@@ -5480,6 +5481,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 4aa3d61b0b308259809747238d233764486e5796194a99d0ec8227b1b04163ec
+hmac: 9bea0cded036d570a2db0f1ee32450dc694dfac9c49c5e3e9103e8b4fb917ac1
 
 ...

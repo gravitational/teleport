@@ -61,7 +61,7 @@ func promoteAptPipeline() pipeline {
 			Commands: aptToolCheckoutCommands(),
 		},
 		{
-			Name:  "Checkout artifacts",
+			Name:  "Download artifacts",
 			Image: "amazon/aws-cli",
 			Environment: map[string]value{
 				"APT_S3_BUCKET": {
@@ -78,7 +78,7 @@ func promoteAptPipeline() pipeline {
 				"mkdir -pv /go/artifacts",
 				// TODO re-enable this after done more testing
 				// "aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/",
-				"aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/10.0.0/ /go/artifacts/",
+				"aws s3 sync --exclude \"*\" --include \"*.deb*\" s3://$AWS_S3_BUCKET/teleport/tag/10.0.0/ /go/artifacts/",
 			},
 		},
 		{
