@@ -28,7 +28,7 @@ func promoteBuildPipeline() pipeline {
 
 // This function calls the build-apt-repos tool which handles the APT portion of RFD 0058.
 func promoteAptPipeline() pipeline {
-	testVersion := "9.2.3"
+	testVersion := "8.3.10"
 	aptVolumeName := "aptrepo"
 	artifactPath := "/go/artifacts"
 

@@ -5041,7 +5041,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/9.2.3/
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/8.3.10/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -5060,7 +5060,7 @@ steps:
   - apt update
   - apt install aptly -y
   - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-  - export VERSION="$(echo v9.2.3 | cut -d. -f1)"
+  - export VERSION="$(echo v8.3.10 | cut -d. -f1)"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -artifact-major-version
     "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL" -artifact-path "$ARTIFACT_PATH"
@@ -5478,6 +5478,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 2d4a8fb44c0da6a6ee716dc379363f2709d382b77cc7f087d3cc35ae160fbc80
+hmac: 8dc0aedb7f9c30e74c8af30fa719ee24a12f072d7cb1ac7e55e8802e8d8367ac
 
 ...
