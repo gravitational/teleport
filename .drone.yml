@@ -5022,6 +5022,12 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- build-linux-amd64-deb
+- build-linux-amd64-fips-deb
+- build-linux-386-deb
+- build-linux-arm-deb
+- build-linux-arm64-deb
 steps:
 - name: Publish debs to APT repos
   image: golang:1.18.1-bullseye
@@ -5440,6 +5446,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 84f5e3b9ff532b29a1ba9b0f49a67a5b074dc7631556de18c56aa72183950398
+hmac: 6f4aeab8dc9e2d5d0f021552a73e6ff9c84266be831f84cd9e0822f1d09e72d8
 
 ...
