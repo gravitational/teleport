@@ -128,8 +128,8 @@ func promoteAptPipeline() pipeline {
 				"apt install aptly -y",
 				"cd /go/src/github.com/gravitational/teleport/build.assets/tooling",
 				// TODO uncomment after more testing
-				// "export VERSION=\"$(cut -d. -f1 - <<< $DRONE_TAG)\"",
-				"export VERSION=\"$(cut -d. -f1 - <<< v9.0.0)\"",
+				// "export VERSION=\"$(echo $DRONE_TAG | cut -d. -f1)\"",
+				"export VERSION=\"$(echo v9.0.0 | cut -d. -f1)\"",
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
 				"printenv",
 				strings.Join(

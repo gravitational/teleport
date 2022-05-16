@@ -5066,7 +5066,7 @@ steps:
   - apt update
   - apt install aptly -y
   - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-  - export VERSION="$(cut -d. -f1 - <<< v9.0.0)"
+  - export VERSION="$(echo v9.0.0 | cut -d. -f1)"
   - export RELEASE_CHANNEL="stable"
   - printenv
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -artifact-major-version
@@ -5484,6 +5484,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 71f7c598f8083e516ae89a6582f5dbbc7080a2f32def202ea0ed86410cb86274
+hmac: 15b1fb80dbca3510a480c6f29178da0cef00e400cae0bde0f05a76aab9043f3c
 
 ...
