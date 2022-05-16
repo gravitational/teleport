@@ -50,6 +50,13 @@ func promoteAptPipeline() pipeline {
 		volumeTmpfs,
 	}
 	p.Steps = []step{
+		// {
+		// 	Name:  "Verify build is tagged",
+		// 	Image: "alpine:latest",
+		// 	Commands: []string{
+		// 		"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		// 	},
+		// },
 		{
 			Name:  "Check out code",
 			Image: "alpine/git:latest",
