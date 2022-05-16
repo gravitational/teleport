@@ -5043,6 +5043,18 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+- name: Checkout artifacts
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv /go/artifacts
+  - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/10.0.0/ /go/artifacts/
+  environment:
+    APT_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
 - name: Publish debs to APT repos
   image: golang:1.18.1-bullseye
   commands:
@@ -5468,6 +5480,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 341c39c7d55d1c6bc4fa5b06248db02ba5c625ee0842f7529119348750d5c0a7
+hmac: 4aa3d61b0b308259809747238d233764486e5796194a99d0ec8227b1b04163ec
 
 ...

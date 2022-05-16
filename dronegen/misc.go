@@ -61,6 +61,27 @@ func promoteAptPipeline() pipeline {
 			Commands: aptToolCheckoutCommands(),
 		},
 		{
+			Name:  "Checkout artifacts",
+			Image: "amazon/aws-cli",
+			Environment: map[string]value{
+				"APT_S3_BUCKET": {
+					fromSecret: "AWS_S3_BUCKET",
+				},
+				"AWS_ACCESS_KEY_ID": {
+					fromSecret: "AWS_ACCESS_KEY_ID",
+				},
+				"AWS_SECRET_ACCESS_KEY": {
+					fromSecret: "AWS_SECRET_ACCESS_KEY",
+				},
+			},
+			Commands: []string{
+				"mkdir -pv /go/artifacts",
+				// TODO re-enable this after done more testing
+				// "aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/",
+				"aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/10.0.0/ /go/artifacts/",
+			},
+		},
+		{
 			Name:  "Publish debs to APT repos",
 			Image: "golang:1.18.1-bullseye",
 			Environment: map[string]value{
