@@ -21,33 +21,21 @@ package snowflake
 
 // tokenCache is a simple in memory map between Teleport WebSession ID and Snowflake tokens.
 type tokenCache struct {
-	sessionToken      string
-	teleportSessionID string
-
-	masterToken      string
-	teleportMasterID string
+	tokens map[string]string
 }
 
-func (t *tokenCache) getSessionToken(sessionID string) string {
-	if t.teleportSessionID == sessionID {
-		return t.sessionToken
-	}
-	return ""
+func newTokenCache() tokenCache {
+	return tokenCache{tokens: make(map[string]string)}
 }
 
-func (t *tokenCache) setSessionToken(sessionID, snowflakeToken string) {
-	t.sessionToken = snowflakeToken
-	t.teleportSessionID = sessionID
+func (t *tokenCache) getToken(sessionID string) string {
+	return t.tokens[sessionID]
 }
 
-func (t *tokenCache) getMasterToken(masterID string) string {
-	if t.teleportMasterID == masterID {
-		return t.masterToken
-	}
-	return ""
+func (t *tokenCache) setToken(sessionID, snowflakeToken string) {
+	t.tokens[sessionID] = snowflakeToken
 }
 
-func (t *tokenCache) setMasterToken(masterID, snowflakeMasterToken string) {
-	t.sessionToken = snowflakeMasterToken
-	t.teleportSessionID = masterID
+func (t *tokenCache) reset() {
+	t.tokens = make(map[string]string)
 }

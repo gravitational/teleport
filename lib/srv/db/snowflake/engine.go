@@ -54,6 +54,7 @@ func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		HTTPClient:   getDefaultHTTPClient(),
+		tokens:       newTokenCache(),
 	}
 }
 
@@ -85,6 +86,10 @@ type Engine struct {
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.clientConn = clientConn
 	e.sessionCtx = sessionCtx
+	// Make sure that tokens are initialized. Tokens are not initialized in tests.
+	if e.tokens.tokens == nil {
+		e.tokens = newTokenCache()
+	}
 	return nil
 }
 
@@ -242,7 +247,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 				return nil, trace.Wrap(err)
 			}
 
-			e.tokens.setSessionToken(snowflakeSession.GetName(), renewSessResp.Data.SessionToken)
+			e.tokens.setToken(snowflakeSession.GetName(), renewSessResp.Data.SessionToken)
 			renewSessResp.Data.SessionToken = teleportAuthHeaderPrefix + snowflakeSession.GetName()
 
 			if renewSessResp.Data.MasterToken != "" {
@@ -255,7 +260,7 @@ func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session,
 					return nil, trace.Wrap(err)
 				}
 
-				e.tokens.setMasterToken(masterToken.GetName(), renewSessResp.Data.MasterToken)
+				e.tokens.setToken(masterToken.GetName(), renewSessResp.Data.MasterToken)
 				renewSessResp.Data.MasterToken = teleportAuthHeaderPrefix + masterToken.GetName()
 			}
 
@@ -490,7 +495,7 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 // getSnowflakeToken returns the Snowflake token from local in memory cache or from auth server if local cache doesn't have it.
 // This function may time out if auth server doesn't respond in reasonable time.
 func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (string, error) {
-	snowflakeToken := e.tokens.getSessionToken(sessionToken)
+	snowflakeToken := e.tokens.getToken(sessionToken)
 	if snowflakeToken != "" {
 		return snowflakeToken, nil
 	}
@@ -508,7 +513,7 @@ func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (st
 	}
 
 	// Add token to the local cache, so we don't need to fetch it every time.
-	e.tokens.setSessionToken(sessionToken, snowflakeSession.GetBearerToken())
+	e.tokens.setToken(sessionToken, snowflakeSession.GetBearerToken())
 	return snowflakeSession.GetBearerToken(), nil
 }
 
@@ -537,8 +542,10 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tok
 		return nil, trace.Wrap(err)
 	}
 
-	e.tokens.setSessionToken(sessionToken, tokens.session.token)
-	e.tokens.setMasterToken(masterToken, tokens.master.token)
+	// reset tokens to prevent from endlessly growing map. Very unlikely, but you never know.
+	e.tokens.reset()
+	e.tokens.setToken(sessionToken, tokens.session.token)
+	e.tokens.setToken(masterToken, tokens.master.token)
 
 	loginResp.Data["token"] = teleportAuthHeaderPrefix + sessionToken
 	loginResp.Data["masterToken"] = teleportAuthHeaderPrefix + masterToken

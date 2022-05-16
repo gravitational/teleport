@@ -167,7 +167,23 @@ func (s *TestServer) handleSession(w http.ResponseWriter, _ *http.Request) {
 }
 
 // handleToken is the test server /session/token-request HTTP handler.
-func (s *TestServer) handleToken(w http.ResponseWriter, _ *http.Request) {
+func (s *TestServer) handleToken(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Authorization") != "Snowflake Token=\"master-token-123\"" {
+		w.WriteHeader(401)
+		return
+	}
+
+	renewReq := &renewSessionRequest{}
+	if err := json.NewDecoder(r.Body).Decode(renewReq); err != nil {
+		w.WriteHeader(400)
+		return
+	}
+
+	if renewReq.OldSessionToken != "test-token-123" {
+		w.WriteHeader(401)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(testSessionTokenResponse)))
 	w.Write([]byte(testSessionTokenResponse))
