@@ -29,7 +29,6 @@ import (
 	"github.com/datastax/go-cassandra-native-protocol/frame"
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
-	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,24 +46,14 @@ func newEngine(ec common.EngineConfig) common.Engine {
 	}
 }
 
-// redisClientFactoryFn is a prototype that takes Redis username and password and return a new
-// Redis client.
-type redisClientFactoryFn func(username, password string) (redis.UniversalClient, error)
-
 // Engine implements common.Engine.
 type Engine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// clientConn is a client connection.
 	clientConn net.Conn
-	// clientReader is a go-redis wrapper for Redis client connection.
-	clientReader *redis.Reader
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-	// newClient returns a new client connection
-	newClient redisClientFactoryFn
-	// redisClient is a current connection to Redis server.
-	redisClient redis.UniversalClient
 }
 
 func (e *Engine) SendError(err error) {
