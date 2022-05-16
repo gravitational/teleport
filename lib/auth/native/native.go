@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -177,8 +176,6 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
-
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
 	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, types.SystemRoles{c.Role})
@@ -207,7 +204,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
 
 	// sign host certificate with private signing key of certificate authority
-	if err := cert.SignCert(rand.Reader, signer); err != nil {
+	if err := cert.SignCert(rand.Reader, c.CASigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -318,8 +315,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		}
 	}
 
-	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
-	if err := cert.SignCert(rand.Reader, signer); err != nil {
+	if err := cert.SignCert(rand.Reader, c.CASigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ssh.MarshalAuthorizedKey(cert), nil
