@@ -33,7 +33,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
@@ -50,15 +49,17 @@ func TestTSHSSH(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
-
-	s := newTestSuite(t, withLeafCluster(), withRootConfigFunc(func(cfg *service.Config) {
-		cfg.Version = defaults.TeleportConfigVersionV2
-		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-	}))
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+		}),
+	)
 
 	tests := []struct {
 		name string
@@ -66,10 +67,13 @@ func TestTSHSSH(t *testing.T) {
 	}{
 		{"ssh root cluster access", testRootClusterSSHAccess},
 		{"ssh leaf cluster access", testLeafClusterSSHAccess},
+		{"ssh jump host access", testJumpHostSSHAccess},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(types.HomeEnvVar, t.TempDir())
+
 			tc.fn(t, s)
 		})
 	}
@@ -133,12 +137,14 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	})
 	require.NoError(t, err)
 
-	err = Run([]string{
-		"ssh",
-		s.leaf.Config.Hostname,
-		"echo", "hello",
-	})
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		err = Run([]string{
+			"ssh",
+			s.leaf.Config.Hostname,
+			"echo", "hello",
+		})
+		return err == nil
+	}, 5*time.Second, time.Second)
 
 	identityFile := path.Join(t.TempDir(), "identity.pem")
 	err = Run([]string{
@@ -162,6 +168,56 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 		"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
 		s.leaf.Config.Hostname,
 		"echo", "hello",
+	})
+	require.NoError(t, err)
+}
+
+func testJumpHostSSHAccess(t *testing.T, s *suite) {
+	err := Run([]string{
+		"login",
+		"--insecure",
+		"--auth", s.connector.GetName(),
+		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		s.root.Config.Auth.ClusterName.GetClusterName(),
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		s.leaf.Config.Auth.ClusterName.GetClusterName(),
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Connect to leaf node though jump host set to leaf proxy SSH port.
+	err = Run([]string{
+		"ssh",
+		"--insecure",
+		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
+		s.leaf.Config.Hostname,
+		"echo", "hello",
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
+	err = Run([]string{
+		"ssh",
+		"--insecure",
+		"-J", s.leaf.Config.Proxy.WebAddr.Addr,
+		s.leaf.Config.Hostname,
+		"echo", "hello",
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
 	})
 	require.NoError(t, err)
 }
@@ -278,10 +334,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			os.RemoveAll(profile.FullProfilePath(""))
-			t.Cleanup(func() {
-				os.RemoveAll(profile.FullProfilePath(""))
-			})
+			t.Setenv(types.HomeEnvVar, t.TempDir())
 
 			s := newTestSuite(t, tc.opts...)
 			// Login to the Teleport proxy.
@@ -399,6 +452,7 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 		fmt.Sprintf("%s=1", tshBinMainTestEnv),
 		fmt.Sprintf("SSH_AUTH_SOCK=%s", createAgent(t)),
 		fmt.Sprintf("PATH=%s", filepath.Dir(sshPath)),
+		fmt.Sprintf("%s=%s", types.HomeEnvVar, os.Getenv(types.HomeEnvVar)),
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout

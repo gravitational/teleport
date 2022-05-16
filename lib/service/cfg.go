@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -131,9 +130,6 @@ type Config struct {
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
-
-	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
-	KeyStore keystore.Config
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -255,6 +251,10 @@ type Config struct {
 
 	// ConnectFailureC is a channel to notify of failures to connect to auth (used in tests).
 	ConnectFailureC chan time.Duration
+
+	// TeleportHome is the path to tsh configuration and data, used
+	// for loading profiles when TELEPORT_HOME is set
+	TeleportHome string
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -304,31 +304,21 @@ func (cfg *Config) DebugDumpToYAML() string {
 
 // CachePolicy sets caching policy for proxies and nodes
 type CachePolicy struct {
-	// Type sets the cache type
-	Type string
 	// Enabled enables or disables caching
 	Enabled bool
 }
 
 // CheckAndSetDefaults checks and sets default values
 func (c *CachePolicy) CheckAndSetDefaults() error {
-	switch c.Type {
-	case "", lite.GetName():
-		c.Type = lite.GetName()
-	case memory.GetName():
-	default:
-		return trace.BadParameter("unsupported cache type %q, supported values are %q and %q",
-			c.Type, lite.GetName(), memory.GetName())
-	}
 	return nil
 }
 
 // String returns human-friendly representation of the policy
 func (c CachePolicy) String() string {
 	if !c.Enabled {
-		return "no cache policy"
+		return "no cache"
 	}
-	return fmt.Sprintf("%v cache will store frequently accessed items", c.Type)
+	return "in-memory cache"
 }
 
 // ProxyConfig specifies configuration for proxy service
@@ -633,6 +623,8 @@ type Database struct {
 	URI string
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string
+	// MySQL are additional MySQL database options.
+	MySQL MySQLOptions
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels services.CommandLabels
 	// TLS keeps database connection TLS configuration.
@@ -687,6 +679,12 @@ func (m TLSMode) ToProto() types.DatabaseTLSMode {
 	}
 }
 
+// MySQLOptions are additional MySQL options.
+type MySQLOptions struct {
+	// ServerVersion is the version reported by Teleport DB Proxy on initial handshake.
+	ServerVersion string
+}
+
 // DatabaseTLS keeps TLS settings used when connecting to database.
 type DatabaseTLS struct {
 	// Mode is the TLS connection mode. See TLSMode for more details.
@@ -706,6 +704,8 @@ type DatabaseAWS struct {
 	Redshift DatabaseAWSRedshift
 	// RDS contains RDS specific settings.
 	RDS DatabaseAWSRDS
+	// ElastiCache contains ElastiCache specific settings.
+	ElastiCache DatabaseAWSElastiCache
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -720,6 +720,12 @@ type DatabaseAWSRDS struct {
 	InstanceID string
 	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
+}
+
+// DatabaseAWSElastiCache contains settings for ElastiCache databases.
+type DatabaseAWSElastiCache struct {
+	// ReplicationGroupID is the ElastiCache replication group ID.
+	ReplicationGroupID string
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -946,6 +952,12 @@ type MetricsConfig struct {
 	// use for mTLS.
 	// Used in conjunction with MTLS = true
 	CACerts []string
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCServerLatency bool
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCClientLatency bool
 }
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop

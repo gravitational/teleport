@@ -61,15 +61,9 @@ var (
 	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
 )
 
-func tombstoneKey() []byte {
-	return backend.Key("cache", teleport.Version, "tombstone", "ok")
-}
-
-const cacheTargetAuth string = "auth"
-
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
-	cfg.target = cacheTargetAuth
+	cfg.target = "auth"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
@@ -356,10 +350,6 @@ type Cache struct {
 	// fails.
 	initErr error
 
-	// wrapper is a wrapper around cache backend that
-	// allows to set backend into failure mode,
-	// intercepting all calls and returning errors instead
-	wrapper *backend.Wrapper
 	// ctx is a cache exit context
 	ctx context.Context
 	// cancel triggers exit context closure
@@ -560,6 +550,9 @@ type Config struct {
 	// "relative expiration" checks which are used to compensate for real backends
 	// that have suffer from overly lazy ttl'ing of resources.
 	RelativeExpiryCheckInterval time.Duration
+	// RelativeExpiryLimit determines the maximum number of nodes that may be
+	// removed during relative expiration.
+	RelativeExpiryLimit int
 	// EventsC is a channel for event notifications,
 	// used in tests
 	EventsC chan Event
@@ -602,11 +595,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.CacheInitTimeout = time.Second * 20
 	}
 	if c.RelativeExpiryCheckInterval == 0 {
-		// TODO(fspmarshall): change this to 1/2 offline threshold once that becomes
-		// a configurable value. This will likely be a dynamic configuration, and
-		// therefore require lazy initialization after the cache has become healthy.
-		c.RelativeExpiryCheckInterval = apidefaults.ServerAnnounceTTL / 2
+		c.RelativeExpiryCheckInterval = apidefaults.ServerKeepAliveTTL() + 5*time.Second
 	}
+	if c.RelativeExpiryLimit == 0 {
+		c.RelativeExpiryLimit = 2000
+	}
+
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache
 	}
@@ -629,9 +623,6 @@ const (
 	WatcherStarted = "watcher_started"
 	// WatcherFailed is emitted when event watcher has failed
 	WatcherFailed = "watcher_failed"
-	// TombstoneWritten is emitted if cache is closed in a healthy
-	// state and successfully writes its tombstone.
-	TombstoneWritten = "tombstone_written"
 	// Reloading is emitted when an error occurred watching events
 	// and the cache is waiting to create a new watcher
 	Reloading = "reloading_cache"
@@ -649,9 +640,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	wrapper := backend.NewWrapper(config.Backend)
-
-	clusterConfigCache, err := local.NewClusterConfigurationService(wrapper)
+	clusterConfigCache, err := local.NewClusterConfigurationService(config.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -666,27 +655,26 @@ func New(config Config) (*Cache, error) {
 
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
-		wrapper:              wrapper,
 		ctx:                  ctx,
 		cancel:               cancel,
 		Config:               config,
 		generation:           atomic.NewUint64(0),
 		initC:                make(chan struct{}),
 		fnCache:              fnCache,
-		trustCache:           local.NewCAService(wrapper),
+		trustCache:           local.NewCAService(config.Backend),
 		clusterConfigCache:   clusterConfigCache,
-		provisionerCache:     local.NewProvisioningService(wrapper),
-		usersCache:           local.NewIdentityService(wrapper),
-		accessCache:          local.NewAccessService(wrapper),
-		dynamicAccessCache:   local.NewDynamicAccessService(wrapper),
-		presenceCache:        local.NewPresenceService(wrapper),
-		restrictionsCache:    local.NewRestrictionsService(wrapper),
-		appsCache:            local.NewAppService(wrapper),
-		databasesCache:       local.NewDatabasesService(wrapper),
-		appSessionCache:      local.NewIdentityService(wrapper),
-		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
-		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
-		windowsDesktopsCache: local.NewWindowsDesktopService(wrapper),
+		provisionerCache:     local.NewProvisioningService(config.Backend),
+		usersCache:           local.NewIdentityService(config.Backend),
+		accessCache:          local.NewAccessService(config.Backend),
+		dynamicAccessCache:   local.NewDynamicAccessService(config.Backend),
+		presenceCache:        local.NewPresenceService(config.Backend),
+		restrictionsCache:    local.NewRestrictionsService(config.Backend),
+		appsCache:            local.NewAppService(config.Backend),
+		databasesCache:       local.NewDatabasesService(config.Backend),
+		appSessionCache:      local.NewIdentityService(config.Backend),
+		webSessionCache:      local.NewIdentityService(config.Backend).WebSessions(),
+		webTokenCache:        local.NewIdentityService(config.Backend).WebTokens(),
+		windowsDesktopsCache: local.NewWindowsDesktopService(config.Backend),
 		eventsFanout:         services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -699,28 +687,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 	cs.collections = collections
-
-	// if the ok tombstone is present, set the initial read state of the cache
-	// to ok. this tombstone's presence indicates that we are dealing with an
-	// on-disk cache produced by the same teleport version which gracefully shutdown
-	// while in an ok state.  We delete the tombstone rather than check for its
-	// presence to ensure self-healing in the event that the tombstone wasn't actually
-	// valid.  Note that setting the cache's read state to ok does not cause us to skip
-	// our normal init logic, it just means that reads against the local cache will
-	// be allowed in the event the init step fails before it starts applying.
-	// Note also that we aren't setting our event fanout system to an initialized state
-	// or incrementing the generation counter; this cache isn't so much "healthy" as it is
-	// "slightly preferable to an unreachable auth server".
-	err = cs.wrapper.Delete(ctx, tombstoneKey())
-	switch {
-	case err == nil:
-		cs.setReadOK(true)
-	case trace.IsNotFound(err):
-		// do nothing
-	default:
-		cs.Close()
-		return nil, trace.Wrap(err)
-	}
 
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(cs.MaxRetryPeriod / 10),
@@ -775,10 +741,6 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		c.Debugf("Cache is closing, returning from update loop.")
 		// ensure that close operations have been run
 		c.Close()
-		// run tombstone operations in an orphaned context
-		tombCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-		c.writeTombstone(tombCtx)
 	}()
 	timer := time.NewTimer(c.Config.WatcherInitTimeout)
 	for {
@@ -808,24 +770,6 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		case <-c.ctx.Done():
 			return
 		}
-	}
-}
-
-// writeTombstone writes the cache tombstone.
-func (c *Cache) writeTombstone(ctx context.Context) {
-	if !c.getReadOK() || c.generation.Load() == 0 {
-		// state is unhealthy or was loaded from a previously
-		// entombed state; do nothing.
-		return
-	}
-	item := backend.Item{
-		Key:   tombstoneKey(),
-		Value: []byte("{}"),
-	}
-	if _, err := c.wrapper.Create(ctx, item); err != nil {
-		c.Warningf("Failed to set tombstone: %v", err)
-	} else {
-		c.notify(ctx, Event{Type: TombstoneWritten})
 	}
 }
 
@@ -953,11 +897,19 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 
 	retry.Reset()
 
-	relativeExpiryInterval := interval.New(interval.Config{
-		Duration:      c.Config.RelativeExpiryCheckInterval,
-		FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-		Jitter:        utils.NewSeventhJitter(),
-	})
+	// only enable relative node expiry if the cache is configured
+	// to watch for types.KindNode
+	relativeExpiryInterval := interval.NewNoop()
+	for _, watch := range c.Config.Watches {
+		if watch.Kind == types.KindNode {
+			relativeExpiryInterval = interval.New(interval.Config{
+				Duration:      c.Config.RelativeExpiryCheckInterval,
+				FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+				Jitter:        utils.NewSeventhJitter(),
+			})
+			break
+		}
+	}
 	defer relativeExpiryInterval.Stop()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
@@ -1009,7 +961,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 				}
 			}
 
-			err = c.processEvent(ctx, event)
+			err = c.processEvent(ctx, event, true)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1024,7 +976,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 // staleness by only removing items which are stale from within the cache's own "frame of
 // reference".
 //
-// to better understand why we use this expiry strategy, its important to understand the two
+// to better understand why we use this expiry strategy, it's important to understand the two
 // distinct scenarios that we're trying to accommodate:
 //
 // 1. Expiry events are being emitted very lazily by the real backend (*hours* after the time
@@ -1044,15 +996,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 // relative to our current view of the world.
 //
 // *note*: this function is only sane to call when the cache and event stream are healthy, and
-// cannot run concurrently with event processing. this function injects additional events into
-// the outbound event stream.
+// cannot run concurrently with event processing.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
-	if c.target != cacheTargetAuth {
-		// if we are not the auth cache, we are a downstream cache and can rely upon the
-		// upstream auth cache to perform relative expiry and propagate the changes.
-		return nil
-	}
-
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
 	gracePeriod := apidefaults.ServerAnnounceTTL
 
@@ -1102,20 +1047,24 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 			continue
 		}
 
-		// event stream processing is paused while this function runs.  we perform the
-		// actual expiry by constructing a fake delete event for the resource which both
-		// updates this cache, and all downstream caches.
-		err = c.processEvent(ctx, types.Event{
+		// remove the node locally without emitting an event, other caches will
+		// eventually remove the same node when they run their expiry logic.
+		if err := c.processEvent(ctx, types.Event{
 			Type: types.OpDelete,
 			Resource: &types.ResourceHeader{
 				Kind:     types.KindNode,
 				Metadata: node.GetMetadata(),
 			},
-		})
-		if err != nil {
+		}, false); err != nil {
 			return trace.Wrap(err)
 		}
-		removed++
+
+		// high churn rates can cause purging a very large number of nodes
+		// per interval, limit to a sane number such that we don't overwhelm
+		// things or get too far out of sync with other caches.
+		if removed++; removed >= c.Config.RelativeExpiryLimit {
+			break
+		}
 	}
 
 	if removed > 0 {
@@ -1177,7 +1126,10 @@ func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 	}, nil
 }
 
-func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
+// processEvent hands the event off to the appropriate collection for processing. Any
+// resources which were not registered are ignored. If processing completed successfully
+// and emit is true the event will be emitted via the fanout.
+func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections[resourceKind]
 	if !ok {
@@ -1188,7 +1140,9 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	if err := collection.processEvent(ctx, event); err != nil {
 		return trace.Wrap(err)
 	}
-	c.eventsFanout.Emit(event)
+	if emit {
+		c.eventsFanout.Emit(event)
+	}
 	return nil
 }
 
@@ -1587,13 +1541,13 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 }
 
 // GetReverseTunnels is a part of auth.Cache implementation
-func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (c *Cache) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.presence.GetReverseTunnels(opts...)
+	return rg.presence.GetReverseTunnels(ctx, opts...)
 }
 
 // GetProxies is a part of auth.Cache implementation

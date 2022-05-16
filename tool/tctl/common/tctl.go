@@ -43,7 +43,7 @@ import (
 
 const (
 	searchHelp = `List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")`
-	queryHelp  = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels.key1 == "value1" && labels.key2 != "value2"')`
+	queryHelp  = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels["key1"] == "value1" && labels["key2"] != "value2"')`
 	labelHelp  = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)"
 )
 
@@ -150,6 +150,11 @@ func Run(commands []CLICommand) {
 		return
 	}
 
+	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
+	if cfg.TeleportHome != "" {
+		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
+	}
+
 	// configure all commands with Teleport configuration (they share 'cfg')
 	clientConfig, err := applyConfig(&ccf, cfg)
 	if err != nil {
@@ -216,7 +221,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		// No config file or identity file.
 		// Try the extension loader.
 		log.Debug("No config file or identity file, loading auth config via extension.")
-		authConfig, err := loadConfigFromProfile(ccf, cfg)
+		authConfig, err := LoadConfigFromProfile(ccf, cfg)
 		if err == nil {
 			return authConfig, nil
 		}
@@ -310,8 +315,8 @@ func (m *sshTrustedHostKeyWrapper) GetKnownHostKeys(hostname string) ([]ssh.Publ
 	return trustedKeys, nil
 }
 
-// loadConfigFromProfile applies config from ~/.tsh/ profile if it's present
-func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+// LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
+func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	if ccf.IdentityFilePath != "" {
 		return nil, trace.NotFound("identity has been supplied, skip loading the config")
 	}
@@ -320,8 +325,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
-
-	profile, _, err := client.Status("", proxyAddr)
+	profile, _, err := client.Status(cfg.TeleportHome, proxyAddr)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -338,7 +342,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
 
 	c := client.MakeDefaultConfig()
-	if err := c.LoadProfile("", proxyAddr); err != nil {
+	if err := c.LoadProfile(cfg.TeleportHome, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	keyStore, err := client.NewFSLocalKeyStore(c.KeysDir)

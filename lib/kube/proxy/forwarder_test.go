@@ -23,7 +23,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"sort"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -42,10 +45,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -104,7 +109,6 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	c.Assert(err, check.IsNil)
 	// All fields except b.key are predictable.
 	c.Assert(b.Certificates[0].Certificate[0], check.DeepEquals, cl.lastCert.Raw)
-	c.Assert(len(b.RootCAs.Subjects()), check.Equals, 1)
 
 	// Check the KubeCSR fields.
 	c.Assert(cl.gotCSR.Username, check.DeepEquals, ctx.User.GetName())
@@ -705,6 +709,7 @@ func TestNewClusterSessionRemote(t *testing.T) {
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
 	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
+	//lint:ignore SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
 	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
 	require.Equal(t, 1, f.clientCredentials.Len())
 }
@@ -752,6 +757,7 @@ func TestNewClusterSessionDirect(t *testing.T) {
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
 	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
+	//lint:ignore SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
 	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
 	require.Equal(t, 1, f.clientCredentials.Len())
 }
@@ -794,6 +800,80 @@ func TestClusterSessionDial(t *testing.T) {
 	_, err = sess.dial(ctx, "")
 	require.NoError(t, err)
 	require.Equal(t, "addr1", sess.kubeAddress)
+}
+
+// TestKubeFwdHTTPProxyEnv ensures that kube forwarder doesn't respect HTTPS_PROXY env
+// and Kubernetes API is called directly.
+func TestKubeFwdHTTPProxyEnv(t *testing.T) {
+	ctx := context.Background()
+	f := newMockForwader(ctx, t)
+	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
+
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    &mockEventClient{},
+		},
+	})
+	require.NoError(t, err)
+	f.cfg.LockWatcher = lockWatcher
+
+	var kubeAPICallCount uint32
+	mockKubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddUint32(&kubeAPICallCount, 1)
+	}))
+
+	authCtx.teleportCluster.dial = func(ctx context.Context, network, addr, _ string) (net.Conn, error) {
+		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
+	}
+
+	checkTransportProxy := func(rt http.RoundTripper) http.RoundTripper {
+		tr, ok := rt.(*http.Transport)
+		require.True(t, ok)
+		require.Nil(t, tr.Proxy, "kube forwarder should not take into account HTTPS_PROXY env")
+		return rt
+	}
+
+	f.creds = map[string]*kubeCreds{
+		"local": {
+			targetAddr: mockKubeAPI.URL,
+			tlsConfig:  mockKubeAPI.TLS,
+			transportConfig: &transport.Config{
+				WrapTransport: checkTransportProxy,
+			},
+		},
+	}
+
+	authCtx.kubeCluster = "local"
+	sess, err := f.newClusterSession(authCtx)
+	require.NoError(t, err)
+	require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
+
+	sess.tlsConfig.InsecureSkipVerify = true
+
+	t.Setenv("HTTP_PROXY", "example.com:9999")
+	t.Setenv("HTTPS_PROXY", "example.com:9999")
+
+	// Set upgradeToHTTP2 to trigger h2 transport upgrade logic.
+	sess.upgradeToHTTP2 = true
+	fwd, err := f.makeSessionForwarder(sess)
+	require.NoError(t, err)
+
+	// Create KubeProxy that uses fwd and forward incoming request to kubernetes API.
+	kubeProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.URL, err = url.Parse(mockKubeAPI.URL)
+		require.NoError(t, err)
+		fwd.ServeHTTP(w, r)
+	}))
+
+	req, err := http.NewRequest("GET", kubeProxy.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, uint32(1), atomic.LoadUint32(&kubeAPICallCount))
+	require.NoError(t, resp.Body.Close())
 }
 
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
@@ -943,4 +1023,150 @@ type mockAuthorizer struct {
 
 func (a mockAuthorizer) Authorize(context.Context) (*auth.Context, error) {
 	return a.ctx, a.err
+}
+
+type mockEventClient struct {
+	services.Presence
+	types.Events
+	services.LockGetter
+}
+
+func (c *mockEventClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return &mockWatcher{
+		ctx:    ctx,
+		eventC: make(chan types.Event),
+	}, nil
+}
+
+type mockWatcher struct {
+	ctx context.Context
+	types.Watcher
+	eventC chan types.Event
+}
+
+func (m *mockWatcher) Close() error {
+	return nil
+}
+
+func (m *mockWatcher) Events() <-chan types.Event {
+	return m.eventC
+}
+
+func (m *mockWatcher) Done() <-chan struct{} {
+	return m.ctx.Done()
+}
+
+func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
+	return &Forwarder{
+		log:            logrus.New(),
+		router:         *httprouter.New(),
+		cfg:            cfg,
+		activeRequests: make(map[string]context.Context),
+		ctx:            ctx,
+	}
+}
+
+type mockSemaphoreClient struct {
+	auth.ClientI
+	sem   types.Semaphores
+	roles map[string]types.Role
+}
+
+func (m *mockSemaphoreClient) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	return m.sem.AcquireSemaphore(ctx, params)
+}
+
+func (m *mockSemaphoreClient) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	return m.sem.CancelSemaphoreLease(ctx, lease)
+}
+
+func (m *mockSemaphoreClient) GetRole(ctx context.Context, name string) (types.Role, error) {
+	role, ok := m.roles[name]
+	if !ok {
+		return nil, trace.NotFound("role %q not found", name)
+	}
+
+	return role, nil
+}
+
+func TestKubernetesConnectionLimit(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type testCase struct {
+		name        string
+		connections int
+		role        types.Role
+		assert      require.ErrorAssertionFunc
+	}
+
+	unlimitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	limitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{
+		Options: types.RoleOptions{
+			MaxKubernetesConnections: 5,
+		},
+	})
+	require.NoError(t, err)
+
+	testCases := []testCase{
+		{
+			name:        "unlimited",
+			connections: 7,
+			role:        unlimitedRole,
+			assert:      require.NoError,
+		},
+		{
+			name:        "limited-success",
+			connections: 5,
+			role:        limitedRole,
+			assert:      require.NoError,
+		},
+		{
+			name:        "limited-fail",
+			connections: 6,
+			role:        limitedRole,
+			assert:      require.Error,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			user, err := types.NewUser("bob")
+			require.NoError(t, err)
+			user.SetRoles([]string{testCase.role.GetName()})
+
+			backend, err := memory.New(memory.Config{})
+			require.NoError(t, err)
+
+			sem := local.NewPresenceService(backend)
+			client := &mockSemaphoreClient{
+				sem:   sem,
+				roles: map[string]types.Role{testCase.role.GetName(): testCase.role},
+			}
+
+			forwarder := newTestForwarder(ctx, ForwarderConfig{
+				AuthClient:        client,
+				CachingAuthClient: client,
+			})
+
+			identity := &authContext{
+				Context: auth.Context{
+					User: user,
+					Identity: auth.WrapIdentity(tlsca.Identity{
+						Username: user.GetName(),
+						Groups:   []string{testCase.role.GetName()},
+					}),
+				},
+			}
+
+			for i := 0; i < testCase.connections; i++ {
+				err = forwarder.acquireConnectionLockWithIdentity(ctx, identity)
+				if i == testCase.connections-1 {
+					testCase.assert(t, err)
+				}
+			}
+		})
+	}
 }

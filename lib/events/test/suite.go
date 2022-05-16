@@ -20,7 +20,6 @@ package test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"os"
 	"testing"
@@ -90,11 +89,14 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	names := []string{"bob", "jack", "daisy", "evan"}
 
 	for i, name := range names {
-		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
-			events.LoginMethod:        events.LoginMethodSAML,
-			events.AuthAttemptSuccess: true,
-			events.EventUser:          name,
-			events.EventTime:          baseTime.Add(time.Second * time.Duration(i)),
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: name},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: baseTime.Add(time.Second * time.Duration(i)),
+			},
 		})
 		c.Assert(err, check.IsNil)
 	}
@@ -166,11 +168,14 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 // SessionEventsCRUD covers session events
 func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// Bob has logged in
-	err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
-		events.LoginMethod:        events.LoginMethodSAML,
-		events.AuthAttemptSuccess: true,
-		events.EventUser:          "bob",
-		events.EventTime:          s.Clock.Now().UTC(),
+	err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		Method:       events.LoginMethodSAML,
+		Status:       apievents.Status{Success: true},
+		UserMetadata: apievents.UserMetadata{User: "bob"},
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Time: s.Clock.Now().UTC(),
+		},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -190,26 +195,35 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
-	err = s.Log.PostSessionSlice(events.SessionSlice{
-		Namespace: apidefaults.Namespace,
-		SessionID: string(sessionID),
-		Chunks: []*events.SessionChunk{
-			// start the seession
-			{
-				Time:       s.Clock.Now().UTC().UnixNano(),
-				EventIndex: 0,
-				EventType:  events.SessionStartEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob"}),
-			},
-			// emitting session end event should close the session
-			{
-				Time:       s.Clock.Now().Add(time.Hour).UTC().UnixNano(),
-				EventIndex: 4,
-				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob", events.SessionParticipants: []string{"bob", "alice"}}),
-			},
+
+	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionStart{
+		Metadata: apievents.Metadata{
+			Time:  s.Clock.Now().UTC(),
+			Index: 0,
+			Type:  events.SessionStartEvent,
 		},
-		Version: events.V2,
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(sessionID),
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login: "bob",
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Time:  s.Clock.Now().Add(time.Hour).UTC(),
+			Index: 4,
+			Type:  events.SessionEndEvent,
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login: "bob",
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(sessionID),
+		},
+		Participants: []string{"bob", "alice"},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -242,12 +256,4 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 0)
-}
-
-func marshal(f events.EventFields) []byte {
-	data, err := json.Marshal(f)
-	if err != nil {
-		panic(err)
-	}
-	return data
 }

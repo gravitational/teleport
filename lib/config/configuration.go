@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"crypto/x509"
 	"io"
+	stdlog "log"
 	"net"
 	"net/url"
 	"os"
@@ -32,8 +33,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-
-	stdlog "log"
 
 	"golang.org/x/crypto/ssh"
 
@@ -47,6 +46,8 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -132,7 +133,7 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
-	// DatabaseAWSRDSClusterID is RDS instance identifier.
+	// DatabaseAWSRDSInstanceID is RDS instance identifier.
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
@@ -148,6 +149,9 @@ type CommandLineFlags struct {
 	DatabaseADDomain string
 	// DatabaseADSPN is the database Service Principal Name.
 	DatabaseADSPN string
+	// DatabaseMySQLServerVersion is the MySQL server version reported to a client
+	// if the value cannot be obtained from the database.
+	DatabaseMySQLServerVersion string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -274,6 +278,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if fc.Storage.Type == lite.AlternativeName {
 			fc.Storage.Type = lite.GetName()
 		}
+		// If the alternative name "cockroachdb" is given, update it to "postgres".
+		if fc.Storage.Type == postgres.AlternativeName {
+			fc.Storage.Type = postgres.GetName()
+		}
+
+		// Fix yamlv2 issue with nested storage sections.
+		fc.Storage.Params.Cleanse()
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
@@ -296,7 +307,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	if fc.CachePolicy.TTL != "" {
-		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+		log.Warn("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+	if fc.CachePolicy.Type == memory.GetName() {
+		log.Debugf("cache.type config option is explicitly set to %v.", memory.GetName())
+	} else if fc.CachePolicy.Type != "" {
+		log.Warn("cache.type config option is deprecated and will be ignored, caches are always in memory in this version.")
 	}
 
 	// apply cache policy for node and proxy
@@ -621,14 +637,46 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Auth.CAKeyParams == nil {
 		return nil
 	}
-	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+
+	if fc.Auth.CAKeyParams.PKCS11.ModulePath != "" {
+		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.ModulePath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		const worldWritableBits = 0o002
+		if fi.Mode().Perm()&worldWritableBits != 0 {
+			return trace.Errorf(
+				"PKCS11 library (%s) must not be world-writable",
+				fc.Auth.CAKeyParams.PKCS11.ModulePath,
+			)
+		}
+
+		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+	}
+
 	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
 	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+
 	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
 	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
 		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
 		}
+
+		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		const worldReadableBits = 0o004
+		if fi.Mode().Perm()&worldReadableBits != 0 {
+			return trace.Errorf(
+				"HSM pin file (%s) must not be world-readable",
+				fc.Auth.CAKeyParams.PKCS11.PinPath,
+			)
+		}
+
 		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1068,6 +1116,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
+			MySQL: service.MySQLOptions{
+				ServerVersion: database.MySQL.ServerVersion,
+			},
 			TLS: service.DatabaseTLS{
 				CACert:     caBytes,
 				ServerName: database.TLS.ServerName,
@@ -1081,6 +1132,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
 					ClusterID:  database.AWS.RDS.ClusterID,
+				},
+				ElastiCache: service.DatabaseAWSElastiCache{
+					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
 			},
 			GCP: service.DatabaseGCP{
@@ -1213,6 +1267,9 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.Metrics.ListenAddr = addr
+
+	cfg.Metrics.GRPCServerLatency = fc.Metrics.GRPCServerLatency
+	cfg.Metrics.GRPCClientLatency = fc.Metrics.GRPCClientLatency
 
 	if !fc.Metrics.MTLSEnabled() {
 		return nil
@@ -1647,11 +1704,14 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			}
 		}
 		db := service.Database{
-			Name:          clf.DatabaseName,
-			Description:   clf.DatabaseDescription,
-			Protocol:      clf.DatabaseProtocol,
-			URI:           clf.DatabaseURI,
-			StaticLabels:  staticLabels,
+			Name:         clf.DatabaseName,
+			Description:  clf.DatabaseDescription,
+			Protocol:     clf.DatabaseProtocol,
+			URI:          clf.DatabaseURI,
+			StaticLabels: staticLabels,
+			MySQL: service.MySQLOptions{
+				ServerVersion: clf.DatabaseMySQLServerVersion,
+			},
 			DynamicLabels: dynamicLabels,
 			TLS: service.DatabaseTLS{
 				CACert: caBytes,

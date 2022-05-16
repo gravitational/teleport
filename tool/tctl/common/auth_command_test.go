@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -273,6 +274,7 @@ type mockClient struct {
 	remoteClusters []types.RemoteCluster
 	kubeServices   []types.Server
 	appServices    []types.AppServer
+	dbServices     []types.DatabaseServer
 	appSession     types.WebSession
 }
 
@@ -306,6 +308,10 @@ func (c *mockClient) GetApplicationServers(context.Context, string) ([]types.App
 
 func (c *mockClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	return c.appSession, nil
+}
+
+func (c *mockClient) GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	return c.dbServices, nil
 }
 
 func TestCheckKubeCluster(t *testing.T) {
@@ -663,6 +669,141 @@ func TestGenerateAppCertificates(t *testing.T) {
 			require.Equal(t, expectedRouteToApp, authClient.userCertsReq.RouteToApp)
 
 			certBytes, err := os.ReadFile(filepath.Join(tc.outDir, tc.outFileBase+".crt"))
+			require.NoError(t, err)
+			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
+		})
+	}
+}
+
+func TestGenerateDatabaseUserCertificates(t *testing.T) {
+	ctx := context.Background()
+	tests := map[string]struct {
+		clusterName        string
+		dbService          string
+		dbName             string
+		dbUser             string
+		expectedDbProtocol string
+		dbServices         []types.DatabaseServer
+		expectedErr        error
+	}{
+		"DatabaseExists": {
+			clusterName:        "example.com",
+			dbService:          "db-1",
+			expectedDbProtocol: defaults.ProtocolPostgres,
+			dbServices: []types.DatabaseServer{
+				&types.DatabaseServerV3{
+					Metadata: types.Metadata{
+						Name: "db-1",
+					},
+					Spec: types.DatabaseServerSpecV3{
+						Hostname: "example.com",
+						Database: &types.DatabaseV3{
+							Spec: types.DatabaseSpecV3{
+								Protocol: defaults.ProtocolPostgres,
+							},
+						},
+					},
+				},
+			},
+		},
+		"DatabaseWithUserExists": {
+			clusterName:        "example.com",
+			dbService:          "db-user-1",
+			dbUser:             "mongo-user",
+			expectedDbProtocol: defaults.ProtocolMongoDB,
+			dbServices: []types.DatabaseServer{
+				&types.DatabaseServerV3{
+					Metadata: types.Metadata{
+						Name: "db-user-1",
+					},
+					Spec: types.DatabaseServerSpecV3{
+						Hostname: "example.com",
+						Database: &types.DatabaseV3{
+							Spec: types.DatabaseSpecV3{
+								Protocol: defaults.ProtocolMongoDB,
+							},
+						},
+					},
+				},
+			},
+		},
+		"DatabaseWithDatabaseNameExists": {
+			clusterName:        "example.com",
+			dbService:          "db-user-1",
+			dbName:             "root-database",
+			expectedDbProtocol: defaults.ProtocolMongoDB,
+			dbServices: []types.DatabaseServer{
+				&types.DatabaseServerV3{
+					Metadata: types.Metadata{
+						Name: "db-user-1",
+					},
+					Spec: types.DatabaseServerSpecV3{
+						Hostname: "example.com",
+						Database: &types.DatabaseV3{
+							Spec: types.DatabaseSpecV3{
+								Protocol: defaults.ProtocolMongoDB,
+							},
+						},
+					},
+				},
+			},
+		},
+		"DatabaseNotFound": {
+			clusterName: "example.com",
+			dbService:   "db-2",
+			dbServices:  []types.DatabaseServer{},
+			expectedErr: trace.NotFound(""),
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			clusterName, err := services.NewClusterNameWithRandomID(
+				types.ClusterNameSpecV2{
+					ClusterName: test.clusterName,
+				})
+			require.NoError(t, err)
+
+			authClient := &mockClient{
+				clusterName: clusterName,
+				userCerts: &proto.Certs{
+					SSH: []byte("SSH cert"),
+					TLS: []byte("TLS cert"),
+				},
+				dbServices: test.dbServices,
+			}
+
+			certsDir := t.TempDir()
+			output := filepath.Join(certsDir, test.dbService)
+			ac := AuthCommand{
+				output:        output,
+				outputFormat:  identityfile.FormatTLS,
+				signOverwrite: true,
+				genTTL:        time.Hour,
+				dbService:     test.dbService,
+				dbName:        test.dbName,
+				dbUser:        test.dbUser,
+			}
+
+			err = ac.generateUserKeys(ctx, authClient)
+			if test.expectedErr != nil {
+				require.Error(t, err)
+				require.IsType(t, test.expectedErr, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			expectedRouteToDatabase := proto.RouteToDatabase{
+				ServiceName: test.dbService,
+				Protocol:    test.expectedDbProtocol,
+				Database:    test.dbName,
+				Username:    test.dbUser,
+			}
+			require.Equal(t, proto.UserCertsRequest_Database, authClient.userCertsReq.Usage)
+			require.Equal(t, expectedRouteToDatabase, authClient.userCertsReq.RouteToDatabase)
+
+			certBytes, err := os.ReadFile(filepath.Join(certsDir, test.dbService+".crt"))
 			require.NoError(t, err)
 			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
 		})

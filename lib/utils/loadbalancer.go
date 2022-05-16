@@ -57,15 +57,14 @@ type LoadBalancer struct {
 	sync.RWMutex
 	connID int64
 	*log.Entry
-	frontend       NetAddr
-	backends       []NetAddr
-	ctx            context.Context
-	currentIndex   int
-	listener       net.Listener
-	listenerClosed bool
-	connections    map[NetAddr]map[int64]net.Conn
-	waitCtx        context.Context
-	waitCancel     context.CancelFunc
+	frontend     NetAddr
+	backends     []NetAddr
+	ctx          context.Context
+	currentIndex int
+	listener     net.Listener
+	connections  map[NetAddr]map[int64]net.Conn
+	waitCtx      context.Context
+	waitCancel   context.CancelFunc
 }
 
 // trackeConnection adds connection to the connection tracker
@@ -141,17 +140,7 @@ func (l *LoadBalancer) closeListener() {
 	if l.listener == nil {
 		return
 	}
-	if l.listenerClosed {
-		return
-	}
-	l.listenerClosed = true
 	l.listener.Close()
-}
-
-func (l *LoadBalancer) isClosed() bool {
-	l.RLock()
-	defer l.RUnlock()
-	return l.listenerClosed
 }
 
 func (l *LoadBalancer) Close() error {
@@ -182,19 +171,17 @@ func (l *LoadBalancer) Addr() net.Addr {
 // Serve starts accepting connections
 func (l *LoadBalancer) Serve() error {
 	defer l.waitCancel()
-	backoffTimer := time.NewTicker(5 * time.Second)
-	defer backoffTimer.Stop()
 	for {
 		conn, err := l.listener.Accept()
 		if err != nil {
-			if l.isClosed() {
-				return trace.ConnectionProblem(nil, "listener is closed")
+			if IsUseOfClosedNetworkError(err) {
+				return trace.Wrap(err, "listener is closed")
 			}
 			select {
-			case <-backoffTimer.C:
-				l.Debugf("Backoff on network error.")
 			case <-l.ctx.Done():
-				return trace.ConnectionProblem(nil, "context is closing")
+				return trace.Wrap(net.ErrClosed, "context is closing")
+			case <-time.After(5. * time.Second):
+				l.Debugf("Backoff on network error.")
 			}
 		} else {
 			go l.forwardConnection(conn)

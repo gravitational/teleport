@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
+	log "github.com/sirupsen/logrus"
 )
 
 // DiscardAuditLog is do-nothing, discard-everything implementation
@@ -41,12 +42,6 @@ func (d *DiscardAuditLog) WaitForDelivery(context.Context) error {
 func (d *DiscardAuditLog) Close() error {
 	return nil
 }
-func (d *DiscardAuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	return nil
-}
-func (d *DiscardAuditLog) PostSessionSlice(SessionSlice) error {
-	return nil
-}
 func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	return make([]byte, 0), nil
 }
@@ -59,9 +54,6 @@ func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 func (d *DiscardAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
-func (d *DiscardAuditLog) UploadSessionRecording(SessionRecording) error {
-	return nil
-}
 func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return nil
 }
@@ -69,4 +61,64 @@ func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID ses
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 	close(c)
 	return c, e
+}
+
+// DiscardStream returns a stream that discards all events
+type DiscardStream struct{}
+
+// Write discards data
+func (*DiscardStream) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+// Status returns a channel that always blocks
+func (*DiscardStream) Status() <-chan apievents.StreamStatus {
+	return nil
+}
+
+// Done returns channel closed when streamer is closed
+// should be used to detect sending errors
+func (*DiscardStream) Done() <-chan struct{} {
+	return nil
+}
+
+// Close flushes non-uploaded flight stream data without marking
+// the stream completed and closes the stream instance
+func (*DiscardStream) Close(ctx context.Context) error {
+	return nil
+}
+
+// Complete does nothing
+func (*DiscardStream) Complete(ctx context.Context) error {
+	return nil
+}
+
+// EmitAuditEvent discards audit event
+func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	log.Debugf("Dicarding stream event: %v", event)
+	return nil
+}
+
+// NewDiscardEmitter returns a no-op discard emitter
+func NewDiscardEmitter() *DiscardEmitter {
+	return &DiscardEmitter{}
+}
+
+// DiscardEmitter discards all events
+type DiscardEmitter struct{}
+
+// EmitAuditEvent discards audit event
+func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	log.Debugf("Dicarding event: %v", event)
+	return nil
+}
+
+// CreateAuditStream creates a stream that discards all events
+func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	return &DiscardStream{}, nil
+}
+
+// ResumeAuditStream resumes a stream that discards all events
+func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	return &DiscardStream{}, nil
 }

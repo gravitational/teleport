@@ -18,8 +18,10 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/url"
 	"os"
@@ -320,10 +322,18 @@ func ReadPath(path string) ([]byte, error) {
 	}
 	abs, err := filepath.EvalSymlinks(s)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 	bytes, err := os.ReadFile(abs)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 	return bytes, nil
@@ -429,15 +439,27 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 func ReadHostUUID(dataDir string) (string, error) {
 	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
 	if err != nil {
-		return "", trace.Wrap(err)
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return "", err
+		}
+		return "", trace.ConvertSystemError(err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	id := strings.TrimSpace(string(out))
+	if id == "" {
+		return "", trace.NotFound("host uuid is empty")
+	}
+	return id, nil
 }
 
 // WriteHostUUID writes host UUID into a file
 func WriteHostUUID(dataDir string, id string) error {
 	err := os.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return err
+		}
 		return trace.ConvertSystemError(err)
 	}
 	return nil
@@ -453,7 +475,18 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.New().String()
+	// Checking error instead of the usual uuid.New() in case uuid generation
+	// fails due to not enough randomness. It's been known to happen happen when
+	// Teleport starts very early in the node initialization cycle and /dev/urandom
+	// isn't ready yet.
+	rawID, err := uuid.NewRandom()
+	if err != nil {
+		return "", trace.BadParameter("" +
+			"Teleport failed to generate host UUID. " +
+			"This may happen if randomness source is not fully initialized when the node is starting up. " +
+			"Please try restarting Teleport again.")
+	}
+	id = rawID.String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}
