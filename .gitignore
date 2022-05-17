@@ -69,3 +69,7 @@ ssh.config
 
 # build tooling
 build.assets/tooling/bin/** 
+
+# Go workspace files
+go.work
+go.work.sum
