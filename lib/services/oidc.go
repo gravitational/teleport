@@ -60,6 +60,11 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 			return trace.BadParameter("whenever google_service_account is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
 		}
 	}
+
+	if len(oc.GetClaimsToRoles()) == 0 {
+		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
+	}
+
 	return nil
 }
 
