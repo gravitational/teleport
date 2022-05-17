@@ -338,10 +338,10 @@ func (c *authContext) key() string {
 
 func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
 	return apievents.KubernetesClusterMetadata{
-		KubernetesCluster:       c.kubeCluster,
-		KubernetesUsers:         utils.StringsSliceFromSet(c.kubeUsers),
-		KubernetesGroups:        utils.StringsSliceFromSet(c.kubeGroups),
-		KubernetesClusterLabels: c.kubeClusterLabels,
+		KubernetesCluster: c.kubeCluster,
+		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
+		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
+		KubernetesLabels:  c.kubeClusterLabels,
 	}
 }
 
