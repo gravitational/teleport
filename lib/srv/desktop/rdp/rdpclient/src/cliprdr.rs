@@ -67,7 +67,6 @@ impl Client {
                     self.handle_format_list(&mut payload, header.data_len)?
                 }
                 ClipboardPDUType::CB_FORMAT_LIST_RESPONSE => {
-                    // TODO(joel): add unicode support here
                     self.handle_format_list_response(header.msg_flags)?
                 }
                 ClipboardPDUType::CB_FORMAT_DATA_REQUEST => {
