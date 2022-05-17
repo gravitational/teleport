@@ -7,7 +7,6 @@ state: draft
 
 ## Required Approvers
 * Engineering: @r0mant && @smallinsky
-* Product: (@klizhentas || @xinding33)
 * Security: @reedloden
 
 ## What
@@ -118,8 +117,8 @@ Though other secret stores could be supported in the future. <sup>[2]<sup>
 
 Here is a sample interface for managing secrets using the secret store.
 ```
-// SecretValue is the secret value.
-type SecretValue struct {
+// Value is the secret value.
+type Value struct {
     // Key is the key path of the secret.
     Key string
     // Value is the value of the secret.
@@ -130,40 +129,28 @@ type SecretValue struct {
     CreatedAt time.Time
 }
 
-// PutValueRequest defines the request to create a new secret version.
-type PutValueRequest struct {
-    // Key is the key path of the secret.
-    Key string
-    // Value is the value of the secret to set. A random value is generated if
-    // empty.
-    Value string
-    // RandomValueLength is the length of the random value to generate.
-    RandomValueLength int
-    // CurrentVersion is the version of the current secret value. If set, it
-    // will be used for test-and-set to ensure only one caller succeeds for the
-    // same version.
-    CurrentVersion string
-}
-
 // Secrets defines an interface for managing secrets. A secret consists of a
 // key path and a list of versions that hold copies of current or past secret
 // values.
 type Secrets interface {
-    // PutValue creates a new secret version for the secret. The secret is also
-    // created if it does not exist. CurrentVersion can be provided to perform
-    // a test-and-set operation, and an error will be returned if the test
-    // fails.
-    PutValue(req PutValueRequest) (*SecretValue, error)
+    // Create creates the secret with the provided path and creates first
+    // version with provided value.
+    Create(ctx context.Context, key, value string) error
+
+    // Delete deletes the secret with the provided path. All versions of the
+    // secret are deleted at the same time.
+    Delete(ctx context.Context, key string) error
+
+    // PutValue creates a new secret version for the secret. CurrentVersion can
+    // be provided to perform a test-and-set operation, and an error will be
+    // returned if the test fails.
+    PutValue(ctx context.Context, key, value, currentVersion string) error
 
     // GetValue returns the secret value for provided version. Besides version
     // string returned from PutValue, two specials versions "CURRENT" and
     // "PREVIOUS" can also be used to retrieve the current and previous
     // versions respectively. If the version is empty, "CURRENT" is used.
-    GetValue(key string, version string) (*SecretValue, error)
-
-    // Delete deletes the secret for the provided path. All versions of the
-    // secert should be deleted at the same time.
-    Delete(key string) error
+    GetValue(ctx context.Context, key, version string) (*Value, error)
 }
 ```
 It is up to the caller to call `PutValue` periodically to rotate the secret.
@@ -204,12 +191,15 @@ the secrets:
   "Statement": {
     "Effect": "Allow",
     "Action": [
+      "secretsmanager:DescribeSecret",
       "secretsmanager:CreateSecret",
+      "secretsmanager:UpdateSecret",
+      "secretsmanager:DeleteSecret",
       "secretsmanager:GetSecretValue",
       "secretsmanager:PutSecretValue",
-      "secretsmanager:DeleteSecret",
+      "secretsmanager:TagResource",
     ],
-    "Resource": "arn:aws:secretsmanager:{region}:{account-id}:secret:{key-prefix}*"
+    "Resource": "arn:{partition}:secretsmanager:{region}:{account-id}:secret:{key-prefix}*"
   }
 }
 ```
@@ -246,23 +236,53 @@ with three database agents.
 To reduce security risks by using passwords in backend services:
 - Only well-known and attested secrets management tools like AWS Secrets
   Manager is used to store secrets securely.
-- Generate random passwords using the maximum length available.
-- Rotate passwords frequently (preferably in minutes to a few hours).
+- Generate random passwords using the maximum length available. In the case for
+  Redis users, the random passwords are generated with length of 128 characters.
+- Rotate passwords frequently. In the case using AWS Secrets Manager, password
+  rotation is performed every 15~20 minutes.
+- Provide the option use custom KMS key for secret encryption.
 
 Lastly, permissions to all AWS resources used by Teleport services are granted
 by users through AWS IAM.
 
 ## UX
 
+### `tsh` client
+
 The user experience when using the `tsh` client to connect Redis in AWS is the
 same as connecting to self-hosted Redis (or other databases).
 
-Configuring database services to manage database users for ElastiCache and
-MemoryDB does require some planning and effort from users. To improve
-"time-to-first-value", [Database access
+### Configure database service
+
+Auto discovery is supported for both ElastiCache and MemoryDB databases.
+Similar to existing RDS and Redshift auto discovery feature, very minimal
+configuration is required to setup auto discovery.
+```
+# Example database service with elasticache auto discovery.
+db_service:
+  enabled: "yes"
+  aws:
+  - types: ["elasticache"]
+    regions: ["ca-central-1"]
+    tags:
+      "vpc-id": "vpc-abcdef"
+```
+
+In addition to auto discovery, users can also manually configure an ElastiCache
+or MemoryDB database with the ability to overwrite default settings (see
+`elasticache-example` sample config in above section).
+
+To provide proper IAM permissions required for ElastiCache, MemoryDB, and
+SecretsManager, [Database access
 configurator](https://github.com/gravitational/teleport/blob/master/rfd/0046-database-access-config.md)
-can be expanded to generate required IAM policies for ElastiCache, MemoryDB,
-and Secrets Manager.
+is expanded to generate the required IAM policies.
+
+### Teleport managed users
+
+Users are asked to tag ElastiCache and MemoryDB users with a special label
+**`teleport.dev/managed`** with value `true` while configuring database users.
+Teleport managed users are periodically discovered at runtime so there is no
+need to reconfigure or restart the database service.
 
 ## Alternatives considered
 
