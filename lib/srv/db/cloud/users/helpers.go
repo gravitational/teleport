@@ -66,7 +66,12 @@ func (m *lookupMap) setDatabaseUsers(database types.Database, users []User) {
 		delete(m.byDatabase, database)
 	}
 
-	database.SetManagedUsers(getUsernames(users))
+	// Update database resource.
+	usernames := []string{}
+	for _, user := range users {
+		usernames = append(usernames, user.GetInDatabaseName())
+	}
+	database.SetManagedUsers(usernames)
 }
 
 // removeUnusedDatabases removes unused databases by comparing with provided
@@ -102,14 +107,6 @@ func (m *lookupMap) usersByID() map[string]User {
 		}
 	}
 	return usersByID
-}
-
-// getUsernames returns a list of in-database user names.
-func getUsernames(users []User) (usernames []string) {
-	for _, user := range users {
-		usernames = append(usernames, user.GetInDatabaseName())
-	}
-	return
 }
 
 // secretKeyFromAWSARN creates a secret key with provided ARN.

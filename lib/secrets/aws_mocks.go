@@ -170,6 +170,8 @@ func (m *MockSecretsManagerClient) GetSecretValueWithContext(_ context.Context, 
 	}
 
 	versionID := aws.StringValue(input.VersionId)
+
+	// Find version ID by version stage.
 	if aws.StringValue(input.VersionStage) != "" {
 		for matchVersionID, stages := range m.secrets[key].VersionIdsToStages {
 			if len(stages) > 0 && aws.StringValue(stages[0]) == aws.StringValue(input.VersionStage) {

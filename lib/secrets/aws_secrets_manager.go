@@ -18,7 +18,6 @@ package secrets
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -99,14 +98,19 @@ func (s *AWSSecretsManager) Create(ctx context.Context, key string, value string
 	if _, err := s.cfg.Client.CreateSecretWithContext(ctx, input); err != nil {
 		err = convertSecretsManagerError(err)
 
-		// If already exists, try to update its settings.
-		if trace.IsAlreadyExists(err) {
+		switch {
+		case trace.IsAlreadyExists(err):
+			// If already exists, try to update its settings.
 			if updateErr := s.update(ctx, key); updateErr != nil {
 				return trace.Wrap(updateErr)
 			}
+
+			// Update succeeds. Return trace.IsAlreadyExists.
+			return trace.Wrap(err)
+
+		default:
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -121,9 +125,8 @@ func (s *AWSSecretsManager) Delete(ctx context.Context, key string) error {
 	_, err = s.cfg.Client.DeleteSecretWithContext(ctx, &secretsmanager.DeleteSecretInput{
 		SecretId: secretID,
 
-		// Remove secret immediately. Otherwise, secret will be hidden and
-		// effective for 7 days before it's actually removed, which may prevent
-		// future creation.
+		// Remove secret immediately. Otherwise, secret will be hidden but
+		// effective for 7 days before it's actually removed.
 		ForceDeleteWithoutRecovery: aws.Bool(true),
 	})
 	if err != nil {
@@ -213,8 +216,8 @@ func (s *AWSSecretsManager) update(ctx context.Context, key string) error {
 	}
 
 	// If configKMSKeyID is empty, but DescribeSecretOutput.KmsKeyId is not,
-	// populate configKMSKeyID to the default AWS managed KMS key for secrets
-	// manager and compare again.
+	// populate configKMSKeyID to the default AWS managed KMS key for Secrets
+	// Manager then compare again.
 	if configKMSKeyID == "" {
 		if configKMSKeyID, err = defaultKMSKeyID(aws.StringValue(secret.ARN)); err != nil {
 			return trace.Wrap(err)
@@ -238,7 +241,7 @@ func (s *AWSSecretsManager) secretID(key string) (*string, error) {
 	// https://docs.aws.amazon.com/secretsmanager/latest/userguide/reference_limits.html
 	secretID := Key(s.cfg.KeyPrefix, key)
 	if len(secretID) < 1 || len(secretID) >= 512 {
-		return nil, trace.BadParameter("Invalid secret ID %s", secretID)
+		return nil, trace.BadParameter("invalid secret ID %s", secretID)
 	}
 	return aws.String(secretID), nil
 }
@@ -252,12 +255,14 @@ func defaultKMSKeyID(secretARN string) (string, error) {
 
 	// Secrets manager default KMS alias looks like this.
 	// arn:aws:kms:us-east-1:1234567890:alias/aws/secretsmanager
-	return fmt.Sprintf("arn:%s:%s:%s:%s:alias/aws/secretsmanager",
-		parsed.Partition,
-		kms.ServiceName,
-		parsed.Region,
-		parsed.AccountID,
-	), nil
+	arn := arn.ARN{
+		Partition: parsed.Partition,
+		Service:   kms.ServiceName,
+		Region:    parsed.Region,
+		AccountID: parsed.AccountID,
+		Resource:  "alias/aws/secretsmanager",
+	}
+	return arn.String(), nil
 }
 
 // convertSecretsManagerError converts AWS Secrets Manager errors to trace

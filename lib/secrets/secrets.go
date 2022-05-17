@@ -73,7 +73,6 @@ type Value struct {
 // DefaultKeyPrefix is the default key prefix.
 const DefaultKeyPrefix = "teleport/"
 
-// CheckAndSetDefaults validates the config and sets defaults.
 // Key creates a key path with provided parts.
 func Key(parts ...string) string {
 	return path.Join(parts...)

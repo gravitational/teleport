@@ -612,19 +612,20 @@ func buildElastiCacheBoundaryStatements() []*awslib.Statement {
 // buildSecretsManagerStatements returns IAM statements necessary for using AWS
 // Secrets Manager.
 func buildSecretsManagerStatements(fileConfig *config.FileConfig, target awslib.Identity) []*awslib.Statement {
-	addedSecretPrefixes := map[string]bool{}
-	addedKMSKeyIDs := map[string]bool{}
-
+	// Populate resources with the default secrets prefix.
 	secretsManagerStatement := &awslib.Statement{
 		Effect:    awslib.EffectAllow,
 		Actions:   secretsManagerActions,
 		Resources: []string{buildSecretsManagerARN(target, secrets.DefaultKeyPrefix)},
 	}
+	// KMS statement is only required when using custom KMS keys.
 	kmsStatement := &awslib.Statement{
 		Effect:  awslib.EffectAllow,
 		Actions: kmsActions,
 	}
 
+	addedSecretPrefixes := map[string]bool{}
+	addedKMSKeyIDs := map[string]bool{}
 	for _, database := range fileConfig.Databases.Databases {
 		if !aws.IsElastiCacheEndpoint(database.URI) {
 			continue
@@ -660,8 +661,8 @@ func buildSecretsManagerStatements(fileConfig *config.FileConfig, target awslib.
 	return statements
 }
 
-// buildSecretsManagerARN builds a secret path ARN used for resources for
-// Secrets Manager IAM policies.
+// buildSecretsManagerARN builds an ARN of a secret used for Secrets Manager
+// IAM policies.
 func buildSecretsManagerARN(target awslib.Identity, keyPrefix string) string {
 	return buildARN(
 		target,

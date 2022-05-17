@@ -430,10 +430,6 @@ func (m *ElastiCacheMock) ListTagsForResourceWithContext(_ aws.Context, input *e
 func (m *ElastiCacheMock) ModifyUserWithContext(_ aws.Context, input *elasticache.ModifyUserInput, opts ...request.Option) (*elasticache.ModifyUserOutput, error) {
 	for _, user := range m.Users {
 		if aws.StringValue(user.UserId) == aws.StringValue(input.UserId) {
-			if user.Authentication == nil {
-				user.Authentication = &elasticache.Authentication{}
-			}
-			user.Authentication.PasswordCount = aws.Int64(int64(len(input.Passwords)))
 			return &elasticache.ModifyUserOutput{}, nil
 		}
 	}

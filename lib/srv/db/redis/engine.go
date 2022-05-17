@@ -198,9 +198,11 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 	return func(username, password string) (redis.UniversalClient, error) {
 		var onConnect onClientConnectFunc
 		switch {
-		case password != "": // Higher priority if password is provided.
+		// If password is provided by client.
+		case password != "":
 			onConnect = authWithPasswordOnConnect(username, password)
 
+		// If datbase user is one of managed users.
 		case apiutils.SliceContainsStr(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
 			onConnect = fetchUserPasswordOnConnect(sessionCtx, e.Users)
 		}

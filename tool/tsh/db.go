@@ -772,7 +772,7 @@ Or view the connect command for the native database CLI client:
 		utils.Color(utils.Yellow, configCommand))
 }
 
-// printExtraConnectInfo prints extra intructions or information before
+// printExtraConnectInfo prints extra instructions or information before
 // executing database client commands to connect to Teleport.
 func printExtraConnectInfo(cf *CLIConf, tc *client.TeleportClient, db *tlsca.RouteToDatabase, database types.Database) {
 	switch db.Protocol {
@@ -781,7 +781,7 @@ func printExtraConnectInfo(cf *CLIConf, tc *client.TeleportClient, db *tlsca.Rou
 		if database == nil {
 			var err error
 			if database, err = getDatabase(cf, tc, db.ServiceName); err != nil {
-				log.WithError(err).Warnf("Failed to get database for extra connection information.")
+				log.WithError(err).Debug("Failed to get database for extra connection information.")
 				return
 			}
 		}
@@ -797,7 +797,7 @@ func printExtraConnectInfo(cf *CLIConf, tc *client.TeleportClient, db *tlsca.Rou
 				`Database user %q is managed by Teleport.
                                                              
 Teleport service will automatically send "auth" command with correct username
-and password upon successful server connection.
+and password on successful server connection.
                    
 `,
 				username,

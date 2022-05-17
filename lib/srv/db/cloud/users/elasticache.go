@@ -99,37 +99,6 @@ func (f *elastiCacheFetcher) FetchDatabaseUsers(ctx context.Context, database ty
 	return users, nil
 }
 
-// createUser creates an ElastiCache User.
-func (f *elastiCacheFetcher) createUser(ecUser *elasticache.User, client elasticacheiface.ElastiCacheAPI, secrets libsecrets.Secrets) (User, error) {
-	secretKey, err := secretKeyFromAWSARN(aws.StringValue(ecUser.ARN))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user := &baseUser{
-		log:            f.cfg.Log,
-		secretKey:      secretKey,
-		secrets:        secrets,
-		secretTTL:      f.cfg.Interval,
-		inDatabaseName: aws.StringValue(ecUser.UserName),
-		modifyUserFunc: modifyElastiCacheUserFunc(ecUser, client),
-		clock:          f.cfg.Clock,
-
-		// Maximum ElastiCache User password size is 128.
-		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth.html
-		maxPasswordLength: 128,
-		// Both Previous and Current version of the passwords are set to be
-		// used for ElastiCache User. Use the Previous version for login in
-		// case the Current version is not effective yet while the change is
-		// being applied to the user.
-		usePreviousPasswordForLogin: true,
-	}
-	if err := user.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return user, nil
-}
-
 // getManagedUsersForGroup returns all managed users for specified user group ID.
 func (f *elastiCacheFetcher) getManagedUsersForGroup(ctx context.Context, region, userGroupID string, client elasticacheiface.ElastiCacheAPI) ([]*elasticache.User, error) {
 	allUsers, err := f.getUsersForRegion(ctx, region, client)
@@ -201,6 +170,37 @@ func (f *elastiCacheFetcher) getUserTags(ctx context.Context, user *elasticache.
 		return nil, trace.Wrap(err)
 	}
 	return userTags.([]*elasticache.Tag), nil
+}
+
+// createUser creates an ElastiCache User.
+func (f *elastiCacheFetcher) createUser(ecUser *elasticache.User, client elasticacheiface.ElastiCacheAPI, secrets libsecrets.Secrets) (User, error) {
+	secretKey, err := secretKeyFromAWSARN(aws.StringValue(ecUser.ARN))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	user := &baseUser{
+		log:            f.cfg.Log,
+		secretKey:      secretKey,
+		secrets:        secrets,
+		secretTTL:      f.cfg.Interval,
+		inDatabaseName: aws.StringValue(ecUser.UserName),
+		modifyUserFunc: modifyElastiCacheUserFunc(ecUser, client),
+		clock:          f.cfg.Clock,
+
+		// Maximum ElastiCache User password size is 128.
+		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth.html
+		maxPasswordLength: 128,
+		// Both Previous and Current version of the passwords are set to be
+		// used for ElastiCache User. Use the Previous version for login in
+		// case the Current version is not effective yet while the change is
+		// being applied to the user.
+		usePreviousPasswordForLogin: true,
+	}
+	if err := user.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
 }
 
 // modifyElastiCacheUserFunc is a callback to update passwords for ElastiCache user.

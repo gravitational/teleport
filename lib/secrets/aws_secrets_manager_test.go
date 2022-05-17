@@ -38,7 +38,7 @@ func TestAWSSecretsManager(t *testing.T) {
 		return secrets, nil
 	}
 
-	// Run common tests from suite.
+	// Run common test suite for Secrets.
 	secretsTestSuite(t, createFunc)
 
 	t.Run("bad key", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestAWSSecretsManager(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
-		// Create for the first time with default KMS.
+		// Create secret for the first time with default KMS.
 		client := NewMockSecretsManagerClient(MockSecretsManagerClientConfig{})
 		secrets, err := NewAWSSecretsManager(AWSSecretsManagerConfig{
 			Client: client,
@@ -79,7 +79,7 @@ func TestAWSSecretsManager(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "arn:aws:kms:us-east-1:1234567890:alias/aws/secretsmanager", aws.StringValue(output1.KmsKeyId))
 
-		// Create for the second time with custom KMS. Create returns
+		// Create secret for the second time with custom KMS. Create returns
 		// IsAlreadyExists but KMSKeyID should be updated.
 		secrets, err = NewAWSSecretsManager(AWSSecretsManagerConfig{
 			Client:   client,

@@ -136,19 +136,18 @@ func authConnection(ctx context.Context, conn *redis.Conn, username, password st
 }
 
 // onClientConnectFunc is a callback function that performs setups after Redis
-// client makes a new connection. Providing this callback to Redis client
-// options allows using "dynamic" passwords for "auth".
+// client makes a new connection.
 type onClientConnectFunc func(context.Context, *redis.Conn) error
 
-// authWithPasswordOnConnect is a onClientConnectFunc that sends "auth" with
-// provided username and password.
+// authWithPasswordOnConnect returns an onClientConnectFunc that sends "auth"
+// with provided username and password.
 func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
 	return func(ctx context.Context, conn *redis.Conn) error {
 		return authConnection(ctx, conn, username, password)
 	}
 }
 
-// fetchUserPasswordOnConnect is a onClientConnectFunc that fetches user
+// fetchUserPasswordOnConnect returns an onClientConnectFunc that fetches user
 // password on the fly then uses it for "auth".
 func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users) onClientConnectFunc {
 	return func(ctx context.Context, conn *redis.Conn) error {

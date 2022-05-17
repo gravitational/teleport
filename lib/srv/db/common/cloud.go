@@ -190,7 +190,7 @@ func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	return c.initAzureCredential()
 }
 
-// Closes closes all initialized clients.
+// Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
