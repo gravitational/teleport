@@ -4097,45 +4097,39 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	require.NoError(t, err)
 
+	watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Clock:     tconf.Clock,
+			Client:    aux.GetSiteAPI(clusterAux),
+		},
+		Types: []types.CertAuthType{types.HostCA},
+	})
+	require.NoError(t, err)
+	t.Cleanup(watcher.Close)
+
 	// waitForPhase waits until aux cluster detects the rotation
-	waitForPhase := func(phase string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), tconf.PollingPeriod*10)
-		defer cancel()
-
-		watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: teleport.ComponentProxy,
-				Clock:     tconf.Clock,
-				Client:    aux.GetSiteAPI(clusterAux),
-			},
-			WatchCertTypes: []types.CertAuthType{types.HostCA},
-		})
-		if err != nil {
-			return err
-		}
-		defer watcher.Close()
-
-		var lastPhase string
-		for i := 0; i < 10; i++ {
-			select {
-			case <-ctx.Done():
-				return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
-			case cas := <-watcher.CertAuthorityC:
-				for _, ca := range cas {
-					if ca.GetClusterName() == clusterMain &&
-						ca.GetType() == types.HostCA &&
-						ca.GetRotation().Phase == phase {
-						return nil
-					}
-					lastPhase = ca.GetRotation().Phase
-				}
+	waitForPhase := func(phase string) {
+		require.Eventually(t, func() bool {
+			ca, err := aux.Process.GetAuthServer().GetCertAuthority(
+				ctx,
+				types.CertAuthID{
+					Type:       types.HostCA,
+					DomainName: clusterMain,
+				}, false)
+			if err != nil {
+				return false
 			}
-		}
-		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
+
+			if ca.GetRotation().Phase == phase {
+				return true
+			}
+
+			return false
+		}, tconf.PollingPeriod*10, tconf.PollingPeriod/2, "failed to converge to phase %q", phase)
 	}
 
-	err = waitForPhase(types.RotationPhaseInit)
-	require.NoError(t, err)
+	waitForPhase(types.RotationPhaseInit)
 
 	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
@@ -4148,8 +4142,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
-	err = waitForPhase(types.RotationPhaseUpdateClients)
-	require.NoError(t, err)
+	waitForPhase(types.RotationPhaseUpdateClients)
 
 	// old client should work as is
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
@@ -4168,8 +4161,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
-	err = waitForPhase(types.RotationPhaseUpdateServers)
-	require.NoError(t, err)
+	waitForPhase(types.RotationPhaseUpdateServers)
 
 	// new credentials will work from this phase to others
 	newCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: suite.me.Username})
@@ -4197,8 +4189,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	t.Log("Service reload completed, waiting for phase.")
 
-	err = waitForPhase(types.RotationPhaseStandby)
-	require.NoError(t, err)
+	waitForPhase(types.RotationPhaseStandby)
 	t.Log("Phase completed.")
 
 	// new client still works
