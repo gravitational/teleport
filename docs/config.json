@@ -77,11 +77,11 @@
               "slug": "/setup/admin/troubleshooting/"
             },
             {
-              "title": "Graceful Restarts",
+              "title": "Upgrading the Teleport Binary",
               "slug": "/setup/admin/graceful-restarts/"
             },
             {
-              "title": "Daemon",
+              "title": "Run Teleport as a Daemon",
               "slug": "/setup/admin/daemon/"
             }
           ]
@@ -113,7 +113,7 @@
               "slug": "/setup/operations/scaling/"
             },
             {
-              "title": "Upgrading",
+              "title": "Upgrading a Cluster",
               "slug": "/setup/operations/upgrading/"
             },
             {
@@ -215,8 +215,12 @@
               "slug": "/setup/reference/networking/"
             },
             {
-              "title": "Enterprise License File",
-              "slug": "/setup/reference/license/"
+              "title": "Predicate Language",
+              "slug": "/setup/reference/predicate-language/"
+            },
+            {
+              "title": "Signals",
+              "slug": "/setup/reference/signals/"
             }
           ]
         }
@@ -299,6 +303,10 @@
               "slug": "/server-access/guides/openssh/"
             },
             {
+              "title": "Recording Proxy Mode",
+              "slug": "/server-access/guides/recording-proxy-mode/"
+            },
+            {
               "title": "BPF Session Recording",
               "slug": "/server-access/guides/bpf-session-recording/"
             },
@@ -325,18 +333,18 @@
         {
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
-           "entries": [
-            { 
-              "title": "Local Demo Cluster", 
+          "entries": [
+            {
+              "title": "Local Demo Cluster",
               "slug": "/kubernetes-access/getting-started/local/"
             },
-            { 
-              "title": "Cluster", 
-              "slug": "/kubernetes-access/getting-started/cluster/" 
+            {
+              "title": "Cluster",
+              "slug": "/kubernetes-access/getting-started/cluster/"
             },
-            { 
-              "title": "Agent", 
-              "slug": "/kubernetes-access/getting-started/agent/" 
+            {
+              "title": "Agent",
+              "slug": "/kubernetes-access/getting-started/agent/"
             }
           ]
         },
@@ -397,8 +405,8 @@
               "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
             },
             {
-               "title": "teleport-kube-agent",
-               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+              "title": "teleport-kube-agent",
+              "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
             }
           ]
         },
@@ -467,6 +475,10 @@
             {
               "title": "Self-Hosted Redis",
               "slug": "/database-access/guides/redis/"
+            },
+            {
+              "title": "Self-Hosted Redis Cluster",
+              "slug": "/database-access/guides/redis-cluster/"
             },
             {
               "title": "SQL Server (Preview)",
@@ -709,7 +721,7 @@
           "slug": "/enterprise/getting-started/"
         },
         {
-          "title": "Single sign-on (SSO)",
+          "title": "Single Sign-On (SSO)",
           "slug": "/enterprise/sso/",
           "entries": [
             {
@@ -757,6 +769,10 @@
         {
           "title": "HSM",
           "slug": "/enterprise/hsm/"
+        },
+        {
+          "title": "Enterprise License File",
+          "slug": "/enterprise/license/"
         }
       ]
     },
@@ -851,18 +867,16 @@
   ],
   "variables": {
     "version": "7.0",
-    "helm": {
-      "version": "3.4.2"
-    },
     "terraform": {
-      "version": "0.12.0"
+      "version": "1.0.0"
     },
     "presets": {
       "tokens": {
         "first": "abcd123-insecure-do-not-use-this",
         "second": "efgh456-insecure-do-not-use-this",
         "third": "ijkl789-insecure-do-not-use-this"
-      }
+      },
+      "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "fedramp": {
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
@@ -903,14 +917,14 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "7.0.0",
-      "golang": "1.16",
+      "version": "9.0.4",
+      "golang": "1.17",
       "plugin": {
-        "version": "7.0.0"
+        "version": "9.0.4"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:7"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:9.1.2",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:9.1.2"
     }
   },
   "redirects": [
@@ -1122,6 +1136,36 @@
     {
       "source": "/setup/guides/joining-nodes-aws/",
       "destination": "/setup/guides/joining-nodes-aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/setup/reference/license/",
+      "destination": "/docs/enterprise/license/",
+      "permanent": true
+    },
+    {
+      "source": "/architecture/",
+      "destination": "/architecture/overview/",
+      "permanent": true
+    },
+    {
+      "source": "/intro/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/",
+      "destination": "/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/ansible/",
+      "destination": "/machine-id/guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/cluster/",
+      "destination": "/kubernetes-access/guides/multiple-clusters/",
       "permanent": true
     }
   ]

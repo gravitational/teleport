@@ -43,9 +43,6 @@ const (
 	// KindUser is a user resource
 	KindUser = "user"
 
-	// KindKeyPair is a public/private key pair
-	KindKeyPair = "key_pair"
-
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
 
@@ -309,7 +306,7 @@ const (
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
 
-	// OriginConfigFile is an origin value indicating that the resource was
+	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = "defaults"
 
@@ -402,3 +399,6 @@ const (
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = "teleport.internal/bot-generation"
 )
+
+// ResourceKinds lists all Teleport resource kinds users can request access to.
+var ResourceKinds = []string{KindNode, KindDatabaseServer, KindAppServer, KindKubeService, KindWindowsDesktop}

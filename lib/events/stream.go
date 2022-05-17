@@ -1087,6 +1087,9 @@ type MemoryUpload struct {
 	sessionID session.ID
 	//completed specifies upload as completed
 	completed bool
+	// Initiated contains the timestamp of when the upload
+	// was initiated, not always initialized
+	Initiated time.Time
 }
 
 func (m *MemoryUploader) trySendEvent(event UploadEvent) {
@@ -1122,6 +1125,7 @@ func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID)
 		id:        upload.ID,
 		sessionID: sessionID,
 		parts:     make(map[int64][]byte),
+		Initiated: upload.Initiated,
 	}
 	return upload, nil
 }
@@ -1181,13 +1185,18 @@ func (m *MemoryUploader) UploadPart(ctx context.Context, upload StreamUpload, pa
 func (m *MemoryUploader) ListUploads(ctx context.Context) ([]StreamUpload, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
-	out := make([]StreamUpload, 0, len(m.uploads))
-	for id := range m.uploads {
-		out = append(out, StreamUpload{
-			ID: id,
+	uploads := make([]StreamUpload, 0, len(m.uploads))
+	for id, upload := range m.uploads {
+		uploads = append(uploads, StreamUpload{
+			ID:        id,
+			SessionID: upload.sessionID,
+			Initiated: upload.Initiated,
 		})
 	}
-	return out, nil
+	sort.Slice(uploads, func(i, j int) bool {
+		return uploads[i].Initiated.Before(uploads[j].Initiated)
+	})
+	return uploads, nil
 }
 
 // GetParts returns upload parts uploaded up to date, sorted by part number

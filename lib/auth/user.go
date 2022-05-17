@@ -53,7 +53,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 
 	var connectorName string
 	if user.GetCreatedBy().Connector == nil {
-		connectorName = constants.Local
+		connectorName = constants.LocalConnector
 	} else {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
@@ -85,7 +85,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 
 	var connectorName string
 	if user.GetCreatedBy().Connector == nil {
-		connectorName = constants.Local
+		connectorName = constants.LocalConnector
 	} else {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
@@ -118,7 +118,7 @@ func (s *Server) UpsertUser(user types.User) error {
 
 	var connectorName string
 	if user.GetCreatedBy().Connector == nil {
-		connectorName = constants.Local
+		connectorName = constants.LocalConnector
 	} else {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
@@ -154,7 +154,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 
 	var connectorName string
 	if new.GetCreatedBy().Connector == nil {
-		connectorName = constants.Local
+		connectorName = constants.LocalConnector
 	} else {
 		connectorName = new.GetCreatedBy().Connector.ID
 	}

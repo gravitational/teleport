@@ -201,6 +201,9 @@ const (
 	AccessRequestReviewEvent = "access_request.review"
 	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
 	AccessRequestDeleteEvent = "access_request.delete"
+	// AccessRequestResourceSearch is emitted when a user searches for
+	// resources as part of a search-based access request.
+	AccessRequestResourceSearch = "access_request.search"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -447,6 +450,28 @@ const (
 	// statement protocol.
 	DatabaseSessionMySQLStatementBulkExecuteEvent = "db.session.mysql.statements.bulk_execute"
 
+	// DatabaseSessionMySQLInitDBEvent is emitted when a MySQL client changes
+	// the default schema for the connection.
+	DatabaseSessionMySQLInitDBEvent = "db.session.mysql.init_db"
+	// DatabaseSessionMySQLCreateDBEvent is emitted when a MySQL client creates
+	// a schema.
+	DatabaseSessionMySQLCreateDBEvent = "db.session.mysql.create_db"
+	// DatabaseSessionMySQLDropDBEvent is emitted when a MySQL client drops a
+	// schema.
+	DatabaseSessionMySQLDropDBEvent = "db.session.mysql.drop_db"
+	// DatabaseSessionMySQLShutDownEvent is emitted when a MySQL client asks
+	// the server to shut down.
+	DatabaseSessionMySQLShutDownEvent = "db.session.mysql.shut_down"
+	// DatabaseSessionMySQLProcessKillEvent is emitted when a MySQL client asks
+	// the server to terminate a connection.
+	DatabaseSessionMySQLProcessKillEvent = "db.session.mysql.process_kill"
+	// DatabaseSessionMySQLDebugEvent is emitted when a MySQL client asks the
+	// server to dump internal debug info to stdout.
+	DatabaseSessionMySQLDebugEvent = "db.session.mysql.debug"
+	// DatabaseSessionMySQLRefreshEvent is emitted when a MySQL client sends
+	// refresh commands.
+	DatabaseSessionMySQLRefreshEvent = "db.session.mysql.refresh"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
@@ -662,21 +687,8 @@ type IAuditLog interface {
 	// Closer releases connection and resources associated with log if any
 	io.Closer
 
-	// EmitAuditEventLegacy emits audit in legacy format
-	// DELETE IN: 5.0.0
-	EmitAuditEventLegacy(Event, EventFields) error
-
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, apievents.AuditEvent) error
-
-	// DELETE IN: 2.7.0
-	// This method is no longer necessary as nodes and proxies >= 2.7.0
-	// use UploadSessionRecording method.
-	// PostSessionSlice sends chunks of recorded session to the event log
-	PostSessionSlice(SessionSlice) error
-
-	// UploadSessionRecording uploads session recording to the audit server
-	UploadSessionRecording(r SessionRecording) error
 
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the

@@ -32,6 +32,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -176,7 +177,7 @@ type TestAuthServer struct {
 	AuthServer *Server
 	// AuditLog is an event audit log
 	AuditLog events.IAuditLog
-	// SessionLogger is a session logger
+	// SessionServer is a session service
 	SessionServer session.Service
 	// Backend is a backend for auth server
 	Backend backend.Backend
@@ -302,26 +303,14 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// Setup certificate and signing authorities.
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.HostCA,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.UserCA,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.JWTSigner,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
+	for _, caType := range types.CertAuthTypes {
+		if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+			Type:        caType,
+			ClusterName: srv.ClusterName,
+			Clock:       cfg.Clock,
+		})); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
@@ -397,7 +386,7 @@ func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error
 // generateCertificate generates certificate for identity,
 // returns private public key pair
 func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
-	priv, pub, err := authServer.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -488,6 +477,17 @@ func (a *TestAuthServer) Clock() clockwork.Clock {
 func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, roleMap types.RoleMap) error {
 	remoteCA, err := remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
+		DomainName: remote.ClusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
 		DomainName: remote.ClusterName,
 	}, false)
 	if err != nil {
@@ -888,7 +888,7 @@ func (t *TestTLSServer) Stop() error {
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
-	priv, pub, err := clt.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

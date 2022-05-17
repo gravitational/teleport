@@ -31,27 +31,27 @@ import (
 	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	apievents "github.com/gravitational/teleport/api/types/events"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-
-	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
 )
 
 var (
@@ -335,7 +335,16 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return watcher.Error()
 		case event := <-watcher.Events():
-			out, err := eventToGRPC(stream.Context(), event)
+			switch r := event.Resource.(type) {
+			case *types.RoleV5:
+				downgraded, err := downgradeRole(stream.Context(), r)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				event.Resource = downgraded
+			}
+
+			out, err := client.EventToGRPC(event)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -412,159 +421,6 @@ func resourceLabel(event types.Event) string {
 	}
 
 	return fmt.Sprintf("/%s/%s", event.Resource.GetKind(), sub)
-}
-
-// eventToGRPC converts a types.Event to an proto.Event
-func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
-	eventType, err := eventTypeToGRPC(in.Type)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := proto.Event{
-		Type: eventType,
-	}
-	if in.Type == types.OpInit {
-		return &out, nil
-	}
-	switch r := in.Resource.(type) {
-	case *types.ResourceHeader:
-		out.Resource = &proto.Event_ResourceHeader{
-			ResourceHeader: r,
-		}
-	case *types.CertAuthorityV2:
-		out.Resource = &proto.Event_CertAuthority{
-			CertAuthority: r,
-		}
-	case *types.StaticTokensV2:
-		out.Resource = &proto.Event_StaticTokens{
-			StaticTokens: r,
-		}
-	case *types.ProvisionTokenV2:
-		out.Resource = &proto.Event_ProvisionToken{
-			ProvisionToken: r,
-		}
-	case *types.ClusterNameV2:
-		out.Resource = &proto.Event_ClusterName{
-			ClusterName: r,
-		}
-	case *types.UserV2:
-		out.Resource = &proto.Event_User{
-			User: r,
-		}
-	case *types.RoleV5:
-		downgraded, err := downgradeRole(ctx, r)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out.Resource = &proto.Event_Role{
-			Role: downgraded,
-		}
-	case *types.Namespace:
-		out.Resource = &proto.Event_Namespace{
-			Namespace: r,
-		}
-	case *types.ServerV2:
-		out.Resource = &proto.Event_Server{
-			Server: r,
-		}
-	case *types.ReverseTunnelV2:
-		out.Resource = &proto.Event_ReverseTunnel{
-			ReverseTunnel: r,
-		}
-	case *types.TunnelConnectionV2:
-		out.Resource = &proto.Event_TunnelConnection{
-			TunnelConnection: r,
-		}
-	case *types.AccessRequestV3:
-		out.Resource = &proto.Event_AccessRequest{
-			AccessRequest: r,
-		}
-	case *types.WebSessionV2:
-		switch r.GetSubKind() {
-		case types.KindAppSession:
-			out.Resource = &proto.Event_AppSession{
-				AppSession: r,
-			}
-		case types.KindWebSession:
-			out.Resource = &proto.Event_WebSession{
-				WebSession: r,
-			}
-		default:
-			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
-		}
-	case *types.WebTokenV3:
-		out.Resource = &proto.Event_WebToken{
-			WebToken: r,
-		}
-	case *types.RemoteClusterV3:
-		out.Resource = &proto.Event_RemoteCluster{
-			RemoteCluster: r,
-		}
-	case *types.AppServerV3:
-		out.Resource = &proto.Event_AppServer{
-			AppServer: r,
-		}
-	case *types.DatabaseServerV3:
-		out.Resource = &proto.Event_DatabaseServer{
-			DatabaseServer: r,
-		}
-	case *types.DatabaseV3:
-		out.Resource = &proto.Event_Database{
-			Database: r,
-		}
-	case *types.AppV3:
-		out.Resource = &proto.Event_App{
-			App: r,
-		}
-	case *types.ClusterAuditConfigV2:
-		out.Resource = &proto.Event_ClusterAuditConfig{
-			ClusterAuditConfig: r,
-		}
-	case *types.ClusterNetworkingConfigV2:
-		out.Resource = &proto.Event_ClusterNetworkingConfig{
-			ClusterNetworkingConfig: r,
-		}
-	case *types.SessionRecordingConfigV2:
-		out.Resource = &proto.Event_SessionRecordingConfig{
-			SessionRecordingConfig: r,
-		}
-	case *types.AuthPreferenceV2:
-		out.Resource = &proto.Event_AuthPreference{
-			AuthPreference: r,
-		}
-	case *types.LockV2:
-		out.Resource = &proto.Event_Lock{
-			Lock: r,
-		}
-	case *types.NetworkRestrictionsV4:
-		out.Resource = &proto.Event_NetworkRestrictions{
-			NetworkRestrictions: r,
-		}
-	case *types.WindowsDesktopServiceV3:
-		out.Resource = &proto.Event_WindowsDesktopService{
-			WindowsDesktopService: r,
-		}
-	case *types.WindowsDesktopV3:
-		out.Resource = &proto.Event_WindowsDesktop{
-			WindowsDesktop: r,
-		}
-	default:
-		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
-	}
-	return &out, nil
-}
-
-func eventTypeToGRPC(in types.OpType) (proto.Operation, error) {
-	switch in {
-	case types.OpInit:
-		return proto.Operation_INIT, nil
-	case types.OpPut:
-		return proto.Operation_PUT, nil
-	case types.OpDelete:
-		return proto.Operation_DELETE, nil
-	default:
-		return -1, trace.BadParameter("event type %v is not supported", in)
-	}
 }
 
 func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCertsRequest) (*proto.Certs, error) {
@@ -1392,6 +1248,20 @@ func (g *GRPCServer) DeleteAllAppSessions(ctx context.Context, _ *empty.Empty) (
 	return &empty.Empty{}, nil
 }
 
+// DeleteUserAppSessions removes user's all application web sessions.
+func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteUserAppSessions(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // GenerateAppToken creates a JWT token with application access.
 func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -1707,8 +1577,7 @@ func downgradeRole(ctx context.Context, role *types.RoleV5) (*types.RoleV5, erro
 		}
 	}
 
-	minSupportedVersionForV5Roles := semver.New(utils.VersionBeforeAlpha("9.0.0"))
-	if clientVersion == nil || clientVersion.LessThan(*minSupportedVersionForV5Roles) {
+	if clientVersion == nil || clientVersion.LessThan(*MinSupportedModeratedSessionsVersion) {
 		log.Debugf(`Client version "%s" is unknown or less than 9.0.0, converting role to v4`, clientVersionString)
 		downgraded, err := services.DowngradeRoleToV4(role)
 		if err != nil {
@@ -2033,11 +1902,13 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	}
 
 	// Validate MFARegisterResponse and upsert the new device on success.
-	dev, err := auth.verifyMFARespAndAddDevice(ctx, regResp, &newMFADeviceFields{
+	dev, err := auth.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:            user,
 		newDeviceName:       initReq.DeviceName,
 		totpSecret:          regChallenge.GetTOTP().GetSecret(),
 		webIdentityOverride: webIdentity,
+		deviceResp:          regResp,
+		deviceUsage:         initReq.DeviceUsage,
 	})
 
 	return dev, trace.Wrap(err)
@@ -3753,17 +3624,43 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.Create
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req)
+
+	var createTracker types.SessionTracker = req.SessionTracker
+	// DELETE IN 11.0.0
+	// Early v9 versions use a flattened out types.SessionTrackerV1
+	if req.SessionTracker == nil {
+		spec := types.SessionTrackerSpecV1{
+			SessionID:         req.ID,
+			Kind:              req.Type,
+			State:             types.SessionState_SessionStatePending,
+			Reason:            req.Reason,
+			Invited:           req.Invited,
+			Hostname:          req.Hostname,
+			Address:           req.Address,
+			ClusterName:       req.ClusterName,
+			Login:             req.Login,
+			Participants:      []types.Participant{*req.Initiator},
+			Expires:           req.Expires,
+			KubernetesCluster: req.KubernetesCluster,
+			HostUser:          req.HostUser,
+		}
+		createTracker, err = types.NewSessionTracker(spec)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, createTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	defined, ok := session.(*types.SessionTrackerV1)
+	v1, ok := tracker.(*types.SessionTrackerV1)
 	if !ok {
-		return nil, trace.BadParameter("unexpected session type %T", session)
+		return nil, trace.BadParameter("unexpected session type %T", tracker)
 	}
 
-	return defined, nil
+	return v1, nil
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
@@ -3881,8 +3778,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		grpc.Creds(&httplib.TLSCreds{
 			Config: cfg.TLS,
 		}),
-		grpc.UnaryInterceptor(cfg.UnaryInterceptor),
-		grpc.StreamInterceptor(cfg.StreamInterceptor),
+		grpc.ChainUnaryInterceptor(otelgrpc.UnaryServerInterceptor(), cfg.UnaryInterceptor),
+		grpc.ChainStreamInterceptor(otelgrpc.StreamServerInterceptor(), cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
