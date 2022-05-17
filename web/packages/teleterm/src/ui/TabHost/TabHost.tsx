@@ -25,6 +25,7 @@ import { DocumentsRenderer } from 'teleterm/ui/Documents';
 import { useNewTabOpener } from './useNewTabOpener';
 import { ClusterConnectPanel } from './ClusterConnectPanel/ClusterConnectPanel';
 import AppContext from 'teleterm/ui/appContext';
+import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
 export function TabHostContainer() {
   const ctx = useAppContext();
@@ -48,6 +49,7 @@ export function TabHost({ ctx }: { ctx: AppContext }) {
     localClusterUri:
       ctx.workspacesService.getActiveWorkspace()?.localClusterUri,
   });
+  const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
 
   useTabShortcuts({
     documentsService,
@@ -104,6 +106,8 @@ export function TabHost({ ctx }: { ctx: AppContext }) {
           onMoved={handleTabMoved}
           disableNew={false}
           onNew={openClusterTab}
+          newTabTooltip={getLabelWithShortcut('New Tab', 'tab-new')}
+          closeTabTooltip={getLabelWithShortcut('Close', 'tab-close')}
         />
       </Flex>
       <DocumentsRenderer />

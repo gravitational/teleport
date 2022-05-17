@@ -24,6 +24,7 @@ type TabItemProps = {
   index?: number;
   name?: string;
   active?: boolean;
+  closeTabTooltip?: string;
   onClick?(): void;
   onClose?(): void;
   onMoved?(oldIndex: number, newIndex: number): void;
@@ -31,8 +32,16 @@ type TabItemProps = {
 };
 
 export function TabItem(props: TabItemProps) {
-  const { name, active, onClick, onClose, index, onMoved, onContextMenu } =
-    props;
+  const {
+    name,
+    active,
+    onClick,
+    onClose,
+    index,
+    onMoved,
+    onContextMenu,
+    closeTabTooltip,
+  } = props;
   const ref = useRef<HTMLDivElement>(null);
   const canDrag = !!onMoved;
   const { isDragging } = useTabDnD({
@@ -64,7 +73,7 @@ export function TabItem(props: TabItemProps) {
         <ButtonIcon
           size={0}
           mr={1}
-          title="Close"
+          title={closeTabTooltip}
           css={`
             transition: none;
           `}

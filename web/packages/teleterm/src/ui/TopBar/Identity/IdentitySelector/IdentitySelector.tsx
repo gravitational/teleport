@@ -4,6 +4,7 @@ import { Box, Text } from 'design';
 import styled from 'styled-components';
 import { UserIcon } from './UserIcon';
 import { PamIcon } from './PamIcon';
+import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
 interface IdentitySelectorProps {
   isOpened: boolean;
@@ -17,23 +18,28 @@ export const IdentitySelector = forwardRef<
   HTMLButtonElement,
   IdentitySelectorProps
 >((props, ref) => {
+  const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
   const isSelected = props.userName && props.clusterName;
-  const text = isSelected && `${props.userName}@${props.clusterName}`;
+  const selectorText = isSelected && `${props.userName}@${props.clusterName}`;
   const Icon = props.isOpened ? SortAsc : SortDesc;
 
   return (
-    <Container isOpened={props.isOpened} ref={ref} onClick={props.onClick}>
+    <Container
+      isOpened={props.isOpened}
+      ref={ref}
+      onClick={props.onClick}
+      title={getLabelWithShortcut(
+        [selectorText, 'Open Profiles'].filter(Boolean).join('\n'),
+        'toggle-identity'
+      )}
+    >
       {isSelected ? (
         <>
           <Box mr={2}>
             <UserIcon letter={props.userName[0]} />
           </Box>
-          <Text
-            style={{ whiteSpace: 'nowrap' }}
-            typography="subtitle1"
-            title={text}
-          >
-            {text}
+          <Text style={{ whiteSpace: 'nowrap' }} typography="subtitle1">
+            {selectorText}
           </Text>
         </>
       ) : (

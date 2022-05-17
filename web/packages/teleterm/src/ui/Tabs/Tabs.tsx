@@ -32,6 +32,8 @@ export function Tabs(props: Props) {
     disableNew,
     onMoved,
     onContextMenu,
+    newTabTooltip,
+    closeTabTooltip,
     ...styledProps
   } = props;
 
@@ -55,6 +57,7 @@ export function Tabs(props: Props) {
               onClose={() => onClose(item)}
               onContextMenu={() => onContextMenu(item)}
               onMoved={onMoved}
+              closeTabTooltip={closeTabTooltip}
             />
             <Separator />
           </Fragment>
@@ -71,7 +74,7 @@ export function Tabs(props: Props) {
         size={0}
         color="light"
         disabled={disableNew}
-        title="New Tab"
+        title={newTabTooltip}
         onClick={onNew}
       >
         <Icons.Add fontSize="16px" />
@@ -84,6 +87,8 @@ type Props = {
   items: Document[];
   activeTab: string;
   disableNew: boolean;
+  newTabTooltip: string;
+  closeTabTooltip: string;
   onNew: () => void;
   onSelect: (doc: Document) => void;
   onContextMenu: (doc: Document) => void;

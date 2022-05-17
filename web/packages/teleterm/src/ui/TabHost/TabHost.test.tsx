@@ -11,10 +11,12 @@ import {
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 import {
   MainProcessClient,
+  RuntimeSettings,
   TabContextMenuOptions,
 } from 'teleterm/mainProcess/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import AppContext from 'teleterm/ui/appContext';
+import { Config } from 'teleterm/services/config';
 
 function getMockDocuments(): Document[] {
   return [
@@ -39,6 +41,21 @@ function getTestSetup({ documents }: { documents: Document[] }) {
 
   const mainProcessClient: Partial<MainProcessClient> = {
     openTabContextMenu: jest.fn(),
+    getRuntimeSettings: () => ({} as RuntimeSettings),
+    configService: {
+      get: () =>
+        ({
+          keyboardShortcuts: {
+            'tab-close': 'Command-W',
+            'tab-new': 'Command-T',
+            'open-quick-input': 'Command-K',
+            'toggle-connections': 'Command-P',
+            'toggle-clusters': 'Command-E',
+            'toggle-identity': 'Command-I',
+          },
+        } as Config),
+      update() {},
+    },
   };
 
   const docsService: Partial<DocumentsService> = {
@@ -186,7 +203,7 @@ test('open new tab', () => {
     kind: 'doc.cluster',
   };
   docsService.createClusterDocument = () => mockedClusterDocument;
-  const $newTabButton = getByTitle('New Tab');
+  const $newTabButton = getByTitle('New Tab', { exact: false });
 
   fireEvent.click($newTabButton);
 

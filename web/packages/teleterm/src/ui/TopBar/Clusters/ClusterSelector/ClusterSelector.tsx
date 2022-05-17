@@ -2,6 +2,7 @@ import React, { forwardRef } from 'react';
 import { SortAsc, SortDesc } from 'design/Icon';
 import styled from 'styled-components';
 import { Text } from 'design';
+import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
 interface ClusterSelectorProps {
   clusterName?: string;
@@ -12,15 +13,20 @@ interface ClusterSelectorProps {
 
 export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
   (props, ref) => {
+    const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
     const SortIcon = props.isOpened ? SortAsc : SortDesc;
     const text = props.clusterName || 'Select Cluster';
+
     return (
       <Container
         ref={ref}
         onClick={props.onClick}
         isOpened={props.isOpened}
         isClusterSelected={!!props.clusterName}
-        title={text}
+        title={getLabelWithShortcut(
+          [props.clusterName, 'Open Clusters'].filter(Boolean).join('\n'),
+          'toggle-clusters'
+        )}
       >
         <Text
           css={`

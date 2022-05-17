@@ -1,34 +1,33 @@
 import React from 'react';
 import { Text } from 'design';
 import Document from 'teleterm/ui/Document';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import styled from 'styled-components';
-import { Platform } from 'teleterm/mainProcess/types';
+import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
+import { KeyboardShortcutType } from 'teleterm/services/config';
 
 export function KeyboardShortcutsPanel() {
-  const ctx = useAppContext();
-  const { keyboardShortcuts } = ctx.mainProcessClient.configService.get();
+  const { getShortcut } = useKeyboardShortcutFormatters();
 
-  const items = [
+  const items: { title: string; shortcutKey: KeyboardShortcutType }[] = [
     {
       title: 'Open New Tab',
-      shortcut: keyboardShortcuts['tab-new'],
+      shortcutKey: 'tab-new',
     },
     {
       title: 'Go To Next Tab',
-      shortcut: keyboardShortcuts['tab-next'],
+      shortcutKey: 'tab-next',
     },
     {
       title: 'Open Connections',
-      shortcut: keyboardShortcuts['toggle-connections'],
+      shortcutKey: 'toggle-connections',
     },
     {
       title: 'Open Clusters',
-      shortcut: keyboardShortcuts['toggle-clusters'],
+      shortcutKey: 'toggle-clusters',
     },
     {
-      title: 'Open Profile',
-      shortcut: keyboardShortcuts['toggle-identity'],
+      title: 'Open Profiles',
+      shortcutKey: 'toggle-identity',
     },
   ];
 
@@ -38,11 +37,10 @@ export function KeyboardShortcutsPanel() {
         {items.map(item => (
           <Entry
             title={item.title}
-            shortcut={displayShortcut(
-              ctx.mainProcessClient.getRuntimeSettings().platform,
-              item.shortcut
-            )}
-            key={item.shortcut}
+            shortcut={getShortcut(item.shortcutKey, {
+              useWhitespaceSeparator: true,
+            })}
+            key={item.shortcutKey}
           />
         ))}
       </Grid>
@@ -61,20 +59,6 @@ function Entry(props: { title: string; shortcut: string }) {
       </MonoText>
     </>
   );
-}
-
-function displayShortcut(platform: Platform, shortcut: string): string {
-  switch (platform) {
-    case 'darwin':
-      return shortcut
-        .replace('-', ' ')
-        .replace('Command', '⌘')
-        .replace('Control', '⌃')
-        .replace('Option', '⌥')
-        .replace('Shift', '⇧');
-    case 'linux':
-      return shortcut.replace('-', ' + ');
-  }
 }
 
 const MonoText = styled(Text)`
