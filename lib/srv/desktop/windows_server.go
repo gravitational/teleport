@@ -833,12 +833,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
 		},
-		CertTTL:               windowsDesktopCertTTL,
-		Addr:                  desktop.GetAddr(),
-		Conn:                  tdpConn,
-		AuthorizeFn:           authorize,
-		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
-		AllowDirectorySharing: allowDirectorySharing(), // modulated by build flag while in development
+		CertTTL:        windowsDesktopCertTTL,
+		Addr:           desktop.GetAddr(),
+		Conn:           tdpConn,
+		AuthorizeFn:    authorize,
+		AllowClipboard: authCtx.Checker.DesktopClipboard(),
+		// allowDirectorySharing() ensures this setting is modulated by build flag while in development
+		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing() && allowDirectorySharing(),
 	})
 	if err != nil {
 		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
