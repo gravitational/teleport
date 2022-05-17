@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
@@ -182,4 +183,59 @@ func TestFnCacheCancellation(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "val", v.(string))
+}
+
+// TestFnCacheContextCancellation verifies that any errors
+// which occur due to context cancellation are not cached.
+func TestFnCacheContextCancellation(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	const (
+		key = "test"
+		ttl = time.Hour
+	)
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:   ttl,
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	counter := 1
+	loadFn := func() (interface{}, error) {
+		counter++
+		return counter, nil
+	}
+
+	cancelFn := func() (interface{}, error) {
+		return nil, context.Canceled
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// get the first value
+	val, err := cache.Get(ctx, key, loadFn)
+	require.NoError(t, err)
+	require.Equal(t, 2, val.(int))
+
+	// ensure the cached value is returned
+	val, err = cache.Get(ctx, key, cancelFn)
+	require.NoError(t, err)
+	require.Equal(t, 2, val.(int))
+
+	// advance clock to expire the cache
+	clock.Advance(ttl * cleanupMultiplier)
+
+	// get again with a cancellation error
+	val, err = cache.Get(ctx, key, cancelFn)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, val)
+
+	// ensure the cancellation isn't cached
+	val, err = cache.Get(ctx, key, loadFn)
+	require.NoError(t, err)
+	require.Equal(t, 3, val.(int))
+
+	// advance clock to expire the cache
+	clock.Advance(ttl * cleanupMultiplier)
+
 }

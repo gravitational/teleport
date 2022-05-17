@@ -18,6 +18,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -129,7 +130,13 @@ func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func() (inter
 		c.entries[key] = entry
 		go func() {
 			entry.v, entry.e = loadfn()
-			entry.t = c.cfg.Clock.Now()
+
+			expiry := c.cfg.Clock.Now()
+			// mark entry as expired in the event that the error is related to context cancellation
+			if errors.Is(entry.e, context.Canceled) {
+				expiry = expiry.Add(-2 * c.cfg.TTL)
+			}
+			entry.t = expiry
 			close(entry.loaded)
 		}()
 	}
