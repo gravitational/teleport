@@ -444,20 +444,16 @@ func TestSAMLAuthRequest(t *testing.T) {
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-			} else {
-				if err != nil {
-					if reporter, ok := err.(trace.DebugReporter); ok {
-						fmt.Println(reporter.DebugReport())
-					}
-				}
-				require.NoError(t, err)
-				require.NotEmpty(t, request.ID)
-				require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
-
-				requestCopy, err := clientReader.GetSAMLAuthRequest(ctx, request.ID)
-				require.NoError(t, err)
-				require.Equal(t, request, requestCopy)
+				return
 			}
+
+			require.NoError(t, err)
+			require.NotEmpty(t, request.ID)
+			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
+
+			requestCopy, err := clientReader.GetSAMLAuthRequest(ctx, request.ID)
+			require.NoError(t, err)
+			require.Equal(t, request, requestCopy)
 		})
 	}
 }
@@ -621,12 +617,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 				return
 			}
-			
-			if err != nil {
-				if reporter, ok := err.(trace.DebugReporter); ok {
-					fmt.Println(reporter.DebugReport())
-				}
-			}
+
 			require.NoError(t, err)
 			require.NotEmpty(t, request.StateToken)
 			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
