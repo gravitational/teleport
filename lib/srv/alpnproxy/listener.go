@@ -21,6 +21,8 @@ import (
 	"net"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ListenerMuxWrapper wraps the net.Listener and multiplex incoming connection from serviceListener and connection
@@ -88,7 +90,9 @@ func (l *ListenerMuxWrapper) startAcceptingConnectionServiceListener() {
 	for {
 		conn, err := l.Listener.Accept()
 		if err != nil {
-			l.errC <- err
+			if !utils.IsUseOfClosedNetworkError(err) {
+				l.errC <- err
+			}
 			return
 		}
 		select {
