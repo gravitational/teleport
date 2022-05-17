@@ -235,7 +235,7 @@ func (s *AWSSecretsManager) update(ctx context.Context, key string) error {
 	return convertSecretsManagerError(err)
 }
 
-// secretID returns the secret id in AWS string format.
+// secretID returns the secret ID in AWS string format.
 func (s *AWSSecretsManager) secretID(key string) (*string, error) {
 	// Secret names contain 1-512 charaters.
 	// https://docs.aws.amazon.com/secretsmanager/latest/userguide/reference_limits.html
