@@ -8,7 +8,7 @@ When running on an AWS EC2 instance, Teleport will automatically detect and impo
 Teleport labels for SSH nodes, Applications, Databases, and Kubernetes clusters. Labels created
 this way will have the `aws/` prefix.
 
-If the tag `TeleportHostname` is present, its value will override the node's hostname.
+If the tag `TeleportHostname` (case-sensitive) is present, its value will override the node's hostname.
 
 ```bash
 $ tsh ls
@@ -27,6 +27,12 @@ fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Nam
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 - One Teleport Node running on an Amazon EC2 instance. See
   [Adding Nodes](../admin/adding-nodes.mdx) for how to set up a Teleport Node.
+
+<Admonition type="note" title="Note">
+  Only instances that are running on the [Nitro system](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html#ec2-nitro-instances)
+  will update their tags while running. All other instance types [must be restarted](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS)
+  to update tags.
+</Admonition>
 
 ## Enable tags in instance metadata
 

@@ -732,9 +732,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 	ec2Available := imClient.IsAvailable(ctx)
 	if ec2Available {
-		ec2Hostname, err := imClient.GetTagValue(ctx, types.EC2Hostname)
+		ec2Hostname, err := imClient.GetTagValue(ctx, types.EC2HostnameTag)
 		if err == nil {
-			cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2Hostname, ec2Hostname)
+			cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
 			cfg.Hostname = ec2Hostname
 		} else if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)

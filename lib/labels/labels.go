@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -180,7 +181,7 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 
 // EC2Config is the configuration for the EC2 label service.
 type EC2Config struct {
-	Client utils.InstanceMetadata
+	Client aws.InstanceMetadata
 	Clock  clockwork.Clock
 	Log    *logrus.Entry
 }
