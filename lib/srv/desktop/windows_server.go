@@ -1283,6 +1283,13 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
 	if err != nil {
+		// Ignore access denied errors, which we will get if the auth
+		// server is v9.2.1 or earlier, since only node, proxy, and
+		// kube roles had permission to create session trackers.
+		if trace.IsAccessDenied(err) {
+			s.cfg.Log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionID)
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
