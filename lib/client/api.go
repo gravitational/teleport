@@ -464,7 +464,7 @@ func VirtualPathEnvName(kind VirtualPathKind, params VirtualPathParams) string {
 // indicate no additional arguments are to be specified or accepted.
 func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []string {
 	// Bail out early if there are no parameters.
-	if params == nil || len(params) == 0 {
+	if len(params) == 0 {
 		return []string{VirtualPathEnvName(kind, VirtualPathParams{})}
 	}
 
