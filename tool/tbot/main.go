@@ -98,11 +98,37 @@ func Run(args []string, stdout io.Writer) error {
 
 	watchCmd := app.Command("watch", "Watch a destination directory for changes.").Hidden()
 
+	dbCmd := app.Command("db", "Execute database commands through tsh")
+	dbCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.Proxy)
+	dbCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
+	dbCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
+	dbRemaining := config.RemainingArgs(dbCmd.Arg(
+		"args",
+		"Arguments to `tsh db ...`; consider prefixing with `-- ` to ensure flags are passed correctly.",
+	))
+
+	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode")
+	proxyCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.Proxy)
+	proxyCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
+	proxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
+	proxyRemaining := config.RemainingArgs(proxyCmd.Arg(
+		"args",
+		"Arguments to `tsh proxy ...`; consider prefixing with `-- ` to ensure flags are passed correctly.",
+	))
+
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)
 		return trace.Wrap(err)
+	}
+
+	// It's unfortunate but we'll need to handle remaining args after parsing
+	// to ensure we don't overwrite anything.
+	if len(*dbRemaining) > 0 {
+		cf.RemainingArgs = *dbRemaining
+	} else if len(*proxyRemaining) > 0 {
+		cf.RemainingArgs = *proxyRemaining
 	}
 
 	// While in debug mode, send logs to stdout.
@@ -126,6 +152,10 @@ func Run(args []string, stdout io.Writer) error {
 		err = onInit(botConfig, &cf)
 	case watchCmd.FullCommand():
 		err = onWatch(botConfig)
+	case dbCmd.FullCommand():
+		err = onDBCommand(botConfig, &cf)
+	case proxyCmd.FullCommand():
+		err = onProxyDBCommand(botConfig, &cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
