@@ -300,12 +300,10 @@ message AWS {
 
 // SecretStore contains secret store configurations.
 message SecretStore {
-    // Region specifies the AWS cloud region for AWS Secrets Manager.
-    string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
     // KeyPrefix specifies the secret key prefix.
-    string KeyPrefix = 2 [ (gogoproto.jsontag) = "key_prefix,omitempty" ];
+    string KeyPrefix = 1 [ (gogoproto.jsontag) = "key_prefix,omitempty" ];
     // KMSKeyID specifies the AWS KMS key for encryption.
-    string KMSKeyID = 3 [ (gogoproto.jsontag) = "kms_key_id,omitempty" ];
+    string KMSKeyID = 2 [ (gogoproto.jsontag) = "kms_key_id,omitempty" ];
 }
 
 // Redshift contains AWS Redshift specific database metadata.

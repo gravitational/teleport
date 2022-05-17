@@ -545,11 +545,7 @@ func (d *DatabaseV3) GetIAMResources() []string {
 
 // GetSecretStore returns secret store configurations.
 func (d *DatabaseV3) GetSecretStore() SecretStore {
-	secretStore := d.Spec.AWS.SecretStore
-	if secretStore.Region == "" {
-		secretStore.Region = d.GetAWS().Region
-	}
-	return secretStore
+	return d.Spec.AWS.SecretStore
 }
 
 // GetManagedUsers returns a list of database users that are managed by Teleport.
