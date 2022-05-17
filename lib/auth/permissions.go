@@ -185,7 +185,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 			return nil, trace.AccessDenied("pinning enabled but client IP is missing")
 		}
 		pinnedIP := authContext.Identity.GetIdentity().ClientIP
-		if pinnedIP != addr.IP.String() {
+		if pinnedIP != "" && pinnedIP != addr.IP.String() {
 			return nil, trace.AccessDenied("client IP %s does not match the pinned IP %s", addr.IP, pinnedIP)
 		}
 	}
