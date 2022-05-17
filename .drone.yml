@@ -5467,6 +5467,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: b4a6c47bdce29e025a688ab779ebd5e004dbd563a2d790ef7f2faa9dcd017faf
+hmac: 00f8534c5274a86787c271dcaa9912dddb070b5425b746142786ed5fe37b7ee3
 
 ...

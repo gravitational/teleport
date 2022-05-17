@@ -292,6 +292,10 @@ type TeleportProcess struct {
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
 	importedDescriptors []FileDescriptor
+	// listenersClosed is a flag that indicates that the process should not open
+	// new listeners (for instance, because we're shutting down and we've already
+	// closed all the listeners)
+	listenersClosed bool
 
 	// forkedPIDs is a collection of a teleport processes forked
 	// during restart used to collect their status in case if the
@@ -480,7 +484,7 @@ type Process interface {
 	Shutdown(context.Context)
 	// WaitForEvent waits for event to occur, sends event to the channel,
 	// this is a non-blocking function.
-	WaitForEvent(ctx context.Context, name string, eventC chan Event)
+	WaitForEvent(ctx context.Context, name string, eventC chan<- Event)
 	// WaitWithContext waits for the service to stop. This is a blocking
 	// function.
 	WaitWithContext(ctx context.Context)
@@ -2263,15 +2267,18 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	process.RegisterFunc("readyz.monitor", func() error {
 		// Start loop to monitor for events that are used to update Teleport state.
+		ctx, cancel := context.WithCancel(process.GracefulExitContext())
+		defer cancel()
+
 		eventCh := make(chan Event, 1024)
-		process.WaitForEvent(process.ExitContext(), TeleportDegradedEvent, eventCh)
-		process.WaitForEvent(process.ExitContext(), TeleportOKEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
 
 		for {
 			select {
 			case e := <-eventCh:
 				ps.update(e)
-			case <-process.GracefulExitContext().Done():
+			case <-ctx.Done():
 				log.Debugf("Teleport is exiting, returning.")
 				return nil
 			}
@@ -3238,19 +3245,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// execute this when process is asked to exit:
 	process.OnExit("proxy.shutdown", func(payload interface{}) {
+		// Close the listeners at the beginning of shutdown, because we are not
+		// really guaranteed to be capable to serve new requests if we're
+		// halfway through a shutdown, and double closing a listener is fine.
+		listeners.Close()
 		rcWatcher.Close()
-		defer listeners.Close()
-		// Need to shut down this listener first, because
-		// in case of graceful shutdown, if tls server was not called
-		// the shutdown could be doing nothing, as server has not
-		// started tracking the listener first. It's ok to close listener
-		// several times.
-		if listeners.kube != nil {
-			listeners.kube.Close()
-		}
-		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close(), log)
-		}
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if tsrv != nil {
@@ -3295,6 +3294,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(alpnServer.Close(), log)
 			}
 		}
+		warnOnErr(asyncEmitter.Close(), log)
 		warnOnErr(conn.Close(), log)
 		log.Infof("Exited.")
 	})
@@ -3720,7 +3720,7 @@ func warnOnErr(err error, log logrus.FieldLogger) {
 	if err != nil {
 		// don't warn on double close, happens sometimes when
 		// calling accept on a closed listener
-		if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) {
+		if utils.IsOKNetworkError(err) {
 			return
 		}
 		log.WithError(err).Warn("Got error while cleaning up.")
@@ -3787,6 +3787,13 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // StartShutdown launches non-blocking graceful shutdown process that signals
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
+	// by the time we get here we've already extracted the parent pipe, which is
+	// the only potential imported file descriptor that's not a listening
+	// socket, so closing every imported FD with a prefix of "" will close all
+	// imported listeners that haven't been used so far
+	warnOnErr(process.closeImportedDescriptors(""), process.log)
+	warnOnErr(process.stopListeners(), process.log)
+
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
 	go func() {
