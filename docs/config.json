@@ -1014,6 +1014,11 @@
       "permanent": true
     },
     {
+      "source": "/enterprise/ssh_sso/",
+      "destination": "/enterprise/sso/",
+      "permanent": true
+    },
+    {
       "source": "/enterprise/quickstart-enterprise/",
       "destination": "/enterprise/getting-started/",
       "permanent": true
