@@ -738,6 +738,7 @@ impl Client {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct FileCacheObject {
     path: String,
     delete_pending: bool,
