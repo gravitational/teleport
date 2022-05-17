@@ -63,15 +63,19 @@ impl Client {
                 ClipboardPDUType::CB_CLIP_CAPS => self.handle_server_caps(&mut payload)?,
                 ClipboardPDUType::CB_MONITOR_READY => self.handle_monitor_ready(&mut payload)?,
                 ClipboardPDUType::CB_FORMAT_LIST => {
+                    // TODO(joel): add unicode support here
                     self.handle_format_list(&mut payload, header.data_len)?
                 }
                 ClipboardPDUType::CB_FORMAT_LIST_RESPONSE => {
+                    // TODO(joel): add unicode support here
                     self.handle_format_list_response(header.msg_flags)?
                 }
                 ClipboardPDUType::CB_FORMAT_DATA_REQUEST => {
+                    // TODO(joel): add unicode support here
                     self.handle_format_data_request(&mut payload)?
                 }
                 ClipboardPDUType::CB_FORMAT_DATA_RESPONSE => {
+                    // TODO(joel): add unicode support here
                     if header
                         .msg_flags
                         .contains(ClipboardHeaderFlags::CB_RESPONSE_OK)
