@@ -1080,6 +1080,10 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	defer c.lock.Unlock()
 
 	for _, ca := range cas {
+		if !c.watchingType(ca.GetType()) {
+			continue
+		}
+
 		c.cas[ca.GetType()][ca.GetName()] = ca
 		c.fanout.Emit(types.Event{Type: types.OpPut, Resource: ca.Clone()})
 	}

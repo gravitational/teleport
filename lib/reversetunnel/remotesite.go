@@ -428,6 +428,8 @@ func (s *remoteSite) compareAndSwapCertAuthority(ca types.CertAuthority) error {
 }
 
 func (s *remoteSite) updateCertAuthorities(retry utils.Retry, remoteWatcher *services.CertAuthorityWatcher, remoteVersion string) {
+	defer remoteWatcher.Close()
+
 	cas := make(map[types.CertAuthType]types.CertAuthority)
 	for {
 		err := s.watchCertAuthorities(remoteWatcher, remoteVersion, cas)

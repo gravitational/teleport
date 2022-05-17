@@ -1046,6 +1046,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	connInfo.SetExpiry(srv.Clock.Now().Add(srv.offlineThreshold))
 
 	closeContext, cancel := context.WithCancel(srv.ctx)
+	defer func() {
+		if err != nil {
+			cancel()
+		}
+	}()
 	remoteSite := &remoteSite{
 		srv:        srv,
 		domainName: domainName,
@@ -1069,20 +1074,17 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 
 	clt, _, err := remoteSite.getRemoteClient()
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteClient = clt
 
 	remoteVersion, err := getRemoteAuthVersion(closeContext, sconn)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	accessPoint, err := createRemoteAccessPoint(srv, clt, remoteVersion, domainName)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteAccessPoint = accessPoint
@@ -1094,7 +1096,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		},
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.nodeWatcher = nodeWatcher
@@ -1104,7 +1105,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// is signed by the correct certificate authority.
 	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.certificateCache = certificateCache
@@ -1117,7 +1117,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 
@@ -1135,7 +1134,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 
 	go func() {
-		defer remoteWatcher.Close()
 		remoteSite.updateCertAuthorities(caRetry, remoteWatcher, remoteVersion)
 	}()
 
@@ -1147,7 +1145,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 
