@@ -1511,7 +1511,6 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	if !ok {
 		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeCluster)
 	}
-	f.log.Debugf("local Servername: %v", creds.tlsConfig.ServerName)
 
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
 	sess := &clusterSession{
