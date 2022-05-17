@@ -326,7 +326,8 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return tracker, nil
 	}
 
-	joinerRoles, err := a.authServer.GetRoles(ctx)
+	user := a.context.User
+	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
