@@ -126,6 +126,12 @@ The `teleport` repository contains the Teleport daemon binary (written in Go)
 and a web UI written in Javascript (a git submodule located in the `webassets/`
 directory).
 
+If your intention is to build and deploy for use in a production infrastructure 
+a released tag should be used.  The default branch, `master`, is the current 
+development branch for an upcoming major version.  Get the latest release tags 
+listed at https://goteleport.com/download/ and then use that tag in the `git clone`. 
+For example `git clone https://github.com/gravitational/teleport.git -b v9.1.2` gets release v9.1.2. 
+
 ### Dockerized Build
 
 It is often easiest to build with Docker, which ensures that all required

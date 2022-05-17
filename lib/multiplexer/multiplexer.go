@@ -243,11 +243,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
-	select {
-	case listener.connC <- connWrapper:
-	case <-m.context.Done():
-		connWrapper.Close()
-	}
+	listener.HandleConnection(m.context, connWrapper)
 }
 
 func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {

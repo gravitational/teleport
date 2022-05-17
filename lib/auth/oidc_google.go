@@ -176,7 +176,7 @@ func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConn
 
 	token, err := credentials.TokenSource.Token()
 	if err != nil || !token.Valid() {
-		log.Debugf("failed to obtain valid Google Workspace credentials for scopes %v", scopes)
+		log.WithError(err).Debugf("failed to obtain valid Google Workspace credentials for scopes %v", scopes)
 		return nil, nil
 	}
 

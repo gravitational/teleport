@@ -119,6 +119,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 						InstanceID: db.AWS.RDS.InstanceID,
 						ClusterID:  db.AWS.RDS.ClusterID,
 					},
+					ElastiCache: types.ElastiCache{
+						ReplicationGroupID: db.AWS.ElastiCache.ReplicationGroupID,
+					},
 				},
 				GCP: types.GCPCloudSQL{
 					ProjectID:  db.GCP.ProjectID,
