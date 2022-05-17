@@ -96,11 +96,11 @@ type mockIMDSClient struct {
 	tags map[string]string
 }
 
-func (m *mockIMDSClient) IsAvailable() bool {
+func (m *mockIMDSClient) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
-func (m *mockIMDSClient) GetTagKeys() ([]string, error) {
+func (m *mockIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
 	keys := make([]string, 0, len(m.tags))
 	for k := range m.tags {
 		keys = append(keys, k)
@@ -108,7 +108,7 @@ func (m *mockIMDSClient) GetTagKeys() ([]string, error) {
 	return keys, nil
 }
 
-func (m *mockIMDSClient) GetTagValue(key string) (string, error) {
+func (m *mockIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
 	if value, ok := m.tags[key]; ok {
 		return value, nil
 	}
@@ -116,22 +116,24 @@ func (m *mockIMDSClient) GetTagValue(key string) (string, error) {
 }
 
 func TestEC2LabelsSync(t *testing.T) {
+	ctx := context.Background()
 	tags := map[string]string{"a": "1", "b": "2"}
 	imdsClient := &mockIMDSClient{
 		tags: tags,
 	}
-	ec2Labels, err := NewEC2Labels(context.Background(), &EC2Config{
+	ec2Labels, err := NewEC2Labels(&EC2Config{
 		Client: imdsClient,
 	})
 	require.NoError(t, err)
-	ec2Labels.Sync()
+	ec2Labels.Sync(ctx)
 	require.Equal(t, toAWSLabels(tags), ec2Labels.Get())
 }
 
 func TestEC2LabelsAsync(t *testing.T) {
+	ctx := context.Background()
 	imdsClient := &mockIMDSClient{}
 	clock := clockwork.NewFakeClock()
-	ec2Labels, err := NewEC2Labels(context.Background(), &EC2Config{
+	ec2Labels, err := NewEC2Labels(&EC2Config{
 		Client: imdsClient,
 		Clock:  clock,
 	})
@@ -155,7 +157,7 @@ func TestEC2LabelsAsync(t *testing.T) {
 	// Check that initial tags are read.
 	initialTags := map[string]string{"a": "1", "b": "2"}
 	imdsClient.tags = initialTags
-	ec2Labels.Start()
+	ec2Labels.Start(ctx)
 	require.Eventually(t, compareLabels(toAWSLabels(initialTags)), time.Second, 100*time.Microsecond)
 
 	// Check that tags are updated over time.

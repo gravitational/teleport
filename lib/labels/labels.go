@@ -210,21 +210,17 @@ type EC2 struct {
 	once   sync.Once
 	labels map[string]string
 
-	closeContext context.Context
-	closeFunc    context.CancelFunc
+	closeCh chan struct{}
 }
 
-func NewEC2Labels(ctx context.Context, c *EC2Config) (*EC2, error) {
+func NewEC2Labels(c *EC2Config) (*EC2, error) {
 	if err := c.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	closeContext, closeFunc := context.WithCancel(ctx)
-
 	return &EC2{
-		c:            c,
-		labels:       make(map[string]string),
-		closeContext: closeContext,
-		closeFunc:    closeFunc,
+		c:       c,
+		labels:  make(map[string]string),
+		closeCh: make(chan struct{}),
 	}, nil
 }
 
@@ -232,21 +228,21 @@ func NewEC2Labels(ctx context.Context, c *EC2Config) (*EC2, error) {
 func (l *EC2) Get() map[string]string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return toAWSLabels(l.labels)
+	return l.labels
 }
 
 // Sync will block and synchronously update EC2 labels.
-func (l *EC2) Sync() {
+func (l *EC2) Sync(ctx context.Context) {
 	m := make(map[string]string)
 
-	tags, err := l.c.Client.GetTagKeys()
+	tags, err := l.c.Client.GetTagKeys(ctx)
 	if err != nil {
 		l.c.Log.Errorf("Error fetching EC2 tags: %v", err)
 		return
 	}
 
 	for _, t := range tags {
-		value, err := l.c.Client.GetTagValue(t)
+		value, err := l.c.Client.GetTagValue(ctx, t)
 		if err != nil {
 			l.c.Log.Errorf("Error fetching EC2 tags: %v", err)
 			return
@@ -256,24 +252,24 @@ func (l *EC2) Sync() {
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.labels = m
+	l.labels = toAWSLabels(m)
 }
 
 // Start will start a loop that continually keeps EC2 labels updated. Start
 // can safely be called multiple times.
-func (l *EC2) Start() {
-	l.once.Do(func() { go l.periodicUpdateLabels() })
+func (l *EC2) Start(ctx context.Context) {
+	l.once.Do(func() { go l.periodicUpdateLabels(ctx) })
 }
 
-func (l *EC2) periodicUpdateLabels() {
+func (l *EC2) periodicUpdateLabels(ctx context.Context) {
 	ticker := l.c.Clock.NewTicker(ec2LabelUpdatePeriod)
 	defer ticker.Stop()
 
 	for {
-		l.Sync()
+		l.Sync(ctx)
 		select {
 		case <-ticker.Chan():
-		case <-l.closeContext.Done():
+		case <-l.closeCh:
 			return
 		}
 	}
@@ -281,7 +277,7 @@ func (l *EC2) periodicUpdateLabels() {
 
 // Close will free up all resources and stop keeping EC2 labels updated.
 func (l *EC2) Close() {
-	l.closeFunc()
+	close(l.closeCh)
 }
 
 // toAWSLabels formats labels coming from EC2.

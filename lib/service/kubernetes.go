@@ -181,7 +181,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		}()
 	}
 	if ec2Labels != nil {
-		ec2Labels.Start()
+		ec2Labels.Start(process.ExitContext())
 	}
 
 	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]

@@ -515,7 +515,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 	if s.c.EC2Labels != nil {
-		s.c.EC2Labels.Start()
+		s.c.EC2Labels.Start(ctx)
 	}
 	return nil
 }

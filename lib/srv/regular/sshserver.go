@@ -309,7 +309,7 @@ func (s *Server) Start() error {
 	}
 
 	if s.ec2Labels != nil {
-		s.ec2Labels.Start()
+		s.ec2Labels.Start(s.Context())
 	}
 
 	// If the server requested connections to it arrive over a reverse tunnel,
@@ -340,7 +340,7 @@ func (s *Server) Serve(l net.Listener) error {
 	}
 
 	if s.ec2Labels != nil {
-		s.ec2Labels.Start()
+		s.ec2Labels.Start(s.Context())
 	}
 
 	go s.heartbeat.Run()

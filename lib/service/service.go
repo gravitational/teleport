@@ -725,13 +725,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	initOpts := []initOption{}
 
 	// Check if we're on an EC2 instance, and if we should override the node's hostname.
-	imClient, err := utils.NewInstanceMetadataClient(context.TODO())
+	ctx := context.TODO()
+	imClient, err := utils.NewInstanceMetadataClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ec2Available := imClient.IsAvailable()
+	ec2Available := imClient.IsAvailable(ctx)
 	if ec2Available {
-		ec2Hostname, err := imClient.GetTagValue(types.EC2Hostname)
+		ec2Hostname, err := imClient.GetTagValue(ctx, types.EC2Hostname)
 		if err == nil {
 			cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2Hostname, ec2Hostname)
 			cfg.Hostname = ec2Hostname
@@ -796,7 +797,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if ec2Available {
-		ec2Labels, err := labels.NewEC2Labels(process.ExitContext(), &labels.EC2Config{
+		ec2Labels, err := labels.NewEC2Labels(&labels.EC2Config{
 			Client: imClient,
 		})
 		if err != nil {

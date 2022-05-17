@@ -613,7 +613,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	}
 
 	if s.cfg.EC2Labels != nil {
-		s.cfg.EC2Labels.Start()
+		s.cfg.EC2Labels.Start(ctx)
 	}
 
 	return nil
