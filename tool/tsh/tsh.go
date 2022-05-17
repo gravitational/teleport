@@ -2261,6 +2261,17 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		log.Debugf("Extracted username %q from the identity file %v.", certUsername, cf.IdentityFileIn)
 		c.Username = certUsername
 
+		// Also configure missing KeyIndex fields.
+		key.ProxyHost, err = utils.Host(cf.Proxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key.ClusterName = rootCluster
+		key.Username = certUsername
+
+		// With the key index fields properly set, preload this key into a local store.
+		c.PreloadKey = key
+
 		identityAuth, err = authFromIdentity(key)
 		if err != nil {
 			return nil, trace.Wrap(err)
