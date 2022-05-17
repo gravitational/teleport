@@ -182,7 +182,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if authContext.Checker.PinSourceIP() {
 		addr, ok := ctx.Value(ContextClientAddr).(*net.TCPAddr)
 		if !ok {
-			return nil, trace.AccessDenied("P pinning enabled but client IP is missing")
+			return nil, trace.AccessDenied("pinning enabled but client IP is missing")
 		}
 		pinnedIP := authContext.Identity.GetIdentity().ClientIP
 		if pinnedIP != addr.IP.String() {

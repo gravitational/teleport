@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -249,7 +250,15 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
-		authContext, err := s.Authorizer.Authorize(r.Context())
+		ctx := r.Context()
+		if ctx.Value(ContextClientAddr) == nil {
+			host, err := utils.Host(r.RemoteAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			ctx = context.WithValue(ctx, ContextClientAddr, &net.TCPAddr{IP: net.ParseIP(host)})
+		}
+		authContext, err := s.Authorizer.Authorize(ctx)
 		if err != nil {
 			// propagate connection problem error so we can differentiate
 			// between connection failed and access denied
