@@ -183,3 +183,24 @@ func TestFnCacheCancellation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "val", v.(string))
 }
+
+func TestFnCacheContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:     time.Minute,
+		Context: ctx,
+	})
+	require.NoError(t, err)
+
+	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
+		return "val", nil
+	})
+	require.NoError(t, err)
+
+	cancel()
+
+	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
+		return "val", nil
+	})
+	require.ErrorIs(t, err, ErrFnCacheClosed)
+}

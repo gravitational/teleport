@@ -18,11 +18,17 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+)
+
+var (
+	// ErrFnCacheClosed is returned from Get when the FnCache context is closed
+	ErrFnCacheClosed = errors.New("fncache permanently closed")
 )
 
 // FnCache is a helper for temporarily storing the results of regularly called functions. This helper is
@@ -105,6 +111,12 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 // not cancel loading.  The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
 func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func(ctx context.Context) (interface{}, error)) (interface{}, error) {
+	select {
+	case <-c.cfg.Context.Done():
+		return nil, ErrFnCacheClosed
+	default:
+	}
+
 	c.mu.Lock()
 
 	now := c.cfg.Clock.Now()
@@ -151,5 +163,7 @@ func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func(ctx cont
 		return entry.v, entry.e
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-c.cfg.Context.Done():
+		return nil, ErrFnCacheClosed
 	}
 }
