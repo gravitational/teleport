@@ -527,6 +527,20 @@ func TestValidRedirectURL(t *testing.T) {
 	}
 }
 
+func Test_clientMetaFromReq(t *testing.T) {
+	ua := "foobar"
+	r := httptest.NewRequest(
+		http.MethodGet, "https://example.com/webapi/foo", nil,
+	)
+	r.Header.Set("User-Agent", ua)
+
+	got := clientMetaFromReq(r)
+	require.Equal(t, &auth.ForwardedClientMetadata{
+		UserAgent:  ua,
+		RemoteAddr: "192.0.2.1:1234",
+	}, got)
+}
+
 func TestSAMLSuccess(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
@@ -2599,7 +2613,7 @@ func TestDeleteMFA(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo@example.com")
 
-	//setting up client manually because we need sanitizer off
+	// setting up client manually because we need sanitizer off
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	opts := []roundtrip.ClientParam{roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar), roundtrip.HTTPClient(client.NewInsecureWebClient())}
