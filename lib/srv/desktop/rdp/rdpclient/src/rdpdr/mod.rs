@@ -402,6 +402,10 @@ impl Client {
                                         rdp_req.device_io_request.file_id,
                                         FileCacheObject::new(rdp_req.path.clone()),
                                     );
+                                    return cli.prep_device_create_response(
+                                        &rdp_req,
+                                        NTSTATUS::STATUS_SUCCESS,
+                                    );
                                 } else {
                                     return cli.prep_device_create_response(
                                         &rdp_req,
@@ -427,7 +431,11 @@ impl Client {
                                 if res.err_code == 0 {
                                     cli.file_cache.insert(
                                         rdp_req.device_io_request.file_id,
-                                        FileCacheObject::new(rdp_req.path),
+                                        FileCacheObject::new(rdp_req.path.clone()),
+                                    );
+                                    return cli.prep_device_create_response(
+                                        &rdp_req,
+                                        NTSTATUS::STATUS_SUCCESS,
                                     );
                                 } else {
                                     return cli.tdp_sd_create(rdp_req, 0);
