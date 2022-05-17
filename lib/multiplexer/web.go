@@ -150,20 +150,11 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 	// in the cert indicates this is a database connection, or to a regular
 	// tls listener.
 	if l.isDatabaseConnection(conn.ConnectionState()) {
-		select {
-		case l.dbListener.connC <- conn:
-		case <-l.context.Done():
-			conn.Close()
-		}
+		l.dbListener.HandleConnection(l.context, conn)
 		return
 	}
 
-	select {
-	case l.webListener.connC <- conn:
-	case <-l.context.Done():
-		conn.Close()
-		return
-	}
+	l.webListener.HandleConnection(l.context, conn)
 }
 
 // Close closes the listener.
