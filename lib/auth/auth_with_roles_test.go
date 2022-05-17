@@ -3035,7 +3035,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	require.Len(t, sessions, 0)
 }
 
-func TestListResources_Deduplicate(t *testing.T) {
+func TestListResources_SortAndDeduplicate(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -3053,7 +3053,7 @@ func TestListResources_Deduplicate(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// Define some resource names for testing.
-	names := []string{"a", "b", "b", "d", "a"}
+	names := []string{"d", "b", "d", "a", "a", "b"}
 	uniqueNames := []string{"a", "b", "d"}
 
 	tests := []struct {
@@ -3149,6 +3149,7 @@ func TestListResources_Deduplicate(t *testing.T) {
 				ResourceType:   tc.kind,
 				NeedTotalCount: true,
 				Limit:          2,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName, IsDesc: true},
 			})
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, 2)
@@ -3160,6 +3161,7 @@ func TestListResources_Deduplicate(t *testing.T) {
 				NeedTotalCount: true,
 				StartKey:       resp.NextKey,
 				Limit:          2,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName, IsDesc: true},
 			})
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, 1)
@@ -3168,7 +3170,7 @@ func TestListResources_Deduplicate(t *testing.T) {
 
 			r := types.ResourcesWithLabels(fetchedResources)
 			var extractedErr error
-			extractedNames := []string{}
+			var extractedNames []string
 
 			switch tc.kind {
 			case types.KindDatabaseServer:
@@ -3195,6 +3197,7 @@ func TestListResources_Deduplicate(t *testing.T) {
 
 			require.NoError(t, extractedErr)
 			require.ElementsMatch(t, uniqueNames, extractedNames)
+			require.IsDecreasing(t, extractedNames)
 		})
 	}
 }

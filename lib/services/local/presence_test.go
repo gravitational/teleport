@@ -674,65 +674,6 @@ func TestListResources(t *testing.T) {
 				return resultResourcesWithMatchExprsLen == totalWithLabels
 			}, time.Second, 100*time.Millisecond)
 
-			// Test sorting by metadata.name, since not all resources support sorting:
-			sortBy := types.SortBy{Field: types.ResourceMetadataName, IsDesc: true}
-			var sortedResources []types.ResourceWithLabels
-
-			switch test.resourceType {
-			case types.KindNode, types.KindAppServer, types.KindDatabaseServer:
-				// Test NeedTotalCount flag.
-				res, err := presence.ListResources(ctx, proto.ListResourcesRequest{
-					ResourceType:   test.resourceType,
-					NeedTotalCount: true,
-					Limit:          1,
-				})
-				require.NoError(t, err)
-				require.Len(t, res.Resources, 1)
-				require.NotEmpty(t, res.NextKey)
-				require.Equal(t, totalResources, res.TotalCount)
-
-				// Test sorting.
-				require.Eventually(t, func() bool {
-					resp, err = presence.ListResources(ctx, proto.ListResourcesRequest{
-						Limit:        int32(resourcesPerPage),
-						Namespace:    apidefaults.Namespace,
-						ResourceType: test.resourceType,
-						StartKey:     resp.NextKey,
-						SortBy:       sortBy,
-					})
-					require.NoError(t, err)
-					require.Empty(t, resp.TotalCount)
-
-					sortedResources = append(sortedResources, resp.Resources...)
-					if len(sortedResources) == totalResources {
-						require.Empty(t, resp.NextKey)
-					}
-					return len(sortedResources) == totalResources
-				}, time.Second, 100*time.Millisecond)
-			}
-
-			// Test sorted resources are in the correct direction.
-			switch test.resourceType {
-			case types.KindNode:
-				servers, err := types.ResourcesWithLabels(sortedResources).AsServers()
-				require.NoError(t, err)
-				fieldVals, err := types.Servers(servers).GetFieldVals(sortBy.Field)
-				require.NoError(t, err)
-				require.IsDecreasing(t, fieldVals)
-			case types.KindAppServer:
-				servers, err := types.ResourcesWithLabels(sortedResources).AsAppServers()
-				require.NoError(t, err)
-				fieldVals, err := types.AppServers(servers).GetFieldVals(sortBy.Field)
-				require.NoError(t, err)
-				require.IsDecreasing(t, fieldVals)
-			case types.KindDatabaseServer:
-				servers, err := types.ResourcesWithLabels(sortedResources).AsDatabaseServers()
-				require.NoError(t, err)
-				fieldVals, err := types.DatabaseServers(servers).GetFieldVals(sortBy.Field)
-				require.NoError(t, err)
-				require.IsDecreasing(t, fieldVals)
-			}
-
 			// delete everything
 			err = test.deleteAllResourcesFunc(ctx, presence)
 			require.NoError(t, err)
@@ -771,12 +712,6 @@ func TestListResources_Helpers(t *testing.T) {
 			name: "listResources",
 			fetch: func(req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 				return presence.listResources(ctx, req)
-			},
-		},
-		{
-			name: "listResourcesWithSort",
-			fetch: func(req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-				return presence.listResourcesWithSort(ctx, req)
 			},
 		},
 		{
