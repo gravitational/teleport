@@ -33,7 +33,7 @@ type TestProxy struct {
 	target     string
 	closeCh    chan struct{}
 	log        logrus.FieldLogger
-	sourceAddr string
+	sourceAddr *utils.NetAddr
 }
 
 // NewTestProxy creates a new test proxy that sends a proxy-line when
@@ -43,12 +43,19 @@ func NewTestProxy(target string, sourceAddr string) (*TestProxy, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	var addr *utils.NetAddr
+	if sourceAddr != "" {
+		addr, err = utils.ParseAddr(sourceAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	return &TestProxy{
 		listener:   listener,
 		target:     target,
 		closeCh:    make(chan struct{}),
 		log:        logrus.WithField(trace.Component, "test:proxy"),
-		sourceAddr: sourceAddr,
+		sourceAddr: addr,
 	}, nil
 }
 
@@ -121,11 +128,8 @@ func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	sourceAddr := clientAddr
-	if p.sourceAddr != "" {
-		sourceAddr, err = utils.ParseAddr(p.sourceAddr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	if p.sourceAddr != nil {
+		sourceAddr = p.sourceAddr
 	}
 	serverAddr, err := utils.ParseAddr(serverConn.RemoteAddr().String())
 	if err != nil {

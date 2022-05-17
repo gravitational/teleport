@@ -61,9 +61,7 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	}
 
 	clientIP := ""
-	value := ctx.Value(ContextClientAddr)
-	addr, ok := value.(*net.TCPAddr)
-	if ok {
+	if addr, ok := ctx.Value(ContextClientAddr).(*net.TCPAddr); ok {
 		clientIP = addr.IP.String()
 	}
 	webSession, err := s.createUserWebSession(ctx, user, clientIP)
