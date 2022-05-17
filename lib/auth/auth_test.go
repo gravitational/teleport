@@ -945,7 +945,13 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test oidc create event
-	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{ClientID: "a"})
+	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{ClientID: "a", ClaimsToRoles: []types.ClaimMapping{
+		{
+			Claim: "dummy",
+			Value: "dummy",
+			Roles: []string{"dummy"},
+		},
+	}})
 	require.NoError(t, err)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
