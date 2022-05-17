@@ -128,6 +128,9 @@ type Config struct {
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
+	// Tracing defines the tracing service configuration.
+	Tracing TracingConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
@@ -958,6 +961,26 @@ type MetricsConfig struct {
 
 	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
 	GRPCClientLatency bool
+}
+
+// TracingConfig specifies the configuration for the tracing service
+type TracingConfig struct {
+	// Enabled turns the tracing service role on or off for this process.
+	Enabled bool
+
+	// ExporterURL is the OTLP exporter URL to send spans to.
+	ExporterURL string
+
+	// KeyPairs are the key and certificate pairs that the tracing service will.
+	// use for mTLS.
+	KeyPairs []KeyPairPath
+
+	// CACerts are the exporter ca certs to use.
+	CACerts []string
+
+	// SamplingRate is the sampling rate for the exporter. A rate of 1_000_000 means all spans will be sampled and
+	// a value of 0 means no spans will be recorded.
+	SamplingRatePerMillion float64
 }
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop

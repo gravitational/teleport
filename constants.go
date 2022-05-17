@@ -237,6 +237,9 @@ const (
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
 
+	// ComponentTracing is a tracing exporter
+	ComponentTracing = "tracing"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

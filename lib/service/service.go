@@ -42,12 +42,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/acme"
-	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -78,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -97,9 +92,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -179,6 +180,10 @@ const (
 	// WindowsDesktopReady is generated when the Teleport windows desktop
 	// service is ready to start accepting connections.
 	WindowsDesktopReady = "WindowsDesktopReady"
+
+	// TracingReady is generated when the Teleport tracing service is ready to
+	// start exporting spans.
+	TracingReady = "TracingReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -766,6 +771,12 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic), process.log)
 	}
 
+	if cfg.Tracing.Enabled {
+		if err := process.initTracingService(); err != nil {
+			process.log.Warn("Failed to initialize tracing service: %v.", err)
+		}
+	}
+
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
@@ -800,6 +811,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 	if cfg.WindowsDesktop.Enabled {
 		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
+	}
+	if cfg.Tracing.Enabled {
+		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
 	process.RegisterEventMapping(eventMapping)
 
@@ -2372,6 +2386,80 @@ func (process *TeleportProcess) initDiagnosticService() error {
 			warnOnErr(server.Shutdown(ctx), log)
 		}
 		log.Infof("Exited.")
+	})
+
+	return nil
+}
+
+func (process *TeleportProcess) initTracingService() error {
+	process.log.Info("Initializing tracing provider and exporter.")
+
+	attrs := []attribute.KeyValue{
+		attribute.String("teleport.process.id", process.id),
+		attribute.String("teleport.host.name", process.Config.Hostname),
+		attribute.String("teleport.host.uuid", process.Config.HostUUID),
+	}
+
+	traceConf := tracing.Config{
+		Service:     "teleport",
+		Attributes:  attrs,
+		ExporterURL: process.Config.Tracing.ExporterURL,
+		SampleRatio: process.Config.Tracing.SamplingRatePerMillion,
+	}
+
+	if len(process.Config.Tracing.KeyPairs) > 0 || len(process.Config.Tracing.CACerts) > 0 {
+		tlsConfig := &tls.Config{}
+		for _, pair := range process.Config.Tracing.KeyPairs {
+			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+			if err != nil {
+				return trace.Wrap(err, "failed to read keypair: %+v", err)
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+		}
+
+		pool := x509.NewCertPool()
+		for _, caCertPath := range process.Config.Tracing.CACerts {
+			caCert, err := os.ReadFile(caCertPath)
+			if err != nil {
+				return trace.Wrap(err, "failed to read tracing CA certificate %+v", caCertPath)
+			}
+
+			if !pool.AppendCertsFromPEM(caCert) {
+				return trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
+			}
+		}
+
+		tlsConfig.ClientCAs = pool
+		tlsConfig.RootCAs = pool
+		traceConf.TLSConfig = tlsConfig
+	}
+
+	log := process.log.WithFields(logrus.Fields{
+		trace.Component: teleport.Component(teleport.ComponentTracing, process.id),
+	})
+
+	process.RegisterFunc("tracing.init", func() error {
+		ctx, cancel := context.WithTimeout(process.ExitContext(), 5*time.Second)
+		defer cancel()
+		provider, err := tracing.NewTraceProvider(ctx, traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		process.OnExit("tracing.shutdown", func(payload interface{}) {
+			if payload == nil {
+				log.Info("Shutting down immediately.")
+				ctx, cancel := context.WithTimeout(process.ExitContext(), 5*time.Second)
+				defer cancel()
+				warnOnErr(provider.Shutdown(ctx), log)
+			} else {
+				log.Infof("Shutting down gracefully.")
+				ctx := payloadContext(payload, log)
+				warnOnErr(provider.Shutdown(ctx), log)
+			}
+			process.log.Info("Exited.")
+		})
+		return nil
 	})
 
 	return nil
