@@ -201,7 +201,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			WindowsDesktops:       cfg.WindowsDesktops,
 			SessionTrackerService: cfg.SessionTrackerService,
 		},
-		keyStore: keyStore,
+		keyStore:     keyStore,
+		getClaimsFun: getClaims,
 	}
 	for _, o := range opts {
 		o(&as)
