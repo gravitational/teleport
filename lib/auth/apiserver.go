@@ -20,10 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -758,8 +758,12 @@ func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.ClientIP = ip
 	req.Username = p.ByName("user")
-	req.ClientIP = strings.Split(r.RemoteAddr, ":")[0]
 	sess, err := auth.AuthenticateWebUser(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -772,8 +776,12 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.ClientIP = ip
 	req.Username = p.ByName("user")
-	req.ClientIP = strings.Split(r.RemoteAddr, ":")[0]
 	return auth.AuthenticateSSHUser(req)
 }
 
