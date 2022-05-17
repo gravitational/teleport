@@ -2827,6 +2827,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	caWatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
+			Client:    conn.Client,
+		},
+		AuthorityGetter: accessPoint,
+		Types:           []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	serverTLSConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2856,17 +2869,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 						Client: conn.Client,
 					},
 				},
-				KeyGen:        cfg.Keygen,
-				Ciphers:       cfg.Ciphers,
-				KEXAlgorithms: cfg.KEXAlgorithms,
-				MACAlgorithms: cfg.MACAlgorithms,
-				DataDir:       process.Config.DataDir,
-				PollingPeriod: process.Config.PollingPeriod,
-				FIPS:          cfg.FIPS,
-				Emitter:       streamEmitter,
-				Log:           process.log,
-				LockWatcher:   lockWatcher,
-				NodeWatcher:   nodeWatcher,
+				KeyGen:               cfg.Keygen,
+				Ciphers:              cfg.Ciphers,
+				KEXAlgorithms:        cfg.KEXAlgorithms,
+				MACAlgorithms:        cfg.MACAlgorithms,
+				DataDir:              process.Config.DataDir,
+				PollingPeriod:        process.Config.PollingPeriod,
+				FIPS:                 cfg.FIPS,
+				Emitter:              streamEmitter,
+				Log:                  process.log,
+				LockWatcher:          lockWatcher,
+				NodeWatcher:          nodeWatcher,
+				CertAuthorityWatcher: caWatcher,
 			})
 		if err != nil {
 			return trace.Wrap(err)
