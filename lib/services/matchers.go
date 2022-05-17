@@ -180,4 +180,6 @@ const (
 	AWSMatcherRDS = "rds"
 	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
 	AWSMatcherRedshift = "redshift"
+	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
+	AWSMatcherElastiCache = "elasticache"
 )
