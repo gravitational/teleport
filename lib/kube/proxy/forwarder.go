@@ -1779,12 +1779,10 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 		if err := http2.ConfigureTransport(transport); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
+	} else if sess.tlsConfig != nil {
 		// when certificate-authority-data is not provided in kubeconfig the tlsConfig can be nil,
 		// meaning that we will use the system default CA store.
-		if sess.tlsConfig != nil {
-			sess.tlsConfig.NextProtos = nil
-		}
+		sess.tlsConfig.NextProtos = nil
 	}
 
 	rt := http.RoundTripper(transport)
