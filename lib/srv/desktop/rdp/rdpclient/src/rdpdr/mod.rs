@@ -499,6 +499,21 @@ impl Client {
                     );
                 }
             }
+            MajorFunction::IRP_MJ_CLOSE => {
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L236
+                let rdp_req = DeviceCloseRequest::decode(device_io_request);
+                debug!("got {:?}", rdp_req);
+                // Remove the file from our cache
+                if let Some(file) = self.remove_file_by_id(rdp_req.device_io_request.file_id) {
+                    if file.delete_pending {
+                        return self.tdp_sd_delete(rdp_req, file);
+                    } else {
+                        return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
+                    }
+                } else {
+                    return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+                }
+            }
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
@@ -530,6 +545,7 @@ impl Client {
         res: SharedDirectoryInfoResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
+        debug!("got {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_info_resp_handlers
             .remove(&res.completion_id)
@@ -553,6 +569,7 @@ impl Client {
         res: SharedDirectoryCreateResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
+        debug!("got {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_create_resp_handlers
             .remove(&res.completion_id)
@@ -576,6 +593,7 @@ impl Client {
         res: SharedDirectoryDeleteResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
+        debug!("got {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_delete_resp_handlers
             .remove(&res.completion_id)
@@ -620,6 +638,18 @@ impl Client {
         return Ok(resp);
     }
 
+    fn prep_device_close_response(
+        &self,
+        req: DeviceCloseRequest,
+        io_status: NTSTATUS,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let resp = DeviceCloseResponse::new(req, io_status);
+        debug!("replying with: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        return Ok(resp);
+    }
+
     /// Helper function for sending a TDP SharedDirectoryCreateRequest based on an
     /// RDP DeviceCreateRequest and handling the TDP SharedDirectoryCreateResponse.
     fn tdp_sd_create(
@@ -640,7 +670,6 @@ impl Client {
                 move |cli: &mut Self,
                       res: SharedDirectoryCreateResponse|
                       -> RdpResult<Vec<Vec<u8>>> {
-                    debug!("got {:?}", res);
                     if res.err_code == 0 {
                         let file_id = cli.generate_file_id();
                         cli.file_cache
@@ -695,6 +724,32 @@ impl Client {
         Ok(vec![])
     }
 
+    fn tdp_sd_delete(
+        &mut self,
+        rdp_req: DeviceCloseRequest,
+        file: FileCacheObject,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        (self.tdp_sd_delete_request)(SharedDirectoryDeleteRequest {
+            completion_id: rdp_req.device_io_request.completion_id,
+            directory_id: rdp_req.device_io_request.device_id,
+            path: file.path.clone(),
+        })?;
+        self.pending_sd_delete_resp_handlers.insert(
+            rdp_req.device_io_request.completion_id,
+            Box::new(
+                |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
+                    if res.err_code == 0 {
+                        return cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
+                    } else {
+                        return cli
+                            .prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+                    }
+                },
+            ),
+        );
+        Ok(vec![])
+    }
+
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
     /// adds on the Shared Header based the passed packet_id, adds the appropriate (virtual) Channel PDU Header,
     /// and splits the entire payload into chunks if the payload exceeds the maximum size.
@@ -710,6 +765,10 @@ impl Client {
 
     fn get_file_by_id(&self, file_id: u32) -> Option<&FileCacheObject> {
         self.file_cache.get(&file_id)
+    }
+
+    fn remove_file_by_id(&mut self, file_id: u32) -> Option<FileCacheObject> {
+        self.file_cache.remove(&file_id)
     }
 
     fn push_active_device_id(&mut self, device_id: u32) -> RdpResult<()> {
