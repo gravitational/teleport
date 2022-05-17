@@ -40,10 +40,15 @@ type Config struct {
 	Interval time.Duration
 	// Log is the logrus field logger.
 	Log logrus.FieldLogger
+	// UpdateMeta is used to update database metadata.
+	UpdateMeta func(context.Context, types.Database) error
 }
 
 // CheckAndSetDefaults validates the config and set defaults.
-func (c *Config) CheckAndSetDefaults() (err error) {
+func (c *Config) CheckAndSetDefaults() error {
+	if c.UpdateMeta == nil {
+		return trace.BadParameter("missing UpdateMeta")
+	}
 	if c.Clients == nil {
 		c.Clients = common.NewCloudClients()
 	}
@@ -61,17 +66,23 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 		c.Interval = 15 * time.Minute
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "cloudusers")
+		c.Log = logrus.WithField(trace.Component, "clouduser")
 	}
 	return nil
 }
 
 // Users manages database users for cloud databases.
 type Users struct {
-	cfg               Config
-	fetchersByType    map[string]Fetcher
-	usersByID         map[string]User
-	lookup            *lookupMap
+	// cfg is the config for users service.
+	cfg Config
+	// fetchersByType is a map of fetchers by database type.
+	fetchersByType map[string]Fetcher
+	// usersByID owns and tracks a map by unique users by their IDs. User's
+	// setup/teardown is performed when user is added to/removed from the map.
+	usersByID map[string]User
+	// lookup is used to track mappings between database and their users.
+	lookup *lookupMap
+	// setupDatabaseChan is the channel used for setting up a database.
 	setupDatabaseChan chan types.Database
 }
 
@@ -162,12 +173,14 @@ func (u *Users) Start(ctx context.Context, getAllDatabases func() types.Database
 
 // setupDatabase performs setup for a single database.
 func (u *Users) setupDatabase(ctx context.Context, database types.Database) {
-	u.setupDatabases(ctx, types.Databases{database})
+	// Database metadata is already refreshed once during database
+	// registration so no need to do it again.
+	u.setupDatabases(ctx, types.Databases{database}, false /*updateMeta*/)
 }
 
 // setupAllDatabases performs setup for all databases.
 func (u *Users) setupAllDatabases(ctx context.Context, allDatabases types.Databases) {
-	u.setupDatabases(ctx, allDatabases)
+	u.setupDatabases(ctx, allDatabases, true)
 
 	// Clean up.
 	u.lookup.removeUnusedDatabases(allDatabases)
@@ -184,14 +197,27 @@ func (u *Users) setupAllDatabases(ctx context.Context, allDatabases types.Databa
 }
 
 // setupDatabases performs setup for provided databases.
-func (u *Users) setupDatabases(ctx context.Context, databases types.Databases) {
+func (u *Users) setupDatabases(ctx context.Context, databases types.Databases, updateMeta bool) {
 	for _, database := range databases {
-		// Fetch users.
 		fetcher, found := u.fetchersByType[database.GetType()]
 		if !found {
 			continue
 		}
 
+		// Refresh database metadata like ElastiCache user group IDs.
+		//
+		// Auto discovered databases can be skipped as the watcher service
+		// discovers changes periodically then triggers reconciler.
+		//
+		// If UpdateMeta fails, log an error and continue to next step with
+		// whatever meta database already has.
+		if updateMeta && database.Origin() != types.OriginCloud {
+			if err := u.cfg.UpdateMeta(ctx, database); err != nil {
+				u.cfg.Log.WithError(err).Errorf("Failed to update metadata for %q.", database)
+			}
+		}
+
+		// Fetch users.
 		fetchedUsers, err := fetcher.FetchDatabaseUsers(ctx, database)
 		if err != nil {
 			if trace.IsAccessDenied(err) { // Permission errors are expected.

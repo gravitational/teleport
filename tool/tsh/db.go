@@ -535,7 +535,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	printExtraConnectInfo(cf, database)
+	printExtraConnectInfo(cf, tc, routeToDatabase, database)
 
 	log.Debug(cmd.String())
 	cmd.Stdout = os.Stdout
@@ -772,9 +772,20 @@ Or view the connect command for the native database CLI client:
 		utils.Color(utils.Yellow, configCommand))
 }
 
-func printExtraConnectInfo(cf *CLIConf, database types.Database) {
-	switch database.GetType() {
-	case types.DatabaseTypeElastiCache:
+// printExtraConnectInfo prints extra intructions or information before
+// executing database client commands to connect to Teleport.
+func printExtraConnectInfo(cf *CLIConf, tc *client.TeleportClient, db *tlsca.RouteToDatabase, database types.Database) {
+	switch db.Protocol {
+
+	case defaults.ProtocolRedis:
+		if database == nil {
+			var err error
+			if database, err = getDatabase(cf, tc, db.ServiceName); err != nil {
+				log.WithError(err).Warnf("Failed to get database for extra connection information.")
+				return
+			}
+		}
+
 		username := cf.DatabaseUser
 		if username == "" {
 			username = defaults.DefaultRedisUsername
@@ -784,10 +795,10 @@ func printExtraConnectInfo(cf *CLIConf, database types.Database) {
 			fmt.Fprintf(
 				cf.Stdout(),
 				`Database user %q is managed by Teleport.
-
-"auth" command with correct username and password will be automatically sent by
-Teleport service upon successful server connection.
-
+                                                             
+Teleport service will automatically send "auth" command with correct username
+and password upon successful server connection.
+                   
 `,
 				username,
 			)

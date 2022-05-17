@@ -155,7 +155,7 @@ func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users) 
 		username := sessionCtx.DatabaseUser
 		password, err := users.GetPassword(ctx, sessionCtx.Database, username)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.WrapWithMessage(err, "Failed to get password for %v: %v", username, err)
 		}
 		return authConnection(ctx, conn, username, password)
 	}

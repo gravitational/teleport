@@ -73,8 +73,13 @@ func NewAWSSecretsManager(cfg AWSSecretsManagerConfig) (*AWSSecretsManager, erro
 
 // Create creates a new secret. Implements Secrets.
 func (s *AWSSecretsManager) Create(ctx context.Context, key string, value string) error {
+	secretID, err := s.secretID(key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	input := &secretsmanager.CreateSecretInput{
-		Name:               s.secretID(key),
+		Name:               secretID,
 		Description:        aws.String("Created by Teleport."),
 		ClientRequestToken: aws.String(uuid.New().String()),
 		SecretBinary:       []byte(value),
@@ -108,8 +113,13 @@ func (s *AWSSecretsManager) Create(ctx context.Context, key string, value string
 
 // Delete deletes the secret for the provided path. Implements Secrets.
 func (s *AWSSecretsManager) Delete(ctx context.Context, key string) error {
-	_, err := s.cfg.Client.DeleteSecretWithContext(ctx, &secretsmanager.DeleteSecretInput{
-		SecretId: s.secretID(key),
+	secretID, err := s.secretID(key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.cfg.Client.DeleteSecretWithContext(ctx, &secretsmanager.DeleteSecretInput{
+		SecretId: secretID,
 
 		// Remove secret immediately. Otherwise, secret will be hidden and
 		// effective for 7 days before it's actually removed, which may prevent
@@ -124,8 +134,13 @@ func (s *AWSSecretsManager) Delete(ctx context.Context, key string) error {
 
 // GetValue returns the secret value for provided version. Implements Secrets.
 func (s *AWSSecretsManager) GetValue(ctx context.Context, key string, version string) (*Value, error) {
+	secretID, err := s.secretID(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	input := &secretsmanager.GetSecretValueInput{
-		SecretId: s.secretID(key),
+		SecretId: secretID,
 	}
 
 	switch version {
@@ -152,8 +167,13 @@ func (s *AWSSecretsManager) GetValue(ctx context.Context, key string, version st
 
 // PutValue creates a new secret version for the secret. Implements Secrets.
 func (s *AWSSecretsManager) PutValue(ctx context.Context, key, value, currentVersion string) error {
+	secretID, err := s.secretID(key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	input := &secretsmanager.PutSecretValueInput{
-		SecretId:     s.secretID(key),
+		SecretId:     secretID,
 		SecretBinary: []byte(value),
 	}
 
@@ -175,8 +195,13 @@ func (s *AWSSecretsManager) PutValue(ctx context.Context, key, value, currentVer
 
 // update updates secret settings for provided key path.
 func (s *AWSSecretsManager) update(ctx context.Context, key string) error {
+	secretID, err := s.secretID(key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	secret, err := s.cfg.Client.DescribeSecretWithContext(ctx, &secretsmanager.DescribeSecretInput{
-		SecretId: s.secretID(key),
+		SecretId: secretID,
 	})
 	if err != nil {
 		return convertSecretsManagerError(err)
@@ -201,15 +226,21 @@ func (s *AWSSecretsManager) update(ctx context.Context, key string) error {
 	}
 
 	_, err = s.cfg.Client.UpdateSecretWithContext(ctx, &secretsmanager.UpdateSecretInput{
-		SecretId: s.secretID(key),
+		SecretId: secretID,
 		KmsKeyId: aws.String(configKMSKeyID),
 	})
 	return convertSecretsManagerError(err)
 }
 
 // secretID returns the secret id in AWS string format.
-func (s *AWSSecretsManager) secretID(key string) *string {
-	return aws.String(Key(s.cfg.KeyPrefix, key))
+func (s *AWSSecretsManager) secretID(key string) (*string, error) {
+	// Secret names contain 1-512 charaters.
+	// https://docs.aws.amazon.com/secretsmanager/latest/userguide/reference_limits.html
+	secretID := Key(s.cfg.KeyPrefix, key)
+	if len(secretID) < 1 || len(secretID) >= 512 {
+		return nil, trace.BadParameter("Invalid secret ID %s", secretID)
+	}
+	return aws.String(secretID), nil
 }
 
 // defaultKMSKeyID returns the default KMS Key ID for provided secret.

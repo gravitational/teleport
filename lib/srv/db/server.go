@@ -190,7 +190,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudUsers == nil {
 		c.CloudUsers, err = users.NewUsers(users.Config{
-			Clients: c.CloudClients,
+			Clients:    c.CloudClients,
+			UpdateMeta: c.CloudMeta.Update,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -577,6 +578,9 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// Start cloud users that will be monitoring cloud users.
+	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
+
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -601,9 +605,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if err := s.startCloudWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Start cloud users that will be monitoring cloud users.
-	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
 	// If the agent doesn’t have any static databases configured, send a
 	// heartbeat without error to make the component “ready”.

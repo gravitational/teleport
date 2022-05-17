@@ -69,6 +69,15 @@ func TestUsers(t *testing.T) {
 			SecretsManager: smMock,
 		},
 		Clock: clock,
+		UpdateMeta: func(_ context.Context, database types.Database) error {
+			// Update db1 to group3 when setupAllDatabases.
+			if database == db1 {
+				db1Meta := db1.GetAWS()
+				db1Meta.ElastiCache.UserGroupIDs = []string{"group3"}
+				db1.SetStatusAWS(db1Meta)
+			}
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -87,15 +96,10 @@ func TestUsers(t *testing.T) {
 	t.Run("setupAllDatabases", func(t *testing.T) {
 		clock.Advance(time.Hour)
 
-		// Update db1 to group3.
-		db1Meta := db1.GetAWS()
-		db1Meta.ElastiCache.UserGroupIDs = []string{"group3"}
-		db1.SetStatusAWS(db1Meta)
-
 		// Remove db2.
 		users.setupAllDatabases(ctx, types.Databases{db1, db3, db4, db5})
 
-		// Validate db1 is updated.
+		// Validate db1 is updated thourgh cfg.UpdateMeta.
 		requireDatabaseWithManagedUsers(t, users, db1, []string{"charlie", "dan"})
 
 		// Validate db2 is no longer tracked.

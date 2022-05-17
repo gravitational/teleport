@@ -46,7 +46,7 @@ func TestBaseUser(t *testing.T) {
 	user := &baseUser{
 		secrets:                     secrets,
 		secretKey:                   "local/testuser",
-		secretTTL:                   time.Minute,
+		secretTTL:                   time.Hour,
 		inDatabaseName:              "testuser",
 		maxPasswordLength:           10,
 		usePreviousPasswordForLogin: true,
@@ -82,10 +82,14 @@ func TestBaseUser(t *testing.T) {
 	t.Run("RotatePassword not expired", func(t *testing.T) {
 		require.NoError(t, user.RotatePassword(ctx))
 		require.Len(t, modifyUserPassword, 0)
+
+		clock.Advance(user.secretTTL / 2)
+		require.NoError(t, user.RotatePassword(ctx))
+		require.Len(t, modifyUserPassword, 0)
 	})
 
 	t.Run("RotatePassword expired", func(t *testing.T) {
-		clock.Advance(user.secretTTL + time.Second)
+		clock.Advance(user.secretTTL * 2)
 
 		require.NoError(t, user.RotatePassword(ctx))
 		require.Len(t, modifyUserPassword, 1)

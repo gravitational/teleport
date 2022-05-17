@@ -38,10 +38,11 @@ const (
 // key path and a list of versions that hold copies of current or past secret
 // values.
 type Secrets interface {
-	// Create creates the secret for the provided path.
+	// Create creates the secret with the provided path and creates first
+	// version with provided value.
 	Create(ctx context.Context, key, value string) error
 
-	// Delete deletes the secret for the provided path. All versions of the
+	// Delete deletes the secret with the provided path. All versions of the
 	// secret are deleted at the same time.
 	Delete(ctx context.Context, key string) error
 

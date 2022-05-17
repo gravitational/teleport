@@ -18,6 +18,7 @@ package secrets
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -27,8 +28,7 @@ import (
 )
 
 func TestAWSSecretsManager(t *testing.T) {
-	// Run common tests from suite.
-	secretsTestSuite(t, func(_ context.Context) (Secrets, error) {
+	createFunc := func(_ context.Context) (Secrets, error) {
 		secrets, err := NewAWSSecretsManager(AWSSecretsManagerConfig{
 			Client: NewMockSecretsManagerClient(MockSecretsManagerClientConfig{}),
 		})
@@ -36,15 +36,37 @@ func TestAWSSecretsManager(t *testing.T) {
 			return nil, trace.Wrap(err)
 		}
 		return secrets, nil
+	}
+
+	// Run common tests from suite.
+	secretsTestSuite(t, createFunc)
+
+	t.Run("bad key", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		secrets, err := createFunc(ctx)
+		require.NoError(t, err)
+
+		veryLongKey := strings.Repeat("abcdef", 100)
+
+		require.True(t, trace.IsBadParameter(secrets.Create(ctx, veryLongKey, "value")))
+		require.True(t, trace.IsBadParameter(secrets.Delete(ctx, veryLongKey)))
+		require.True(t, trace.IsBadParameter(secrets.PutValue(ctx, veryLongKey, "value", "")))
+		_, err = secrets.GetValue(ctx, veryLongKey, CurrentVersion)
+		require.True(t, trace.IsBadParameter(err))
 	})
 
 	t.Run("KMS change", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
-		client := NewMockSecretsManagerClient(MockSecretsManagerClientConfig{})
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
 
 		// Create for the first time with default KMS.
+		client := NewMockSecretsManagerClient(MockSecretsManagerClientConfig{})
 		secrets, err := NewAWSSecretsManager(AWSSecretsManagerConfig{
 			Client: client,
 		})

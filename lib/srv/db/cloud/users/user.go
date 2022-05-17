@@ -88,7 +88,7 @@ func (u *baseUser) CheckAndSetDefaults() error {
 		u.clock = clockwork.NewRealClock()
 	}
 	if u.log == nil {
-		u.log = logrus.WithField(trace.Component, "cloudusers")
+		u.log = logrus.WithField(trace.Component, "clouduser")
 	}
 	return nil
 }
@@ -134,22 +134,34 @@ func (u *baseUser) Setup(ctx context.Context) error {
 // Teardown performs any teardown necessary like deleting password secret.
 func (u *baseUser) Teardown(ctx context.Context) error {
 	u.log.Debugf("Tearing down user %v", u)
-	return trace.Wrap(u.secrets.Delete(ctx, u.secretKey))
+
+	err := trace.Wrap(u.secrets.Delete(ctx, u.secretKey))
+	if err != nil {
+		// The secret may have been removed by another agent already.
+		if trace.IsNotFound(err) {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // GetPassword returns the password used for database login.
 func (u *baseUser) GetPassword(ctx context.Context) (string, error) {
+	// Use current/latest version for login.
 	if !u.usePreviousPasswordForLogin {
 		return u.getPassword(ctx, secrets.CurrentVersion)
 	}
 
+	// User previous version for login.
 	password, err := u.getPassword(ctx, secrets.PreviousVersion)
 	if err != nil {
 		// Rare case check when there is only one version at the moment. Do a
 		// second get to use the current version.
 		//
-		// It is also possible someone else deleted the secret. In that case
-		// next rotate password will handle it by recreating the secret.
+		// It is also possible someone else has deleted the secret completely.
+		// In that case the next rotate password will handle it by recreating
+		// the secret.
 		if trace.IsNotFound(err) {
 			return u.getPassword(ctx, secrets.CurrentVersion)
 		}
@@ -171,7 +183,7 @@ func (u *baseUser) getPassword(ctx context.Context, version string) (string, err
 func (u *baseUser) RotatePassword(ctx context.Context) error {
 	currentValue, err := u.secrets.GetValue(ctx, u.secretKey, secrets.CurrentVersion)
 	if err != nil {
-		// Rare case check when someone else deleted the secret.
+		// Rare case check when someone else has deleted the secret.
 		if trace.IsNotFound(err) {
 			return u.Setup(ctx)
 		}
