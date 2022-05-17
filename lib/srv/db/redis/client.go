@@ -118,23 +118,6 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 	}
 }
 
-// authConnection is a helper function that sends "auth" command to provided
-// Redis connection with provided username and password.
-func authConnection(ctx context.Context, conn *redis.Conn, username, password string) error {
-	// Copied from redis.baseClient.initConn.
-	_, err := conn.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-		if password != "" {
-			if username != "" {
-				pipe.AuthACL(ctx, username, password)
-			} else {
-				pipe.Auth(ctx, password)
-			}
-		}
-		return nil
-	})
-	return trace.Wrap(err)
-}
-
 // onClientConnectFunc is a callback function that performs setups after Redis
 // client makes a new connection.
 type onClientConnectFunc func(context.Context, *redis.Conn) error
@@ -158,6 +141,23 @@ func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users) 
 		}
 		return authConnection(ctx, conn, username, password)
 	}
+}
+
+// authConnection is a helper function that sends "auth" command to provided
+// Redis connection with provided username and password.
+func authConnection(ctx context.Context, conn *redis.Conn, username, password string) error {
+	// Copied from redis.baseClient.initConn.
+	_, err := conn.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		if password != "" {
+			if username != "" {
+				pipe.AuthACL(ctx, username, password)
+			} else {
+				pipe.Auth(ctx, password)
+			}
+		}
+		return nil
+	})
+	return trace.Wrap(err)
 }
 
 // Process add supports for additional cluster commands. Our Redis implementation passes most commands to

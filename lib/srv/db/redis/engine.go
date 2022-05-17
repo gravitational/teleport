@@ -202,7 +202,7 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		case password != "":
 			onConnect = authWithPasswordOnConnect(username, password)
 
-		// If datbase user is one of managed users.
+		// If database user is one of managed users.
 		case apiutils.SliceContainsStr(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
 			onConnect = fetchUserPasswordOnConnect(sessionCtx, e.Users)
 		}

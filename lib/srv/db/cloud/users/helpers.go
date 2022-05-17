@@ -67,7 +67,7 @@ func (m *lookupMap) setDatabaseUsers(database types.Database, users []User) {
 	}
 
 	// Update database resource.
-	usernames := []string{}
+	var usernames []string
 	for _, user := range users {
 		usernames = append(usernames, user.GetInDatabaseName())
 	}
