@@ -982,9 +982,12 @@ type CertAuthorityWatcher struct {
 // caCollector accompanies resourceWatcher when monitoring cert authority resources.
 type caCollector struct {
 	CertAuthorityWatcherConfig
-	lock   sync.RWMutex
-	cas    map[types.CertAuthType]map[string]types.CertAuthority
 	fanout *Fanout
+
+	// lock protects concurrent access to cas
+	lock sync.RWMutex
+	// cas maps ca type -> cluster -> ca
+	cas map[types.CertAuthType]map[string]types.CertAuthority
 }
 
 // CertAuthorityTarget lists the attributes of interactions to be disabled.
@@ -1039,23 +1042,6 @@ func caTargetToWatchKinds(targets []CertAuthorityTarget) ([]types.WatchKind, err
 	}
 
 	return watchKinds, nil
-}
-
-// CertAuthorityMap maps clusterName -> types.CertAuthority
-type CertAuthorityMap map[string]types.CertAuthority
-
-// CertAuthorityTypeMap maps types.CertAuthType -> map(clusterName -> types.CertAuthority)
-type CertAuthorityTypeMap map[types.CertAuthType]CertAuthorityMap
-
-// ToSlice converts CertAuthorityTypeMap to a slice.
-func (cat *CertAuthorityTypeMap) ToSlice() []types.CertAuthority {
-	slice := make([]types.CertAuthority, 0)
-	for _, cert := range *cat {
-		for _, ca := range cert {
-			slice = append(slice, ca)
-		}
-	}
-	return slice
 }
 
 // resourceKind specifies the resource kind to watch.

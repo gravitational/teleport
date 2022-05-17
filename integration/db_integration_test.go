@@ -293,8 +293,9 @@ func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 	for i := 0; i < 10; i++ {
 		select {
 		case <-ctx.Done():
-		case <-sub.Done():
 			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, ctx.Err())
+		case <-sub.Done():
+			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, sub.Error())
 		case evt := <-sub.Events():
 			switch evt.Type {
 			case types.OpPut:

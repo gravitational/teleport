@@ -1867,6 +1867,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     proxyClient.TLSConfig(),
@@ -1884,6 +1885,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 
