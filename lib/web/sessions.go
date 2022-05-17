@@ -33,7 +33,6 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -562,7 +561,7 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 // Returns a new web session if successful.
 func (s *sessionCache) AuthWithOTP(
 	user, pass, otpToken string,
-	clientMeta *events.ClientMetadata,
+	clientMeta *auth.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
@@ -577,7 +576,7 @@ func (s *sessionCache) AuthWithOTP(
 
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
-func (s *sessionCache) AuthWithoutOTP(user, pass string, clientMeta *events.ClientMetadata) (types.WebSession, error) {
+func (s *sessionCache) AuthWithoutOTP(user, pass string, clientMeta *auth.ForwardedClientMetadata) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		Pass: &auth.PassCreds{

@@ -1485,7 +1485,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	clientMeta := reqClientMetadata(r)
+	clientMeta := fwdClientMetadata(r)
 
 	var webSession types.WebSession
 
@@ -1538,17 +1538,12 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	return newSessionResponse(ctx)
 }
 
-func reqClientMetadata(r *http.Request) *apievents.ClientMetadata {
+func fwdClientMetadata(r *http.Request) *auth.ForwardedClientMetadata {
 	// multiplexer handles extracting real client IP using PROXY protocol where
 	// available, so we can omit checking X-Forwarded-For.
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		ip = r.RemoteAddr
-	}
-
-	return &apievents.ClientMetadata{
-		UserAgent: r.UserAgent(),
-		IPAddress: ip,
+	return &auth.ForwardedClientMetadata{
+		UserAgent:  r.UserAgent(),
+		RemoteAddr: r.RemoteAddr,
 	}
 }
 
