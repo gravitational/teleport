@@ -77,29 +77,24 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if length != procIDSwitchRPCRequest {
-		procName, err := readUcs2(r, 2*int(length))
+	var procName string
+	var err error
+	// If the first USHORT contains 0xFFFF the following USHORT contains the PROCID.
+	// Otherwise, NameLenProcID contains the parameter name length and parameter name.
+	if length == procIDSwitchRPCRequest {
+		var procID uint16
+		if err := binary.Read(r, binary.LittleEndian, &procID); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		procName, err = getProcName(procID)
+		if err != nil {
+			return nil, trace.BadParameter("failed to get procedure name")
+		}
+	} else {
+		procName, err = readUcs2(r, 2*int(length))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &RPCRequest{
-			Packet:   p,
-			ProcName: procName,
-		}, nil
-	}
-
-	var procID uint16
-	if err := binary.Read(r, binary.LittleEndian, &procID); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if int(procID) >= len(procIDToName) {
-		return nil, trace.BadParameter("invalid procID")
-	}
-
-	procName := ""
-	if procName = procIDToName[procID]; procName == "" {
-		return nil, trace.BadParameter("unmapped procID")
 	}
 
 	var flags uint16
@@ -107,6 +102,7 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// offset the reader by 2 bytes.
 	if _, err := r.Seek(2, io.SeekCurrent); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -120,4 +116,16 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 		ProcName:   procName,
 		Parameters: []string{fmt.Sprintf("%v", val)},
 	}, nil
+}
+
+func getProcName(procID uint16) (string, error) {
+	if int(procID) >= len(procIDToName) {
+		return "unknownProc", nil
+	}
+
+	var procName string
+	if procName = procIDToName[procID]; procName == "" {
+		return "", trace.BadParameter("unmapped procID")
+	}
+	return procName, nil
 }

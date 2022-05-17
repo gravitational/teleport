@@ -472,9 +472,9 @@ const (
 	// refresh commands.
 	DatabaseSessionMySQLRefreshEvent = "db.session.mysql.refresh"
 
-	// DatabaseSessionMSServerRPCRequestEvent is emitted when MSServer client sends
+	// DatabaseSessionSQLServerRPCRequestEvent is emitted when MSServer client sends
 	// RPC request command.
-	DatabaseSessionMSServerRPCRequestEvent = "db.session.msserver.rpc_request"
+	DatabaseSessionSQLServerRPCRequestEvent = "db.session.sqlserver.rpc_request"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.

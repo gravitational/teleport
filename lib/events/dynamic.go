@@ -205,8 +205,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MySQLDebug{}
 	case DatabaseSessionMySQLRefreshEvent:
 		e = &events.MySQLRefresh{}
-	case DatabaseSessionMSServerRPCRequestEvent:
-		e = &events.MSServerRPCRequest{}
+	case DatabaseSessionSQLServerRPCRequestEvent:
+		e = &events.SQLServerRPCRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:

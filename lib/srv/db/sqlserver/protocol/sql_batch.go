@@ -40,6 +40,7 @@ func toSQLBatch(p Packet) (*SQLBatch, error) {
 	r := bytes.NewReader(p.Data())
 
 	var headersLength uint32
+	// The packet header if present only in fist packet.
 	if int(p.Header().PacketID) == 1 {
 		if err := binary.Read(r, binary.LittleEndian, &headersLength); err != nil {
 			return nil, trace.Wrap(err)

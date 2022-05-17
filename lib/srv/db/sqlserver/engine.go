@@ -121,8 +121,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	return nil
 }
 
-// receiveFromClient relays protocol messages received from MySQL client
-// to MySQL database.
+// receiveFromClient relays protocol messages received from  SQL Server client
+// to SQL Server database.
 func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, clientErrCh chan<- error, sessionCtx *common.Session) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -219,10 +219,10 @@ func (e *Engine) auditPacket(ctx context.Context, sessCtx *common.Session, packe
 	case *protocol.SQLBatch:
 		e.Audit.OnQuery(ctx, sessCtx, common.Query{Query: t.SQLText})
 	case *protocol.RPCRequest:
-		e.Audit.EmitEvent(ctx, &events.MSServerRPCRequest{
+		e.Audit.EmitEvent(ctx, &events.SQLServerRPCRequest{
 			Metadata: common.MakeEventMetadata(sessCtx,
-				libevents.DatabaseSessionMSServerRPCRequestEvent,
-				libevents.MSServerRPCRequestCode,
+				libevents.DatabaseSessionSQLServerRPCRequestEvent,
+				libevents.SQLServerRPCRequestCode,
 			),
 			UserMetadata:     common.MakeUserMetadata(sessCtx),
 			SessionMetadata:  common.MakeSessionMetadata(sessCtx),

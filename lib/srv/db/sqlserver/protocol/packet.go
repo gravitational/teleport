@@ -60,6 +60,8 @@ type Packet interface {
 	Type() uint8
 }
 
+// BasicPacket implements the Packet interfaces allowing to operate on
+// PacketHeader and get underlying packet type.
 type BasicPacket struct {
 	header PacketHeader
 	data   []byte

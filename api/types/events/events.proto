@@ -1896,7 +1896,7 @@ message OneOf {
         events.MySQLDebug MySQLDebug = 86;
         events.MySQLRefresh MySQLRefresh = 87;
         events.AccessRequestResourceSearch AccessRequestResourceSearch = 88;
-        events.MSServerRPCRequest MSServerRPCRequest = 89;
+        events.SQLServerRPCRequest SQLServerRPCRequest = 89;
     }
 }
 
@@ -2312,8 +2312,8 @@ message MySQLRefresh {
     string Subcommand = 5 [ (gogoproto.jsontag) = "subcommand" ];
 }
 
-// MSServerRPCRequest is emitted when a user executes a rpc command.
-message MSServerRPCRequest {
+// SQLServerRPCRequest is emitted when a user executes a MSSQL Server RPC command.
+message SQLServerRPCRequest {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];

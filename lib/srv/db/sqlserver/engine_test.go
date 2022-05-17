@@ -76,13 +76,13 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasNoErr(),
 				hasAuditEventCode(libevents.DatabaseSessionStartCode),
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
-				hasAuditEvent(1, &events.MSServerRPCRequest{
+				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
 						DatabaseUser: "sa",
 					},
 					Metadata: events.Metadata{
-						Type: libevents.DatabaseSessionMSServerRPCRequestEvent,
-						Code: libevents.MSServerRPCRequestCode,
+						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
+						Code: libevents.SQLServerRPCRequestCode,
 					},
 					Procname: "foo3",
 				}),
@@ -95,13 +95,13 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasNoErr(),
 				hasAuditEventCode(libevents.DatabaseSessionStartCode),
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
-				hasAuditEvent(1, &events.MSServerRPCRequest{
+				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
 						DatabaseUser: "sa",
 					},
 					Metadata: events.Metadata{
-						Type: libevents.DatabaseSessionMSServerRPCRequestEvent,
-						Code: libevents.MSServerRPCRequestCode,
+						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
+						Code: libevents.SQLServerRPCRequestCode,
 					},
 					Parameters: []string{"select @@version"},
 					Procname:   "Sp_ExecuteSql",
