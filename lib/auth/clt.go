@@ -1082,9 +1082,22 @@ func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 	return response, nil
 }
 
+// GetOIDCAuthRequest gets OIDC AuthnRequest
+func (c *Client) GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error) {
+	out, err := c.Get(ctx, c.Endpoint("oidc", "requests", "get", id), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *services.OIDCAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
-func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
 		Query: q,
 	})
 	if err != nil {
@@ -1683,8 +1696,11 @@ type IdentityService interface {
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 
+	// GetOIDCAuthRequest returns OIDC auth request if found
+	GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error)
+
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
-	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 
 	// CreateSAMLConnector creates SAML connector
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) error

@@ -1451,6 +1451,13 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
 	})
 	require.NoError(t, err)
 	return connector
@@ -1613,7 +1620,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       },
       "mysql": {},
       "gcp": {},
@@ -1633,7 +1641,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       }
     }
   }]
