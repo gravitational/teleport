@@ -50,7 +50,8 @@ following use cases:
 
 Some networks funnel all connections through a proxy server where they can be
 audited and access control rules can be applied. For these scenarios, Teleport
-supports HTTP CONNECT tunneling.
+supports HTTP CONNECT tunneling for `tsh` and for `teleport` when running in
+[TLS routing mode](../../architecture/tls-routing.mdx).
 
 To use HTTP CONNECT tunneling, set the `HTTPS_PROXY` and `HTTP_PROXY`
 environment variables when running Teleport. You can also optionally set the
