@@ -1668,11 +1668,8 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(
-		// These from-to's are weird because the audit log is writing the time
-		// of the events as 0001-01-01T00:00:00Z into a file correctly dated
-		// for today. So we need a large range to capture the values.
-		time.Time{},
-		time.Now(),
+		s.clock.Now().Add(-time.Hour),
+		s.clock.Now().Add(time.Hour),
 		apidefaults.Namespace,
 		[]string{events.UserLoginEvent},
 		1,
@@ -1952,11 +1949,9 @@ func (f byTimeAndIndex) Swap(i, j int) {
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func TestSearchClusterEvents(t *testing.T) {
 	t.Parallel()
-	// We need a clock that uses the current time here to work around
-	// the fact that filelog doesn't support emitting past events.
-	clock := clockwork.NewRealClock()
 
 	s := newWebSuite(t)
+	clock := s.clock
 	sessionEvents := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 3,
 		Clock:       clock,
@@ -2059,8 +2054,19 @@ func TestSearchClusterEvents(t *testing.T) {
 			var result eventsListGetResponse
 			require.NoError(t, json.Unmarshal(response.Bytes(), &result))
 
-			require.Len(t, result.Events, len(tc.Result))
-			for i, resultEvent := range result.Events {
+			// filter out irrelvant auth events
+			filteredEvents := []events.EventFields{}
+			for _, e := range result.Events {
+				t := e.GetType()
+				if t == events.SessionStartEvent ||
+					t == events.SessionPrintEvent ||
+					t == events.SessionEndEvent {
+					filteredEvents = append(filteredEvents, e)
+				}
+			}
+
+			require.Len(t, filteredEvents, len(tc.Result))
+			for i, resultEvent := range filteredEvents {
 				require.Equal(t, tc.Result[i].GetType(), resultEvent.GetType())
 				require.Equal(t, tc.Result[i].GetID(), resultEvent.GetID())
 			}
