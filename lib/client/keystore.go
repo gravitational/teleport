@@ -535,7 +535,7 @@ func (fs *fsLocalNonSessionKeyStore) sshCertPath(idx KeyIndex) string {
 
 // PPKFilePath returns the PPK (PuTTY-formatted) keypair path for the given KeyIndex.
 func (fs *fsLocalNonSessionKeyStore) PPKFilePath(idx KeyIndex) string {
-	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
 // sshCAsPath returns the SSH CA certificates path for the given KeyIndex.
