@@ -338,13 +338,15 @@ type keyPairKey struct {
 	reason string
 }
 
+// newTeleportConfig provides extra options to NewTeleport().
 type newTeleportConfig struct {
 	imdsClient aws.InstanceMetadata
 }
 
-type newTeleportOption func(*newTeleportConfig)
+type NewTeleportOption func(*newTeleportConfig)
 
-func WithIMDSClient(client aws.InstanceMetadata) newTeleportOption {
+// WithIMDSClient provides NewTeleport with a custom EC2 instance metadata client.
+func WithIMDSClient(client aws.InstanceMetadata) NewTeleportOption {
 	return func(c *newTeleportConfig) {
 		c.imdsClient = client
 	}
@@ -622,7 +624,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *Config, opts ...newTeleportOption) (*TeleportProcess, error) {
+func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, error) {
 	newTeleportConf := &newTeleportConfig{}
 	for _, opt := range opts {
 		opt(newTeleportConf)
