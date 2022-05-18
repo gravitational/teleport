@@ -19,6 +19,7 @@ ARCH ?= amd64
 BUILDBOX_VERSION ?= teleport10
 GOLANG_VERSION ?= go1.17.9
 RUST_VERSION ?= 1.58.1
+NODE_VERSION ?= 16.13.2
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.3.1
 
@@ -430,6 +431,13 @@ print-go-version:
 .PHONY:print-rust-version
 print-rust-version:
 	@echo $(RUST_VERSION)
+
+#
+# Print the Node version used to build TeleportConnect.
+#
+.PHONY:print-node-version
+print-node-version:
+	@echo $(NODE_VERSION)
 
 #
 # Print the buildbox version used to build Teleport.

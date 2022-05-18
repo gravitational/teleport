@@ -63,6 +63,7 @@ func darwinPushPipeline() pipeline {
 			},
 			Commands: darwinTagBuildCommands(b),
 		},
+		installNodeToolchainStep(p.Workspace.Path),
 		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),
 		{
@@ -106,6 +107,7 @@ func darwinTagPipeline() pipeline {
 		},
 		installGoToolchainStep(),
 		installRustToolchainStep(p.Workspace.Path),
+		installNodeToolchainStep(p.Workspace.Path),
 		{
 			Name: "Build Mac release artifacts",
 			Environment: map[string]value{
@@ -240,6 +242,25 @@ func installRustToolchainStep(path string) step {
 	}
 }
 
+func installNodeToolchainStep(workspacePath string) step {
+	return step{
+		Name:        "Install Node Toolchain",
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: workspacePath}},
+		Commands: []string{
+			`set -u`,
+			`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
+			`export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
+			`mkdir -p $TOOLCHAIN_DIR`,
+			`curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz`,
+			`tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz`,
+			`rm -f node-v$NODE_VERSION-darwin-x64.tar.gz`,
+			`export PATH=$NODE_DIR/bin:$PATH`,
+			`corepack enable yarn`,
+		},
+	}
+}
+
 func cleanUpToolchainsStep(path string) step {
 	return step{
 		Name:        "Clean up toolchains (post)",
@@ -287,10 +308,13 @@ func darwinTagCheckoutCommands(b buildType) []string {
 func darwinTagBuildCommands(b buildType) []string {
 	commands := []string{
 		`set -u`,
+		`export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+		`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
 		`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
-		`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+		`export CARGO_HOME=$TOOLCHAIN_DIR`,
 		`export RUST_HOME=$CARGO_HOME`,
-		`export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH`,
+		`export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
+		`export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`rustup override set $RUST_VERSION`,
 		`make clean release OS=$OS ARCH=$ARCH`,
