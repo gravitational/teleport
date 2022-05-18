@@ -164,68 +164,69 @@ impl Client {
 
     fn handle_server_announce(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerAnnounceRequest::decode(payload)?;
-        debug!("got ServerAnnounceRequest {:?}", req);
+        debug!("received RDP {:?}", req);
 
-        let resp = self.add_headers_and_chunkify(
-            PacketId::PAKID_CORE_CLIENTID_CONFIRM,
-            ClientAnnounceReply::new(req).encode()?,
-        )?;
-        debug!("sending client announce reply");
+        let resp = ClientAnnounceReply::new(req);
+        debug!("sending RDP {:?}", resp);
+        let resp =
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_CLIENTID_CONFIRM, resp.encode()?)?;
+
         Ok(resp)
     }
 
     fn handle_server_capability(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerCoreCapabilityRequest::decode(payload)?;
-        debug!("got {:?}", req);
+        debug!("received RDP {:?}", req);
 
-        let resp = self.add_headers_and_chunkify(
-            PacketId::PAKID_CORE_CLIENT_CAPABILITY,
-            ClientCoreCapabilityResponse::new_response().encode()?,
-        )?;
-        debug!("sending client core capability response");
+        let resp = ClientCoreCapabilityResponse::new_response();
+        debug!("sending RDP {:?}", resp);
+        let resp =
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_CLIENT_CAPABILITY, resp.encode()?)?;
+
         Ok(resp)
     }
 
     fn handle_client_id_confirm(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerClientIdConfirm::decode(payload)?;
-        debug!("got ServerClientIdConfirm {:?}", req);
+        debug!("received RDP {:?}", req);
 
         // The smartcard initialization sequence that contains this message happens once at session startup,
         // and once when login succeeds. We only need to announce the smartcard once.
         let resp = if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
             self.push_active_device_id(SCARD_DEVICE_ID)?;
-            self.add_headers_and_chunkify(
-                PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-                ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID).encode()?,
-            )?
+            let resp = ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID);
+            debug!("sending RDP {:?}", resp);
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
         } else {
-            self.add_headers_and_chunkify(
-                PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-                ClientDeviceListAnnounceRequest::new_empty().encode()?,
-            )?
+            let resp = ClientDeviceListAnnounceRequest::new_empty();
+            debug!("sending RDP {:?}", resp);
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
         };
-        debug!("replying with: {:?}", resp);
         Ok(resp)
     }
 
     fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
-        debug!("got ServerDeviceAnnounceResponse: {:?}", req);
+        debug!("received RDP: {:?}", req);
 
         if !self.active_device_ids.contains(&req.device_id) {
-            (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
+            let resp = SharedDirectoryAcknowledge {
                 err_code: 1,
                 directory_id: req.device_id,
-            })?;
+            };
+            debug!("sending TDP: {:?}", resp);
+            (self.tdp_sd_acknowledge)(resp)?;
             Err(invalid_data_error(&format!(
                 "got ServerDeviceAnnounceResponse for unknown device_id {}",
                 &req.device_id
             )))
         } else if req.result_code != NTSTATUS_OK {
-            (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
+            let resp = SharedDirectoryAcknowledge {
                 err_code: 1,
                 directory_id: req.device_id,
-            })?;
+            };
+            debug!("sending TDP: {:?}", resp);
+            (self.tdp_sd_acknowledge)(resp)?;
             Err(invalid_data_error(&format!(
                 "got unsuccessful ServerDeviceAnnounceResponse result code NTSTATUS({})",
                 &req.result_code
@@ -233,10 +234,15 @@ impl Client {
         } else {
             debug!("ServerDeviceAnnounceResponse was valid");
             if req.device_id != self.get_scard_device_id()? {
-                (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
+                let resp = SharedDirectoryAcknowledge {
                     err_code: 0,
                     directory_id: req.device_id,
-                })?;
+                };
+                debug!("sending TDP: {:?}", resp);
+                (self.tdp_sd_acknowledge)(resp)?;
+                debug!("TDP directory sharing initial negotiation succeeded");
+            } else {
+                debug!("RDP smart card redirection initial negotiation succeeded");
             }
             Ok(vec![])
         }
@@ -259,245 +265,11 @@ impl Client {
 
         match major_function {
             MajorFunction::IRP_MJ_DEVICE_CONTROL => {
-                let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
-                let is_smart_card_op = ioctl.header.device_id == self.get_scard_device_id()?;
-                debug!("got: {:?}", ioctl);
-
-                // IRP_MJ_DEVICE_CONTROL is the one major function used by both the smartcard controller (always enabled)
-                // and shared directory controller (potentially disabled by RBAC). Here we check that directory sharing
-                // is enabled here before proceeding with any shared directory controls as an additional security measure.
-                if !is_smart_card_op && !self.allow_directory_sharing {
-                    return Err(Error::TryError("received a drive redirection major function when drive redirection was not allowed".to_string()));
-                }
-                let resp = if is_smart_card_op {
-                    // Smart card control
-                    let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
-                    if code == SPECIAL_NO_RESPONSE {
-                        return Ok(vec![]);
-                    }
-                    DeviceControlResponse::new(&ioctl, code, res)
-                } else {
-                    // Drive redirection, mimic FreeRDP's "no-op"
-                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
-                    DeviceControlResponse::new(
-                        &ioctl,
-                        NTSTATUS::STATUS_SUCCESS.to_u32().unwrap(),
-                        vec![],
-                    )
-                };
-                debug!("replying with: {:?}", resp);
-                let resp = self.add_headers_and_chunkify(
-                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                    resp.encode()?,
-                )?;
-                debug!("sending device IO response");
-                Ok(resp)
+                self.process_irp_device_control(device_io_request, payload)
             }
-            MajorFunction::IRP_MJ_CREATE => {
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
-                let rdp_req = ServerCreateDriveRequest::decode(device_io_request, payload)?;
-                debug!("got: {:?}", rdp_req);
-
-                // Send a TDP Shared Directory Info Request
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
-                (self.tdp_sd_info_request)(SharedDirectoryInfoRequest::from(rdp_req.clone()))?;
-
-                // Add a TDP Shared Directory Info Response handler to the handler cache.
-                // When we receive a TDP Shared Directory Info Response with this completion_id,
-                // this handler will be called.
-                self.pending_sd_info_resp_handlers.insert(
-                    rdp_req.device_io_request.completion_id,
-                    Box::new(
-                        |cli: &mut Self,
-                         res: SharedDirectoryInfoResponse|
-                         -> RdpResult<Vec<Vec<u8>>> {
-                            let rdp_req = rdp_req;
-                            debug!("got {:?}", res);
-                            if res.err_code == 0 {
-                                // The file exists
-                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L214
-                                if res.fso.file_type == 1 {
-                                    if rdp_req.create_disposition
-                                        == flags::CreateDisposition::FILE_CREATE
-                                    {
-                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L221
-                                        // ERROR_ALREADY_EXISTS --> STATUS_OBJECT_NAME_COLLISION: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L102
-                                        return cli.prep_device_create_response(
-                                            &rdp_req,
-                                            NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
-                                            0,
-                                        );
-                                    }
-
-                                    if rdp_req
-                                        .create_options
-                                        .contains(flags::CreateOptions::FILE_NON_DIRECTORY_FILE)
-                                    {
-                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L227
-                                        // ERROR_ACCESS_DENIED --> STATUS_ACCESS_DENIED: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L81
-                                        return cli.prep_device_create_response(
-                                            &rdp_req,
-                                            NTSTATUS::STATUS_ACCESS_DENIED,
-                                            0,
-                                        );
-                                    }
-                                } else {
-                                    if rdp_req
-                                        .create_options
-                                        .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
-                                    {
-                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
-                                        // ERROR_DIRECTORY --> STATUS_NOT_A_DIRECTORY: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L118
-                                        return cli.prep_device_create_response(
-                                            &rdp_req,
-                                            NTSTATUS::STATUS_NOT_A_DIRECTORY,
-                                            0,
-                                        );
-                                    }
-                                }
-                            } else if res.err_code == 2 {
-                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
-                                if rdp_req
-                                    .create_options
-                                    .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
-                                {
-                                    if rdp_req.create_disposition.intersects(
-                                        flags::CreateDisposition::FILE_OPEN_IF
-                                            | flags::CreateDisposition::FILE_CREATE,
-                                    ) {
-                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
-                                        return cli.tdp_sd_create(rdp_req, 1, res.fso);
-                                    } else {
-                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
-                                        // ERROR_FILE_NOT_FOUND --> STATUS_NO_SUCH_FILE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L85
-                                        return cli.prep_device_create_response(
-                                            &rdp_req,
-                                            NTSTATUS::STATUS_NO_SUCH_FILE,
-                                            0,
-                                        );
-                                    }
-                                }
-                            } else {
-                                // generic RDP error
-                                return cli.prep_device_create_response(
-                                    &rdp_req,
-                                    NTSTATUS::STATUS_UNSUCCESSFUL,
-                                    0,
-                                );
-                            }
-
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L263
-                            // Note: the above line in FreeRDP will always evaluate to true:
-                            // - drive_file_init is called here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L362
-                            // - it is always passed a file where file->file_handle = INVALID_HANDLE_VALUE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L351
-                            // - None of the calls up to the line in question can have changed it
-
-                            // The actual creation of files and error mapping badevice_io_request.completion_id happens here, for reference:
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L781
-                            if rdp_req.create_disposition
-                                == flags::CreateDisposition::FILE_SUPERSEDE
-                            {
-                                // If the file already exists, replace it with the given file. If it does not, create the given file.
-                            } else if rdp_req.create_disposition
-                                == flags::CreateDisposition::FILE_OPEN
-                            {
-                                // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
-                                if res.err_code == 0 {
-                                    let file_id = cli.generate_file_id();
-                                    cli.file_cache.insert(
-                                        file_id,
-                                        FileCacheObject::new(rdp_req.path.clone(), res.fso),
-                                    );
-                                    return cli.prep_device_create_response(
-                                        &rdp_req,
-                                        NTSTATUS::STATUS_SUCCESS,
-                                        file_id,
-                                    );
-                                } else {
-                                    return cli.prep_device_create_response(
-                                        &rdp_req,
-                                        NTSTATUS::STATUS_NO_SUCH_FILE,
-                                        0,
-                                    );
-                                }
-                            } else if rdp_req.create_disposition
-                                == flags::CreateDisposition::FILE_CREATE
-                            {
-                                // If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
-                                if res.err_code == 0 {
-                                    return cli.prep_device_create_response(
-                                        &rdp_req,
-                                        NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
-                                        0,
-                                    );
-                                } else {
-                                    return cli.tdp_sd_create(rdp_req, 0, res.fso);
-                                }
-                            } else if rdp_req.create_disposition
-                                == flags::CreateDisposition::FILE_OPEN_IF
-                            {
-                                // If the file already exists, open it. If it does not, create the given file.
-                                if res.err_code == 0 {
-                                    let file_id = cli.generate_file_id();
-                                    cli.file_cache.insert(
-                                        file_id,
-                                        FileCacheObject::new(rdp_req.path.clone(), res.fso),
-                                    );
-                                    return cli.prep_device_create_response(
-                                        &rdp_req,
-                                        NTSTATUS::STATUS_SUCCESS,
-                                        file_id,
-                                    );
-                                } else {
-                                    return cli.tdp_sd_create(rdp_req, 0, res.fso);
-                                }
-                            } else if rdp_req.create_disposition
-                                == flags::CreateDisposition::FILE_OVERWRITE
-                            {
-                                // If the file already exists, open it and overwrite it. If it does not, fail the request.
-                                if res.err_code == 0 {
-                                    return cli.tdp_sd_overwrite(rdp_req, res.fso);
-                                } else {
-                                    return cli.prep_device_create_response(
-                                        &rdp_req,
-                                        NTSTATUS::STATUS_NO_SUCH_FILE,
-                                        0,
-                                    );
-                                }
-                            } else if rdp_req.create_disposition
-                                == flags::CreateDisposition::FILE_OVERWRITE_IF
-                            {
-                                // If the file already exists, open it and overwrite it. If it does not, create the given file.
-                                if res.err_code == 0 {
-                                    return cli.tdp_sd_overwrite(rdp_req, res.fso);
-                                } else {
-                                    return cli.tdp_sd_create(rdp_req, 0, res.fso);
-                                }
-                            }
-                            Ok(vec![])
-                        },
-                    ),
-                );
-                Ok(vec![])
-            }
+            MajorFunction::IRP_MJ_CREATE => self.process_irp_create(device_io_request, payload),
             MajorFunction::IRP_MJ_QUERY_INFORMATION => {
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L373
-                let rdp_req =
-                    ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
-                debug!("got {:?}", rdp_req);
-                if let Some(file) = self.get_file_by_id(rdp_req.device_io_request.file_id) {
-                    return self.prep_query_info_response(
-                        &rdp_req,
-                        Some(file),
-                        NTSTATUS::STATUS_SUCCESS,
-                    );
-                } else {
-                    return self.prep_query_info_response(
-                        &rdp_req,
-                        None,
-                        NTSTATUS::STATUS_UNSUCCESSFUL,
-                    );
-                }
+                self.process_irp_query_information(device_io_request, payload)
             }
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
@@ -507,13 +279,241 @@ impl Client {
         }
     }
 
+    fn process_irp_device_control(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
+        let is_smart_card_op = ioctl.header.device_id == self.get_scard_device_id()?;
+        debug!("received RDP: {:?}", ioctl);
+
+        // IRP_MJ_DEVICE_CONTROL is the one major function used by both the smartcard controller (always enabled)
+        // and shared directory controller (potentially disabled by RBAC). Here we check that directory sharing
+        // is enabled here before proceeding with any shared directory controls as an additional security measure.
+        if !is_smart_card_op && !self.allow_directory_sharing {
+            return Err(Error::TryError("received a drive redirection major function when drive redirection was not allowed".to_string()));
+        }
+        let resp = if is_smart_card_op {
+            // Smart card control
+            let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
+            if code == SPECIAL_NO_RESPONSE {
+                return Ok(vec![]);
+            }
+            DeviceControlResponse::new(&ioctl, code, res)
+        } else {
+            // Drive redirection, mimic FreeRDP's "no-op"
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
+            DeviceControlResponse::new(&ioctl, NTSTATUS::STATUS_SUCCESS.to_u32().unwrap(), vec![])
+        };
+        debug!("sending RDP: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        Ok(resp)
+    }
+
+    fn process_irp_create(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
+        let rdp_req = ServerCreateDriveRequest::decode(device_io_request, payload)?;
+        debug!("received RDP: {:?}", rdp_req);
+
+        // Send a TDP Shared Directory Info Request
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
+        let tdp_req = SharedDirectoryInfoRequest::from(rdp_req.clone());
+        debug!("sending TDP: {:?}", tdp_req);
+        (self.tdp_sd_info_request)(tdp_req)?;
+
+        // Add a TDP Shared Directory Info Response handler to the handler cache.
+        // When we receive a TDP Shared Directory Info Response with this completion_id,
+        // this handler will be called.
+        self.pending_sd_info_resp_handlers.insert(
+            rdp_req.device_io_request.completion_id,
+            Box::new(
+                |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<Vec<Vec<u8>>> {
+                    let rdp_req = rdp_req;
+                    if res.err_code == 0 {
+                        // The file exists
+                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L214
+                        if res.fso.file_type == 1 {
+                            if rdp_req.create_disposition == flags::CreateDisposition::FILE_CREATE {
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L221
+                                // ERROR_ALREADY_EXISTS --> STATUS_OBJECT_NAME_COLLISION: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L102
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
+                                    0,
+                                );
+                            }
+
+                            if rdp_req
+                                .create_options
+                                .contains(flags::CreateOptions::FILE_NON_DIRECTORY_FILE)
+                            {
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L227
+                                // ERROR_ACCESS_DENIED --> STATUS_ACCESS_DENIED: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L81
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_ACCESS_DENIED,
+                                    0,
+                                );
+                            }
+                        } else {
+                            if rdp_req
+                                .create_options
+                                .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
+                            {
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
+                                // ERROR_DIRECTORY --> STATUS_NOT_A_DIRECTORY: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L118
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_NOT_A_DIRECTORY,
+                                    0,
+                                );
+                            }
+                        }
+                    } else if res.err_code == 2 {
+                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
+                        if rdp_req
+                            .create_options
+                            .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
+                        {
+                            if rdp_req.create_disposition.intersects(
+                                flags::CreateDisposition::FILE_OPEN_IF
+                                    | flags::CreateDisposition::FILE_CREATE,
+                            ) {
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
+                                return cli.tdp_sd_create(rdp_req, 1, res.fso);
+                            } else {
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
+                                // ERROR_FILE_NOT_FOUND --> STATUS_NO_SUCH_FILE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L85
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_NO_SUCH_FILE,
+                                    0,
+                                );
+                            }
+                        }
+                    } else {
+                        // generic RDP error
+                        return cli.prep_device_create_response(
+                            &rdp_req,
+                            NTSTATUS::STATUS_UNSUCCESSFUL,
+                            0,
+                        );
+                    }
+
+                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L263
+                    // Note: the above line in FreeRDP will always evaluate to true:
+                    // - drive_file_init is called here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L362
+                    // - it is always passed a file where file->file_handle = INVALID_HANDLE_VALUE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L351
+                    // - None of the calls up to the line in question can have changed it
+
+                    // The actual creation of files and error mapping badevice_io_request.completion_id happens here, for reference:
+                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L781
+                    if rdp_req.create_disposition == flags::CreateDisposition::FILE_SUPERSEDE {
+                        // If the file already exists, replace it with the given file. If it does not, create the given file.
+                    } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OPEN {
+                        // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
+                        if res.err_code == 0 {
+                            let file_id = cli.generate_file_id();
+                            cli.file_cache.insert(
+                                file_id,
+                                FileCacheObject::new(rdp_req.path.clone(), res.fso),
+                            );
+                            return cli.prep_device_create_response(
+                                &rdp_req,
+                                NTSTATUS::STATUS_SUCCESS,
+                                file_id,
+                            );
+                        } else {
+                            return cli.prep_device_create_response(
+                                &rdp_req,
+                                NTSTATUS::STATUS_NO_SUCH_FILE,
+                                0,
+                            );
+                        }
+                    } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_CREATE {
+                        // If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
+                        if res.err_code == 0 {
+                            return cli.prep_device_create_response(
+                                &rdp_req,
+                                NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
+                                0,
+                            );
+                        } else {
+                            return cli.tdp_sd_create(rdp_req, 0, res.fso);
+                        }
+                    } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OPEN_IF {
+                        // If the file already exists, open it. If it does not, create the given file.
+                        if res.err_code == 0 {
+                            let file_id = cli.generate_file_id();
+                            cli.file_cache.insert(
+                                file_id,
+                                FileCacheObject::new(rdp_req.path.clone(), res.fso),
+                            );
+                            return cli.prep_device_create_response(
+                                &rdp_req,
+                                NTSTATUS::STATUS_SUCCESS,
+                                file_id,
+                            );
+                        } else {
+                            return cli.tdp_sd_create(rdp_req, 0, res.fso);
+                        }
+                    } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OVERWRITE
+                    {
+                        // If the file already exists, open it and overwrite it. If it does not, fail the request.
+                        if res.err_code == 0 {
+                            return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                        } else {
+                            return cli.prep_device_create_response(
+                                &rdp_req,
+                                NTSTATUS::STATUS_NO_SUCH_FILE,
+                                0,
+                            );
+                        }
+                    } else if rdp_req.create_disposition
+                        == flags::CreateDisposition::FILE_OVERWRITE_IF
+                    {
+                        // If the file already exists, open it and overwrite it. If it does not, create the given file.
+                        if res.err_code == 0 {
+                            return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                        } else {
+                            return cli.tdp_sd_create(rdp_req, 0, res.fso);
+                        }
+                    }
+                    Ok(vec![])
+                },
+            ),
+        );
+        Ok(vec![])
+    }
+
+    fn process_irp_query_information(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L373
+        let rdp_req = ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
+        debug!("got {:?}", rdp_req);
+        if let Some(file) = self.get_file_by_id(rdp_req.device_io_request.file_id) {
+            return self.prep_query_info_response(&rdp_req, Some(file), NTSTATUS::STATUS_SUCCESS);
+        } else {
+            return self.prep_query_info_response(&rdp_req, None, NTSTATUS::STATUS_UNSUCCESSFUL);
+        }
+    }
+
     pub fn write_client_device_list_announce<S: Read + Write>(
         &mut self,
         req: ClientDeviceListAnnounce,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
         self.push_active_device_id(req.device_list[0].device_id)?;
-        debug!("sending new drive for redirection: {:?}", req);
+        debug!("sending new drive for redirection over RDP: {:?}", req);
 
         let responses =
             self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, req.encode()?)?;
@@ -530,6 +530,7 @@ impl Client {
         res: SharedDirectoryInfoResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
+        debug!("received TDP: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_info_resp_handlers
             .remove(&res.completion_id)
@@ -553,6 +554,7 @@ impl Client {
         res: SharedDirectoryCreateResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
+        debug!("received TDP: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_create_resp_handlers
             .remove(&res.completion_id)
@@ -576,6 +578,7 @@ impl Client {
         res: SharedDirectoryDeleteResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
+        debug!("received TDP: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_delete_resp_handlers
             .remove(&res.completion_id)
@@ -601,7 +604,7 @@ impl Client {
         new_file_id: u32,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = DeviceCreateResponse::new(req, io_status, new_file_id);
-        debug!("replying with: {:?}", resp);
+        debug!("sending RDP: {:?}", resp);
         let resp = self
             .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         return Ok(resp);
@@ -614,7 +617,7 @@ impl Client {
         io_status: NTSTATUS,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = ClientDriveQueryInformationResponse::new(req, file, io_status)?;
-        debug!("replying with: {:?}", resp);
+        debug!("sending RDP: {:?}", resp);
         let resp = self
             .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         return Ok(resp);
@@ -628,19 +631,21 @@ impl Client {
         file_type: u32,
         fso: FileSystemObject,
     ) -> RdpResult<Vec<Vec<u8>>> {
-        (self.tdp_sd_create_request)(SharedDirectoryCreateRequest {
+        let tdp_req = SharedDirectoryCreateRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
             file_type,
             path: rdp_req.path.clone(),
-        })?;
+        };
+        debug!("sending TDP: {:?}", tdp_req);
+        (self.tdp_sd_create_request)(tdp_req)?;
+
         self.pending_sd_create_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
             Box::new(
                 move |cli: &mut Self,
                       res: SharedDirectoryCreateResponse|
                       -> RdpResult<Vec<Vec<u8>>> {
-                    debug!("got {:?}", res);
                     if res.err_code == 0 {
                         let file_id = cli.generate_file_id();
                         cli.file_cache
@@ -671,11 +676,13 @@ impl Client {
         rdp_req: DeviceCreateRequest,
         fso: FileSystemObject,
     ) -> RdpResult<Vec<Vec<u8>>> {
-        (self.tdp_sd_delete_request)(SharedDirectoryDeleteRequest {
+        let tdp_req = SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
             path: rdp_req.path.clone(),
-        })?;
+        };
+        debug!("sending TDP: {:?}", tdp_req);
+        (self.tdp_sd_delete_request)(tdp_req)?;
         self.pending_sd_delete_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
             Box::new(
