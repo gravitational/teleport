@@ -426,8 +426,8 @@ func ConvertToPPK(priv []byte, pub []byte) ([]byte, error) {
 
 	// as per the PPK spec, the key for the MAC is blank when the PPK file is unencrypted.
 	// therefore, the key is a zero-length byte slice.
-	// generate the MAC using HMAC-SHA-256
 	hmacHash := hmac.New(sha256.New, []byte{})
+	// generate the MAC using HMAC-SHA-256
 	hmacHash.Write(macInput.Bytes())
 	macString := hex.EncodeToString(hmacHash.Sum(nil))
 
