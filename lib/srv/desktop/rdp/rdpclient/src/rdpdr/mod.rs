@@ -26,7 +26,8 @@ use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
     SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
     SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, SharedDirectoryListRequest,
-    SharedDirectoryListResponse, TdpErrCode,
+    SharedDirectoryListResponse, SharedDirectoryReadRequest, SharedDirectoryReadResponse,
+    SharedDirectoryWriteRequest, SharedDirectoryWriteResponse, TdpErrCode,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -44,7 +45,7 @@ use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 
 pub use consts::CHANNEL_NAME;
 
@@ -70,12 +71,16 @@ pub struct Client {
     tdp_sd_create_request: SharedDirectoryCreateRequestSender,
     tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
     tdp_sd_list_request: SharedDirectoryListRequestSender,
+    tdp_sd_read_request: SharedDirectoryReadRequestSender,
+    tdp_sd_write_request: SharedDirectoryWriteRequestSender,
 
     // CompletionId-indexed maps of handlers for tdp messages coming from the browser client.
     pending_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
     pending_sd_create_resp_handlers: HashMap<u32, SharedDirectoryCreateResponseHandler>,
     pending_sd_delete_resp_handlers: HashMap<u32, SharedDirectoryDeleteResponseHandler>,
     pending_sd_list_resp_handlers: HashMap<u32, SharedDirectoryListResponseHandler>,
+    pending_sd_read_resp_handlers: HashMap<u32, SharedDirectoryReadResponseHandler>,
+    pending_sd_write_resp_handlers: HashMap<u32, SharedDirectoryWriteResponseHandler>,
 }
 
 pub struct Config {
@@ -89,6 +94,8 @@ pub struct Config {
     pub tdp_sd_create_request: SharedDirectoryCreateRequestSender,
     pub tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
     pub tdp_sd_list_request: SharedDirectoryListRequestSender,
+    pub tdp_sd_read_request: SharedDirectoryReadRequestSender,
+    pub tdp_sd_write_request: SharedDirectoryWriteRequestSender,
 }
 
 impl Client {
@@ -112,11 +119,15 @@ impl Client {
             tdp_sd_create_request: cfg.tdp_sd_create_request,
             tdp_sd_delete_request: cfg.tdp_sd_delete_request,
             tdp_sd_list_request: cfg.tdp_sd_list_request,
+            tdp_sd_read_request: cfg.tdp_sd_read_request,
+            tdp_sd_write_request: cfg.tdp_sd_write_request,
 
             pending_sd_info_resp_handlers: HashMap::new(),
             pending_sd_create_resp_handlers: HashMap::new(),
             pending_sd_delete_resp_handlers: HashMap::new(),
             pending_sd_list_resp_handlers: HashMap::new(),
+            pending_sd_read_resp_handlers: HashMap::new(),
+            pending_sd_write_resp_handlers: HashMap::new(),
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
@@ -277,6 +288,8 @@ impl Client {
             MajorFunction::IRP_MJ_QUERY_VOLUME_INFORMATION => {
                 self.process_irp_query_volume_information(device_io_request, payload)
             }
+            MajorFunction::IRP_MJ_READ => self.process_irp_read(device_io_request, payload),
+            MajorFunction::IRP_MJ_WRITE => self.process_irp_write(device_io_request, payload),
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
@@ -702,6 +715,37 @@ impl Client {
         }
     }
 
+    fn process_irp_read(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L268
+        let rdp_req = DeviceReadRequest::decode(device_io_request, payload)?;
+        debug!("received RDP: {:?}", rdp_req);
+
+        if let Some(file) = self.file_cache.remove(rdp_req.device_io_request.file_id) {
+            self.tdp_sd_read(rdp_req, file)
+        } else {
+            self.prep_read_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, vec![])
+        }
+    }
+
+    fn process_irp_write(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let rdp_req = DeviceWriteRequest::decode(device_io_request, payload)?;
+        debug!("received RDP: {:?}", rdp_req);
+
+        if let Some(file) = self.file_cache.remove(rdp_req.device_io_request.file_id) {
+            self.tdp_sd_write(rdp_req, file)
+        } else {
+            self.prep_write_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, 0)
+        }
+    }
+
     pub fn write_client_device_list_announce<S: Read + Write>(
         &mut self,
         req: ClientDeviceListAnnounce,
@@ -800,6 +844,54 @@ impl Client {
         debug!("received TDP SharedDirectoryListResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_list_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
+            Ok(())
+        } else {
+            return Err(try_error(&format!(
+                "received invalid completion id: {}",
+                res.completion_id
+            )));
+        }
+    }
+
+    pub fn handle_tdp_sd_read_response<S: Read + Write>(
+        &mut self,
+        res: SharedDirectoryReadResponse,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        debug!("received TDP: {:?}", res);
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_read_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
+            Ok(())
+        } else {
+            return Err(try_error(&format!(
+                "received invalid completion id: {}",
+                res.completion_id
+            )));
+        }
+    }
+
+    pub fn handle_tdp_sd_write_response<S: Read + Write>(
+        &mut self,
+        res: SharedDirectoryWriteResponse,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        debug!("received TDP: {:?}", res);
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_write_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
@@ -967,6 +1059,32 @@ impl Client {
         Ok(resp)
     }
 
+    fn prep_read_response(
+        &self,
+        req: DeviceReadRequest,
+        io_status: NTSTATUS,
+        data: Vec<u8>,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let resp = DeviceReadResponse::new(&req, io_status, data);
+        debug!("replying with: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        Ok(resp)
+    }
+
+    fn prep_write_response(
+        &self,
+        req: DeviceWriteRequest,
+        io_status: NTSTATUS,
+        length: u32,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let resp = DeviceWriteResponse::new(&req, io_status, length);
+        debug!("replying with: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        Ok(resp)
+    }
+
     /// Helper function for sending a TDP SharedDirectoryCreateRequest based on an
     /// RDP DeviceCreateRequest and handling the TDP SharedDirectoryCreateResponse.
     fn tdp_sd_create(
@@ -1056,6 +1174,80 @@ impl Client {
                 },
             ),
         );
+        Ok(vec![])
+    }
+
+    fn tdp_sd_read(
+        &mut self,
+        rdp_req: DeviceReadRequest,
+        file: FileCacheObject,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let path_length = file.path.len() as u32;
+
+        let tdp_req = SharedDirectoryReadRequest {
+            completion_id: rdp_req.device_io_request.completion_id,
+            directory_id: rdp_req.device_io_request.device_id,
+            path: file.path,
+            path_length,
+            length: rdp_req.length,
+            offset: rdp_req.offset,
+        };
+        (self.tdp_sd_read_request)(tdp_req)?;
+
+        self.pending_sd_read_resp_handlers.insert(
+            rdp_req.device_io_request.completion_id,
+            Box::new(
+                move |cli: &mut Self,
+                      res: SharedDirectoryReadResponse|
+                      -> RdpResult<Vec<Vec<u8>>> {
+                    match res.err_code {
+                        TdpErrCode::Nil => {
+                            cli.prep_read_response(rdp_req, NTSTATUS::STATUS_SUCCESS, res.read_data)
+                        }
+                        _ => cli.prep_read_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, vec![]),
+                    }
+                },
+            ),
+        );
+
+        Ok(vec![])
+    }
+
+    fn tdp_sd_write(
+        &mut self,
+        rdp_req: DeviceWriteRequest,
+        file: FileCacheObject,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let path_length = file.path.len() as u32;
+        let tdp_req = SharedDirectoryWriteRequest {
+            completion_id: rdp_req.device_io_request.completion_id,
+            directory_id: rdp_req.device_io_request.device_id,
+            path: file.path,
+            path_length,
+            offset: rdp_req.offset,
+            write_data_length: rdp_req.write_data.len() as u32,
+            write_data: rdp_req.write_data.as_ptr() as _,
+        };
+        (self.tdp_sd_write_request)(tdp_req)?;
+
+        self.pending_sd_write_resp_handlers.insert(
+            rdp_req.device_io_request.completion_id,
+            Box::new(
+                move |cli: &mut Self,
+                      res: SharedDirectoryWriteResponse|
+                      -> RdpResult<Vec<Vec<u8>>> {
+                    match res.err_code {
+                        TdpErrCode::Nil => cli.prep_write_response(
+                            rdp_req,
+                            NTSTATUS::STATUS_SUCCESS,
+                            res.bytes_written,
+                        ),
+                        _ => cli.prep_write_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, 0),
+                    }
+                },
+            ),
+        );
+
         Ok(vec![])
     }
 
@@ -2712,15 +2904,15 @@ impl ServerDriveNotifyChangeDirectoryRequest {
 
 /// 2.2.1.4.3 Device Read Request (DR_READ_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3192516d-36a6-47c5-987a-55c214aa0441
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
-struct DeviceReadRequest {
+pub struct DeviceReadRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_READ.
-    device_io_request: DeviceIoRequest,
+    pub device_io_request: DeviceIoRequest,
     /// This field specifies the maximum number of bytes to be read from the device.
-    length: u32,
+    pub length: u32,
     /// This field specifies the file offset where the read operation is performed.
-    offset: u64,
+    pub offset: u64,
     // Padding (20 bytes):  An array of 20 bytes. Reserved. This field can be set to any value and MUST be ignored.
 }
 
@@ -2772,6 +2964,73 @@ impl DeviceReadResponse {
         w.extend_from_slice(&self.device_io_reply.encode()?);
         w.write_u32::<LittleEndian>(self.length)?;
         w.extend_from_slice(&self.read_data);
+        Ok(w)
+    }
+}
+
+/// 2.2.1.4.4 Device Write Request (DR_WRITE_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/2e25f0aa-a4ce-4ff3-ad62-ab6098280a3a
+#[derive(Debug, Clone)]
+pub struct DeviceWriteRequest {
+    /// The MajorFunction field in this header MUST be set to IRP_MJ_WRITE.
+    pub device_io_request: DeviceIoRequest,
+    /// Number of bytes in the write_data field.
+    pub length: u32,
+    /// File offset at which the data must be written.
+    pub offset: u64,
+    /// Data to be written on the target device.
+    pub write_data: Vec<u8>,
+}
+
+impl DeviceWriteRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        let length = payload.read_u32::<LittleEndian>()?;
+        let offset = payload.read_u64::<LittleEndian>()?;
+
+        // There is a padding of 20 bytes between offset and write data so we
+        // must ignore it
+        payload.seek(SeekFrom::Current(20))?;
+
+        let mut write_data = vec![0; length as usize];
+        payload.read_exact(&mut write_data)?;
+
+        Ok(Self {
+            device_io_request,
+            length,
+            offset,
+            write_data,
+        })
+    }
+}
+
+/// 2.2.1.5.4 Device Write Response (DR_WRITE_RSP)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/58160a47-2379-4c4a-a99d-24a1a666c02a
+#[derive(Debug)]
+pub struct DeviceWriteResponse {
+    /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_WRITE.
+    device_io_reply: DeviceIoResponse,
+    /// Number of bytes written in response to the write request.
+    length: u32,
+}
+
+impl DeviceWriteResponse {
+    fn new(device_read_request: &DeviceWriteRequest, io_status: NTSTATUS, length: u32) -> Self {
+        let device_io_request = &device_read_request.device_io_request;
+        Self {
+            device_io_reply: DeviceIoResponse::new(
+                device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            length,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_reply.encode()?);
+        w.write_u32::<LittleEndian>(self.length)?;
+        // 1 byte padding
+        w.write_u32::<LittleEndian>(0)?;
         Ok(w)
     }
 }
@@ -3095,6 +3354,8 @@ type SharedDirectoryCreateRequestSender =
 type SharedDirectoryDeleteRequestSender =
     Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>;
 type SharedDirectoryListRequestSender = Box<dyn Fn(SharedDirectoryListRequest) -> RdpResult<()>>;
+type SharedDirectoryReadRequestSender = Box<dyn Fn(SharedDirectoryReadRequest) -> RdpResult<()>>;
+type SharedDirectoryWriteRequestSender = Box<dyn Fn(SharedDirectoryWriteRequest) -> RdpResult<()>>;
 
 type SharedDirectoryInfoResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>;
@@ -3104,6 +3365,10 @@ type SharedDirectoryDeleteResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>;
 type SharedDirectoryListResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryListResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryReadResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryReadResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryWriteResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryWriteResponse) -> RdpResult<Vec<Vec<u8>>>>;
 
 #[cfg(test)]
 mod tests {
