@@ -212,7 +212,7 @@ func (p *Proxy) maybeReadProxyLine(conn *multiplexer.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if proto != multiplexer.ProtoProxy {
+	if proto != multiplexer.ProtoProxy && proto != multiplexer.ProtoProxyV2 {
 		return nil
 	}
 	proxyLine, err := conn.ReadProxyLine()
