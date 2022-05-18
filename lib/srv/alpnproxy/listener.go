@@ -21,6 +21,8 @@ import (
 	"net"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ListenerMuxWrapper wraps the net.Listener and multiplex incoming connection from serviceListener and connection
@@ -52,7 +54,7 @@ func NewMuxListenerWrapper(serviceListener, alpnListener net.Listener) *Listener
 func (l *ListenerMuxWrapper) HandleConnection(ctx context.Context, conn net.Conn) error {
 	select {
 	case <-l.close:
-		return trace.ConnectionProblem(nil, "listener is closed")
+		return trace.ConnectionProblem(net.ErrClosed, "listener is closed")
 	case <-ctx.Done():
 		return ctx.Err()
 	case l.connC <- conn:
@@ -73,7 +75,7 @@ func (l *ListenerMuxWrapper) Addr() net.Addr {
 func (l *ListenerMuxWrapper) Accept() (net.Conn, error) {
 	select {
 	case <-l.close:
-		return nil, trace.ConnectionProblem(nil, "listener is closed")
+		return nil, trace.ConnectionProblem(net.ErrClosed, "listener is closed")
 	case err := <-l.errC:
 		return nil, trace.Wrap(err)
 	case conn := <-l.connC:
@@ -88,7 +90,9 @@ func (l *ListenerMuxWrapper) startAcceptingConnectionServiceListener() {
 	for {
 		conn, err := l.Listener.Accept()
 		if err != nil {
-			l.errC <- err
+			if !utils.IsUseOfClosedNetworkError(err) {
+				l.errC <- err
+			}
 			return
 		}
 		select {
