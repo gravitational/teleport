@@ -924,6 +924,8 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 		s.handleRecordingProxy(r)
 	case teleport.VersionRequest:
 		s.handleVersionRequest(r)
+	case teleport.TerminalSizeRequest:
+		s.termHandlers.HandleTerminalSize(r)
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
@@ -1020,7 +1022,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 		return ctx, trace.Wrap(err)
 	}
-	go semLock.KeepAlive(ctx)
+
 	// ensure that losing the lock closes the connection context.  Under normal
 	// conditions, cancellation propagates from the connection context to the
 	// lock, but if we lose the lock due to some error (e.g. poor connectivity
@@ -1427,9 +1429,38 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 				log.Warn(err)
 			}
 			return nil
+		case sshutils.PuTTYSimpleRequest:
+			// PuTTY automatically requests a named 'simple@putty.projects.tartarus.org' channel any time it connects to a server
+			// as a proxy to indicate that it's in "simple" node and won't be requesting any other channels.
+			// As we don't support this request, we ignore it.
+			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
+			log.Debugf("%v: deliberately ignoring request for '%v' channel", s.Component(), sshutils.PuTTYSimpleRequest)
+			return nil
 		default:
 			return trace.BadParameter(
 				"(%v) proxy doesn't support request type '%v'", s.Component(), req.Type)
+		}
+	}
+
+	// Certs with a join-only principal can only use a
+	// subset of all the possible request types.
+	if ctx.JoinOnly {
+		switch req.Type {
+		case sshutils.PTYRequest:
+			return s.termHandlers.HandlePTYReq(ch, req, ctx)
+		case sshutils.ShellRequest:
+			return s.termHandlers.HandleShell(ch, req, ctx)
+		case sshutils.WindowChangeRequest:
+			return s.termHandlers.HandleWinChange(ch, req, ctx)
+		case teleport.ForceTerminateRequest:
+			return s.termHandlers.HandleForceTerminate(ch, req, ctx)
+		case sshutils.EnvRequest:
+			// We ignore all SSH setenv requests for join-only principals.
+			// SSH will send them anyway but it seems fine to silently drop them.
+		case sshutils.SubsystemRequest:
+			return s.handleSubsystem(ch, req, ctx)
+		default:
+			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
 	}
 

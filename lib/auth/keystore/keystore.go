@@ -65,7 +65,7 @@ type KeyStore interface {
 	// are usable with this KeyStore.
 	HasLocalActiveKeys(ca types.CertAuthority) bool
 
-	// HasLocalActiveKeys returns true if the given CA has any additional
+	// HasLocalAdditionalKeys returns true if the given CA has any additional
 	// trusted keys that are usable with this KeyStore.
 	HasLocalAdditionalKeys(ca types.CertAuthority) bool
 

@@ -390,7 +390,7 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	}
 	// each user has multiple related entries in the backend,
 	// so use DeleteRange to make sure we get them all
-	startKey := backend.Key(webPrefix, usersPrefix, user)
+	startKey := backend.ExactKey(webPrefix, usersPrefix, user)
 	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
@@ -1057,11 +1057,11 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 }
 
 // GetOIDCAuthRequest returns OIDC auth request
-func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCAuthRequest, error) {
+func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*services.OIDCAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

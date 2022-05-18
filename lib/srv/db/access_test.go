@@ -1694,7 +1694,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 
 	// Create and start test auth server.
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		Clock:       clockwork.NewFakeClockAt(time.Now()),
+		Clock:       testCtx.clock,
 		ClusterName: testCtx.clusterName,
 		Dir:         t.TempDir(),
 	})
@@ -1881,7 +1881,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
-		Clock:            clockwork.NewFakeClockAt(time.Now()),
+		Clock:            c.clock,
 		DataDir:          t.TempDir(),
 		AuthClient:       c.authClient,
 		AccessPoint:      c.authClient,

@@ -93,7 +93,10 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: name},
-			Metadata:     apievents.Metadata{Time: baseTime.Add(time.Second * time.Duration(i))},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: baseTime.Add(time.Second * time.Duration(i)),
+			},
 		})
 		c.Assert(err, check.IsNil)
 	}
@@ -169,7 +172,10 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		Method:       events.LoginMethodSAML,
 		Status:       apievents.Status{Success: true},
 		UserMetadata: apievents.UserMetadata{User: "bob"},
-		Metadata:     apievents.Metadata{Time: s.Clock.Now().UTC()},
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Time: s.Clock.Now().UTC(),
+		},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -190,18 +196,14 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
 
-	// read the session event
-	historyEvents, err := s.Log.GetSessionEvents(apidefaults.Namespace, sessionID, 0, false)
-	c.Assert(err, check.IsNil)
-	c.Assert(historyEvents, check.HasLen, 2)
-	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
-	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
-
 	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Time:  s.Clock.Now().UTC(),
 			Index: 0,
 			Type:  events.SessionStartEvent,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(sessionID),
 		},
 		UserMetadata: apievents.UserMetadata{
 			Login: "bob",
@@ -218,9 +220,19 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		UserMetadata: apievents.UserMetadata{
 			Login: "bob",
 		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(sessionID),
+		},
 		Participants: []string{"bob", "alice"},
 	})
 	c.Assert(err, check.IsNil)
+
+	// read the session event
+	historyEvents, err := s.Log.GetSessionEvents(apidefaults.Namespace, sessionID, 0, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(historyEvents, check.HasLen, 2)
+	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
+	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil)
 	c.Assert(err, check.IsNil)
