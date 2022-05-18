@@ -24,6 +24,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -42,14 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
-
-	"github.com/jackc/pgconn"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-	"github.com/siddontang/go-mysql/client"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // TestDatabaseAccessPostgresRootCluster tests a scenario where a user connects
