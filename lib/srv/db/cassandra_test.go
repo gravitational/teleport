@@ -115,14 +115,13 @@ func TestAccessCassandra(t *testing.T) {
 
 			// Try to connect to the database as this user.
 			dbConn, err := testCtx.cassandraClient(ctx, test.user, "cassandra", test.dbUser)
-
 			require.NoError(t, err)
 
 			// Execute a query.
-			var id int
-			err = dbConn.Query("select 42").Scan(&id)
+			var clusterName string
+			err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
 			require.NoError(t, err)
-			require.Equal(t, 42, id)
+			require.Equal(t, "Test Cluster", clusterName)
 
 			// Disconnect.
 			dbConn.Close()
