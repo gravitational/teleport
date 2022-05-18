@@ -299,11 +299,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	// Unauthenticated access to the message of the day
 	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
 
-	// DELETE IN: 5.1.0
-	//
-	// Migrated this endpoint to /webapi/sessions/web below.
-	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
-
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
