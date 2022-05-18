@@ -4107,17 +4107,6 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	require.NoError(t, err)
 
-	watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Clock:     tconf.Clock,
-			Client:    aux.GetSiteAPI(clusterAux),
-		},
-		Types: []types.CertAuthType{types.HostCA},
-	})
-	require.NoError(t, err)
-	t.Cleanup(watcher.Close)
-
 	// waitForPhase waits until aux cluster detects the rotation
 	waitForPhase := func(phase string) {
 		require.Eventually(t, func() bool {
@@ -4136,7 +4125,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 			}
 
 			return false
-		}, tconf.PollingPeriod*10, tconf.PollingPeriod/2, "failed to converge to phase %q", phase)
+		}, 30*time.Second, 250*time.Millisecond, "failed to converge to phase %q", phase)
 	}
 
 	waitForPhase(types.RotationPhaseInit)
@@ -4375,6 +4364,8 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.C
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebService = disableWebService
 	tconf.Proxy.DisableWebInterface = true
+	tconf.Proxy.DisableDatabaseProxy = true
+	tconf.Proxy.DisableALPNSNIListener = true
 	tconf.PollingPeriod = time.Second
 	tconf.ClientTimeout = time.Second
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
