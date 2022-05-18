@@ -128,6 +128,21 @@ typedef struct CGOSharedDirectoryListResponse {
   struct CGOFileSystemObject *fso_list;
 } CGOSharedDirectoryListResponse;
 
+typedef struct CGOSharedDirectoryReadResponse {
+  uint32_t completion_id;
+  enum TdpErrCode err_code;
+  uint32_t read_data_length;
+  uint8_t *read_data;
+} CGOSharedDirectoryReadResponse;
+
+typedef struct SharedDirectoryWriteResponse {
+  uint32_t completion_id;
+  enum TdpErrCode err_code;
+  uint32_t bytes_written;
+} SharedDirectoryWriteResponse;
+
+typedef struct SharedDirectoryWriteResponse CGOSharedDirectoryWriteResponse;
+
 /**
  * CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
  * PointerEvent is a mouse move or click update from the user.
@@ -190,6 +205,25 @@ typedef struct CGOSharedDirectoryCreateRequest {
 typedef struct CGOSharedDirectoryInfoRequest CGOSharedDirectoryDeleteRequest;
 
 typedef struct CGOSharedDirectoryInfoRequest CGOSharedDirectoryListRequest;
+
+typedef struct CGOSharedDirectoryReadRequest {
+  uint32_t completion_id;
+  uint32_t directory_id;
+  uint32_t path_length;
+  const char *path;
+  uint64_t offset;
+  uint32_t length;
+} CGOSharedDirectoryReadRequest;
+
+typedef struct CGOSharedDirectoryWriteRequest {
+  uint32_t completion_id;
+  uint32_t directory_id;
+  uint64_t offset;
+  uint32_t path_length;
+  const char *path;
+  uint32_t write_data_length;
+  uint8_t *write_data;
+} CGOSharedDirectoryWriteRequest;
 
 void init(void);
 
@@ -316,6 +350,28 @@ enum CGOErrCode handle_tdp_sd_list_response(struct Client *client_ptr,
                                             struct CGOSharedDirectoryListResponse res);
 
 /**
+ * handle_tdp_sd_read_response handles a TDP Shared Directory Read Response
+ * message
+ *
+ * # Safety
+ *
+ * client_ptr must be a valid pointer
+ */
+enum CGOErrCode handle_tdp_sd_read_response(struct Client *client_ptr,
+                                            struct CGOSharedDirectoryReadResponse res);
+
+/**
+ * handle_tdp_sd_write_response handles a TDP Shared Directory Write Response
+ * message
+ *
+ * # Safety
+ *
+ * client_ptr must be a valid pointer
+ */
+enum CGOErrCode handle_tdp_sd_write_response(struct Client *client_ptr,
+                                             CGOSharedDirectoryWriteResponse res);
+
+/**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
  * handle_bitmap.
  *
@@ -378,3 +434,9 @@ extern enum CGOErrCode tdp_sd_delete_request(uintptr_t client_ref,
 
 extern enum CGOErrCode tdp_sd_list_request(uintptr_t client_ref,
                                            CGOSharedDirectoryListRequest *req);
+
+extern enum CGOErrCode tdp_sd_read_request(uintptr_t client_ref,
+                                           struct CGOSharedDirectoryReadRequest *req);
+
+extern enum CGOErrCode tdp_sd_write_request(uintptr_t client_ref,
+                                            struct CGOSharedDirectoryWriteRequest *req);
