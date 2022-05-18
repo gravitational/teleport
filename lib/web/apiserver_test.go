@@ -1652,8 +1652,10 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	clt := s.client()
+	ua := "test-ua"
 	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
+	req.Header.Set("User-Agent", ua)
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 	addCSRFCookieToReq(req, csrfToken)
@@ -1664,6 +1666,24 @@ func TestLogin(t *testing.T) {
 		return clt.Client.HTTPClient().Do(req)
 	})
 	require.NoError(t, err)
+
+	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(
+		// These from-to's are weird because the audit log is writing the time
+		// of the events as 0001-01-01T00:00:00Z into a file correctly dated
+		// for today. So we need a large range to capture the values.
+		time.Time{},
+		time.Now(),
+		apidefaults.Namespace,
+		[]string{events.UserLoginEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+	event := events[0].(*apievents.UserLogin)
+	require.Equal(t, true, event.Success)
+	require.Equal(t, ua, event.UserAgent)
+	require.True(t, strings.HasPrefix(event.RemoteAddr, "127.0.0.1:"))
 
 	var rawSess *CreateSessionResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
