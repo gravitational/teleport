@@ -162,7 +162,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Database CA certificate path.").Hidden().
 		StringVar(&ccf.DatabaseCACertFile)
 	start.Flag("db-aws-region",
-		"AWS region RDS, Aurora or Redshift database instance is running in.").Hidden().
+		"AWS region RDS, Aurora, Redshift or ElastiCache database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
@@ -204,7 +204,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("protocol", fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).StringVar(&ccf.DatabaseProtocol)
 	dbStartCmd.Flag("uri", "Address the proxied database is reachable at.").StringVar(&ccf.DatabaseURI)
 	dbStartCmd.Flag("ca-cert", "Database CA certificate path.").StringVar(&ccf.DatabaseCACertFile)
-	dbStartCmd.Flag("aws-region", "(Only for RDS, Aurora or Redshift) AWS region RDS, Aurora or Redshift database instance is running in.").StringVar(&ccf.DatabaseAWSRegion)
+	dbStartCmd.Flag("aws-region", "(Only for RDS, Aurora, Redshift or ElastiCache) AWS region RDS, Aurora, Redshift or ElastiCache database instance is running in.").StringVar(&ccf.DatabaseAWSRegion)
 	dbStartCmd.Flag("aws-redshift-cluster-id", "(Only for Redshift) Redshift database cluster identifier.").StringVar(&ccf.DatabaseAWSRedshiftClusterID)
 	dbStartCmd.Flag("aws-rds-instance-id", "(Only for RDS) RDS instance identifier.").StringVar(&ccf.DatabaseAWSRDSInstanceID)
 	dbStartCmd.Flag("aws-rds-cluster-id", "(Only for Aurora) Aurora cluster identifier.").StringVar(&ccf.DatabaseAWSRDSClusterID)
@@ -226,6 +226,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("token", "Invitation token to register with an auth server [none].").Default("/tmp/token").StringVar(&dbConfigCreateFlags.AuthToken)
 	dbConfigureCreate.Flag("rds-discovery", "List of AWS regions the agent will discover for RDS/Aurora instances.").StringsVar(&dbConfigCreateFlags.RDSDiscoveryRegions)
 	dbConfigureCreate.Flag("redshift-discovery", "List of AWS regions the agent will discover for Redshift instances.").StringsVar(&dbConfigCreateFlags.RedshiftDiscoveryRegions)
+	dbConfigureCreate.Flag("elasticache-discovery", "List of AWS regions the agent will discover for ElastiCache Redis clusters.").StringsVar(&dbConfigCreateFlags.ElastiCacheDiscoveryRegions)
 	dbConfigureCreate.Flag("ca-pin", "CA pin to validate the auth server (can be repeated for multiple pins).").StringsVar(&dbConfigCreateFlags.CAPins)
 	dbConfigureCreate.Flag("name", "Name of the proxied database.").StringVar(&dbConfigCreateFlags.StaticDatabaseName)
 	dbConfigureCreate.Flag("protocol", fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).StringVar(&dbConfigCreateFlags.StaticDatabaseProtocol)
@@ -292,7 +293,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
 	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
 	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
-	dump.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).ExistingDirVar(&dumpFlags.DataDir)
+	dump.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).StringVar(&dumpFlags.DataDir)
 	dump.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
 	dump.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)

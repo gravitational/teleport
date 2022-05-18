@@ -31,6 +31,7 @@ Teleport has ~4 big releases per year.
 
 Up to v5.0.0, Teleport used a versioning scheme that looks like semver (but
 actually isn't):
+
 - a minor version is bumped for all regular releases (e.g. 4.3 -> 4.4)
 - a major version is bumped when a release _feels_ particularly significant
   (e.g. 4.4 -> 5.0 with introduction of application access)
@@ -40,14 +41,15 @@ Our compatibility promise is:
 
 > When running multiple binaries of Teleport within a cluster (nodes, proxies, clients, etc), the following rules apply:
 >
-> * Patch versions are always compatible, for example any 4.0.1 component will work with any 4.0.3 component.
-> * Other versions are always compatible with their previous release. This means you must not attempt to upgrade from 4.1 straight to 4.3. You must upgrade to 4.2 first.
-> * Teleport clients tsh for users and tctl for admins may not be compatible with different versions of the teleport service.
+> - Patch versions are always compatible, for example any 4.0.1 component will work with any 4.0.3 component.
+> - Other versions are always compatible with their previous release. This means you must not attempt to upgrade from 4.1 straight to 4.3. You must upgrade to 4.2 first.
+> - Teleport clients tsh for users and tctl for admins may not be compatible with different versions of the teleport service.
 
 The 2nd point is crucial: we **never** break compatibility with a previous
 release (be it a major or a minor version bump).
 
 The downsides of this versioning scheme are:
+
 - the distinction between major and minor version bumps is largely driven by
   business/product and has no technical difference
 - a user that doesn't read our upgrade docs carefully can assume semver
@@ -74,6 +76,7 @@ Therefore, I propose to switch to a more semver-like scheme, starting with 6.0.
     but still in testing, built from `branch/vN`
 
 The benefits are:
+
 - Major version bumps clearly communicate to users to exercise caution when
   upgrading, and read release notes
 - Minor/patch version bumps are a no-brainer and can be automated
@@ -82,8 +85,8 @@ The benefits are:
 
 ### Compatibility
 
-`vN.*.*` binaries are compatible with any other `vN.*.*` or `vN-1.*.*` binaries
-(both client and server).
+`vN.*.*` client binaries (Nodes, `tsh`, etc.) are compatible with any other
+`vN.*.*` or `vN+1.*.*` servers.
 
 Users are free to use any `vN.*.*` versions throughout their deployment, after
 upgrading everything from `vN-1.*.*`.
@@ -92,6 +95,7 @@ upgrading everything from `vN-1.*.*`.
 
 Teleport officially supports the latest major version and two previous major
 versions. For example:
+
 - `v8.*.*` (latest)
 - `v7.*.*`
 - `v6.*.*`
@@ -99,13 +103,13 @@ versions. For example:
 ### Git branches
 
 Teleport has several branches related to releases:
+
 - `main` - main development branch
 - `branch/vX` - for upcoming minor releases
   - created when `vX.0.0-rc.1` is cut
-- `branch/vX.Y` - for patch releases
-  - created when `vX.Y.0` is cut
 
 Here are how different kinds of changes made map to those branches:
+
 - work towards the next major release
   - merged into `main`
 - work towards the next minor release
@@ -114,7 +118,6 @@ Here are how different kinds of changes made map to those branches:
 - bugfixes that need to be backported
   - merged into `main`
   - backported into `branch/vX`
-  - backported into the latest `branch/vX.Y`
   - repeat for all `vX` that need the backport
 - bugfixes that _do not_ need to be backported
   - merged into `main`

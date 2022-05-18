@@ -1,5 +1,152 @@
 sets Deployment annotations when specified:
   1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      annotations:
+        kubernetes.io/deployment: test-annotation
+        kubernetes.io/deployment-different: 3
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: d4b68af041b4bf4aa8cb4ea527c775607b7062d3565b5b3220a0b5bbe16afa23
+            kubernetes.io/pod: test-annotation
+            kubernetes.io/pod-different: 4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /healthz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: data
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+          - emptyDir: {}
+            name: data
+sets Deployment labels when specified:
+  1: |
+    replicas: 1
+    selector:
+      matchLabels:
+        app: RELEASE-NAME
+    template:
+      metadata:
+        annotations:
+          checksum/config: 790ebcf515a3f43b0c1dba7b809211184a6ad4481ac78b21e1275777ec4207af
+        labels:
+          app: RELEASE-NAME
+          app.kubernetes.io/name: teleport-kube-agent
+          resource: pod
+      spec:
+        containers:
+        - args:
+          - --diag-addr=0.0.0.0:3000
+          image: quay.io/gravitational/teleport:10.0.0-dev
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /healthz
+              port: diag
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 1
+          name: teleport
+          ports:
+          - containerPort: 3000
+            name: diag
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 12
+            httpGet:
+              path: /readyz
+              port: diag
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - all
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 9807
+          volumeMounts:
+          - mountPath: /etc/teleport
+            name: config
+            readOnly: true
+          - mountPath: /etc/teleport-secrets
+            name: auth-token
+            readOnly: true
+          - mountPath: /var/lib/teleport
+            name: data
+        serviceAccountName: RELEASE-NAME
+        volumes:
+        - configMap:
+            name: RELEASE-NAME
+          name: config
+        - name: auth-token
+          secret:
+            secretName: teleport-kube-agent-join-token
+        - emptyDir: {}
+          name: data
+sets Pod annotations when specified:
+  1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
@@ -53,7 +200,7 @@ sets Deployment annotations when specified:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-sets Pod annotations when specified:
+sets Pod labels when specified:
   1: |
     containers:
     - args:
@@ -1077,6 +1224,61 @@ should set nodeSelector if set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
+should set not set priorityClassName when not set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set preferred affinity when more than one replica is used:
   1: |
     affinity:
@@ -1134,6 +1336,62 @@ should set preferred affinity when more than one replica is used:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+should set priorityClassName when set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    priorityClassName: teleport-kube-agent
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:

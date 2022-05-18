@@ -23,6 +23,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -352,4 +354,50 @@ func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, session
 
 func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, sessionCtx *common.Session) (*tls.Certificate, error) {
 	return g.EphemeralCert, nil
+}
+
+// ElastiCache mocks AWS ElastiCache API.
+type ElastiCacheMock struct {
+	elasticacheiface.ElastiCacheAPI
+
+	ReplicationGroups []*elasticache.ReplicationGroup
+	TagsByARN         map[string][]*elasticache.Tag
+}
+
+func (m *ElastiCacheMock) DescribeReplicationGroupsWithContext(_ aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error) {
+	for _, replicationGroup := range m.ReplicationGroups {
+		if aws.StringValue(replicationGroup.ReplicationGroupId) == aws.StringValue(input.ReplicationGroupId) {
+			return &elasticache.DescribeReplicationGroupsOutput{
+				ReplicationGroups: []*elasticache.ReplicationGroup{replicationGroup},
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("ElastiCache %v not found", aws.StringValue(input.ReplicationGroupId))
+}
+func (m *ElastiCacheMock) DescribeReplicationGroupsPagesWithContext(_ aws.Context, _ *elasticache.DescribeReplicationGroupsInput, fn func(*elasticache.DescribeReplicationGroupsOutput, bool) bool, _ ...request.Option) error {
+	fn(&elasticache.DescribeReplicationGroupsOutput{
+		ReplicationGroups: m.ReplicationGroups,
+	}, true)
+	return nil
+}
+
+func (m *ElastiCacheMock) DescribeCacheClustersPagesWithContext(aws.Context, *elasticache.DescribeCacheClustersInput, func(*elasticache.DescribeCacheClustersOutput, bool) bool, ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+func (m *ElastiCacheMock) DescribeCacheSubnetGroupsPagesWithContext(aws.Context, *elasticache.DescribeCacheSubnetGroupsInput, func(*elasticache.DescribeCacheSubnetGroupsOutput, bool) bool, ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+func (m *ElastiCacheMock) ListTagsForResourceWithContext(_ aws.Context, input *elasticache.ListTagsForResourceInput, _ ...request.Option) (*elasticache.TagListMessage, error) {
+	if m.TagsByARN == nil {
+		return nil, trace.NotFound("no tags")
+	}
+
+	tags, ok := m.TagsByARN[aws.StringValue(input.ResourceName)]
+	if !ok {
+		return nil, trace.NotFound("no tags")
+	}
+
+	return &elasticache.TagListMessage{
+		TagList: tags,
+	}, nil
 }
