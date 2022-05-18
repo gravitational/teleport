@@ -14,7 +14,9 @@ main() {
   local buildassets=''
   buildassets="$(dirname "$0")"
 
-  # shellcheck source=/dev/null # Avoid shellcheck warnings.
+  # Don't follow sourced script.
+  #shellcheck disable=SC1090
+  #shellcheck disable=SC1091
   . "$buildassets/build-common.sh"
 
   local opt=''

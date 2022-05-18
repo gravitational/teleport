@@ -6,7 +6,9 @@ usage() {
   exit 1
 }
 
-# shellcheck source=/dev/null # Avoid shellcheck warnings.
+# Don't follow sourced script.
+#shellcheck disable=SC1090
+#shellcheck disable=SC1091
 . "$(dirname "$0")/build-common.sh"
 
 while getopts ":t:v:p:a:r:s:n" o; do
@@ -171,7 +173,6 @@ fi
 # set variables appropriately depending on type of package being built
 if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
-    URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport-ent"
     RPM_NAME="teleport-ent"
     if [[ "${RUNTIME}" == "fips" ]]; then
@@ -182,7 +183,6 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     fi
 else
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
-    URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport"
     RPM_NAME="teleport"
     if [[ "${RUNTIME}" == "fips" ]]; then

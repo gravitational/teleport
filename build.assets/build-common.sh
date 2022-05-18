@@ -7,7 +7,8 @@
 DRY_RUN_PREFIX=''
 
 # Teleport / tsh certificates/info.
-#shellcheck disable=SC2034 # Used by other scripts.
+# Used by other scripts.
+#shellcheck disable=SC2034
 readonly DEVELOPER_ID_APPLICATION='0FFD3E3413AB4C599C53FBB1D8CA690915E33D83'
 #shellcheck disable=SC2034
 readonly DEVELOPER_ID_INSTALLER='82B625AD327C241B378A54B4B254BB08CE71B5DF'
@@ -102,7 +103,8 @@ notarize() {
   # XCode 12.
   local goncfg=''
   goncfg="$(mktemp)"
-  #shellcheck disable=SC2064 # Early expansion on purpose.
+  # Early expansion on purpose.
+  #shellcheck disable=SC2064
   trap "rm -f '$goncfg'" EXIT
   cat >"$goncfg" <<EOF
 {
