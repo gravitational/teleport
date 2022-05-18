@@ -448,14 +448,6 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels,
 	}
 }
 
-// SetEC2Labels sets the EC2 label service for this server.
-func SetEC2Labels(ec2Labels *labels.EC2) ServerOption {
-	return func(s *Server) error {
-		s.cloudLabels = ec2Labels
-		return nil
-	}
-}
-
 // SetLimiter sets rate and connection limiter for this server
 func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	return func(s *Server) error {
