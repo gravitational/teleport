@@ -103,7 +103,7 @@ func TestDatabaseAccessDifferentPinnedIPAccessDenied(t *testing.T) {
 		})
 	})
 
-	proxy, err := multiplexer.NewTestProxy(net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()), "1.2.3.4:5678")
+	proxy, err := multiplexer.NewTestProxy(net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()), false, "1.2.3.4:5678")
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })
 	go proxy.Serve()
@@ -123,7 +123,7 @@ func TestDatabaseAccessDifferentPinnedIPAccessDenied(t *testing.T) {
 		},
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "client IP 1.2.3.4 does not match the expected 127.0.0.1")
+	require.Contains(t, err.Error(), "client IP 1.2.3.4 does not match the pinned IP 127.0.0.1")
 }
 
 // TestDatabaseAccessPostgresRootCluster tests a scenario where a user connects
