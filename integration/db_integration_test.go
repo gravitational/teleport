@@ -25,6 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -44,14 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	"github.com/jonboulle/clockwork"
-	"github.com/siddontang/go-mysql/client"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 func TestDatabaseAccessMatchingPinnedIP(t *testing.T) {
