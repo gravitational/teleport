@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
@@ -103,7 +104,7 @@ func NewKey() (key *Key, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ppkFile, err := sshutils.ConvertToPPK(priv, pub)
+	ppkFile, err := ppk.ConvertToPPK(priv, pub)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
