@@ -226,7 +226,7 @@ type EC2 struct {
 	closeCh chan struct{}
 }
 
-func NewEC2Labels(c *EC2Config) (*EC2, error) {
+func NewEC2(c *EC2Config) (*EC2, error) {
 	if err := c.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -268,10 +268,9 @@ func (l *EC2) Sync(ctx context.Context) {
 	l.labels = toAWSLabels(m)
 }
 
-// Start will start a loop that continually keeps EC2 labels updated. Start
-// can safely be called multiple times.
+// Start will start a loop that continually keeps EC2 labels updated.
 func (l *EC2) Start(ctx context.Context) {
-	l.once.Do(func() { go l.periodicUpdateLabels(ctx) })
+	go l.periodicUpdateLabels(ctx)
 }
 
 func (l *EC2) periodicUpdateLabels(ctx context.Context) {

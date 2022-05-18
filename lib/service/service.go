@@ -764,7 +764,7 @@ func NewTeleport(cfg *Config, opts ...newTeleportOption) (*TeleportProcess, erro
 			return nil, trace.Wrap(err)
 		}
 
-		ec2Labels, err := labels.NewEC2Labels(&labels.EC2Config{
+		ec2Labels, err := labels.NewEC2(&labels.EC2Config{
 			Client: imClient,
 			Clock:  cfg.Clock,
 		})
@@ -772,6 +772,10 @@ func NewTeleport(cfg *Config, opts ...newTeleportOption) (*TeleportProcess, erro
 			return nil, trace.Wrap(err)
 		}
 		cloudLabels = ec2Labels
+	}
+
+	if cloudLabels != nil {
+		cloudLabels.Start(supervisor.ExitContext())
 	}
 
 	// if user did not provide auth domain name, use this host's name
@@ -3875,6 +3879,10 @@ func (process *TeleportProcess) Close() error {
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
 
 	process.Config.Keygen.Close()
+
+	if process.cloudLabels != nil {
+		process.cloudLabels.Close()
+	}
 
 	var errors []error
 

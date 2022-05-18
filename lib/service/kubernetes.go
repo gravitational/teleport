@@ -176,9 +176,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			}
 		}()
 	}
-	if cloudLabels != nil {
-		cloudLabels.Start(process.ExitContext())
-	}
 
 	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
