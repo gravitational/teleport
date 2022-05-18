@@ -275,6 +275,16 @@ func newWebSuite(t *testing.T) *WebSuite {
 	})
 	require.NoError(t, err)
 
+	caWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	defer caWatcher.Close()
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    node.ID(),
 		Listener:              revTunListener,
@@ -289,6 +299,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		CertAuthorityWatcher:  caWatcher,
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
@@ -873,32 +884,17 @@ func TestResolveServerHostPort(t *testing.T) {
 	}
 
 	for _, testCase := range validCases {
-		host, port, err := resolveServerHostPort(testCase.server, nodeGetter{servers: testCase.nodes})
+		host, port, err := resolveServerHostPort(testCase.server, testCase.nodes)
 		require.NoError(t, err, testCase.server)
 		require.Equal(t, testCase.expectedHost, host, testCase.server)
 		require.Equal(t, testCase.expectedPort, port, testCase.server)
 	}
 
 	for _, testCase := range invalidCases {
-		_, _, err := resolveServerHostPort(testCase.server, nodeGetter{})
+		_, _, err := resolveServerHostPort(testCase.server, nil)
 		require.Error(t, err, testCase.server)
 		require.Regexp(t, ".*"+testCase.expectedErr+".*", err.Error(), testCase.server)
 	}
-}
-
-type nodeGetter struct {
-	servers []types.Server
-}
-
-func (n nodeGetter) GetNodes(fn func(n services.Node) bool) []types.Server {
-	var servers []types.Server
-	for _, s := range n.servers {
-		if fn(s) {
-			servers = append(servers, s)
-		}
-	}
-
-	return servers
 }
 
 func TestNewTerminalHandler(t *testing.T) {
@@ -914,10 +910,16 @@ func TestNewTerminalHandler(t *testing.T) {
 		W: 1,
 	}
 
+	makeProvider := func(server types.ServerV2) AuthProvider {
+		return authProviderMock{
+			server: server,
+		}
+	}
+
 	// valid cases
 	validCases := []struct {
 		req          TerminalRequest
-		site         reversetunnel.RemoteSite
+		authProvider AuthProvider
 		expectedHost string
 		expectedPort int
 	}{
@@ -928,6 +930,7 @@ func TestNewTerminalHandler(t *testing.T) {
 				SessionID: validSID,
 				Term:      validParams,
 			},
+			authProvider: makeProvider(validNode),
 			expectedHost: validServer,
 			expectedPort: 0,
 		},
@@ -938,6 +941,7 @@ func TestNewTerminalHandler(t *testing.T) {
 				SessionID: validSID,
 				Term:      validParams,
 			},
+			authProvider: makeProvider(validNode),
 			expectedHost: "nodehostname",
 			expectedPort: 0,
 		},
@@ -945,12 +949,13 @@ func TestNewTerminalHandler(t *testing.T) {
 
 	// invalid cases
 	invalidCases := []struct {
-		req         TerminalRequest
-		site        reversetunnel.RemoteSite
-		expectedErr string
+		req          TerminalRequest
+		authProvider AuthProvider
+		expectedErr  string
 	}{
 		{
-			expectedErr: "invalid session",
+			expectedErr:  "invalid session",
+			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
 				SessionID: "",
 				Login:     validLogin,
@@ -959,7 +964,8 @@ func TestNewTerminalHandler(t *testing.T) {
 			},
 		},
 		{
-			expectedErr: "bad term dimensions",
+			expectedErr:  "bad term dimensions",
+			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
 				SessionID: validSID,
 				Login:     validLogin,
@@ -971,7 +977,8 @@ func TestNewTerminalHandler(t *testing.T) {
 			},
 		},
 		{
-			expectedErr: "invalid server name",
+			expectedErr:  "invalid server name",
+			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
 				Server:    "localhost:port",
 				SessionID: validSID,
@@ -981,9 +988,9 @@ func TestNewTerminalHandler(t *testing.T) {
 		},
 	}
 
-	getter := nodeGetter{servers: []types.Server{&validNode}}
+	ctx := context.Background()
 	for _, testCase := range validCases {
-		term, err := NewTerminal(testCase.req, getter, nil)
+		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(testCase.req, term.params))
 		require.Equal(t, testCase.expectedHost, testCase.expectedHost)
@@ -991,7 +998,7 @@ func TestNewTerminalHandler(t *testing.T) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(testCase.req, getter, nil)
+		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		require.Regexp(t, ".*"+testCase.expectedErr+".*", err.Error())
 	}
 }
@@ -3287,6 +3294,18 @@ func TestParseSSORequestParams(t *testing.T) {
 	}
 }
 
+type authProviderMock struct {
+	server types.ServerV2
+}
+
+func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]types.Server, error) {
+	return []types.Server{&mock.server}, nil
+}
+
+func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p bool) ([]events.EventFields, error) {
+	return []events.EventFields{}, nil
+}
+
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
 	var sessionID session.ID
 	if len(opts) == 0 {
@@ -3738,6 +3757,16 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyLockWatcher.Close)
 
+	proxyCAWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyLockWatcher.Close)
+
 	proxyNodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -3761,6 +3790,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		CertAuthorityWatcher:  proxyCAWatcher,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
