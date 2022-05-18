@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -285,12 +286,32 @@ func TestIAMNodeJoin(t *testing.T) {
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 }
 
+type mockIMDSClient struct {
+	tags map[string]string
+}
+
+func (m *mockIMDSClient) IsAvailable(ctx context.Context) bool {
+	return true
+}
+
+func (m *mockIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
+	keys := make([]string, 0, len(m.tags))
+	for k := range m.tags {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+func (m *mockIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
+	if value, ok := m.tags[key]; ok {
+		return value, nil
+	}
+	return "", trace.NotFound("Tag %q not found", key)
+}
+
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up
 // EC2 tags when running on an EC2 instance.
 func TestEC2Labels(t *testing.T) {
-	if os.Getenv("TELEPORT_TEST_EC2") == "" {
-		t.Skipf("Skipping TestLabels because TELEPORT_TEST_EC2 is not set")
-	}
 	oldInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(oldInsecure) })
@@ -332,7 +353,13 @@ func TestEC2Labels(t *testing.T) {
 
 	enableKubernetesService(t, tconf)
 
-	proc, err := service.NewTeleport(tconf)
+	imClient := &mockIMDSClient{
+		tags: map[string]string{
+			"Name": "my-instance",
+		},
+	}
+
+	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 
@@ -357,20 +384,6 @@ func TestEC2Labels(t *testing.T) {
 		require.NoError(t, err)
 		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
 	}, 10*time.Second, time.Second)
-
-	// Make a kube cluster.
-	kubeServer := kubes[0]
-	kubeServer.SetKubernetesClusters([]*types.KubernetesCluster{{
-		Name: "cluster",
-		DynamicLabels: map[string]types.CommandLabelV2{
-			"echo": {
-				Period:  types.Duration(time.Second),
-				Command: []string{"echo", "hello"},
-			},
-		},
-	}})
-	_, err = authServer.UpsertKubeServiceV2(ctx, kubeServer)
-	require.NoError(t, err)
 
 	tagName := fmt.Sprintf("%s/Name", labels.AWSNamespace)
 
@@ -397,17 +410,12 @@ func TestEC2Labels(t *testing.T) {
 		_, kubeHasLabel := kube.StaticLabels[tagName]
 		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
 	}, 10*time.Second, time.Second)
-
 }
 
 // TestEC2Hostname is an integration test which asserts that Teleport sets its
 // hostname if the EC2 tag `TeleportHostname` is available. This test must be
 // run on an instance with tag `TeleportHostname=fakehost.example.com`.
 func TestEC2Hostname(t *testing.T) {
-	if os.Getenv("TELEPORT_TEST_EC2") == "" {
-		t.Skipf("Skipping TestLabels because TELEPORT_TEST_EC2 is not set")
-	}
-
 	teleportHostname := "fakehost.example.com"
 
 	storageConfig := backend.Config{
@@ -430,7 +438,13 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
 
-	proc, err := service.NewTeleport(tconf)
+	imClient := &mockIMDSClient{
+		tags: map[string]string{
+			types.EC2HostnameTag: teleportHostname,
+		},
+	}
+
+	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 

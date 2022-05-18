@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
@@ -335,6 +336,18 @@ type TeleportProcess struct {
 type keyPairKey struct {
 	role   types.SystemRole
 	reason string
+}
+
+type newTeleportConfig struct {
+	imdsClient aws.InstanceMetadata
+}
+
+type newTeleportOption func(*newTeleportConfig)
+
+func WithIMDSClient(client aws.InstanceMetadata) newTeleportOption {
+	return func(c *newTeleportConfig) {
+		c.imdsClient = client
+	}
 }
 
 // processIndex is an internal process index
@@ -609,7 +622,11 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *Config) (*TeleportProcess, error) {
+func NewTeleport(cfg *Config, opts ...newTeleportOption) (*TeleportProcess, error) {
+	newTeleportConf := &newTeleportConfig{}
+	for _, opt := range opts {
+		opt(newTeleportConf)
+	}
 	var err error
 
 	// Before we do anything reset the SIGINT handler back to the default.
@@ -730,10 +747,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	var cloudLabels labels.Cloud
 
 	// Check if we're on an EC2 instance, and if we should override the node's hostname.
-	imClient, err := utils.NewInstanceMetadataClient(supervisor.ExitContext())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	imClient := newTeleportConf.imdsClient
+	if imClient == nil {
+		imClient, err = utils.NewInstanceMetadataClient(supervisor.ExitContext())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+	fmt.Printf("%+v\n", imClient)
 
 	if imClient.IsAvailable(supervisor.ExitContext()) {
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)

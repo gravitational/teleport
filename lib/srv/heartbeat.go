@@ -268,6 +268,9 @@ func (h *Heartbeat) Run() error {
 		h.checkTicker.Stop()
 	}()
 	for {
+		if h.HeartbeatConfig.Mode == HeartbeatModeKube {
+			fmt.Println("kube heartbeat")
+		}
 		err := h.fetchAndAnnounce()
 		if err != nil {
 			h.Warningf("Heartbeat failed %v.", err)
@@ -326,6 +329,10 @@ func (h *Heartbeat) fetch() error {
 	// failed to fetch server info?
 	// reset to init state regardless of the current state
 	server, err := h.GetServerInfo()
+	if h.HeartbeatConfig.Mode == HeartbeatModeKube {
+		k, ok := server.(*types.ServerV2)
+		fmt.Printf("kube heartbeat.fetch(): %+v %v\n", k.Spec.KubernetesClusters, ok)
+	}
 	if err != nil {
 		h.reset(HeartbeatStateInit)
 		return trace.Wrap(err)
@@ -377,9 +384,17 @@ func (h *Heartbeat) fetch() error {
 }
 
 func (h *Heartbeat) announce() error {
+	k := h.HeartbeatConfig.Mode == HeartbeatModeKube
+	if k {
+		fmt.Println("heartbeat.announce()")
+		fmt.Println(h.state.String())
+	}
 	switch h.state {
 	// nothing to do in those states in terms of announce
 	case HeartbeatStateInit, HeartbeatStateKeepAliveWait, HeartbeatStateAnnounceWait:
+		if k {
+			fmt.Println("doing nothing")
+		}
 		return nil
 	case HeartbeatStateAnnounce:
 		// proxies and auth servers don't support keep alive logic yet,
@@ -462,6 +477,7 @@ func (h *Heartbeat) announce() error {
 				}
 				return trace.Wrap(err)
 			}
+			fmt.Println("notifySend()")
 			h.notifySend()
 			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
 			if err != nil {
