@@ -810,6 +810,7 @@ and non interactive tsh bench loads.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
@@ -822,6 +823,7 @@ and non interactive tsh bench loads.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
 - [ ] Verify audit events.
@@ -846,6 +848,10 @@ and non interactive tsh bench loads.
   - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
   - [ ] Can detect and register Redshift clusters.
   - [ ] Can detect and register ElastiCache Redis clusters.
+  - [ ] Can detect and register MemoryDB clusters.
+- [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
+  - [ ] Can detect and manage ElastiCache users
+  - [ ] Can detect and manage MemoryDB users 
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column

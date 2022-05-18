@@ -144,60 +144,68 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 
 // makeFetchers returns cloud fetchers for the provided matchers.
 func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
+	type makeFetcherFunc func(common.CloudClients, string, types.Labels) (Fetcher, error)
+	makeFetcherFuncs := map[string][]makeFetcherFunc{
+		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
+		services.AWSMatcherRedshift:    {makeRedshiftFetcher},
+		services.AWSMatcherElastiCache: {makeElastiCacheFetcher},
+		services.AWSMatcherMemoryDB:    {makeMemoryDBFetcher},
+	}
+
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
-			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDS) {
-				fetchers, err := makeRDSFetchers(clients, region, matcher.Tags)
-				if err != nil {
-					return nil, trace.Wrap(err)
+			for matcherType, makeFetchers := range makeFetcherFuncs {
+				if !utils.SliceContainsStr(matcher.Types, matcherType) {
+					continue
 				}
-				result = append(result, fetchers...)
-			}
 
-			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRedshift) {
-				fetcher, err := makeRedshiftFetcher(clients, region, matcher.Tags)
-				if err != nil {
-					return nil, trace.Wrap(err)
+				for _, makeFetcher := range makeFetchers {
+					fetcher, err := makeFetcher(clients, region, matcher.Tags)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					result = append(result, fetcher)
 				}
-				result = append(result, fetcher)
-			}
-
-			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherElastiCache) {
-				fetcher, err := makeElastiCacheFetcher(clients, region, matcher.Tags)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				result = append(result, fetcher)
 			}
 		}
 	}
 	return result, nil
 }
 
-// makeRDSFetchers returns RDS fetcher for the provided region and tags.
-func makeRDSFetchers(clients common.CloudClients, region string, tags types.Labels) ([]Fetcher, error) {
+// makeRDSInstanceFetcher returns RDS instance fetcher for the provided region and tags.
+func makeRDSInstanceFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
 	rds, err := clients.GetAWSRDSClient(region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var fetchers []Fetcher
-	for _, new := range []func(rdsFetcherConfig) (Fetcher, error){
-		newRDSDBInstancesFetcher,
-		newRDSAuroraClustersFetcher,
-	} {
-		fetcher, err := new(rdsFetcherConfig{
-			Region: region,
-			Labels: tags,
-			RDS:    rds,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		fetchers = append(fetchers, fetcher)
+	fetcher, err := newRDSDBInstancesFetcher(rdsFetcherConfig{
+		Region: region,
+		Labels: tags,
+		RDS:    rds,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return fetcher, nil
+}
+
+// makeRDSAuroraFetcher returns RDS Aurora fetcher for the provided region and tags.
+func makeRDSAuroraFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+	rds, err := clients.GetAWSRDSClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return fetchers, nil
+	fetcher, err := newRDSAuroraClustersFetcher(rdsFetcherConfig{
+		Region: region,
+		Labels: tags,
+		RDS:    rds,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return fetcher, nil
 }
 
 // makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.
@@ -223,5 +231,18 @@ func makeElastiCacheFetcher(clients common.CloudClients, region string, tags typ
 		Region:      region,
 		Labels:      tags,
 		ElastiCache: elastiCache,
+	})
+}
+
+// makeMemoryDBFetcher returns MemoryDB fetcher for the provided region and tags.
+func makeMemoryDBFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+	memorydb, err := clients.GetAWSMemoryDBClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newMemoryDBFetcher(memoryDBFetcherConfig{
+		Region:   region,
+		Labels:   tags,
+		MemoryDB: memorydb,
 	})
 }

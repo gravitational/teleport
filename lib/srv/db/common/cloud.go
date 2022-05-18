@@ -30,6 +30,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -56,6 +58,8 @@ type CloudClients interface {
 	GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error)
 	// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
 	GetAWSElastiCacheClient(region string) (elasticacheiface.ElastiCacheAPI, error)
+	// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
+	GetAWSMemoryDBClient(region string) (memorydbiface.MemoryDBAPI, error)
 	// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
 	GetAWSSecretsManagerClient(region string) (secretsmanageriface.SecretsManagerAPI, error)
 	// GetAWSIAMClient returns AWS IAM client for the specified region.
@@ -128,6 +132,15 @@ func (c *cloudClients) GetAWSElastiCacheClient(region string) (elasticacheiface.
 		return nil, trace.Wrap(err)
 	}
 	return elasticache.New(session), nil
+}
+
+// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
+func (c *cloudClients) GetAWSMemoryDBClient(region string) (memorydbiface.MemoryDBAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return memorydb.New(session), nil
 }
 
 // GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
@@ -272,6 +285,7 @@ type TestCloudClients struct {
 	RDSPerRegion   map[string]rdsiface.RDSAPI
 	Redshift       redshiftiface.RedshiftAPI
 	ElastiCache    elasticacheiface.ElastiCacheAPI
+	MemoryDB       memorydbiface.MemoryDBAPI
 	SecretsManager secretsmanageriface.SecretsManagerAPI
 	IAM            iamiface.IAMAPI
 	STS            stsiface.STSAPI
@@ -299,6 +313,11 @@ func (c *TestCloudClients) GetAWSRedshiftClient(region string) (redshiftiface.Re
 // GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
 func (c *TestCloudClients) GetAWSElastiCacheClient(region string) (elasticacheiface.ElastiCacheAPI, error) {
 	return c.ElastiCache, nil
+}
+
+// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
+func (c *TestCloudClients) GetAWSMemoryDBClient(region string) (memorydbiface.MemoryDBAPI, error) {
+	return c.MemoryDB, nil
 }
 
 // GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.

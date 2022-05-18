@@ -102,6 +102,18 @@ db_service:
     tags:
       "*": "*"
   {{- end }}
+  {{- if .MemoryDBDiscoveryRegions }}
+  # MemoryDB databases auto-discovery.
+  - types: ["memorydb"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .MemoryDBDiscoveryRegions }}
+    - {{ . }}
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
   # Lists statically registered databases proxied by this agent.
   {{- if .StaticDatabaseName }}
   databases:
@@ -189,6 +201,20 @@ db_service:
   #     elasticache:
   #       # ElastiCache replication group ID.
   #       replication_group_id: redis-cluster-example
+  # # MemoryDB database static configuration.
+  # - name: elasticache
+  #   description: AWS MemoryDB cluster configuration example.
+  #   protocol: redis
+  #   # Database connection endpoint. Must be reachable from Database service.
+  #   uri: clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379
+  #   # AWS specific configuration.
+  #   aws:
+  #     # Region the database is deployed in.
+  #     region: us-west-1
+  #     # MemoryDB specific configuration.
+  #     memorydb:
+  #       # MemoryDB cluster name.
+  #       cluster_name: my-memorydb
   # # Self-hosted static configuration.
   # - name: self-hosted
   #   description: Self-hosted database configuration.
@@ -241,6 +267,9 @@ type DatabaseSampleFlags struct {
 	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
 	// auto-discovery is configured.
 	ElastiCacheDiscoveryRegions []string
+	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
+	// auto-discovery is configured.
+	MemoryDBDiscoveryRegions []string
 	// DatabaseProtocols is a list of database protocols supported.
 	DatabaseProtocols []string
 }

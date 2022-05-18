@@ -182,4 +182,6 @@ const (
 	AWSMatcherRedshift = "redshift"
 	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
 	AWSMatcherElastiCache = "elasticache"
+	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
+	AWSMatcherMemoryDB = "memorydb"
 )

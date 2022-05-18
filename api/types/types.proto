@@ -296,6 +296,8 @@ message AWS {
     // SecretStore contains secret store configurations.
     SecretStore SecretStore = 6
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "secret_store,omitempty" ];
+    MemoryDB MemoryDB = 7
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "memorydb,omitempty" ];
 }
 
 // SecretStore contains secret store configurations.
@@ -333,6 +335,18 @@ message ElastiCache {
     // TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.
     bool TransitEncryptionEnabled = 3
         [ (gogoproto.jsontag) = "transit_encryption_enabled,omitempty" ];
+    // EndpointType is the type of the endpoint.
+    string EndpointType = 4 [ (gogoproto.jsontag) = "endpoint_type,omitempty" ];
+}
+
+// MemoryDB contains AWS MemoryDB specific metadata.
+message MemoryDB {
+    // ClusterName is the name of the MemoryDB cluster.
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
+    // ACLName is the name of the ACL associated with the cluster.
+    string ACLName = 2 [ (gogoproto.jsontag) = "acl_name,omitempty" ];
+    // TLSEnabled indicates whether in-transit encryption (TLS) is enabled.
+    bool TLSEnabled = 3 [ (gogoproto.jsontag) = "tls_enabled,omitempty" ];
     // EndpointType is the type of the endpoint.
     string EndpointType = 4 [ (gogoproto.jsontag) = "endpoint_type,omitempty" ];
 }
