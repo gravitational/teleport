@@ -271,21 +271,7 @@ impl Client {
             MajorFunction::IRP_MJ_QUERY_INFORMATION => {
                 self.process_irp_query_information(device_io_request, payload)
             }
-            MajorFunction::IRP_MJ_CLOSE => {
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L236
-                let rdp_req = DeviceCloseRequest::decode(device_io_request);
-                debug!("received RDP: {:?}", rdp_req);
-                // Remove the file from our cache
-                if let Some(file) = self.remove_file_by_id(rdp_req.device_io_request.file_id) {
-                    if file.delete_pending {
-                        return self.tdp_sd_delete(rdp_req, file);
-                    } else {
-                        return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
-                    }
-                } else {
-                    return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
-                }
-            }
+            MajorFunction::IRP_MJ_CLOSE => self.process_irp_close(device_io_request),
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
@@ -519,6 +505,22 @@ impl Client {
             return self.prep_query_info_response(&rdp_req, Some(file), NTSTATUS::STATUS_SUCCESS);
         } else {
             return self.prep_query_info_response(&rdp_req, None, NTSTATUS::STATUS_UNSUCCESSFUL);
+        }
+    }
+
+    fn process_irp_close(&mut self, device_io_request: DeviceIoRequest) -> RdpResult<Vec<Vec<u8>>> {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L236
+        let rdp_req = DeviceCloseRequest::decode(device_io_request);
+        debug!("received RDP: {:?}", rdp_req);
+        // Remove the file from our cache
+        if let Some(file) = self.remove_file_by_id(rdp_req.device_io_request.file_id) {
+            if file.delete_pending {
+                return self.tdp_sd_delete(rdp_req, file);
+            } else {
+                return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
+            }
+        } else {
+            return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
         }
     }
 
