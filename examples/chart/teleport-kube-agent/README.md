@@ -178,12 +178,15 @@ These are the supported values for the `databases` map:
 | `name` | Name of the database to be accessed | `databases[0].name=aurora` | | Yes |
 | `uri` | URI of the database to be accessed | `databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432` | | Yes |
 | `protocol` | Database protocol | `databases[0].protocol=postgres` | | Yes |
+| `tls` | TLS configuration for the database | `databases[0].tls.mode=verify-ca` | | No |
 | `description` | Free-form description of the database proxy instance | `databases[0].description='AWS Aurora instance of PostgreSQL 13.0'` | | No |
 | `aws.region` | AWS-specific region configuration (only used for RDS/Aurora) | `databases[0].aws.region=us-east-1` | | No |
 | `labels.[name]` | Key-value pairs to set against the database for grouping/RBAC | `databases[0].labels.db=postgres-dev,apps[0].labels.region=us-east-1` | | No |
 
 You can add multiple databases using `databases[1].name`, `databases[1].uri`, `databases[1].protocol`,
 `databases[2].name`, `databases[2].uri`, `databases[2].protocol` etc.
+
+For TLS configuration, all the available options can be found [here](https://goteleport.com/docs/database-access/reference/configuration/).
 
 After installing, the new database should show up in `tsh db ls` after a few minutes.
 
