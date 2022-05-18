@@ -64,17 +64,7 @@ func TestAccessCassandra(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "cassandra",
 			dbUser:       "cassandra",
-			err:          "HTTP: 401",
-		},
-		{
-			desc:         "no access to databases",
-			user:         "alice",
-			role:         "admin",
-			allowDbNames: []string{},
-			allowDbUsers: []string{types.Wildcard},
-			dbName:       "cassandra",
-			dbUser:       "cassandra",
-			err:          "HTTP: 401",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "no access to users",
@@ -84,16 +74,16 @@ func TestAccessCassandra(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "cassandra",
 			dbUser:       "cassandra",
-			err:          "HTTP: 401",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user/database",
 			user:         "alice",
 			role:         "admin",
 			allowDbNames: []string{"metrics"},
-			allowDbUsers: []string{"alice"},
+			allowDbUsers: []string{"cassandra"},
 			dbName:       "metrics",
-			dbUser:       "alice",
+			dbUser:       "cassandra",
 		},
 		{
 			desc:         "access denied to specific user/database",
@@ -103,7 +93,7 @@ func TestAccessCassandra(t *testing.T) {
 			allowDbUsers: []string{"alice"},
 			dbName:       "cassandra",
 			dbUser:       "cassandra",
-			err:          "HTTP: 401",
+			err:          "access to db denied",
 		},
 	}
 
@@ -115,6 +105,11 @@ func TestAccessCassandra(t *testing.T) {
 
 			// Try to connect to the database as this user.
 			dbConn, err := testCtx.cassandraClient(ctx, test.user, "cassandra", test.dbUser)
+			if test.err != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), test.err)
+				return
+			}
 			require.NoError(t, err)
 
 			// Execute a query.

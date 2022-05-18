@@ -79,6 +79,21 @@ func (e *Engine) SendError(err error) {
 	}
 }
 
+func (e *Engine) sendClientError(protoVer primitive.ProtocolVersion, streamID int16, err error) {
+	var errFrame *frame.Frame
+
+	if trace.IsAccessDenied(err) {
+		errFrame = frame.NewFrame(protoVer, streamID, &message.AuthenticationError{ErrorMessage: err.Error()})
+	} else {
+		errFrame = frame.NewFrame(protoVer, streamID, &message.ServerError{ErrorMessage: err.Error()})
+	}
+
+	codec := frame.NewRawCodec()
+	if err := codec.EncodeFrame(errFrame, e.clientConn); err != nil {
+		e.Log.Errorf("failed to send error message to the client: %v", err)
+	}
+}
+
 // InitializeConnection initializes the database connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.clientConn = clientConn
@@ -90,6 +105,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	err := e.authorizeConnection(ctx)
 	if err != nil {
+		e.sendAuthError(err)
 		return trace.Wrap(err)
 	}
 
@@ -243,6 +259,40 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (e *Engine) sendAuthError(accessErr error) {
+	codec := frame.NewRawCodec()
+
+	for {
+		rawFrame, err := codec.DecodeRawFrame(e.clientConn)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				e.Log.Infof("failed to decode frame: %v", err)
+				return
+			}
+			e.Log.WithError(err).Error("failed to send encode a frame")
+		}
+
+		switch rawFrame.Header.OpCode {
+		case primitive.OpCodeStartup:
+			startupFrame := frame.NewFrame(rawFrame.Header.Version, rawFrame.Header.StreamId, &message.Authenticate{Authenticator: "org.apache.cassandra.auth.PasswordAuthenticator"})
+
+			if err := codec.EncodeFrame(startupFrame, e.clientConn); err != nil {
+				e.Log.WithError(err).Error("failed to send startup frame")
+				return
+			}
+		case primitive.OpCodeAuthResponse:
+			e.sendClientError(rawFrame.Header.Version, rawFrame.Header.StreamId, accessErr)
+			return
+		case primitive.OpCodeOptions:
+			supportedFrame := frame.NewFrame(rawFrame.Header.Version, rawFrame.Header.StreamId, &message.Supported{})
+			if err := codec.EncodeFrame(supportedFrame, e.clientConn); err != nil {
+				e.Log.WithError(err).Error("failed to send startup frame")
+				return
+			}
+		}
+	}
 }
 
 type buffConn struct {

@@ -70,8 +70,8 @@ func MakeTestClient(_ context.Context, config common.TestClientConfig, opts ...C
 		Config: tlsConfig,
 	}
 	cluster.DisableInitialHostLookup = true
-	cluster.ConnectTimeout = 5 * time.Second
-	cluster.Timeout = 5 * time.Second
+	cluster.ConnectTimeout = 50 * time.Second
+	cluster.Timeout = 50 * time.Second
 	cluster.ProtoVersion = 4
 	cluster.Authenticator = gocql.PasswordAuthenticator{
 		Username: "cassandra",
