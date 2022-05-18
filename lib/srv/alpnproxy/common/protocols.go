@@ -16,8 +16,6 @@ limitations under the License.
 
 package common
 
-import "golang.org/x/crypto/acme"
-
 // Protocol is the TLS ALPN protocol type.
 type Protocol string
 
@@ -56,14 +54,13 @@ const (
 
 // SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = []Protocol{
-	acme.ALPNProto,
+	ProtocolHTTP2,
+	ProtocolHTTP,
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
 	ProtocolProxySSH,
 	ProtocolReverseTunnel,
-	ProtocolHTTP,
-	ProtocolHTTP2,
 	ProtocolAuth,
 }
 
