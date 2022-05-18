@@ -23,6 +23,8 @@
 
 [slack]
 # Slack Bot OAuth token
+# You can also use an absolute path to a token file, e.g., 
+# "/var/lib/teleport/token"
 token = "xoxb-11xx"
 
 [role_to_recipients]

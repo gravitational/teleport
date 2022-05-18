@@ -11,9 +11,11 @@ integration notifies individuals and channels of access requests.
   type="danger"
   scope="oss"
 >
-  This guide requires a commercial edition of Teleport. The open source
-  edition of Teleport only supports [GitHub](../../setup/admin/github-sso.mdx) as
-  an SSO provider.
+
+  This guide requires Teleport Cloud or Teleport Enterprise. The open source
+  edition of Teleport only supports [GitHub](../../setup/admin/github-sso.mdx)
+  as an SSO provider.
+
 </Notice>
 
 Here is an example of sending an access request via Teleport's Slack plugin:
@@ -43,7 +45,7 @@ Here is an example of sending an access request via Teleport's Slack plugin:
 We currently only provide `linux-amd64` binaries. You can also compile these plugins
 from source.
 
-<Notice scope={["oss","enterprise"]} type="tip">
+<Notice scope={["enterprise"]} type="tip">
 We recommend installing Teleport plugins on the same host as the Teleport
 Proxy Service. This is an ideal location as plugins have a low memory footprint
 and will require access to both the public internet and the Teleport Auth Service.
