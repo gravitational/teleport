@@ -1475,7 +1475,7 @@ func (s *PresenceService) GetHostUserInteractionTime(ctx context.Context, name s
 func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	switch {
 	case req.RequiresFakePagination():
-		return nil, trace.BadParameter("request requiring getXXX resource methods are not supported in presence.ListResources")
+		return s.listResourcesWithSort(ctx, req)
 	default:
 		return s.listResources(ctx, req)
 	}
@@ -1554,6 +1554,58 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		Resources: resources,
 		NextKey:   nextKey,
 	}, nil
+}
+
+// listResourcesWithSort supports sorting by falling back to retrieving all resources
+// with GetXXXs, filter, and then fake pagination.
+func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resources []types.ResourceWithLabels
+	switch req.ResourceType {
+	case types.KindNode:
+		nodes, err := s.GetNodes(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.Servers(nodes)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindAppServer:
+		appservers, err := s.GetApplicationServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.AppServers(appservers)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindDatabaseServer:
+		dbservers, err := s.GetDatabaseServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.DatabaseServers(dbservers)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	default:
+		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
+	}
+
+	return FakePaginate(resources, req)
 }
 
 // FakePaginate is used when we are working with an entire list of resources upfront but still requires pagination.
