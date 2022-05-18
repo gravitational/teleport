@@ -2263,7 +2263,7 @@ func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *typ
 	}
 	// DELETE IN 11.0.0
 	oidcConnector.CheckAndSetRedirectURLs()
-	if err = services.ValidateOIDCConnector(oidcConnector); err != nil {
+	if err = oidcConnector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err = auth.ServerWithRoles.UpsertOIDCConnector(ctx, oidcConnector); err != nil {

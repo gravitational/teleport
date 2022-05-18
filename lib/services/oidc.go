@@ -22,55 +22,9 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// ValidateOIDCConnector validates the OIDC connector and sets default values
-func ValidateOIDCConnector(oc types.OIDCConnector) error {
-	if err := oc.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := url.Parse(oc.GetIssuerURL()); err != nil {
-		return trace.BadParameter("IssuerURL: bad url: '%v'", oc.GetIssuerURL())
-	}
-	if len(oc.GetRedirectURLs()) == 0 {
-		return trace.BadParameter("RedirectURL: missing redirect_url")
-	}
-	for _, redirectURL := range oc.GetRedirectURLs() {
-		if _, err := url.Parse(redirectURL); err != nil {
-			return trace.BadParameter("RedirectURL: bad url: '%v'", redirectURL)
-		}
-	}
-	if oc.GetGoogleServiceAccountURI() != "" && oc.GetGoogleServiceAccount() != "" {
-		return trace.BadParameter("one of either google_service_account_uri or google_service_account is supported, not both")
-	}
-
-	if oc.GetGoogleServiceAccountURI() != "" {
-		uri, err := utils.ParseSessionsURI(oc.GetGoogleServiceAccountURI())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if uri.Scheme != teleport.SchemeFile {
-			return trace.BadParameter("only %v:// scheme is supported for google_service_account_uri", teleport.SchemeFile)
-		}
-		if oc.GetGoogleAdminEmail() == "" {
-			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
-		}
-	}
-	if oc.GetGoogleServiceAccount() != "" {
-		if oc.GetGoogleAdminEmail() == "" {
-			return trace.BadParameter("whenever google_service_account is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
-		}
-	}
-
-	if len(oc.GetClaimsToRoles()) == 0 {
-		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
-	}
-
-	return nil
-}
 
 // GetClaimNames returns a list of claim names from the claim values
 func GetClaimNames(claims jose.Claims) []string {
@@ -156,7 +110,7 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 		if err := utils.FastUnmarshal(bytes, &c); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		if err := ValidateOIDCConnector(&c); err != nil {
+		if err := c.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if cfg.ID != 0 {
@@ -173,7 +127,7 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 
 // MarshalOIDCConnector marshals the OIDCConnector resource to JSON.
 func MarshalOIDCConnector(oidcConnector types.OIDCConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateOIDCConnector(oidcConnector); err != nil {
+	if err := oidcConnector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
