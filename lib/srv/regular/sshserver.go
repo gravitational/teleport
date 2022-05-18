@@ -99,7 +99,7 @@ type Server struct {
 	dynamicLabels *labels.Dynamic
 
 	// cloudLabels are the labels imported from a cloud provider.
-	cloudLabels labels.Cloud
+	cloudLabels labels.LabelImporter
 
 	proxyMode        bool
 	proxyTun         reversetunnel.Tunnel
@@ -419,7 +419,7 @@ func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) Serve
 
 // SetLabels sets dynamic and static labels that server will report to the
 // auth servers.
-func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels, cloudLabels labels.Cloud) ServerOption {
+func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels, cloudLabels labels.LabelImporter) ServerOption {
 	return func(s *Server) error {
 		var err error
 

@@ -167,14 +167,15 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 	l.c.Labels[name] = value
 }
 
-// Cloud is an interface for any labels imported from a cloud provider.
-type Cloud interface {
-	// Get returns the current cloud labels.
+// LabelImporter is an interface for labels imported from an external source,
+// such as a cloud provider.
+type LabelImporter interface {
+	// Get returns the current labels.
 	Get() map[string]string
-	// Sync blocks and synchronously updates the cloud labels.
+	// Sync blocks and synchronously updates the labels.
 	Sync(context.Context)
-	// Start starts a loop that continually keeps the cloud labels updated.
+	// Start starts a loop that continually keeps the labels updated.
 	Start(context.Context)
-	// Close will free up all resources and stop keeping the cloud labels updated.
+	// Close will free up all resources and stop keeping the labels updated.
 	Close()
 }

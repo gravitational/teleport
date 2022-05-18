@@ -139,7 +139,7 @@ type ForwarderConfig struct {
 	DynamicLabels *labels.Dynamic
 	// CloudLabels is a map of labels imported from a cloud provider associated with this
 	// cluster. Used for RBAC.
-	CloudLabels labels.Cloud
+	CloudLabels labels.LabelImporter
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CheckImpersonationPermissions is an optional override of the default

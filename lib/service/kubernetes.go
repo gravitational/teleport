@@ -68,7 +68,7 @@ func (process *TeleportProcess) initKubernetes() {
 	})
 }
 
-func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *Connector, cloudLabels labels.Cloud) (retErr error) {
+func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *Connector, cloudLabels labels.LabelImporter) (retErr error) {
 	// clean up unused descriptors passed for proxy, but not used by it
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentKube); err != nil {

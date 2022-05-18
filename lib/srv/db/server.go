@@ -87,7 +87,7 @@ type Config struct {
 	Databases types.Databases
 	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
 	// between all databases.
-	CloudLabels labels.Cloud
+	CloudLabels labels.LabelImporter
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 	// OnReconcile is called after each database resource reconciliation.

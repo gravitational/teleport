@@ -89,7 +89,7 @@ type Config struct {
 
 	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
 	// between all apps.
-	CloudLabels labels.Cloud
+	CloudLabels labels.LabelImporter
 
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)

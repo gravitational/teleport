@@ -331,7 +331,7 @@ type TeleportProcess struct {
 
 	// cloudLabels is a set of labels imported from a cloud provider and shared between
 	// services.
-	cloudLabels labels.Cloud
+	cloudLabels labels.LabelImporter
 }
 
 type keyPairKey struct {
@@ -747,7 +747,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		cfg.PluginRegistry = plugin.NewRegistry()
 	}
 
-	var cloudLabels labels.Cloud
+	var cloudLabels labels.LabelImporter
 
 	// Check if we're on an EC2 instance, and if we should override the node's hostname.
 	imClient := newTeleportConf.imdsClient
