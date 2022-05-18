@@ -465,9 +465,7 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, database := range s.proxiedDatabases {
-		copy := database.Copy()
-		s.injectEC2Labels(copy)
-		databases = append(databases, copy)
+		databases = append(databases, database)
 	}
 	return databases
 }

@@ -475,9 +475,7 @@ func (s *Server) getApps() (apps types.Apps) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, app := range s.apps {
-		copy := app.Copy()
-		s.injectEC2Labels(copy)
-		apps = append(apps, copy)
+		apps = append(apps, app)
 	}
 	return apps
 }
