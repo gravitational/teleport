@@ -479,6 +479,36 @@ func (c *Client) start() {
 						return
 					}
 				}
+			case tdp.SharedDirectoryReadResponse:
+				if c.cfg.AllowDirectorySharing {
+					var readData *C.uint8_t
+					if m.ReadDataLength > 0 {
+						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData[0]))
+					} else {
+						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData))
+					}
+
+					if errCode := C.handle_tdp_sd_read_response(c.rustClient, C.CGOSharedDirectoryReadResponse{
+						completion_id:    C.uint32_t(m.CompletionID),
+						err_code:         m.ErrCode,
+						read_data_length: C.uint32_t(m.ReadDataLength),
+						read_data:        readData,
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryReadResponse failed: %v", errCode)
+						return
+					}
+				}
+			case tdp.SharedDirectoryWriteResponse:
+				if c.cfg.AllowDirectorySharing {
+					if errCode := C.handle_tdp_sd_write_response(c.rustClient, C.CGOSharedDirectoryWriteResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      m.ErrCode,
+						bytes_written: C.uint32_t(m.BytesWritten),
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryWriteResponse failed: %v", errCode)
+						return
+					}
+				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}
@@ -647,6 +677,53 @@ func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) 
 		return C.ErrCodeSuccess
 	}
 
+	return C.ErrCodeFailure
+}
+
+//export tdp_sd_read_request
+func tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryReadRequest(tdp.SharedDirectoryReadRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+		PathLength:   uint32(req.path_length),
+		Offset:       uint64(req.offset),
+		Length:       uint32(req.length),
+	})
+}
+
+func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) C.CGOErrCode {
+	if c.cfg.AllowDirectorySharing {
+		if err := c.cfg.Conn.OutputMessage(req); err != nil {
+			c.cfg.Log.Errorf("failed to send SharedDirectoryReadRequest: %v", err)
+			return C.ErrCodeFailure
+		}
+		return C.ErrCodeSuccess
+	}
+	return C.ErrCodeFailure
+}
+
+//export tdp_sd_write_request
+func tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWriteRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryWriteRequest(tdp.SharedDirectoryWriteRequest{
+		CompletionID:    uint32(req.completion_id),
+		DirectoryID:     uint32(req.directory_id),
+		Offset:          uint64(req.offset),
+		PathLength:      uint32(req.path_length),
+		Path:            C.GoString(req.path),
+		WriteDataLength: uint32(req.write_data_length),
+		WriteData:       C.GoBytes(unsafe.Pointer(req.write_data), C.int(req.write_data_length)),
+	})
+}
+
+func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest) C.CGOErrCode {
+	if c.cfg.AllowDirectorySharing {
+		if err := c.cfg.Conn.OutputMessage(req); err != nil {
+			c.cfg.Log.Errorf("failed to send SharedDirectoryWriteRequest: %v", err)
+			return C.ErrCodeFailure
+		}
+		return C.ErrCodeSuccess
+	}
 	return C.ErrCodeFailure
 }
 

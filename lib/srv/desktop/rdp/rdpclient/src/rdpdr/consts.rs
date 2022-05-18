@@ -16,6 +16,9 @@ pub const CHANNEL_NAME: &str = "rdpdr";
 
 // Each redirected device requires a unique ID. We only share
 // one permanent smartcard device, so we can give it hardcoded ID 1.
+pub const DIRECTORY_SHARE_CLIENT_NAME: &str = "teleport";
+
+// Each redirected device requires a unique ID.
 pub const SCARD_DEVICE_ID: u32 = 1;
 
 pub const VERSION_MAJOR: u16 = 0x0001;

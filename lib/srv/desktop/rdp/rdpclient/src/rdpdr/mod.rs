@@ -26,15 +26,16 @@ use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
     SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
     SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, SharedDirectoryListRequest,
-    SharedDirectoryListResponse, TdpErrCode,
+    SharedDirectoryListResponse, SharedDirectoryReadRequest, SharedDirectoryReadResponse,
+    SharedDirectoryWriteRequest, SharedDirectoryWriteResponse, TdpErrCode,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use consts::{
     CapabilityType, Component, DeviceType, FileInformationClassLevel,
     FileSystemInformationClassLevel, MajorFunction, MinorFunction, PacketId,
-    DRIVE_CAPABILITY_VERSION_02, GENERAL_CAPABILITY_VERSION_02, NTSTATUS, SCARD_DEVICE_ID,
-    SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
+    DIRECTORY_SHARE_CLIENT_NAME, DRIVE_CAPABILITY_VERSION_02, GENERAL_CAPABILITY_VERSION_02,
+    NTSTATUS, SCARD_DEVICE_ID, SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
@@ -44,9 +45,11 @@ use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 
 pub use consts::CHANNEL_NAME;
+
+use std::ffi::CString;
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
@@ -70,12 +73,16 @@ pub struct Client {
     tdp_sd_create_request: SharedDirectoryCreateRequestSender,
     tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
     tdp_sd_list_request: SharedDirectoryListRequestSender,
+    tdp_sd_read_request: SharedDirectoryReadRequestSender,
+    tdp_sd_write_request: SharedDirectoryWriteRequestSender,
 
     // CompletionId-indexed maps of handlers for tdp messages coming from the browser client.
     pending_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
     pending_sd_create_resp_handlers: HashMap<u32, SharedDirectoryCreateResponseHandler>,
     pending_sd_delete_resp_handlers: HashMap<u32, SharedDirectoryDeleteResponseHandler>,
     pending_sd_list_resp_handlers: HashMap<u32, SharedDirectoryListResponseHandler>,
+    pending_sd_read_resp_handlers: HashMap<u32, SharedDirectoryReadResponseHandler>,
+    pending_sd_write_resp_handlers: HashMap<u32, SharedDirectoryWriteResponseHandler>,
 }
 
 pub struct Config {
@@ -89,6 +96,8 @@ pub struct Config {
     pub tdp_sd_create_request: SharedDirectoryCreateRequestSender,
     pub tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
     pub tdp_sd_list_request: SharedDirectoryListRequestSender,
+    pub tdp_sd_read_request: SharedDirectoryReadRequestSender,
+    pub tdp_sd_write_request: SharedDirectoryWriteRequestSender,
 }
 
 impl Client {
@@ -112,11 +121,15 @@ impl Client {
             tdp_sd_create_request: cfg.tdp_sd_create_request,
             tdp_sd_delete_request: cfg.tdp_sd_delete_request,
             tdp_sd_list_request: cfg.tdp_sd_list_request,
+            tdp_sd_read_request: cfg.tdp_sd_read_request,
+            tdp_sd_write_request: cfg.tdp_sd_write_request,
 
             pending_sd_info_resp_handlers: HashMap::new(),
             pending_sd_create_resp_handlers: HashMap::new(),
             pending_sd_delete_resp_handlers: HashMap::new(),
             pending_sd_list_resp_handlers: HashMap::new(),
+            pending_sd_read_resp_handlers: HashMap::new(),
+            pending_sd_write_resp_handlers: HashMap::new(),
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
@@ -171,8 +184,20 @@ impl Client {
 
         let resp = ClientAnnounceReply::new(req);
         debug!("sending RDP {:?}", resp);
-        let resp =
+
+        let mut resp =
             self.add_headers_and_chunkify(PacketId::PAKID_CORE_CLIENTID_CONFIRM, resp.encode()?)?;
+
+        let client_name_request = ClientNameRequest::new(
+            ClientNameRequestUnicodeFlag::Ascii,
+            CString::new(DIRECTORY_SHARE_CLIENT_NAME.to_string()).unwrap(),
+        );
+
+        let mut client_name_response = self.add_headers_and_chunkify(
+            PacketId::PAKID_CORE_CLIENT_NAME,
+            client_name_request.encode()?,
+        )?;
+        resp.append(&mut client_name_response);
 
         Ok(resp)
     }
@@ -276,6 +301,11 @@ impl Client {
             }
             MajorFunction::IRP_MJ_QUERY_VOLUME_INFORMATION => {
                 self.process_irp_query_volume_information(device_io_request, payload)
+            }
+            MajorFunction::IRP_MJ_READ => self.process_irp_read(device_io_request, payload),
+            MajorFunction::IRP_MJ_WRITE => self.process_irp_write(device_io_request, payload),
+            MajorFunction::IRP_MJ_SET_INFORMATION => {
+                self.process_irp_set_information(device_io_request, payload)
             }
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
@@ -676,8 +706,17 @@ impl Client {
                         buffer,
                     )
                 }
+                FileSystemInformationClassLevel::FileFsAttributeInformation => {
+                    let buffer = Some(FileSystemInformationClass::FileFsAttributeInformation(
+                        FileFsAttributeInformation::new(),
+                    ));
+                    self.prep_query_vol_info_response(
+                        &rdp_req.device_io_request,
+                        NTSTATUS::STATUS_SUCCESS,
+                        buffer,
+                    )
+                }
                 FileSystemInformationClassLevel::FileFsSizeInformation
-                | FileSystemInformationClassLevel::FileFsAttributeInformation
                 | FileSystemInformationClassLevel::FileFsFullSizeInformation
                 | FileSystemInformationClassLevel::FileFsDeviceInformation => {
                     return Err(not_implemented_error(&format!(
@@ -700,6 +739,55 @@ impl Client {
                 rdp_req.device_io_request.file_id
             )))
         }
+    }
+
+    fn process_irp_read(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L268
+        let rdp_req = DeviceReadRequest::decode(device_io_request, payload)?;
+        debug!("received RDP: {:?}", rdp_req);
+        self.tdp_sd_read(rdp_req)
+    }
+
+    fn process_irp_write(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let rdp_req = DeviceWriteRequest::decode(device_io_request, payload)?;
+        debug!("received RDP: {:?}", rdp_req);
+        self.tdp_sd_write(rdp_req)
+    }
+
+    fn process_irp_set_information(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let rdp_req = ServerDriveSetInformationRequest::decode(device_io_request, payload)?;
+
+        let resp = match rdp_req.file_information_class_level {
+            FileInformationClassLevel::FileBasicInformation
+            | FileInformationClassLevel::FileEndOfFileInformation
+            | FileInformationClassLevel::FileAllocationInformation
+            | FileInformationClassLevel::FileDispositionInformation => {
+                ClientDriveSetInformationResponse::new(&rdp_req, NTSTATUS::STATUS_SUCCESS)
+            }
+            _ => {
+                return Err(not_implemented_error(&format!(
+                    "support for ServerDriveSetInformationRequest with fs_info_class_lvl = {:?} is not implemented",
+                    rdp_req.file_information_class_level
+                )));
+            }
+        };
+
+        debug!("sending RDP: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        Ok(resp)
     }
 
     pub fn write_client_device_list_announce<S: Read + Write>(
@@ -816,6 +904,54 @@ impl Client {
         }
     }
 
+    pub fn handle_tdp_sd_read_response<S: Read + Write>(
+        &mut self,
+        res: SharedDirectoryReadResponse,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        debug!("received TDP: {:?}", res);
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_read_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
+            Ok(())
+        } else {
+            return Err(try_error(&format!(
+                "received invalid completion id: {}",
+                res.completion_id
+            )));
+        }
+    }
+
+    pub fn handle_tdp_sd_write_response<S: Read + Write>(
+        &mut self,
+        res: SharedDirectoryWriteResponse,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        debug!("received TDP: {:?}", res);
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_write_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
+            Ok(())
+        } else {
+            return Err(try_error(&format!(
+                "received invalid completion id: {}",
+                res.completion_id
+            )));
+        }
+    }
+
     fn prep_device_create_response(
         &mut self,
         req: &DeviceCreateRequest,
@@ -848,7 +984,7 @@ impl Client {
         io_status: NTSTATUS,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = DeviceCloseResponse::new(req, io_status);
-        debug!("replying with: {:?}", resp);
+        debug!("sending RDP: {:?}", resp);
         let resp = self
             .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
@@ -967,6 +1103,32 @@ impl Client {
         Ok(resp)
     }
 
+    fn prep_read_response(
+        &self,
+        req: DeviceReadRequest,
+        io_status: NTSTATUS,
+        data: Vec<u8>,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let resp = DeviceReadResponse::new(&req, io_status, data);
+        debug!("sending RDP: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        Ok(resp)
+    }
+
+    fn prep_write_response(
+        &self,
+        req: DeviceIoRequest,
+        io_status: NTSTATUS,
+        length: u32,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let resp = DeviceWriteResponse::new(&req, io_status, length);
+        debug!("sending RDP: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        Ok(resp)
+    }
+
     /// Helper function for sending a TDP SharedDirectoryCreateRequest based on an
     /// RDP DeviceCreateRequest and handling the TDP SharedDirectoryCreateResponse.
     fn tdp_sd_create(
@@ -1057,6 +1219,85 @@ impl Client {
             ),
         );
         Ok(vec![])
+    }
+
+    fn tdp_sd_read(&mut self, rdp_req: DeviceReadRequest) -> RdpResult<Vec<Vec<u8>>> {
+        if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
+            let tdp_req = SharedDirectoryReadRequest {
+                completion_id: rdp_req.device_io_request.completion_id,
+                directory_id: rdp_req.device_io_request.device_id,
+                path: file.path.clone(),
+                length: rdp_req.length,
+                offset: rdp_req.offset,
+            };
+            (self.tdp_sd_read_request)(tdp_req)?;
+
+            self.pending_sd_read_resp_handlers.insert(
+                rdp_req.device_io_request.completion_id,
+                Box::new(
+                    move |cli: &mut Self,
+                          res: SharedDirectoryReadResponse|
+                          -> RdpResult<Vec<Vec<u8>>> {
+                        match res.err_code {
+                            TdpErrCode::Nil => cli.prep_read_response(
+                                rdp_req,
+                                NTSTATUS::STATUS_SUCCESS,
+                                res.read_data,
+                            ),
+                            _ => cli.prep_read_response(
+                                rdp_req,
+                                NTSTATUS::STATUS_UNSUCCESSFUL,
+                                vec![],
+                            ),
+                        }
+                    },
+                ),
+            );
+
+            Ok(vec![])
+        } else {
+            self.prep_read_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, vec![])
+        }
+    }
+
+    fn tdp_sd_write(&mut self, rdp_req: DeviceWriteRequest) -> RdpResult<Vec<Vec<u8>>> {
+        if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
+            let tdp_req = SharedDirectoryWriteRequest {
+                completion_id: rdp_req.device_io_request.completion_id,
+                directory_id: rdp_req.device_io_request.device_id,
+                path: file.path.clone(),
+                offset: rdp_req.offset,
+                write_data: rdp_req.write_data,
+            };
+            (self.tdp_sd_write_request)(tdp_req)?;
+
+            let device_io_request = rdp_req.device_io_request;
+            self.pending_sd_write_resp_handlers.insert(
+                device_io_request.completion_id,
+                Box::new(
+                    move |cli: &mut Self,
+                          res: SharedDirectoryWriteResponse|
+                          -> RdpResult<Vec<Vec<u8>>> {
+                        match res.err_code {
+                            TdpErrCode::Nil => cli.prep_write_response(
+                                device_io_request,
+                                NTSTATUS::STATUS_SUCCESS,
+                                res.bytes_written,
+                            ),
+                            _ => cli.prep_write_response(
+                                device_io_request,
+                                NTSTATUS::STATUS_UNSUCCESSFUL,
+                                0,
+                            ),
+                        }
+                    },
+                ),
+            );
+
+            Ok(vec![])
+        } else {
+            self.prep_write_response(rdp_req.device_io_request, NTSTATUS::STATUS_UNSUCCESSFUL, 0)
+        }
     }
 
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
@@ -1637,6 +1878,55 @@ impl ServerDeviceAnnounceResponse {
     }
 }
 
+#[derive(Debug, Clone, ToPrimitive)]
+#[repr(u32)]
+#[allow(non_camel_case_types)]
+#[allow(dead_code)]
+enum ClientNameRequestUnicodeFlag {
+    Ascii = 0x0,
+    Unicode = 0x1,
+}
+
+/// 2.2.2.4 Client Name Request (DR_CORE_CLIENT_NAME_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/902497f1-3b1c-4aee-95f8-1668f9b7b7d2
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct ClientNameRequest {
+    unicode_flag: ClientNameRequestUnicodeFlag,
+    computer_name: CString,
+}
+
+impl ClientNameRequest {
+    fn new(unicode_flag: ClientNameRequestUnicodeFlag, computer_name: CString) -> Self {
+        Self {
+            unicode_flag,
+            computer_name,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.unicode_flag.clone() as u32)?;
+        // CodePage (4 bytes): A 32-bit unsigned integer that specifies the code page of the ComputerName field; it MUST be set to 0.
+        w.write_u32::<LittleEndian>(0x0)?;
+
+        let computer_name_data = match self.unicode_flag {
+            ClientNameRequestUnicodeFlag::Ascii => self.computer_name.to_bytes_with_nul().to_vec(),
+            ClientNameRequestUnicodeFlag::Unicode => util::to_unicode(
+                self.computer_name
+                    .as_c_str()
+                    .to_str()
+                    .map_err(|err| RdpError::TryError(err.to_string()))?,
+                true,
+            ),
+        };
+
+        w.write_u32::<LittleEndian>(computer_name_data.len() as u32)?;
+        w.extend_from_slice(&computer_name_data);
+        Ok(w)
+    }
+}
+
 /// 2.2.1.4 Device I/O Request (DR_DEVICE_IOREQUEST)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
 #[derive(Debug, Clone)]
@@ -1962,6 +2252,10 @@ enum FileInformationClass {
     FileBothDirectoryInformation(FileBothDirectoryInformation),
     FileAttributeTagInformation(FileAttributeTagInformation),
     FileFullDirectoryInformation(FileFullDirectoryInformation),
+    FileEndOfFileInformation(FileEndOfFileInformation),
+    FileDispositionInformation(FileDispositionInformation),
+    FileRenameInformation(FileRenameInformation),
+    FileAllocationInformation(FileAllocationInformation),
 }
 
 #[allow(dead_code)]
@@ -1973,6 +2267,61 @@ impl FileInformationClass {
             Self::FileBothDirectoryInformation(file_info_class) => file_info_class.encode(),
             Self::FileAttributeTagInformation(file_info_class) => file_info_class.encode(),
             Self::FileFullDirectoryInformation(file_info_class) => file_info_class.encode(),
+            Self::FileEndOfFileInformation(file_info_class) => file_info_class.encode(),
+            Self::FileDispositionInformation(file_info_class) => file_info_class.encode(),
+            Self::FileRenameInformation(file_info_class) => file_info_class.encode(),
+            Self::FileAllocationInformation(file_info_class) => file_info_class.encode(),
+        }
+    }
+
+    fn decode(
+        file_information_class_level: &FileInformationClassLevel,
+        payload: &mut Payload,
+    ) -> RdpResult<Self> {
+        match file_information_class_level {
+            FileInformationClassLevel::FileBasicInformation => Ok(
+                FileInformationClass::FileBasicInformation(FileBasicInformation::decode(payload)?),
+            ),
+            FileInformationClassLevel::FileEndOfFileInformation => {
+                Ok(FileInformationClass::FileEndOfFileInformation(
+                    FileEndOfFileInformation::decode(payload)?,
+                ))
+            }
+            FileInformationClassLevel::FileDispositionInformation => {
+                Ok(FileInformationClass::FileDispositionInformation(
+                    FileDispositionInformation::decode(payload)?,
+                ))
+            }
+            FileInformationClassLevel::FileRenameInformation => {
+                Ok(FileInformationClass::FileRenameInformation(
+                    FileRenameInformation::decode(payload)?,
+                ))
+            }
+            FileInformationClassLevel::FileAllocationInformation => {
+                Ok(FileInformationClass::FileAllocationInformation(
+                    FileAllocationInformation::decode(payload)?,
+                ))
+            }
+            _ => {
+                return Err(invalid_data_error(&format!(
+                    "decode invalid FileInformationClassLevel: {:?}",
+                    file_information_class_level
+                )))
+            }
+        }
+    }
+
+    fn size(&self) -> u32 {
+        match self {
+            Self::FileBasicInformation(file_info_class) => file_info_class.size(),
+            Self::FileStandardInformation(file_info_class) => file_info_class.size(),
+            Self::FileBothDirectoryInformation(file_info_class) => file_info_class.size(),
+            Self::FileAttributeTagInformation(file_info_class) => file_info_class.size(),
+            Self::FileFullDirectoryInformation(file_info_class) => file_info_class.size(),
+            Self::FileEndOfFileInformation(file_info_class) => file_info_class.size(),
+            Self::FileDispositionInformation(file_info_class) => file_info_class.size(),
+            Self::FileRenameInformation(file_info_class) => file_info_class.size(),
+            Self::FileAllocationInformation(file_info_class) => file_info_class.size(),
         }
     }
 }
@@ -1991,11 +2340,10 @@ struct FileBasicInformation {
     //reserved: u32,
 }
 
-#[allow(dead_code)]
-/// 4 i64's and 1 u32's = (4 * 8) + 4
-const FILE_BASIC_INFORMATION_SIZE: u32 = (4 * 8) + 4;
-
 impl FileBasicInformation {
+    /// 4 i64's and 1 u32's = (4 * 8) + 4
+    const BASE_SIZE: u32 = (4 * 8) + 4;
+
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_i64::<LittleEndian>(self.creation_time)?;
@@ -2004,6 +2352,27 @@ impl FileBasicInformation {
         w.write_i64::<LittleEndian>(self.change_time)?;
         w.write_u32::<LittleEndian>(self.file_attributes.bits())?;
         Ok(w)
+    }
+
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let creation_time = payload.read_i64::<LittleEndian>()?;
+        let last_access_time = payload.read_i64::<LittleEndian>()?;
+        let last_write_time = payload.read_i64::<LittleEndian>()?;
+        let change_time = payload.read_i64::<LittleEndian>()?;
+        let file_attributes = flags::FileAttributes::from_bits(payload.read_u32::<LittleEndian>()?)
+            .ok_or_else(|| invalid_data_error("invalid flags in FileBasicInformation decode"))?;
+
+        Ok(Self {
+            creation_time,
+            last_access_time,
+            last_write_time,
+            change_time,
+            file_attributes,
+        })
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
     }
 }
 
@@ -2042,6 +2411,8 @@ struct FileStandardInformation {
 }
 
 impl FileStandardInformation {
+    const BASE_SIZE: u32 = (2 * 8) + 4 + 2;
+
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_i64::<LittleEndian>(self.allocation_size)?;
@@ -2051,10 +2422,11 @@ impl FileStandardInformation {
         w.write_u8(Boolean::to_u8(&self.directory).unwrap())?;
         Ok(w)
     }
-}
 
-// 2 i64's + 1 u32 + 2 Boolean (u8) = (2 * 8) + 4 + 2
-const FILE_STANDARD_INFORMATION_SIZE: u32 = (2 * 8) + 4 + 2;
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
+    }
+}
 
 /// 2.4.6 FileAttributeTagInformation [MS-FSCC]
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/d295752f-ce89-4b98-8553-266d37c84f0e?redirectedfrom=MSDN
@@ -2065,20 +2437,23 @@ struct FileAttributeTagInformation {
 }
 
 impl FileAttributeTagInformation {
+    const BASE_SIZE: u32 = 2 * 4;
+
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.file_attributes.bits())?;
         w.write_u32::<LittleEndian>(self.reparse_tag)?;
         Ok(w)
     }
-}
 
-// 2 u32's
-const FILE_ATTRIBUTE_TAG_INFO_SIZE: u32 = 8;
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
+    }
+}
 
 /// 2.1.8 Boolean
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/8ce7b38c-d3cc-415d-ab39-944000ea77ff
-#[derive(Debug, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 enum Boolean {
     True = 1,
@@ -2107,13 +2482,13 @@ struct FileBothDirectoryInformation {
     file_name: String,
 }
 
-/// Base size of the FileBothDirectoryInformation, not accounting for variably sized file_name.
-/// Note that file_name's size should be calculated as if it were a Unicode string.
-/// 5 u32's (including FileAttributesFlags) + 6 i64's + 1 i8 + 24 bytes
-const FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE: u32 = (5 * 4) + (6 * 8) + 1 + 24; // 93
-
 #[allow(dead_code)]
 impl FileBothDirectoryInformation {
+    /// Base size of the FileBothDirectoryInformation, not accounting for variably sized file_name.
+    /// Note that file_name's size should be calculated as if it were a Unicode string.
+    /// 5 u32's (including FileAttributesFlags) + 6 i64's + 1 i8 + 24 bytes
+    const BASE_SIZE: u32 = (5 * 4) + (6 * 8) + 1 + 24; // 93
+
     fn new(
         creation_time: i64,
         last_access_time: i64,
@@ -2184,12 +2559,11 @@ impl FileBothDirectoryInformation {
             fso.name()?,
         ))
     }
-}
 
-/// Base size of the FileFullDirectoryInformation, not accounting for variably sized file_name.
-/// Note that file_name's size should be calculated as if it were a Unicode string.
-/// 5 u32's (including FileAttributesFlags) + 6 i64's
-const FILE_FULL_DIRECTORY_INFORMATION_BASE_SIZE: u32 = (5 * 4) + (6 * 8); // 68
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.file_name_length
+    }
+}
 
 /// 2.4.14 FileFullDirectoryInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e8d926d1-3a22-4654-be9c-58317a85540b
@@ -2210,6 +2584,11 @@ struct FileFullDirectoryInformation {
 }
 
 impl FileFullDirectoryInformation {
+    /// Base size of the FileFullDirectoryInformation, not accounting for variably sized file_name.
+    /// Note that file_name's size should be calculated as if it were a Unicode string.
+    /// 5 u32's (including FileAttributesFlags) + 6 i64's
+    const BASE_SIZE: u32 = (5 * 4) + (6 * 8); // 68
+
     fn new(
         creation_time: i64,
         last_access_time: i64,
@@ -2275,6 +2654,136 @@ impl FileFullDirectoryInformation {
             fso.name()?,
         ))
     }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.file_name_length
+    }
+}
+
+// 2.4.13 FileEndOfFileInformation
+// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/75241cca-3167-472f-8058-a52d77c6bb17
+#[derive(Debug)]
+struct FileEndOfFileInformation {
+    end_of_file: i64,
+}
+
+impl FileEndOfFileInformation {
+    const BASE_SIZE: u32 = 8;
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_i64::<LittleEndian>(self.end_of_file)?;
+        Ok(w)
+    }
+
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let end_of_file = payload.read_i64::<LittleEndian>()?;
+        Ok(Self { end_of_file })
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
+    }
+}
+
+// 2.4.11 FileDispositionInformation
+// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/12c3dd1c-14f6-4229-9d29-75fb2cb392f6
+#[derive(Debug)]
+struct FileDispositionInformation {
+    delete_pending: u8,
+}
+
+impl FileDispositionInformation {
+    const BASE_SIZE: u32 = 1;
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u8(self.delete_pending)?;
+        Ok(w)
+    }
+
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let delete_pending = payload.read_u8()?;
+        Ok(Self { delete_pending })
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
+    }
+}
+
+// 2.4.37 FileRenameInformation
+// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/1d2673a8-8fb9-4868-920a-775ccaa30cf8
+#[derive(Debug)]
+struct FileRenameInformation {
+    replace_if_exists: Boolean,
+    file_name: String,
+}
+
+impl FileRenameInformation {
+    // This matches the FreeRDP implementation rather than Microsoft specification
+    // see encode method
+    const BASE_SIZE: u32 = 1 + 1 + 4;
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L709
+        // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/3668ae46-1df5-4656-b481-763877428bcb
+        // This matches the FreeRDP implementation rather than Microsoft specification
+        let mut w = vec![];
+        w.write_u8(Boolean::to_u8(&self.replace_if_exists).unwrap())?;
+        // RootDirectory. For network operations, this value MUST be zero.
+        w.write_u8(0)?;
+        w.write_u32::<LittleEndian>(self.file_name.len() as u32)?;
+        w.extend_from_slice(&util::to_unicode(&self.file_name, false));
+        Ok(w)
+    }
+
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let replace_if_exists = payload.read_u8()?;
+        // RootDirectory
+        payload.read_u8()?;
+
+        let file_name_length = payload.read_u32::<LittleEndian>()?;
+        let mut file_name = vec![0u8; file_name_length as usize];
+        payload.read_exact(&mut file_name)?;
+        let file_name = util::from_unicode(file_name)?;
+
+        Ok(Self {
+            replace_if_exists: Boolean::from_u8(replace_if_exists).unwrap(),
+            file_name,
+        })
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.file_name.len() as u32
+    }
+}
+
+// 2.4.4 FileAllocationInformation
+// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/0201c69b-50db-412d-bab3-dd97aeede13b
+#[derive(Debug)]
+struct FileAllocationInformation {
+    allocation_size: i64,
+}
+
+impl FileAllocationInformation {
+    const BASE_SIZE: u32 = 8;
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_i64::<LittleEndian>(self.allocation_size)?;
+        Ok(w)
+    }
+
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let allocation_size = payload.read_i64::<LittleEndian>()?;
+
+        Ok(Self { allocation_size })
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
+    }
 }
 
 /// 2.5 File System Information Classes
@@ -2302,10 +2811,6 @@ impl FileSystemInformationClass {
     }
 }
 
-/// Base size of the FileFsVolumeInformation, not accounting for variably sized volume_label.
-/// 1 i64, 2 u32, 1 Boolean
-const FILE_FS_VOLUME_INFORMATION_BASE_SIZE: u32 = 8 + (2 * 4) + 1; // 17
-
 /// 2.5.9 FileFsVolumeInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/bf691378-c34e-4a13-976e-404ea1a87738
 #[derive(Debug)]
@@ -2320,6 +2825,10 @@ struct FileFsVolumeInformation {
 }
 
 impl FileFsVolumeInformation {
+    /// Base size of the FileFsVolumeInformation, not accounting for variably sized volume_label.
+    /// 1 i64, 2 u32, 1 Boolean
+    const BASE_SIZE: u32 = 8 + (2 * 4) + 1; // 17
+
     fn new(volume_creation_time: i64) -> Self {
         // volume_label can just be something we make up
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L446
@@ -2350,11 +2859,11 @@ impl FileFsVolumeInformation {
         w.extend_from_slice(&util::to_unicode(&self.volume_label, true));
         Ok(w)
     }
-}
 
-/// Size of the FileFsSizeInformation.
-/// 2 i64, 2 u32
-const FILE_FS_SIZE_INFORMATION_SIZE: u32 = (2 * 8) + (2 * 4); // 24
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.volume_label_length
+    }
+}
 
 /// 2.5.8 FileFsSizeInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e13e068c-e3a7-4dd4-94fd-3892b492e6e7
@@ -2368,6 +2877,8 @@ struct FileFsSizeInformation {
 
 #[allow(dead_code)]
 impl FileFsSizeInformation {
+    const BASE_SIZE: u32 = (2 * 8) + (2 * 4);
+
     fn new() -> Self {
         // Fill these out with the default fallback values FreeRDP uses
         // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L510-L513
@@ -2389,11 +2900,11 @@ impl FileFsSizeInformation {
         w.write_u32::<LittleEndian>(self.bytes_per_sector)?;
         Ok(w)
     }
-}
 
-/// Base size of the FileFsAttributeInformation, not accounting for variably sized file_system_name.
-/// 3 u32
-const FILE_FS_ATTRIBUTE_INFORMATION_BASE_SIZE: u32 = 3 * 4; // 12
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
+    }
+}
 
 /// 2.5.1 FileFsAttributeInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ebc7e6e5-4650-4e54-b17c-cf60f6fbeeaa
@@ -2407,6 +2918,8 @@ struct FileFsAttributeInformation {
 
 #[allow(dead_code)]
 impl FileFsAttributeInformation {
+    const BASE_SIZE: u32 = 3 * 4;
+
     fn new() -> Self {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L447
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L519
@@ -2435,11 +2948,11 @@ impl FileFsAttributeInformation {
         w.extend_from_slice(&util::to_unicode(&self.file_system_name, true));
         Ok(w)
     }
-}
 
-/// Size of the FileFsFullSizeInformation.
-/// 3 i64, 2 u32
-const FILE_FS_FULL_SIZE_INFORMATION_SIZE: u32 = (3 * 8) + (2 * 4); // 32
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.file_system_name_len
+    }
+}
 
 /// 2.5.4 FileFsFullSizeInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/63768db7-9012-4209-8cca-00781e7322f5
@@ -2454,6 +2967,8 @@ struct FileFsFullSizeInformation {
 
 #[allow(dead_code)]
 impl FileFsFullSizeInformation {
+    const BASE_SIZE: u32 = (3 * 8) + (2 * 4);
+
     fn new() -> Self {
         // Fill these out with the default fallback values FreeRDP uses
         // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L552-L557
@@ -2477,11 +2992,11 @@ impl FileFsFullSizeInformation {
         w.write_u32::<LittleEndian>(self.bytes_per_sector)?;
         Ok(w)
     }
-}
 
-/// Size of the FileFsDeviceInformation.
-/// 2 u32
-const FILE_FS_DEVICE_INFORMATION_SIZE: u32 = 2 * 4; // 8
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
+    }
+}
 
 /// 2.5.10 FileFsDeviceInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/616b66d5-b335-4e1c-8f87-b4a55e8d3e4a
@@ -2495,6 +3010,8 @@ struct FileFsDeviceInformation {
 
 #[allow(dead_code)]
 impl FileFsDeviceInformation {
+    const BASE_SIZE: u32 = 2 * 4;
+
     fn new() -> Self {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L570-L571
         Self {
@@ -2508,6 +3025,10 @@ impl FileFsDeviceInformation {
         w.write_u32::<LittleEndian>(self.device_type)?;
         w.write_u32::<LittleEndian>(self.characteristics)?;
         Ok(w)
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
     }
 }
 
@@ -2547,7 +3068,7 @@ impl ClientDriveQueryInformationResponse {
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L482
             let (length, buffer) = match req.file_info_class_lvl {
                 FileInformationClassLevel::FileBasicInformation => (
-                    Some(FILE_BASIC_INFORMATION_SIZE),
+                    Some(FileBasicInformation::BASE_SIZE),
                     Some(FileInformationClass::FileBasicInformation(
                         FileBasicInformation {
                             creation_time: to_windows_time(file.fso.last_modified),
@@ -2563,7 +3084,7 @@ impl ClientDriveQueryInformationResponse {
                     )),
                 ),
                 FileInformationClassLevel::FileStandardInformation => (
-                    Some(FILE_STANDARD_INFORMATION_SIZE),
+                    Some(FileStandardInformation::BASE_SIZE),
                     Some(FileInformationClass::FileStandardInformation(
                         FileStandardInformation {
                             allocation_size: file.fso.size as i64,
@@ -2583,7 +3104,7 @@ impl ClientDriveQueryInformationResponse {
                     )),
                 ),
                 FileInformationClassLevel::FileAttributeTagInformation => (
-                    Some(FILE_ATTRIBUTE_TAG_INFO_SIZE),
+                    Some(FileAttributeTagInformation::BASE_SIZE),
                     Some(FileInformationClass::FileAttributeTagInformation(
                         FileAttributeTagInformation {
                             file_attributes: if file.fso.file_type == FileType::File {
@@ -2712,15 +3233,15 @@ impl ServerDriveNotifyChangeDirectoryRequest {
 
 /// 2.2.1.4.3 Device Read Request (DR_READ_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3192516d-36a6-47c5-987a-55c214aa0441
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
-struct DeviceReadRequest {
+pub struct DeviceReadRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_READ.
-    device_io_request: DeviceIoRequest,
+    pub device_io_request: DeviceIoRequest,
     /// This field specifies the maximum number of bytes to be read from the device.
-    length: u32,
+    pub length: u32,
     /// This field specifies the file offset where the read operation is performed.
-    offset: u64,
+    pub offset: u64,
     // Padding (20 bytes):  An array of 20 bytes. Reserved. This field can be set to any value and MUST be ignored.
 }
 
@@ -2773,6 +3294,151 @@ impl DeviceReadResponse {
         w.write_u32::<LittleEndian>(self.length)?;
         w.extend_from_slice(&self.read_data);
         Ok(w)
+    }
+}
+
+/// 2.2.1.4.4 Device Write Request (DR_WRITE_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/2e25f0aa-a4ce-4ff3-ad62-ab6098280a3a
+#[derive(Debug, Clone)]
+pub struct DeviceWriteRequest {
+    /// The MajorFunction field in this header MUST be set to IRP_MJ_WRITE.
+    pub device_io_request: DeviceIoRequest,
+    /// Number of bytes in the write_data field.
+    pub length: u32,
+    /// File offset at which the data must be written.
+    pub offset: u64,
+    /// Data to be written on the target device.
+    pub write_data: Vec<u8>,
+}
+
+impl DeviceWriteRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        let length = payload.read_u32::<LittleEndian>()?;
+        let offset = payload.read_u64::<LittleEndian>()?;
+
+        // There is a padding of 20 bytes between offset and write data so we
+        // must ignore it
+        payload.seek(SeekFrom::Current(20))?;
+
+        let mut write_data = vec![0; length as usize];
+        payload.read_exact(&mut write_data)?;
+
+        Ok(Self {
+            device_io_request,
+            length,
+            offset,
+            write_data,
+        })
+    }
+}
+
+/// 2.2.1.5.4 Device Write Response (DR_WRITE_RSP)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/58160a47-2379-4c4a-a99d-24a1a666c02a
+#[derive(Debug)]
+pub struct DeviceWriteResponse {
+    /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_WRITE.
+    device_io_reply: DeviceIoResponse,
+    /// Number of bytes written in response to the write request.
+    length: u32,
+}
+
+impl DeviceWriteResponse {
+    fn new(device_io_request: &DeviceIoRequest, io_status: NTSTATUS, length: u32) -> Self {
+        Self {
+            device_io_reply: DeviceIoResponse::new(
+                device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            length,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_reply.encode()?);
+        w.write_u32::<LittleEndian>(self.length)?;
+        // 1 byte padding
+        w.write_u32::<LittleEndian>(0)?;
+        Ok(w)
+    }
+}
+
+/// 2.2.3.4.9 Client Drive Set Information Response (DR_DRIVE_SET_INFORMATION_RSP)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970
+#[derive(Debug)]
+#[allow(dead_code)]
+struct ClientDriveSetInformationResponse {
+    device_io_reply: DeviceIoResponse,
+    /// This field MUST be equal to the Length field in the Server Drive Set Information Request (section 2.2.3.3.9).
+    length: u32,
+}
+
+impl ClientDriveSetInformationResponse {
+    fn new(req: &ServerDriveSetInformationRequest, io_status: NTSTATUS) -> Self {
+        Self {
+            device_io_reply: DeviceIoResponse::new(
+                &req.device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            length: req.set_buffer.size() as u32,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_reply.encode()?);
+        w.write_u32::<LittleEndian>(self.length)?;
+        // 1 byte padding
+        w.write_u32::<LittleEndian>(0)?;
+        Ok(w)
+    }
+}
+
+/// 2.2.3.3.9 Server Drive Set Information Request (DR_DRIVE_SET_INFORMATION_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/b5d3104b-0e42-4cf8-9059-e9fe86615e5c
+#[derive(Debug)]
+#[allow(dead_code)]
+struct ServerDriveSetInformationRequest {
+    /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_SET_INFORMATION.
+    device_io_request: DeviceIoRequest,
+    file_information_class_level: FileInformationClassLevel,
+    set_buffer: FileInformationClass,
+}
+
+impl ServerDriveSetInformationRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        let file_information_class_level =
+            FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
+                .ok_or_else(|| invalid_data_error("failed to read FileInformationClassLevel"))?;
+
+        match file_information_class_level {
+            FileInformationClassLevel::FileBasicInformation
+            | FileInformationClassLevel::FileEndOfFileInformation
+            | FileInformationClassLevel::FileDispositionInformation
+            | FileInformationClassLevel::FileRenameInformation
+            | FileInformationClassLevel::FileAllocationInformation => {}
+            _ => {
+                return Err(invalid_data_error(&format!(
+                    "read invalid FileInformationClassLevel: {:?}",
+                    file_information_class_level
+                )))
+            }
+        };
+
+        // length, u32
+        payload.seek(SeekFrom::Current(4))?;
+
+        // There is a padding of 24 bytes between offset and write data so we
+        // must ignore it
+        payload.seek(SeekFrom::Current(24))?;
+
+        let set_buffer = FileInformationClass::decode(&file_information_class_level, payload)?;
+
+        Ok(Self {
+            device_io_request,
+            file_information_class_level,
+            set_buffer,
+        })
     }
 }
 
@@ -2905,10 +3571,10 @@ impl ClientDriveQueryDirectoryResponse {
         let length = match buffer {
             Some(ref fs_information_class) => match fs_information_class {
                 FileInformationClass::FileBothDirectoryInformation(fs_info_class) => {
-                    FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE + fs_info_class.file_name_length
+                    fs_info_class.size()
                 }
                 FileInformationClass::FileFullDirectoryInformation(fs_info_class) => {
-                    FILE_FULL_DIRECTORY_INFORMATION_BASE_SIZE + fs_info_class.file_name_length
+                    fs_info_class.size()
                 }
                 // TODO(isaiah): add support for FileDirectoryInformation and FileNamesInformation
                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
@@ -3036,21 +3702,11 @@ impl ClientDriveQueryVolumeInformationResponse {
 
         let length = match buffer {
             Some(ref buf) => match buf {
-                FileSystemInformationClass::FileFsVolumeInformation(f) => {
-                    FILE_FS_VOLUME_INFORMATION_BASE_SIZE + f.volume_label_length
-                }
-                FileSystemInformationClass::FileFsSizeInformation(_) => {
-                    FILE_FS_SIZE_INFORMATION_SIZE
-                }
-                FileSystemInformationClass::FileFsAttributeInformation(f) => {
-                    FILE_FS_ATTRIBUTE_INFORMATION_BASE_SIZE + f.file_system_name_len
-                }
-                FileSystemInformationClass::FileFsFullSizeInformation(_) => {
-                    FILE_FS_FULL_SIZE_INFORMATION_SIZE
-                }
-                FileSystemInformationClass::FileFsDeviceInformation(_) => {
-                    FILE_FS_DEVICE_INFORMATION_SIZE
-                }
+                FileSystemInformationClass::FileFsVolumeInformation(f) => f.size(),
+                FileSystemInformationClass::FileFsSizeInformation(f) => f.size(),
+                FileSystemInformationClass::FileFsAttributeInformation(f) => f.size(),
+                FileSystemInformationClass::FileFsFullSizeInformation(f) => f.size(),
+                FileSystemInformationClass::FileFsDeviceInformation(f) => f.size(),
             },
             None => 0,
         };
@@ -3095,6 +3751,8 @@ type SharedDirectoryCreateRequestSender =
 type SharedDirectoryDeleteRequestSender =
     Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>;
 type SharedDirectoryListRequestSender = Box<dyn Fn(SharedDirectoryListRequest) -> RdpResult<()>>;
+type SharedDirectoryReadRequestSender = Box<dyn Fn(SharedDirectoryReadRequest) -> RdpResult<()>>;
+type SharedDirectoryWriteRequestSender = Box<dyn Fn(SharedDirectoryWriteRequest) -> RdpResult<()>>;
 
 type SharedDirectoryInfoResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>;
@@ -3104,6 +3762,10 @@ type SharedDirectoryDeleteResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>;
 type SharedDirectoryListResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryListResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryReadResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryReadResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryWriteResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryWriteResponse) -> RdpResult<Vec<Vec<u8>>>>;
 
 #[cfg(test)]
 mod tests {
