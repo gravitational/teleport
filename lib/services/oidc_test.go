@@ -143,7 +143,16 @@ func TestOIDCUnmarshalOmitPrompt(t *testing.T) {
           "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
           "display": "whatever",
           "scope": ["roles"],
-          "prompt": "none"
+          "prompt": "none",
+          "claims_to_roles": [
+             {
+                "claim": "email",
+                "value": "*",
+                "roles": [
+                   "access"
+                ]
+             }
+          ]
         }
       }
 	`
@@ -175,7 +184,16 @@ func TestOIDCUnmarshalPromptDefault(t *testing.T) {
           "client_secret": "secret-key-from-google",
           "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
           "display": "whatever",
-          "scope": ["roles"]
+          "scope": ["roles"],
+          "claims_to_roles": [
+             {
+                "claim": "email",
+                "value": "*",
+                "roles": [
+                   "access"
+                ]
+             }
+          ]
         }
       }
 	`
