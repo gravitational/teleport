@@ -18,7 +18,6 @@ package proxy
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -94,7 +93,6 @@ type TLSServer struct {
 
 // NewTLSServer returns new unstarted TLS server
 func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
-	fmt.Println("NewTLSServer()")
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -188,7 +186,6 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 	t.mu.Unlock()
 
 	if t.heartbeat != nil {
-		fmt.Println("running kube heartbeat")
 		go t.heartbeat.Run()
 	}
 
@@ -248,6 +245,5 @@ func (t *TLSServer) GetServerInfo() (types.Resource, error) {
 		},
 	}
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
-	fmt.Printf("TLSServer.GetServerInfo(): %+v\n", srv.Spec.KubernetesClusters)
 	return srv, nil
 }

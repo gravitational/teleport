@@ -1793,7 +1793,6 @@ func (f *Forwarder) getStaticLabels() map[string]string {
 }
 
 func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
-	fmt.Println("kubeClusters")
 	var dynLabels map[string]types.CommandLabelV2
 	if f.cfg.DynamicLabels != nil {
 		dynLabels = types.LabelsToV2(f.cfg.DynamicLabels.Get())
@@ -1807,7 +1806,6 @@ func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
 			DynamicLabels: dynLabels,
 		})
 	}
-	fmt.Printf("%+v\n", res)
 	return res
 }
 

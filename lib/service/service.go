@@ -754,7 +754,6 @@ func NewTeleport(cfg *Config, opts ...newTeleportOption) (*TeleportProcess, erro
 			return nil, trace.Wrap(err)
 		}
 	}
-	fmt.Printf("%+v\n", imClient)
 
 	if imClient.IsAvailable(supervisor.ExitContext()) {
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
