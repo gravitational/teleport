@@ -179,6 +179,18 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 	l.c.Labels[name] = value
 }
 
+// Cloud is an interface for any labels imported from a cloud provider.
+type Cloud interface {
+	// Get returns the current cloud labels.
+	Get() map[string]string
+	// Sync blocks and synchronously updates the cloud labels.
+	Sync(context.Context)
+	// Start starts a loop that continually keeps the cloud labels updated.
+	Start(context.Context)
+	// Close will free up all resources and stop keeping the cloud labels updated.
+	Close()
+}
+
 // EC2Config is the configuration for the EC2 label service.
 type EC2Config struct {
 	Client aws.InstanceMetadata

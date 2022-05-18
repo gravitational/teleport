@@ -30,21 +30,17 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (process *TeleportProcess) initDatabases(opts ...initOption) {
-	initConf := &initConfig{}
-	for _, opt := range opts {
-		opt(initConf)
-	}
+func (process *TeleportProcess) initDatabases() {
 	if len(process.Config.Databases.Databases) == 0 &&
 		len(process.Config.Databases.ResourceMatchers) == 0 &&
 		len(process.Config.Databases.AWSMatchers) == 0 {
 		return
 	}
 	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
-	process.RegisterCriticalFunc("db.init", func() error { return process.initDatabaseService(initConf) })
+	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
-func (process *TeleportProcess) initDatabaseService(initConf *initConfig) (retErr error) {
+func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
@@ -197,7 +193,7 @@ func (process *TeleportProcess) initDatabaseService(initConf *initConfig) (retEr
 		Hostname:         process.Config.Hostname,
 		HostID:           process.Config.HostUUID,
 		Databases:        databases,
-		EC2Labels:        initConf.ec2Labels,
+		CloudLabels:      process.cloudLabels,
 		ResourceMatchers: process.Config.Databases.ResourceMatchers,
 		AWSMatchers:      process.Config.Databases.AWSMatchers,
 		OnHeartbeat:      process.onHeartbeat(teleport.ComponentDatabase),

@@ -98,8 +98,8 @@ type Server struct {
 	// dynamicLabels are the result of command execution.
 	dynamicLabels *labels.Dynamic
 
-	// ec2Labels are the labels imported from EC2.
-	ec2Labels *labels.EC2
+	// cloudLabels are the labels imported from a cloud provider.
+	cloudLabels labels.Cloud
 
 	proxyMode        bool
 	proxyTun         reversetunnel.Tunnel
@@ -308,8 +308,8 @@ func (s *Server) Start() error {
 		go s.dynamicLabels.Start()
 	}
 
-	if s.ec2Labels != nil {
-		s.ec2Labels.Start(s.Context())
+	if s.cloudLabels != nil {
+		s.cloudLabels.Start(s.Context())
 	}
 
 	// If the server requested connections to it arrive over a reverse tunnel,
@@ -339,8 +339,8 @@ func (s *Server) Serve(l net.Listener) error {
 		go s.dynamicLabels.Start()
 	}
 
-	if s.ec2Labels != nil {
-		s.ec2Labels.Start(s.Context())
+	if s.cloudLabels != nil {
+		s.cloudLabels.Start(s.Context())
 	}
 
 	go s.heartbeat.Run()
@@ -419,7 +419,7 @@ func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) Serve
 
 // SetLabels sets dynamic and static labels that server will report to the
 // auth servers.
-func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels) ServerOption {
+func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels, cloudLabels labels.Cloud) ServerOption {
 	return func(s *Server) error {
 		var err error
 
@@ -443,6 +443,7 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		s.cloudLabels = cloudLabels
 		return nil
 	}
 }
@@ -450,7 +451,7 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 // SetEC2Labels sets the EC2 label service for this server.
 func SetEC2Labels(ec2Labels *labels.EC2) ServerOption {
 	return func(s *Server) error {
-		s.ec2Labels = ec2Labels
+		s.cloudLabels = ec2Labels
 		return nil
 	}
 }
@@ -825,10 +826,10 @@ func (s *Server) getRole() types.SystemRole {
 // getStaticLabels gets the labels that the server should present as static,
 // which includes EC2 labels if available.
 func (s *Server) getStaticLabels() map[string]string {
-	if s.ec2Labels == nil {
+	if s.cloudLabels == nil {
 		return s.labels
 	}
-	labels := s.ec2Labels.Get()
+	labels := s.cloudLabels.Get()
 	// Let static labels override ec2 labels if they conflict.
 	for k, v := range s.labels {
 		labels[k] = v

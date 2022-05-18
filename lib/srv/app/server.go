@@ -87,9 +87,9 @@ type Config struct {
 	// Apps is a list of statically registered apps this agent proxies.
 	Apps types.Apps
 
-	// EC2Labels is a service that imports labels from EC2. The labels are shared
+	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
 	// between all apps.
-	EC2Labels *labels.EC2
+	CloudLabels labels.Cloud
 
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
@@ -404,7 +404,7 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
-	if s.c.EC2Labels != nil {
+	if s.c.CloudLabels != nil {
 		s.injectEC2Labels(copy)
 	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
@@ -483,10 +483,10 @@ func (s *Server) getApps() (apps types.Apps) {
 }
 
 func (s *Server) injectEC2Labels(app types.Application) {
-	if s.c.EC2Labels == nil {
+	if s.c.CloudLabels == nil {
 		return
 	}
-	labels := s.c.EC2Labels.Get()
+	labels := s.c.CloudLabels.Get()
 	// Let static labels override EC2 labels if they conflict.
 	for k, v := range app.GetStaticLabels() {
 		labels[k] = v
@@ -514,8 +514,8 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	if s.c.EC2Labels != nil {
-		s.c.EC2Labels.Start(ctx)
+	if s.c.CloudLabels != nil {
+		s.c.CloudLabels.Start(ctx)
 	}
 	return nil
 }

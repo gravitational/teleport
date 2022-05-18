@@ -85,9 +85,9 @@ type Config struct {
 	AWSMatchers []services.AWSMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
-	// EC2Labels is a service that imports labels from EC2. The labels are shared
+	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
 	// between all databases.
-	EC2Labels *labels.EC2
+	CloudLabels labels.Cloud
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 	// OnReconcile is called after each database resource reconciliation.
@@ -473,10 +473,10 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 }
 
 func (s *Server) injectEC2Labels(database types.Database) {
-	if s.cfg.EC2Labels == nil {
+	if s.cfg.CloudLabels == nil {
 		return
 	}
-	labels := s.cfg.EC2Labels.Get()
+	labels := s.cfg.CloudLabels.Get()
 	// Let static labels override EC2 labels if they conflict.
 	for k, v := range database.GetStaticLabels() {
 		labels[k] = v
@@ -546,7 +546,7 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
-	if s.cfg.EC2Labels != nil {
+	if s.cfg.CloudLabels != nil {
 		s.injectEC2Labels(copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
@@ -612,8 +612,8 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		s.cfg.OnHeartbeat(nil)
 	}
 
-	if s.cfg.EC2Labels != nil {
-		s.cfg.EC2Labels.Start(ctx)
+	if s.cfg.CloudLabels != nil {
+		s.cfg.CloudLabels.Start(ctx)
 	}
 
 	return nil

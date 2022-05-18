@@ -326,25 +326,15 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// cloudLabels is a set of labels imported from a cloud provider and shared between
+	// services.
+	cloudLabels labels.Cloud
 }
 
 type keyPairKey struct {
 	role   types.SystemRole
 	reason string
-}
-
-// initConfig is the configuration for service initialization.
-type initConfig struct {
-	ec2Labels *labels.EC2
-}
-
-type initOption func(*initConfig)
-
-// withEC2Labels adds EC2 labels to a service.
-func withEC2Labels(ec2Labels *labels.EC2) initOption {
-	return func(initConf *initConfig) {
-		initConf.ec2Labels = ec2Labels
-	}
 }
 
 // processIndex is an internal process index
@@ -722,35 +712,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
-	initOpts := []initOption{}
-
-	// Check if we're on an EC2 instance, and if we should override the node's hostname.
-	ctx := context.TODO()
-	imClient, err := utils.NewInstanceMetadataClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ec2Available := imClient.IsAvailable(ctx)
-	if ec2Available {
-		ec2Hostname, err := imClient.GetTagValue(ctx, types.EC2HostnameTag)
-		if err == nil {
-			cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
-			cfg.Hostname = ec2Hostname
-		} else if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// if user did not provide auth domain name, use this host's name
-	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
-		cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-			ClusterName: cfg.Hostname,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	processID := fmt.Sprintf("%v", nextProcessID())
 	supervisor := NewSupervisor(processID, cfg.Log)
 	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
@@ -766,6 +727,43 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.PluginRegistry = plugin.NewRegistry()
 	}
 
+	var cloudLabels labels.Cloud
+
+	// Check if we're on an EC2 instance, and if we should override the node's hostname.
+	imClient, err := utils.NewInstanceMetadataClient(supervisor.ExitContext())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if imClient.IsAvailable(supervisor.ExitContext()) {
+		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
+		if err == nil {
+			cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
+			cfg.Hostname = ec2Hostname
+		} else if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		ec2Labels, err := labels.NewEC2Labels(&labels.EC2Config{
+			Client: imClient,
+			Clock:  cfg.Clock,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cloudLabels = ec2Labels
+	}
+
+	// if user did not provide auth domain name, use this host's name
+	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
+		cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: cfg.Hostname,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	process := &TeleportProcess{
 		PluginRegistry:      cfg.PluginRegistry,
 		Clock:               cfg.Clock,
@@ -778,6 +776,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
+		cloudLabels:         cloudLabels,
 	}
 
 	process.registerAppDepend()
@@ -794,16 +793,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic), process.log)
-	}
-
-	if ec2Available {
-		ec2Labels, err := labels.NewEC2Labels(&labels.EC2Config{
-			Client: imClient,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		initOpts = append(initOpts, withEC2Labels(ec2Labels))
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -853,7 +842,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.SSH.Enabled {
-		if err := process.initSSH(initOpts...); err != nil {
+		if err := process.initSSH(); err != nil {
 			return nil, err
 		}
 		serviceStarted = true
@@ -871,7 +860,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.Kube.Enabled {
-		process.initKubernetes(initOpts...)
+		process.initKubernetes()
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentKube), process.log)
@@ -879,14 +868,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	// If this process is proxying applications, start application access server.
 	if cfg.Apps.Enabled {
-		process.initApps(initOpts...)
+		process.initApps()
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp), process.log)
 	}
 
 	if cfg.Databases.Enabled {
-		process.initDatabases(initOpts...)
+		process.initDatabases()
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDatabase), process.log)
@@ -1809,11 +1798,7 @@ func (process *TeleportProcess) newAsyncEmitter(clt apievents.Emitter) (*events.
 }
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
-func (process *TeleportProcess) initSSH(opts ...initOption) error {
-	initConf := &initConfig{}
-	for _, opt := range opts {
-		opt(initConf)
-	}
+func (process *TeleportProcess) initSSH() error {
 	process.registerWithAuthServer(types.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
@@ -1973,8 +1958,7 @@ func (process *TeleportProcess) initSSH(opts ...initOption) error {
 			regular.SetShell(cfg.SSH.Shell),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer}),
 			regular.SetSessionServer(conn.Client),
-			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
-			regular.SetEC2Labels(initConf.ec2Labels),
+			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),
 			regular.SetNamespace(namespace),
 			regular.SetPermitUserEnvironment(cfg.SSH.PermitUserEnvironment),
 			regular.SetCiphers(cfg.Ciphers),
@@ -3525,11 +3509,7 @@ var appDependEvents = []string{
 	ProxyReverseTunnelReady,
 }
 
-func (process *TeleportProcess) initApps(opts ...initOption) {
-	initConf := &initConfig{}
-	for _, opt := range opts {
-		opt(initConf)
-	}
+func (process *TeleportProcess) initApps() {
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".
@@ -3699,7 +3679,7 @@ func (process *TeleportProcess) initApps(opts ...initOption) {
 			Hostname:         process.Config.Hostname,
 			GetRotation:      process.getRotation,
 			Apps:             applications,
-			EC2Labels:        initConf.ec2Labels,
+			CloudLabels:      process.cloudLabels,
 			ResourceMatchers: process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:      process.onHeartbeat(teleport.ComponentApp),
 		})
