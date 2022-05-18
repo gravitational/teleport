@@ -140,6 +140,9 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := fs.writeBytes(key.PPK, fs.PPKFilePath(key.KeyIndex)); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Store per-cluster key data.
 	if len(key.Cert) > 0 {
@@ -528,6 +531,11 @@ func (fs *fsLocalNonSessionKeyStore) tlsCAsPath(proxy string) string {
 // sshCertPath returns the SSH certificate path for the given KeyIndex.
 func (fs *fsLocalNonSessionKeyStore) sshCertPath(idx KeyIndex) string {
 	return keypaths.SSHCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+}
+
+// PPKFilePath returns the PPK (PuTTY-formatted) keypair path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) PPKFilePath(idx KeyIndex) string {
+	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 }
 
 // sshCAsPath returns the SSH CA certificates path for the given KeyIndex.
