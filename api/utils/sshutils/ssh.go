@@ -463,7 +463,7 @@ func chunkString(s string, chunkSize int) []string {
 	if chunkSize >= len(s) {
 		return []string{s}
 	}
-	var chunks []string = make([]string, 0, (len(s)-1)/chunkSize+1)
+	chunks := make([]string, 0, (len(s)-1)/chunkSize+1)
 	currentLen := 0
 	currentStart := 0
 	for i := range s {
