@@ -373,7 +373,7 @@ func ConvertToPPK(priv []byte, pub []byte) ([]byte, error) {
 	}
 	err = binary.Write(macInput, binary.LittleEndian, macKeyType)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(fmt.Errorf("cannot write macKeyType to buffer: %T", err))
 	}
 
 	// string: the encryption-type header field.
