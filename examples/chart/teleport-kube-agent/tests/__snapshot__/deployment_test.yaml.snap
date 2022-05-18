@@ -490,6 +490,65 @@ should expose diag port:
             name: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
+should havae custom ca cert secret as part of projected volume:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: teleport-secrets
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: teleport-secrets
+      projected:
+        sources:
+        - secret:
+            name: teleport-kube-agent-join-token
+        - secret:
+            name: db-custom-ca-cert
+    - emptyDir: {}
+      name: data
 should have multiple replicas when replicaCount is set (using .replicaCount, deprecated):
   1: |
     affinity:

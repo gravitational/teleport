@@ -179,10 +179,10 @@ spec:
           sources:
           - secret:
               name: {{ .Values.secretName }} # Auth Token
-          {{- if .Values.dbCustomCASecretName }}
+{{- if .Values.dbCustomCASecretName }}
           - secret:
               name: {{ .Values.dbCustomCASecretName }} # customCACert secret
-          {{ end }}
+{{ end }}
       {{- if not .Values.existingDataVolume }}
       - name: "data"
         emptyDir: {}

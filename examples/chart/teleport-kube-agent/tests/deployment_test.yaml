@@ -404,3 +404,20 @@ tests:
           value: 5
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: should havae custom ca cert secret as part of projected volume
+    values:
+      - ../.lint/db-tls.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-secrets
+            projected:
+              sources:
+              - secret:
+                  name: teleport-kube-agent-join-token
+              - secret:
+                  name: db-custom-ca-cert
+      - matchSnapshot:
+          path: spec.template.spec
