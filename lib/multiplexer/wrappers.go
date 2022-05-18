@@ -101,6 +101,8 @@ func (c *Conn) ReadProxyLine() (*ProxyLine, error) {
 	return proxyLine, nil
 }
 
+// returns a Listener that pretends to be listening on addr, closed whenever the
+// parent context is done.
 func newListener(parent context.Context, addr net.Addr) *Listener {
 	context, cancel := context.WithCancel(parent)
 	return &Listener{
@@ -131,14 +133,23 @@ func (l *Listener) Accept() (net.Conn, error) {
 	case <-l.context.Done():
 		return nil, trace.ConnectionProblem(net.ErrClosed, "listener is closed")
 	case conn := <-l.connC:
-		if conn == nil {
-			return nil, trace.ConnectionProblem(net.ErrClosed, "listener is closed")
-		}
 		return conn, nil
 	}
 }
 
-// Close closes the listener, connections to multiplexer will hang
+// HandleConnection injects the connection into the Listener, blocking until the
+// context expires, the connection is accepted or the Listener is closed.
+func (l *Listener) HandleConnection(ctx context.Context, conn net.Conn) {
+	select {
+	case <-ctx.Done():
+		conn.Close()
+	case <-l.context.Done():
+		conn.Close()
+	case l.connC <- conn:
+	}
+}
+
+// Close closes the listener.
 func (l *Listener) Close() error {
 	l.cancel()
 	return nil

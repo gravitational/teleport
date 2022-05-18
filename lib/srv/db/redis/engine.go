@@ -23,6 +23,7 @@ import (
 	"net"
 
 	"github.com/go-redis/redis/v8"
+	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -167,7 +168,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
-	if err := e.process(ctx); err != nil {
+	if err := e.process(ctx, sessionCtx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -181,7 +182,14 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		return nil, trace.Wrap(err)
 	}
 
-	connectionOptions, err := ParseRedisAddress(sessionCtx.Database.GetURI())
+	// Set default mode. Default mode can be overridden by URI parameters.
+	defaultMode := Standalone
+	if sessionCtx.Database.IsElastiCache() &&
+		sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
+		defaultMode = Cluster
+	}
+
+	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
 	if err != nil {
 		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
@@ -214,7 +222,7 @@ func (e *Engine) reconnect(username, password string) (redis.UniversalClient, er
 
 // process is the main processing function for Redis. It reads commands from connected client and passes them to
 // a Redis instance. This function returns when a server closes a connection or in case of connection error.
-func (e *Engine) process(ctx context.Context) error {
+func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error {
 	for {
 		// Read commands from connected client.
 		cmd, err := e.readClientCmd(ctx)
@@ -228,8 +236,12 @@ func (e *Engine) process(ctx context.Context) error {
 		// Function below maps errors that should be returned to the
 		// client as value or return them as err if we should terminate
 		// the session.
-		value, err := processSeverResponse(cmd, err)
+		value, err := processServerResponse(cmd, err, sessionCtx)
 		if err != nil {
+			// Send server error to client before closing.
+			if sendError := e.sendToClient(err); sendError != nil {
+				return trace.NewAggregate(err, sendError)
+			}
 			return trace.Wrap(err)
 		}
 
@@ -255,11 +267,11 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 	return redis.NewCmd(ctx, val...), nil
 }
 
-// processSeverResponse takes server response and an error returned from go-redis and returns
+// processServerResponse takes server response and an error returned from go-redis and returns
 // "terminal" errors as second value (connection should be terminated when this happens)
 // or returns error/value as the first value. Then value should be sent back to
 // the client without terminating the connection.
-func processSeverResponse(cmd *redis.Cmd, err error) (interface{}, error) {
+func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session) (interface{}, error) {
 	value, cmdErr := cmd.Result()
 	if err == nil {
 		// If the server didn't return any error use cmd.Err() as server error.
@@ -274,6 +286,10 @@ func processSeverResponse(cmd *redis.Cmd, err error) (interface{}, error) {
 		// Teleport errors should be returned to the client.
 		return err, nil
 	case errors.Is(err, context.DeadlineExceeded):
+		if sessionCtx.Database.IsElastiCache() && !sessionCtx.Database.GetAWS().ElastiCache.TransitEncryptionEnabled {
+			return nil, trace.ConnectionProblem(err, "Connection timeout on ElastiCache database. Please verify if in-transit encryption is enabled on the server.")
+		}
+
 		// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
 		// Return "connection timeout" as this is what most likely happened.
 		return nil, trace.ConnectionProblem(err, "connection timeout")

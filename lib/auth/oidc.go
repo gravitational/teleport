@@ -42,7 +42,44 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
+func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
+	if request.SSOTestFlow {
+		if request.ConnectorSpec == nil {
+			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+		}
+
+		if request.ConnectorID == "" {
+			return nil, nil, trace.BadParameter("ConnectorID cannot be empty")
+		}
+
+		// stateless test flow
+		connector, err := types.NewOIDCConnector(request.ConnectorID, *request.ConnectorSpec)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// we don't want to cache the client. construct it directly.
+		client, err := a.createOIDCClient(ctx, connector, false)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return connector, client, nil
+	}
+
+	// regular execution flow
+	connector, err := a.Identity.GetOIDCConnector(ctx, request.ConnectorID, true)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	client, err := a.getOrCreateOIDCClient(ctx, connector)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return connector, client, nil
+}
+
+func (a *Server) getOrCreateOIDCClient(ctx context.Context, conn types.OIDCConnector) (*oidc.Client, error) {
 	client, err := a.getOIDCClient(conn)
 	if err == nil {
 		return client, nil
@@ -50,7 +87,7 @@ func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, 
 	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	return a.createOIDCClient(conn)
+	return a.createOIDCClient(ctx, conn, true)
 }
 
 func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
@@ -73,7 +110,7 @@ func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 
 }
 
-func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
+func (a *Server) createOIDCClient(ctx context.Context, conn types.OIDCConnector, rememberClient bool) (*oidc.Client, error) {
 	config := oidcConfig(conn)
 	client, err := oidc.NewClient(config)
 	if err != nil {
@@ -106,10 +143,22 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
 	}
 
-	a.lock.Lock()
-	defer a.lock.Unlock()
+	if rememberClient {
+		a.lock.Lock()
+		defer a.lock.Unlock()
 
-	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config, cancel: syncCancel}
+		a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config, cancel: syncCancel}
+	} else {
+		// either wait for the parent context to finish, or wait up to 10 minutes.
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-time.After(defaults.OIDCAuthRequestTTL):
+			}
+			log.Infof("Removing OIDC test client for connector %q, URL %q", conn.GetName(), conn.GetIssuerURL())
+			syncCancel()
+		}()
+	}
 
 	return client, nil
 }
@@ -168,16 +217,15 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 }
 
 func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	ctx := context.TODO()
-	connector, err := a.Identity.GetOIDCConnector(ctx, req.ConnectorID, true)
+	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	connector, client, err := a.getOIDCConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oidcClient, err := a.getOrCreateOIDCClient(connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	oauthClient, err := oidcClient.OAuthClient()
+	oauthClient, err := client.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -218,7 +266,7 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
-func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -226,9 +274,18 @@ func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 		Method: events.LoginMethodOIDC,
 	}
 
-	re, err := a.validateOIDCAuthCallback(q)
-	if re != nil && re.claims != nil {
-		attributes, err := apievents.EncodeMap(re.claims)
+	diagCtx := a.newSSODiagContext(types.KindOIDC)
+
+	auth, err := a.validateOIDCAuthCallback(ctx, diagCtx, q)
+	if err != nil {
+		diagCtx.info.Error = trace.UserMessage(err)
+	}
+
+	diagCtx.writeToBackend(ctx)
+
+	claims := diagCtx.info.OIDCClaims
+	if claims != nil {
+		attributes, err := apievents.EncodeMap(claims)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
 			log.WithError(err).Debug("Failed to encode identity attributes.")
@@ -239,6 +296,9 @@ func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
+		if diagCtx.info.TestFlow {
+			event.Code = events.UserSSOTestFlowLoginFailureCode
+		}
 		event.Status.Success = false
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
@@ -249,20 +309,19 @@ func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 
 		return nil, trace.Wrap(err)
 	}
+
 	event.Code = events.UserSSOLoginCode
-	event.User = re.auth.Username
+	if diagCtx.info.TestFlow {
+		event.Code = events.UserSSOTestFlowLoginCode
+	}
+	event.User = auth.Username
 	event.Status.Success = true
 
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit OIDC login event.")
 	}
 
-	return &re.auth, nil
-}
-
-type oidcAuthResponse struct {
-	auth   OIDCAuthResponse
-	claims jose.Claims
+	return auth, nil
 }
 
 func checkEmailVerifiedClaim(claims jose.Claims) error {
@@ -291,56 +350,66 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 	return nil
 }
 
-func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
-	ctx := context.TODO()
-	if error := q.Get("error"); error != "" {
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
+func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*OIDCAuthResponse, error) {
+	if errParam := q.Get("error"); errParam != "" {
+		// try to find request so the error gets logged against it.
+		state := q.Get("state")
+		if state != "" {
+			diagCtx.requestID = state
+			req, err := a.Identity.GetOIDCAuthRequest(ctx, state)
+			if err == nil {
+				diagCtx.info.TestFlow = req.SSOTestFlow
+			}
+		}
+
+		// optional parameter: error_description
+		errDesc := q.Get("error_description")
+		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q).AddUserMessage("OIDC provider returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")
 	if code == "" {
 		return nil, trace.OAuth2(
-			oauth2.ErrorInvalidRequest, "code query param must be set", q)
+			oauth2.ErrorInvalidRequest, "code query param must be set", q).AddUserMessage("Invalid parameters received from OIDC provider.")
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
 		return nil, trace.OAuth2(
-			oauth2.ErrorInvalidRequest, "missing state query param", q)
+			oauth2.ErrorInvalidRequest, "missing state query param", q).AddUserMessage("Invalid parameters received from OIDC provider.")
 	}
+	diagCtx.requestID = stateToken
 
-	clusterName, err := a.GetClusterName()
+	req, err := a.Identity.GetOIDCAuthRequest(ctx, stateToken)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
+	diagCtx.info.TestFlow = req.SSOTestFlow
 
-	req, err := a.Identity.GetOIDCAuthRequest(stateToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
+	ctxC, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	connector, err := a.Identity.GetOIDCConnector(ctx, req.ConnectorID, true)
+	connector, client, err := a.getOIDCConnectorAndClient(ctxC, *req)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	oidcClient, err := a.getOrCreateOIDCClient(connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to get OIDC connector and client.")
 	}
 
 	// extract claims from both the id token and the userinfo endpoint and merge them
-	claims, err := a.getClaims(oidcClient, connector, code)
+	claims, err := a.getClaims(client, connector, code)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := &oidcAuthResponse{
-		claims: claims,
-	}
+		// different error message for Google Workspace as likely cause is different.
+		if isGoogleWorkspaceConnector(connector) {
+			return nil, trace.Wrap(err, "Failed to extract OIDC claims. Check your Google Workspace plan and enabled APIs. See: https://goteleport.com/docs/enterprise/sso/google-workspace/#ensure-your-google-workspace-plan-is-correct")
+		}
 
-	log.Debugf("OIDC claims: %v.", re.claims)
+		return nil, trace.Wrap(err, "Failed to extract OIDC claims. This may indicate need to set 'provider' flag in connector definition. See: https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds")
+	}
+	diagCtx.info.OIDCClaims = types.OIDCClaims(claims)
+
+	log.Debugf("OIDC claims: %v.", claims)
 	if err := checkEmailVerifiedClaim(claims); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "OIDC provider did not verify email.")
 	}
 
 	// if we are sending acr values, make sure we also validate them
@@ -348,36 +417,56 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 	if acrValue != "" {
 		err := a.validateACRValues(acrValue, connector.GetProvider(), claims)
 		if err != nil {
-			return re, trace.Wrap(err)
+			return nil, trace.Wrap(err, "OIDC ACR validation failure.")
 		}
 		log.Debugf("OIDC ACR values %q successfully validated.", acrValue)
 	}
 
 	ident, err := oidc.IdentityFromClaims(claims)
 	if err != nil {
-		return re, trace.OAuth2(
+		return nil, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
+	}
+	diagCtx.info.OIDCIdentity = &types.OIDCIdentity{
+		ID:        ident.ID,
+		Name:      ident.Name,
+		Email:     ident.Email,
+		ExpiresAt: ident.ExpiresAt,
 	}
 	log.Debugf("OIDC user %q expires at: %v.", ident.Email, ident.ExpiresAt)
 
 	if len(connector.GetClaimsToRoles()) == 0 {
-		return re, trace.BadParameter("no claims to roles mapping, check connector documentation")
+		return nil, trace.BadParameter("no claims to roles mapping, check connector documentation").
+			AddUserMessage("Claims-to-roles mapping is empty, SSO user will never have any roles.")
 	}
 	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
+	diagCtx.info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateOIDCUser(connector, claims, ident, req)
+	params, err := a.calculateOIDCUser(diagCtx, connector, claims, ident, req)
 	if err != nil {
-		return re, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
-	user, err := a.createOIDCUser(params)
+
+	diagCtx.info.CreateUserParams = &types.CreateUserParams{
+		ConnectorName: params.connectorName,
+		Username:      params.username,
+		Logins:        params.logins,
+		KubeGroups:    params.kubeGroups,
+		KubeUsers:     params.kubeUsers,
+		Roles:         params.roles,
+		Traits:        params.traits,
+		SessionTTL:    types.Duration(params.sessionTTL),
+	}
+
+	user, err := a.createOIDCUser(params, req.SSOTestFlow)
 	if err != nil {
-		return re, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	re.auth = OIDCAuthResponse{
+	auth := &OIDCAuthResponse{
 		Req: *req,
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.connectorName,
@@ -386,8 +475,14 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 		Username: user.GetName(),
 	}
 
+	// In test flow skip signing and creating web sessions.
+	if req.SSOTestFlow {
+		diagCtx.info.Success = true
+		return auth, nil
+	}
+
 	if !req.CheckUser {
-		return re, nil
+		return auth, nil
 	}
 
 	// If the request is coming from a browser, create a web session.
@@ -400,20 +495,24 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to create web session.")
 		}
-		re.auth.Session = session
+		auth.Session = session
 	}
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
 		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster, req.KubernetesCluster)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
 
-		re.auth.Cert = sshCert
-		re.auth.TLSCert = tlsCert
+		clusterName, err := a.GetClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to obtain cluster name.")
+		}
+		auth.Cert = sshCert
+		auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
@@ -421,12 +520,12 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to obtain cluster's host CA.")
 		}
-		re.auth.HostSigners = append(re.auth.HostSigners, authority)
+		auth.HostSigners = append(auth.HostSigners, authority)
 	}
 
-	return re, nil
+	return auth, nil
 }
 
 // OIDCAuthResponse is returned when auth server validated callback parameters
@@ -449,7 +548,7 @@ type OIDCAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 }
 
-func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
 	var err error
 
 	p := createUserParams{
@@ -459,13 +558,25 @@ func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Cl
 
 	p.traits = services.OIDCClaimsToTraits(claims)
 
+	diagCtx.info.OIDCTraitsFromClaims = p.traits
+	diagCtx.info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
+
 	var warnings []string
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		if len(warnings) != 0 {
-			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
+			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
+			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+				Message:  "No roles mapped for the user",
+				Warnings: warnings,
+			}
+		} else {
+			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
+			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+				Message: "No roles mapped for the user. The mappings may contain typos.",
+			}
 		}
-		return nil, trace.AccessDenied("unable to map claims to role for connector: %v", connector.GetName())
+		return nil, trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
@@ -479,7 +590,7 @@ func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Cl
 	return &p, nil
 }
 
-func (a *Server) createOIDCUser(p *createUserParams) (types.User, error) {
+func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
 	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
@@ -510,6 +621,10 @@ func (a *Server) createOIDCUser(p *createUserParams) (types.User, error) {
 				},
 			},
 		},
+	}
+
+	if dryRun {
+		return user, nil
 	}
 
 	// Get the user to check if it already exists or not.
@@ -657,8 +772,12 @@ func mergeClaims(a jose.Claims, b jose.Claims) (jose.Claims, error) {
 
 // getClaims gets claims from ID token and UserInfo and returns UserInfo claims merged into ID token claims.
 func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
+	return a.getClaimsFun(a.closeCtx, oidcClient, connector, code)
+}
 
-	oac, err := a.getOAuthClient(oidcClient, connector)
+// getClaimsFun implements Server.getClaims, but allows that code path to be overridden for testing.
+func getClaims(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
+	oac, err := getOAuthClient(oidcClient, connector)
 
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -723,7 +842,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	}
 
 	if isGoogleWorkspaceConnector(connector) {
-		claims, err = addGoogleWorkspaceClaims(a.closeCtx, connector, claims)
+		claims, err = addGoogleWorkspaceClaims(closeCtx, connector, claims)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -733,7 +852,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 }
 
 // getOAuthClient returns a Oauth2 client from the oidc.Client.  If the connector is set as a Ping provider sets the Client Secret Post auth method
-func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
+func getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
 	oac, err := oidcClient.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
