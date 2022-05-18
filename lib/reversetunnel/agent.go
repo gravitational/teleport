@@ -158,6 +158,8 @@ type agent struct {
 	hbRequests <-chan *ssh.Request
 	// discoveryC receives new discovery channels.
 	discoveryC <-chan ssh.NewChannel
+	// transportC receives new tranport channels.
+	transportC <-chan ssh.NewChannel
 	// unclaim releases the claim to the proxy in the tracker.
 	unclaim func()
 	// ctx is the internal context used to release resources used by  the agent.
@@ -359,6 +361,7 @@ func (a *agent) connect() error {
 
 	// Add channel handlers immediately to avoid rejecting a channel.
 	a.discoveryC = a.client.HandleChannelOpen(chanDiscovery)
+	a.transportC = a.client.HandleChannelOpen(constants.ChanTransport)
 
 	// Temporarily reply to global requests during startup. This is necessary
 	// due to the server sending a version request when we connect.
@@ -487,7 +490,6 @@ func (a *agent) signalDraining() <-chan struct{} {
 func (a *agent) handleDrainChannels() error {
 	ticker := time.NewTicker(a.keepAlive)
 	defer ticker.Stop()
-	newTransportC := a.client.HandleChannelOpen(constants.ChanTransport)
 
 	// once ensures drainWG.Done() is called one more time
 	// after no more transports will be created.
@@ -530,7 +532,7 @@ func (a *agent) handleDrainChannels() error {
 			}
 			a.log.Debugf("Ping -> %v.", a.client.RemoteAddr())
 		// Handle transport requests.
-		case nch := <-newTransportC:
+		case nch := <-a.transportC:
 			if nch == nil {
 				continue
 			}
