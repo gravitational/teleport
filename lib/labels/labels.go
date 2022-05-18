@@ -220,7 +220,6 @@ func (conf *EC2Config) checkAndSetDefaults() error {
 type EC2 struct {
 	c      *EC2Config
 	mu     sync.RWMutex
-	once   sync.Once
 	labels map[string]string
 
 	closeCh chan struct{}
