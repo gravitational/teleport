@@ -28,17 +28,17 @@ fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Nam
 - One Teleport Node running on an Amazon EC2 instance. See
   [Adding Nodes](../admin/adding-nodes.mdx) for how to set up a Teleport Node.
 
-<Admonition type="note" title="Note">
-  Only instances that are running on the [Nitro system](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html#ec2-nitro-instances)
-  will update their tags while running. All other instance types [must be restarted](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS)
-  to update tags.
-</Admonition>
-
 ## Enable tags in instance metadata
 
 To allow Teleport to import EC2 tags, tags must be enabled in the instance metadata. This can be done
 via the AWS console or the AWS CLI. See the [AWS documentation](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#allow-access-to-tags-in-IMDS)
 for more details.
+
+<Admonition type="note" title="Note">
+  Only instances that are running on the [Nitro system](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html#ec2-nitro-instances)
+  will update their tags while running. All other instance types [must be restarted](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS)
+  to update tags.
+</Admonition>
 
 ### AWS EC2 Console
 
