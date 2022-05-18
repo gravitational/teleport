@@ -715,6 +715,12 @@ func TestListResources_Helpers(t *testing.T) {
 			},
 		},
 		{
+			name: "listResourcesWithSort",
+			fetch: func(req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+				return presence.listResourcesWithSort(ctx, req)
+			},
+		},
+		{
 			name: "FakePaginate",
 			fetch: func(req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 				nodes, err := presence.GetNodes(ctx, namespace)
@@ -1060,4 +1066,147 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, semaphores, 1)
 	require.Empty(t, semaphores[0].LeaseRefs())
+}
+
+func TestListResources_SortAndDeduplicate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	presence := NewPresenceService(backend)
+
+	// Define some resource names for testing.
+	names := []string{"d", "b", "d", "a", "a", "b"}
+	uniqueNames := []string{"a", "b", "d"}
+
+	tests := []struct {
+		name            string
+		kind            string
+		insertResources func()
+		wantNames       []string
+	}{
+		{
+			name: "KindDatabaseServer",
+			kind: types.KindDatabaseServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					db, err := types.NewDatabaseServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.DatabaseServerSpecV3{
+						HostID:   "_",
+						Hostname: "_",
+						Database: &types.DatabaseV3{
+							Metadata: types.Metadata{
+								Name: names[i],
+							},
+							Spec: types.DatabaseSpecV3{
+								Protocol: "_",
+								URI:      "_",
+							},
+						},
+					})
+					require.NoError(t, err)
+					_, err = presence.UpsertDatabaseServer(ctx, db)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindAppServer",
+			kind: types.KindAppServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					server, err := types.NewAppServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.AppServerSpecV3{
+						HostID: "_",
+						App:    &types.AppV3{Metadata: types.Metadata{Name: names[i]}, Spec: types.AppSpecV3{URI: "_"}},
+					})
+					require.NoError(t, err)
+					_, err = presence.UpsertApplicationServer(ctx, server)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindKubernetesCluster",
+			kind: types.KindKubernetesCluster,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					server, err := types.NewServer(fmt.Sprintf("name-%v", i), types.KindKubeService, types.ServerSpecV2{
+						KubernetesClusters: []*types.KubernetesCluster{
+							// Test dedup inside this list as well as from each service.
+							{Name: names[i]},
+							{Name: names[i]},
+						},
+					})
+					require.NoError(t, err)
+					_, err = presence.UpsertKubeServiceV2(ctx, server)
+					require.NoError(t, err)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.insertResources()
+
+			// Fetch all resources
+			fetchedResources := make([]types.ResourceWithLabels, 0, len(uniqueNames))
+			resp, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType:   tc.kind,
+				NeedTotalCount: true,
+				Limit:          2,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName, IsDesc: true},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 2)
+			require.Equal(t, resp.TotalCount, len(uniqueNames))
+			fetchedResources = append(fetchedResources, resp.Resources...)
+
+			resp, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType:   tc.kind,
+				NeedTotalCount: true,
+				StartKey:       resp.NextKey,
+				Limit:          2,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName, IsDesc: true},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 1)
+			require.Equal(t, len(uniqueNames), resp.TotalCount)
+			fetchedResources = append(fetchedResources, resp.Resources...)
+
+			r := types.ResourcesWithLabels(fetchedResources)
+			var extractedErr error
+			var extractedNames []string
+
+			switch tc.kind {
+			case types.KindDatabaseServer:
+				s, err := r.AsDatabaseServers()
+				require.NoError(t, err)
+				extractedNames, extractedErr = types.DatabaseServers(s).GetFieldVals(types.ResourceMetadataName)
+
+			case types.KindAppServer:
+				s, err := r.AsAppServers()
+				require.NoError(t, err)
+				extractedNames, extractedErr = types.AppServers(s).GetFieldVals(types.ResourceMetadataName)
+
+			default:
+				s, err := r.AsKubeClusters()
+				require.NoError(t, err)
+				require.Len(t, s, 3)
+				extractedNames, extractedErr = types.KubeClusters(s).GetFieldVals(types.ResourceMetadataName)
+			}
+
+			require.NoError(t, extractedErr)
+			require.ElementsMatch(t, uniqueNames, extractedNames)
+			require.IsDecreasing(t, extractedNames)
+		})
+	}
 }

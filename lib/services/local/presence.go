@@ -1587,6 +1587,7 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		servers = types.DeduplicateAppServers(servers)
 		resources = servers.AsResources()
 
 	case types.KindDatabaseServer:
@@ -1599,7 +1600,32 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		servers = types.DeduplicateDatabaseServers(servers)
 		resources = servers.AsResources()
+
+	case types.KindKubernetesCluster:
+		kubeservices, err := s.GetKubeServices(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Extract kube clusters into its own list.
+		clusters := []types.KubeCluster{}
+		for _, svc := range kubeservices {
+			for _, legacyCluster := range svc.GetKubernetesClusters() {
+				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster(svc.GetNamespace(), legacyCluster)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				clusters = append(clusters, cluster)
+			}
+		}
+
+		sortedClusters := types.KubeClusters(types.DeduplicateKubeClusters(clusters))
+		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedClusters.AsResources()
 
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
