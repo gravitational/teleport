@@ -64,19 +64,7 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
-	version := primitive.ProtocolVersion4
-	id := 3
-
 	e.Log.Errorf("cassandra connection error: %v", err)
-
-	return
-
-	errFrame := frame.NewFrame(version, int16(id), &message.AuthenticationError{ErrorMessage: err.Error()})
-
-	codec := frame.NewRawCodec()
-	if err := codec.EncodeFrame(errFrame, e.clientConn); err != nil {
-		e.Log.Errorf("failed to send error message to the client: %v", err)
-	}
 }
 
 func (e *Engine) sendClientError(protoVer primitive.ProtocolVersion, streamID int16, err error) {
@@ -131,46 +119,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	go func() {
-		//io.Copy(e.clientConn, srvConn)
-		r := io.TeeReader(srvConn, e.clientConn)
-
-		for {
-			rawFrame, err := codec.DecodeRawFrame(r)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					return
-				}
-				e.Log.Errorf("failed to decode frame: len %d; err: %v", len(bconn.Buff()), err)
-				return
-			}
-
-			//f, err := rawFrame.Dump()
-			//if err != nil {
-			//	panic(err)
-			//}
-
-			//e.Log.Infof("response frame: %v", f)
-			e.Log.Infof("response frame: %+v", rawFrame)
-			if rawFrame.Header.OpCode == primitive.OpCodeResult {
-				body, err := codec.ConvertFromRawFrame(rawFrame)
-				if err != nil {
-					e.Log.Errorf("failed to convert a frame: %v", err)
-					return
-				}
-
-				if rowsResult, ok := body.Body.Message.(*message.RowsResult); ok {
-					e.Log.Infof("response frame row result: %+v |||| %+v", rowsResult.Metadata, rowsResult.Data)
-				}
-
-				if rowsResult, ok := body.Body.Message.(*message.PreparedResult); ok {
-					e.Log.Infof("response frame result result: %+v |||| %+v", rowsResult.ResultMetadata, rowsResult.VariablesMetadata)
-				}
-			}
-		}
-	}()
-
-	//go io.Copy(e.clientConn, srvConn)
+	go io.Copy(e.clientConn, srvConn)
 
 	for {
 		rawFrame, err := codec.DecodeRawFrame(bconn)
@@ -181,13 +130,13 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err, "failed to decode frame")
 		}
 
-		f, err := rawFrame.Dump()
-		if err != nil {
-			return trace.Wrap(err, "failed to dump frame")
-		}
-
-		e.Log.Infof("frame: %v", f)
-		e.Log.Infof("OpCode: %+v", rawFrame.Header.OpCode)
+		//f, err := rawFrame.Dump()
+		//if err != nil {
+		//	return trace.Wrap(err, "failed to dump frame")
+		//}
+		//
+		//e.Log.Infof("frame: %v", f)
+		//e.Log.Infof("OpCode: %+v", rawFrame.Header.OpCode)
 
 		switch rawFrame.Header.OpCode {
 		case primitive.OpCodeAuthResponse:
