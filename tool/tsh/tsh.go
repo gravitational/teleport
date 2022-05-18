@@ -43,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -585,6 +586,14 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
 
+	// Sessions.
+	sessions := app.Command("sessions", "View and control recorded sessions.").Alias("session")
+	lsSessions := sessions.Command("ls", "List recorded sessions.")
+	lsSessions.Flag("verbose", "Show extra sessions fields.").Short('v').BoolVar(&cf.Verbose)
+	lsSessions.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	lsSessions.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	lsSessions.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode")
@@ -951,6 +960,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
+	case lsSessions.FullCommand():
+		err = onSessions(&cf)
 	case appLogin.FullCommand():
 		err = onAppLogin(&cf)
 	case appLogout.FullCommand():
@@ -2157,6 +2168,60 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 			[]string{"Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
+}
+
+func showSessions(events []apievents.AuditEvent, format string, verbose bool) error {
+	format = strings.ToLower(format)
+	switch format {
+	case teleport.Text, "":
+		err := showSessionsAsText(events)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeSessions(events, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
+	return nil
+}
+
+func showSessionsAsText(endEvents []apievents.AuditEvent) error {
+	// session ID, session type (can we?), session timestamp, participants, server information.
+	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
+	for _, event := range endEvents {
+		session, ok := event.(*apievents.SessionEnd)
+		if !ok {
+			return trace.BadParameter("unsupported event type: expected SessionEnd: got: %T", event)
+		}
+		t.AddRow([]string{
+			session.GetSessionID(),
+			"TODO: Get session type",
+			strings.Join(session.Participants, ", "),
+			session.ServerHostname,
+			session.GetTime().Format(constants.HumanDateFormatSeconds),
+		})
+	}
+	fmt.Println(t.AsBuffer().String())
+	return nil
+}
+
+func serializeSessions(events []apievents.AuditEvent, format string) (string, error) {
+	if events == nil {
+		events = []apievents.AuditEvent{}
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(events, "", "  ")
+	} else {
+		out, err = yaml.Marshal(events)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
@@ -3865,6 +3930,42 @@ func serializeAppsWithClusters(apps []appListing, format string) (string, error)
 		out, err = yaml.Marshal(apps)
 	}
 	return string(out), trace.Wrap(err)
+}
+
+// TODO: Move this somewhere more appropriate
+const defaultSearchSessionPAgeLimit = 50
+
+func onSessions(cf *CLIConf) error {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var sessions []apievents.AuditEvent
+	// Get a list of all Sessions joining pages
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		prevEventKey := ""
+		sessions = []apievents.AuditEvent{}
+		for {
+			nextEvents, eventKey, err := tc.SearchSessionEvents(cf.Context,
+				time.Unix(0, 0), time.Now(), defaultSearchSessionPAgeLimit,
+				types.EventOrderDescending, prevEventKey)
+			if err != nil {
+				return err
+			}
+			sessions = append(sessions, nextEvents...)
+			if eventKey == "" {
+				break
+			}
+			prevEventKey = eventKey
+		}
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := showSessions(sessions, cf.Format, cf.Verbose); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // onEnvironment handles "tsh env" command.
