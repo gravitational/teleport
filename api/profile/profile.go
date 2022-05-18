@@ -409,7 +409,7 @@ func (p *Profile) SSHCertPath() string {
 
 // PPKFilePath returns the path to the profile's PuTTY PPK-formatted keypair.
 func (p *Profile) PPKFilePath() string {
-	return keypaths.PPKFilePath(p.Dir, p.Name(), p.Username, p.SiteName)
+	return keypaths.PPKFilePath(p.Dir, p.Name(), p.Username)
 }
 
 // KnownHostsPath returns the path to the profile's ssh certificate authorities.

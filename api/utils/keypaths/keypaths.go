@@ -174,8 +174,8 @@ func SSHDir(baseDir, proxy, username string) string {
 // PPKFilePath returns the path to the user's PuTTY PPK-formatted keypair
 // for the given proxy and cluster.
 //
-// <baseDir>/keys/<proxy>/<username>-ssh/<cluster>.ppk
-func PPKFilePath(baseDir, proxy, username, cluster string) string {
+// <baseDir>/keys/<proxy>/<username>.ppk
+func PPKFilePath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtPPK)
 }
 
