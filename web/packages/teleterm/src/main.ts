@@ -20,7 +20,7 @@ const windowsManager = new WindowsManager(fileStorage, settings);
 
 process.on('uncaughtException', error => {
   logger.error('', error);
-  throw error;
+  app.quit();
 });
 
 // init main process
@@ -31,8 +31,6 @@ const mainProcess = MainProcess.create({
   fileStorage,
 });
 
-// node-pty is not yet context aware
-app.allowRendererProcessReuse = false;
 app.commandLine.appendSwitch('ignore-certificate-errors', 'true');
 
 app.on('will-quit', () => {

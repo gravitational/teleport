@@ -1,10 +1,5 @@
-import {
-  app,
-  ipcMain,
-  Menu,
-  MenuItemConstructorOptions,
-} from 'electron';
-import { ChildProcess, spawn } from 'child_process';
+import { app, ipcMain, Menu, MenuItemConstructorOptions } from 'electron';
+import { ChildProcess, fork, spawn } from 'child_process';
 import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import {
@@ -13,6 +8,7 @@ import {
 } from '../services/config';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
+import path from 'path';
 
 type Options = {
   settings: RuntimeSettings;
@@ -26,6 +22,7 @@ export default class MainProcess {
   private readonly logger: Logger;
   private readonly configService: ConfigService;
   private tshdProcess: ChildProcess;
+  private sharedProcess: ChildProcess;
   private fileStorage: FileStorage;
 
   private constructor(opts: Options) {
@@ -42,6 +39,7 @@ export default class MainProcess {
   }
 
   dispose() {
+    this.sharedProcess.kill('SIGTERM');
     this.tshdProcess.kill('SIGTERM');
   }
 
@@ -49,6 +47,7 @@ export default class MainProcess {
     this._setAppMenu();
     try {
       this._initTshd();
+      this._initSharedProcess();
       this._initIpc();
     } catch (err) {
       this.logger.error('Failed to start main process: ', err.message);
@@ -72,6 +71,24 @@ export default class MainProcess {
 
     this.tshdProcess.once('exit', code => {
       this.logger.info('tshd exited with code:', code);
+    });
+  }
+
+  private _initSharedProcess() {
+    this.sharedProcess = fork(
+      path.join(__dirname, 'sharedProcess.js'),
+      [`--addr=${this.settings.sharedProcess.networkAddr}`],
+      {
+        stdio: 'inherit',
+      }
+    );
+
+    this.sharedProcess.on('error', error => {
+      this.logger.error('shared process failed to start', error);
+    });
+
+    this.sharedProcess.once('exit', code => {
+      this.logger.info('shared process exited with code:', code);
     });
   }
 

@@ -31,6 +31,7 @@ const cfg = {
   entry: {
     main: './src/main.ts',
     preload: './src/preload.ts',
+    sharedProcess: './src/sharedProcess/sharedProcess.ts'
   },
 
   output: {

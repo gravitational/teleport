@@ -18,7 +18,7 @@ import 'xterm/css/xterm.css';
 import { IDisposable, Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { debounce } from 'lodash';
-import { PtyProcess } from 'teleterm/services/pty/types';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import Logger from 'teleterm/ui/logger';
 import theme from 'teleterm/ui/ThemeProvider/theme';
 
@@ -37,7 +37,7 @@ export default class TtyTerminal {
   private debouncedResize: () => void;
   private logger = new Logger('lib/term/terminal');
 
-  constructor(private ptyProcess: PtyProcess, private options: Options) {
+  constructor(private ptyProcess: IPtyProcess, private options: Options) {
     this.el = options.el;
     this.term = null;
 

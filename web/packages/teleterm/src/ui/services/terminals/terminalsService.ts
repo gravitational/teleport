@@ -1,13 +1,13 @@
-import * as types from 'teleterm/services/pty/types';
+import { PtyCommand, PtyServiceClient } from 'teleterm/services/pty';
 
 export class TerminalsService {
-  ptyServiceClient: types.PtyServiceClient;
+  ptyServiceClient: PtyServiceClient;
 
-  constructor(ptyProvider: types.PtyServiceClient) {
+  constructor(ptyProvider: PtyServiceClient) {
     this.ptyServiceClient = ptyProvider;
   }
 
-  createPtyProcess(cmd: types.PtyCommand) {
+  createPtyProcess(cmd: PtyCommand) {
     return this.ptyServiceClient.createPtyProcess(cmd);
   }
 }

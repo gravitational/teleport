@@ -17,6 +17,9 @@ export class MockMainProcessClient implements MainProcessClient {
         homeDir: '',
         flags: [],
       },
+      sharedProcess: {
+        networkAddr: ''
+      }
     };
   }
 

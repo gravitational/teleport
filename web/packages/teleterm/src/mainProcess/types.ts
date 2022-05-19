@@ -16,6 +16,9 @@ export type RuntimeSettings = {
     homeDir: string;
     flags: string[];
   };
+  sharedProcess: {
+    networkAddr: string;
+  }
 };
 
 export type MainProcessClient = {

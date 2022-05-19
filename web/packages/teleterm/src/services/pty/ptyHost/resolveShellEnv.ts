@@ -50,7 +50,7 @@ const resolveShellMaxTime = 8000; // 8s
 
 export const resolveShellEnvCached = memoize(resolveShellEnv);
 
-async function resolveShellEnv(shell: string): Promise<typeof process.env> {
+async function resolveShellEnv(shell: string): Promise<typeof process.env | undefined> {
   if (process.platform === 'win32') {
     logger.trace('skipped Windows platform');
     return;

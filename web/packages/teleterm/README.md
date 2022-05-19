@@ -102,7 +102,7 @@ $ rm -rf ./../webapps/packages/teleterm/src/services/tshd/v1/ && cp -R lib/telet
                                           |                 |
                                           +------+-+--------+
                                                  ^ ^           External Network
-+------------------------------------------------|-|---------------------+
++------------------------------------------------|-|--------------------------------------------------------------+
                                                  | |           Host OS
            Clients (psql)                        | |
               |                                  | |
@@ -119,21 +119,21 @@ $ rm -rf ./../webapps/packages/teleterm/src/services/tshd/v1/ && cp -R lib/telet
   +---------------+   | tls/tcp on localhost     | |
   |    local      |   |                          | |
   | user profile  |   |                          v v
-  |   (files)     |   |                   +------+-+-------------------+
-  +-------^-------+   |                   |                            |
-          ^           +-------------------+         tsh daemon         |
-          |                               |          (golang)          |
-          +<------------------------------+                            |
-                                          +-------------+--------------+
- +--------+-----------------+                           ^
- |         Terminal         |                           |
- |    Electron Main Process |                           |    GRPC API
- +-----------+--------------+                           | (domain socket)
-             ^                                          |
-             |                                          |
-    IPC      |                                          |
- named pipes |                                          |
-             v  Terminal UI (Electron Renderer Process) |
+  |   (files)     |   |                   +------+-+-------------------+        +-------------------------------+
+  +-------^-------+   |                   |                            |        |                               |
+          ^           +-------------------+         tsh daemon         |        |    Electron Shared Process    |
+          |                               |          (golang)          |        |            (PTY)              |
+          +<------------------------------+                            |        |                               |
+                                          +-------------+--------------+        +-------------------------------+
+ +--------+-----------------+                           ^                                       ^
+ |         Terminal         |                           |                                       |
+ |    Electron Main Process |                           |    GRPC API                           |   GRPC API   
+ +-----------+--------------+                           | (domain socket)                       |   (domain socket)
+             ^                                          |                                       |
+             |                                          |                                       |  
+    IPC      |                                          |        +------------------------------+ 
+ named pipes |                                          |        |                              
+             v  Terminal UI (Electron Renderer Process) |        |                              
  +-----------+------------+---------------------------------------------+
  | -gateways              | root@node1 × | k8s_c  × | rdp_win2 ×  |     |
  |   https://localhost:22 +---------------------------------------------+
@@ -151,4 +151,6 @@ $ rm -rf ./../webapps/packages/teleterm/src/services/tshd/v1/ && cp -R lib/telet
  |  +cluster3             |                                             |
  +------------------------+---------------------------------------------+
 ```
+### PTY communication overview (Renderer Process <=> Shared Process)
+![PTY communication](docs/ptyCommunication.png)
 

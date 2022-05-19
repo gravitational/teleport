@@ -19,7 +19,7 @@ const isInsecure = dev || argv.includes('--insecure');
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
   const binDir = getBinDir();
-  const tshNetworkAddr = getTshNetworkAddr();
+  const tshNetworkAddr = getTshNetworkAddress();
   const tshd = {
     insecure: isInsecure,
     binaryPath: getTshBinaryPath(),
@@ -27,6 +27,9 @@ function getRuntimeSettings(): RuntimeSettings {
     networkAddr: tshNetworkAddr,
     flags: ['daemon', 'start', `--addr=${tshNetworkAddr}`],
   };
+  const sharedProcess = {
+    networkAddr: getSharedProcessNetworkAddress()
+  }
 
   if (isInsecure) {
     tshd.flags.unshift('--debug');
@@ -36,6 +39,7 @@ function getRuntimeSettings(): RuntimeSettings {
   return {
     dev,
     tshd,
+    sharedProcess,
     userDataDir,
     binDir,
     defaultShell: getDefaultShell(),
@@ -43,15 +47,23 @@ function getRuntimeSettings(): RuntimeSettings {
   };
 }
 
-function getTshNetworkAddr() {
-  const unixSocketPath = path.resolve(app.getPath('userData'), 'tsh.socket');
+function getTshNetworkAddress() {
+  return getUnixSocketNetworkAddress('tsh.socket');
+}
+
+function getSharedProcessNetworkAddress() {
+  return getUnixSocketNetworkAddress('shared.socket');
+}
+
+function getUnixSocketNetworkAddress(socketName: string) {
+  const unixSocketPath = path.resolve(app.getPath('userData'), socketName);
 
   // try to cleanup after previous process that unexpectedly crashed
   if (fs.existsSync(unixSocketPath)) {
     fs.unlinkSync(unixSocketPath);
   }
 
-  return `unix://${path.resolve(app.getPath('userData'), 'tsh.socket')}`;
+  return `unix://${path.resolve(app.getPath('userData'), socketName)}`;
 }
 
 function getTshHomeDir() {

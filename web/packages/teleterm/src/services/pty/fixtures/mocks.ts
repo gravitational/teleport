@@ -1,6 +1,7 @@
-import { PtyProcess, PtyServiceClient } from './../types';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { PtyServiceClient } from 'teleterm/services/pty';
 
-export class MockPtyProcess implements PtyProcess {
+export class MockPtyProcess implements IPtyProcess {
   start() {}
 
   write() {}
@@ -19,11 +20,13 @@ export class MockPtyProcess implements PtyProcess {
     return 0;
   }
 
-  getCwd = async () => '';
+  async getCwd() {
+    return '';
+  }
 }
 
 export class MockPtyServiceClient implements PtyServiceClient {
-  createPtyProcess(): Promise<PtyProcess> {
+  createPtyProcess(): Promise<IPtyProcess> {
     return Promise.resolve(new MockPtyProcess());
   }
 }
