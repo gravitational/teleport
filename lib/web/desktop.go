@@ -193,6 +193,7 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr string) (*cl
 	if err := cfg.ParseProxyHost(addr); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cfg.HostLogin = sessCtx.user
 	tc, err := client.NewClient(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
