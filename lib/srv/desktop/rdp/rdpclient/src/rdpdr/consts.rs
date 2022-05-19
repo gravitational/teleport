@@ -114,6 +114,7 @@ pub enum NTSTATUS {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
 #[derive(FromPrimitive, Debug, PartialEq)]
 #[repr(u32)]
+#[allow(clippy::enum_variant_names)]
 pub enum FsInformationClassLevel {
     FileAccessInformation = 8,
     FileAlignmentInformation = 17,
