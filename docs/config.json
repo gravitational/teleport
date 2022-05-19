@@ -28,14 +28,38 @@
           "title": "Admin Guides",
           "slug": "/setup/admin/",
           "entries": [
-            { "title": "Github SSO", "slug": "/setup/admin/github-sso/" },
-            { "title": "Adding Nodes", "slug": "/setup/admin/adding-nodes/" },
-            { "title": "Trusted Clusters", "slug": "/setup/admin/trustedclusters/" },
-            { "title": "Labels", "slug": "/setup/admin/labels/" },
-            { "title": "Local Users", "slug": "/setup/admin/users/" },
-            { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
-            { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
-            { "title": "Daemon", "slug": "/setup/admin/daemon/" }
+            {
+              "title": "Github SSO",
+              "slug": "/setup/admin/github-sso/"
+            },
+            {
+              "title": "Adding Nodes",
+              "slug": "/setup/admin/adding-nodes/"
+            },
+            {
+              "title": "Trusted Clusters",
+              "slug": "/setup/admin/trustedclusters/"
+            },
+            {
+              "title": "Labels",
+              "slug": "/setup/admin/labels/"
+            },
+            {
+              "title": "Local Users",
+              "slug": "/setup/admin/users/"
+            },
+            {
+              "title": "Troubleshooting",
+              "slug": "/setup/admin/troubleshooting/"
+            },
+            {
+              "title": "Upgrading the Teleport Binary",
+              "slug": "/setup/admin/graceful-restarts/"
+            },
+            {
+              "title": "Run Teleport as a Daemon",
+              "slug": "/setup/admin/daemon/"
+            }
           ]
         },
         {
@@ -51,11 +75,26 @@
           "title": "Operations",
           "slug": "/setup/operations/",
           "entries": [
-            { "title": "Scaling", "slug": "/setup/operations/scaling/" },
-            { "title": "Upgrading", "slug": "/setup/operations/upgrading/" },
-            { "title": "Backup and Restore", "slug": "/setup/operations/backup-restore/" },
-            { "title": "Cert Authority Rotation", "slug": "/setup/operations/ca-rotation/" },
-            { "title": "TLS Routing Migration", "slug": "/setup/operations/tls-routing/" }
+            {
+              "title": "Scaling",
+              "slug": "/setup/operations/scaling/"
+            },
+            {
+              "title": "Upgrading a Cluster",
+              "slug": "/setup/operations/upgrading/"
+            },
+            {
+              "title": "Backup and Restore",
+              "slug": "/setup/operations/backup-restore/"
+            },
+            {
+              "title": "Cert Authority Rotation",
+              "slug": "/setup/operations/ca-rotation/"
+            },
+            {
+              "title": "TLS Routing Migration",
+              "slug": "/setup/operations/tls-routing/"
+            }
           ]
         },
         {
@@ -80,16 +119,46 @@
           "title": "Reference",
           "slug": "/setup/reference/",
           "entries": [
-            { "title": "Config File", "slug": "/setup/reference/config/" },
-            { "title": "Config Resources", "slug": "/setup/reference/resources/" },
-            { "title": "Command Line", "slug": "/setup/reference/cli/" },
-            { "title": "Metrics", "slug": "/setup/reference/metrics/" },
-            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" },
-            { "title": "Audit Events and Records", "slug": "/setup/reference/audit/" },
-            { "title": "Authentication", "slug": "/setup/reference/authentication/" },
-            { "title": "Storage Backends", "slug": "/setup/reference/backends/" },
-            { "title": "Networking", "slug": "/setup/reference/networking/" },
-            { "title": "Enterprise License File", "slug": "/setup/reference/license/" }
+            {
+              "title": "Config File",
+              "slug": "/setup/reference/config/"
+            },
+            {
+              "title": "Config Resources",
+              "slug": "/setup/reference/resources/"
+            },
+            {
+              "title": "Command Line",
+              "slug": "/setup/reference/cli/"
+            },
+            {
+              "title": "Metrics",
+              "slug": "/setup/reference/metrics/"
+            },
+            {
+              "title": "Terraform Resources",
+              "slug": "/setup/reference/terraform-provider/"
+            },
+            {
+              "title": "Audit Events and Records",
+              "slug": "/setup/reference/audit/"
+            },
+            {
+              "title": "Authentication",
+              "slug": "/setup/reference/authentication/"
+            },
+            {
+              "title": "Storage Backends",
+              "slug": "/setup/reference/backends/"
+            },
+            {
+              "title": "Networking",
+              "slug": "/setup/reference/networking/"
+            },
+            {
+              "title": "Signals",
+              "slug": "/setup/reference/signals/"
+            }
           ]
         }
       ]
