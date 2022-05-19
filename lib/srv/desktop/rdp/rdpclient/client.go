@@ -374,7 +374,7 @@ func (c *Client) start() {
 					driveName := C.CString(m.Name)
 					defer C.free(unsafe.Pointer(driveName))
 					if err := C.handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
-						directory_id: C.uint32_t(m.DirectoryId),
+						directory_id: C.uint32_t(m.DirectoryID),
 						name:         driveName,
 					}); err != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("Device announce failed: %v", err)
@@ -450,7 +450,7 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge) C.CGOErrCode {
 	return cgo.Handle(handle).Value().(*Client).sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
 		Err:         uint32(ack.err),
-		DirectoryId: uint32(ack.directory_id),
+		DirectoryID: uint32(ack.directory_id),
 	})
 }
 

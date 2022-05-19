@@ -111,6 +111,8 @@ func decode(in peekReader) (Message, error) {
 		return DecodeMFA(in)
 	case TypeSharedDirectoryAnnounce:
 		return decodeSharedDirectoryAnnounce(in)
+	case TypeSharedDirectoryAcknowledge:
+		return decodeSharedDirectoryAcknowledge(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -624,12 +626,12 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 	if t != byte(TypeSharedDirectoryAnnounce) {
 		return SharedDirectoryAnnounce{}, trace.BadParameter("got message type %v, expected SharedDirectoryAnnounce(%v)", t, TypeSharedDirectoryAnnounce)
 	}
-	var completionId, DirectoryID uint32
-	err = binary.Read(in, binary.BigEndian, &completionId)
+	var completionID, directoryID uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
-	err = binary.Read(in, binary.BigEndian, &DirectoryID)
+	err = binary.Read(in, binary.BigEndian, &directoryID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
@@ -639,7 +641,7 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 	}
 
 	return SharedDirectoryAnnounce{
-		DirectoryID: DirectoryID,
+		DirectoryID: directoryID,
 		Name:        name,
 	}, nil
 }
