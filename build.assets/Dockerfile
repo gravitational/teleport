@@ -147,7 +147,7 @@ RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0
      rm -r golangci-lint*)
 
 # Install helm.
-RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.9.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
      rm -r helm-tarball*)
 RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
