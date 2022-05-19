@@ -355,19 +355,17 @@ impl Client {
                                     0,
                                 );
                             }
-                        } else {
-                            if rdp_req
-                                .create_options
-                                .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
-                            {
-                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
-                                // ERROR_DIRECTORY --> STATUS_NOT_A_DIRECTORY: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L118
-                                return cli.prep_device_create_response(
-                                    &rdp_req,
-                                    NTSTATUS::STATUS_NOT_A_DIRECTORY,
-                                    0,
-                                );
-                            }
+                        } else if rdp_req
+                            .create_options
+                            .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
+                        {
+                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
+                            // ERROR_DIRECTORY --> STATUS_NOT_A_DIRECTORY: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L118
+                            return cli.prep_device_create_response(
+                                &rdp_req,
+                                NTSTATUS::STATUS_NOT_A_DIRECTORY,
+                                0,
+                            );
                         }
                     } else if res.err_code == TdpErrCode::DNE {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
@@ -495,9 +493,9 @@ impl Client {
         let rdp_req = ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
         if let Some(file) = self.get_file_by_id(rdp_req.device_io_request.file_id) {
-            return self.prep_query_info_response(&rdp_req, Some(file), NTSTATUS::STATUS_SUCCESS);
+            self.prep_query_info_response(&rdp_req, Some(file), NTSTATUS::STATUS_SUCCESS)
         } else {
-            return self.prep_query_info_response(&rdp_req, None, NTSTATUS::STATUS_UNSUCCESSFUL);
+            self.prep_query_info_response(&rdp_req, None, NTSTATUS::STATUS_UNSUCCESSFUL)
         }
     }
 
@@ -508,12 +506,12 @@ impl Client {
         // Remove the file from our cache
         if let Some(file) = self.remove_file_by_id(rdp_req.device_io_request.file_id) {
             if file.delete_pending {
-                return self.tdp_sd_delete(rdp_req, file);
+                self.tdp_sd_delete(rdp_req, file)
             } else {
-                return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
+                self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS)
             }
         } else {
-            return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+            self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
         }
     }
 
@@ -702,7 +700,7 @@ impl Client {
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
                     if res.err_code == TdpErrCode::Nil {
-                        return cli.tdp_sd_create(rdp_req, FileType::File, fso);
+                        cli.tdp_sd_create(rdp_req, FileType::File, fso)
                     } else {
                         cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, 0)
                     }
@@ -720,7 +718,7 @@ impl Client {
         let tdp_req = SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
-            path: file.path.clone(),
+            path: file.path,
         };
         debug!("sending TDP: {:?}", tdp_req);
         (self.tdp_sd_delete_request)(tdp_req)?;
@@ -729,7 +727,7 @@ impl Client {
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
                     if res.err_code == TdpErrCode::Nil {
-                        return cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
+                        cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS)
                     } else {
                         cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
                     }
