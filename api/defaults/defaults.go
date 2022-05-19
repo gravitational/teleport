@@ -48,6 +48,9 @@ const (
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
 	ServerAnnounceTTL = 600 * time.Second
+
+	// SessionTrackerTTL defines the default base ttl of a session tracker.
+	SessionTrackerTTL = time.Hour
 )
 
 var (
