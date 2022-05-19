@@ -568,12 +568,14 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// For remote clusters, everything will be remapped to new roles on the
 	// leaf and checked there.
 	if !isRemoteCluster {
-		var err error
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
-		kubeGroups, kubeUsers, kubeLabels, err = f.getKubeGroupsUsersAndLabels(roles, kubeCluster, sessionTTL)
+		kubeAccessDetails, err := f.getKubeAccessDetails(roles, kubeCluster, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		kubeUsers = kubeAccessDetails.kubeUsers
+		kubeGroups = kubeAccessDetails.kubeGroups
+		kubeLabels = kubeAccessDetails.clusterLabels
 	}
 
 	// By default, if no kubernetes_users is set (which will be a majority),
@@ -682,14 +684,24 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	return authCtx, nil
 }
 
-// getKubeGroupsUsersAndLabels returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
-func (f *Forwarder) getKubeGroupsUsersAndLabels(
+// kubeAccessDetails holds the allowed kube groups/users names and the cluster labels for a local kube cluster.
+type kubeAccessDetails struct {
+	// list of allowed kube users
+	kubeUsers []string
+	// list of allowed kube groups
+	kubeGroups []string
+	// kube cluster labels
+	clusterLabels map[string]string
+}
+
+// getKubeAccessDetails returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
+func (f *Forwarder) getKubeAccessDetails(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (groups, users []string, labels map[string]string, err error) {
+	sessionTTL time.Duration) (kubeAccessDetails, error) {
 	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return kubeAccessDetails{}, trace.Wrap(err)
 	}
 
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
@@ -702,15 +714,23 @@ func (f *Forwarder) getKubeGroupsUsersAndLabels(
 			// Get list of allowed kube user/groups based on kubernetes service labels.
 			labels := types.CombineLabels(c.StaticLabels, c.DynamicLabels)
 			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
-			groups, users, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
+			groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
 			if err != nil {
-				return nil, nil, nil, trace.Wrap(err)
+				return kubeAccessDetails{}, trace.Wrap(err)
 			}
-			return groups, users, labels, nil
+			return kubeAccessDetails{
+				kubeGroups:    groups,
+				kubeUsers:     users,
+				clusterLabels: labels,
+			}, nil
 		}
 	}
 	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
-	return []string{}, []string{}, nil, nil
+	return kubeAccessDetails{
+		kubeGroups:    []string{},
+		kubeUsers:     []string{},
+		clusterLabels: map[string]string{},
+	}, nil
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
