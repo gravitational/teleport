@@ -209,6 +209,9 @@ type Config struct {
 
 	// NodeWatcher is a node watcher.
 	NodeWatcher *services.NodeWatcher
+
+	// CertAuthorityWatcher is a cert authority watcher.
+	CertAuthorityWatcher *services.CertAuthorityWatcher
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -262,6 +265,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.NodeWatcher == nil {
 		return trace.BadParameter("missing parameter NodeWatcher")
+	}
+	if cfg.CertAuthorityWatcher == nil {
+		return trace.BadParameter("missing parameter CertAuthorityWatcher")
 	}
 	return nil
 }
@@ -1044,6 +1050,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	connInfo.SetExpiry(srv.Clock.Now().Add(srv.offlineThreshold))
 
 	closeContext, cancel := context.WithCancel(srv.ctx)
+	defer func() {
+		if err != nil {
+			cancel()
+		}
+	}()
 	remoteSite := &remoteSite{
 		srv:        srv,
 		domainName: domainName,
@@ -1067,20 +1078,17 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 
 	clt, _, err := remoteSite.getRemoteClient()
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteClient = clt
 
 	remoteVersion, err := getRemoteAuthVersion(closeContext, sconn)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	accessPoint, err := createRemoteAccessPoint(srv, clt, remoteVersion, domainName)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteAccessPoint = accessPoint
@@ -1092,7 +1100,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		},
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.nodeWatcher = nodeWatcher
@@ -1102,7 +1109,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// is signed by the correct certificate authority.
 	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.certificateCache = certificateCache
@@ -1115,11 +1121,25 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 
-	go remoteSite.updateCertAuthorities(caRetry, remoteVersion)
+	remoteWatcher, err := services.NewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       srv.log,
+			Clock:     srv.Clock,
+			Client:    remoteSite.remoteAccessPoint,
+		},
+		Types: []types.CertAuthType{types.HostCA},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go func() {
+		remoteSite.updateCertAuthorities(caRetry, remoteWatcher, remoteVersion)
+	}()
 
 	lockRetry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(srv.Config.PollingPeriod),
@@ -1129,7 +1149,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 

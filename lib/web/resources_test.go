@@ -115,6 +115,7 @@ spec:
   options:
     cert_format: standard
     desktop_clipboard: true
+    desktop_directory_sharing: true
     enhanced_recording:
     - command
     - network

@@ -31,8 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/siddontang/go-mysql/mysql"
-	"github.com/siddontang/go-mysql/server"
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/server"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -212,7 +212,7 @@ func (p *Proxy) maybeReadProxyLine(conn *multiplexer.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if proto != multiplexer.ProtoProxy {
+	if proto != multiplexer.ProtoProxy && proto != multiplexer.ProtoProxyV2 {
 		return nil
 	}
 	proxyLine, err := conn.ReadProxyLine()

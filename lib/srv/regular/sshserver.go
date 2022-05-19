@@ -1449,6 +1449,13 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 				log.Warn(err)
 			}
 			return nil
+		case sshutils.PuTTYSimpleRequest:
+			// PuTTY automatically requests a named 'simple@putty.projects.tartarus.org' channel any time it connects to a server
+			// as a proxy to indicate that it's in "simple" node and won't be requesting any other channels.
+			// As we don't support this request, we ignore it.
+			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
+			log.Debugf("%v: deliberately ignoring request for '%v' channel", s.Component(), sshutils.PuTTYSimpleRequest)
+			return nil
 		default:
 			return trace.BadParameter(
 				"(%v) proxy doesn't support request type '%v'", s.Component(), req.Type)

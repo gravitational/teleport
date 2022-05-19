@@ -1663,6 +1663,15 @@ message RoleOptions {
     // Kubernetes sessions a user may hold.
     int64 MaxKubernetesConnections = 18
         [ (gogoproto.jsontag) = "max_kubernetes_connections,omitempty" ];
+
+    // DesktopDirectorySharing indicates whether directory sharing is allowed between the user's
+    // workstation and the remote desktop. It defaults to false unless explicitly set to
+    // true.
+    BoolValue DesktopDirectorySharing = 19 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop_directory_sharing",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 message RecordSession {
@@ -2759,40 +2768,77 @@ message SSODiagnosticInfo {
     // CreateUserParams represents the user creation parameters as called during SSO login flow.
     CreateUserParams CreateUserParams = 4 [ (gogoproto.jsontag) = "create_user_params,omitempty" ];
 
-    // SAMLAttributesToRoles represents mapping from attributes to roles, as used during SAML login
-    // flow.
-    repeated AttributeMapping SAMLAttributesToRoles = 5
-        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "attributes_to_roles,omitempty" ];
+    // SAMLAttributesToRoles represents mapping from attributes to roles, as used during SAML SSO
+    // login flow.
+    repeated AttributeMapping SAMLAttributesToRoles = 10 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_attributes_to_roles,omitempty"
+    ];
 
     // SAMLAttributesToRolesWarnings contains warnings produced during the process of mapping the
     // SAML attributes to roles.
-    SSOWarnings SAMLAttributesToRolesWarnings = 6
+    SSOWarnings SAMLAttributesToRolesWarnings = 11
         [ (gogoproto.jsontag) = "saml_attributes_to_roles_warnings,omitempty" ];
 
     // SAMLAttributeStatements represents SAML attribute statements.
-    wrappers.LabelValues SAMLAttributeStatements = 7 [
+    wrappers.LabelValues SAMLAttributeStatements = 12 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "saml_attribute_statements,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 
     // SAMLAssertionInfo represents raw SAML assertion info as returned by IdP during SAML flow.
-    bytes SAMLAssertionInfo = 8 [
+    bytes SAMLAssertionInfo = 13 [
         (gogoproto.jsontag) = "saml_assertion_info,omitempty",
         (gogoproto.customtype) = "AssertionInfo"
     ];
 
     // SAMLTraitsFromAssertions represents traits translated from SAML assertions.
-    wrappers.LabelValues SAMLTraitsFromAssertions = 9 [
+    wrappers.LabelValues SAMLTraitsFromAssertions = 14 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "saml_traits_from_assertions,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 
     // SAMLConnectorTraitMapping represents connector-specific trait mapping.
-    repeated TraitMapping SAMLConnectorTraitMapping = 10 [
+    repeated TraitMapping SAMLConnectorTraitMapping = 15 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "saml_connector_trait_mapping,omitempty"
+    ];
+
+    // OIDCClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
+    repeated ClaimMapping OIDCClaimsToRoles = 20
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "oidc_claims_to_roles,omitempty" ];
+
+    // OIDCClaimsToRolesWarnings contains warnings produced during the process of mapping the
+    // OIDC claims to roles.
+    SSOWarnings OIDCClaimsToRolesWarnings = 21
+        [ (gogoproto.jsontag) = "oidc_claims_to_roles_warnings,omitempty" ];
+
+    // OIDCClaims represents OIDC claims.
+    bytes OIDCClaims = 22 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "oidc_claims,omitempty",
+        (gogoproto.customtype) = "OIDCClaims"
+    ];
+
+    // OIDCIdentity represents mapped OIDC Identity.
+    bytes OIDCIdentity = 23 [
+        (gogoproto.jsontag) = "oidc_identity,omitempty",
+        (gogoproto.customtype) = "OIDCIdentity"
+    ];
+
+    // OIDCTraitsFromClaims represents traits translated from OIDC claims.
+    wrappers.LabelValues OIDCTraitsFromClaims = 24 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "oidc_traits_from_claims,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // OIDCConnectorTraitMapping represents connector-specific trait mapping.
+    repeated TraitMapping OIDCConnectorTraitMapping = 25 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "oidc_connector_trait_mapping,omitempty"
     ];
 }
 
