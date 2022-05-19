@@ -45,7 +45,9 @@ certtool d tshdev0.cer
 
 ## One-time setup
 
-This section explains how the tshdev skeleton was built.
+This section explains how the tshdev skeleton was built. You don't have to go
+through the steps here unless you are trying to recreate parts of the skeleton
+(or trying to create a new skeleton).
 
 1. Create a provisioning profile on
    https://developer.apple.com/account/resources/profiles/list
