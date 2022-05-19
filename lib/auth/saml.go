@@ -202,17 +202,18 @@ func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAML
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		if len(warnings) != 0 {
-			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
+			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
 			diagCtx.info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message:  "No roles mapped for the user",
 				Warnings: warnings,
 			}
 		} else {
+			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
 			diagCtx.info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
-		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
+		return nil, trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
@@ -413,9 +414,6 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 		log.WithError(err).Warn("Failed to emit SAML login event.")
 	}
 
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return auth, nil
 }
 

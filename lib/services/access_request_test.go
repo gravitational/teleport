@@ -629,7 +629,7 @@ func TestAccessRequestMarshaling(t *testing.T) {
 	req2, err := UnmarshalAccessRequest(marshaled)
 	require.NoError(t, err)
 
-	require.True(t, cmp.Equal(req1, req2))
+	require.Equal(t, req1, req2)
 }
 
 // TestPluginDataExpectations verifies the correct behavior of the `Expect` mapping.
@@ -881,70 +881,76 @@ func TestRolesForSearchBasedRequest(t *testing.T) {
 		roles[name] = role
 	}
 
+	resourceIDs := []types.ResourceID{{
+		ClusterName: "one",
+		Kind:        "node",
+		Name:        "some-uuid",
+	}}
+
 	testCases := []struct {
 		desc                 string
 		currentRoles         []string
 		requestRoles         []string
-		requestResources     []string
+		requestResourceIDs   []types.ResourceID
 		expectError          error
 		expectRequestedRoles []string
 	}{
 		{
 			desc:                 "basic case",
 			currentRoles:         []string{"db-response-team"},
-			requestResources:     []string{"node:db-1"},
+			requestResourceIDs:   resourceIDs,
 			expectRequestedRoles: []string{"db-admins"},
 		},
 		{
-			desc:             "deny request without resources",
-			currentRoles:     []string{"db-response-team"},
-			requestRoles:     []string{"db-admins"},
-			requestResources: nil,
-			expectError:      trace.BadParameter(`user "test-user" can not request role "db-admins"`),
+			desc:               "deny request without resources",
+			currentRoles:       []string{"db-response-team"},
+			requestRoles:       []string{"db-admins"},
+			requestResourceIDs: nil,
+			expectError:        trace.BadParameter(`user "test-user" can not request role "db-admins"`),
 		},
 		{
-			desc:             "deny search",
-			currentRoles:     []string{"db-response-team", "deny-db-search"},
-			requestResources: []string{"node:db-1"},
-			expectError:      trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`),
+			desc:               "deny search",
+			currentRoles:       []string{"db-response-team", "deny-db-search"},
+			requestResourceIDs: resourceIDs,
+			expectError:        trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`),
 		},
 		{
-			desc:             "deny request",
-			currentRoles:     []string{"db-response-team", "deny-db-request"},
-			requestResources: []string{"node:db-1"},
-			expectError:      trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`),
+			desc:               "deny request",
+			currentRoles:       []string{"db-response-team", "deny-db-request"},
+			requestResourceIDs: resourceIDs,
+			expectError:        trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`),
 		},
 		{
 			desc:                 "multi allowed roles",
 			currentRoles:         []string{"db-response-team", "splunk-response-team"},
-			requestResources:     []string{"node:db-1"},
+			requestResourceIDs:   resourceIDs,
 			expectRequestedRoles: []string{"db-admins", "splunk-admins", "splunk-super-admins"},
 		},
 		{
 			desc:                 "multi allowed roles with denial",
 			currentRoles:         []string{"db-response-team", "splunk-response-team", "deny-db-search"},
-			requestResources:     []string{"node:db-1"},
+			requestResourceIDs:   resourceIDs,
 			expectRequestedRoles: []string{"splunk-admins", "splunk-super-admins"},
 		},
 		{
 			desc:                 "explicit roles request",
 			currentRoles:         []string{"db-response-team", "splunk-response-team"},
-			requestResources:     []string{"node:db-1"},
+			requestResourceIDs:   resourceIDs,
 			requestRoles:         []string{"splunk-admins"},
 			expectRequestedRoles: []string{"splunk-admins"},
 		},
 		{
-			desc:             "invalid explicit roles request",
-			currentRoles:     []string{"db-response-team"},
-			requestResources: []string{"node:db-1"},
-			requestRoles:     []string{"splunk-admins"},
-			expectError:      trace.BadParameter(`user "test-user" can not request role "splunk-admins"`),
+			desc:               "invalid explicit roles request",
+			currentRoles:       []string{"db-response-team"},
+			requestResourceIDs: resourceIDs,
+			requestRoles:       []string{"splunk-admins"},
+			expectError:        trace.BadParameter(`user "test-user" can not request role "splunk-admins"`),
 		},
 		{
-			desc:             "no allowed roles",
-			currentRoles:     nil,
-			requestResources: []string{"node:db-1"},
-			expectError:      trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`),
+			desc:               "no allowed roles",
+			currentRoles:       nil,
+			requestResourceIDs: resourceIDs,
+			expectError:        trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`),
 		},
 	}
 	for _, tc := range testCases {
@@ -965,7 +971,7 @@ func TestRolesForSearchBasedRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			req, err := types.NewAccessRequestWithResources(
-				"some-id", user.GetName(), tc.requestRoles, tc.requestResources)
+				"some-id", user.GetName(), tc.requestRoles, tc.requestResourceIDs)
 			require.NoError(t, err)
 
 			err = validator.Validate(req)

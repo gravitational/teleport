@@ -863,6 +863,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
 	c.MongoProxyAddr = cp.MongoProxyAddr
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
+	c.KeysDir = profileDir
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
