@@ -83,6 +83,11 @@ const (
 	watchCmd      = "watch"
 )
 
+const (
+	// aclWhoami is a subcommand of "acl" that requires special handling.
+	aclWhoami = "whoami"
+)
+
 // clusterClient is a wrapper around redis.ClusterClient
 type clusterClient struct {
 	redis.ClusterClient
@@ -176,11 +181,21 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	}
 
 	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
-	case multiCmd, execCmd, watchCmd, scanCmd, aclCmd, askingCmd, clientCmd, clusterCmd, configCmd, debugCmd,
+	case multiCmd, execCmd, watchCmd, scanCmd, askingCmd, clientCmd, clusterCmd, configCmd, debugCmd,
 		infoCmd, latencyCmd, memoryCmd, migrateCmd, moduleCmd, monitorCmd, pfdebugCmd, pfselftestCmd,
 		psyncCmd, readonlyCmd, readwriteCmd, replconfCmd, replicaofCmd, roleCmd, shutdownCmd, slaveofCmd,
 		slowlogCmd, syncCmd, timeCmd, waitCmd:
 		// block commands that return incorrect results in Cluster mode
+		return protocol.ErrCmdNotSupported
+	case aclCmd:
+		// allows "acl whoami" which is a very useful command that works fine
+		// in Cluster mode.
+		if len(cmd.Args()) == 2 {
+			if subcommand, ok := cmd.Args()[1].(string); ok && strings.ToLower(subcommand) == aclWhoami {
+				return c.ClusterClient.Process(ctx, cmd)
+			}
+		}
+		// block other "acl" commands.
 		return protocol.ErrCmdNotSupported
 	case dbsizeCmd:
 		// use go-redis dbsize implementation. It returns size of all keys in the whole cluster instead of
