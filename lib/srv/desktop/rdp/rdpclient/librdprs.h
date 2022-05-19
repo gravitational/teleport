@@ -39,11 +39,6 @@ typedef enum CGOErrCode {
   ErrCodeFailure = 1,
 } CGOErrCode;
 
-typedef enum CGOFileType {
-  FileTypeFile = 0,
-  FileTypeDirectory = 1,
-} CGOFileType;
-
 typedef enum CGOPointerButton {
   PointerButtonNone,
   PointerButtonLeft,
@@ -57,12 +52,29 @@ typedef enum CGOPointerWheel {
   PointerWheelHorizontal,
 } CGOPointerWheel;
 
-typedef enum CGOTdpErrCode {
-  TdpErrCodeNil = 0,
-  TdpErrCodeFailed = 1,
-  TdpErrCodeDNE = 2,
-  TdpErrCodeAlreadyExists = 3,
-} CGOTdpErrCode;
+typedef enum FileType {
+  File = 0,
+  Directory = 1,
+} FileType;
+
+typedef enum TdpErrCode {
+  /**
+   * nil (no error, operation succeeded)
+   */
+  Nil = 0,
+  /**
+   * operation failed
+   */
+  Failed = 1,
+  /**
+   * resource does not exist
+   */
+  DNE = 2,
+  /**
+   * resource already exists
+   */
+  AE = 3,
+} TdpErrCode;
 
 /**
  * Client has an unusual lifecycle:
@@ -90,19 +102,19 @@ typedef struct CGOSharedDirectoryAnnounce {
 typedef struct CGOFileSystemObject {
   uint64_t last_modified;
   uint64_t size;
-  enum CGOFileType file_type;
+  enum FileType file_type;
   const char *path;
 } CGOFileSystemObject;
 
 typedef struct CGOSharedDirectoryInfoResponse {
   uint32_t completion_id;
-  enum CGOTdpErrCode err_code;
+  enum TdpErrCode err_code;
   struct CGOFileSystemObject fso;
 } CGOSharedDirectoryInfoResponse;
 
 typedef struct SharedDirectoryCreateResponse {
   uint32_t completion_id;
-  enum CGOTdpErrCode err_code;
+  enum TdpErrCode err_code;
 } SharedDirectoryCreateResponse;
 
 typedef struct SharedDirectoryCreateResponse CGOSharedDirectoryCreateResponse;
@@ -149,7 +161,7 @@ typedef struct CGOBitmap {
 } CGOBitmap;
 
 typedef struct SharedDirectoryAcknowledge {
-  enum CGOTdpErrCode err_code;
+  enum TdpErrCode err_code;
   uint32_t directory_id;
 } SharedDirectoryAcknowledge;
 
@@ -164,7 +176,7 @@ typedef struct CGOSharedDirectoryInfoRequest {
 typedef struct CGOSharedDirectoryCreateRequest {
   uint32_t completion_id;
   uint32_t directory_id;
-  enum CGOFileType file_type;
+  enum FileType file_type;
   const char *path;
 } CGOSharedDirectoryCreateRequest;
 

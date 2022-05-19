@@ -22,9 +22,9 @@ use crate::errors::{
 use crate::util;
 use crate::vchan;
 use crate::{
-    CGOFileType, CGOTdpErrCode, FileSystemObject, Payload, SharedDirectoryAcknowledge,
-    SharedDirectoryCreateRequest, SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest,
-    SharedDirectoryDeleteResponse, SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
+    FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
+    SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
+    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, TdpErrCode,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -211,7 +211,7 @@ impl Client {
 
         if !self.active_device_ids.contains(&req.device_id) {
             let resp = SharedDirectoryAcknowledge {
-                err_code: CGOTdpErrCode::TdpErrCodeFailed,
+                err_code: TdpErrCode::Failed,
                 directory_id: req.device_id,
             };
             debug!("sending TDP: {:?}", resp);
@@ -222,7 +222,7 @@ impl Client {
             )))
         } else if req.result_code != NTSTATUS_OK {
             let resp = SharedDirectoryAcknowledge {
-                err_code: CGOTdpErrCode::TdpErrCodeFailed,
+                err_code: TdpErrCode::Failed,
                 directory_id: req.device_id,
             };
             debug!("sending TDP: {:?}", resp);
@@ -235,7 +235,7 @@ impl Client {
             debug!("ServerDeviceAnnounceResponse was valid");
             if req.device_id != self.get_scard_device_id()? {
                 let resp = SharedDirectoryAcknowledge {
-                    err_code: CGOTdpErrCode::TdpErrCodeNil,
+                    err_code: TdpErrCode::Nil,
                     directory_id: req.device_id,
                 };
                 debug!("sending TDP: {:?}", resp);
@@ -336,10 +336,10 @@ impl Client {
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<Vec<Vec<u8>>> {
                     let rdp_req = rdp_req;
-                    if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
+                    if res.err_code == TdpErrCode::Nil {
                         // The file exists
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L214
-                        if res.fso.file_type == CGOFileType::FileTypeDirectory {
+                        if res.fso.file_type == FileType::Directory {
                             if rdp_req.create_disposition == flags::CreateDisposition::FILE_CREATE {
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L221
                                 // ERROR_ALREADY_EXISTS --> STATUS_OBJECT_NAME_COLLISION: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L102
@@ -376,7 +376,7 @@ impl Client {
                                 );
                             }
                         }
-                    } else if res.err_code == CGOTdpErrCode::TdpErrCodeDNE {
+                    } else if res.err_code == TdpErrCode::DNE {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
                         if rdp_req
                             .create_options
@@ -387,11 +387,7 @@ impl Client {
                                     | flags::CreateDisposition::FILE_CREATE,
                             ) {
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
-                                return cli.tdp_sd_create(
-                                    rdp_req,
-                                    CGOFileType::FileTypeDirectory,
-                                    res.fso,
-                                );
+                                return cli.tdp_sd_create(rdp_req, FileType::Directory, res.fso);
                             } else {
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
                                 // ERROR_FILE_NOT_FOUND --> STATUS_NO_SUCH_FILE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L85
@@ -423,7 +419,7 @@ impl Client {
                         // If the file already exists, replace it with the given file. If it does not, create the given file.
                     } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OPEN {
                         // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
-                        if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
+                        if res.err_code == TdpErrCode::Nil {
                             let file_id = cli.generate_file_id();
                             cli.file_cache.insert(
                                 file_id,
@@ -443,18 +439,18 @@ impl Client {
                         }
                     } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_CREATE {
                         // If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
-                        if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
+                        if res.err_code == TdpErrCode::Nil {
                             return cli.prep_device_create_response(
                                 &rdp_req,
                                 NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
                                 0,
                             );
                         } else {
-                            return cli.tdp_sd_create(rdp_req, CGOFileType::FileTypeFile, res.fso);
+                            return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
                         }
                     } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OPEN_IF {
                         // If the file already exists, open it. If it does not, create the given file.
-                        if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
+                        if res.err_code == TdpErrCode::Nil {
                             let file_id = cli.generate_file_id();
                             cli.file_cache.insert(
                                 file_id,
@@ -466,12 +462,12 @@ impl Client {
                                 file_id,
                             );
                         } else {
-                            return cli.tdp_sd_create(rdp_req, CGOFileType::FileTypeFile, res.fso);
+                            return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
                         }
                     } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OVERWRITE
                     {
                         // If the file already exists, open it and overwrite it. If it does not, fail the request.
-                        if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
+                        if res.err_code == TdpErrCode::Nil {
                             return cli.tdp_sd_overwrite(rdp_req, res.fso);
                         } else {
                             return cli.prep_device_create_response(
@@ -484,10 +480,10 @@ impl Client {
                         == flags::CreateDisposition::FILE_OVERWRITE_IF
                     {
                         // If the file already exists, open it and overwrite it. If it does not, create the given file.
-                        if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
+                        if res.err_code == TdpErrCode::Nil {
                             return cli.tdp_sd_overwrite(rdp_req, res.fso);
                         } else {
-                            return cli.tdp_sd_create(rdp_req, CGOFileType::FileTypeFile, res.fso);
+                            return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
                         }
                     }
                     Ok(vec![])
@@ -661,7 +657,7 @@ impl Client {
     fn tdp_sd_create(
         &mut self,
         rdp_req: DeviceCreateRequest,
-        file_type: CGOFileType,
+        file_type: FileType,
         fso: FileSystemObject,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let tdp_req = SharedDirectoryCreateRequest {
@@ -679,7 +675,7 @@ impl Client {
                 move |cli: &mut Self,
                       res: SharedDirectoryCreateResponse|
                       -> RdpResult<Vec<Vec<u8>>> {
-                    if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
+                    if res.err_code == TdpErrCode::Nil {
                         let file_id = cli.generate_file_id();
                         cli.file_cache
                             .insert(file_id, FileCacheObject::new(rdp_req.path.clone(), fso));
@@ -720,8 +716,8 @@ impl Client {
             rdp_req.device_io_request.completion_id,
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
-                    if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
-                        return cli.tdp_sd_create(rdp_req, CGOFileType::FileTypeFile, fso);
+                    if res.err_code == TdpErrCode::Nil {
+                        return cli.tdp_sd_create(rdp_req, FileType::File, fso);
                     } else {
                         return cli.prep_device_create_response(
                             &rdp_req,
@@ -751,7 +747,7 @@ impl Client {
             rdp_req.device_io_request.completion_id,
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
-                    if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
+                    if res.err_code == TdpErrCode::Nil {
                         return cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
                     } else {
                         return cli
@@ -1798,7 +1794,7 @@ impl ClientDriveQueryInformationResponse {
                             last_access_time: to_windows_time(file.fso.last_modified),
                             last_write_time: to_windows_time(file.fso.last_modified),
                             change_time: to_windows_time(file.fso.last_modified),
-                            file_attributes: if file.fso.file_type == CGOFileType::FileTypeFile {
+                            file_attributes: if file.fso.file_type == FileType::File {
                                 flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
                             } else {
                                 flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
@@ -1818,7 +1814,7 @@ impl ClientDriveQueryInformationResponse {
                             } else {
                                 Boolean::FALSE
                             },
-                            directory: if file.fso.file_type == CGOFileType::FileTypeFile {
+                            directory: if file.fso.file_type == FileType::File {
                                 Boolean::FALSE
                             } else {
                                 Boolean::TRUE
@@ -1830,7 +1826,7 @@ impl ClientDriveQueryInformationResponse {
                     Some(FILE_ATTRIBUTE_TAG_INFO_SIZE),
                     Some(FsInformationClass::FileAttributeTagInformation(
                         FileAttributeTagInformation {
-                            file_attributes: if file.fso.file_type == CGOFileType::FileTypeFile {
+                            file_attributes: if file.fso.file_type == FileType::File {
                                 flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
                             } else {
                                 flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
