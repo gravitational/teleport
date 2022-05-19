@@ -77,11 +77,11 @@
               "slug": "/setup/admin/troubleshooting/"
             },
             {
-              "title": "Graceful Restarts",
+              "title": "Upgrading the Teleport Binary",
               "slug": "/setup/admin/graceful-restarts/"
             },
             {
-              "title": "Daemon",
+              "title": "Run Teleport as a Daemon",
               "slug": "/setup/admin/daemon/"
             }
           ]
@@ -113,7 +113,7 @@
               "slug": "/setup/operations/scaling/"
             },
             {
-              "title": "Upgrading",
+              "title": "Upgrading a Cluster",
               "slug": "/setup/operations/upgrading/"
             },
             {
@@ -217,6 +217,10 @@
             {
               "title": "Predicate Language",
               "slug": "/setup/reference/predicate-language/"
+            },
+            {
+              "title": "Signals",
+              "slug": "/setup/reference/signals/"
             }
           ]
         }
@@ -1010,6 +1014,11 @@
       "permanent": true
     },
     {
+      "source": "/enterprise/ssh_sso/",
+      "destination": "/enterprise/sso/",
+      "permanent": true
+    },
+    {
       "source": "/enterprise/quickstart-enterprise/",
       "destination": "/enterprise/getting-started/",
       "permanent": true
@@ -1137,6 +1146,31 @@
     {
       "source": "/docs/setup/reference/license/",
       "destination": "/docs/enterprise/license/",
+      "permanent": true
+    },
+    {
+      "source": "/architecture/",
+      "destination": "/architecture/overview/",
+      "permanent": true
+    },
+    {
+      "source": "/intro/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/",
+      "destination": "/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/ansible/",
+      "destination": "/machine-id/guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/cluster/",
+      "destination": "/kubernetes-access/guides/multiple-clusters/",
       "permanent": true
     }
   ]

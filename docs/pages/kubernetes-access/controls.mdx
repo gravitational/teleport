@@ -234,9 +234,11 @@ metadata:
   name: group-member
 spec:
   allow:
-    # Allow access to kubernetes clusters in production environment
+    # Allow access to Kubernetes clusters in the production environment
     kubernetes_labels:
       'env': 'prod'
+    # Allows access to group "admins" in Kubernetes clusters
+    kubernetes_groups: ["admins"]
 ```
 
 ## Impersonation

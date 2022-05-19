@@ -195,6 +195,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/oidc/connectors/:id", srv.withAuth(srv.deleteOIDCConnector))
 	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest))
 	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
+	srv.GET("/:version/oidc/requests/get/:id", srv.withAuth(srv.getOIDCAuthRequest))
 
 	// SAML handlers
 	srv.POST("/:version/saml/connectors", srv.withAuth(srv.createSAMLConnector))
@@ -1243,6 +1244,14 @@ func (s *APIServer) createOIDCAuthRequest(auth ClientI, w http.ResponseWriter, r
 	return response, nil
 }
 
+func (s *APIServer) getOIDCAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	request, err := auth.GetOIDCAuthRequest(r.Context(), p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return request, nil
+}
+
 type validateOIDCAuthCallbackReq struct {
 	Query url.Values `json:"query"`
 }
@@ -1272,7 +1281,7 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.ValidateOIDCAuthCallback(req.Query)
+	response, err := auth.ValidateOIDCAuthCallback(r.Context(), req.Query)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

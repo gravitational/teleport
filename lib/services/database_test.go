@@ -24,12 +24,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/stretchr/testify/require"
@@ -484,6 +486,252 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err), "Expected trace.BadParameter, got %v", err)
 	})
+}
+
+func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
+	cluster := &elasticache.ReplicationGroup{
+		ARN:                      aws.String("arn:aws:elasticache:us-east-1:1234567890:replicationgroup:my-cluster"),
+		ReplicationGroupId:       aws.String("my-cluster"),
+		Status:                   aws.String("available"),
+		TransitEncryptionEnabled: aws.Bool(true),
+		ClusterEnabled:           aws.Bool(true),
+		ConfigurationEndpoint: &elasticache.Endpoint{
+			Address: aws.String("configuration.localhost"),
+			Port:    aws.Int64(6379),
+		},
+		UserGroupIds: []*string{aws.String("my-user-group")},
+		NodeGroups: []*elasticache.NodeGroup{
+			{
+				NodeGroupId: aws.String("0001"),
+				NodeGroupMembers: []*elasticache.NodeGroupMember{
+					{
+						CacheClusterId: aws.String("my-cluster-0001-001"),
+					},
+					{
+						CacheClusterId: aws.String("my-cluster-0001-002"),
+					},
+				},
+			},
+			{
+				NodeGroupId: aws.String("0002"),
+				NodeGroupMembers: []*elasticache.NodeGroupMember{
+					{
+						CacheClusterId: aws.String("my-cluster-0002-001"),
+					},
+					{
+						CacheClusterId: aws.String("my-cluster-0002-002"),
+					},
+				},
+			},
+		},
+	}
+	extraLabels := map[string]string{"key": "value"}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-cluster",
+		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginCloud,
+			labelAccountID:    "1234567890",
+			labelRegion:       "us-east-1",
+			labelEndpointType: "configuration",
+			"key":             "value",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "configuration.localhost:6379",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID:       "my-cluster",
+				UserGroupIDs:             []string{"my-user-group"},
+				TransitEncryptionEnabled: true,
+				EndpointType:             awsutils.ElastiCacheConfigurationEndpoint,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
+	cluster := &elasticache.ReplicationGroup{
+		ARN:                      aws.String("arn:aws:elasticache:us-east-1:1234567890:replicationgroup:my-cluster"),
+		ReplicationGroupId:       aws.String("my-cluster"),
+		Status:                   aws.String("available"),
+		TransitEncryptionEnabled: aws.Bool(true),
+		ClusterEnabled:           aws.Bool(false),
+		UserGroupIds:             []*string{aws.String("my-user-group")},
+		NodeGroups: []*elasticache.NodeGroup{
+			{
+				NodeGroupId: aws.String("0001"),
+				PrimaryEndpoint: &elasticache.Endpoint{
+					Address: aws.String("primary.localhost"),
+					Port:    aws.Int64(6379),
+				},
+				ReaderEndpoint: &elasticache.Endpoint{
+					Address: aws.String("reader.localhost"),
+					Port:    aws.Int64(6379),
+				},
+			},
+		},
+	}
+	extraLabels := map[string]string{"key": "value"}
+
+	expectedPrimary, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-cluster",
+		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginCloud,
+			labelAccountID:    "1234567890",
+			labelRegion:       "us-east-1",
+			labelEndpointType: "primary",
+			"key":             "value",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "primary.localhost:6379",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID:       "my-cluster",
+				UserGroupIDs:             []string{"my-user-group"},
+				TransitEncryptionEnabled: true,
+				EndpointType:             awsutils.ElastiCachePrimaryEndpoint,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	expectedReader, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-cluster-reader",
+		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginCloud,
+			labelAccountID:    "1234567890",
+			labelRegion:       "us-east-1",
+			labelEndpointType: "reader",
+			"key":             "value",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "reader.localhost:6379",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID:       "my-cluster",
+				UserGroupIDs:             []string{"my-user-group"},
+				TransitEncryptionEnabled: true,
+				EndpointType:             awsutils.ElastiCacheReaderEndpoint,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
+	require.NoError(t, err)
+	require.Equal(t, types.Databases{expectedPrimary, expectedReader}, actual)
+}
+
+func TestExtraElastiCacheLabels(t *testing.T) {
+	cluster := &elasticache.ReplicationGroup{
+		ReplicationGroupId: aws.String("my-redis"),
+	}
+	tags := []*elasticache.Tag{
+		{Key: aws.String("key1"), Value: aws.String("value1")},
+		{Key: aws.String("key2"), Value: aws.String("value2")},
+	}
+
+	nodes := []*elasticache.CacheCluster{
+		{
+			ReplicationGroupId:   aws.String("some-other-redis"),
+			EngineVersion:        aws.String("8.8.8"),
+			CacheSubnetGroupName: aws.String("some-other-subnet-group"),
+		},
+		{
+			ReplicationGroupId:   aws.String("my-redis"),
+			EngineVersion:        aws.String("6.6.6"),
+			CacheSubnetGroupName: aws.String("my-subnet-group"),
+		},
+	}
+
+	subnetGroups := []*elasticache.CacheSubnetGroup{
+		{
+			CacheSubnetGroupName: aws.String("some-other-subnet-group"),
+			VpcId:                aws.String("some-other-vpc"),
+		},
+		{
+			CacheSubnetGroupName: aws.String("my-subnet-group"),
+			VpcId:                aws.String("my-vpc"),
+		},
+	}
+
+	tests := []struct {
+		name              string
+		inputTags         []*elasticache.Tag
+		inputNodes        []*elasticache.CacheCluster
+		inputSubnetGroups []*elasticache.CacheSubnetGroup
+		expectLabels      map[string]string
+	}{
+		{
+			name:              "all tags",
+			inputTags:         tags,
+			inputNodes:        nodes,
+			inputSubnetGroups: subnetGroups,
+			expectLabels: map[string]string{
+				"key1":           "value1",
+				"key2":           "value2",
+				"engine-version": "6.6.6",
+				"vpc-id":         "my-vpc",
+			},
+		},
+		{
+			name:              "no resource tags",
+			inputTags:         nil,
+			inputNodes:        nodes,
+			inputSubnetGroups: subnetGroups,
+			expectLabels: map[string]string{
+				"engine-version": "6.6.6",
+				"vpc-id":         "my-vpc",
+			},
+		},
+		{
+			name:              "no nodes",
+			inputTags:         tags,
+			inputNodes:        nil,
+			inputSubnetGroups: subnetGroups,
+
+			// Without subnet group name from nodes, VPC ID cannot be found.
+			expectLabels: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+			},
+		},
+		{
+			name:              "no subnet groups",
+			inputTags:         tags,
+			inputNodes:        nodes,
+			inputSubnetGroups: nil,
+			expectLabels: map[string]string{
+				"key1":           "value1",
+				"key2":           "value2",
+				"engine-version": "6.6.6",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualLabels := ExtraElastiCacheLabels(cluster, test.inputTags, test.inputNodes, test.inputSubnetGroups)
+			require.Equal(t, test.expectLabels, actualLabels)
+		})
+	}
 }
 
 func TestGetLabelEngineVersion(t *testing.T) {
