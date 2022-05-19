@@ -981,7 +981,7 @@ func TestSessionHijack(t *testing.T) {
 	t.Parallel()
 	_, err := user.Lookup(teleportTestUser)
 	if err != nil {
-		t.Skip(fmt.Sprintf("user %v is not found, skipping test", teleportTestUser))
+		t.Skipf("user %v is not found, skipping test", teleportTestUser)
 	}
 
 	f := newFixture(t)
@@ -1126,6 +1126,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:                   f.testSrv.ClusterName(),
@@ -1143,6 +1144,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1252,6 +1254,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     proxyClient.TLSConfig(),
@@ -1269,6 +1272,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 
@@ -1850,6 +1854,143 @@ func TestX11ProxySupport(t *testing.T) {
 	require.Equal(t, string(msg), string(rsp))
 }
 
+// TestIgnorePuTTYSimpleChannel verifies that any request from the PuTTY SSH client for
+// its "simple" mode is ignored and connections remain open.
+func TestIgnorePuTTYSimpleChannel(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	ctx := context.Background()
+
+	listener, _ := mustListen(t)
+	logger := logrus.WithField("test", "TestIgnorePuTTYSimpleChannel")
+	proxyClient, _ := newProxyClient(t, f.testSrv)
+	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
+
+	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		ClientTLS:                     proxyClient.TLSConfig(),
+		ID:                            hostID,
+		ClusterName:                   f.testSrv.ClusterName(),
+		Listener:                      listener,
+		HostSigners:                   []ssh.Signer{f.signer},
+		LocalAuthClient:               proxyClient,
+		LocalAccessPoint:              proxyClient,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
+		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
+		DataDir:                       t.TempDir(),
+		Emitter:                       proxyClient,
+		Log:                           logger,
+		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, reverseTunnelServer.Start())
+	defer reverseTunnelServer.Close()
+
+	nodeClient, _ := newNodeClient(t, f.testSrv)
+
+	proxy, err := New(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		f.testSrv.ClusterName(),
+		[]ssh.Signer{f.signer},
+		proxyClient,
+		t.TempDir(),
+		"",
+		utils.NetAddr{},
+		proxyClient,
+		SetProxyMode(reverseTunnelServer, proxyClient),
+		SetSessionServer(proxyClient),
+		SetEmitter(nodeClient),
+		SetNamespace(apidefaults.Namespace),
+		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
+		SetRestrictedSessionManager(&restricted.NOP{}),
+		SetClock(f.clock),
+		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
+	)
+	require.NoError(t, err)
+	require.NoError(t, proxy.Start())
+	defer proxy.Close()
+
+	// set up SSH client using the user private key for signing
+	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
+	require.NoError(t, err)
+
+	sshConfig := &ssh.ClientConfig{
+		User:            f.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+	}
+
+	_, err = newUpack(f.testSrv, "user1", []string{f.user}, wildcardAllow)
+	require.NoError(t, err)
+
+	// Connect SSH client to proxy
+	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
+
+	require.NoError(t, err)
+	defer client.Close()
+
+	se, err := client.NewSession()
+	require.NoError(t, err)
+	defer se.Close()
+
+	writer, err := se.StdinPipe()
+	require.NoError(t, err)
+
+	reader, err := se.StdoutPipe()
+	require.NoError(t, err)
+
+	// Request the PuTTY-specific "simple@putty.projects.tartarus.org" channel type
+	// This request should be ignored, and the connection should remain open.
+	_, err = se.SendRequest(sshutils.PuTTYSimpleRequest, false, []byte{})
+	require.NoError(t, err)
+
+	// Request proxy subsystem routing TCP connection to the remote host
+	require.NoError(t, se.RequestSubsystem(fmt.Sprintf("proxy:%v", f.ssh.srvAddress)))
+
+	local, err := utils.ParseAddr("tcp://" + proxy.Addr())
+	require.NoError(t, err)
+	remote, err := utils.ParseAddr("tcp://" + f.ssh.srv.Addr())
+	require.NoError(t, err)
+
+	pipeNetConn := utils.NewPipeNetConn(
+		reader,
+		writer,
+		se,
+		local,
+		remote,
+	)
+
+	defer pipeNetConn.Close()
+
+	// Open SSH connection via proxy subsystem's TCP tunnel
+	conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
+		f.ssh.srv.Addr(), sshConfig)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Run commands over this connection like regular SSH
+	client2 := ssh.NewClient(conn, chans, reqs)
+	require.NoError(t, err)
+	defer client2.Close()
+
+	se2, err := client2.NewSession()
+	require.NoError(t, err)
+	defer se2.Close()
+
+	out, err := se2.Output("echo hello again")
+	require.NoError(t, err)
+
+	require.Equal(t, "hello again\n", string(out))
+}
+
 // upack holds all ssh signing artefacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
@@ -1961,6 +2102,19 @@ func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *ser
 	require.NoError(t, err)
 	t.Cleanup(nodeWatcher.Close)
 	return nodeWatcher
+}
+
+func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Events) *services.CertAuthorityWatcher {
+	caWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	t.Cleanup(caWatcher.Close)
+	return caWatcher
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating
