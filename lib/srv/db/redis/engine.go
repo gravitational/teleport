@@ -250,10 +250,6 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error 
 		// the session.
 		value, err := processServerResponse(cmd, err, sessionCtx)
 		if err != nil {
-			// Send server error to client before closing.
-			if sendError := e.sendToClient(err); sendError != nil {
-				return trace.NewAggregate(err, sendError)
-			}
 			return trace.Wrap(err)
 		}
 
