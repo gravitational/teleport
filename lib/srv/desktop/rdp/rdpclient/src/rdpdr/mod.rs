@@ -477,17 +477,9 @@ impl Client {
                     ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
                 debug!("got {:?}", rdp_req);
                 if let Some(file) = self.get_file_by_id(rdp_req.device_io_request.file_id) {
-                    return self.prep_query_info_response(
-                        &rdp_req,
-                        Some(file),
-                        NTSTATUS::STATUS_SUCCESS,
-                    );
+                    self.prep_query_info_response(&rdp_req, Some(file), NTSTATUS::STATUS_SUCCESS)
                 } else {
-                    return self.prep_query_info_response(
-                        &rdp_req,
-                        None,
-                        NTSTATUS::STATUS_UNSUCCESSFUL,
-                    );
+                    self.prep_query_info_response(&rdp_req, None, NTSTATUS::STATUS_UNSUCCESSFUL)
                 }
             }
             _ => Err(invalid_data_error(&format!(
@@ -595,7 +587,7 @@ impl Client {
         debug!("replying with: {:?}", resp);
         let resp = self
             .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
-        return Ok(resp);
+        Ok(resp)
     }
 
     fn prep_query_info_response(
