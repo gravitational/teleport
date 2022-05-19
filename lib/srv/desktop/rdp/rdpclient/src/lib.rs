@@ -1027,7 +1027,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
 pub struct FileSystemObject {
     last_modified: u64,
     size: u64,
-    file_type: u32, // TODO(isaiah): make an enum
+    file_type: CGOFileType,
     path: String,
 }
 
@@ -1035,7 +1035,7 @@ pub struct FileSystemObject {
 pub struct CGOFileSystemObject {
     pub last_modified: u64,
     pub size: u64,
-    pub file_type: u32, // TODO(isaiah): make an enum
+    pub file_type: CGOFileType,
     pub path: *const c_char,
 }
 
@@ -1054,6 +1054,13 @@ impl From<CGOFileSystemObject> for FileSystemObject {
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
+pub enum CGOFileType {
+    FileTypeFile = 0,
+    FileTypeDirectory = 1,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CGOTdpErrCode {
     TdpErrCodeNil = 0,
     TdpErrCodeFailed = 1,
@@ -1065,7 +1072,7 @@ pub enum CGOTdpErrCode {
 pub struct SharedDirectoryCreateRequest {
     completion_id: u32,
     directory_id: u32,
-    file_type: u32,
+    file_type: CGOFileType,
     path: String,
 }
 
@@ -1073,7 +1080,7 @@ pub struct SharedDirectoryCreateRequest {
 pub struct CGOSharedDirectoryCreateRequest {
     pub completion_id: u32,
     pub directory_id: u32,
-    pub file_type: u32,
+    pub file_type: CGOFileType,
     pub path: *const c_char,
 }
 

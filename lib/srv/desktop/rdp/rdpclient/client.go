@@ -391,7 +391,7 @@ func (c *Client) start() {
 						fso: C.CGOFileSystemObject{
 							last_modified: C.uint64_t(m.Fso.LastModified),
 							size:          C.uint64_t(m.Fso.Size),
-							file_type:     C.uint32_t(m.Fso.FileType),
+							file_type:     m.Fso.FileType,
 							path:          path,
 						},
 					}); errCode != C.ErrCodeSuccess {

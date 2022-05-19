@@ -22,7 +22,7 @@ use crate::errors::{
 use crate::util;
 use crate::vchan;
 use crate::{
-    CGOTdpErrCode, FileSystemObject, Payload, SharedDirectoryAcknowledge,
+    CGOFileType, CGOTdpErrCode, FileSystemObject, Payload, SharedDirectoryAcknowledge,
     SharedDirectoryCreateRequest, SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest,
     SharedDirectoryDeleteResponse, SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
 };
@@ -339,7 +339,7 @@ impl Client {
                     if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
                         // The file exists
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L214
-                        if res.fso.file_type == 1 {
+                        if res.fso.file_type == CGOFileType::FileTypeDirectory {
                             if rdp_req.create_disposition == flags::CreateDisposition::FILE_CREATE {
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L221
                                 // ERROR_ALREADY_EXISTS --> STATUS_OBJECT_NAME_COLLISION: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L102
@@ -387,7 +387,11 @@ impl Client {
                                     | flags::CreateDisposition::FILE_CREATE,
                             ) {
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
-                                return cli.tdp_sd_create(rdp_req, 1, res.fso);
+                                return cli.tdp_sd_create(
+                                    rdp_req,
+                                    CGOFileType::FileTypeDirectory,
+                                    res.fso,
+                                );
                             } else {
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
                                 // ERROR_FILE_NOT_FOUND --> STATUS_NO_SUCH_FILE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L85
@@ -446,7 +450,7 @@ impl Client {
                                 0,
                             );
                         } else {
-                            return cli.tdp_sd_create(rdp_req, 0, res.fso);
+                            return cli.tdp_sd_create(rdp_req, CGOFileType::FileTypeFile, res.fso);
                         }
                     } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OPEN_IF {
                         // If the file already exists, open it. If it does not, create the given file.
@@ -462,7 +466,7 @@ impl Client {
                                 file_id,
                             );
                         } else {
-                            return cli.tdp_sd_create(rdp_req, 0, res.fso);
+                            return cli.tdp_sd_create(rdp_req, CGOFileType::FileTypeFile, res.fso);
                         }
                     } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OVERWRITE
                     {
@@ -483,7 +487,7 @@ impl Client {
                         if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
                             return cli.tdp_sd_overwrite(rdp_req, res.fso);
                         } else {
-                            return cli.tdp_sd_create(rdp_req, 0, res.fso);
+                            return cli.tdp_sd_create(rdp_req, CGOFileType::FileTypeFile, res.fso);
                         }
                     }
                     Ok(vec![])
@@ -657,7 +661,7 @@ impl Client {
     fn tdp_sd_create(
         &mut self,
         rdp_req: DeviceCreateRequest,
-        file_type: u32,
+        file_type: CGOFileType,
         fso: FileSystemObject,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let tdp_req = SharedDirectoryCreateRequest {
@@ -717,7 +721,7 @@ impl Client {
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
                     if res.err_code == CGOTdpErrCode::TdpErrCodeNil {
-                        return cli.tdp_sd_create(rdp_req, 0, fso);
+                        return cli.tdp_sd_create(rdp_req, CGOFileType::FileTypeFile, fso);
                     } else {
                         return cli.prep_device_create_response(
                             &rdp_req,
@@ -1794,7 +1798,7 @@ impl ClientDriveQueryInformationResponse {
                             last_access_time: to_windows_time(file.fso.last_modified),
                             last_write_time: to_windows_time(file.fso.last_modified),
                             change_time: to_windows_time(file.fso.last_modified),
-                            file_attributes: if file.fso.file_type == 0 {
+                            file_attributes: if file.fso.file_type == CGOFileType::FileTypeFile {
                                 flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
                             } else {
                                 flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
@@ -1814,7 +1818,7 @@ impl ClientDriveQueryInformationResponse {
                             } else {
                                 Boolean::FALSE
                             },
-                            directory: if file.fso.file_type == 0 {
+                            directory: if file.fso.file_type == CGOFileType::FileTypeFile {
                                 Boolean::FALSE
                             } else {
                                 Boolean::TRUE
@@ -1826,7 +1830,7 @@ impl ClientDriveQueryInformationResponse {
                     Some(FILE_ATTRIBUTE_TAG_INFO_SIZE),
                     Some(FsInformationClass::FileAttributeTagInformation(
                         FileAttributeTagInformation {
-                            file_attributes: if file.fso.file_type == 0 {
+                            file_attributes: if file.fso.file_type == CGOFileType::FileTypeFile {
                                 flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
                             } else {
                                 flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY

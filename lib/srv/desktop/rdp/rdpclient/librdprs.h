@@ -39,6 +39,11 @@ typedef enum CGOErrCode {
   ErrCodeFailure = 1,
 } CGOErrCode;
 
+typedef enum CGOFileType {
+  FileTypeFile = 0,
+  FileTypeDirectory = 1,
+} CGOFileType;
+
 typedef enum CGOPointerButton {
   PointerButtonNone,
   PointerButtonLeft,
@@ -85,7 +90,7 @@ typedef struct CGOSharedDirectoryAnnounce {
 typedef struct CGOFileSystemObject {
   uint64_t last_modified;
   uint64_t size;
-  uint32_t file_type;
+  enum CGOFileType file_type;
   const char *path;
 } CGOFileSystemObject;
 
@@ -159,7 +164,7 @@ typedef struct CGOSharedDirectoryInfoRequest {
 typedef struct CGOSharedDirectoryCreateRequest {
   uint32_t completion_id;
   uint32_t directory_id;
-  uint32_t file_type;
+  enum CGOFileType file_type;
   const char *path;
 } CGOSharedDirectoryCreateRequest;
 
