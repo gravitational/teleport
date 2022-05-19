@@ -897,7 +897,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 	}
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
-	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.cfg.AuthClient)
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
