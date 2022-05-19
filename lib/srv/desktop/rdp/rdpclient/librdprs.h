@@ -52,6 +52,13 @@ typedef enum CGOPointerWheel {
   PointerWheelHorizontal,
 } CGOPointerWheel;
 
+typedef enum CGOTdpErrCode {
+  TdpErrCodeNil = 0,
+  TdpErrCodeFailed = 1,
+  TdpErrCodeDNE = 2,
+  TdpErrCodeAlreadyExists = 3,
+} CGOTdpErrCode;
+
 /**
  * Client has an unusual lifecycle:
  * - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
@@ -84,13 +91,13 @@ typedef struct CGOFileSystemObject {
 
 typedef struct CGOSharedDirectoryInfoResponse {
   uint32_t completion_id;
-  uint32_t err_code;
+  enum CGOTdpErrCode err_code;
   struct CGOFileSystemObject fso;
 } CGOSharedDirectoryInfoResponse;
 
 typedef struct SharedDirectoryCreateResponse {
   uint32_t completion_id;
-  uint32_t err_code;
+  enum CGOTdpErrCode err_code;
 } SharedDirectoryCreateResponse;
 
 typedef struct SharedDirectoryCreateResponse CGOSharedDirectoryCreateResponse;
@@ -137,7 +144,7 @@ typedef struct CGOBitmap {
 } CGOBitmap;
 
 typedef struct SharedDirectoryAcknowledge {
-  uint32_t err_code;
+  enum CGOTdpErrCode err_code;
   uint32_t directory_id;
 } SharedDirectoryAcknowledge;
 

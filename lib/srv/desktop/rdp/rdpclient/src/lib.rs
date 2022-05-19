@@ -967,7 +967,7 @@ pub struct CGOSharedDirectoryAnnounce {
 #[derive(Debug)]
 #[repr(C)]
 pub struct SharedDirectoryAcknowledge {
-    pub err_code: u32,
+    pub err_code: CGOTdpErrCode,
     pub directory_id: u32,
 }
 
@@ -1001,14 +1001,14 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
 #[allow(dead_code)]
 pub struct SharedDirectoryInfoResponse {
     completion_id: u32,
-    err_code: u32,
+    err_code: CGOTdpErrCode,
     fso: FileSystemObject,
 }
 
 #[repr(C)]
 pub struct CGOSharedDirectoryInfoResponse {
     pub completion_id: u32,
-    pub err_code: u32,
+    pub err_code: CGOTdpErrCode,
     pub fso: CGOFileSystemObject,
 }
 
@@ -1052,6 +1052,15 @@ impl From<CGOFileSystemObject> for FileSystemObject {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum CGOTdpErrCode {
+    TdpErrCodeNil = 0,
+    TdpErrCodeFailed = 1,
+    TdpErrCodeDNE = 2,
+    TdpErrCodeAlreadyExists = 3,
+}
+
 #[derive(Debug)]
 pub struct SharedDirectoryCreateRequest {
     completion_id: u32,
@@ -1072,7 +1081,7 @@ pub struct CGOSharedDirectoryCreateRequest {
 #[repr(C)]
 pub struct SharedDirectoryCreateResponse {
     pub completion_id: u32,
-    pub err_code: u32,
+    pub err_code: CGOTdpErrCode,
 }
 
 type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
