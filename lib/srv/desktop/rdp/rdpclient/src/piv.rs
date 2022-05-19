@@ -408,7 +408,7 @@ fn tlv_tag(val: u8) -> RdpResult<Tag> {
 }
 
 fn hex_data<const S: usize>(cmd: &Command<S>) -> String {
-    to_hex(&cmd.data().to_vec())
+    to_hex(cmd.data())
 }
 
 fn to_hex(bytes: &[u8]) -> String {

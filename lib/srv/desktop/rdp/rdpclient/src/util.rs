@@ -33,6 +33,7 @@ pub fn to_unicode(s: &str, with_null_term: bool) -> Vec<u8> {
     buf
 }
 
+#[allow(clippy::bind_instead_of_map)]
 pub fn from_unicode(s: Vec<u8>) -> RdpResult<String> {
     let mut with_null_terminator = WString::from_utf16le(s)
         .or_else(|_| Err(invalid_data_error("invalid Unicode")))?

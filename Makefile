@@ -221,7 +221,7 @@ $(BUILDDIR)/tctl: roletester
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) directory_sharing" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
