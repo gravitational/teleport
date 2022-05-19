@@ -66,7 +66,6 @@ import "C"
 import (
 	"context"
 	"errors"
-	"fmt"
 	"image"
 	"io"
 	"os"
@@ -384,16 +383,11 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryInfoResponse:
 				if c.cfg.AllowDirectorySharing {
-					tdpErrCode, err := errCodeToTdpErrCode(m.ErrCode)
-					if err != nil {
-						c.cfg.Log.Errorf("SharedDirectoryInfoResponse failed: %v", err)
-						return
-					}
 					path := C.CString(m.Fso.Path)
 					defer C.free(unsafe.Pointer(path))
 					if errCode := C.handle_tdp_sd_info_response(c.rustClient, C.CGOSharedDirectoryInfoResponse{
 						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      tdpErrCode,
+						err_code:      m.ErrCode,
 						fso: C.CGOFileSystemObject{
 							last_modified: C.uint64_t(m.Fso.LastModified),
 							size:          C.uint64_t(m.Fso.Size),
@@ -407,14 +401,13 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryCreateResponse:
 				if c.cfg.AllowDirectorySharing {
-					tdpErrCode, err := errCodeToTdpErrCode(m.ErrCode)
 					if err != nil {
 						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", err)
 						return
 					}
 					if errCode := C.handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
 						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      tdpErrCode,
+						err_code:      m.ErrCode,
 					}); errCode != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", errCode)
 						return
@@ -422,14 +415,9 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryDeleteResponse:
 				if c.cfg.AllowDirectorySharing {
-					tdpErrCode, err := errCodeToTdpErrCode(m.ErrCode)
-					if err != nil {
-						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", err)
-						return
-					}
 					if errCode := C.handle_tdp_sd_delete_response(c.rustClient, C.CGOSharedDirectoryDeleteResponse{
 						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      tdpErrCode,
+						err_code:      m.ErrCode,
 					}); errCode != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("SharedDirectoryDeleteResponse failed: %v", errCode)
 						return
@@ -440,20 +428,6 @@ func (c *Client) start() {
 			}
 		}
 	}()
-}
-
-func errCodeToTdpErrCode(errCode uint32) (uint32, error) {
-	if errCode == 0 {
-		return C.TdpErrCodeNil, nil
-	} else if errCode == 1 {
-		return C.TdpErrCodeFailed, nil
-	} else if errCode == 2 {
-		return C.TdpErrCodeDNE, nil
-	} else if errCode == 3 {
-		return C.TdpErrCodeAlreadyExists, nil
-	} else {
-		return C.TdpErrCodeNil, errors.New(fmt.Sprintf("invalid TDP Error Code: %d", errCode))
-	}
 }
 
 //export handle_bitmap
