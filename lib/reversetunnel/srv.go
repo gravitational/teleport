@@ -585,7 +585,7 @@ func (s *server) PreShutdown(ctx context.Context) error {
 	s.RLock()
 	for _, site := range s.localSites {
 		s.log.Debugf("Advising reconnect to local site: %s", site.GetName())
-		go site.adviceReconnect(ctx)
+		go site.adviseReconnect(ctx)
 	}
 
 	for _, site := range s.remoteSites {

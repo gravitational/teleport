@@ -222,9 +222,9 @@ func (s *localSite) IsClosed() bool { return false }
 // Close always returns nil because a localSite isn't closed.
 func (s *localSite) Close() error { return nil }
 
-// adviceReconnect sends reconnects to agents in the background blocking until
+// adviseReconnect sends reconnects to agents in the background blocking until
 // the requests complete or the context is done.
-func (s *localSite) adviceReconnect(ctx context.Context) {
+func (s *localSite) adviseReconnect(ctx context.Context) {
 	wg := &sync.WaitGroup{}
 	s.remoteConnsMtx.Lock()
 	for _, conns := range s.remoteConns {
