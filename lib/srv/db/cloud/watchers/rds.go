@@ -84,18 +84,7 @@ func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error
 		return nil, trace.Wrap(err)
 	}
 
-	var result types.Databases
-	for _, database := range rdsDatabases {
-		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
-		if err != nil {
-			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
-		} else if match {
-			result = append(result, database)
-		} else {
-			f.log.Debugf("%v doesn't match selector.", database)
-		}
-	}
-	return result, nil
+	return filterDatabasesByLabels(rdsDatabases, f.cfg.Labels, f.log), nil
 }
 
 // getRDSDatabases returns a list of database resources representing RDS instances.
@@ -180,18 +169,7 @@ func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, er
 		return nil, trace.Wrap(err)
 	}
 
-	var result types.Databases
-	for _, database := range auroraDatabases {
-		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
-		if err != nil {
-			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
-		} else if match {
-			result = append(result, database)
-		} else {
-			f.log.Debugf("%v doesn't match selector.", database)
-		}
-	}
-	return result, nil
+	return filterDatabasesByLabels(auroraDatabases, f.cfg.Labels, f.log), nil
 }
 
 // getAuroraDatabases returns a list of database resources representing RDS clusters.
@@ -302,3 +280,19 @@ func auroraFilters() []*rds.Filter {
 
 // maxPages is the maximum number of pages to iterate over when fetching databases.
 const maxPages = 10
+
+// filterDatabasesByLabels filters input databases with provided labels.
+func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log logrus.FieldLogger) types.Databases {
+	var matchedDatabases types.Databases
+	for _, database := range databases {
+		match, _, err := services.MatchLabels(labels, database.GetAllLabels())
+		if err != nil {
+			log.Warnf("Failed to match %v against selector: %v.", database, err)
+		} else if match {
+			matchedDatabases = append(matchedDatabases, database)
+		} else {
+			log.Debugf("%v doesn't match selector.", database)
+		}
+	}
+	return matchedDatabases
+}
