@@ -21,7 +21,5 @@ steps:
         go run ./cmd/integration-tests          \
           -target "$_BASE_BRANCH"               \
           -bucket test-logs                     \
-          -build "$BUILD_ID"                    \
-          -key-secret "$_GITHUB_DEPLOY_KEY_SRC" \
-          -a "test-logs/*.json"          
+          -key-secret "$_GITHUB_DEPLOY_KEY_SRC"
     timeout: 25m
