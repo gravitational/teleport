@@ -575,9 +575,9 @@ func (s *server) Close() error {
 	return s.srv.Close()
 }
 
-// PreShutdown closes the listener and sends reconnects to connected agents without
+// DrainConnections closes the listener and sends reconnects to connected agents without
 // closing open connections.
-func (s *server) PreShutdown(ctx context.Context) error {
+func (s *server) DrainConnections(ctx context.Context) error {
 	// Ensure listener is closed before sending reconnects.
 	err := s.srv.Close()
 	s.srv.Wait(ctx)

@@ -460,7 +460,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 				if r.WantReply {
 					err := a.client.Reply(r, true, nil)
 					if err != nil {
-						return trace.Wrap(err)
+						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					}
 				}
 

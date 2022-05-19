@@ -131,9 +131,9 @@ type Server interface {
 	Start() error
 	// Close closes server's operations immediately
 	Close() error
-	// PreShutdown closes listeners and begins draining connections without
+	// DrainConnections closes listeners and begins draining connections without
 	// closing open connections.
-	PreShutdown(context.Context) error
+	DrainConnections(context.Context) error
 	// Shutdown performs graceful server shutdown closing open connections.
 	Shutdown(context.Context) error
 	// Wait waits for server to close all outstanding operations
