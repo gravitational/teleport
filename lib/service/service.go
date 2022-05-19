@@ -3400,11 +3400,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			log.Infof("Shutting down gracefully.")
 			ctx := payloadContext(payload, log)
 			if tsrv != nil {
-				if drainer, ok := tsrv.(interface {
-					Drain(context.Context) error
-				}); ok {
-					warnOnErr(drainer.Drain(ctx), log)
-				}
+				warnOnErr(tsrv.PreShutdown(ctx), log)
 			}
 			warnOnErr(sshProxy.Shutdown(ctx), log)
 			if tsrv != nil {

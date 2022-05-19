@@ -211,7 +211,7 @@ func (c *remoteConn) updateProxies(proxies []types.Server) {
 }
 
 func (c *remoteConn) adviseReconnect() error {
-	_, _, err := c.sconn.SendRequest(reconnectRequest, false, nil)
+	_, _, err := c.sconn.SendRequest(reconnectRequest, true, nil)
 	return trace.Wrap(err)
 }
 
