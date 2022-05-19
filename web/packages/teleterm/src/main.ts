@@ -99,6 +99,7 @@ function initMainLogger(settings: types.RuntimeSettings) {
   const service = createLoggerService({
     dev: settings.dev,
     dir: settings.userDataDir,
+    name: "main"
   });
 
   Logger.init(service);

@@ -77,7 +77,7 @@ export default class MainProcess {
   private _initSharedProcess() {
     this.sharedProcess = fork(
       path.join(__dirname, 'sharedProcess.js'),
-      [`--addr=${this.settings.sharedProcess.networkAddr}`],
+      [`--runtimeSettingsJson=${JSON.stringify(this.settings)}`],
       {
         stdio: 'inherit',
       }

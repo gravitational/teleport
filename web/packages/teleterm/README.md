@@ -55,7 +55,7 @@ For quick restarts, that restarts all processes and `tsh` daemon, press `F6`.
 
 ### Tips
 
-#### gRPC protobuf files
+#### Generating tshd gRPC protobuf files
 
 Rebulding them is needed only if you change any of the files in `/teleport/lib/teleterm/api/proto/`
 dir.
@@ -90,6 +90,11 @@ lib/teleterm/api/protogen/
 $ cd teleport
 $ rm -rf ./../webapps/packages/teleterm/src/services/tshd/v1/ && cp -R lib/teleterm/api/protogen/js/v1 ./../webapps/packages/teleterm/src/services/tshd/v1
 ```
+
+#### Generating shared process gRPC protobuf files
+Run `generate-grpc-shared` script from `teleterm/package.json`.
+It generates protobuf files from `*.proto` files in `sharedProcess/api/proto`.
+Resulting files can be found in `sharedProcess/api/protogen`.
 
 ### Architecture diagram
 ```pro

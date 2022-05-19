@@ -20,7 +20,7 @@ export default function createLoggerService(opts: Options): LoggerService {
         maxsize: 4194304, // 4 MB - max size of a single file
         maxFiles: 5,
         dirname: opts.dir,
-        filename: `${process.type}.log`, // browser.log, renderer.log, worker.log
+        filename: `${opts.name}.log`,
       }),
     ],
   });
@@ -70,5 +70,6 @@ function stringifier(message: unknown[]): string {
 
 type Options = {
   dir: string;
+  name: string;
   dev?: boolean;
 };

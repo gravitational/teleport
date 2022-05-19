@@ -33,9 +33,11 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   private _status: Status = 'not_initialized';
   private _disposed = false;
 
-  constructor(private options: PtyProcessOptions) {
+  constructor(private options: PtyProcessOptions & { ptyId: string }) {
     super();
-    this._logger = new Logger(`PTY Process: ${options.path} ${options.args}`);
+    this._logger = new Logger(
+      `PtyProcess (id: ${options.ptyId} ${options.path} ${options.args})`
+    );
   }
 
   start(cols: number, rows: number) {

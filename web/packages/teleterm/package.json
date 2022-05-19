@@ -17,7 +17,8 @@
     "build-main": "webpack build --config webpack.main.config.js --progress --mode=production",
     "build-renderer": "webpack build --config webpack.renderer.prod.config.js --progress",
     "build-natives": "electron-builder install-app-deps",
-    "package": "electron-builder build --publish never -c.extraMetadata.name=teleconnect"
+    "package": "electron-builder build --publish never -c.extraMetadata.name=teleconnect",
+    "generate-grpc-shared": "npx -y --target_arch=x64 --package=grpc_tools_node_protoc_ts@5.3.2 --package=grpc-tools@1.11.2 -- grpc_tools_node_protoc -I=src/sharedProcess/api/proto --ts_out=service=grpc-node,mode=grpc-js:src/sharedProcess/api/protogen --grpc_out=grpc_js:src/sharedProcess/api/protogen --js_out=import_style=commonjs,binary:src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
   },
   "repository": {
     "type": "git",
@@ -34,7 +35,7 @@
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
     "@grpc/grpc-js": "1.6.7",
-    "@types/google-protobuf": "^3.7.2",
+    "@types/google-protobuf": "^3.10.0",
     "clean-webpack-plugin": "4.0.0",
     "cross-env": "5.0.5",
     "electron": "18.2.0",
@@ -43,10 +44,10 @@
     "eslint-import-resolver-webpack": "0.13.2",
     "eslint-loader": "3.0.3",
     "file-loader": "6.0.0",
+    "google-protobuf": "^3.20.1",
     "immer": "^9.0.7",
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
-    "ts-protoc-gen": "0.15.0",
     "url-loader": "^4.1.1",
     "winston": "^3.3.3",
     "xterm": "^4.15.0",

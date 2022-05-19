@@ -11,6 +11,7 @@ const runtimeSettings = mainProcessClient.getRuntimeSettings();
 const loggerService = createLoggerService({
   dev: runtimeSettings.dev,
   dir: runtimeSettings.userDataDir,
+  name: "renderer"
 });
 
 PreloadLogger.init(loggerService);
