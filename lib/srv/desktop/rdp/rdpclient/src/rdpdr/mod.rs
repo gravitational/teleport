@@ -489,12 +489,12 @@ impl Client {
                 // Remove the file from our cache
                 if let Some(file) = self.remove_file_by_id(rdp_req.device_io_request.file_id) {
                     if file.delete_pending {
-                        return self.tdp_sd_delete(rdp_req, file);
+                        self.tdp_sd_delete(rdp_req, file)
                     } else {
-                        return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
+                        self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS)
                     }
                 } else {
-                    return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+                    self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
                 }
             }
             _ => Err(invalid_data_error(&format!(
@@ -630,7 +630,7 @@ impl Client {
         debug!("replying with: {:?}", resp);
         let resp = self
             .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
-        return Ok(resp);
+        Ok(resp)
     }
 
     /// Helper function for sending a TDP SharedDirectoryCreateRequest based on an
@@ -703,17 +703,16 @@ impl Client {
         (self.tdp_sd_delete_request)(SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
-            path: file.path.clone(),
+            path: file.path,
         })?;
         self.pending_sd_delete_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
                     if res.err_code == 0 {
-                        return cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
+                        cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS)
                     } else {
-                        return cli
-                            .prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+                        cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
                     }
                 },
             ),
