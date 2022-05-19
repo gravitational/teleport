@@ -621,7 +621,9 @@ func (s *localSite) sshTunnelStats() error {
 
 	// Update Prometheus metrics and also log if any tunnels are missing.
 	missingSSHTunnels.Set(float64(len(missing)))
-	if len(missing) > 0 {
+
+	// Don't log if proxy peering is enabled as there will likely always be missing tunnels.
+	if len(missing) > 0 && s.peerClient == nil {
 		// Don't show all the missing nodes, thousands could be missing, just show
 		// the first 10.
 		n := len(missing)
