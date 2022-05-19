@@ -225,9 +225,9 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	return k.GenerateUserCertWithoutValidation(c)
 }
 
-// sourceAddress is critical option that defines IP addresses (in CIDR notation)
-// from which this certificate is accepted for authentication
-// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD
+// sourceAddress is a critical option that defines IP addresses (in CIDR notation)
+// from which this certificate is accepted for authentication.
+// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
 const sourceAddress = "source-address"
 
 // GenerateUserCertWithoutValidation generates a user certificate with the
