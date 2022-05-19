@@ -60,56 +60,49 @@ pub struct Client {
     next_file_id: u32, // used to generate file id's
 
     // Functions for sending tdp messages to the browser client.
-    tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
-    tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
-    tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
-    tdp_sd_delete_request: Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>,
+    tdp_sd_acknowledge: SharedDirectoryAcknowledgeSender,
+    tdp_sd_info_request: SharedDirectoryInfoRequestSender,
+    tdp_sd_create_request: SharedDirectoryCreateRequestSender,
+    tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
 
     // CompletionId-indexed maps of handlers for tdp messages coming from the browser client.
-    pending_sd_info_resp_handlers: HashMap<
-        u32,
-        Box<dyn FnOnce(&mut Self, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>,
-    >,
-    pending_sd_create_resp_handlers: HashMap<
-        u32,
-        Box<dyn FnOnce(&mut Self, SharedDirectoryCreateResponse) -> RdpResult<Vec<Vec<u8>>>>,
-    >,
-    pending_sd_delete_resp_handlers: HashMap<
-        u32,
-        Box<dyn FnOnce(&mut Self, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>,
-    >,
+    pending_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
+    pending_sd_create_resp_handlers: HashMap<u32, SharedDirectoryCreateResponseHandler>,
+    pending_sd_delete_resp_handlers: HashMap<u32, SharedDirectoryDeleteResponseHandler>,
+}
+
+pub struct Config {
+    pub cert_der: Vec<u8>,
+    pub key_der: Vec<u8>,
+    pub pin: String,
+    pub allow_directory_sharing: bool,
+
+    pub tdp_sd_acknowledge: SharedDirectoryAcknowledgeSender,
+    pub tdp_sd_info_request: SharedDirectoryInfoRequestSender,
+    pub tdp_sd_create_request: SharedDirectoryCreateRequestSender,
+    pub tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
 }
 
 impl Client {
-    pub fn new(
-        cert_der: Vec<u8>,
-        key_der: Vec<u8>,
-        pin: String,
-        allow_directory_sharing: bool,
-
-        tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
-        tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
-        tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
-        tdp_sd_delete_request: Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>,
-    ) -> Self {
-        if allow_directory_sharing {
+    pub fn new(cfg: Config) -> Self {
+        if cfg.allow_directory_sharing {
             debug!("creating rdpdr client with directory sharing enabled")
         } else {
             debug!("creating rdpdr client with directory sharing disabled")
         }
         Client {
             vchan: vchan::Client::new(),
-            scard: scard::Client::new(cert_der, key_der, pin),
+            scard: scard::Client::new(cfg.cert_der, cfg.key_der, cfg.pin),
 
-            allow_directory_sharing,
+            allow_directory_sharing: cfg.allow_directory_sharing,
             active_device_ids: vec![],
             file_cache: HashMap::new(),
             next_file_id: 0,
 
-            tdp_sd_acknowledge,
-            tdp_sd_info_request,
-            tdp_sd_create_request,
-            tdp_sd_delete_request,
+            tdp_sd_acknowledge: cfg.tdp_sd_acknowledge,
+            tdp_sd_info_request: cfg.tdp_sd_info_request,
+            tdp_sd_create_request: cfg.tdp_sd_create_request,
+            tdp_sd_delete_request: cfg.tdp_sd_delete_request,
 
             pending_sd_info_resp_handlers: HashMap::new(),
             pending_sd_create_resp_handlers: HashMap::new(),
@@ -341,19 +334,17 @@ impl Client {
                                             0,
                                         );
                                     }
-                                } else {
-                                    if rdp_req
-                                        .create_options
-                                        .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
-                                    {
-                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
-                                        // ERROR_DIRECTORY --> STATUS_NOT_A_DIRECTORY: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L118
-                                        return cli.prep_device_create_response(
-                                            &rdp_req,
-                                            NTSTATUS::STATUS_NOT_A_DIRECTORY,
-                                            0,
-                                        );
-                                    }
+                                } else if rdp_req
+                                    .create_options
+                                    .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
+                                {
+                                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
+                                    // ERROR_DIRECTORY --> STATUS_NOT_A_DIRECTORY: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L118
+                                    return cli.prep_device_create_response(
+                                        &rdp_req,
+                                        NTSTATUS::STATUS_NOT_A_DIRECTORY,
+                                        0,
+                                    );
                                 }
                             } else if res.err_code == 2 {
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
@@ -486,17 +477,9 @@ impl Client {
                     ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
                 debug!("got {:?}", rdp_req);
                 if let Some(file) = self.get_file_by_id(rdp_req.device_io_request.file_id) {
-                    return self.prep_query_info_response(
-                        &rdp_req,
-                        Some(file),
-                        NTSTATUS::STATUS_SUCCESS,
-                    );
+                    self.prep_query_info_response(&rdp_req, Some(file), NTSTATUS::STATUS_SUCCESS)
                 } else {
-                    return self.prep_query_info_response(
-                        &rdp_req,
-                        None,
-                        NTSTATUS::STATUS_UNSUCCESSFUL,
-                    );
+                    self.prep_query_info_response(&rdp_req, None, NTSTATUS::STATUS_UNSUCCESSFUL)
                 }
             }
             MajorFunction::IRP_MJ_CLOSE => {
@@ -622,7 +605,7 @@ impl Client {
         debug!("replying with: {:?}", resp);
         let resp = self
             .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
-        return Ok(resp);
+        Ok(resp)
     }
 
     fn prep_query_info_response(
@@ -635,7 +618,7 @@ impl Client {
         debug!("replying with: {:?}", resp);
         let resp = self
             .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
-        return Ok(resp);
+        Ok(resp)
     }
 
     fn prep_device_close_response(
@@ -674,17 +657,9 @@ impl Client {
                         let file_id = cli.generate_file_id();
                         cli.file_cache
                             .insert(file_id, FileCacheObject::new(rdp_req.path.clone(), fso));
-                        return cli.prep_device_create_response(
-                            &rdp_req,
-                            NTSTATUS::STATUS_SUCCESS,
-                            file_id,
-                        );
+                        cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
                     } else {
-                        return cli.prep_device_create_response(
-                            &rdp_req,
-                            NTSTATUS::STATUS_UNSUCCESSFUL,
-                            0,
-                        );
+                        cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, 0)
                     }
                 },
             ),
@@ -710,13 +685,9 @@ impl Client {
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
                     if res.err_code == 0 {
-                        return cli.tdp_sd_create(rdp_req, 0, fso);
+                        cli.tdp_sd_create(rdp_req, 0, fso)
                     } else {
-                        return cli.prep_device_create_response(
-                            &rdp_req,
-                            NTSTATUS::STATUS_UNSUCCESSFUL,
-                            0,
-                        );
+                        cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, 0)
                     }
                 },
             ),
@@ -784,10 +755,10 @@ impl Client {
 
     fn get_scard_device_id(&self) -> RdpResult<u32> {
         // We always push it into the list first
-        if self.active_device_ids.len() >= 1 {
+        if !self.active_device_ids.is_empty() {
             return Ok(self.active_device_ids[0]);
         }
-        return Err(RdpError::TryError("no active device ids".to_string()));
+        Err(RdpError::TryError("no active device ids".to_string()))
     }
 
     fn generate_file_id(&mut self) -> u32 {
@@ -810,13 +781,13 @@ struct FileCacheObject {
 
 impl FileCacheObject {
     fn new(path: String, fso: FileSystemObject) -> Self {
-        return Self {
+        Self {
             path,
             delete_pending: false,
             fso,
             fsos: Vec::new(),
             fsos_index: 0,
-        };
+        }
     }
 }
 
@@ -1122,7 +1093,7 @@ impl ClientDeviceListAnnounceRequest {
             device_count: 1,
             device_list: vec![DeviceAnnounceHeader {
                 device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
-                device_id: device_id,
+                device_id,
                 // This name is a constant defined by the spec.
                 preferred_dos_name: "SCARD".to_string(),
                 device_data_length: 0,
@@ -1147,7 +1118,7 @@ impl ClientDeviceListAnnounceRequest {
             device_count: 1,
             device_list: vec![DeviceAnnounceHeader {
                 device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
-                device_id: device_id,
+                device_id,
                 preferred_dos_name: drive_name,
                 device_data_length: device_data.len() as u32,
                 device_data,
@@ -1156,10 +1127,10 @@ impl ClientDeviceListAnnounceRequest {
     }
 
     fn new_empty() -> Self {
-        return Self {
+        Self {
             device_count: 0,
             device_list: vec![],
-        };
+        }
     }
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
@@ -1532,7 +1503,7 @@ impl ServerDriveQueryInformationRequest {
 /// 2.4 File Information Classes [MS-FSCC]
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
 #[derive(Debug)]
-#[allow(dead_code)]
+#[allow(dead_code, clippy::enum_variant_names)]
 enum FsInformationClass {
     FileBasicInformation(FileBasicInformation),
     FileStandardInformation(FileStandardInformation),
@@ -1656,8 +1627,8 @@ const FILE_ATTRIBUTE_TAG_INFO_SIZE: u32 = 8;
 #[derive(Debug, ToPrimitive)]
 #[repr(u8)]
 enum Boolean {
-    TRUE = 1,
-    FALSE = 0,
+    True = 1,
+    False = 0,
 }
 
 /// 2.4.8 FileBothDirectoryInformation
@@ -1700,7 +1671,7 @@ impl FileBothDirectoryInformation {
         file_attributes: flags::FileAttributes,
         file_name: String,
     ) -> Self {
-        return Self {
+        Self {
             creation_time,
             last_access_time,
             last_write_time,
@@ -1710,7 +1681,7 @@ impl FileBothDirectoryInformation {
             file_attributes,
             file_name_length: u32::try_from(util::to_unicode(&file_name, false).len()).unwrap(),
             file_name,
-        };
+        }
     }
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
@@ -1801,14 +1772,14 @@ impl ClientDriveQueryInformationResponse {
                             end_of_file: file.fso.size as i64,
                             number_of_links: 0,
                             delete_pending: if file.delete_pending {
-                                Boolean::TRUE
+                                Boolean::True
                             } else {
-                                Boolean::FALSE
+                                Boolean::False
                             },
                             directory: if file.fso.file_type == 0 {
-                                Boolean::FALSE
+                                Boolean::False
                             } else {
-                                Boolean::TRUE
+                                Boolean::True
                             },
                         },
                     )),
@@ -1874,7 +1845,7 @@ struct DeviceCloseRequest {
 #[allow(dead_code)]
 impl DeviceCloseRequest {
     fn decode(device_io_request: DeviceIoRequest) -> Self {
-        return Self { device_io_request };
+        Self { device_io_request }
     }
 }
 
@@ -2115,7 +2086,7 @@ impl ClientDriveQueryDirectoryResponse {
                     return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {:?}", fs_information_class)));
                 }
             },
-            None => 0 as u32,
+            None => 0,
         };
 
         Ok(Self {
@@ -2168,3 +2139,17 @@ fn to_windows_time(tdp_time_ms: u64) -> i64 {
     let tdp_time_sec = tdp_time_ms / 1000;
     ((tdp_time_sec * 10000000) + 116444736000000000) as i64
 }
+
+type SharedDirectoryAcknowledgeSender = Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>;
+type SharedDirectoryInfoRequestSender = Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>;
+type SharedDirectoryCreateRequestSender =
+    Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>;
+type SharedDirectoryDeleteRequestSender =
+    Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>;
+
+type SharedDirectoryInfoResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryCreateResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryCreateResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryDeleteResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>;

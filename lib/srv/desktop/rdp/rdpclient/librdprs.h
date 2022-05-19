@@ -221,6 +221,10 @@ enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
 /**
  * handle_tdp_sd_create_response handles a TDP Shared Directory Create Response
  * message
+ *
+ * # Safety
+ *
+ * client_ptr must be a valid pointer
  */
 enum CGOErrCode handle_tdp_sd_create_response(struct Client *client_ptr,
                                               CGOSharedDirectoryCreateResponse res);
@@ -228,6 +232,10 @@ enum CGOErrCode handle_tdp_sd_create_response(struct Client *client_ptr,
 /**
  * handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response
  * message
+ *
+ * # Safety
+ *
+ * client_ptr must be a valid pointer
  */
 enum CGOErrCode handle_tdp_sd_delete_response(struct Client *client_ptr,
                                               CGOSharedDirectoryDeleteResponse res);
