@@ -60,10 +60,10 @@ pub struct Client {
     next_file_id: u32, // used to generate file id's
 
     // Functions for sending tdp messages to the browser client.
-    tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
-    tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
-    tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
-    tdp_sd_delete_request: Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>,
+    tdp_sd_acknowledge: SharedDirectoryAcknowledgeSender,
+    tdp_sd_info_request: SharedDirectoryInfoRequestSender,
+    tdp_sd_create_request: SharedDirectoryCreateRequestSender,
+    tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
 
     // CompletionId-indexed maps of handlers for tdp messages coming from the browser client.
     pending_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
@@ -71,36 +71,38 @@ pub struct Client {
     pending_sd_delete_resp_handlers: HashMap<u32, SharedDirectoryDeleteResponseHandler>,
 }
 
-impl Client {
-    pub fn new(
-        cert_der: Vec<u8>,
-        key_der: Vec<u8>,
-        pin: String,
-        allow_directory_sharing: bool,
+pub struct Config {
+    pub cert_der: Vec<u8>,
+    pub key_der: Vec<u8>,
+    pub pin: String,
+    pub allow_directory_sharing: bool,
 
-        tdp_sd_acknowledge: Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>,
-        tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
-        tdp_sd_create_request: Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>,
-        tdp_sd_delete_request: Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>,
-    ) -> Self {
-        if allow_directory_sharing {
+    pub tdp_sd_acknowledge: SharedDirectoryAcknowledgeSender,
+    pub tdp_sd_info_request: SharedDirectoryInfoRequestSender,
+    pub tdp_sd_create_request: SharedDirectoryCreateRequestSender,
+    pub tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
+}
+
+impl Client {
+    pub fn new(cfg: Config) -> Self {
+        if cfg.allow_directory_sharing {
             debug!("creating rdpdr client with directory sharing enabled")
         } else {
             debug!("creating rdpdr client with directory sharing disabled")
         }
         Client {
             vchan: vchan::Client::new(),
-            scard: scard::Client::new(cert_der, key_der, pin),
+            scard: scard::Client::new(cfg.cert_der, cfg.key_der, cfg.pin),
 
-            allow_directory_sharing,
+            allow_directory_sharing: cfg.allow_directory_sharing,
             active_device_ids: vec![],
             file_cache: HashMap::new(),
             next_file_id: 0,
 
-            tdp_sd_acknowledge,
-            tdp_sd_info_request,
-            tdp_sd_create_request,
-            tdp_sd_delete_request,
+            tdp_sd_acknowledge: cfg.tdp_sd_acknowledge,
+            tdp_sd_info_request: cfg.tdp_sd_info_request,
+            tdp_sd_create_request: cfg.tdp_sd_create_request,
+            tdp_sd_delete_request: cfg.tdp_sd_delete_request,
 
             pending_sd_info_resp_handlers: HashMap::new(),
             pending_sd_create_resp_handlers: HashMap::new(),
@@ -330,18 +332,16 @@ impl Client {
                                             NTSTATUS::STATUS_ACCESS_DENIED,
                                         );
                                     }
-                                } else {
-                                    if rdp_req
-                                        .create_options
-                                        .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
-                                    {
-                                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
-                                        // ERROR_DIRECTORY --> STATUS_NOT_A_DIRECTORY: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L118
-                                        return cli.prep_device_create_response(
-                                            &rdp_req,
-                                            NTSTATUS::STATUS_NOT_A_DIRECTORY,
-                                        );
-                                    }
+                                } else if rdp_req
+                                    .create_options
+                                    .contains(flags::CreateOptions::FILE_DIRECTORY_FILE)
+                                {
+                                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
+                                    // ERROR_DIRECTORY --> STATUS_NOT_A_DIRECTORY: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L118
+                                    return cli.prep_device_create_response(
+                                        &rdp_req,
+                                        NTSTATUS::STATUS_NOT_A_DIRECTORY,
+                                    );
                                 }
                             } else if res.err_code == 2 {
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
@@ -563,7 +563,7 @@ impl Client {
         debug!("replying with: {:?}", resp);
         let resp = self
             .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
-        return Ok(resp);
+        Ok(resp)
     }
 
     /// Helper function for sending a TDP SharedDirectoryCreateRequest based on an
@@ -591,10 +591,9 @@ impl Client {
                             rdp_req.device_io_request.file_id,
                             FileCacheObject::new(rdp_req.path.clone()),
                         );
-                        return cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS);
+                        cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS)
                     } else {
-                        return cli
-                            .prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+                        cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
                     }
                 },
             ),
@@ -616,10 +615,9 @@ impl Client {
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
                     if res.err_code == 0 {
-                        return cli.tdp_sd_create(rdp_req, 0);
+                        cli.tdp_sd_create(rdp_req, 0)
                     } else {
-                        return cli
-                            .prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+                        cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
                     }
                 },
             ),
@@ -675,12 +673,12 @@ struct FileCacheObject {
 
 impl FileCacheObject {
     fn new(path: String) -> Self {
-        return Self {
+        Self {
             path,
             delete_pending: false,
             fsos: Vec::new(),
             fsos_index: 0,
-        };
+        }
     }
 }
 
@@ -1945,6 +1943,13 @@ impl ClientDriveQueryDirectoryResponse {
         Ok(w)
     }
 }
+
+type SharedDirectoryAcknowledgeSender = Box<dyn Fn(SharedDirectoryAcknowledge) -> RdpResult<()>>;
+type SharedDirectoryInfoRequestSender = Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>;
+type SharedDirectoryCreateRequestSender =
+    Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>;
+type SharedDirectoryDeleteRequestSender =
+    Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>;
 
 type SharedDirectoryInfoResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>;

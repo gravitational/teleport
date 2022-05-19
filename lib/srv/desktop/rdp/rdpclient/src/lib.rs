@@ -249,19 +249,19 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
 
-    let tdp_sd_acknowledge = Box::new(move |ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
-        debug!("sending: {:?}", ack);
-        unsafe {
-            if tdp_sd_acknowledge(go_ref, &mut CGOSharedDirectoryAcknowledge::from(ack))
-                != CGOErrCode::ErrCodeSuccess
-            {
-                return Err(RdpError::TryError(String::from(
-                    "call to sd_info_request failed",
-                )));
+    let tdp_sd_acknowledge = Box::new(
+        move |mut ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
+            debug!("sending: {:?}", ack);
+            unsafe {
+                if tdp_sd_acknowledge(go_ref, &mut ack) != CGOErrCode::ErrCodeSuccess {
+                    return Err(RdpError::TryError(String::from(
+                        "call to sd_info_request failed",
+                    )));
+                }
             }
-        }
-        Ok(())
-    });
+            Ok(())
+        },
+    );
 
     let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
         debug!("sending: {:?}", req);
@@ -317,14 +317,14 @@ fn connect_rdp_inner(
                             )));
                         };
                     }
-                    return Ok(());
+                    Ok(())
                 }
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    return Err(RdpError::TryError(String::from(format!(
+                    return Err(RdpError::TryError(format!(
                         "path contained characters that couldn't be converted to a C string: {}",
                         req.path
-                    ))));
+                    )));
                 }
             }
         });
@@ -350,29 +350,29 @@ fn connect_rdp_inner(
                             )));
                         };
                     }
-                    return Ok(());
+                    Ok(())
                 }
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    return Err(RdpError::TryError(String::from(format!(
+                    return Err(RdpError::TryError(format!(
                         "path contained characters that couldn't be converted to a C string: {}",
                         req.path
-                    ))));
+                    )));
                 }
             }
         });
 
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
-    let rdpdr = rdpdr::Client::new(
-        params.cert_der,
-        params.key_der,
+    let rdpdr = rdpdr::Client::new(rdpdr::Config {
+        cert_der: params.cert_der,
+        key_der: params.key_der,
         pin,
-        params.allow_directory_sharing,
+        allow_directory_sharing: params.allow_directory_sharing,
         tdp_sd_acknowledge,
         tdp_sd_info_request,
         tdp_sd_create_request,
         tdp_sd_delete_request,
-    );
+    });
 
     // Client for the "cliprdr" channel - clipboard sharing.
     let cliprdr = if params.allow_clipboard {
@@ -658,6 +658,10 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
 
 /// handle_tdp_sd_create_response handles a TDP Shared Directory Create Response
 /// message
+///
+/// # Safety
+///
+/// client_ptr must be a valid pointer
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_create_response(
     client_ptr: *mut Client,
@@ -682,6 +686,10 @@ pub unsafe extern "C" fn handle_tdp_sd_create_response(
 
 /// handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response
 /// message
+///
+/// # Safety
+///
+/// client_ptr must be a valid pointer
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_delete_response(
     client_ptr: *mut Client,
