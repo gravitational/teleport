@@ -59,10 +59,7 @@ pub struct Client {
     tdp_sd_info_request: Box<dyn Fn(SharedDirectoryInfoRequest) -> RdpResult<()>>,
 
     // Completion-id-indexed maps of handlers for tdp messages coming from the browser client.
-    pending_sd_info_resp_handlers: HashMap<
-        u32,
-        Box<dyn FnOnce(&mut Self, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>,
-    >,
+    pending_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
 }
 
 impl Client {
@@ -1637,3 +1634,6 @@ impl ClientDriveQueryDirectoryResponse {
         Ok(w)
     }
 }
+
+type SharedDirectoryInfoResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>;
