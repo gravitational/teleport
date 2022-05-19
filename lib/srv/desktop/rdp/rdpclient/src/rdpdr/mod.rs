@@ -66,18 +66,9 @@ pub struct Client {
     tdp_sd_delete_request: Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>,
 
     // CompletionId-indexed maps of handlers for tdp messages coming from the browser client.
-    pending_sd_info_resp_handlers: HashMap<
-        u32,
-        Box<dyn FnOnce(&mut Self, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>,
-    >,
-    pending_sd_create_resp_handlers: HashMap<
-        u32,
-        Box<dyn FnOnce(&mut Self, SharedDirectoryCreateResponse) -> RdpResult<Vec<Vec<u8>>>>,
-    >,
-    pending_sd_delete_resp_handlers: HashMap<
-        u32,
-        Box<dyn FnOnce(&mut Self, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>,
-    >,
+    pending_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
+    pending_sd_create_resp_handlers: HashMap<u32, SharedDirectoryCreateResponseHandler>,
+    pending_sd_delete_resp_handlers: HashMap<u32, SharedDirectoryDeleteResponseHandler>,
 }
 
 impl Client {
@@ -662,10 +653,10 @@ impl Client {
 
     fn get_scard_device_id(&self) -> RdpResult<u32> {
         // We always push it into the list first
-        if self.active_device_ids.len() >= 1 {
+        if !self.active_device_ids.is_empty() {
             return Ok(self.active_device_ids[0]);
         }
-        return Err(RdpError::TryError("no active device ids".to_string()));
+        Err(RdpError::TryError("no active device ids".to_string()))
     }
 
     fn generate_file_id(&mut self) -> u32 {
@@ -995,7 +986,7 @@ impl ClientDeviceListAnnounceRequest {
             device_count: 1,
             device_list: vec![DeviceAnnounceHeader {
                 device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
-                device_id: device_id,
+                device_id,
                 // This name is a constant defined by the spec.
                 preferred_dos_name: "SCARD".to_string(),
                 device_data_length: 0,
@@ -1020,7 +1011,7 @@ impl ClientDeviceListAnnounceRequest {
             device_count: 1,
             device_list: vec![DeviceAnnounceHeader {
                 device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
-                device_id: device_id,
+                device_id,
                 preferred_dos_name: drive_name,
                 device_data_length: device_data.len() as u32,
                 device_data,
@@ -1029,10 +1020,10 @@ impl ClientDeviceListAnnounceRequest {
     }
 
     fn new_empty() -> Self {
-        return Self {
+        Self {
             device_count: 0,
             device_list: vec![],
-        };
+        }
     }
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
@@ -1405,7 +1396,7 @@ impl ServerDriveQueryInformationRequest {
 /// 2.4 File Information Classes [MS-FSCC]
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
 #[derive(Debug)]
-#[allow(dead_code)]
+#[allow(dead_code, clippy::enum_variant_names)]
 enum FsInformationClass {
     FileBasicInformation(FileBasicInformation),
     FileStandardInformation(FileStandardInformation),
@@ -1509,8 +1500,8 @@ const FILE_STANDARD_INFORMATION_SIZE: u32 = (2 * 8) + 4 + 2;
 #[repr(u8)]
 #[allow(dead_code)]
 enum Boolean {
-    TRUE = 1,
-    FALSE = 0,
+    True = 1,
+    False = 0,
 }
 
 /// 2.4.8 FileBothDirectoryInformation
@@ -1553,7 +1544,7 @@ impl FileBothDirectoryInformation {
         file_attributes: flags::FileAttributes,
         file_name: String,
     ) -> Self {
-        return Self {
+        Self {
             creation_time,
             last_access_time,
             last_write_time,
@@ -1563,7 +1554,7 @@ impl FileBothDirectoryInformation {
             file_attributes,
             file_name_length: u32::try_from(util::to_unicode(&file_name, false).len()).unwrap(),
             file_name,
-        };
+        }
     }
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
@@ -1627,8 +1618,8 @@ impl ClientDriveQueryInformationResponse {
                     allocation_size: 0,
                     end_of_file: 0,
                     number_of_links: 0,
-                    delete_pending: Boolean::FALSE,
-                    directory: Boolean::TRUE,
+                    delete_pending: Boolean::False,
+                    directory: Boolean::True,
                 }),
             ),
             _ => {
@@ -1670,7 +1661,7 @@ struct DeviceCloseRequest {
 #[allow(dead_code)]
 impl DeviceCloseRequest {
     fn decode(device_io_request: DeviceIoRequest) -> Self {
-        return Self { device_io_request };
+        Self { device_io_request }
     }
 }
 
@@ -1911,7 +1902,7 @@ impl ClientDriveQueryDirectoryResponse {
                     return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {:?}", fs_information_class)));
                 }
             },
-            None => 0 as u32,
+            None => 0,
         };
 
         Ok(Self {
@@ -1954,3 +1945,10 @@ impl ClientDriveQueryDirectoryResponse {
         Ok(w)
     }
 }
+
+type SharedDirectoryInfoResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryCreateResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryCreateResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryDeleteResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>;

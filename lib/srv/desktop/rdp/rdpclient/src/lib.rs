@@ -283,14 +283,14 @@ fn connect_rdp_inner(
                         )));
                     };
                 }
-                return Ok(());
+                Ok(())
             }
             Err(_) => {
                 // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                return Err(RdpError::TryError(String::from(format!(
+                return Err(RdpError::TryError(format!(
                     "path contained characters that couldn't be converted to a C string: {}",
                     req.path
-                ))));
+                )));
             }
         }
     });
