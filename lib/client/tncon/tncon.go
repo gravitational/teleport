@@ -48,8 +48,8 @@ func SequenceReader() io.Reader {
 	return sequenceBuffer
 }
 
-//export writeSequenceEvent
-func writeSequenceEvent(addr *C.char, len C.int) {
+//export writeSequence
+func writeSequence(addr *C.char, len C.int) {
 	bytes := C.GoBytes(unsafe.Pointer(addr), len)
 	sequenceBuffer.Write(bytes)
 }
@@ -133,7 +133,7 @@ func Start() error {
 	// need a buffer big enough to store a VT sequence.
 	// If we don't buffer the VT sequence, the individual
 	// keystrokes won't be transmitted quickly enough for
-	// them to be grouped as a VT sequence.
+	// them to be grouped as a VT sequence by Windows.
 	sequenceBuffer = newBufferedChannelPipe(10)
 
 	go readInputContinuous(runningQuitHandle)

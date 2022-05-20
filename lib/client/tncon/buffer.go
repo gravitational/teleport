@@ -1,5 +1,3 @@
-//go:build windows && cgo
-
 // Copyright (c) 2020 Leonid Titov. All rights reserved.
 // MIT licence.
 // Version 2020-12-23
@@ -10,7 +8,7 @@ import (
 	"io"
 )
 
-// BufferedChannelPipe is a synchronous buffered pipe implemented with a channel. This pipe
+// bufferedChannelPipe is a synchronous buffered pipe implemented with a channel. This pipe
 // is much more efficient than the standard io.Pipe, and can keep up with real-time
 // shell output, which is needed for the lib/client/tncon implementation.
 //
@@ -19,17 +17,15 @@ type bufferedChannelPipe struct {
 	ch chan byte
 }
 
-func newBufferedChannelPipe(len int) (b *bufferedChannelPipe) {
-	b = &bufferedChannelPipe{
+func newBufferedChannelPipe(len int) *bufferedChannelPipe {
+	return &bufferedChannelPipe{
 		ch: make(chan byte, len),
 	}
-	return
 }
 
-// blocking behaviour
+// Write will write all of p to the buffer unless the buffer is closed
 func (b *bufferedChannelPipe) Write(p []byte) (n int, err error) {
-
-	// here's why:
+	// Catch write to closed buffer with a recover
 	// https://stackoverflow.com/a/34899098/11729048
 	defer func() {
 		if err2 := recover(); err2 != nil {
@@ -38,38 +34,37 @@ func (b *bufferedChannelPipe) Write(p []byte) (n int, err error) {
 	}()
 
 	for n = 0; n < len(p); n++ {
+		// blocking behaviour
 		b.ch <- p[n]
 	}
-	return
+	return n, nil
 }
 
-// blocking behaviour until at least one byte read, then behaves non-blockingly
+// Read will always read at least one byte from the buffer unless the buffer is closed
 func (b *bufferedChannelPipe) Read(p []byte) (n int, err error) {
-L:
-	for n = 0; n < len(p); {
-		if n == 0 {
-			b1, ok := <-b.ch
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	// blocking behaviour
+	r, ok := <-b.ch
+	if !ok {
+		return 0, io.EOF
+	}
+	p[n] = r
+
+	for n = 1; n < len(p); n++ {
+		select {
+		case r, ok := <-b.ch:
 			if !ok {
-				err = io.EOF
-				break L
+				return n, io.EOF
 			}
-			p[n] = b1
-			n++
-		} else {
-			select {
-			case b1, ok := <-b.ch:
-				if !ok {
-					err = io.EOF
-					break L
-				}
-				p[n] = b1
-				n++
-			default:
-				break L
-			}
+			p[n] = r
+		default:
+			return n, nil
 		}
 	}
-	return
+	return n, nil
 }
 
 func (b *bufferedChannelPipe) Close() error {
