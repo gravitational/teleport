@@ -581,10 +581,34 @@ func (s *server) Close() error {
 	return s.srv.Close()
 }
 
+// DrainConnections closes the listener and sends reconnects to connected agents without
+// closing open connections.
+func (s *server) DrainConnections(ctx context.Context) error {
+	// Ensure listener is closed before sending reconnects.
+	err := s.srv.Close()
+	s.srv.Wait(ctx)
+
+	s.RLock()
+	for _, site := range s.localSites {
+		s.log.Debugf("Advising reconnect to local site: %s", site.GetName())
+		go site.adviseReconnect(ctx)
+	}
+
+	for _, site := range s.remoteSites {
+		s.log.Debugf("Advising reconnect to remote site: %s", site.GetName())
+		go site.adviseReconnect(ctx)
+	}
+	s.RUnlock()
+
+	return trace.Wrap(err)
+}
+
 func (s *server) Shutdown(ctx context.Context) error {
 	err := s.srv.Shutdown(ctx)
+
 	s.proxyWatcher.Close()
 	s.cancel()
+
 	return trace.Wrap(err)
 }
 

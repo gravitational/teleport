@@ -455,6 +455,18 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
+			case reconnectRequest:
+				a.log.Debugf("Receieved reconnect advisory request from proxy.")
+				if r.WantReply {
+					err := a.client.Reply(r, true, nil)
+					if err != nil {
+						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					}
+				}
+
+				// Fire off stop but continue to handle global requests until the
+				// context is canceled to allow the agent to drain.
+				go a.Stop()
 			default:
 				// This handles keep-alive messages and matches the behaviour of OpenSSH.
 				err := a.client.Reply(r, false, nil)
@@ -636,6 +648,7 @@ const (
 	chanHeartbeat    = "teleport-heartbeat"
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
+	reconnectRequest = "reconnect@goteleport.com"
 )
 
 const (
