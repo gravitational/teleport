@@ -558,11 +558,7 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 
 	// Ensure the connection is closed when the context is canceled.
 	go func() {
-		select {
-		case <-c.ctx.Done():
-		case <-clientConn.ctx.Done():
-		}
-
+		<-clientConn.ctx.Done()
 		err := c.stopConn(clientConn)
 		if err != nil {
 			c.config.Log.Infof("Error closing client conn %s: %v", clientConn.id, err)
