@@ -561,8 +561,8 @@ func extractAccountName(uri string) (string, error) {
 
 func extractSnowflakeToken(headers http.Header) string {
 	const (
-		tokenPrefix = "Snowflake Token=\""
-		tokenSuffix = "\""
+		tokenPrefix = `Snowflake Token="`
+		tokenSuffix = `"`
 	)
 
 	token := headers.Get("Authorization")
