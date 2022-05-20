@@ -77,6 +77,7 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = log.New()
 	}
+	c.ForwarderConfig.TLS = c.TLS
 	return nil
 }
 

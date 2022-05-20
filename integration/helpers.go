@@ -547,6 +547,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 					types.RoleTrustedCluster,
 					types.RoleApp,
 					types.RoleDatabase,
+					types.RoleKube,
 				},
 				Token: "token",
 			},
@@ -893,6 +894,59 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	log.Debugf("Teleport Database Server (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return process, client, nil
+}
+
+func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*service.TeleportProcess, error) {
+	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	i.tempDirs = append(i.tempDirs, dataDir)
+
+	conf.DataDir = dataDir
+	conf.AuthServers = []utils.NetAddr{
+		{
+			AddrNetwork: "tcp",
+			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+		},
+	}
+	conf.Token = "token"
+	conf.UploadEventsC = i.UploadEventsC
+	conf.Auth.Enabled = false
+	conf.Proxy.Enabled = false
+	conf.Apps.Enabled = false
+	conf.SSH.Enabled = false
+	conf.Databases.Enabled = false
+
+	kubeconfigDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conf.Kube.KubeconfigPath = filepath.Join(kubeconfigDir, "kube_config")
+	if err := enableKube(conf, clusterName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conf.Kube.ListenAddr = nil
+
+	process, err := service.NewTeleport(conf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	i.Nodes = append(i.Nodes, process)
+
+	expectedEvents := []string{
+		service.KubeIdentityEvent,
+		service.KubernetesReady,
+		service.TeleportReadyEvent,
+	}
+
+	receivedEvents, err := startAndWait(process, expectedEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Teleport Kube Server (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	return process, nil
 }
 
 // StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to
@@ -1697,21 +1751,28 @@ func fatalIf(err error) {
 }
 
 func enableKubernetesService(t *testing.T, config *service.Config) {
-	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
+	config.Kube.KubeconfigPath = filepath.Join(t.TempDir(), "kube_config")
+	require.NoError(t, enableKube(config, "teleport-cluster"))
+}
+
+func enableKube(config *service.Config, clusterName string) error {
+	kubeConfigPath := config.Kube.KubeconfigPath
 
 	key, err := genUserKey()
-	require.NoError(t, err)
-
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
-		TeleportClusterName: "teleport-cluster",
+		TeleportClusterName: clusterName,
 		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
 	})
-	require.NoError(t, err)
-
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	config.Kube.Enabled = true
-	config.Kube.KubeconfigPath = kubeConfigPath
 	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+	return nil
 }
 
 func genUserKey() (*client.Key, error) {

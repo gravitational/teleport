@@ -638,6 +638,7 @@ type kubeLSCommand struct {
 	predicateExpr  string
 	searchKeywords string
 	format         string
+	listAll        bool
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
@@ -647,14 +648,115 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
+	c.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	return c
+}
+
+type kubeListing struct {
+	Proxy       string `json:"proxy"`
+	Cluster     string `json:"cluster"`
+	KubeCluster string `json:"kube_cluster"`
+}
+
+func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
+	profile, profiles, err := client.Status(cf.HomePath, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if profile != nil {
+		profiles = append(profiles, profile)
+	}
+
+	kubeListings := make([]kubeListing, 0)
+	for _, p := range profiles {
+		cf.Proxy = p.ProxyURL.Host
+		tc, err := makeClient(cf, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		req := proto.ListResourcesRequest{
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+			Labels:              tc.Labels,
+		}
+
+		pc, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		kubeClusters, err := client.ListKubeClusterNamesWithFiltersAllClusters(cf.Context, pc, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for clusterName, kubeClusters := range kubeClusters {
+			for _, kc := range kubeClusters {
+				kubeListings = append(kubeListings, kubeListing{
+					Proxy:       cf.Proxy,
+					Cluster:     clusterName,
+					KubeCluster: kc,
+				})
+			}
+		}
+	}
+
+	sort.Slice(kubeListings, func(i, j int) bool {
+		if kubeListings[i].Proxy != kubeListings[j].Proxy {
+			return kubeListings[i].Proxy < kubeListings[j].Proxy
+		}
+		if kubeListings[i].Cluster != kubeListings[j].Cluster {
+			return kubeListings[i].Cluster < kubeListings[j].Cluster
+		}
+		return kubeListings[i].KubeCluster < kubeListings[j].KubeCluster
+	})
+
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		var t asciitable.Table
+		if cf.Quiet {
+			t = asciitable.MakeHeadlessTable(3)
+		} else {
+			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name"})
+		}
+		for _, listing := range kubeListings {
+			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster})
+		}
+		fmt.Println(t.AsBuffer().String())
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeKubeListings(kubeListings, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("Unrecognized format %q", c.format)
+	}
+
+	return nil
+}
+
+func serializeKubeListings(kubeListings []kubeListing, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(kubeListings, "", "  ")
+	} else {
+		out, err = yaml.Marshal(kubeListings)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.UserHost = c.labels
 	cf.PredicateExpression = c.predicateExpr
+
+	if c.listAll {
+		return trace.Wrap(c.runAllClusters(cf))
+	}
 
 	tc, err := makeClient(cf, true)
 	if err != nil {

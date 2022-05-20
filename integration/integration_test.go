@@ -44,6 +44,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -159,56 +160,57 @@ func (s *integrationTestSuite) newTeleportWithConfig(t *testing.T, logins []stri
 func TestIntegrations(t *testing.T) {
 	suite := newSuite(t)
 
-	// t.Run("AuditOff", suite.bind(testAuditOff))
-	// t.Run("AuditOn", suite.bind(testAuditOn))
-	// t.Run("BPFExec", suite.bind(testBPFExec))
-	// t.Run("BPFInteractive", suite.bind(testBPFInteractive))
-	// t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
-	// t.Run("CmdLabels", suite.bind(testCmdLabels))
-	// t.Run("ControlMaster", suite.bind(testControlMaster))
-	// t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
-	// t.Run("DataTransfer", suite.bind(testDataTransfer))
-	// t.Run("Disconnection", suite.bind(testDisconnectScenarios))
-	// t.Run("Discovery", suite.bind(testDiscovery))
-	// t.Run("DiscoveryNode", suite.bind(testDiscoveryNode))
-	// t.Run("DiscoveryRecovers", suite.bind(testDiscoveryRecovers))
-	// t.Run("EnvironmentVars", suite.bind(testEnvironmentVariables))
-	// t.Run("ExecEvents", suite.bind(testExecEvents))
-	// t.Run("ExternalClient", suite.bind(testExternalClient))
-	// t.Run("HA", suite.bind(testHA))
-	// t.Run("Interactive (Regular)", suite.bind(testInteractiveRegular))
-	// t.Run("Interactive (Reverse Tunnel)", suite.bind(testInteractiveReverseTunnel))
-	// t.Run("Interoperability", suite.bind(testInteroperability))
-	// t.Run("InvalidLogin", suite.bind(testInvalidLogins))
-	// t.Run("JumpTrustedClusters", suite.bind(testJumpTrustedClusters))
-	// t.Run("JumpTrustedClustersWithLabels", suite.bind(testJumpTrustedClustersWithLabels))
-	// t.Run("List", suite.bind(testList))
-	// t.Run("MapRoles", suite.bind(testMapRoles))
-	// t.Run("MultiplexingTrustedClusters", suite.bind(testMultiplexingTrustedClusters))
-	// t.Run("PAM", suite.bind(testPAM))
-	// t.Run("PortForwarding", suite.bind(testPortForwarding))
-	// t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
-	// t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
-	// t.Run("RotateChangeSigningAlg", suite.bind(testRotateChangeSigningAlg))
-	// t.Run("RotateRollback", suite.bind(testRotateRollback))
-	// t.Run("RotateSuccess", suite.bind(testRotateSuccess))
-	// t.Run("RotateTrustedClusters", suite.bind(testRotateTrustedClusters))
-	// t.Run("SessionStartContainsAccessRequest", suite.bind(testSessionStartContainsAccessRequest))
-	// t.Run("SessionStreaming", suite.bind(testSessionStreaming))
-	// t.Run("SSHExitCode", suite.bind(testSSHExitCode))
-	// t.Run("Shutdown", suite.bind(testShutdown))
-	// t.Run("TrustedClusters", suite.bind(testTrustedClusters))
-	// t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
-	// t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
-	// t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
-	// t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
-	// t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
-	// t.Run("WindowChange", suite.bind(testWindowChange))
-	// t.Run("SSHTracker", suite.bind(testSSHTracker))
-	// t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
-	// t.Run("TestListNodesAcrossClusters", suite.bind(testListNodesAcrossClusters))
-	// t.Run("TestListAppsAcrossClusters", suite.bind(testListAppsAcrossClusters))
+	t.Run("AuditOff", suite.bind(testAuditOff))
+	t.Run("AuditOn", suite.bind(testAuditOn))
+	t.Run("BPFExec", suite.bind(testBPFExec))
+	t.Run("BPFInteractive", suite.bind(testBPFInteractive))
+	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
+	t.Run("CmdLabels", suite.bind(testCmdLabels))
+	t.Run("ControlMaster", suite.bind(testControlMaster))
+	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
+	t.Run("DataTransfer", suite.bind(testDataTransfer))
+	t.Run("Disconnection", suite.bind(testDisconnectScenarios))
+	t.Run("Discovery", suite.bind(testDiscovery))
+	t.Run("DiscoveryNode", suite.bind(testDiscoveryNode))
+	t.Run("DiscoveryRecovers", suite.bind(testDiscoveryRecovers))
+	t.Run("EnvironmentVars", suite.bind(testEnvironmentVariables))
+	t.Run("ExecEvents", suite.bind(testExecEvents))
+	t.Run("ExternalClient", suite.bind(testExternalClient))
+	t.Run("HA", suite.bind(testHA))
+	t.Run("Interactive (Regular)", suite.bind(testInteractiveRegular))
+	t.Run("Interactive (Reverse Tunnel)", suite.bind(testInteractiveReverseTunnel))
+	t.Run("Interoperability", suite.bind(testInteroperability))
+	t.Run("InvalidLogin", suite.bind(testInvalidLogins))
+	t.Run("JumpTrustedClusters", suite.bind(testJumpTrustedClusters))
+	t.Run("JumpTrustedClustersWithLabels", suite.bind(testJumpTrustedClustersWithLabels))
+	t.Run("List", suite.bind(testList))
+	t.Run("MapRoles", suite.bind(testMapRoles))
+	t.Run("MultiplexingTrustedClusters", suite.bind(testMultiplexingTrustedClusters))
+	t.Run("PAM", suite.bind(testPAM))
+	t.Run("PortForwarding", suite.bind(testPortForwarding))
+	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
+	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
+	t.Run("RotateChangeSigningAlg", suite.bind(testRotateChangeSigningAlg))
+	t.Run("RotateRollback", suite.bind(testRotateRollback))
+	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
+	t.Run("RotateTrustedClusters", suite.bind(testRotateTrustedClusters))
+	t.Run("SessionStartContainsAccessRequest", suite.bind(testSessionStartContainsAccessRequest))
+	t.Run("SessionStreaming", suite.bind(testSessionStreaming))
+	t.Run("SSHExitCode", suite.bind(testSSHExitCode))
+	t.Run("Shutdown", suite.bind(testShutdown))
+	t.Run("TrustedClusters", suite.bind(testTrustedClusters))
+	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
+	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
+	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
+	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
+	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
+	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("SSHTracker", suite.bind(testSSHTracker))
+	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
+	t.Run("TestListNodesAcrossClusters", suite.bind(testListNodesAcrossClusters))
+	t.Run("TestListAppsAcrossClusters", suite.bind(testListAppsAcrossClusters))
 	t.Run("TestListDatabasesAcrossClusters", suite.bind(testListDatabasesAcrossClusters))
+	t.Run("TestListKubeClustersAcrossClusters", suite.bind(testListKubeClustersAcrossClusters))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -6176,7 +6178,9 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	require.NoError(t, leaf.StartNodeAndProxy("leaf-zero", leafSSHPort, leafProxyWebPort, leafProxySSHPort))
 
 	// Add any extra services.
-	extraServices(t, root, leaf)
+	if extraServices != nil {
+		extraServices(t, root, leaf)
+	}
 
 	require.Eventually(t, waitForClusters(root.Tunnel, 1), 10*time.Second, 1*time.Second)
 	require.Eventually(t, waitForClusters(leaf.Tunnel, 1), 10*time.Second, 1*time.Second)
@@ -6428,6 +6432,67 @@ func testListDatabasesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			}
 
 			require.ElementsMatch(t, test.expected, databases)
+		})
+	}
+}
+
+func testListKubeClustersAcrossClusters(t *testing.T, suite *integrationTestSuite) {
+	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *TeleInstance) {
+		rootNodes := []string{"root-one", "root-two", "root-three"}
+		leafNodes := []string{"leaf-one", "leaf-two", "leaf-three"}
+
+		kubeConf := suite.defaultServiceConfig()
+
+		for _, k := range rootNodes {
+			_, err := root.StartKube(kubeConf, k)
+			require.NoError(t, err)
+		}
+
+		for _, k := range leafNodes {
+			_, err := leaf.StartKube(kubeConf, k)
+			require.NoError(t, err)
+		}
+
+	})
+	ctx := context.Background()
+	pc, err := tc.ConnectToProxy(ctx)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		search   string
+		expected []string
+	}{
+		{
+			name: "all",
+			expected: []string{"root-one", "root-two", "root-three",
+				"leaf-one", "leaf-two", "leaf-three"},
+		},
+		{
+			name:     "leaf only",
+			search:   "leaf",
+			expected: []string{"leaf-one", "leaf-two", "leaf-three"},
+		},
+		{
+			name:     "two only",
+			search:   "two",
+			expected: []string{"root-two", "leaf-two"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req := proto.ListResourcesRequest{}
+			if test.search != "" {
+				req.SearchKeywords = strings.Split(test.search, " ")
+			}
+			clusterMap, err := client.ListKubeClusterNamesWithFiltersAllClusters(ctx, pc, req)
+			require.NoError(t, err)
+			clusters := make([]string, 0)
+			for _, cl := range clusterMap {
+				clusters = append(clusters, cl...)
+			}
+			require.ElementsMatch(t, test.expected, clusters)
 		})
 	}
 }
