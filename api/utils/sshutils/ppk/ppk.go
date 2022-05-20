@@ -85,7 +85,7 @@ func ConvertToPPK(priv []byte, pub []byte) ([]byte, error) {
 	// fortunately, this is the one thing that's in exactly the same format that the PPK file uses, so we can just copy it verbatim
 	// remove ssh-rsa from beginning of string if present
 	if !bytes.HasPrefix(pub, []byte(constants.SSHRSAType)) {
-		return nil, trace.Errorf("pub does not appear to be an ssh-rsa public key")
+		return nil, trace.BadParameter("pub does not appear to be an ssh-rsa public key")
 	}
 	pub = bytes.TrimSuffix(bytes.TrimPrefix(pub, []byte(constants.SSHRSAType)), []byte("\n"))
 
@@ -120,15 +120,14 @@ func ConvertToPPK(priv []byte, pub []byte) ([]byte, error) {
 	binary.Write(macInput, binary.BigEndian, macComment)
 
 	// base64-decode the Teleport public key, as we need its binary representation to generate the MAC
-	teleportPublicKeyDecoded := make([]byte, base64.StdEncoding.EncodedLen(len(pub)))
-	teleportPublicKeyByteCount, err := base64.StdEncoding.Decode(teleportPublicKeyDecoded, pub)
+	decoded := make([]byte, base64.StdEncoding.EncodedLen(len(pub)))
+	n, err := base64.StdEncoding.Decode(decoded, pub)
 	if err != nil {
-		return nil, trace.Errorf("could not base64-decode public key: %v, got %v bytes successfully", err, teleportPublicKeyByteCount)
+		return nil, trace.Errorf("could not base64-decode public key: %v, got %v bytes successfully", err, n)
 	}
-	publicKeyData := make([]byte, teleportPublicKeyByteCount)
-	copy(publicKeyData, teleportPublicKeyDecoded)
+	decoded = decoded[:n]
 	// append the decoded public key bytes to the MAC buffer
-	macPublicKeyData := getRFC4251String(publicKeyData)
+	macPublicKeyData := getRFC4251String(decoded)
 	binary.Write(macInput, binary.BigEndian, macPublicKeyData)
 
 	// append our PPK-formatted private key bytes to the MAC buffer
@@ -148,13 +147,13 @@ func ConvertToPPK(priv []byte, pub []byte) ([]byte, error) {
 	fmt.Fprintf(ppk, "Encryption: %v\n", encryptionType)
 	fmt.Fprintf(ppk, "Comment: %v\n", fileComment)
 	// chunk the Teleport-formatted public key into 64-character length lines
-	chunkedPublicKey := chunkBase64String(string(pub), 64)
+	chunkedPublicKey := chunk(string(pub), 64)
 	fmt.Fprintf(ppk, "Public-Lines: %v\n", len(chunkedPublicKey))
 	for _, r := range chunkedPublicKey {
 		fmt.Fprintf(ppk, "%s\n", r)
 	}
 	// chunk the PPK-formatted private key into 64-character length lines
-	chunkedPrivateKey := chunkBase64String(string(ppkPrivateKeyBase64), 64)
+	chunkedPrivateKey := chunk(string(ppkPrivateKeyBase64), 64)
 	fmt.Fprintf(ppk, "Private-Lines: %v\n", len(chunkedPrivateKey))
 	for _, r := range chunkedPrivateKey {
 		fmt.Fprintf(ppk, "%s\n", r)
@@ -164,30 +163,21 @@ func ConvertToPPK(priv []byte, pub []byte) ([]byte, error) {
 	return ppk.Bytes(), nil
 }
 
-// chunkBase64String converts a string into a []string with chunks of size chunkSize;
+// chunk converts a string into a []string with chunks of size chunkSize;
 // used to split base64-encoded strings across multiple lines with an even width.
 // note: this function operates on Unicode code points rather than bytes, therefore
 // using it with multi-byte characters will result in unevenly chunked strings.
 // it's intended usage is only for chunking base64-encoded strings.
-func chunkBase64String(s string, chunkSize int) []string {
-	if len(s) == 0 {
-		return nil
-	}
-	if chunkSize >= len(s) {
-		return []string{s}
-	}
-	chunks := make([]string, 0, (len(s)-1)/chunkSize+1)
-	currentLen := 0
-	currentStart := 0
-	for i := range s {
-		if currentLen == chunkSize {
-			chunks = append(chunks, s[currentStart:i])
-			currentLen = 0
-			currentStart = i
+func chunk(s string, size int) []string {
+	var chunks []string
+	for b := []byte(s); len(b) > 0; {
+		n := size
+		if n > len(b) {
+			n = len(b)
 		}
-		currentLen++
+		chunks = append(chunks, string(b[:n]))
+		b = b[n:]
 	}
-	chunks = append(chunks, s[currentStart:])
 	return chunks
 }
 
