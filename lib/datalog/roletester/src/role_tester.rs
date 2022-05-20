@@ -18,7 +18,6 @@
 #![allow(clippy::collapsible_if)]
 
 use crepe::crepe;
-use libc::{c_uchar, size_t};
 use prost::Message;
 use std::{ptr, slice};
 
@@ -80,38 +79,28 @@ crepe! {
     DenyLogins(user, login, role) <- HasDeniedLogin(user, login, role);
 }
 
-#[repr(C)]
-pub struct Output {
-    access: *mut u8,
-    length: size_t,
-    error: i32,
-}
-
-fn create_error_ptr(e: String) -> Output {
-    let mut err_bytes = e.into_bytes().into_boxed_slice();
-    let err_ptr = err_bytes.as_mut_ptr();
-    let err_len = err_bytes.len();
-    std::mem::forget(err_bytes);
-
-    Output {
-        access: err_ptr,
-        length: err_len,
-        error: -1,
-    }
-}
+type Output = Result<Vec<u8>, String>;
 
 /// # Safety
 ///
-/// This function should not be called if input is invalid
+/// `input` should point to a buffer of size at least `input_len` bytes.
 #[no_mangle]
-pub unsafe extern "C" fn process_access(input: *mut c_uchar, input_len: size_t) -> *mut Output {
-    let mut runtime = Crepe::new();
-    let r = match types::Facts::decode(slice::from_raw_parts(input, input_len)) {
-        Ok(b) => b,
-        Err(e) => return Box::into_raw(Box::new(create_error_ptr(e.to_string()))),
-    };
+pub unsafe extern "C" fn process_access(input: *const u8, input_len: usize) -> Box<Output> {
+    let input = slice::from_raw_parts(input, input_len);
 
-    for pred in &r.predicates {
+    fn inner(input: &[u8]) -> Output {
+        let facts = types::Facts::decode(input).map_err(|e| e.to_string())?;
+
+        Ok(process_facts(facts).encode_to_vec())
+    }
+
+    Box::new(inner(input))
+}
+
+fn process_facts(facts: types::Facts) -> types::Facts {
+    let mut runtime = Crepe::new();
+
+    for pred in &facts.predicates {
         if pred.name == types::facts::PredicateType::HasRole as i32 {
             runtime.extend(&[HasRole(pred.atoms[0], pred.atoms[1])]);
         } else if pred.name == types::facts::PredicateType::HasTrait as i32 {
@@ -162,74 +151,39 @@ pub unsafe extern "C" fn process_access(input: *mut c_uchar, input_len: size_t) 
             }),
     );
 
-    let idb = types::Facts { predicates };
-
-    let mut buf = Vec::with_capacity(idb.encoded_len());
-    if let Err(e) = idb.encode(&mut buf) {
-        return Box::into_raw(Box::new(create_error_ptr(e.to_string())));
-    }
-
-    let mut ret = buf.into_boxed_slice();
-    let access_ptr = ret.as_mut_ptr();
-    let access_len = ret.len();
-    std::mem::forget(ret);
-
-    Box::into_raw(Box::new(Output {
-        access: access_ptr,
-        length: access_len,
-        error: 0,
-    }))
+    types::Facts { predicates }
 }
 
-/// # Safety
-///
-/// This function should not be called if output is invalid
+/// Get a pointer to the data from `output`.
 #[no_mangle]
-pub unsafe extern "C" fn output_access(output: *mut Output) -> *mut u8 {
-    if let Some(db) = output.as_ref() {
-        return db.access;
+pub extern "C" fn output_data(output: Option<&Output>) -> *const u8 {
+    match output {
+        Some(Ok(b)) => b.as_ptr(),
+        Some(Err(e)) => e.as_ptr(),
+        None => ptr::null(),
     }
-    ptr::null_mut()
 }
 
-/// # Safety
-///
-/// This function should not be called if output is invalid
+/// Get the length of the data from `output`.
 #[no_mangle]
-pub unsafe extern "C" fn output_length(output: *mut Output) -> size_t {
-    if let Some(db) = output.as_ref() {
-        return db.length;
+pub extern "C" fn output_len(output: Option<&Output>) -> usize {
+    match output {
+        Some(Ok(b)) => b.len(),
+        Some(Err(e)) => e.len(),
+        None => 0,
     }
-    0
 }
 
-/// # Safety
-///
-/// This function should not be called if output is invalid
+/// Returns 0 if `output` is `Ok`, -1 if `output` is `Err`.
 #[no_mangle]
-pub unsafe extern "C" fn output_error(output: *mut Output) -> i32 {
-    // We've checked that the pointer is not null.
-    if let Some(db) = output.as_ref() {
-        return db.error;
+pub extern "C" fn output_err(output: Option<&Output>) -> i32 {
+    match output {
+        Some(Ok(_)) => 0,
+        Some(Err(_)) => -1,
+        None => -1,
     }
-    0
 }
 
-/// # Safety
-///
-/// This function should not be called if output is invalid
+/// Drops the input value.
 #[no_mangle]
-pub unsafe extern "C" fn drop_output_struct(output: *mut Output) {
-    let db = match output.as_ref() {
-        Some(s) => s,
-        None => return,
-    };
-    // Drop access buf
-    if db.length > 0 {
-        let s = std::slice::from_raw_parts_mut(db.access, db.length);
-        let s = s.as_mut_ptr();
-        Box::from_raw(s);
-    }
-    // Drop struct
-    Box::from_raw(output);
-}
+pub extern "C" fn output_drop(_: Option<Box<Output>>) {}

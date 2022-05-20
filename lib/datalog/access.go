@@ -19,22 +19,23 @@ limitations under the License.
 
 package datalog
 
-// #cgo linux,386 LDFLAGS: -L${SRCDIR}/../../target/i686-unknown-linux-gnu/release
-// #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../target/x86_64-unknown-linux-gnu/release
-// #cgo linux,arm LDFLAGS: -L${SRCDIR}/../../target/arm-unknown-linux-gnueabihf/release
-// #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../target/aarch64-unknown-linux-gnu/release
-// #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../target/x86_64-apple-darwin/release
-// #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../target/aarch64-apple-darwin/release
-// #cgo LDFLAGS: -lrole_tester -ldl -lm
-// #include <stdio.h>
-// #include <stdlib.h>
+// #cgo linux,386 LDFLAGS: ${SRCDIR}/../../target/i686-unknown-linux-gnu/release/librole_tester.a
+// #cgo linux,amd64 LDFLAGS: ${SRCDIR}/../../target/x86_64-unknown-linux-gnu/release/librole_tester.a
+// #cgo linux,arm LDFLAGS: ${SRCDIR}/../../target/arm-unknown-linux-gnueabihf/release/librole_tester.a
+// #cgo linux,arm64 LDFLAGS: ${SRCDIR}/../../target/aarch64-unknown-linux-gnu/release/librole_tester.a
+// #cgo darwin,amd64 LDFLAGS: ${SRCDIR}/../../target/x86_64-apple-darwin/release/librole_tester.a
+// #cgo darwin,arm64 LDFLAGS: ${SRCDIR}/../../target/aarch64-apple-darwin/release/librole_tester.a
+// #include <limits.h>
+// #include <stdint.h>
+// #include <stddef.h>
 // typedef struct output output_t;
-// extern output_t *process_access(unsigned char *input, size_t input_len);
-// extern unsigned char *output_access(output_t *);
-// extern size_t output_length(output_t *);
-// extern int output_error(output_t *);
-// extern void drop_output_struct(output_t *output);
+// output_t *process_access(const uint8_t *, size_t);
+// const uint8_t *output_data(const output_t *);
+// size_t output_len(const output_t *);
+// int32_t output_err(const output_t *);
+// void output_drop(output_t *);
 import "C"
+
 import (
 	"context"
 	"fmt"
@@ -51,6 +52,32 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
+
+func ProcessAccess(input []byte) ([]byte, string) {
+	var input_ptr *C.uint8_t
+	if len(input) > 0 {
+		input_ptr = (*C.uint8_t)(&input[0])
+	}
+
+	output := C.process_access(input_ptr, C.size_t(len(input)))
+	defer C.output_drop(output)
+
+	ptr := C.output_data(output)
+	size := C.output_len(output)
+	if size > C.INT_MAX {
+		return nil, "output size overflow"
+	}
+	len := C.int(size)
+
+	if C.output_err(output) != 0 {
+		if len == 0 {
+			return nil, "empty error string"
+		}
+		return nil, C.GoStringN((*C.char)(unsafe.Pointer(ptr)), len)
+	} else {
+		return C.GoBytes(unsafe.Pointer(ptr), len), ""
+	}
+}
 
 // NodeAccessRequest defines a request for access for a specific user, login, and node.
 type NodeAccessRequest struct {
@@ -131,23 +158,14 @@ func QueryNodeAccess(ctx context.Context, client auth.ClientI, req NodeAccessReq
 		return nil, trace.Wrap(err)
 	}
 
-	// Create the byte buffer pointers for input and output
-	ptr := (*C.uchar)(C.CBytes(b))
-	defer C.free(unsafe.Pointer(ptr))
-
-	output := C.process_access(ptr, C.size_t(len(b)))
-	defer C.drop_output_struct(output)
-
-	res := C.output_access(output)
-	statusCode := C.output_error(output)
-	outputLength := C.output_length(output)
+	buf, errString := ProcessAccess(b)
 
 	// If statusCode != 0, then there was an error. We return the error string.
-	if int(statusCode) != 0 {
-		return nil, trace.BadParameter(C.GoStringN((*C.char)(unsafe.Pointer(res)), C.int(outputLength)))
+	if errString != "" {
+		return nil, trace.BadParameter(errString)
 	}
 
-	err = proto.Unmarshal(C.GoBytes(unsafe.Pointer(res), C.int(outputLength)), &resp.Accesses)
+	err = proto.Unmarshal(buf, &resp.Accesses)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
