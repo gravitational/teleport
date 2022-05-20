@@ -141,5 +141,13 @@ type renewSessionResponse struct {
 // In our case we only care about SQLText as this is the field that contain the
 // SQL query that we need to log.
 type queryRequest struct {
-	SQLText string `json:"sqlText"`
+	SQLText    string                       `json:"sqlText"`
+	Parameters map[string]interface{}       `json:"parameters,omitempty"`
+	Bindings   map[string]execBindParameter `json:"bindings,omitempty"`
+	BindStage  string                       `json:"bindStage,omitempty"`
+}
+
+type execBindParameter struct {
+	Type  string      `json:"type"`
+	Value interface{} `json:"value"`
 }

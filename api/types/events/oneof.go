@@ -383,6 +383,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MySQLRefresh{
 			MySQLRefresh: e,
 		}
+	case *SnowflakeQuery:
+		out.Event = &OneOf_SnowflakeQuery{
+			SnowflakeQuery: e,
+		}
 	case *RenewableCertificateGenerationMismatch:
 		out.Event = &OneOf_RenewableCertificateGenerationMismatch{
 			RenewableCertificateGenerationMismatch: e,

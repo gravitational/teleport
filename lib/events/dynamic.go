@@ -204,6 +204,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MySQLDebug{}
 	case DatabaseSessionMySQLRefreshEvent:
 		e = &events.MySQLRefresh{}
+	case DatabaseSessionSnowflakeQuery:
+		e = &events.SnowflakeQuery{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:

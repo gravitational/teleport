@@ -1576,6 +1576,35 @@ message PostgresFunctionCall {
     repeated string FunctionArgs = 6 [ (gogoproto.jsontag) = "function_args,omitempty" ];
 }
 
+// SnowflakeQuery is emitted when a Snowflake client executes a query.
+message SnowflakeQuery {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Query is the prepared statement query.
+    string Query = 5 [ (gogoproto.jsontag) = "query" ];
+    // Parameters are the query parameters.
+    map<string, string> Parameters = 6 [ (gogoproto.jsontag) = "parameters" ];
+    // BindParameter is a type value pair of Bindings.
+    message BindParameter {
+        string Type = 1 [ (gogoproto.jsontag) = "type" ];
+        string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    }
+    // Bindings are the Snowflake query bindings used with prepared queries.
+    map<string, BindParameter> Bindings = 7 [ (gogoproto.jsontag) = "bindings" ];
+    // BindStage is the bind stage used with Snowflake queries.
+    string BindStage = 8 [ (gogoproto.jsontag) = "bind_stage" ];
+}
+
 // WindowsDesktopSessionStart is emitted when a user connects to a desktop.
 message WindowsDesktopSessionStart {
     // Metadata is common event metadata.
@@ -1922,6 +1951,7 @@ message OneOf {
         events.MySQLDebug MySQLDebug = 86;
         events.MySQLRefresh MySQLRefresh = 87;
         events.AccessRequestResourceSearch AccessRequestResourceSearch = 88;
+        events.SnowflakeQuery SnowflakeQuery = 89;
     }
 }
 

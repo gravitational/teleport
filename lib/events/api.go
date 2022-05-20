@@ -424,7 +424,9 @@ const (
 	// DatabaseSessionPostgresFunctionEvent is emitted when a Postgres client
 	// calls an internal function.
 	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.function"
-
+	// DatabaseSessionSnowflakeQuery is emitted when a Snowflake client executes
+	// a database query.
+	DatabaseSessionSnowflakeQuery = "db.session.snowflake.query"
 	// DatabaseSessionMySQLStatementPrepareEvent is emitted when a MySQL client
 	// creates a prepared statement using the prepared statement protocol.
 	DatabaseSessionMySQLStatementPrepareEvent = "db.session.mysql.statements.prepare"
