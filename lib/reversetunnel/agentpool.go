@@ -60,6 +60,8 @@ type ServerHandler interface {
 	HandleConnection(conn net.Conn)
 }
 
+type newAgentFunc func(context.Context, *track.Tracker, track.Lease) (Agent, error)
+
 // AgentPool manages a pool of reverse tunnel agents.
 type AgentPool struct {
 	AgentPoolConfig
@@ -71,6 +73,9 @@ type AgentPool struct {
 
 	// events receives agent state change events.
 	events chan Agent
+
+	// newAgentFunc is used during testing to mock new agents.
+	newAgentFunc newAgentFunc
 
 	// wg waits for the pool and all agents to complete.
 	wg     sync.WaitGroup
@@ -192,6 +197,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	}
 
 	pool.runtimeConfig.isRemoteCluster = pool.IsRemoteCluster
+	pool.newAgentFunc = pool.newAgent
 
 	pool.ctx, pool.cancel = context.WithCancel(ctx)
 	pool.tracker, err = track.New(pool.ctx, track.Config{ClusterName: pool.Cluster})
@@ -283,7 +289,7 @@ func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease,
 		return nil, trace.Wrap(err)
 	}
 
-	agent, err := p.newAgent(ctx, p.tracker, lease)
+	agent, err := p.newAgentFunc(ctx, p.tracker, lease)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
