@@ -155,7 +155,7 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 	// make sure claim mappings have either roles or a role template
 	for ix, v := range c.Spec.TeamsToLogins {
 		if v.Team == "" {
-			return trace.BadParameter("team_to_logins mapping #v is invalid, team is empty.", ix+1)
+			return trace.BadParameter("team_to_logins mapping #%v is invalid, team is empty.", ix+1)
 		}
 	}
 
