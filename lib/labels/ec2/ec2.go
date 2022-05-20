@@ -125,15 +125,10 @@ func (l *EC2) periodicUpdateLabels(ctx context.Context) {
 		l.Sync(ctx)
 		select {
 		case <-ticker.Chan():
-		case <-l.closeCh:
+		case <-ctx.Done():
 			return
 		}
 	}
-}
-
-// Close will free up all resources and stop keeping EC2 labels updated.
-func (l *EC2) Close() {
-	close(l.closeCh)
 }
 
 // toAWSLabels formats labels coming from EC2.

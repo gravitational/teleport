@@ -176,6 +176,4 @@ type LabelImporter interface {
 	Sync(context.Context)
 	// Start starts a loop that continually keeps the labels updated.
 	Start(context.Context)
-	// Close will free up all resources and stop keeping the labels updated.
-	Close()
 }

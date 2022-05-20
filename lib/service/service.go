@@ -3883,10 +3883,6 @@ func (process *TeleportProcess) Close() error {
 
 	process.Config.Keygen.Close()
 
-	if process.cloudLabels != nil {
-		process.cloudLabels.Close()
-	}
-
 	var errors []error
 
 	if localAuth := process.getLocalAuth(); localAuth != nil {
