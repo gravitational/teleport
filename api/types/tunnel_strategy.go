@@ -59,8 +59,8 @@ type TunnelStrategy interface {
 
 // tunnelStrategyConfig represents a unparsed tunnel strategy configuration.
 type tunnelStrategyConfig struct {
-	Type   TunnelStrategyType     `yaml:"type" json:"type"`
-	Params map[string]interface{} `yaml:",inline" json:"-"`
+	Type   TunnelStrategyType     `yaml:"type"`
+	Params map[string]interface{} `yaml:",inline"`
 }
 
 // newTunnelStrategyConfig creates a new tunnelStrategyConfig instance.
