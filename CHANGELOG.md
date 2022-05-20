@@ -1,5 +1,17 @@
 # Changelog
 
+## 8.3.11
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with Teleport inadvertently respecting `HTTP_PROXY` for reverse tunnel connections. [#12335](https://github.com/gravitational/teleport/pull/12335)
+* Fixed issue with `tctl users rm` treating provided username as a prefix instead of full username. [#12726](https://github.com/gravitational/teleport/pull/12726)
+* Fixed issue with TLS routing endpoint advertising `http/1.1` preference instead of `h2`. [#12752](https://github.com/gravitational/teleport/pull/12752)
+* Implemented multiple proxy restart stability improvements. [#12633](https://github.com/gravitational/teleport/pull/12633), [#12545](https://github.com/gravitational/teleport/pull/12545), [#12693](https://github.com/gravitational/teleport/pull/12693)
+* Added support for global tsh config file `/etc/tsh.yaml`. [#12625](https://github.com/gravitational/teleport/pull/12625)
+* Upgraded Go to v1.17.10. [#12601](https://github.com/gravitational/teleport/pull/12601)
+* Improved proxy memory usage in large clusters. [#12571](https://github.com/gravitational/teleport/pull/12571)
+
 ## 8.3.10
 
 This release of Teleport contains multiple bug fixes and stability improvements.
