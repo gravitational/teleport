@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/packet"
 	"github.com/go-mysql-org/go-mysql/server"
 
@@ -261,7 +262,14 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		password,
 		sessionCtx.DatabaseName,
 		dialer,
-		connectOpt)
+		connectOpt,
+		// client-set capabilities only.
+		// TODO(smallinsky) Forward "real" capabilities from mysql client to mysql server.
+		withClientCapabilities(
+			mysql.CLIENT_MULTI_RESULTS,
+			mysql.CLIENT_MULTI_STATEMENTS,
+		),
+	)
 	if err != nil {
 		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
 			return nil, trace.AccessDenied(`Could not connect to database:
@@ -278,6 +286,14 @@ take a few minutes to propagate):
 		return nil, trace.Wrap(err)
 	}
 	return conn, nil
+}
+
+func withClientCapabilities(caps ...uint32) func(conn *client.Conn) {
+	return func(conn *client.Conn) {
+		for _, cap := range caps {
+			conn.SetCapability(cap)
+		}
+	}
 }
 
 // receiveFromClient relays protocol messages received from MySQL client
