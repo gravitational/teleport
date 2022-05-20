@@ -18,7 +18,6 @@ package service
 
 import (
 	"crypto/tls"
-	"math"
 	"path/filepath"
 	"strings"
 
@@ -67,8 +66,9 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			// client works, by using call that should succeed at all times
 			if connector.Client != nil {
 				pingResponse, err := connector.Client.Ping(process.ExitContext())
-				if err := process.compareVersions(&pingResponse); err != nil {
-					process.log.Debugf("Error comparing formats: %v", err)
+				compareErr := process.authServerTooOld(&pingResponse)
+				if compareErr != nil {
+					return nil, trace.Wrap(compareErr)
 				}
 
 				if err == nil {
@@ -104,7 +104,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 	}
 }
 
-func (process *TeleportProcess) compareVersions(resp *proto.PingResponse) error {
+func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error {
 	serverVersion, err := semver.NewVersion(resp.ServerVersion)
 	if err != nil {
 		return trace.Wrap(err)
@@ -113,9 +113,15 @@ func (process *TeleportProcess) compareVersions(resp *proto.PingResponse) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if math.Abs(float64(serverVersion.Major-teleportVersion.Major)) > 1 {
-		process.log.Warnf("Only versions %d and %d are supported, auth server is %s.", teleportVersion.Major, teleportVersion.Major-1, serverVersion.Major)
+
+	if serverVersion.Major < teleportVersion.Major {
+		if process.Config.SkipVersionCheck {
+			process.log.Warnf("Only versions %d and greater are supported, but auth server is version %d.", teleportVersion.Major, serverVersion.Major)
+			return nil
+		}
+		return trace.NotImplemented("only versions %d and greater are supported, but auth server is version %d. To connect anyway pass the '--skip-version-check' flag.", teleportVersion.Major, serverVersion.Major)
 	}
+
 	return nil
 }
 

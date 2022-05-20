@@ -225,6 +225,10 @@ type Config struct {
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
 
+	// SkipVersionCheck means the version checking between server and client
+	// will be skipped.
+	SkipVersionCheck bool
+
 	// BPFConfig holds configuration for the BPF service.
 	BPFConfig *bpf.Config
 
