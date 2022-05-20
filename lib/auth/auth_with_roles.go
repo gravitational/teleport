@@ -2453,19 +2453,34 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*
 		return nil, trace.Wrap(err)
 	}
 
+	// require additional permissions for executing SSO test flow.
+	if req.SSOTestFlow {
+		if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(req)
 	if err != nil {
-		// TODO(Tener): Update `testFlow` flag once OIDC SSO starts supporting test flows.
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err, false)
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
 		return nil, trace.Wrap(err)
 	}
 
 	return oidcReq, nil
 }
 
-func (a *ServerWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+// GetOIDCAuthRequest returns OIDC auth request if found.
+func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error) {
+	if err := a.action(apidefaults.Namespace, types.KindOIDCRequest, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetOIDCAuthRequest(ctx, id)
+}
+
+func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
-	return a.authServer.ValidateOIDCAuthCallback(q)
+	return a.authServer.ValidateOIDCAuthCallback(ctx, q)
 }
 
 func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
