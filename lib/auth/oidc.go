@@ -167,7 +167,7 @@ func oidcConfig(conn types.OIDCConnector, redirectURL string) oidc.ClientConfig 
 func (c *oidcClient) startSync(ctx context.Context) {
 	// SyncProviderConfig doesn't take a context for cancellation, instead it
 	// returns a channel that has to be closed to stop the sync. To ensure that the
-	// sync is eventaully stopped, we "wrap" the stop channel with a cancel context.
+	// sync is eventually stopped, we "wrap" the stop channel with a cancel context.
 	c.syncCtx, c.syncCancel = context.WithCancel(ctx)
 	go func() {
 		stop := c.client.SyncProviderConfig(c.connector.GetIssuerURL())

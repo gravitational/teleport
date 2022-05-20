@@ -366,7 +366,7 @@ func TestOIDCClientProviderSync(t *testing.T) {
 	client, err := newOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
 
-	// first sync should complete succesfully
+	// first sync should complete successfully
 	require.NoError(t, client.waitFirstSync(100*time.Millisecond))
 	require.NoError(t, client.syncCtx.Err())
 
