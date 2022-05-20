@@ -129,12 +129,14 @@ func Start() error {
 	running = true
 	runningQuitHandle = C.CreateEventA(nil, C.TRUE, C.FALSE, nil)
 
-	// We choose a small buffer (10) because we only
-	// need a buffer big enough to store a VT sequence.
-	// If we don't buffer the VT sequence, the individual
-	// keystrokes won't be transmitted quickly enough for
-	// them to be grouped as a VT sequence by Windows.
-	sequenceBuffer = newBufferedChannelPipe(10)
+	// Adding a buffer increases the speed of reads by a great amount,
+	// since waiting on channel sends is the main chokepoint. Without
+	// a sufficient buffer, the individual keystrokes won't be transmitted
+	// quickly enough for them to be grouped as a VT sequence by Windows.
+	// A buffer of 100 should provide ample buffer to hold several VT
+	// sequences (which are 5 bytes each max) and output them to the
+	// terminal in real time.
+	sequenceBuffer = newBufferedChannelPipe(100)
 
 	go readInputContinuous(runningQuitHandle)
 
