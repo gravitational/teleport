@@ -547,25 +547,14 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 		return nil, trace.Wrap(err, "Error dialing proxy %+v", id)
 	}
 
-	clientConn := &clientConn{
+	return &clientConn{
 		ClientConn: conn,
 		ctx:        connCtx,
 		cancel:     cancel,
 		wg:         wg,
 		id:         id,
 		addr:       proxyPeerAddr,
-	}
-
-	// Ensure the connection is closed when the context is canceled.
-	go func() {
-		<-clientConn.ctx.Done()
-		err := c.stopConn(clientConn)
-		if err != nil {
-			c.config.Log.Infof("Error closing client conn %s: %v", clientConn.id, err)
-		}
-	}()
-
-	return clientConn, nil
+	}, nil
 }
 
 // startStream opens a new stream to the provided connection.
