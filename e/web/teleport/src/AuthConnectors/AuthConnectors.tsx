@@ -86,7 +86,7 @@ export function AuthConnectors(props: State) {
               <Text
                 as="a"
                 color="light"
-                href="https://gravitational.com/teleport/docs/enterprise/ssh_sso/"
+                href="https://goteleport.com/docs/enterprise/sso/"
                 target="_blank"
               >
                 view our documentation
