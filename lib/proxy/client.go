@@ -346,6 +346,10 @@ func (c *Client) DialNode(
 	}
 
 	if msg.GetConnectionEstablished() == nil {
+		err := stream.CloseSend()
+		if err != nil {
+			c.config.Log.Debugf("error closing stream: %w", err)
+		}
 		return nil, trace.ConnectionProblem(nil, "received malformed connection established frame")
 	}
 
@@ -543,14 +547,29 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 		return nil, trace.Wrap(err, "Error dialing proxy %+v", id)
 	}
 
-	return &clientConn{
+	clientConn := &clientConn{
 		ClientConn: conn,
 		ctx:        connCtx,
 		cancel:     cancel,
 		wg:         wg,
 		id:         id,
 		addr:       proxyPeerAddr,
-	}, nil
+	}
+
+	// Ensure the connection is closed when the context is canceled.
+	go func() {
+		select {
+		case <-c.ctx.Done():
+		case <-clientConn.ctx.Done():
+		}
+
+		err := c.stopConn(clientConn)
+		if err != nil {
+			c.config.Log.Infof("Error closing client conn %s: %v", clientConn.id, err)
+		}
+	}()
+
+	return clientConn, nil
 }
 
 // startStream opens a new stream to the provided connection.
@@ -561,13 +580,6 @@ func (c *Client) startStream(conn *clientConn) (clientapi.ProxyService_DialNodeC
 	if err != nil {
 		return nil, trace.Wrap(err, "Error opening stream to proxy %+v", conn.id)
 	}
-
-	go func() {
-		<-conn.ctx.Done()
-		if err := stream.CloseSend(); err != nil {
-			c.config.Log.Debugf("error closing stream: %+v", err)
-		}
-	}()
 
 	return stream, nil
 }
