@@ -163,12 +163,6 @@ func (s *GithubSuite) TestValidateGithubAuthCallbackEventsEmitted(c *check.C) {
 		},
 	}
 
-	type diagInfoCall struct {
-		authKind      string
-		authRequestID string
-		info          types.SSODiagnosticInfo
-	}
-
 	ssoDiagInfoCalls := 0
 
 	m := &mockedGithubManager{}
