@@ -173,6 +173,7 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 			// Ignore access denied errors, which we may get if the auth
 			// server is v9.2.1 or earlier, since only node, proxy, and
 			// kube roles had permission to create session trackers.
+			// DELETE IN 11.0.0
 			if !trace.IsAccessDenied(err) {
 				return trace.Wrap(err)
 			}
