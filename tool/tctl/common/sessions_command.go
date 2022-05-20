@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,22 +17,17 @@ limitations under the License.
 package common
 
 import (
-	"fmt"
-	"strings"
+	"os"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SessionsCommand implements "tctl sessions" group of commands.
@@ -54,8 +49,6 @@ func (c *SessionsCommand) Initialize(app *kingpin.Application, config *service.C
 	sessions := app.Command("sessions", "Operate on recorded sessions.")
 	c.sessionsList = sessions.Command("ls", "List recorded sessions.")
 	c.sessionsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
-	c.sessionsList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
-	c.sessionsList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 }
 
 // TODO: Move this somewhere more appropriate
@@ -71,7 +64,6 @@ func (c *SessionsCommand) TryRun(cmd string, client auth.ClientI) (match bool, e
 	}
 	return true, trace.Wrap(err)
 }
-
 
 //TODO: Deduplicate this logic, same functions defined for tsh
 
@@ -92,59 +84,20 @@ func (c *SessionsCommand) ListSessions(clt auth.ClientI) error {
 		}
 		prevEventKey = eventKey
 	}
-	return trace.Wrap(showSessions(sessions, c.format))
+	return trace.Wrap(c.showSessions(sessions))
 }
 
-func showSessions(events []events.AuditEvent, format string) error {
-	format = strings.ToLower(format)
-	switch format {
-	case teleport.Text, "":
-		err := showSessionsAsText(events)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	case teleport.JSON, teleport.YAML:
-		out, err := serializeSessions(events, format)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(out)
+func (c *SessionsCommand) showSessions(events []events.AuditEvent) error {
+	sessions := &SessionsCollection{SessionEvents: events}
+	switch c.format {
+	case teleport.Text:
+		return trace.Wrap(sessions.WriteText(os.Stdout))
+	case teleport.YAML:
+		return trace.Wrap(sessions.WriteYAML(os.Stdout))
+	case teleport.JSON:
+		return trace.Wrap(sessions.WriteJSON(os.Stdout))
 	default:
-		return trace.BadParameter("unsupported format %q", format)
-	}
-	return nil
-}
+		return trace.BadParameter("unknown format %q", c.format)
 
-func showSessionsAsText(endEvents []events.AuditEvent) error {
-	// session ID, session type (can we?), session timestamp, participants, server information.
-	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
-	for _, event := range endEvents {
-		session, ok := event.(*events.SessionEnd)
-		if !ok {
-			return trace.BadParameter("unsupported event type: expected SessionEnd: got: %T", event)
-		}
-		t.AddRow([]string{
-			session.GetSessionID(),
-			"TODO: Get session type",
-			strings.Join(session.Participants, ", "),
-			session.ServerHostname,
-			session.GetTime().Format(constants.HumanDateFormatSeconds),
-		})
 	}
-	fmt.Println(t.AsBuffer().String())
-	return nil
-}
-
-func serializeSessions(sessionEvents []events.AuditEvent, format string) (string, error) {
-	if sessionEvents == nil {
-		sessionEvents = []events.AuditEvent{}
-	}
-	var out []byte
-	var err error
-	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(sessionEvents, "", "  ")
-	} else {
-		out, err = yaml.Marshal(sessionEvents)
-	}
-	return string(out), trace.Wrap(err)
 }

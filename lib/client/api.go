@@ -4360,5 +4360,6 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC time.
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+
 	return decodedEvents, lastKey, nil
 }

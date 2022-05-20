@@ -67,6 +67,10 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/teleport/tool/tctl/common"
+
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -589,9 +593,6 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// Sessions.
 	sessions := app.Command("sessions", "View and control recorded sessions.").Alias("session")
 	lsSessions := sessions.Command("ls", "List recorded sessions.")
-	lsSessions.Flag("verbose", "Show extra sessions fields.").Short('v').BoolVar(&cf.Verbose)
-	lsSessions.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
-	lsSessions.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	lsSessions.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 
 	// Local TLS proxy.
@@ -2170,58 +2171,19 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showSessions(events []apievents.AuditEvent, format string, verbose bool) error {
-	format = strings.ToLower(format)
+func showSessions(events []apievents.AuditEvent, format string, w io.Writer) error {
+	sessions := &common.SessionsCollection{SessionEvents: events}
 	switch format {
-	case teleport.Text, "":
-		err := showSessionsAsText(events)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	case teleport.JSON, teleport.YAML:
-		out, err := serializeSessions(events, format)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(out)
+	case teleport.Text:
+		return trace.Wrap(sessions.WriteText(w))
+	case teleport.YAML:
+		return trace.Wrap(sessions.WriteYAML(w))
+	case teleport.JSON:
+		return trace.Wrap(sessions.WriteJSON(w))
 	default:
-		return trace.BadParameter("unsupported format %q", format)
-	}
-	return nil
-}
+		return trace.BadParameter("unknown format %q", format)
 
-func showSessionsAsText(endEvents []apievents.AuditEvent) error {
-	// session ID, session type (can we?), session timestamp, participants, server information.
-	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
-	for _, event := range endEvents {
-		session, ok := event.(*apievents.SessionEnd)
-		if !ok {
-			return trace.BadParameter("unsupported event type: expected SessionEnd: got: %T", event)
-		}
-		t.AddRow([]string{
-			session.GetSessionID(),
-			"TODO: Get session type",
-			strings.Join(session.Participants, ", "),
-			session.ServerHostname,
-			session.GetTime().Format(constants.HumanDateFormatSeconds),
-		})
 	}
-	fmt.Println(t.AsBuffer().String())
-	return nil
-}
-
-func serializeSessions(events []apievents.AuditEvent, format string) (string, error) {
-	if events == nil {
-		events = []apievents.AuditEvent{}
-	}
-	var out []byte
-	var err error
-	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(events, "", "  ")
-	} else {
-		out, err = yaml.Marshal(events)
-	}
-	return string(out), trace.Wrap(err)
 }
 
 func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
@@ -3962,7 +3924,7 @@ func onSessions(cf *CLIConf) error {
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := showSessions(sessions, cf.Format, cf.Verbose); err != nil {
+	if err := showSessions(sessions, cf.Format, os.Stdout); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
