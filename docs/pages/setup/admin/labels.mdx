@@ -8,18 +8,30 @@ databases, and other resources in your cluster. You can use these to filter
 resources when making queries via `tctl` and `tsh` as well as to limit the
 resources that Teleport roles can access.
 
+This guide explains how to add labels to Teleport resources.
+
 There are two kinds of labels:
 
-- **Static labels** do not change over time while the `teleport` process is
-  running. Examples of static labels are the physical location of Nodes and the
-  name of the environment (e.g., `staging` vs. `production`).
-- **Dynamic labels**, also known as **label commands**, allow you to generate
-  labels at runtime. Teleport will execute an external command on a Node at a
-  configurable frequency and the output of the command becomes the label value.
-  Examples include reporting load averages, the presence of a process, and the time after
-  the last reboot.
+### Static labels
 
-This guide explains how to add labels to Teleport resources.
+Static labels are hardcoded in a `teleport` daemon's configuration file and do
+not change over time while the `teleport` process is running. An example of a static
+label is a Node's environment, e.g., `staging` vs. `production`.
+
+### Dynamic labels
+
+Dynamic labels, also known as **label commands**, allow you to generate labels
+at runtime. The `teleport` daemon will execute an external command on its host
+at a configurable frequency and the output of the command becomes the label's
+value.
+
+This is especially useful for decoupling the label's value from your Teleport
+configuration. For example, if you start Teleport on an Amazon EC2 instance, you
+can set a `region` label based on a command that sends a request to the EC2
+[instance metadata API](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-categories.html).
+This means that you can keep your configuration the same for each Node (and set
+the configuration within an Amazon Machine Image) while enabling users to search for Nodes by AWS
+region.
 
 ## Prerequisites
 
@@ -76,7 +88,7 @@ Copy the token. On the remote host that you will add to your Teleport cluster as
 Node, assign the token to an environment variable:
 
 ```code
-$ export JOIN_TOKEN=<token>
+$ export INVITE_TOKEN=<token>
 ```
 
 We will use this in the next step.
@@ -138,10 +150,10 @@ ssh_service:
 
 </ScopedBlock>
 
-Next, start Teleport with the join token you created earlier:
+Next, start Teleport with the invite token you created earlier:
 
 ```code
-$ sudo teleport start --token=${JOIN_TOKEN?}
+$ sudo teleport start --token=${INVITE_TOKEN?}
 ```
 
 Verify that you have added the label by running the following on your local
@@ -336,11 +348,11 @@ bit must be set and shell scripts must have a
 
 </Notice>
 
-Once you have configured your labels, start Teleport with the join token you
+Once you have configured your labels, start Teleport with the invite token you
 created earlier:
 
 ```code
-$ sudo teleport start --token=${JOIN_TOKEN?}
+$ sudo teleport start --token=${INVITE_TOKEN?}
 ```
 
 Verify that you have added the labels by running the following on your local
@@ -355,7 +367,7 @@ ip-192-0-2-0      ⟵ Tunnel arch=x86_64,hostname=ip-172-30-156-233
 
 <Details title="Problems re-joining the Node?">
 
-Try creating another join token using the `tctl nodes add` command from earlier
+Try creating another invite token using the `tctl nodes add` command from earlier
 and starting your Node again.
 
 If this doesn't work, delete the directory your Node uses to maintain its state,
