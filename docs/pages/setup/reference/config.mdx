@@ -344,6 +344,9 @@ auth_service:
             # app_id should always also be listed as a facet
             - https://localhost:3080
             - https://localhost
+            # localhost allows non-https facets as well
+            - localhost:3080
+            - localhost
 
             # optional list of certificate authorities (as local file paths or
             # in-line PEM certificate string) for U2F [device
