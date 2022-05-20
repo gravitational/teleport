@@ -312,9 +312,6 @@ func (m *mockIMDSClient) GetTagValue(ctx context.Context, key string) (string, e
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up
 // EC2 tags when running on an EC2 instance.
 func TestEC2Labels(t *testing.T) {
-	oldInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(oldInsecure) })
 	storageConfig := backend.Config{
 		Type: lite.GetName(),
 		Params: backend.Params{
