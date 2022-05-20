@@ -778,7 +778,8 @@ type StaticToken string
 // apart and constructs a services.ProvisionToken which contains the token,
 // role, and expiry (infinite).
 func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
-	parts := strings.Split(string(t), ":")
+	// Split only on the first ':', for future cross platform compat with windows paths
+	parts := strings.SplitN(string(t), ":", 2)
 	if len(parts) != 2 {
 		return nil, trace.BadParameter("invalid static token spec: %q", t)
 	}
@@ -788,7 +789,7 @@ func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := utils.ReadToken(parts[1])
+	token, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

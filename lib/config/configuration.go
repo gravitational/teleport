@@ -346,8 +346,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Read in how nodes will validate the CA. A single empty string in the file
 	// conf should indicate no pins.
-	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
-		cfg.CAPins = fc.CAPin
+	if len(fc.CAPin) > 0 {
+		if err = cfg.ApplyCAPins(fc.CAPin); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Set diagnostic address
@@ -1851,8 +1853,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if len(clf.CAPins) != 0 {
-		cfg.CAPins = clf.CAPins
+	if len(clf.CAPins) > 0 {
+		cfg.ApplyCAPins(clf.CAPins)
 	}
 
 	// apply --listen-ip flag:
