@@ -810,8 +810,8 @@ func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	cl.Stdout = personA
 	cl.Stdin = personA
-	personA.Type("\aecho hi\n\r")
 	go cl.SSH(ctx, []string{}, false)
+	personA.Type("\aecho hi\n\r")
 
 	condition := func() bool {
 		// verify that the tracker was created
@@ -821,7 +821,7 @@ func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	// wait for the tracker to be created
-	require.Eventually(t, condition, time.Minute, time.Millisecond*100)
+	require.Eventually(t, condition, time.Minute*5, time.Millisecond*100)
 }
 
 // testInteractive covers SSH into shell and joining the same session from another client
