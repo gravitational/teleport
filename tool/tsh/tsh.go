@@ -1502,29 +1502,14 @@ func listNodesAllClusters(cf *CLIConf) error {
 }
 
 func printNodesWithClusters(nodes []nodeListing, verbose bool) {
-	// Reusable function to get addr or tunnel for each node
-	getAddr := func(n types.Server) string {
-		if n.GetUseTunnel() {
-			return "⟵ Tunnel"
-		}
-		return n.GetAddr()
+	var rows [][]string
+	for _, n := range nodes {
+		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, verbose))
 	}
-
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"})
-		for _, n := range nodes {
-			t.AddRow([]string{
-				n.Proxy, n.Cluster, n.Node.GetName(), getAddr(n.Node), n.Node.LabelsString(),
-			})
-		}
+		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
 	} else {
-		var rows [][]string
-		for _, n := range nodes {
-			rows = append(rows,
-				[]string{n.Proxy, n.Cluster, n.Node.GetHostname(), getAddr(n.Node), sortedLabels(n.Node.GetAllLabels())},
-			)
-		}
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
@@ -1682,7 +1667,7 @@ func serializeNodes(nodes []types.Server, format string) (string, error) {
 	return string(out), trace.Wrap(err)
 }
 
-func printNodesAsText(nodes []types.Server, verbose bool) {
+func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string {
 	// Reusable function to get addr or tunnel for each node
 	getAddr := func(n types.Server) string {
 		if n.GetUseTunnel() {
@@ -1691,25 +1676,33 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 		return n.GetAddr()
 	}
 
+	row := make([]string, 0)
+	if proxy != "" && cluster != "" {
+		row = append(row, proxy, cluster)
+	}
+
+	if verbose {
+		row = append(row, node.GetHostname(), node.GetName(), getAddr(node), node.LabelsString())
+	} else {
+		row = append(row, node.GetHostname(), getAddr(node), sortedLabels(node.GetAllLabels()))
+	}
+	return row
+}
+
+func printNodesAsText(nodes []types.Server, verbose bool) {
+	var rows [][]string
+	for _, n := range nodes {
+		rows = append(rows, getNodeRow("", "", n, verbose))
+	}
 	var t asciitable.Table
 	switch verbose {
 	// In verbose mode, print everything on a single line and include the Node
 	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
 	case true:
-		t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
-		for _, n := range nodes {
-			t.AddRow([]string{
-				n.GetHostname(), n.GetName(), getAddr(n), n.LabelsString(),
-			})
-		}
+		t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"}, rows...)
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	case false:
-		var rows [][]string
-		for _, n := range nodes {
-			rows = append(rows,
-				[]string{n.GetHostname(), getAddr(n), sortedLabels(n.GetAllLabels())})
-		}
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
@@ -1768,46 +1761,43 @@ func serializeApps(apps []types.Application, format string) (string, error) {
 	return string(out), trace.Wrap(err)
 }
 
+func getAppRow(proxy, cluster string, app types.Application, active []tlsca.RouteToApp, verbose bool) []string {
+	var row []string
+	if proxy != "" && cluster != "" {
+		row = append(row, proxy, cluster)
+	}
+
+	name := app.GetName()
+	for _, a := range active {
+		if name == a.Name {
+			name = fmt.Sprintf("> %v", name)
+			break
+		}
+	}
+	if verbose {
+		row = append(row, name, app.GetDescription(), app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
+	} else {
+		row = append(row, name, app.GetDescription(), app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
+	}
+	return row
+}
+
 func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
+	var rows [][]string
+	for _, app := range apps {
+		rows = append(rows, getAppRow("", "", app, active, verbose))
+	}
 	// In verbose mode, print everything on a single line and include host UUID.
 	// In normal mode, chunk the labels, print two per line and allow multiple
 	// lines per node.
+	var t asciitable.Table
 	if verbose {
-		t := asciitable.MakeTable([]string{"Application", "Description", "Public Address", "URI", "Labels"})
-		for _, app := range apps {
-			name := app.GetName()
-			for _, a := range active {
-				if name == a.Name {
-					name = fmt.Sprintf("> %v", name)
-				}
-			}
-			t.AddRow([]string{
-				name,
-				app.GetDescription(),
-				app.GetPublicAddr(),
-				app.GetURI(),
-				sortedLabels(app.GetAllLabels()),
-			})
-		}
-		fmt.Println(t.AsBuffer().String())
+		t = asciitable.MakeTable([]string{"Application", "Description", "Public Address", "URI", "Labels"}, rows...)
 	} else {
-		var rows [][]string
-		for _, app := range apps {
-			name := app.GetName()
-			for _, a := range active {
-				if name == a.Name {
-					name = fmt.Sprintf("> %v", name)
-				}
-			}
-			desc := app.GetDescription()
-			addr := app.GetPublicAddr()
-			labels := sortedLabels(app.GetAllLabels())
-			rows = append(rows, []string{name, desc, addr, labels})
-		}
-		t := asciitable.MakeTableWithTruncatedColumn(
+		t = asciitable.MakeTableWithTruncatedColumn(
 			[]string{"Application", "Description", "Public Address", "Labels"}, rows, "Labels")
-		fmt.Println(t.AsBuffer().String())
 	}
+	fmt.Println(t.AsBuffer().String())
 }
 
 func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
@@ -1916,65 +1906,48 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 }
 
 func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
-	if verbose {
-		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
-		for _, database := range databases {
-			t.AddRow(getDatabaseRow("", "",
-				clusterFlag,
-				database,
-				active,
-				roleSet,
-				verbose))
-		}
-		fmt.Println(t.AsBuffer().String())
-	} else {
-		var rows [][]string
-		for _, database := range databases {
-			rows = append(rows, getDatabaseRow("", "",
-				clusterFlag,
-				database,
-				active,
-				roleSet,
-				verbose))
-		}
-		t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
-		fmt.Println(t.AsBuffer().String())
+	var rows [][]string
+	for _, database := range databases {
+		rows = append(rows, getDatabaseRow("", "",
+			clusterFlag,
+			database,
+			active,
+			roleSet,
+			verbose))
 	}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
+	} else {
+
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
+	}
+	fmt.Println(t.AsBuffer().String())
 }
 
 func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
+	var rows [][]string
+	for _, listing := range dbListings {
+		rows = append(rows, getDatabaseRow(
+			listing.Proxy,
+			listing.Cluster,
+			clusterFlag,
+			listing.Database,
+			active,
+			listing.roleSet,
+			verbose))
+	}
+	var t asciitable.Table
 	if verbose {
-		t := asciitable.MakeTable([]string{"Proxy", "Cluster", "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
-		for _, listing := range dbListings {
-			t.AddRow(getDatabaseRow(
-				listing.Proxy,
-				listing.Cluster,
-				clusterFlag,
-				listing.Database,
-				active,
-				listing.roleSet,
-				verbose))
-		}
-		fmt.Println(t.AsBuffer().String())
+		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
 	} else {
-		var rows [][]string
-		for _, listing := range dbListings {
-			rows = append(rows, getDatabaseRow(
-				listing.Proxy,
-				listing.Cluster,
-				clusterFlag,
-				listing.Database,
-				active,
-				listing.roleSet,
-				verbose))
-		}
-		t := asciitable.MakeTableWithTruncatedColumn(
+		t = asciitable.MakeTableWithTruncatedColumn(
 			[]string{"Proxy", "Cluster", "Name", "Description", "Allowed Users", "Labels", "Connect"},
 			rows,
 			"Labels",
 		)
-		fmt.Println(t.AsBuffer().String())
 	}
+	fmt.Println(t.AsBuffer().String())
 }
 
 func formatDatabaseLabels(database types.Database) string {
@@ -3090,49 +3063,21 @@ func listAppsAllClusters(cf *CLIConf) error {
 }
 
 func printAppsWithClusters(apps []appListing, active []tlsca.RouteToApp, verbose bool) {
+	var rows [][]string
+	for _, app := range apps {
+		rows = append(rows, getAppRow(app.Proxy, app.Cluster, app.App, active, verbose))
+	}
 	// In verbose mode, print everything on a single line and include host UUID.
 	// In normal mode, chunk the labels, print two per line and allow multiple
 	// lines per node.
+	var t asciitable.Table
 	if verbose {
-		t := asciitable.MakeTable([]string{"Proxy", "Cluster", "Application", "Description", "Public Address", "URI", "Labels"})
-		for _, listing := range apps {
-			app := listing.App
-			name := app.GetName()
-			for _, a := range active {
-				if name == a.Name {
-					name = fmt.Sprintf("> %v", name)
-				}
-			}
-			t.AddRow([]string{
-				listing.Proxy,
-				listing.Cluster,
-				name,
-				app.GetDescription(),
-				app.GetPublicAddr(),
-				app.GetURI(),
-				sortedLabels(app.GetAllLabels()),
-			})
-		}
-		fmt.Println(t.AsBuffer().String())
+		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Application", "Description", "Public Address", "URI", "Labels"}, rows...)
 	} else {
-		var rows [][]string
-		for _, listing := range apps {
-			app := listing.App
-			name := app.GetName()
-			for _, a := range active {
-				if name == a.Name {
-					name = fmt.Sprintf("> %v", name)
-				}
-			}
-			desc := app.GetDescription()
-			addr := app.GetPublicAddr()
-			labels := sortedLabels(app.GetAllLabels())
-			rows = append(rows, []string{listing.Proxy, listing.Cluster, name, desc, addr, labels})
-		}
-		t := asciitable.MakeTableWithTruncatedColumn(
+		t = asciitable.MakeTableWithTruncatedColumn(
 			[]string{"Proxy", "Cluster", "Application", "Description", "Public Address", "Labels"}, rows, "Labels")
-		fmt.Println(t.AsBuffer().String())
 	}
+	fmt.Println(t.AsBuffer().String())
 }
 
 func serializeAppsWithClusters(apps []appListing, format string) (string, error) {
