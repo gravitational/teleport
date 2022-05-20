@@ -288,6 +288,9 @@ message AWS {
     RDS RDS = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rds,omitempty" ];
     // AccountID is the AWS account ID this database belongs to.
     string AccountID = 4 [ (gogoproto.jsontag) = "account_id,omitempty" ];
+    // ElastiCache contains AWS ElastiCache Redis specific metadata.
+    ElastiCache ElastiCache = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "elasticache,omitempty" ];
 }
 
 // Redshift contains AWS Redshift specific database metadata.
@@ -306,6 +309,19 @@ message RDS {
     string ResourceID = 3 [ (gogoproto.jsontag) = "resource_id,omitempty" ];
     // IAMAuth indicates whether database IAM authentication is enabled.
     bool IAMAuth = 4 [ (gogoproto.jsontag) = "iam_auth" ];
+}
+
+// ElastiCache contains AWS ElastiCache Redis specific metadata.
+message ElastiCache {
+    // ReplicationGroupID is the Redis replication group ID.
+    string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id,omitempty" ];
+    // UserGroupIDs is a list of user group IDs.
+    repeated string UserGroupIDs = 2 [ (gogoproto.jsontag) = "user_group_ids,omitempty" ];
+    // TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.
+    bool TransitEncryptionEnabled = 3
+        [ (gogoproto.jsontag) = "transit_encryption_enabled,omitempty" ];
+    // EndpointType is the type of the endpoint.
+    string EndpointType = 4 [ (gogoproto.jsontag) = "endpoint_type,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -1380,8 +1396,9 @@ message AccessRequestSpecV3 {
     repeated string SuggestedReviewers = 13
         [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
 
-    // RequestedResourceIDs is a list of resources to which access is being requested.
-    repeated string RequestedResourceIDs = 14 [ (gogoproto.jsontag) = "resource_ids,omitempty" ];
+    // RequestedResourceIDs is a set of resources to which access is being requested.
+    repeated ResourceID RequestedResourceIDs = 14
+        [ (gogoproto.jsontag) = "resource_ids,omitempty", (gogoproto.nullable) = false ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -1416,6 +1433,16 @@ message AccessCapabilitiesRequest {
     // SuggestedReviewers is a flag indicating that we would like to view the list of all
     // reviewers which are suggested by the user's roles.
     bool SuggestedReviewers = 3 [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
+}
+
+// ResourceID is a unique identifier for a teleport resource.
+message ResourceID {
+    // ClusterName is the name of the cluster the resource is in.
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster" ];
+    // Kind is the resource kind.
+    string Kind = 2 [ (gogoproto.jsontag) = "kind" ];
+    // Name is the name of the specific resource.
+    string Name = 3 [ (gogoproto.jsontag) = "name" ];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -1608,6 +1635,15 @@ message RoleOptions {
     // Kubernetes sessions a user may hold.
     int64 MaxKubernetesConnections = 18
         [ (gogoproto.jsontag) = "max_kubernetes_connections,omitempty" ];
+
+    // DesktopDirectorySharing indicates whether directory sharing is allowed between the user's
+    // workstation and the remote desktop. It defaults to false unless explicitly set to
+    // true.
+    BoolValue DesktopDirectorySharing = 19 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop_directory_sharing",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 message RecordSession {
@@ -2704,40 +2740,77 @@ message SSODiagnosticInfo {
     // CreateUserParams represents the user creation parameters as called during SSO login flow.
     CreateUserParams CreateUserParams = 4 [ (gogoproto.jsontag) = "create_user_params,omitempty" ];
 
-    // SAMLAttributesToRoles represents mapping from attributes to roles, as used during SAML login
-    // flow.
-    repeated AttributeMapping SAMLAttributesToRoles = 5
-        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "attributes_to_roles,omitempty" ];
+    // SAMLAttributesToRoles represents mapping from attributes to roles, as used during SAML SSO
+    // login flow.
+    repeated AttributeMapping SAMLAttributesToRoles = 10 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_attributes_to_roles,omitempty"
+    ];
 
     // SAMLAttributesToRolesWarnings contains warnings produced during the process of mapping the
     // SAML attributes to roles.
-    SSOWarnings SAMLAttributesToRolesWarnings = 6
+    SSOWarnings SAMLAttributesToRolesWarnings = 11
         [ (gogoproto.jsontag) = "saml_attributes_to_roles_warnings,omitempty" ];
 
     // SAMLAttributeStatements represents SAML attribute statements.
-    wrappers.LabelValues SAMLAttributeStatements = 7 [
+    wrappers.LabelValues SAMLAttributeStatements = 12 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "saml_attribute_statements,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 
     // SAMLAssertionInfo represents raw SAML assertion info as returned by IdP during SAML flow.
-    bytes SAMLAssertionInfo = 8 [
+    bytes SAMLAssertionInfo = 13 [
         (gogoproto.jsontag) = "saml_assertion_info,omitempty",
         (gogoproto.customtype) = "AssertionInfo"
     ];
 
     // SAMLTraitsFromAssertions represents traits translated from SAML assertions.
-    wrappers.LabelValues SAMLTraitsFromAssertions = 9 [
+    wrappers.LabelValues SAMLTraitsFromAssertions = 14 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "saml_traits_from_assertions,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 
     // SAMLConnectorTraitMapping represents connector-specific trait mapping.
-    repeated TraitMapping SAMLConnectorTraitMapping = 10 [
+    repeated TraitMapping SAMLConnectorTraitMapping = 15 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "saml_connector_trait_mapping,omitempty"
+    ];
+
+    // OIDCClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
+    repeated ClaimMapping OIDCClaimsToRoles = 20
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "oidc_claims_to_roles,omitempty" ];
+
+    // OIDCClaimsToRolesWarnings contains warnings produced during the process of mapping the
+    // OIDC claims to roles.
+    SSOWarnings OIDCClaimsToRolesWarnings = 21
+        [ (gogoproto.jsontag) = "oidc_claims_to_roles_warnings,omitempty" ];
+
+    // OIDCClaims represents OIDC claims.
+    bytes OIDCClaims = 22 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "oidc_claims,omitempty",
+        (gogoproto.customtype) = "OIDCClaims"
+    ];
+
+    // OIDCIdentity represents mapped OIDC Identity.
+    bytes OIDCIdentity = 23 [
+        (gogoproto.jsontag) = "oidc_identity,omitempty",
+        (gogoproto.customtype) = "OIDCIdentity"
+    ];
+
+    // OIDCTraitsFromClaims represents traits translated from OIDC claims.
+    wrappers.LabelValues OIDCTraitsFromClaims = 24 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "oidc_traits_from_claims,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // OIDCConnectorTraitMapping represents connector-specific trait mapping.
+    repeated TraitMapping OIDCConnectorTraitMapping = 25 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "oidc_connector_trait_mapping,omitempty"
     ];
 }
 
@@ -3087,6 +3160,18 @@ message SessionTrackerSpecV1 {
     // creation.
     repeated SessionTrackerPolicySet HostPolicies = 16
         [ (gogoproto.jsontag) = "host_roles,omitempty" ];
+
+    // DatabaseName is the database server this session belongs to.
+    string DatabaseName = 17 [ (gogoproto.jsontag) = "database_name,omitempty" ];
+
+    // AppName is the app server this session belongs to.
+    string AppName = 18 [ (gogoproto.jsontag) = "app_name,omitempty" ];
+
+    // AppSessionID is the unique ID of the app access certificate used to start this app session.
+    string AppSessionID = 19 [ (gogoproto.jsontag) = "app_session_id,omitempty" ];
+
+    // DesktopName is the windows desktop server this session belongs to.
+    string DesktopName = 20 [ (gogoproto.jsontag) = "desktop_name,omitempty" ];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

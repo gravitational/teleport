@@ -212,6 +212,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	localLog, err := events.NewAuditLog(events.AuditLogConfig{
 		DataDir:       cfg.Dir,
 		ServerID:      cfg.ClusterName,
+		Clock:         cfg.Clock,
 		UploadHandler: events.NewMemoryUploader(),
 	})
 	if err != nil {
@@ -227,6 +228,14 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	access := local.NewAccessService(srv.Backend)
 	identity := local.NewIdentityService(srv.Backend)
 
+	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
+		Inner: localLog,
+		Clock: cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
 		Authority:              authority.NewWithClock(cfg.Clock),
@@ -235,7 +244,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		AuditLog:               srv.AuditLog,
 		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
-		Emitter:                localLog,
+		Emitter:                emitter,
 	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
