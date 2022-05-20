@@ -25,8 +25,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 )
 
@@ -136,6 +136,8 @@ type Config struct {
 	OnStandBy func()
 	// IsSuccessful is used by the CircuitBreaker to determine if the executed function was successful or not
 	IsSuccessful func(v interface{}, err error) bool
+	// Logger is the logger
+	Logger logrus.FieldLogger
 }
 
 // TripFn determines if the CircuitBreaker should be tripped based
@@ -258,6 +260,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.IsSuccessful = NonNilErrorIsSuccess
 	}
 
+	if c.Logger == nil {
+		c.Logger = logrus.New().WithFields(logrus.Fields{
+			trace.Component: "breaker",
+		})
+	}
+
 	c.TrippedPeriod = utils.NewSeventhJitter()(c.TrippedPeriod)
 
 	return nil
@@ -351,10 +359,10 @@ func (c *CircuitBreaker) afterExecution(prior uint64, v interface{}, err error) 
 	}
 
 	if c.cfg.IsSuccessful(v, err) {
-		grpclog.Infof("[breaker] successful execution, %s", c.metrics.String())
+		c.cfg.Logger.Debugf("successful execution, %s", c.metrics.String())
 		c.success(state, now)
 	} else {
-		grpclog.Infof("[breaker] failed execution, %s", c.metrics.String())
+		c.cfg.Logger.Debugf("failed execution, %s", c.metrics.String())
 		c.failure(state, now)
 	}
 }
@@ -397,7 +405,7 @@ func (c *CircuitBreaker) setState(s State, t time.Time) {
 		return
 	}
 
-	grpclog.Infof("[breaker] state is now %s", s)
+	c.cfg.Logger.Debugf("state is transition from %s -> %s", c.state, s)
 
 	if s == StateRecovering {
 		c.rc = newRatioController(c.cfg.Clock, c.cfg.RecoveryRampPeriod)
