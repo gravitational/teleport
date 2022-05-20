@@ -497,10 +497,8 @@ func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (st
 // web session. Session ID replaces the session/master token returned to the Snowflake client, so only Teleport
 // has access to the Snowflake access tokens.
 func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tokens sessionTokens) (string, string, error)) ([]byte, error) {
-	loginResp := &loginResponse{}
-	decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
-	decoder.UseNumber()
-	if err := decoder.Decode(loginResp); err != nil {
+	loginResp, err := decodeLoginResponse(bodyBytes)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -537,8 +535,8 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tok
 // extractAccountName extracts account name from provided Snowflake URL
 // ref: https://docs.snowflake.com/en/user-guide/admin-account-identifier.html
 func extractAccountName(uri string) (string, error) {
-	if !strings.Contains(uri, "snowflakecomputing.com") {
-		return "", trace.BadParameter("Snowflake address should contain snowflakecomputing.com")
+	if !strings.Contains(uri, defaults.SnowflakeURL) {
+		return "", trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 	}
 
 	if strings.HasPrefix(uri, "https://") {

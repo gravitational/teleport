@@ -25,7 +25,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
@@ -56,9 +55,7 @@ func copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.
 		return nil, trace.Wrap(err)
 	}
 
-	for k, v := range req.Header {
-		reqCopy.Header.Set(k, strings.Join(v, ","))
-	}
+	reqCopy.Header = req.Header.Clone()
 
 	return reqCopy, nil
 }

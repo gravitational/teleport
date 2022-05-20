@@ -20,6 +20,7 @@
 package snowflake
 
 import (
+	"bytes"
 	"encoding/json"
 	"time"
 
@@ -55,6 +56,17 @@ type loginResponse struct {
 	Code    interface{} `json:"code"`
 	Message interface{} `json:"message"`
 	Success bool        `json:"success"`
+}
+
+// decodeLoginResponse decodes the bodyBytes as loginResponse struct. It uses json.Number to decode number.
+func decodeLoginResponse(bodyBytes []byte) (*loginResponse, error) {
+	loginResp := &loginResponse{}
+	decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
+	decoder.UseNumber()
+	if err := decoder.Decode(loginResp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return loginResp, nil
 }
 
 func (l *loginResponse) getTokens() (sessionTokens, error) {

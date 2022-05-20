@@ -204,3 +204,73 @@ func Test_replaceLoginReqToken(t *testing.T) {
 		})
 	}
 }
+
+func TestEngine_processLoginResponse(t *testing.T) {
+	type args struct {
+		bodyBytes       []byte
+		createSessionFn func(tokens sessionTokens) (string, string, error)
+	}
+	tests := []struct {
+		name        string
+		args        args
+		want        string
+		assertCache func(t *testing.T, cache *tokenCache)
+		wantErr     bool
+	}{
+		{
+			name: "success",
+			args: args{
+				bodyBytes: []byte(testLoginResponse),
+				createSessionFn: func(tokens sessionTokens) (string, string, error) {
+					return "token1", "token2", nil
+				},
+			},
+			want: `{"code":null, "data":{"masterToken":"Teleport:token2", "masterValidityInSeconds":14400, "token":"Teleport:token1", "validityInSeconds":3600}, "message":null, "success":true}`,
+			assertCache: func(t *testing.T, cache *tokenCache) {
+				require.Equal(t, "test-token-123", cache.getToken("token1"))
+				require.Equal(t, "master-token-123", cache.getToken("token2"))
+			},
+		},
+		{
+			name: "additional fields are not removed",
+			args: args{
+				bodyBytes: []byte(testLoginRespExtraField),
+				createSessionFn: func(tokens sessionTokens) (string, string, error) {
+					return "token-session-345", "token-master-567", nil
+				},
+			},
+			want: `{"code":null, "data":{"masterToken":"Teleport:token-master-567", "masterValidityInSeconds":14400, "token":"Teleport:token-session-345", "validityInSeconds":3600, "additionalField": 123}, "message":null, "success":true}`,
+			assertCache: func(t *testing.T, cache *tokenCache) {
+				require.Equal(t, "test-token-123", cache.getToken("token-session-345"))
+				require.Equal(t, "master-token-123", cache.getToken("token-master-567"))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &Engine{
+				tokens: newTokenCache(),
+			}
+			got, err := e.processLoginResponse(tt.args.bodyBytes, tt.args.createSessionFn)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("processLoginResponse() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			require.JSONEq(t, tt.want, string(got))
+			tt.assertCache(t, &e.tokens)
+		})
+	}
+}
+
+const testLoginRespExtraField = `
+{
+  "data": {
+    "token": "test-token-123",
+	"validityInSeconds": 3600,
+    "masterToken": "master-token-123",
+	"masterValidityInSeconds": 14400,
+	"additionalField": 123
+  },
+  "success": true
+}`
