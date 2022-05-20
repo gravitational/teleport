@@ -594,7 +594,7 @@ func extractSQLStmt(body []byte) (*queryRequest, error) {
 	return queryRequest, nil
 }
 
-// replaceLoginReqToken modifies the login request sent by Snowflake client with Teleport's credentials.
+// replaceLoginReqToken modifies the login request sent by Snowflake client with Teleports credentials.
 func replaceLoginReqToken(loginReq []byte, jwtToken, accountName, dbUser string) ([]byte, error) {
 	logReq := &loginRequest{}
 	if err := json.Unmarshal(loginReq, logReq); err != nil {
@@ -614,5 +614,10 @@ func replaceLoginReqToken(loginReq []byte, jwtToken, accountName, dbUser string)
 	logReq.Data.BrowserModeRedirectPort = ""
 	logReq.Data.ProofKey = ""
 
-	return json.Marshal(logReq)
+	resp, err := json.Marshal(logReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
 }

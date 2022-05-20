@@ -584,6 +584,11 @@ const (
 	SelfSignedCertPath = "webproxy_cert.pem"
 )
 
+const (
+	// SnowflakeURL is the Snowflake URL used for address validation.
+	SnowflakeURL = "snowflakecomputing.com"
+)
+
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
 func ConfigureLimiter(lc *limiter.Config) {
 	lc.MaxConnections = LimiterMaxConnections
