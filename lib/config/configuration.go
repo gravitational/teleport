@@ -133,7 +133,7 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
-	// DatabaseAWSRDSClusterID is RDS instance identifier.
+	// DatabaseAWSRDSInstanceID is RDS instance identifier.
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
@@ -637,14 +637,46 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Auth.CAKeyParams == nil {
 		return nil
 	}
-	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+
+	if fc.Auth.CAKeyParams.PKCS11.ModulePath != "" {
+		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.ModulePath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		const worldWritableBits = 0o002
+		if fi.Mode().Perm()&worldWritableBits != 0 {
+			return trace.Errorf(
+				"PKCS11 library (%s) must not be world-writable",
+				fc.Auth.CAKeyParams.PKCS11.ModulePath,
+			)
+		}
+
+		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+	}
+
 	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
 	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+
 	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
 	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
 		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
 		}
+
+		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		const worldReadableBits = 0o004
+		if fi.Mode().Perm()&worldReadableBits != 0 {
+			return trace.Errorf(
+				"HSM pin file (%s) must not be world-readable",
+				fc.Auth.CAKeyParams.PKCS11.PinPath,
+			)
+		}
+
 		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1100,6 +1132,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
 					ClusterID:  database.AWS.RDS.ClusterID,
+				},
+				ElastiCache: service.DatabaseAWSElastiCache{
+					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
 			},
 			GCP: service.DatabaseGCP{

@@ -257,7 +257,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 
-	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuth(fwd.join))
+	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
 	fwd.router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
@@ -444,6 +444,21 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 	}, f.formatResponseError)
 }
 
+// acquireConnectionLockWithIdentity acquires a connection lock under a given identity.
+func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity *authContext) error {
+	user := identity.Identity.GetIdentity().Username
+	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := f.acquireConnectionLock(ctx, user, roles); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 		authContext, err := f.authenticate(req)
@@ -453,7 +468,26 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := f.acquireConnectionLock(req.Context(), authContext); err != nil {
+		err = f.acquireConnectionLockWithIdentity(req.Context(), authContext)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return handler(authContext, w, req, p)
+	}, f.formatResponseError)
+}
+
+// withAuthPassthrough authenticates the request and fetches information but doesn't deny if the user
+// doesn't have RBAC access to the Kubernetes cluster.
+func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.Handle {
+	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+		authContext, err := f.authenticate(req)
+		if err != nil {
+			if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+		}
+		err = f.acquireConnectionLockWithIdentity(req.Context(), authContext)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
@@ -776,10 +810,6 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
 
-	if !session.tty {
-		return nil, trace.NotFound("session %v is not interactive", sessionID)
-	}
-
 	ws, err := f.upgrader.Upgrade(w, req, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -900,22 +930,20 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 // acquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
 // The semaphore is releasted when the request is returned/connection is closed.
 // Returns an error if a semaphore could not be acquired.
-func (f *Forwarder) acquireConnectionLock(ctx context.Context, identity *authContext) error {
-	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
-	if err != nil {
-		return trace.Wrap(err)
+func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
+	maxConnections := roles.MaxKubernetesConnections()
+	if maxConnections == 0 {
+		return nil
 	}
 
-	maxConnections := services.RoleSet(roles).MaxKubernetesConnections()
-	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+	_, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: f.cfg.AuthClient,
 		Expiry:  sessionMaxLifetime,
 		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: types.SemaphoreKindKubernetesConnection,
 			SemaphoreName: user,
 			MaxLeases:     maxConnections,
-			Holder:        identity.teleportCluster.name,
+			Holder:        user,
 		},
 	})
 	if err != nil {
@@ -928,8 +956,77 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, identity *authCon
 
 		return trace.Wrap(err)
 	}
-	go semLock.KeepAlive(ctx)
+
 	return nil
+}
+
+// execNonInteractive handles all exec sessions without a TTY.
+func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (resp interface{}, err error) {
+	defer proxy.Close()
+	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var policySets []*types.SessionTrackerPolicySet
+	for _, role := range roles {
+		policySet := role.GetSessionPolicySet()
+		policySets = append(policySets, &policySet)
+	}
+
+	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind)
+	canStart, _, err := authorizer.FulfilledFor(nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !canStart {
+		return nil, trace.AccessDenied("insufficient permissions to launch non-interactive session")
+	}
+
+	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
+	event := &apievents.Exec{
+		Metadata: apievents.Metadata{
+			Type:        events.ExecEvent,
+			ClusterName: f.cfg.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        f.cfg.ServerID,
+			ServerNamespace: f.cfg.Namespace,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: uuid.NewString(),
+			WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
+		},
+		UserMetadata: ctx.eventUserMeta(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: req.RemoteAddr,
+			LocalAddr:  sess.kubeAddress,
+			Protocol:   events.EventProtocolKube,
+		},
+		CommandMetadata: apievents.CommandMetadata{
+			Command: strings.Join(request.cmd, " "),
+		},
+		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesPodMetadata:     eventPodMeta,
+	}
+
+	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, event); err != nil {
+		f.log.WithError(err).Warn("Failed to emit exec event.")
+	}
+
+	executor, err := f.getExecutor(*ctx, sess, req)
+	if err != nil {
+		f.log.WithError(err).Warning("Failed creating executor.")
+		return nil, trace.Wrap(err)
+	}
+
+	streamOptions := proxy.options()
+	if err = executor.Stream(streamOptions); err != nil {
+		f.log.WithError(err).Warning("Executor failed while streaming.")
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
 }
 
 // exec forwards all exec requests to the target server, captures
@@ -986,6 +1083,11 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return f.remoteExec(ctx, w, req, p, sess, request, proxy)
 	}
 
+	if !request.tty {
+		resp, err = f.execNonInteractive(ctx, w, req, p, request, proxy, sess)
+		return
+	}
+
 	client := newKubeProxyClientStreams(proxy)
 	party := newParty(*ctx, types.SessionPeerMode, client)
 	session, err := newSession(*ctx, f, req, p, party, sess)
@@ -1016,7 +1118,6 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-
 	if err = executor.Stream(streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
 		return nil, trace.Wrap(err)

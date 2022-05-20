@@ -135,7 +135,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	cluster := meta.GetClustername()
+	cluster := meta.GetClusterName()
 	kubeCluster := meta.GetKubeCluster()
 	var k *client.Key
 

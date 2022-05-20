@@ -275,6 +275,16 @@ func newWebSuite(t *testing.T) *WebSuite {
 	})
 	require.NoError(t, err)
 
+	caWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	defer caWatcher.Close()
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    node.ID(),
 		Listener:              revTunListener,
@@ -289,6 +299,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		CertAuthorityWatcher:  caWatcher,
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
@@ -514,6 +525,20 @@ func TestValidRedirectURL(t *testing.T) {
 			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
 		})
 	}
+}
+
+func Test_clientMetaFromReq(t *testing.T) {
+	ua := "foobar"
+	r := httptest.NewRequest(
+		http.MethodGet, "https://example.com/webapi/foo", nil,
+	)
+	r.Header.Set("User-Agent", ua)
+
+	got := clientMetaFromReq(r)
+	require.Equal(t, &auth.ForwardedClientMetadata{
+		UserAgent:  ua,
+		RemoteAddr: "192.0.2.1:1234",
+	}, got)
 }
 
 func TestSAMLSuccess(t *testing.T) {
@@ -873,32 +898,17 @@ func TestResolveServerHostPort(t *testing.T) {
 	}
 
 	for _, testCase := range validCases {
-		host, port, err := resolveServerHostPort(testCase.server, nodeGetter{servers: testCase.nodes})
+		host, port, err := resolveServerHostPort(testCase.server, testCase.nodes)
 		require.NoError(t, err, testCase.server)
 		require.Equal(t, testCase.expectedHost, host, testCase.server)
 		require.Equal(t, testCase.expectedPort, port, testCase.server)
 	}
 
 	for _, testCase := range invalidCases {
-		_, _, err := resolveServerHostPort(testCase.server, nodeGetter{})
+		_, _, err := resolveServerHostPort(testCase.server, nil)
 		require.Error(t, err, testCase.server)
 		require.Regexp(t, ".*"+testCase.expectedErr+".*", err.Error(), testCase.server)
 	}
-}
-
-type nodeGetter struct {
-	servers []types.Server
-}
-
-func (n nodeGetter) GetNodes(fn func(n services.Node) bool) []types.Server {
-	var servers []types.Server
-	for _, s := range n.servers {
-		if fn(s) {
-			servers = append(servers, s)
-		}
-	}
-
-	return servers
 }
 
 func TestNewTerminalHandler(t *testing.T) {
@@ -914,10 +924,16 @@ func TestNewTerminalHandler(t *testing.T) {
 		W: 1,
 	}
 
+	makeProvider := func(server types.ServerV2) AuthProvider {
+		return authProviderMock{
+			server: server,
+		}
+	}
+
 	// valid cases
 	validCases := []struct {
 		req          TerminalRequest
-		site         reversetunnel.RemoteSite
+		authProvider AuthProvider
 		expectedHost string
 		expectedPort int
 	}{
@@ -928,6 +944,7 @@ func TestNewTerminalHandler(t *testing.T) {
 				SessionID: validSID,
 				Term:      validParams,
 			},
+			authProvider: makeProvider(validNode),
 			expectedHost: validServer,
 			expectedPort: 0,
 		},
@@ -938,6 +955,7 @@ func TestNewTerminalHandler(t *testing.T) {
 				SessionID: validSID,
 				Term:      validParams,
 			},
+			authProvider: makeProvider(validNode),
 			expectedHost: "nodehostname",
 			expectedPort: 0,
 		},
@@ -945,12 +963,13 @@ func TestNewTerminalHandler(t *testing.T) {
 
 	// invalid cases
 	invalidCases := []struct {
-		req         TerminalRequest
-		site        reversetunnel.RemoteSite
-		expectedErr string
+		req          TerminalRequest
+		authProvider AuthProvider
+		expectedErr  string
 	}{
 		{
-			expectedErr: "invalid session",
+			expectedErr:  "invalid session",
+			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
 				SessionID: "",
 				Login:     validLogin,
@@ -959,7 +978,8 @@ func TestNewTerminalHandler(t *testing.T) {
 			},
 		},
 		{
-			expectedErr: "bad term dimensions",
+			expectedErr:  "bad term dimensions",
+			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
 				SessionID: validSID,
 				Login:     validLogin,
@@ -971,7 +991,8 @@ func TestNewTerminalHandler(t *testing.T) {
 			},
 		},
 		{
-			expectedErr: "invalid server name",
+			expectedErr:  "invalid server name",
+			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
 				Server:    "localhost:port",
 				SessionID: validSID,
@@ -981,9 +1002,9 @@ func TestNewTerminalHandler(t *testing.T) {
 		},
 	}
 
-	getter := nodeGetter{servers: []types.Server{&validNode}}
+	ctx := context.Background()
 	for _, testCase := range validCases {
-		term, err := NewTerminal(testCase.req, getter, nil)
+		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(testCase.req, term.params))
 		require.Equal(t, testCase.expectedHost, testCase.expectedHost)
@@ -991,7 +1012,7 @@ func TestNewTerminalHandler(t *testing.T) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(testCase.req, getter, nil)
+		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		require.Regexp(t, ".*"+testCase.expectedErr+".*", err.Error())
 	}
 }
@@ -1089,7 +1110,7 @@ func TestTerminalPing(t *testing.T) {
 		err := ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
 		if err == websocket.ErrCloseSent {
 			return nil
-		} else if e, ok := err.(net.Error); ok && e.Temporary() {
+		} else if e, ok := err.(net.Error); ok && e.Timeout() {
 			return nil
 		}
 		return err
@@ -1631,8 +1652,10 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	clt := s.client()
+	ua := "test-ua"
 	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
+	req.Header.Set("User-Agent", ua)
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 	addCSRFCookieToReq(req, csrfToken)
@@ -1643,6 +1666,21 @@ func TestLogin(t *testing.T) {
 		return clt.Client.HTTPClient().Do(req)
 	})
 	require.NoError(t, err)
+
+	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(
+		s.clock.Now().Add(-time.Hour),
+		s.clock.Now().Add(time.Hour),
+		apidefaults.Namespace,
+		[]string{events.UserLoginEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+	event := events[0].(*apievents.UserLogin)
+	require.Equal(t, true, event.Success)
+	require.Equal(t, ua, event.UserAgent)
+	require.True(t, strings.HasPrefix(event.RemoteAddr, "127.0.0.1:"))
 
 	var rawSess *CreateSessionResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
@@ -1911,11 +1949,9 @@ func (f byTimeAndIndex) Swap(i, j int) {
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func TestSearchClusterEvents(t *testing.T) {
 	t.Parallel()
-	// We need a clock that uses the current time here to work around
-	// the fact that filelog doesn't support emitting past events.
-	clock := clockwork.NewRealClock()
 
 	s := newWebSuite(t)
+	clock := s.clock
 	sessionEvents := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 3,
 		Clock:       clock,
@@ -2018,8 +2054,19 @@ func TestSearchClusterEvents(t *testing.T) {
 			var result eventsListGetResponse
 			require.NoError(t, json.Unmarshal(response.Bytes(), &result))
 
-			require.Len(t, result.Events, len(tc.Result))
-			for i, resultEvent := range result.Events {
+			// filter out irrelvant auth events
+			filteredEvents := []events.EventFields{}
+			for _, e := range result.Events {
+				t := e.GetType()
+				if t == events.SessionStartEvent ||
+					t == events.SessionPrintEvent ||
+					t == events.SessionEndEvent {
+					filteredEvents = append(filteredEvents, e)
+				}
+			}
+
+			require.Len(t, filteredEvents, len(tc.Result))
+			for i, resultEvent := range filteredEvents {
 				require.Equal(t, tc.Result[i].GetType(), resultEvent.GetType())
 				require.Equal(t, tc.Result[i].GetID(), resultEvent.GetID())
 			}
@@ -2592,7 +2639,7 @@ func TestDeleteMFA(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo@example.com")
 
-	//setting up client manually because we need sanitizer off
+	// setting up client manually because we need sanitizer off
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	opts := []roundtrip.ClientParam{roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar), roundtrip.HTTPClient(client.NewInsecureWebClient())}
@@ -3287,6 +3334,18 @@ func TestParseSSORequestParams(t *testing.T) {
 	}
 }
 
+type authProviderMock struct {
+	server types.ServerV2
+}
+
+func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]types.Server, error) {
+	return []types.Server{&mock.server}, nil
+}
+
+func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p bool) ([]events.EventFields, error) {
+	return []events.EventFields{}, nil
+}
+
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
 	var sessionID session.ID
 	if len(opts) == 0 {
@@ -3738,6 +3797,16 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyLockWatcher.Close)
 
+	proxyCAWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyLockWatcher.Close)
+
 	proxyNodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -3761,6 +3830,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		CertAuthorityWatcher:  proxyCAWatcher,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
