@@ -319,7 +319,11 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSess
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(context.TODO(), user, req.ClientIP)
+	host, err := utils.Host(req.ClientMetadata.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, err := s.createUserWebSession(context.TODO(), user, host)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

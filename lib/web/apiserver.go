@@ -1485,7 +1485,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	clientMeta := clientMetaFromReq(r)
+	clientMeta := auth.ClientMetaFromReq(r)
 
 	var webSession types.WebSession
 
@@ -1536,15 +1536,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	return newSessionResponse(ctx)
-}
-
-func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
-	// multiplexer handles extracting real client IP using PROXY protocol where
-	// available, so we can omit checking X-Forwarded-For.
-	return &auth.ForwardedClientMetadata{
-		UserAgent:  r.UserAgent(),
-		RemoteAddr: r.RemoteAddr,
-	}
 }
 
 // deleteSession is called to sign out user
@@ -1807,7 +1798,7 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	clientMeta := clientMetaFromReq(r)
+	clientMeta := auth.ClientMetaFromReq(r)
 	cert, err := h.auth.AuthenticateSSHUser(*req, clientMeta)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1831,7 +1822,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	clientMeta := clientMetaFromReq(r)
+	clientMeta := auth.ClientMetaFromReq(r)
 	session, err := h.auth.AuthenticateWebUser(req, clientMeta)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
@@ -2474,7 +2465,7 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	clientMeta := clientMetaFromReq(r)
+	clientMeta := auth.ClientMetaFromReq(r)
 
 	var cert *auth.SSHLoginResponse
 

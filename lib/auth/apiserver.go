@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
@@ -767,11 +766,7 @@ func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ip, err := utils.Host(r.RemoteAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	req.ClientIP = ip
+	req.ClientMetadata = ClientMetaFromReq(r)
 	req.Username = p.ByName("user")
 	sess, err := auth.AuthenticateWebUser(req)
 	if err != nil {
@@ -792,6 +787,15 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 	req.ClientIP = ip
 	req.Username = p.ByName("user")
 	return auth.AuthenticateSSHUser(req)
+}
+
+func ClientMetaFromReq(r *http.Request) *ForwardedClientMetadata {
+	// multiplexer handles extracting real client IP using PROXY protocol where
+	// available, so we can omit checking X-Forwarded-For.
+	return &ForwardedClientMetadata{
+		UserAgent:  r.UserAgent(),
+		RemoteAddr: r.RemoteAddr,
+	}
 }
 
 // changePassword updates users password based on the old password.
