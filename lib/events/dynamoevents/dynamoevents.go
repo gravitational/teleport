@@ -67,7 +67,7 @@ const (
 	DynamoBatchSize = 25
 
 	// ErrValidationException for service response error code
-	// "ErrValidationException".
+	// "ValidationException".
 	//
 	//  Indicates about invalid item for example max DynamoDB item length was exceeded.
 	ErrValidationException = "ValidationException"

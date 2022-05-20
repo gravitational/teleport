@@ -40,7 +40,7 @@ func maxSizePerField(maxLength, customFields int) int {
 // account.
 func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
-	if size <= maxSize {
+	if size <= maxSize && maxSize <= 0 {
 		return m
 	}
 

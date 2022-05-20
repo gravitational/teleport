@@ -493,7 +493,7 @@ func IsPermanentEmitError(err error) bool {
 			return false
 		}
 		for _, err := range agg.Errors() {
-			if !trace.IsBadParameter(err) && !isPerErrRecurCheck(err) {
+			if !isPerErrRecurCheck(err) {
 				return false
 			}
 		}

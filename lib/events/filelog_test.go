@@ -235,7 +235,7 @@ func TestLargeEvent(t *testing.T) {
 			clock.Advance(1 * time.Minute)
 
 			for _, v := range tc.in {
-				v.SetTime(clock.Now())
+				v.SetTime(clock.Now().UTC())
 				log.EmitAuditEvent(ctx, v)
 			}
 			events := mustSearchEvent(t, log, start)
