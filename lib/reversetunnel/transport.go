@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -438,12 +439,44 @@ func (p *transport) reply(req *ssh.Request, ok bool, msg []byte) {
 	}
 }
 
+func (p *transport) dialWithProxyLine(addr string) (net.Conn, error) {
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	source, err := utils.ParseAddr(p.sconn.RemoteAddr().String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	destination, err := utils.ParseAddr(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyLine := multiplexer.ProxyLine{
+		Protocol: multiplexer.TCP4,
+		Source: net.TCPAddr{
+			IP: net.ParseIP(source.Host()), Port: source.Port(0),
+		},
+		Destination: net.TCPAddr{
+			IP: net.ParseIP(destination.Host()), Port: destination.Port(0),
+		},
+	}
+	// TODO: Maybe use v1 instead??
+	_, err = conn.Write(proxyLine.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
+}
+
 // directDial attempst to directly dial to the target host.
 func (p *transport) directDial(servers []string, serverID string) (net.Conn, error) {
 	var errors []error
 
 	for _, addr := range servers {
-		conn, err := net.Dial("tcp", addr)
+		conn, err := p.dialWithProxyLine(addr)
 		if err == nil {
 			return conn, nil
 		}
