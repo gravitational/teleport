@@ -25,6 +25,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
@@ -32,7 +33,7 @@ import (
 
 func writeResponse(resp *http.Response, newResp []byte) (*bytes.Buffer, error) {
 	buf := &bytes.Buffer{}
-	if resp.Header.Get("Content-Encoding") == "gzip" {
+	if isGzipEncoded(resp) {
 		newGzBody := gzip.NewWriter(buf)
 		defer newGzBody.Close()
 
@@ -47,6 +48,11 @@ func writeResponse(resp *http.Response, newResp []byte) (*bytes.Buffer, error) {
 		buf.Write(newResp)
 	}
 	return buf, nil
+}
+
+// isGzipEncoded returns true if the body should be gzip compressed.
+func isGzipEncoded(resp *http.Response) bool {
+	return strings.Contains(resp.Header.Get("Content-Encoding"), "gzip")
 }
 
 func copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.Request, error) {
@@ -66,7 +72,7 @@ func readRequestBody(req *http.Request) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return readBody(req.Header, body)
+	return maybeReadGzip(&req.Header, body)
 }
 
 func readResponseBody(resp *http.Response) ([]byte, error) {
@@ -75,11 +81,14 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return readBody(resp.Header, body)
+	return maybeReadGzip(&resp.Header, body)
 }
 
-func readBody(headers http.Header, body []byte) ([]byte, error) {
-	if headers.Get("Content-Encoding") == "gzip" {
+func maybeReadGzip(headers *http.Header, body []byte) ([]byte, error) {
+	gzipMagic := []byte{0x1f, 0x8b, 0x08}
+
+	// Check if the body is gzip encoded.
+	if bytes.HasPrefix(body, gzipMagic) {
 		bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -90,6 +99,8 @@ func readBody(headers http.Header, body []byte) ([]byte, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Make sure that the content-encoding is correct.
+		headers.Set("Content-Encoding", "gzip")
 	}
 
 	return body, nil
