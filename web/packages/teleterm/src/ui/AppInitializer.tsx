@@ -5,13 +5,19 @@ import styled from 'styled-components';
 
 export const AppInitializer: FC = props => {
   const ctx = useAppContext();
-  const [{ status }, init] = useAsync(() => ctx.init());
+  const [state, init] = useAsync(() => ctx.init());
 
   useEffect(() => {
     init();
   }, []);
 
-  if (status === 'success' || status === 'error') {
+  useEffect(() => {
+    if (state.status === 'error') {
+      ctx.notificationsService.notifyError(state.statusText);
+    }
+  }, [state]);
+
+  if (state.status === 'success' || state.status === 'error') {
     return <>{props.children}</>;
   }
 

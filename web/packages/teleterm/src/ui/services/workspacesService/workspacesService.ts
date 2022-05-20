@@ -200,7 +200,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         const workspaceDefaultState = this.getWorkspaceDefaultState(
           persistedWorkspace?.localClusterUri || cluster.uri
         );
-        const persistedWorkspaceDocuments = persistedWorkspace.documents;
+        const persistedWorkspaceDocuments = persistedWorkspace?.documents;
 
         workspaces[cluster.uri] = {
           ...workspaceDefaultState,
@@ -246,7 +246,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     previousDocuments,
     currentDocuments,
   }: {
-    previousDocuments: Document[];
+    previousDocuments?: Document[];
     currentDocuments: Document[];
   }): boolean {
     const omitUriAndTitle = (documents: Document[]) =>
