@@ -1,0 +1,18 @@
+suite: Issuer
+templates:
+  - issuer.yaml
+tests:
+  - it: do not create Issuer by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: create Issuer when highAvailability.certManager.issuerSpec is specified
+    values:
+      - ../.lint/cert-issuer.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Issuer
+      - matchSnapshot: {}

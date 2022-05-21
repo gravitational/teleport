@@ -1,0 +1,21 @@
+create Issuer when highAvailability.certManager.issuerSpec is specified:
+  1: |
+    apiVersion: cert-manager.io
+    kind: Issuer
+    metadata:
+      name: letsencrypt-production
+      namespace: NAMESPACE
+    spec:
+      acme:
+        email: email@address.com
+        privateKeySecretRef:
+          name: letsencrypt-production
+        server: https://acme-v02.api.letsencrypt.org/directory
+        solvers:
+        - dns01:
+            route53:
+              hostedZoneID: Z0159221358P96JYAUAA4
+              region: us-east-1
+          selector:
+            dnsZones:
+            - example.com
