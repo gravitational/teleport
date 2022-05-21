@@ -7,7 +7,6 @@ highAvailability:
   replicaCount: 3
   certManager:
     enabled: true
-    createIssuer: true
     issuerName: letsencrypt-production
     issuerSpec:
       acme:

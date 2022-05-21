@@ -278,7 +278,6 @@
                     "type": "object",
                     "required": [
                         "enabled",
-                        "createIssuer",
                         "issuerName",
                         "issuerKind",
                         "issuerGroup",
@@ -287,11 +286,6 @@
                     "properties": {
                         "addCommonName": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
-                            "type": "boolean",
-                            "default": "false"
-                        },
-                        "createIssuer": {
-                            "$id": "#/properties/highAvailability/properties/certManager/properties/createIssuer",
                             "type": "boolean",
                             "default": "false"
                         },
