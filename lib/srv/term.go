@@ -230,7 +230,7 @@ func (t *terminal) Continue() {
 
 // Kill will force kill the terminal.
 func (t *terminal) Kill() error {
-	if t.cmd.Process != nil {
+	if t.cmd != nil && t.cmd.Process != nil {
 		if err := t.cmd.Process.Kill(); err != nil {
 			if err.Error() != "os: process already finished" {
 				return trace.Wrap(err)

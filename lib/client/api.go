@@ -167,6 +167,9 @@ type HostKeyCallback func(host string, ip net.Addr, key ssh.PublicKey) error
 type Config struct {
 	// Username is the Teleport account username (for logging into Teleport proxies)
 	Username string
+	// ExplicitUsername is true if Username was initially set by the end-user
+	// (for example, using command-line flags).
+	ExplicitUsername bool
 
 	// Remote host to connect
 	Host string
@@ -222,6 +225,10 @@ type Config struct {
 	// use its own SSH agent or ask user for passwords. This is used by external programs linking
 	// against Teleport client and obtaining credentials from elsewhere.
 	SkipLocalAuth bool
+
+	// UseKeyPrincipals forces the use of the username from the key principals rather than using
+	// the current user username.
+	UseKeyPrincipals bool
 
 	// Agent is used when SkipLocalAuth is true
 	Agent agent.Agent
@@ -312,6 +319,9 @@ type Config struct {
 	// AuthConnector is the name of the authentication connector to use.
 	AuthConnector string
 
+	// AuthenticatorAttachment is the desired authenticator attachment.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
@@ -362,10 +372,11 @@ type Config struct {
 	// ExtraProxyHeaders is a collection of http headers to be included in requests to the WebProxy.
 	ExtraProxyHeaders map[string]string
 
-	// Passwordless enables passwordless authentication for TeleportClient.
-	// Affects the TeleportClient.Login and, indirectly, RetryWithRelogin
-	// functions.
-	Passwordless bool
+	// UseStrongestAuth instructs TeleportClient to use the strongest
+	// authentication method supported by the cluster in Login attempts.
+	// Apart from the obvious benefits, UseStrongestAuth also avoids stdin
+	// hijacking issues from Login, as a single auth method is used.
+	UseStrongestAuth bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -534,6 +545,8 @@ func (p *ProfileStatus) AppNames() (result []string) {
 
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
+// RetryWithRelogin automatically enables tc.UseStrongestAuth for Login attempts
+// in order to avoid stdin hijack bugs.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
 	err := fn()
 	if err == nil {
@@ -550,10 +563,21 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 	log.Debugf("Activating relogin on %v.", err)
 
+	if !tc.UseStrongestAuth {
+		defer func() {
+			tc.UseStrongestAuth = false
+		}()
+		// Avoid stdin hijack on relogin attempts.
+		// Users can pick an alternative MFA method by explicitly calling Login (or
+		// running `tsh login`).
+		tc.UseStrongestAuth = true
+		log.Debug("Enabling strongest auth for login. Use `tsh login` for alternative authentication methods.")
+	}
+
 	key, err := tc.Login(ctx)
 	if err != nil {
 		if trace.IsTrustError(err) {
-			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.SSHProxyAddr)
+			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.SSHProxyAddr)
 		}
 		return trace.Wrap(err)
 	}
@@ -568,10 +592,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	return fn()
 }
 
-// readProfile reads in the profile as well as the associated certificate
+// ReadProfileStatus reads in the profile as well as the associated certificate
 // and returns a *ProfileStatus which can be used to print the status of the
 // profile.
-func readProfile(profileDir string, profileName string) (*ProfileStatus, error) {
+func ReadProfileStatus(profileDir string, profileName string) (*ProfileStatus, error) {
 	var err error
 
 	if profileDir == "" {
@@ -780,7 +804,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// Read in the target profile first. If readProfile returns trace.NotFound,
 	// that means the profile may have been corrupted (for example keys were
 	// deleted but profile exists), treat this as the user not being logged in.
-	profileStatus, err = readProfile(profileDir, profileName)
+	profileStatus, err = ReadProfileStatus(profileDir, profileName)
 	if err != nil {
 		log.Debug(err)
 		if !trace.IsNotFound(err) {
@@ -801,7 +825,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 			// already loaded this one
 			continue
 		}
-		ps, err := readProfile(profileDir, name)
+		ps, err := ReadProfileStatus(profileDir, name)
 		if err != nil {
 			log.Debug(err)
 			// parts of profile are missing?
@@ -839,6 +863,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
 	c.MongoProxyAddr = cp.MongoProxyAddr
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
+	c.KeysDir = profileDir
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1321,12 +1346,11 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params,
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
+	return proxyClient.IssueUserCertsWithMFA(
+		ctx, params,
+		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return tc.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
 		})
-
-	return key, err
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
@@ -1477,7 +1501,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	// Issue "exec" request(s) to run on remote node(s).
 	if len(command) > 0 {
 		if len(nodeAddrs) > 1 {
-			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.")
+			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.\n")
 			return tc.runCommandOnNodes(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
 		}
 		// Reuse the existing nodeClient we connected above.
@@ -1541,51 +1565,25 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
-	// find the session ID on the site:
-	sessions, err := site.GetSessions(namespace)
+	var session types.SessionTracker
+	sessions, err := site.GetActiveSessionTrackers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var session *session.Session
-	for _, s := range sessions {
-		if s.ID == sessionID {
-			session = &s
-			break
+
+	for _, sessionIter := range sessions {
+		if sessionIter.GetSessionID() == string(sessionID) {
+			session = sessionIter
 		}
 	}
+
 	if session == nil {
 		return trace.NotFound(notFoundErrorMessage)
 	}
 
-	// pick the 1st party of the session and use his server ID to connect to
-	if len(session.Parties) == 0 {
-		return trace.NotFound(notFoundErrorMessage)
-	}
-	serverID := session.Parties[0].ServerID
-
-	// find a server address by its ID
-	nodes, err := site.GetNodes(ctx, namespace)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	var node types.Server
-	for _, n := range nodes {
-		if n.GetName() == serverID {
-			node = n
-			break
-		}
-	}
-	if node == nil {
-		return trace.NotFound(notFoundErrorMessage)
-	}
-	target := node.GetAddr()
-	if target == "" {
-		// address is empty, try dialing by UUID instead
-		target = fmt.Sprintf("%s:0", serverID)
-	}
 	// connect to server:
 	nc, err := proxyClient.ConnectToNode(ctx, NodeAddr{
-		Addr:      target,
+		Addr:      session.GetAddress() + ":0",
 		Namespace: tc.Namespace,
 		Cluster:   tc.SiteName,
 	}, tc.Config.HostLogin, false)
@@ -1604,7 +1602,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				runPresenceTask(presenceCtx, out, site, tc, string(session.ID))
+				runPresenceTask(presenceCtx, out, site, tc, session.GetSessionID())
 			}
 		}
 	}
@@ -1947,7 +1945,7 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	defer proxyClient.Close()
 
 	filter := customFilter
-	if customFilter == nil {
+	if filter == nil {
 		filter = &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			Labels:              tc.Labels,
@@ -2006,7 +2004,7 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	defer proxyClient.Close()
 
 	filter := customFilter
-	if customFilter == nil {
+	if filter == nil {
 		filter = &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			Labels:              tc.Labels,
@@ -2115,7 +2113,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin *session.Session, beforeStart func(io.Writer)) error {
+func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
 	env := make(map[string]string)
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
@@ -2163,7 +2161,7 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 		proxyPrincipal = tc.JumpHosts[0].Username
 	}
 	// see if we already have a signed key in the cache, we'll use that instead
-	if !tc.Config.SkipLocalAuth && tc.localAgent != nil {
+	if (!tc.Config.SkipLocalAuth || tc.UseKeyPrincipals) && tc.localAgent != nil {
 		signers, err := tc.localAgent.Signers()
 		if err != nil || len(signers) == 0 {
 			return proxyPrincipal
@@ -2489,9 +2487,21 @@ func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingR
 	return pr, nil
 }
 
+// GetWebConfig retreives Teleport proxy web config
+func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*webclient.WebConfig, error) {
+	cfg, err := GetWebConfig(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg, nil
+}
+
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
 //
-// If tc.Passwordless is set, then the passwordless authentication flow is used.
+// Login may hijack stdin in some scenarios; it's strongly recommended for
+// callers to rely exclusively on prompt.Stdin after calling this method.
+// Alternatively, if tc.UseStrongestAuth is set, then no stdin hijacking
+// happens.
 //
 // The returned Key should typically be passed to ActivateKey in order to
 // update local agent state.
@@ -2513,14 +2523,10 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	var response *auth.SSHLoginResponse
 
 	switch authType := pr.Auth.Type; {
-	case tc.Passwordless: // Takes precedence over other methods if set.
-		// Do a few sanity checks before obeying.
-		switch {
-		case authType != constants.Local:
-			return nil, trace.BadParameter("Passwordless is only available for local authentication")
-		case pr.Auth.Webauthn == nil:
-			return nil, trace.BadParameter(
-				"Webauthn is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/webauthn/")
+	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
+		// Sanity check settings.
+		if !pr.Auth.AllowPasswordless {
+			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
 		}
 		response, err = tc.pwdlessLogin(ctx, key.Pub)
 		if err != nil {
@@ -2620,7 +2626,11 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 	}
 
 	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+		User:                    tc.Username,
+		OptimisticAssertion:     !tc.ExplicitUsername,
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2674,21 +2684,21 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
 func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
-	password, err := tc.AskPassword()
+	password, err := tc.AskPassword(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// only ask for a second factor if it's enabled
+	// Only ask for a second factor if it's enabled.
 	var otpToken string
 	if secondFactorType == constants.SecondFactorOTP {
-		otpToken, err = tc.AskOTP()
+		otpToken, err = tc.AskOTP(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	// ask the CA (via proxy) to sign our public key:
+	// Ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
 		SSHLogin: SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
@@ -2700,7 +2710,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
 		},
-		User:     tc.Config.Username,
+		User:     tc.Username,
 		Password: password,
 		OTPToken: otpToken,
 	})
@@ -2710,7 +2720,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 
 // mfaLocalLogin asks for a password and performs the challenge-response authentication
 func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
-	password, err := tc.AskPassword()
+	password, err := tc.AskPassword(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2726,8 +2736,10 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
 		},
-		User:     tc.Config.Username,
-		Password: password,
+		User:                    tc.Username,
+		Password:                password,
+		UseStrongestAuth:        tc.UseStrongestAuth,
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 	})
 
 	return response, trace.Wrap(err)
@@ -2758,7 +2770,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 		Protocol:    protocol,
 		BindAddr:    tc.BindAddr,
 		Browser:     tc.Browser,
-	})
+	}, nil)
 	return response, trace.Wrap(err)
 }
 
@@ -3148,9 +3160,15 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 		return nil
 	}
 	log.Debugf("attempting to use loopback pool for local proxy addr: %v", proxyAddr)
-	certPool := x509.NewCertPool()
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		log.Debugf("could not open system cert pool, using empty cert pool instead: %v", err)
+		certPool = x509.NewCertPool()
+	}
 
 	certPath := filepath.Join(defaults.DataDir, defaults.SelfSignedCertPath)
+	log.Debugf("reading self-signed certs from: %v", certPath)
+
 	pemByte, err := os.ReadFile(certPath)
 	if err != nil {
 		log.Debugf("could not open any path in: %v", certPath)
@@ -3208,15 +3226,14 @@ func Username() (string, error) {
 }
 
 // AskOTP prompts the user to enter the OTP token.
-func (tc *TeleportClient) AskOTP() (token string, err error) {
-	return prompt.Password(context.Background(), tc.Stderr, prompt.Stdin(), "Enter your OTP token")
+func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) {
+	return prompt.Password(ctx, tc.Stderr, prompt.Stdin(), "Enter your OTP token")
 }
 
 // AskPassword prompts the user to enter the password
-func (tc *TeleportClient) AskPassword() (pwd string, err error) {
+func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err error) {
 	return prompt.Password(
-		context.Background(), tc.Stderr, prompt.Stdin(),
-		fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
+		ctx, tc.Stderr, prompt.Stdin(), fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
 }
 
 // DELETE IN: 4.1.0
@@ -3291,7 +3308,7 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 // ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
 // { "name" -> "value", "long name" -> "quoted value" }
 func ParseLabelSpec(spec string) (map[string]string, error) {
-	tokens := []string{}
+	var tokens []string
 	openQuotes := false
 	var tokenStart, assignCount int
 	specLen := len(spec)
@@ -3338,11 +3355,11 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 // allowing a custom delimiter. Defaults to comma delimiter if not defined.
 func ParseSearchKeywords(spec string, customDelimiter rune) []string {
 	delimiter := customDelimiter
-	if customDelimiter == 0 {
+	if delimiter == 0 {
 		delimiter = rune(',')
 	}
 
-	tokens := []string{}
+	var tokens []string
 	openQuotes := false
 	var tokenStart int
 	specLen := len(spec)

@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -100,14 +101,13 @@ type Mux struct {
 	sync.RWMutex
 	*log.Entry
 	Config
-	listenerClosed bool
-	sshListener    *Listener
-	tlsListener    *Listener
-	dbListener     *Listener
-	context        context.Context
-	cancel         context.CancelFunc
-	waitContext    context.Context
-	waitCancel     context.CancelFunc
+	sshListener *Listener
+	tlsListener *Listener
+	dbListener  *Listener
+	context     context.Context
+	cancel      context.CancelFunc
+	waitContext context.Context
+	waitCancel  context.CancelFunc
 }
 
 // SSH returns listener that receives SSH connections
@@ -140,12 +140,6 @@ func (m *Mux) DB() net.Listener {
 	return m.dbListener
 }
 
-func (m *Mux) isClosed() bool {
-	m.RLock()
-	defer m.RUnlock()
-	return m.listenerClosed
-}
-
 func (m *Mux) closeListener() {
 	m.Lock()
 	defer m.Unlock()
@@ -154,10 +148,6 @@ func (m *Mux) closeListener() {
 	if m.Listener == nil {
 		return
 	}
-	if m.listenerClosed {
-		return
-	}
-	m.listenerClosed = true
 	m.Listener.Close()
 }
 
@@ -178,9 +168,6 @@ func (m *Mux) Wait() {
 // and accepts requests. Every request is served in a separate goroutine
 func (m *Mux) Serve() error {
 	defer m.waitCancel()
-	backoffTimer := time.NewTicker(5 * time.Second)
-	defer backoffTimer.Stop()
-
 	for {
 		conn, err := m.Listener.Accept()
 		if err == nil {
@@ -191,14 +178,15 @@ func (m *Mux) Serve() error {
 			go m.detectAndForward(conn)
 			continue
 		}
-		if m.isClosed() {
+		if utils.IsUseOfClosedNetworkError(err) {
+			<-m.context.Done()
 			return nil
 		}
 		select {
-		case <-backoffTimer.C:
-			m.Debugf("backoff on accept error: %v", trace.DebugReport(err))
 		case <-m.context.Done():
 			return nil
+		case <-time.After(5 * time.Second):
+			m.WithError(err).Debugf("Backoff on accept error.")
 		}
 	}
 }
@@ -255,11 +243,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
-	select {
-	case listener.connC <- connWrapper:
-	case <-m.context.Done():
-		connWrapper.Close()
-	}
+	listener.HandleConnection(m.context, connWrapper)
 }
 
 func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
@@ -291,6 +275,17 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 				return nil, trace.BadParameter("duplicate proxy line")
 			}
 			proxyLine, err = ReadProxyLine(reader)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case ProtoProxyV2:
+			if !enableProxyProtocol {
+				return nil, trace.BadParameter("proxy protocol support is disabled")
+			}
+			if proxyLine != nil {
+				return nil, trace.BadParameter("duplicate proxy line")
+			}
+			proxyLine, err = ReadProxyLineV2(reader)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -326,6 +321,8 @@ const (
 	ProtoSSH
 	// ProtoProxy is a HAProxy proxy line protocol
 	ProtoProxy
+	// ProtoProxyV2 is a HAProxy binary protocol
+	ProtoProxyV2
 	// ProtoHTTP is HTTP protocol
 	ProtoHTTP
 	// ProtoPostgres is PostgreSQL wire protocol
@@ -338,6 +335,7 @@ var protocolStrings = map[Protocol]string{
 	ProtoTLS:      "TLS",
 	ProtoSSH:      "SSH",
 	ProtoProxy:    "Proxy",
+	ProtoProxyV2:  "ProxyV2",
 	ProtoHTTP:     "HTTP",
 	ProtoPostgres: "Postgres",
 }
@@ -349,9 +347,10 @@ func (p Protocol) String() string {
 }
 
 var (
-	proxyPrefix = []byte{'P', 'R', 'O', 'X', 'Y'}
-	sshPrefix   = []byte{'S', 'S', 'H'}
-	tlsPrefix   = []byte{0x16}
+	proxyPrefix   = []byte{'P', 'R', 'O', 'X', 'Y'}
+	proxyV2Prefix = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	sshPrefix     = []byte{'S', 'S', 'H'}
+	tlsPrefix     = []byte{0x16}
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -398,6 +397,8 @@ func detectProto(in []byte) (Protocol, error) {
 	// reader peeks only 3 bytes, slice the longer proxy prefix
 	case bytes.HasPrefix(in, proxyPrefix[:3]):
 		return ProtoProxy, nil
+	case bytes.HasPrefix(in, proxyV2Prefix[:3]):
+		return ProtoProxyV2, nil
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil
 	case bytes.HasPrefix(in, tlsPrefix):

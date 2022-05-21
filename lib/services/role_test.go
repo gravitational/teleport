@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -187,12 +188,13 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat: constants.CertificateFormatStandard,
-						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:    types.NewBoolOption(true),
-						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
-						BPF:               apidefaults.EnhancedEvents(),
-						DesktopClipboard:  types.NewBoolOption(true),
+						CertificateFormat:       constants.CertificateFormatStandard,
+						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:          types.NewBoolOption(true),
+						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						BPF:                     apidefaults.EnhancedEvents(),
+						DesktopClipboard:        types.NewBoolOption(true),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -220,12 +222,13 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat: constants.CertificateFormatStandard,
-						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:    types.NewBoolOption(true),
-						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
-						BPF:               apidefaults.EnhancedEvents(),
-						DesktopClipboard:  types.NewBoolOption(true),
+						CertificateFormat:       constants.CertificateFormatStandard,
+						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:          types.NewBoolOption(true),
+						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						BPF:                     apidefaults.EnhancedEvents(),
+						DesktopClipboard:        types.NewBoolOption(true),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -251,7 +254,8 @@ func TestRoleParse(t *testing.T) {
 							"client_idle_timeout": "17m",
 							"disconnect_expired_cert": "yes",
 							"enhanced_recording": ["command", "network"],
-							"desktop_clipboard": true
+							"desktop_clipboard": true,
+							"desktop_directory_sharing": true
 						},
 						"allow": {
 							"node_labels": {"a": "b", "c-d": "e"},
@@ -287,14 +291,15 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:     constants.CertificateFormatStandard,
-						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
-						PortForwarding:        types.NewBoolOption(true),
-						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
-						ClientIdleTimeout:     types.NewDuration(17 * time.Minute),
-						DisconnectExpiredCert: types.NewBool(true),
-						BPF:                   apidefaults.EnhancedEvents(),
-						DesktopClipboard:      types.NewBoolOption(true),
+						CertificateFormat:       constants.CertificateFormatStandard,
+						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
+						PortForwarding:          types.NewBoolOption(true),
+						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						ClientIdleTimeout:       types.NewDuration(17 * time.Minute),
+						DisconnectExpiredCert:   types.NewBool(true),
+						BPF:                     apidefaults.EnhancedEvents(),
+						DesktopClipboard:        types.NewBoolOption(true),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -338,7 +343,8 @@ func TestRoleParse(t *testing.T) {
 							  "client_idle_timeout": "never",
 							  "disconnect_expired_cert": "no",
 							  "enhanced_recording": ["command", "network"],
-							  "desktop_clipboard": true
+							  "desktop_clipboard": true,
+								"desktop_directory_sharing": true
 							},
 							"allow": {
 							  "node_labels": {"a": "b"},
@@ -371,15 +377,16 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:     constants.CertificateFormatStandard,
-						ForwardAgent:          types.NewBool(true),
-						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
-						PortForwarding:        types.NewBoolOption(true),
-						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
-						ClientIdleTimeout:     types.NewDuration(0),
-						DisconnectExpiredCert: types.NewBool(false),
-						BPF:                   apidefaults.EnhancedEvents(),
-						DesktopClipboard:      types.NewBoolOption(true),
+						CertificateFormat:       constants.CertificateFormatStandard,
+						ForwardAgent:            types.NewBool(true),
+						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
+						PortForwarding:          types.NewBoolOption(true),
+						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						ClientIdleTimeout:       types.NewDuration(0),
+						DisconnectExpiredCert:   types.NewBool(false),
+						BPF:                     apidefaults.EnhancedEvents(),
+						DesktopClipboard:        types.NewBoolOption(true),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -421,7 +428,8 @@ func TestRoleParse(t *testing.T) {
 							  "client_idle_timeout": "never",
 							  "disconnect_expired_cert": "no",
 							  "enhanced_recording": ["command", "network"],
-							  "desktop_clipboard": true
+							  "desktop_clipboard": true,
+								"desktop_directory_sharing": true
 							},
 							"allow": {
 							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
@@ -443,15 +451,16 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:     constants.CertificateFormatStandard,
-						ForwardAgent:          types.NewBool(true),
-						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
-						PortForwarding:        types.NewBoolOption(true),
-						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
-						ClientIdleTimeout:     types.NewDuration(0),
-						DisconnectExpiredCert: types.NewBool(false),
-						BPF:                   apidefaults.EnhancedEvents(),
-						DesktopClipboard:      types.NewBoolOption(true),
+						CertificateFormat:       constants.CertificateFormatStandard,
+						ForwardAgent:            types.NewBool(true),
+						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
+						PortForwarding:          types.NewBoolOption(true),
+						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						ClientIdleTimeout:       types.NewDuration(0),
+						DisconnectExpiredCert:   types.NewBool(false),
+						BPF:                     apidefaults.EnhancedEvents(),
+						DesktopClipboard:        types.NewBoolOption(true),
+						DesktopDirectorySharing: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
@@ -1897,21 +1906,23 @@ func TestApplyTraits(t *testing.T) {
 		{
 			comment: "AWS role ARN substitute in allow rule",
 			inTraits: map[string][]string{
-				"foo": {"bar"},
+				"foo":                     {"bar"},
+				teleport.TraitAWSRoleARNs: {"baz"},
 			},
 			allow: rule{
-				inRoleARNs:  []string{"{{external.foo}}"},
-				outRoleARNs: []string{"bar"},
+				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
+				outRoleARNs: []string{"bar", "baz"},
 			},
 		},
 		{
 			comment: "AWS role ARN substitute in deny rule",
 			inTraits: map[string][]string{
-				"foo": {"bar"},
+				"foo":                     {"bar"},
+				teleport.TraitAWSRoleARNs: {"baz"},
 			},
 			deny: rule{
-				inRoleARNs:  []string{"{{external.foo}}"},
-				outRoleARNs: []string{"bar"},
+				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
+				outRoleARNs: []string{"bar", "baz"},
 			},
 		},
 		{
@@ -2360,48 +2371,55 @@ func TestExtractFrom(t *testing.T) {
 // port forwarding) can be disabled in a role.
 func TestBoolOptions(t *testing.T) {
 	var tests = []struct {
-		inOptions                types.RoleOptions
-		outCanPortForward        bool
-		outCanForwardAgents      bool
-		outRecordDesktopSessions bool
-		outDesktopClipboard      bool
+		inOptions                  types.RoleOptions
+		outCanPortForward          bool
+		outCanForwardAgents        bool
+		outRecordDesktopSessions   bool
+		outDesktopClipboard        bool
+		outDesktopDirectorySharing bool
 	}{
 		// Setting options explicitly off should remain off.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:     types.NewBool(false),
-				PortForwarding:   types.NewBoolOption(false),
-				RecordSession:    &types.RecordSession{Desktop: types.NewBoolOption(false)},
-				DesktopClipboard: types.NewBoolOption(false),
+				ForwardAgent:            types.NewBool(false),
+				PortForwarding:          types.NewBoolOption(false),
+				RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(false)},
+				DesktopClipboard:        types.NewBoolOption(false),
+				DesktopDirectorySharing: types.NewBoolOption(false),
 			},
-			outCanPortForward:        false,
-			outCanForwardAgents:      false,
-			outRecordDesktopSessions: false,
-			outDesktopClipboard:      false,
+			outCanPortForward:          false,
+			outCanForwardAgents:        false,
+			outRecordDesktopSessions:   false,
+			outDesktopClipboard:        false,
+			outDesktopDirectorySharing: false,
 		},
 		// Not setting options should set port forwarding to true (default enabled),
 		// agent forwarding false (default disabled),
 		// desktop session recording to true (default enabled),
-		// and desktop clipboard sharing to true (default enabled).
+		// desktop clipboard sharing to true (default enabled),
+		// and desktop directory sharing to true (default enabled).
 		{
-			inOptions:                types.RoleOptions{},
-			outCanPortForward:        true,
-			outCanForwardAgents:      false,
-			outRecordDesktopSessions: true,
-			outDesktopClipboard:      true,
+			inOptions:                  types.RoleOptions{},
+			outCanPortForward:          true,
+			outCanForwardAgents:        false,
+			outRecordDesktopSessions:   true,
+			outDesktopClipboard:        true,
+			outDesktopDirectorySharing: true,
 		},
 		// Explicitly enabling should enable them.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:     types.NewBool(true),
-				PortForwarding:   types.NewBoolOption(true),
-				RecordSession:    &types.RecordSession{Desktop: types.NewBoolOption(true)},
-				DesktopClipboard: types.NewBoolOption(true),
+				ForwardAgent:            types.NewBool(true),
+				PortForwarding:          types.NewBoolOption(true),
+				RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+				DesktopClipboard:        types.NewBoolOption(true),
+				DesktopDirectorySharing: types.NewBoolOption(true),
 			},
-			outCanPortForward:        true,
-			outCanForwardAgents:      true,
-			outRecordDesktopSessions: true,
-			outDesktopClipboard:      true,
+			outCanPortForward:          true,
+			outCanForwardAgents:        true,
+			outRecordDesktopSessions:   true,
+			outDesktopClipboard:        true,
+			outDesktopDirectorySharing: true,
 		},
 	}
 	for _, tt := range tests {
@@ -2420,6 +2438,7 @@ func TestBoolOptions(t *testing.T) {
 		require.Equal(t, tt.outCanForwardAgents, set.CanForwardAgents())
 		require.Equal(t, tt.outRecordDesktopSessions, set.RecordDesktopSession())
 		require.Equal(t, tt.outDesktopClipboard, set.DesktopClipboard())
+		require.Equal(t, tt.outDesktopDirectorySharing, set.DesktopDirectorySharing())
 	}
 }
 
@@ -2676,6 +2695,128 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 					require.True(t, trace.IsAccessDenied(err))
 				}
 			}
+		})
+	}
+}
+
+func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	roleDevStage := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+
+	roleNoDBAccess := &types.RoleV5{
+		Metadata: types.Metadata{Name: "no_db_access", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"*"},
+				DatabaseNames: []string{"*"},
+			},
+		},
+	}
+
+	roleAllowDenySame := &types.RoleV5{
+		Metadata: types.Metadata{Name: "allow_deny_same", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name       string
+		roles      RoleSet
+		server     types.Database
+		enumResult EnumerationResult
+	}{
+		{
+			name:   "deny overrides allow",
+			roles:  RoleSet{roleAllowDenySame},
+			server: dbStage,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "developer allowed any username in stage database except superuser",
+			roles:  RoleSet{roleDevStage, roleDevProd},
+			server: dbStage,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				wildcardAllowed:  true,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "developer allowed only specific username/database in prod database",
+			roles:  RoleSet{roleDevStage, roleDevProd},
+			server: dbProd,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "there may be users disallowed from all users",
+			roles:  RoleSet{roleDevStage, roleDevProd, roleNoDBAccess},
+			server: dbProd,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": false, "superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   true,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			enumResult := tc.roles.EnumerateDatabaseUsers(tc.server)
+			require.Equal(t, tc.enumResult, enumResult)
 		})
 	}
 }
@@ -3279,11 +3420,61 @@ func TestDesktopClipboard(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			var roles []types.Role
-			for _, r := range test.roles {
-				roles = append(roles, &r)
+			for i := range test.roles {
+				roles = append(roles, &test.roles[i])
 			}
 			rs := NewRoleSet(roles...)
 			require.Equal(t, test.hasClipboard, rs.DesktopClipboard())
+		})
+	}
+}
+
+func TestDesktopDirectorySharing(t *testing.T) {
+	for _, test := range []struct {
+		desc                string
+		roles               []types.RoleV5
+		hasDirectorySharing bool
+	}{
+		{
+			desc:                "single role, unspecified, defaults true",
+			roles:               []types.RoleV5{newRole(func(r *types.RoleV5) {})},
+			hasDirectorySharing: true,
+		},
+		{
+			desc: "single role, explicitly disabled",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.SetOptions(types.RoleOptions{
+						DesktopDirectorySharing: types.NewBoolOption(false),
+					})
+				}),
+			},
+			hasDirectorySharing: false,
+		},
+		{
+			desc: "multiple conflicting roles, disable wins",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.SetOptions(types.RoleOptions{
+						DesktopDirectorySharing: types.NewBoolOption(false),
+					})
+				}),
+				newRole(func(r *types.RoleV5) {
+					r.SetOptions(types.RoleOptions{
+						DesktopDirectorySharing: types.NewBoolOption(true),
+					})
+				}),
+			},
+			hasDirectorySharing: false,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			roles := []types.Role{}
+			for i := range test.roles {
+				roles = append(roles, &test.roles[i])
+			}
+			rs := NewRoleSet(roles...)
+			require.Equal(t, test.hasDirectorySharing, rs.DesktopDirectorySharing())
 		})
 	}
 }

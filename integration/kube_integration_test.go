@@ -32,12 +32,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -46,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 
 	"github.com/gravitational/trace"
@@ -98,7 +98,7 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 	var err error
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
-	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair("")
+	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	suite.me, err = user.Current()
@@ -1295,7 +1295,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	privPEM, _, err := authServer.GenerateKeyPair("")
+	privPEM, _, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1480,29 +1480,25 @@ func kubeExec(kubeConfig *rest.Config, args kubeExecArgs) error {
 	return executor.Stream(opts)
 }
 
-func kubeJoin(kubeConfig kubeProxyConfig, sessionID string) (*streamproto.SessionStream, error) {
+func kubeJoin(kubeConfig kubeProxyConfig, tc *client.TeleportClient, sessionID string) (*client.KubeSession, error) {
 	tlsConfig, err := kubeProxyTLSConfig(kubeConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer := &websocket.Dialer{
-		TLSClientConfig: tlsConfig,
-	}
-
-	endpoint := "wss://" + kubeConfig.t.Config.Proxy.Kube.ListenAddr.Addr + "/api/v1/teleport/join/" + sessionID
-	ws, resp, err := dialer.Dial(endpoint, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer resp.Body.Close()
-
-	stream, err := streamproto.NewSessionStream(ws, streamproto.ClientHandshake{Mode: types.SessionObserverMode})
+	meta, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID: sessionID,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return stream, nil
+	sess, err := client.NewKubeSession(context.TODO(), tc, meta, kubeConfig.t.Config.Proxy.Kube.ListenAddr.Addr, "", types.SessionPeerMode, tlsConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
 }
 
 // testKubeJoin tests that that joining an interactive exec session works.
@@ -1530,8 +1526,19 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		},
 	})
 	require.NoError(t, err)
+	joinRole, err := types.NewRoleV3("participant", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "foo",
+				Roles: []string{"kubemaster"},
+				Kinds: []string{string(types.KubernetesSessionKind)},
+				Modes: []string{string(types.SessionPeerMode)},
+			}},
+		},
+	})
+	require.NoError(t, err)
 	teleport.AddUserWithRole(hostUsername, role)
-	teleport.AddUserWithRole(participantUsername, role)
+	teleport.AddUserWithRole(participantUsername, joinRole)
 
 	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
@@ -1578,12 +1585,21 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// created. Sadly though the k8s API doesn't give us much indication of when that is.
 	time.Sleep(time.Second * 5)
 
+	participantStdinR, participantStdinW, err := os.Pipe()
+	participantStdoutR, participantStdoutW, err := os.Pipe()
+
+	tc, err := teleport.NewClient(ClientConfig{})
+	require.NoError(t, err)
+
+	tc.Stdin = participantStdinR
+	tc.Stdout = participantStdoutW
+
 	stream, err := kubeJoin(kubeProxyConfig{
 		t:          teleport,
 		username:   participantUsername,
 		kubeUsers:  kubeUsers,
 		kubeGroups: kubeGroups,
-	}, "")
+	}, tc, "")
 	require.NoError(t, err)
 	defer stream.Close()
 
@@ -1592,13 +1608,17 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// new IO streams of the second client.
 	time.Sleep(time.Second * 5)
 
+	// sent a test message from the participant
+	participantStdinW.WriteString("\aecho hi2\n\r")
+
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	term.Type("\aecho hi\n\r")
 
 	// Terminate the session after a moment to allow for the IO to reach the second client.
 	time.AfterFunc(5*time.Second, func() { term.Type("\aexit\n\r\a") })
 
-	participantOutput, err := io.ReadAll(stream)
+	participantOutput, err := io.ReadAll(participantStdoutR)
 	require.NoError(t, err)
 	require.Contains(t, participantOutput, []byte("echo hi"))
+	require.Contains(t, out.String(), []byte("echo hi2"))
 }

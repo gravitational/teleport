@@ -17,16 +17,11 @@ limitations under the License.
 package auth
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto"
 	"crypto/tls"
 	"encoding/base32"
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,13 +39,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -1048,163 +1042,6 @@ func (s *TLSSuite) TestTokens(c *check.C) {
 	c.Assert(len(out), check.Not(check.Equals), 0)
 }
 
-func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
-	serverID, err := s.server.Identity.ID.HostID()
-	c.Assert(err, check.IsNil)
-
-	tests := []struct {
-		inServerID string
-		outError   bool
-	}{
-		// Invalid.
-		{
-			inServerID: "00000000-0000-0000-0000-000000000000",
-			outError:   true,
-		},
-		// Valid.
-		{
-			inServerID: serverID,
-			outError:   false,
-		},
-	}
-	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(types.RoleNode, serverID))
-		c.Assert(err, check.IsNil)
-
-		sessionID := session.NewID()
-
-		recording, err := makeSessionRecording(sessionID.String(), tt.inServerID)
-		c.Assert(err, check.IsNil)
-
-		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-		sess := session.Session{
-			ID:             sessionID,
-			TerminalParams: session.TerminalParams{W: 100, H: 100},
-			Created:        date,
-			LastActive:     date,
-			Login:          "bob",
-			Namespace:      apidefaults.Namespace,
-		}
-		c.Assert(clt.CreateSession(sess), check.IsNil)
-
-		err = clt.UploadSessionRecording(events.SessionRecording{
-			Namespace: apidefaults.Namespace,
-			SessionID: sess.ID,
-			Recording: recording,
-		})
-		c.Assert(err != nil, check.Equals, tt.outError)
-	}
-}
-
-func makeSessionRecording(sessionID string, serverID string) (io.Reader, error) {
-	marshal := func(f events.EventFields) []byte {
-		data, err := json.Marshal(f)
-		if err != nil {
-			panic(err)
-		}
-		return data
-	}
-
-	var zbuf bytes.Buffer
-	zw := gzip.NewWriter(&zbuf)
-
-	zw.Name = fmt.Sprintf("%v-0.events", sessionID)
-	_, err := zw.Write(marshal(events.EventFields{
-		events.SessionServerID: serverID,
-	}))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = zw.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var tbuf bytes.Buffer
-	tw := tar.NewWriter(&tbuf)
-
-	hdr := &tar.Header{
-		Name: fmt.Sprintf("%v-0.events.gz", sessionID),
-		Mode: 0600,
-		Size: int64(zbuf.Len()),
-	}
-	err = tw.WriteHeader(hdr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = tw.Write(zbuf.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = tw.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &tbuf, nil
-}
-
-func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
-	serverID, err := s.server.Identity.ID.HostID()
-	c.Assert(err, check.IsNil)
-
-	tests := []struct {
-		inServerID string
-		outError   bool
-	}{
-		// Invalid.
-		{
-			inServerID: "00000000-0000-0000-0000-000000000000",
-			outError:   true,
-		},
-		// Valid.
-		{
-			inServerID: serverID,
-			outError:   false,
-		},
-	}
-	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(types.RoleNode, serverID))
-		c.Assert(err, check.IsNil)
-
-		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-		sess := session.Session{
-			ID:             session.NewID(),
-			TerminalParams: session.TerminalParams{W: 100, H: 100},
-			Created:        date,
-			LastActive:     date,
-			Login:          "bob",
-			Namespace:      apidefaults.Namespace,
-		}
-		c.Assert(clt.CreateSession(sess), check.IsNil)
-
-		marshal := func(f events.EventFields) []byte {
-			data, err := json.Marshal(f)
-			if err != nil {
-				panic(err)
-			}
-			return data
-		}
-
-		err = clt.PostSessionSlice(events.SessionSlice{
-			Namespace: apidefaults.Namespace,
-			SessionID: string(sess.ID),
-			Chunks: []*events.SessionChunk{
-				{
-					Time:       time.Now().UTC().UnixNano(),
-					EventIndex: 0,
-					EventType:  events.SessionStartEvent,
-					Data: marshal(events.EventFields{
-						events.SessionServerID: tt.inServerID,
-					}),
-				},
-			},
-			Version: events.V3,
-		})
-		c.Assert(err != nil, check.Equals, tt.outError)
-	}
-}
-
 func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
@@ -1291,7 +1128,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	new, err := web.ExtendWebSession(WebSessionReq{
+	new, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1308,7 +1145,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
-	_, err = web.ExtendWebSession(WebSessionReq{
+	_, err = web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1362,7 +1199,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	err = clt.CreateAccessRequest(context.Background(), accessReq)
 	c.Assert(err, check.IsNil)
 
-	sess1, err := web.ExtendWebSession(WebSessionReq{
+	sess1, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
@@ -1404,7 +1241,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(certRequests(sess1.GetTLSCert()), check.DeepEquals, []string{accessReq.GetName()})
 
 	// Test switch back to default role and expiry.
-	sess2, err := web.ExtendWebSession(WebSessionReq{
+	sess2, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
@@ -1484,7 +1321,7 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 }
 
 func (s *TLSSuite) TestAccessRequest(c *check.C) {
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -1595,10 +1432,10 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	c.Assert(certRequests(userCerts.TLS), check.HasLen, 0)
 
 	// verify that cert for user with no static logins is generated with
-	// exactly one login and that it is an invalid unix login (indicated
+	// exactly two logins and that the one that isn't a join principal is an invalid unix login (indicated
 	// by preceding dash (-).
 	logins := certLogins(userCerts.SSH)
-	c.Assert(len(logins), check.Equals, 1)
+	c.Assert(len(logins), check.Equals, 2)
 	c.Assert(rune(logins[0][0]), check.Equals, '-')
 
 	// attempt to apply request in PENDING state (should fail)
@@ -1625,7 +1462,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	// verify that dynamically applied role granted a login,
 	// which is is valid and has replaced the dummy login.
 	logins = certLogins(userCerts.SSH)
-	c.Assert(len(logins), check.Equals, 1)
+	c.Assert(len(logins), check.Equals, 2)
 	c.Assert(rune(logins[0][0]), check.Not(check.Equals), '-')
 
 	elevatedCert, err := tls.X509KeyPair(userCerts.TLS, priv)
@@ -1673,7 +1510,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -1762,7 +1599,7 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 func TestGenerateCerts(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
-	priv, pub, err := srv.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -2213,7 +2050,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 // correct format.
 func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 	ctx := context.Background()
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -2289,7 +2126,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, pub, err := s.server.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 
 	// try and generate a host cert, this should fail because we are recording
@@ -2524,7 +2361,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 
 	// Make sure access is denied for SSH login.
-	_, pub, err := s.server.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	_, err = s.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
@@ -2601,7 +2438,7 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 	err = otherServer.Stop()
 	c.Assert(err, check.IsNil)
 
-	// client detects closed sockets and reconnecte to the backup server
+	// client detects closed sockets and reconnect to the backup server
 	for i := 0; i < 4; i++ {
 		_, err = client.GetDomainName()
 		c.Assert(err, check.IsNil)
@@ -2622,7 +2459,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Generate public and private keys for node.
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	c.Assert(err, check.IsNil)
@@ -2757,7 +2594,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Generate public and private keys for node.
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	c.Assert(err, check.IsNil)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	c.Assert(err, check.IsNil)

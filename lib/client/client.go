@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
+	"github.com/moby/term"
 
 	"github.com/gravitational/trace"
 )
@@ -621,7 +622,7 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 
 	resources, err := client.GetResourcesWithFilters(ctx, site, req)
 	if err != nil {
-		// ListResources for nodes not availalbe, provide fallback.
+		// ListResources for nodes not available, provide fallback.
 		// Fallback does not support search/predicate support, so if users
 		// provide them, it does nothing.
 		//
@@ -654,7 +655,7 @@ func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for app servers not availalbe, provide fallback.
+		// ListResources for app servers not available, provide fallback.
 		// Fallback does not support filters, so if users
 		// provide them, it does nothing.
 		//
@@ -716,7 +717,20 @@ func (proxy *ProxyClient) DeleteAppSession(ctx context.Context, sessionID string
 	return nil
 }
 
-// FindDatabaseServersByFilters returns all registered database proxy servers.
+// DeleteUserAppSessions removes user's all application web sessions.
+func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	authClient, err := proxy.ConnectToRootCluster(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = authClient.DeleteUserAppSessions(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// FindDatabaseServersByFilters returns registered database proxy servers that match the provided filter.
 func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
 	req.ResourceType = types.KindDatabaseServer
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
@@ -726,7 +740,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for db servers not availalbe, provide fallback.
+		// ListResources for db servers not available, provide fallback.
 		// Fallback does not support filters, so if users
 		// provide them, it does nothing.
 		//
@@ -1597,6 +1611,24 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 	}
 }
 
+// GetRemoteTerminalSize fetches the terminal size of a given SSH session.
+func (c *NodeClient) GetRemoteTerminalSize(sessionID string) (*term.Winsize, error) {
+	ok, payload, err := c.Client.SendRequest(teleport.TerminalSizeRequest, true, []byte(sessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	} else if !ok {
+		return nil, trace.BadParameter("failed to get terminal size")
+	}
+
+	ws := new(term.Winsize)
+	err = json.Unmarshal(payload, ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ws, nil
+}
+
 // Close closes client and it's operations
 func (c *NodeClient) Close() error {
 	return c.Client.Close()
@@ -1638,8 +1670,8 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			NodeName:       nodeName(nodeAddr.Addr),
 			RouteToCluster: nodeAddr.Cluster,
 		},
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
+		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return proxy.teleportClient.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
 		},
 	)
 	if err != nil {

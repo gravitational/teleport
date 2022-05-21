@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/utils"
 
 	// Import to register MongoDB engine.
@@ -169,8 +170,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			Clients: c.CloudClients,
-			HostID:  c.HostID,
+			AccessPoint: c.AccessPoint,
+			Clients:     c.CloudClients,
+			HostID:      c.HostID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -280,7 +282,9 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// Update TLS config to require client certificate.
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log,
+		// TODO: Remove UserCA in Teleport 11.
+		types.UserCA, types.DatabaseCA)
 
 	return server, nil
 }
@@ -312,6 +316,10 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	// on the defined schedule.
 	if err := s.startDynamicLabels(ctx, database); err != nil {
 		return trace.Wrap(err)
+	}
+	if err := fetchMySQLVersion(ctx, database); err != nil {
+		// Log, but do not fail. We will fetch the version later.
+		s.log.Warnf("Failed to fetch the MySQL version for %s: %v", database.GetName(), err)
 	}
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.
@@ -548,6 +556,11 @@ func (s *Server) getRotationState() types.Rotation {
 
 // Start starts proxying all server's registered databases.
 func (s *Server) Start(ctx context.Context) (err error) {
+	// Start IAM service that will be configuring IAM auth for databases.
+	if err := s.cfg.CloudIAM.Start(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -667,15 +680,24 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	if err := s.trackSession(cancelCtx, sessionCtx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		// Closing the stream writer is needed to flush all recorded data
-		// and trigger upload. Do it in a goroutine since depending on
-		// session size it can take a while, and we don't want to block
-		// the client.
+		// Close session stream in a goroutine since depending on session size
+		// it can take a while, and we don't want to block the client.
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
@@ -823,4 +845,75 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		}),
 		LockTargets: authContext.LockTargets(),
 	}, nil
+}
+
+// fetchMySQLVersion tries to connect to MySQL instance, read initial handshake package and extract
+// the server version.
+func fetchMySQLVersion(ctx context.Context, database types.Database) error {
+	if database.GetProtocol() != defaults.ProtocolMySQL || database.GetMySQLServerVersion() != "" {
+		return nil
+	}
+
+	// Try to extract the engine version for AWS metadata labels.
+	if database.IsRDS() {
+		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
+		if version != "" {
+			database.SetMySQLServerVersion(version)
+			return nil
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+	defer cancel()
+
+	version, err := mysql.FetchMySQLVersion(ctx, database)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	database.SetMySQLServerVersion(version)
+
+	return nil
+}
+
+// trackSession creates a new session tracker for the database session.
+// While ctx is open, the session tracker's expiration will be extended
+// on an interval. Once the ctx is closed, the session tracker's state
+// will be updated to terminated.
+func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) error {
+	trackerSpec := types.SessionTrackerSpecV1{
+		SessionID:    sessionCtx.ID,
+		Kind:         string(types.DatabaseSessionKind),
+		State:        types.SessionState_SessionStateRunning,
+		Hostname:     sessionCtx.HostID,
+		DatabaseName: sessionCtx.DatabaseName,
+		ClusterName:  sessionCtx.ClusterName,
+		Login:        sessionCtx.Identity.GetUserMetadata().Login,
+		Participants: []types.Participant{{
+			User: sessionCtx.Identity.Username,
+		}},
+		HostUser: sessionCtx.Identity.Username,
+		Created:  s.cfg.Clock.Now(),
+	}
+
+	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
+	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.cfg.AuthClient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
+			s.log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		if err := tracker.Close(s.closeContext); err != nil {
+			s.log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionCtx.ID)
+		}
+	}()
+
+	return nil
 }

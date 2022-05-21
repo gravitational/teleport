@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -63,6 +65,8 @@ type TLSServerConfig struct {
 	AcceptedUsage []string
 	// ID is an optional debugging ID
 	ID string
+	// Metrics are optional TLSServer metrics
+	Metrics *Metrics
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -92,7 +96,15 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.Component == "" {
 		c.Component = teleport.ComponentAuth
 	}
+	if c.Metrics == nil {
+		c.Metrics = &Metrics{}
+	}
 	return nil
+}
+
+// Metrics handles optional metrics for TLSServerConfig
+type Metrics struct {
+	GRPCServerLatency bool
 }
 
 // TLSServer is TLS auth server
@@ -121,6 +133,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// sets up grpc metrics interceptor
+	grpcMetrics := utils.CreateGRPCServerMetrics(cfg.Metrics.GRPCServerLatency, prometheus.Labels{teleport.TagServer: "teleport-auth"})
+	err = utils.RegisterPrometheusCollectors(grpcMetrics)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
@@ -128,6 +147,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		AccessPoint:   cfg.AccessPoint,
 		AcceptedUsage: cfg.AcceptedUsage,
 		Limiter:       limiter,
+		GRPCMetrics:   grpcMetrics,
 	}
 
 	apiServer, err := NewAPIServer(&cfg.APIConfig)
@@ -258,7 +278,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	// certificate authorities.
 	// TODO(klizhentas) drop connections of the TLS cert authorities
 	// that are not trusted
-	pool, err := ClientCertPool(t.cfg.AccessPoint, clusterName)
+	pool, totalSubjectsLen, err := DefaultClientCertPool(t.cfg.AccessPoint, clusterName)
 	if err != nil {
 		var ourClusterName string
 		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
@@ -278,14 +298,8 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	// This may happen with a very large (>500) number of trusted clusters, if
 	// the client doesn't send the correct ServerName in its ClientHelloInfo
 	// (see the switch at the top of this func).
-	var totalSubjectsLen int64
-	for _, s := range pool.Subjects() {
-		// Each subject in the list gets a separate 2-byte length prefix.
-		totalSubjectsLen += 2
-		totalSubjectsLen += int64(len(s))
-	}
 	if totalSubjectsLen >= int64(math.MaxUint16) {
-		return nil, trace.BadParameter("number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; try updating tsh to the latest version; if that doesn't help, remove some trusted clusters", len(pool.Subjects()))
+		return nil, trace.BadParameter("number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; try updating tsh to the latest version; if that doesn't help, remove some trusted clusters")
 	}
 
 	tlsCopy := t.cfg.TLS.Clone()
@@ -311,6 +325,8 @@ type Middleware struct {
 	AcceptedUsage []string
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
+	// GRPCMetrics is the configured grpc metrics for the interceptors
+	GRPCMetrics *om.ServerMetrics
 }
 
 // Wrap sets next handler in chain
@@ -393,16 +409,30 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 // limiting, authenticates requests, and passes the user information as context
 // metadata.
 func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
+	if a.GRPCMetrics != nil {
+		return utils.ChainUnaryServerInterceptors(
+			om.UnaryServerInterceptor(a.GRPCMetrics),
+			utils.ErrorConvertUnaryInterceptor,
+			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
+			a.withAuthenticatedUserUnaryInterceptor)
+	}
 	return utils.ChainUnaryServerInterceptors(
 		utils.ErrorConvertUnaryInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor)
 }
 
-// UnaryInterceptor returns a gPRC stream interceptor which performs rate
+// StreamInterceptor returns a gPRC stream interceptor which performs rate
 // limiting, authenticates requests, and passes the user information as context
 // metadata.
 func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
+	if a.GRPCMetrics != nil {
+		return utils.ChainStreamServerInterceptors(
+			om.StreamServerInterceptor(a.GRPCMetrics),
+			utils.ErrorConvertStreamInterceptor,
+			a.Limiter.StreamServerInterceptor,
+			a.withAuthenticatedUserStreamInterceptor)
+	}
 	return utils.ChainStreamServerInterceptors(
 		utils.ErrorConvertStreamInterceptor,
 		a.Limiter.StreamServerInterceptor,
@@ -568,7 +598,7 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 	// Perform the handshake if it hasn't been already. Before the handshake we
 	// won't have client certs available.
 	if !conn.ConnectionState().HandshakeComplete {
-		if err := conn.Handshake(); err != nil {
+		if err := conn.HandshakeContext(ctx); err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
@@ -580,50 +610,59 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 	return requestWithContext, nil
 }
 
-// ClientCertPool returns trusted x509 cerificate authority pool
-func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
+// ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.
+// In addition, it returns the total length of all subjects added to the cert pool, allowing
+// the caller to validate that the pool doesn't exceed the maximum 2-byte length prefix before
+// using it.
+func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
+	if len(caTypes) == 0 {
+		return nil, 0, trace.BadParameter("at least one CA type is required")
+	}
+
 	ctx := context.TODO()
 	pool := x509.NewCertPool()
 	var authorities []types.CertAuthority
 	if clusterName == "" {
-		hostCAs, err := client.GetCertAuthorities(ctx, types.HostCA, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		for _, caType := range caTypes {
+			cas, err := client.GetCertAuthorities(ctx, caType, false)
+			if err != nil {
+				return nil, 0, trace.Wrap(err)
+			}
+			authorities = append(authorities, cas...)
 		}
-		userCAs, err := client.GetCertAuthorities(ctx, types.UserCA, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		authorities = append(authorities, hostCAs...)
-		authorities = append(authorities, userCAs...)
 	} else {
-		hostCA, err := client.GetCertAuthority(
-			ctx,
-			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
-			false)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		for _, caType := range caTypes {
+			ca, err := client.GetCertAuthority(
+				ctx,
+				types.CertAuthID{Type: caType, DomainName: clusterName},
+				false)
+			if err != nil {
+				return nil, 0, trace.Wrap(err)
+			}
+
+			authorities = append(authorities, ca)
 		}
-		userCA, err := client.GetCertAuthority(
-			ctx,
-			types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
-			false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		authorities = append(authorities, hostCA)
-		authorities = append(authorities, userCA)
 	}
 
+	var totalSubjectsLen int64
 	for _, auth := range authorities {
 		for _, keyPair := range auth.GetTrustedTLSKeyPairs() {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, 0, trace.Wrap(err)
 			}
 			log.Debugf("ClientCertPool -> %v", CertInfo(cert))
 			pool.AddCert(cert)
+
+			// Each subject in the list gets a separate 2-byte length prefix.
+			totalSubjectsLen += 2
+			totalSubjectsLen += int64(len(cert.RawSubject))
 		}
 	}
-	return pool, nil
+	return pool, totalSubjectsLen, nil
+}
+
+// DefaultClientCertPool returns default trusted x509 certificate authority pool.
+func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
+	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
 }

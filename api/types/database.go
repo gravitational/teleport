@@ -22,11 +22,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // Database represents a database proxied by a database server.
@@ -61,6 +63,13 @@ type Database interface {
 	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
 	SetStatusCA(string)
+	// GetMySQL returns the database options from spec.
+	GetMySQL() MySQLOptions
+	// GetMySQLServerVersion returns the MySQL server version either from configuration or
+	// reported by the database.
+	GetMySQLServerVersion() string
+	// SetMySQLServerVersion sets the runtime MySQL server version.
+	SetMySQLServerVersion(version string)
 	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
@@ -87,7 +96,11 @@ type Database interface {
 	IsCloudSQL() bool
 	// IsAzure returns true if this is an Azure database.
 	IsAzure() bool
-	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+	// IsElastiCache returns true if this is an AWS ElastiCache database.
+	IsElastiCache() bool
+	// IsAWSHosted returns true if database is hosted by AWS.
+	IsAWSHosted() bool
+	// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or Cloud SQL).
 	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
@@ -251,6 +264,26 @@ func (d *DatabaseV3) SetStatusCA(ca string) {
 	d.Status.CACert = ca
 }
 
+// GetMySQL returns the MySQL options from spec.
+func (d *DatabaseV3) GetMySQL() MySQLOptions {
+	return d.Spec.MySQL
+}
+
+// GetMySQLServerVersion returns the MySQL server version reported by the database or the value from configuration
+// if the first one is not available.
+func (d *DatabaseV3) GetMySQLServerVersion() string {
+	if d.Status.MySQL.ServerVersion != "" {
+		return d.Status.MySQL.ServerVersion
+	}
+
+	return d.Spec.MySQL.ServerVersion
+}
+
+// SetMySQLServerVersion sets the runtime MySQL server version.
+func (d *DatabaseV3) SetMySQLServerVersion(version string) {
+	d.Status.MySQL.ServerVersion = version
+}
+
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
 	return cmp.Equal(a, AWS{})
@@ -304,15 +337,29 @@ func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
 }
 
-// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+// IsElastiCache returns true if this is an AWS ElastiCache database.
+func (d *DatabaseV3) IsElastiCache() bool {
+	return d.GetType() == DatabaseTypeElastiCache
+}
+
+// IsAWSHosted returns true if database is hosted by AWS.
+func (d *DatabaseV3) IsAWSHosted() bool {
+	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache()
+}
+
+// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
+// Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure()
+	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
 }
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
+	}
+	if d.GetAWS().ElastiCache.ReplicationGroupID != "" {
+		return DatabaseTypeElastiCache
 	}
 	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
 		return DatabaseTypeRDS
@@ -376,6 +423,9 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	if d.Spec.URI == "" {
 		return trace.BadParameter("database %q URI is empty", d.GetName())
 	}
+	if d.Spec.MySQL.ServerVersion != "" && d.Spec.Protocol != "mysql" {
+		return trace.BadParameter("MySQL ServerVersion can be only set for MySQL database")
+	}
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
@@ -401,6 +451,20 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
+	case awsutils.IsElastiCacheEndpoint(d.Spec.URI):
+		endpointInfo, err := awsutils.ParseElastiCacheEndpoint(d.Spec.URI)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to parse %v as ElastiCache endpoint", d.Spec.URI)
+			break
+		}
+		if d.Spec.AWS.ElastiCache.ReplicationGroupID == "" {
+			d.Spec.AWS.ElastiCache.ReplicationGroupID = endpointInfo.ID
+		}
+		if d.Spec.AWS.Region == "" {
+			d.Spec.AWS.Region = endpointInfo.Region
+		}
+		d.Spec.AWS.ElastiCache.TransitEncryptionEnabled = endpointInfo.TransitEncryptionEnabled
+		d.Spec.AWS.ElastiCache.EndpointType = endpointInfo.EndpointType
 	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
 		if err != nil {
@@ -452,18 +516,22 @@ func (d *DatabaseV3) GetIAMAction() string {
 func (d *DatabaseV3) GetIAMResources() []string {
 	aws := d.GetAWS()
 	if d.IsRDS() {
-		return []string{
-			fmt.Sprintf("arn:aws:rds-db:%v:%v:dbuser:%v/*",
-				aws.Region, aws.AccountID, aws.RDS.ResourceID),
+		if aws.Region != "" && aws.AccountID != "" && aws.RDS.ResourceID != "" {
+			return []string{
+				fmt.Sprintf("arn:aws:rds-db:%v:%v:dbuser:%v/*",
+					aws.Region, aws.AccountID, aws.RDS.ResourceID),
+			}
 		}
 	} else if d.IsRedshift() {
-		return []string{
-			fmt.Sprintf("arn:aws:redshift:%v:%v:dbuser:%v/*",
-				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-			fmt.Sprintf("arn:aws:redshift:%v:%v:dbname:%v/*",
-				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-			fmt.Sprintf("arn:aws:redshift:%v:%v:dbgroup:%v/*",
-				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+		if aws.Region != "" && aws.AccountID != "" && aws.Redshift.ClusterID != "" {
+			return []string{
+				fmt.Sprintf("arn:aws:redshift:%v:%v:dbuser:%v/*",
+					aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+				fmt.Sprintf("arn:aws:redshift:%v:%v:dbname:%v/*",
+					aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+				fmt.Sprintf("arn:aws:redshift:%v:%v:dbgroup:%v/*",
+					aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+			}
 		}
 	}
 	return nil
@@ -516,6 +584,8 @@ const (
 	DatabaseTypeCloudSQL = "gcp"
 	// DatabaseTypeAzure is Azure-hosted database.
 	DatabaseTypeAzure = "azure"
+	// DatabaseTypeElastiCache is AWS-hosted ElastiCache database.
+	DatabaseTypeElastiCache = "elasticache"
 )
 
 // DeduplicateDatabases deduplicates databases by name.

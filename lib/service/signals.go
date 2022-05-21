@@ -19,6 +19,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -64,9 +65,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		syscall.SIGCHLD, // collect child status
 	)
 
-	doneContext, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	serviceErrorsC := make(chan Event, 10)
 	process.WaitForEvent(ctx, ServiceExitedWithErrorEvent, serviceErrorsC)
 
@@ -78,7 +76,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		case signal := <-sigC:
 			switch signal {
 			case syscall.SIGQUIT:
-				go process.printShutdownStatus(doneContext)
 				process.Shutdown(ctx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
@@ -112,7 +109,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 					continue
 				}
 				process.log.Infof("Successfully started new process, shutting down gracefully.")
-				go process.printShutdownStatus(doneContext)
 				process.Shutdown(ctx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
@@ -189,13 +185,16 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 	defer process.Unlock()
 
 	var errors []error
-	for i := range process.importedDescriptors {
-		d := process.importedDescriptors[i]
+	openDescriptors := make([]FileDescriptor, 0, len(process.importedDescriptors))
+	for _, d := range process.importedDescriptors {
 		if strings.HasPrefix(d.Type, prefix) {
 			process.log.Infof("Closing imported but unused descriptor %v %v.", d.Type, d.Address)
 			errors = append(errors, d.File.Close())
+		} else {
+			openDescriptors = append(openDescriptors, d)
 		}
 	}
+	process.importedDescriptors = openDescriptors
 	return trace.NewAggregate(errors...)
 }
 
@@ -218,10 +217,10 @@ func (process *TeleportProcess) importSignalPipe() (*os.File, error) {
 	process.Lock()
 	defer process.Unlock()
 
-	for i := range process.importedDescriptors {
-		d := process.importedDescriptors[i]
+	for i, d := range process.importedDescriptors {
 		if d.Type == signalPipeName {
-			process.importedDescriptors = append(process.importedDescriptors[:i], process.importedDescriptors[i+1:]...)
+			process.importedDescriptors[i] = process.importedDescriptors[len(process.importedDescriptors)-1]
+			process.importedDescriptors = process.importedDescriptors[:len(process.importedDescriptors)-1]
 			return d.File, nil
 		}
 	}
@@ -235,16 +234,17 @@ func (process *TeleportProcess) importListener(typ listenerType, address string)
 	process.Lock()
 	defer process.Unlock()
 
-	for i := range process.importedDescriptors {
-		d := process.importedDescriptors[i]
+	for i, d := range process.importedDescriptors {
 		if d.Type == string(typ) && d.Address == address {
-			l, err := d.ToListener()
+			listener, err := d.ToListener()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			process.importedDescriptors = append(process.importedDescriptors[:i], process.importedDescriptors[i+1:]...)
-			process.registeredListeners = append(process.registeredListeners, registeredListener{typ: typ, address: address, listener: l})
-			return l, nil
+			process.importedDescriptors[i] = process.importedDescriptors[len(process.importedDescriptors)-1]
+			process.importedDescriptors = process.importedDescriptors[:len(process.importedDescriptors)-1]
+			r := registeredListener{typ: typ, address: address, listener: listener}
+			process.registeredListeners = append(process.registeredListeners, r)
+			return listener, nil
 		}
 	}
 
@@ -253,15 +253,46 @@ func (process *TeleportProcess) importListener(typ listenerType, address string)
 
 // createListener creates listener and adds to a list of tracked listeners
 func (process *TeleportProcess) createListener(typ listenerType, address string) (net.Listener, error) {
+	listenersClosed := func() bool {
+		process.Lock()
+		defer process.Unlock()
+		return process.listenersClosed
+	}
+
+	if listenersClosed() {
+		process.log.Debug("Listening is blocked, not opening listener for type %v and address %v.", typ, address)
+		return nil, trace.BadParameter("listening is blocked")
+	}
+
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	process.Lock()
 	defer process.Unlock()
+	// check this again in case we stopped allowing new listeners halfway
+	// through the net.Listen (which can block, if the address is a hostname and
+	// needs a dns lookup, so we can't do it while holding the lock)
+	if process.listenersClosed {
+		listener.Close()
+		process.log.Debug("Listening is blocked, closing newly-created listener for type %v and address %v.", typ, address)
+		return nil, trace.BadParameter("listening is blocked")
+	}
 	r := registeredListener{typ: typ, address: address, listener: listener}
 	process.registeredListeners = append(process.registeredListeners, r)
 	return listener, nil
+}
+
+func (process *TeleportProcess) stopListeners() error {
+	process.Lock()
+	defer process.Unlock()
+	process.listenersClosed = true
+	errors := make([]error, 0, len(process.registeredListeners))
+	for _, r := range process.registeredListeners {
+		errors = append(errors, r.listener.Close())
+	}
+	process.registeredListeners = nil
+	return trace.NewAggregate(errors...)
 }
 
 // ExportFileDescriptors exports file descriptors to be passed to child process
@@ -283,6 +314,7 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]FileDescriptor, error
 func importFileDescriptors(log logrus.FieldLogger) ([]FileDescriptor, error) {
 	// These files may be passed in by the parent process
 	filesString := os.Getenv(teleportFilesEnvVar)
+	os.Unsetenv(teleportFilesEnvVar)
 	if filesString == "" {
 		return nil, nil
 	}
@@ -442,11 +474,11 @@ func (process *TeleportProcess) forkChild() error {
 	}
 
 	log.Infof("Passing %s to child", vals)
-	os.Setenv(teleportFilesEnvVar, vals)
+	env := append(os.Environ(), fmt.Sprintf("%s=%s", teleportFilesEnvVar, vals))
 
 	p, err := os.StartProcess(path, os.Args, &os.ProcAttr{
 		Dir:   workingDir,
-		Env:   os.Environ(),
+		Env:   env,
 		Files: files,
 		Sys:   &syscall.SysProcAttr{},
 	})

@@ -97,7 +97,7 @@ type NodeSession struct {
 // if 'joinSessin' is given, the session will join the existing session
 // of another user
 func newSession(client *NodeClient,
-	joinSession *session.Session,
+	joinSession types.SessionTracker,
 	env map[string]string,
 	stdin io.Reader,
 	stdout io.Writer,
@@ -129,12 +129,17 @@ func newSession(client *NodeClient,
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
 	if joinSession != nil {
-		ns.id = joinSession.ID
-		ns.namespace = joinSession.Namespace
-		tsize := joinSession.TerminalParams.Winsize()
+		sessionID := joinSession.GetSessionID()
+		terminalSize, err := client.GetRemoteTerminalSize(sessionID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ns.id = session.ID(sessionID)
+		ns.namespace = joinSession.GetMetadata().Namespace
 
 		if ns.terminal.IsAttached() {
-			err = ns.terminal.Resize(int16(tsize.Width), int16(tsize.Height))
+			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))
 			if err != nil {
 				log.Error(err)
 			}
@@ -644,6 +649,35 @@ func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Ter
 	}
 }
 
+// handlePeerControls streams the terminal input to the remote shell's standard input.
+// Escape sequences for stopping the stream on the client side are supported via `escape.NewReader`.
+func handlePeerControls(term *terminal.Terminal, remoteStdin io.Writer) {
+	stdin := term.Stdin()
+	if term.IsAttached() {
+		// escape.NewReader is used to enable manual disconnect sequences as those supported
+		// by tsh. These can be used to force a client disconnect since CTRL-C is merely passed
+		// to the other end and not interpreted as an exit request locally
+		stdin = escape.NewReader(stdin, term.Stderr(), func(err error) {
+			log.Debugf("escape.NewReader error: %v", err)
+
+			switch err {
+			case escape.ErrDisconnect:
+				fmt.Fprint(term.Stderr(), "\r\nDisconnected\r\n")
+			case escape.ErrTooMuchBufferedData:
+				fmt.Fprint(term.Stderr(), "\r\nRemote peer may be unreachable, check your connectivity\r\n")
+			default:
+				fmt.Fprintf(term.Stderr(), "\r\nunknown error: %v\r\n", err.Error())
+			}
+		})
+	}
+
+	_, err := io.Copy(remoteStdin, stdin)
+	if err != nil {
+		log.Debugf("Error copying data to remote peer: %v", err)
+		fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
+	}
+}
+
 // pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
 // and another to pipe the output of the remote shell into the local output
 func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, mode types.SessionParticipantMode, sess *ssh.Session) {
@@ -671,39 +705,7 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, mode types.SessionPar
 	case types.SessionPeerMode:
 		// copy from the local input to the remote shell:
 		go func() {
-			defer ns.closer.Close()
-			buf := make([]byte, 1024)
-
-			stdin := ns.terminal.Stdin()
-			if ns.terminal.IsAttached() && ns.enableEscapeSequences {
-				stdin = escape.NewReader(stdin, ns.terminal.Stderr(), func(err error) {
-					switch err {
-					case escape.ErrDisconnect:
-						fmt.Fprintf(ns.terminal.Stderr(), "\r\n%v\r\n", err)
-					case escape.ErrTooMuchBufferedData:
-						fmt.Fprintf(ns.terminal.Stderr(), "\r\nerror: %v\r\nremote peer may be unreachable, check your connectivity\r\n", trace.Wrap(err))
-					default:
-						fmt.Fprintf(ns.terminal.Stderr(), "\r\nerror: %v\r\n", trace.Wrap(err))
-					}
-					ns.closer.Close()
-				})
-			}
-
-			for {
-				n, err := stdin.Read(buf)
-				if n > 0 {
-					_, err = shell.Write(buf[:n])
-					if err != nil {
-						ns.ExitMsg = err.Error()
-						return
-					}
-				}
-
-				if err != nil {
-					fmt.Fprintf(ns.terminal.Stderr(), "\r\n%v\r\n", trace.Wrap(err))
-					return
-				}
-			}
+			handlePeerControls(ns.terminal, shell)
 		}()
 	}
 }

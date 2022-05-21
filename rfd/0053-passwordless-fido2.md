@@ -172,7 +172,7 @@ Authentication diagram below:
      ┌─────────────┐             │                   ┌───┐                                       ┌────────┐
      │authenticator│            ┌┴┐                  │tsh│                                       │Teleport│
      └──────┬──────┘           user                  └─┬─┘                                       └───┬────┘
-            │                   │  tsh login --pwdless │                                             │
+            │                   │       tsh login      │                                             │
             │                   │ ─────────────────────>                                             │
             │                   │                      │                                             │
             │                   │                      │        CreateAuthenticateChallenge()        │
@@ -341,9 +341,10 @@ keys with storage limitations.
 **CLI clients (aka `tsh`)**
 
 Similarly to browser-based authentication, `tsh login` needs to know beforehand
-whether to go for the "regular" or "passwordless" flow. The decision needs to
-come from the user, otherwise we risk a needless hardware key prompt (and the
-clunky UX that comes with it).
+whether to go for the "regular" or "passwordless" flow. The decision comes from
+the [passwordless cluster settings](
+https://github.com/gravitational/teleport/blob/master/rfd/0052-passwordless.md#cluster-settings),
+with a possible user-override via the `--auth` flag.
 
 Example of a login with multiple hardware keys, PIN, and multiple credentials
 (some steps may be skipped in simpler scenarios, see the
@@ -460,7 +461,7 @@ actor user
 participant tsh
 participant "Teleport" as server
 
-user -> tsh: tsh login --pwdless
+user -> tsh: tsh login
 
 tsh -> server: CreateAuthenticateChallenge()\n(no user or password informed)
 server -> tsh: challenge

@@ -68,6 +68,9 @@ const (
 	ACLRequired ACLMode = "required"
 )
 
+// OpenMode is a mode for opening files.
+type OpenMode int
+
 const (
 	// DefaultMode is the preferred permissions mode for bot files.
 	DefaultMode fs.FileMode = 0600
@@ -76,6 +79,14 @@ const (
 	// Directories need the execute bit set for most operations on their
 	// contents to succeed.
 	DefaultDirMode fs.FileMode = 0700
+
+	// ReadMode is the mode with which files should be opened for reading and
+	// writing.
+	ReadMode OpenMode = OpenMode(os.O_CREATE | os.O_RDONLY)
+
+	// WriteMode is the mode with which files should be opened specifically
+	// for writing.
+	WriteMode OpenMode = OpenMode(os.O_CREATE | os.O_WRONLY | os.O_TRUNC)
 )
 
 // ACLOptions contains parameters needed to configure ACLs
@@ -88,9 +99,10 @@ type ACLOptions struct {
 	ReaderUser *user.User
 }
 
-// openStandard attempts to open the given path for writing with O_CREATE set.
-func openStandard(path string) (*os.File, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, DefaultMode)
+// openStandard attempts to open the given path for reading and writing with
+// O_CREATE set.
+func openStandard(path string, mode OpenMode) (*os.File, error) {
+	file, err := os.OpenFile(path, int(mode), DefaultMode)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -109,7 +121,7 @@ func createStandard(path string, isDir bool) error {
 		return nil
 	}
 
-	f, err := openStandard(path)
+	f, err := openStandard(path, WriteMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
