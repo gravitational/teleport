@@ -133,7 +133,11 @@ type CLIConf struct {
 	NodeLogin string
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
 	InsecureSkipVerify bool
-	// Remote SSH session to join
+	// SessionID identifies the session tsh is operating on.
+	// For `tsh join`, it is the ID of the session to join.
+	// For `tsh play`, it is either the ID of the session to play,
+	// or the path to a local session file which has already been
+	// downloaded.
 	SessionID string
 	// Src:dest parameter for SCP
 	CopySpec []string
@@ -970,64 +974,80 @@ func serializeVersion(format string, proxyVersion string) (string, error) {
 	return string(out), trace.Wrap(err)
 }
 
-// onPlay replays a session with a given ID
+// onPlay is used to interact with recorded sessions.
+// It has several modes:
+//
+// 1. If --format is "pty" (the default), then the recorded
+//    session is played back in the user's terminal.
+// 2. Otherwise, `tsh play` is used to export a session from the
+//    binary protobuf format into YAML or JSON.
+//
+// Each of these modes has two subcases:
+// a) --session-id ends with ".tar" - tsh operates on a local file
+//    containing a previously downloaded session
+// b) --session-id is the ID of a session - tsh operates on the session
+//    recording by connecting to the Teleport cluster
 func onPlay(cf *CLIConf) error {
+	if format := strings.ToLower(cf.Format); format == teleport.PTY {
+		return playSession(cf)
+	}
+	return exportSession(cf)
+}
+
+func exportSession(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
-	switch format {
-	case teleport.PTY:
-		switch {
-		case path.Ext(cf.SessionID) == ".tar":
-			sid := sessionIDFromPath(cf.SessionID)
-			tarFile, err := os.Open(cf.SessionID)
-			defer tarFile.Close()
-			if err != nil {
-				return trace.ConvertSystemError(err)
-			}
-			if err := client.PlayFile(cf.Context, tarFile, sid); err != nil {
-				return trace.Wrap(err)
-			}
-		default:
-			tc, err := makeClient(cf, true)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := tc.Play(cf.Context, cf.Namespace, cf.SessionID); err != nil {
-				return trace.Wrap(err)
-			}
+	isLocalFile := path.Ext(cf.SessionID) == ".tar"
+	if isLocalFile {
+		return trace.Wrap(exportFile(cf.Context, cf.SessionID, format))
+	}
+
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	events, err := tc.GetSessionEvents(cf.Context, cf.Namespace, cf.SessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, event := range events {
+		// when playing from a file, id is not included, this
+		// makes the outputs otherwise identical
+		delete(event, "id")
+		var e []byte
+		var err error
+		if format == teleport.JSON {
+			e, err = utils.FastMarshal(event)
+		} else {
+			e, err = yaml.Marshal(event)
 		}
-	default:
-		switch {
-		case path.Ext(cf.SessionID) == ".tar":
-			err := exportFile(cf.SessionID, cf.Format)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		default:
-			tc, err := makeClient(cf, true)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			events, err := tc.GetSessionEvents(context.TODO(), cf.Namespace, cf.SessionID)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			for _, event := range events {
-				// when playing from a file, id is not included, this
-				// makes the outputs otherwise identical
-				delete(event, "id")
-				var e []byte
-				var err error
-				if format == teleport.JSON {
-					e, err = utils.FastMarshal(event)
-				} else {
-					e, err = yaml.Marshal(event)
-				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				fmt.Println(string(e))
-			}
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		fmt.Println(string(e))
+	}
+	return nil
+}
+
+func playSession(cf *CLIConf) error {
+	isLocalFile := path.Ext(cf.SessionID) == ".tar"
+	if isLocalFile {
+		sid := sessionIDFromPath(cf.SessionID)
+		tarFile, err := os.Open(cf.SessionID)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		defer tarFile.Close()
+		if err := client.PlayFile(cf.Context, tarFile, sid); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := tc.Play(cf.Context, cf.Namespace, cf.SessionID); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -1037,13 +1057,16 @@ func sessionIDFromPath(path string) string {
 	return strings.TrimSuffix(fileName, ".tar")
 }
 
-func exportFile(path string, format string) error {
+// exportFile converts the binary protobuf events from the file
+// identified by path to text (JSON/YAML) and writes the converted
+// events to standard out.
+func exportFile(ctx context.Context, path string, format string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	err = events.Export(context.TODO(), f, os.Stdout, format)
+	err = events.Export(ctx, f, os.Stdout, format)
 	if err != nil {
 		return trace.Wrap(err)
 	}
