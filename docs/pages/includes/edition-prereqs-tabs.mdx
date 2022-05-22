@@ -9,7 +9,7 @@ files in partials, this partial uses relative URL paths instead.
 - A running Teleport cluster. For details on how to set this up, see one of our
   [Getting Started](/docs/getting-started) guides. 
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=) on a Desktop or administrative access on the Teleport Auth Service machine.
 
   ```code
   $ tctl version
@@ -21,21 +21,17 @@ files in partials, this partial uses relative URL paths instead.
 
   See [Installation](/docs/installation.mdx) for details.
 
-- Maintain via the `tctl` enterprise admin tool via the Desktop (recommended) or have administrative access on the Teleport auth service machine.
-
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 - Installed Enterprise version of Teleport (downloaded via the [Enterprise dashboard](https://dashboard.gravitational.com/web/login)).
-- Maintain via the `tctl` enterprise admin tool via the Desktop (recommended) or have administrative access on the Teleport auth service machine.
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=), installed on your local machine.
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=) on a Desktop or administrative access on the Teleport Auth Service machine.
 You can download these by visiting the
   [customer portal](https://dashboard.gravitational.com/web/login).
   ```code
   $ tctl version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
-  Teleport role with access to maintaining `saml` and `oidc` resources.  This is available in the default `editor` role.
 </TabItem>
 <TabItem scope={["cloud"]}
   label="Teleport Cloud">
@@ -49,7 +45,5 @@ You can download these by visiting the
   $ tctl version
   # Teleport v(=cloud.version=) go(=teleport.golang=)
   ```
-- Teleport role with access to maintaining `saml` and `oidc` resources.  This is available in the default `editor` role.
-
 </TabItem>
 </Tabs>
