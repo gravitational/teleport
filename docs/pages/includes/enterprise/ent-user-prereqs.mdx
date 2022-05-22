@@ -7,8 +7,17 @@
   $ tctl version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
-</TabItem>
+To connect to Teleport, log in to your cluster using `tsh`, then use `tctl`
+remotely:
 
+```code
+$ tsh login --proxy=teleport.example.com --user=myuser
+$ tctl status
+# Cluster  tele.example.com
+# Version  (=teleport.version=)
+# CA pin   sha256:sha-hash-here
+```
+</TabItem>
 <TabItem scope={["cloud"]}
   label="Teleport Cloud">
 - Teleport Cloud account (sign up for a [free trial](https://goteleport.com/signup)).
@@ -17,9 +26,15 @@
 
   You can download this from [Teleport Cloud Downloads](/docs/cloud/downloads).
 
-  ```code
-  $ tctl version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  ```
+To connect to Teleport, log in to your cluster using `tsh`, then use `tctl`
+remotely:
+
+```code
+$ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
+$ tctl status
+# Cluster  myinstance.teleport.sh
+# Version  (=cloud.version=)
+# CA pin   sha256:sha-hash-here 
+```
 </TabItem>
 </Tabs>
