@@ -523,7 +523,7 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 		}
 	}
 
-	logrus.Debugf("Found %d published repos: %q", len(publishedRepoNames), strings.Join(publishedRepoNames, "\", \""))
+	logrus.Debugf("Found %d published repos: %q", len(publishedRepoNames), publishedRepoNames)
 	return publishedRepoNames, nil
 }
 
