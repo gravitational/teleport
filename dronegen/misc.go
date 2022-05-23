@@ -146,6 +146,7 @@ func promoteAptPipeline() pipeline {
 				// "export VERSION=\"$(echo $DRONE_TAG | cut -d. -f1)\"",
 				fmt.Sprintf("export VERSION=\"$(echo v%s | cut -d. -f1)\"", testVersion),
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
+				"rm -rf \"$APTLY_ROOT_DIR\"",        // Temporary to test recovery capabilities
 				strings.Join(
 					[]string{
 						// This just makes the (long) command a little more readable
