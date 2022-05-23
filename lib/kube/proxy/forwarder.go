@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -1054,8 +1053,6 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		InitialCommand:   request.cmd,
 		SessionRecording: ctx.recordingConfig.GetMode(),
 	}
-
-	sessionStartEvent.Impersonator = ctx.Identity.GetIdentity().Impersonator
 
 	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
 		f.log.WithError(err).Warn("Failed to emit event.")
