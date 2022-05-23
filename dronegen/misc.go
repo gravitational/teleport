@@ -161,6 +161,7 @@ func promoteAptPipeline() pipeline {
 					" ",
 				),
 				"ls -lah \"$APTLY_ROOT_DIR\"", // More temp debugging
+				"df -h \"$APTLY_ROOT_DIR\"",   // More temp debugging
 			},
 			Volumes: []volumeRef{
 				{
