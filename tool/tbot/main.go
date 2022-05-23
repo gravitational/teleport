@@ -287,18 +287,20 @@ func onStart(botConfig *config.BotConfig) error {
 		}
 	}
 
-	watcher, err := authClient.NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{{
-			Kind: types.KindCertAuthority,
-		}},
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	// TODO: Do we actually want to run this for one-shots ?
+	{
+		caWatcher, err := authClient.NewWatcher(ctx, types.Watch{
+			Kinds: []types.WatchKind{{
+				Kind: types.KindCertAuthority,
+			}},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer caWatcher.Close()
+
+		go watchCARotations(caWatcher)
 	}
-
-	go watchCARotations(watcher)
-
-	defer watcher.Close()
 
 	return renewLoop(ctx, botConfig, authClient, ident, reloadChan)
 }
@@ -403,6 +405,24 @@ func handleSignals(reload chan struct{}, cancel context.CancelFunc) {
 }
 
 func watchCARotations(watcher types.Watcher) {
+	// How we handle CA state transitions:
+	//
+	// When entering Init phase:
+	// - Download new CA public key and trust it
+	//   - Add new CA to clients trusted set
+	//   - Add new CA to pins
+	// When entering Update Clients phase:
+	// - Get new certificate from new CA, start using it
+	// When entering Update Servers phase:
+	// - Rest easy. This isn't for us.
+	// When entering Standby from Update Servers:
+	// - Untrust old CA
+	//   - Remove old CA from pins
+	//   - Remove old CA from clients trusted set
+	// When entering Rollback:
+	// - Untrust new CA
+	//   - Remove new CA from pins
+	//   - Remove new CA from clients trusted set
 	for {
 		select {
 		case event := <-watcher.Events():
