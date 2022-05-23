@@ -399,7 +399,7 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 	logrus.Debugln("Repo publish state:")
 	logrus.Debugf("Are some unpublished: %v", areSomeReposUnpublished)
 	logrus.Debugf("Are some published: %v", areSomeReposPublished)
-	logrus.Debugf("Repos: %v", repos)
+	logrus.Debugf("Repos: %v", RepoNames(repos))
 
 	// If all repos have been published
 	if areSomeReposPublished && !areSomeReposUnpublished {
