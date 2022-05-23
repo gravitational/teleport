@@ -156,7 +156,7 @@ func promoteAptPipeline() pipeline {
 						"-artifact-release-channel \"$RELEASE_CHANNEL\"",
 						"-aptly-root-dir \"$APTLY_ROOT_DIR\"",
 						"-artifact-path \"$ARTIFACT_PATH\"",
-						"-log-level 4", // Set this to 5 for debug logging
+						"-log-level 5", // Set this to 5 for debug logging
 					},
 					" ",
 				),

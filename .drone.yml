@@ -5065,7 +5065,7 @@ steps:
   - rm -rf "$APTLY_ROOT_DIR"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -artifact-major-version
     "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL" -aptly-root-dir "$APTLY_ROOT_DIR"
-    -artifact-path "$ARTIFACT_PATH" -log-level 4
+    -artifact-path "$ARTIFACT_PATH" -log-level 5
   environment:
     APT_S3_BUCKET:
       from_secret: APT_REPO_NEW_AWS_S3_BUCKET
@@ -5480,6 +5480,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ff9f93225a1eea1874f276f694ac1918de252c1a4abf6c0b8e07ce52c96a10bc
+hmac: 42ad4a9b8b243ba96c85a8dab4a20e721e1fedd422e1299cf6030716e6cb456e
 
 ...
