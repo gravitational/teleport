@@ -649,7 +649,7 @@ func buildAndRunCommand(command string, args ...string) (string, error) {
 	output, err := cmd.CombinedOutput()
 
 	if output != nil {
-		logrus.Debugf("Command output:%s", string(output))
+		logrus.Debugf("Command output: %s", string(output))
 	}
 
 	if err != nil {
