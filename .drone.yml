@@ -5062,11 +5062,11 @@ steps:
   - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
   - export VERSION="$(echo v6.2.31 | cut -d. -f1)"
   - export RELEASE_CHANNEL="stable"
-  - rm -rf "$APTLY_ROOT_DIR"/*
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -artifact-major-version
     "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL" -aptly-root-dir "$APTLY_ROOT_DIR"
     -artifact-path "$ARTIFACT_PATH" -log-level 5
   - ls -lah "$APTLY_ROOT_DIR"
+  - df -h "$APTLY_ROOT_DIR"
   environment:
     APT_S3_BUCKET:
       from_secret: APT_REPO_NEW_AWS_S3_BUCKET
@@ -5481,6 +5481,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 2b1b9a3469a7a92353c6aebfbdd27db20888c40abf73b311dd59f15d60fd3657
+hmac: 4a114d5e1d06c87d638ee6e07860b5a1d438076d940d74368b82268b3af14182
 
 ...
