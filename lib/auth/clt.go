@@ -1661,15 +1661,6 @@ func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) err
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GetTokens returns a list of active invitation tokens for nodes and users
-func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
-	resp, err := c.APIClient.GetTokens(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -1882,7 +1873,7 @@ type IdentityService interface {
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
-	GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error)
+	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
