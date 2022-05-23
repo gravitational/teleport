@@ -329,8 +329,10 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
 	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
-		identityfile.FormatRedis, identityfile.FormatSnowflake:
+		identityfile.FormatRedis:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
+	case identityfile.FormatSnowflake:
+		return a.generateSnowflakeKey(ctx, clusterAPI)
 	}
 	switch {
 	case a.genUser != "" && a.genHost == "":
@@ -340,6 +342,39 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 	default:
 		return trace.BadParameter("--user or --host must be specified")
 	}
+}
+
+// generateSnowflakeKey exports DatabaseCA public key in the format required by Snowflake
+// Ref: https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-2-generate-a-public-key
+func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.ClientI) error {
+	key, err := client.NewKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	databaseCA, err := clusterAPI.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(databaseCA) != 1 {
+		return trace.Errorf("expected database CA to have only one entry, found %d", len(databaseCA))
+	}
+
+	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA[0])}}
+
+	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		OutputPath:           a.output,
+		Key:                  key,
+		Format:               a.outputFormat,
+		OverwriteDestination: a.signOverwrite,
+	})
+
+	err = snowflakeAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		"files": strings.Join(filesWritten, ", "),
+	})
+
+	return trace.Wrap(err)
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
@@ -432,7 +467,7 @@ func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.
 // for database access.
 func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI auth.ClientI, key *client.Key) error {
 	principals := strings.Split(a.genHost, ",")
-	if len(principals) == 1 && principals[0] == "" {
+	if a.outputFormat != identityfile.FormatSnowflake && len(principals) == 1 && principals[0] == "" {
 		return trace.BadParameter("at least one hostname must be specified via --host flag")
 	}
 	// For CockroachDB node certificates, CommonName must be "node":
