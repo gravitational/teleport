@@ -73,7 +73,27 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
+	// get roles and traits. default to the set from profile, try to get up-to-date version from server point of view.
+	roles := profile.Roles
+	traits := profile.Traits
+
+	// GetCurrentUser() may not be implemented, fail gracefully.
+	user, err := cluster.GetCurrentUser(cf.Context)
+	if err == nil {
+		roles = user.GetRoles()
+		traits = user.GetTraits()
+	} else {
+		log.Debugf("Failed to fetch current user information: %v.", err)
+	}
+
+	// get the role definition for all roles of user.
+	// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
+	// example scenario when this may happen:
+	// 1. we have set of roles [foo bar] from profile.
+	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
+	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
+	// 4. services.FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
+	roleSet, err := services.FetchRoles(roles, cluster, traits)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
