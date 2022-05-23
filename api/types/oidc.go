@@ -20,7 +20,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 
@@ -386,8 +385,8 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if uri.Scheme != teleport.SchemeFile {
-			return trace.BadParameter("only %v:// scheme is supported for google_service_account_uri", teleport.SchemeFile)
+		if uri.Scheme != "file" {
+			return trace.BadParameter("only file:// scheme is supported for google_service_account_uri")
 		}
 		if o.GetGoogleAdminEmail() == "" {
 			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protools/OAuth2ServiceAccount#delegatingauthority for more details")

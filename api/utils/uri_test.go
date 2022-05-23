@@ -20,7 +20,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/gravitational/teleport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,9 +31,9 @@ func TestParseSessionsURI(t *testing.T) {
 		in   string
 		url  *url.URL
 	}{
-		{info: "local default file system URI", in: "/home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
-		{info: "explicit filesystem URI", in: "file:///home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
-		{info: "S3 URI", in: "s3://my-bucket", url: &url.URL{Scheme: teleport.SchemeS3, Host: "my-bucket"}},
+		{info: "local default file system URI", in: "/home/log", url: &url.URL{Scheme: "file", Path: "/home/log"}},
+		{info: "explicit filesystem URI", in: "file:///home/log", url: &url.URL{Scheme: "file", Path: "/home/log"}},
+		{info: "other scheme", in: "other://my-bucket", url: &url.URL{Scheme: "other", Host: "my-bucket"}},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.info, func(t *testing.T) {
