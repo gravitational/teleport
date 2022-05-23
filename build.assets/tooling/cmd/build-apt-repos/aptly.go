@@ -578,9 +578,6 @@ func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo
 
 					if wasRepoCreated {
 						createdRepos = append(createdRepos, r)
-						logrus.Infof("Created repo %q", r.Name())
-					} else {
-						logrus.Debugf("Repo %q already exists, skipping creation", r.Name())
 					}
 				}
 			}
@@ -613,15 +610,9 @@ func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][
 				majorVersion:   majorVersion,
 			}
 
-			wasRepoCreated, err := a.CreateRepoIfNotExists(r)
+			_, err := a.CreateRepoIfNotExists(r)
 			if err != nil {
 				return nil, trace.Wrap(err, "failed to create repo %q", r.Name())
-			}
-
-			if wasRepoCreated {
-				logrus.Infof("Created repo %q", r.Name())
-			} else {
-				logrus.Debugf("Repo %q already exists, skipping creation", r.Name())
 			}
 
 			artifactRequirementRepos = append(artifactRequirementRepos, r)
