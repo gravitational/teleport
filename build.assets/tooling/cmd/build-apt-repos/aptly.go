@@ -19,6 +19,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -35,28 +36,135 @@ import (
 // This provides wrapper functions for the Aptly command. Aptly is written in Go but it doesn't appear
 // to have a good binary API to use, only a CLI tool and REST API.
 
-type Aptly struct{}
+type Aptly struct {
+	rootDir string
+}
 
 // Instantiates Aptly, performing any system configuration needed.
-func NewAptly() (*Aptly, error) {
-	a := &Aptly{}
+func NewAptly(rootDir string) (*Aptly, error) {
+	a := &Aptly{
+		rootDir: rootDir,
+	}
+
 	err := a.ensureDefaultConfigExists()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to ensure Aptly default config exists")
 	}
-	// Additional config can be handled here if needed in the future
+
+	err = a.updateConfiguration()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to load Aptly configuration")
+	}
+
 	return a, nil
 }
 
 func (*Aptly) ensureDefaultConfigExists() error {
 	// If the default config doesn't exist then it will be created the first time an Aptly command is
 	// ran, which messes up the output.
-	_, err := buildAndRunCommand("aptly", "repo", "list")
+	// Note: it is important to not use any repo-related commands here as they have a side effect of
+	// also creating the Aptly rootDir structure which is usually undesirable here
+	_, err := buildAndRunCommand("aptly", "config", "show")
 	if err != nil {
 		return trace.Wrap(err, "failed to create default Aptly config")
 	}
 
 	return nil
+}
+
+func (a *Aptly) updateConfiguration() error {
+	aptlyConfigMap, err := loadAptlyConfigMap()
+	if err != nil {
+		return trace.Wrap(err, "failed to load Aptly config map")
+	}
+
+	// Additional config can be handled here if needed in the future
+	aptlyConfigMap["rootDir"] = a.rootDir
+
+	saveAptlyConfigMap(aptlyConfigMap)
+
+	return nil
+}
+
+func saveAptlyConfigMap(aptlyConfigMap map[string]interface{}) error {
+	aptlyConfigData, err := json.MarshalIndent(aptlyConfigMap, "", "  ")
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal Aptly config with data %v", aptlyConfigMap)
+	}
+
+	aptlyConfigPath, err := getAptlyConfigPath()
+	if err != nil {
+		return trace.Wrap(err, "failed to get Aptly config path")
+	}
+
+	err = os.WriteFile(aptlyConfigPath, aptlyConfigData, 0644)
+	if err != nil {
+		return trace.Wrap(err, "failed to write Aptly config to %q with data %q", aptlyConfigPath, string(aptlyConfigData))
+	}
+
+	return nil
+}
+
+func loadAptlyConfigMap() (map[string]interface{}, error) {
+	aptlyConfigPath, err := getAptlyConfigPath()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get Aptly config path")
+	}
+
+	aptlyConfigData, err := os.ReadFile(aptlyConfigPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to read Aptly config file at %q", aptlyConfigPath)
+	}
+
+	var aptlyConfigMap map[string]interface{}
+	if err := json.Unmarshal(aptlyConfigData, &aptlyConfigMap); err != nil {
+		return nil, trace.Wrap(err, "failed to unmarshal Aptly config from file %q with data %q", aptlyConfigPath, string(aptlyConfigData))
+	}
+
+	return aptlyConfigMap, nil
+}
+
+// This follows the config logic specified here: https://www.aptly.info/doc/configuration/
+func getAptlyConfigPath() (string, error) {
+	userHomeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", trace.Wrap(err, "failed to get user home directory path")
+	}
+
+	userAptlyConfigPath := path.Join(userHomeDir, ".aptly.conf")
+	_, err = os.Stat(userAptlyConfigPath)
+	if err == nil {
+		return userAptlyConfigPath, nil
+	}
+
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", trace.Wrap(err, "failed to check if %q exists", userAptlyConfigPath)
+	}
+
+	systemAptlyConfigPath := "/etc/aptly.conf"
+	_, err = os.Stat(systemAptlyConfigPath)
+	if err == nil {
+		return systemAptlyConfigPath, nil
+	}
+
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", trace.Wrap(err, "failed to check if %q exists", systemAptlyConfigPath)
+	}
+
+	return "", trace.Errorf("Aptly config not found at %q or %q", userAptlyConfigPath, systemAptlyConfigPath)
+}
+
+func (a *Aptly) IsFirstRun() (bool, error) {
+	_, err := os.Stat(a.rootDir)
+	if err == nil {
+		return false, nil
+	}
+
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+
+	return false, trace.Wrap(err, "failed to check if %q exists", a.rootDir)
 }
 
 // Creates the provided repo `r` via Aptly. Returns true if the repo was created, false otherewise.
@@ -288,36 +396,6 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string) error {
 	return nil
 }
 
-// Returns the Aptly root dir. This is usually `~/.aptly`, but may vary based upon config.
-func (a *Aptly) GetRootDir() (string, error) {
-	logrus.Debugln("Checking Aptly config for the Aptly root directory...")
-	output, err := buildAndRunCommand("aptly", "config", "show")
-
-	if err != nil {
-		return "", trace.Wrap(err, "failed retrieve Aptly config info")
-	}
-
-	var outputJSON map[string]interface{}
-	err = json.Unmarshal([]byte(output), &outputJSON)
-	if err != nil {
-		return "", trace.Wrap(err, "failed to unmarshal `%s` output JSON into map", output)
-	}
-
-	rootDirValue, ok := outputJSON["rootDir"]
-	if !ok {
-		return "", trace.Errorf("Failed to find `rootDir` key in `%s` output JSON", output)
-	}
-
-	rootDirString, ok := rootDirValue.(string)
-	if !ok {
-		return "", trace.Errorf("The `rootDir` key in `%s` output JSON is not of type `string`", output)
-	}
-
-	logrus.Debugf("Found Aptly root directory at %q\n", rootDirString)
-	return rootDirString, nil
-
-}
-
 // Creates Aptly repos from a local path that has previously published Apt repos created by this tool.
 // Returns a list of repo objects describing the created Aptly repos.
 func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo, error) {
@@ -382,8 +460,9 @@ func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo
 	return createdRepos, nil
 }
 
-// Creates Aptly repos for all permutations of the provided requirements.
-// Returns a list of repo objects describing the created Aptly repos.
+// Creates or gets Aptly repos for all permutations of the provided requirements.
+// Returns a list of repo objects describing the Aptly repos, regardless of if they
+//   already existed.
 // supportedOSInfo should be a dictionary keyed by OS name, with values being a list of
 //   supported OS version codenames.
 func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][]string,
@@ -393,7 +472,7 @@ func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][
 	logrus.Infof("Release channel: %q\n", releaseChannel)
 	logrus.Infof("Artifact major version: %q\n", majorVersion)
 
-	createdRepos := []*Repo{}
+	artifactRequirementRepos := []*Repo{}
 	for os, osVersions := range supportedOSInfo {
 		for _, osVersion := range osVersions {
 			r := &Repo{
@@ -409,15 +488,16 @@ func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][
 			}
 
 			if wasRepoCreated {
-				createdRepos = append(createdRepos, r)
 				logrus.Infof("Created repo %q", r.Name())
 			} else {
 				logrus.Debugf("Repo %q already exists, skipping creation", r.Name())
 			}
+
+			artifactRequirementRepos = append(artifactRequirementRepos, r)
 		}
 	}
 
-	return createdRepos, nil
+	return artifactRequirementRepos, nil
 }
 
 func getSubdirectories(basePath string) ([]string, error) {

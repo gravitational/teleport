@@ -31,6 +31,7 @@ func promoteAptPipeline() pipeline {
 	testVersion := "6.2.31"
 	aptVolumeName := "aptrepo"
 	artifactPath := "/go/artifacts"
+	aptlyRootDir := "/aptly"
 
 	p := newKubePipeline("publish-apt-new-repos")
 	// p.Trigger = triggerPromote
@@ -124,6 +125,9 @@ func promoteAptPipeline() pipeline {
 				"ARTIFACT_PATH": {
 					raw: artifactPath,
 				},
+				"APTLY_ROOT_DIR": {
+					raw: aptlyRootDir,
+				},
 				"GNUPGHOME": {
 					raw: "/tmpfs/gnupg",
 				},
@@ -149,6 +153,7 @@ func promoteAptPipeline() pipeline {
 						"-bucket \"$APT_S3_BUCKET\"",
 						"-artifact-major-version \"$VERSION\"",
 						"-artifact-release-channel \"$RELEASE_CHANNEL\"",
+						"-aptly-root-dir \"$APTLY_ROOT_DIR\"",
 						"-artifact-path \"$ARTIFACT_PATH\"",
 						"-log-level 4", // Set this to 5 for debug logging
 					},
@@ -158,7 +163,7 @@ func promoteAptPipeline() pipeline {
 			Volumes: []volumeRef{
 				{
 					Name: aptVolumeName,
-					Path: "/repo_bucket",
+					Path: aptlyRootDir,
 				},
 				volumeRefTmpfs,
 			},

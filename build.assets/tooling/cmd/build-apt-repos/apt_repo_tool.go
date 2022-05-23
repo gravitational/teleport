@@ -41,10 +41,11 @@ func NewAptRepoTool(config *Config, supportedOSs map[string][]string) (*AptRepoT
 		supportedOSs: supportedOSs,
 	}
 
-	aptly, err := NewAptly()
+	aptly, err := NewAptly(config.aptlyPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create a new aptly instance")
 	}
+
 	art.aptly = aptly
 
 	return art, nil
@@ -55,32 +56,42 @@ func (art *AptRepoTool) Run() error {
 	start := time.Now()
 	logrus.Infoln("Starting APT repo build process...")
 
-	err := art.s3Manager.DownloadExistingRepo(art.config.localBucketPath)
+	isFirstRun, err := art.aptly.IsFirstRun()
+	if err != nil {
+		return trace.Wrap(err, "failed to check if Aptly needs (re)built")
+	}
+
+	if isFirstRun {
+		_, err := art.recreateExistingRepos()
+		if err != nil {
+			return trace.Wrap(err, "failed to recreate existing repos")
+		}
+	}
+
+	err = art.s3Manager.DownloadExistingRepo(art.config.localBucketPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to sync existing repo from S3 bucket")
 	}
 
-	repos, err := art.createRepos()
+	// Note: this logic will only push the artifact into the `art.supportedOSs` repos.
+	// This behavior is intended to allow depricating old OS versions in the future
+	// without removing the associated repos entirely.
+	artifactRepos, err := art.getArtifactRepos()
 	if err != nil {
 		return trace.Wrap(err, "failed to create repos")
 	}
 
-	err = art.importNewDebs(repos)
+	err = art.importNewDebs(artifactRepos)
 	if err != nil {
 		return trace.Wrap(err, "failed to import new debs")
 	}
 
-	err = art.publishRepos(repos)
+	err = art.publishRepos(artifactRepos)
 	if err != nil {
 		return trace.Wrap(err, "failed to publish repos")
 	}
 
-	aptlyRootDir, err := art.aptly.GetRootDir()
-	if err != nil {
-		return trace.Wrap(err, "failed to get Aptly root directory")
-	}
-
-	err = art.s3Manager.UploadBuiltRepo(filepath.Join(aptlyRootDir, "public"))
+	err = art.s3Manager.UploadBuiltRepo(filepath.Join(art.aptly.rootDir, "public"))
 	if err != nil {
 		return trace.Wrap(err, "failed to sync changes to S3 bucket")
 	}
@@ -133,21 +144,16 @@ func (art *AptRepoTool) recreateExistingRepos() ([]*Repo, error) {
 	return createdRepos, nil
 }
 
-func (art *AptRepoTool) createRepos() ([]*Repo, error) {
-	logrus.Infoln("Creating Aptly repos...")
-	createdExistingRepos, err := art.recreateExistingRepos()
+func (art *AptRepoTool) getArtifactRepos() ([]*Repo, error) {
+	logrus.Infoln("Creating or getting Aptly repos for artifact requirements...")
+
+	artifactRepos, err := art.aptly.CreateReposFromArtifactRequirements(art.supportedOSs, art.config.releaseChannel, art.config.majorVersion)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to recreate existing repos")
+		return nil, trace.Wrap(err, "failed to create or get repos from artifact requirements")
 	}
 
-	createdNewRepos, err := art.aptly.CreateReposFromArtifactRequirements(art.supportedOSs, art.config.releaseChannel, art.config.majorVersion)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create new repos from artifact requirements")
-	}
-
-	repos := append(createdExistingRepos, createdNewRepos...)
-	logrus.Infof("Created %d Aptly repos\n", len(repos))
-	return repos, nil
+	logrus.Infof("Created or got %d artifact Aptly repos\n", len(artifactRepos))
+	return artifactRepos, nil
 }
 
 func (art *AptRepoTool) importNewDebs(repos []*Repo) error {
