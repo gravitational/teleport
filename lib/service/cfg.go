@@ -279,20 +279,18 @@ func (cfg *Config) ApplyToken(token string) (bool, error) {
 // ApplyCAPins assigns the given CA pin(s), but only if each pin is not empty.
 func (cfg *Config) ApplyCAPins(caPins []string) error {
 	filteredPins := make([]string, 0, len(caPins))
-	for i := range caPins {
-		if caPins[i] != "" {
-			filteredPins = append(filteredPins, caPins[i])
+	for _, pin := range caPins {
+		if pin != "" {
+			var err error
+			pin, err = utils.TryReadValueAsFile(pin)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			filteredPins = append(filteredPins, pin)
 		}
 	}
 	if len(filteredPins) == 0 {
 		return nil
-	}
-	for i := range filteredPins {
-		var err error
-		filteredPins[i], err = utils.TryReadValueAsFile(filteredPins[i])
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 	cfg.CAPins = filteredPins
 	return nil
