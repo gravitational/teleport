@@ -1082,7 +1082,7 @@
       "permanent": true
     },
     {
-      "source": "/preview/cloud9/",
+      "source": "/preview/cloud/",
       "destination": "/cloud/",
       "permanent": true
     },
