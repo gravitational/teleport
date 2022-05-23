@@ -18,7 +18,6 @@ package reversetunnel
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -34,13 +33,14 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
-// remoteSite is a remote site that established the inbound connecton to
+// remoteSite is a remote site that established the inbound connection to
 // the local reverse tunnel server, and now it can provide access to the
 // cluster behind it.
 type remoteSite struct {
@@ -76,6 +76,9 @@ type remoteSite struct {
 	// remoteAccessPoint provides access to a cached subset of the Auth Server API of
 	// the remote cluster this site belongs to.
 	remoteAccessPoint auth.RemoteProxyAccessPoint
+
+	// nodeWatcher provides access the node set for the remote site
+	nodeWatcher *services.NodeWatcher
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -136,6 +139,11 @@ func (s *remoteSite) GetTunnelsCount() int {
 
 func (s *remoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return s.remoteAccessPoint, nil
+}
+
+// NodeWatcher returns the services.NodeWatcher for the remote cluster.
+func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
+	return s.nodeWatcher, nil
 }
 
 func (s *remoteSite) GetClient() (auth.ClientI, error) {
@@ -322,7 +330,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 	defer func() {
 		s.Infof("Cluster connection closed.")
 
-		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			s.WithError(err).Warnf("Failed to close remote connection for remote site %s", s.domainName)
 		}
 
@@ -379,7 +387,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			} else {
 				s.WithFields(log.Fields{"nodeID": conn.nodeID}).Debugf("Ping <- %v", conn.conn.RemoteAddr())
 			}
-			tm := time.Now().UTC()
+			tm := s.clock.Now().UTC()
 			conn.setLastHeartbeat(tm)
 			go s.registerHeartbeat(tm)
 		// Note that time.After is re-created everytime a request is processed.

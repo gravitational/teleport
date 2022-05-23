@@ -188,6 +188,9 @@ type Server struct {
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
+
+	// nodeWatcher is the server's node watcher.
+	nodeWatcher *services.NodeWatcher
 }
 
 // GetClock returns server clock implementation
@@ -551,6 +554,14 @@ func SetAllowTCPForwarding(allow bool) ServerOption {
 func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	return func(s *Server) error {
 		s.lockWatcher = lockWatcher
+		return nil
+	}
+}
+
+// SetNodeWatcher sets the server's node watcher.
+func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
+	return func(s *Server) error {
+		s.nodeWatcher = nodeWatcher
 		return nil
 	}
 }
@@ -1416,6 +1427,13 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 			if err != nil {
 				log.Warn(err)
 			}
+			return nil
+		case sshutils.PuTTYSimpleRequest:
+			// PuTTY automatically requests a named 'simple@putty.projects.tartarus.org' channel any time it connects to a server
+			// as a proxy to indicate that it's in "simple" mode and won't be requesting any other channels.
+			// As we don't support this request, we ignore it.
+			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
+			log.Debugf("%v: deliberately ignoring request for '%v' channel", s.Component(), sshutils.PuTTYSimpleRequest)
 			return nil
 		default:
 			return trace.BadParameter(
