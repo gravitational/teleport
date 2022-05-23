@@ -372,38 +372,36 @@ func getIdentityFromToken(cfg *config.BotConfig) (*identity.Identity, error) {
 	return ident, trace.Wrap(err)
 }
 
-func renewIdentityViaAuth(
+func (b *Bot) renewIdentityViaAuth(
 	ctx context.Context,
-	client auth.ClientI,
-	currentIdentity *identity.Identity,
-	cfg *config.BotConfig,
 ) (*identity.Identity, error) {
 	// If using the IAM join method we always go through the initial join flow
 	// and fetch new nonrenewable certs
 	var joinMethod types.JoinMethod
-	if cfg.Onboarding != nil {
-		joinMethod = cfg.Onboarding.JoinMethod
+	if b.cfg.Onboarding != nil {
+		joinMethod = b.cfg.Onboarding.JoinMethod
 	}
 	switch joinMethod {
 	case types.JoinMethodIAM:
-		ident, err := getIdentityFromToken(cfg)
+		ident, err := getIdentityFromToken(b.cfg)
 		return ident, trace.Wrap(err)
 	default:
 	}
 
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
-	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: currentIdentity.PublicKeyBytes,
-		Username:  currentIdentity.X509Cert.Subject.CommonName,
-		Expires:   time.Now().Add(cfg.CertificateTTL),
+	ident := b.ident()
+	certs, err := b.client().GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey: ident.PublicKeyBytes,
+		Username:  ident.X509Cert.Subject.CommonName,
+		Expires:   time.Now().Add(b.cfg.CertificateTTL),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	newIdentity, err := identity.ReadIdentityFromStore(
-		currentIdentity.Params(),
+		ident.Params(),
 		certs,
 		identity.BotKinds()...,
 	)
@@ -427,76 +425,77 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 }
 
 // renew performs a single renewal
-func renew(
-	ctx context.Context, cfg *config.BotConfig, client auth.ClientI,
-	ident *identity.Identity, botDestination destination.Destination,
-) (auth.ClientI, *identity.Identity, error) {
+func (b *Bot) renew(
+	ctx context.Context, botDestination destination.Destination,
+) error {
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(botDestination); err != nil {
-		return nil, nil, trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
+		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
-	log.Debug("Attempting to renew bot certificates...")
-	newIdentity, err := renewIdentityViaAuth(ctx, client, ident, cfg)
+	b.log.Debug("Attempting to renew bot certificates...")
+	newIdentity, err := b.renewIdentityViaAuth(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	identStr, err := describeTLSIdentity(ident)
+	identStr, err := describeTLSIdentity(b.ident())
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "Could not describe bot identity at %s", botDestination)
+		return trace.Wrap(err, "Could not describe bot identity at %s", botDestination)
 	}
 
-	log.Infof("Successfully renewed bot certificates, %s", identStr)
+	b.log.Infof("Successfully renewed bot certificates, %s", identStr)
 
 	// TODO: warn if duration < certTTL? would indicate TTL > server's max renewable cert TTL
 	// TODO: error if duration < renewalInterval? next renewal attempt will fail
 
 	// Immediately attempt to reconnect using the new identity (still
 	// haven't persisted the known-good certs).
-	newClient, err := authenticatedUserClientFromIdentity(ctx, newIdentity, cfg.AuthServer)
+	newClient, err := authenticatedUserClientFromIdentity(
+		ctx, newIdentity, b.cfg.AuthServer,
+	)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Attempt a request to make sure our client works.
 	// TODO: consider a retry/backoff loop.
 	if _, err := newClient.Ping(ctx); err != nil {
-		return nil, nil, trace.Wrap(err, "unable to communicate with auth server")
+		return trace.Wrap(err, "unable to communicate with auth server")
 	}
 
-	log.Debug("Auth client now using renewed credentials.")
-	client = newClient
-	ident = newIdentity
+	b.log.Debug("Auth client now using renewed credentials.")
+	b.setClient(newClient)
+	b.setIdent(newIdentity)
 
 	// Now that we're sure the new creds work, persist them.
 	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Determine the default role list based on the bot role. The role's
 	// name should match the certificate's Key ID (user and role names
 	// should all match bot-$name)
-	botResourceName := ident.X509Cert.Subject.CommonName
-	defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
+	botResourceName := newIdentity.X509Cert.Subject.CommonName
+	defaultRoles, err := fetchDefaultRoles(ctx, newClient, botResourceName)
 	if err != nil {
-		log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
+		b.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
 		defaultRoles = []string{}
 	}
 
 	// Next, generate impersonated certs
-	expires := ident.X509Cert.NotAfter
-	for _, dest := range cfg.Destinations {
+	expires := newIdentity.X509Cert.NotAfter
+	for _, dest := range b.cfg.Destinations {
 		destImpl, err := dest.GetDestination()
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		// Check the ACLs. We can't fix them, but we can warn if they're
 		// misconfigured. We'll need to precompute a list of keys to check.
 		// Note: This may only log a warning, depending on configuration.
 		if err := destImpl.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
-			return nil, nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		// Ensure this destination is also writable. This is a hard fail if
@@ -504,42 +503,42 @@ func renew(
 		// TODO: consider not making these a hard error? e.g. write other
 		// destinations even if this one is broken?
 		if err := identity.VerifyWrite(destImpl); err != nil {
-			return nil, nil, trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
+			return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
 		}
 
-		impersonatedIdent, err := generateImpersonatedIdentity(ctx, client, cfg.AuthServer, ident, expires, dest, defaultRoles)
+		impersonatedIdent, err := generateImpersonatedIdentity(ctx, newClient, b.cfg.AuthServer, b.ident(), expires, dest, defaultRoles)
 		if err != nil {
-			return nil, nil, trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
+			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 		}
 
 		impersonatedIdentStr, err := describeTLSIdentity(impersonatedIdent)
 		if err != nil {
-			return nil, nil, trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
+			return trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
 		}
 
-		log.Infof("Successfully renewed impersonated certificates for %s, %s", destImpl, impersonatedIdentStr)
+		b.log.Infof("Successfully renewed impersonated certificates for %s, %s", destImpl, impersonatedIdentStr)
 
 		if err := identity.SaveIdentity(impersonatedIdent, destImpl, identity.DestinationKinds()...); err != nil {
-			return nil, nil, trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
+			return trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
 		}
 
 		for _, templateConfig := range dest.Configs {
 			template, err := templateConfig.GetConfigTemplate()
 			if err != nil {
-				return nil, nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 
-			if err := template.Render(ctx, client, impersonatedIdent, dest); err != nil {
-				log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
+			if err := template.Render(ctx, b.client(), impersonatedIdent, dest); err != nil {
+				b.log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
 			}
 		}
 	}
 
-	log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", cfg.RenewalInterval)
-	return newClient, newIdentity, nil
+	b.log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", b.cfg.RenewalInterval)
+	return nil
 }
 
-func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, ident *identity.Identity, reloadChan chan struct{}) error {
+func (b *Bot) renewLoop(ctx context.Context) error {
 	// TODO: failures here should probably not just end the renewal loop, there
 	// should be some retry / back-off logic.
 
@@ -547,47 +546,63 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 	// Also, must be < the validity period.
 	// TODO: validate that cert is actually renewable.
 
-	log.Infof("Beginning renewal loop: ttl=%s interval=%s", cfg.CertificateTTL, cfg.RenewalInterval)
-	if cfg.RenewalInterval > cfg.CertificateTTL {
-		log.Errorf(
+	b.log.Infof(
+		"Beginning renewal loop: ttl=%s interval=%s",
+		b.cfg.CertificateTTL,
+		b.cfg.RenewalInterval,
+	)
+	if b.cfg.RenewalInterval > b.cfg.CertificateTTL {
+		b.log.Errorf(
 			"Certificate TTL (%s) is shorter than the renewal interval (%s). The next renewal is likely to fail.",
-			cfg.CertificateTTL,
-			cfg.RenewalInterval,
+			b.cfg.CertificateTTL,
+			b.cfg.RenewalInterval,
 		)
 	}
 
 	// Determine where the bot should write its internal data (renewable cert
 	// etc)
-	botDestination, err := cfg.Storage.GetDestination()
+	botDestination, err := b.cfg.Storage.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	ticker := time.NewTicker(cfg.RenewalInterval)
+	ticker := time.NewTicker(b.cfg.RenewalInterval)
 	defer ticker.Stop()
 	for {
-		newClient, newIdentity, err := renew(ctx, cfg, client, ident, botDestination)
+		err := b.renew(ctx, botDestination)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if cfg.Oneshot {
-			log.Info("Oneshot mode enabled, exiting successfully.")
+		if b.cfg.Oneshot {
+			b.log.Info("Oneshot mode enabled, exiting successfully.")
 			break
 		}
-
-		client = newClient
-		ident = newIdentity
 
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
 			continue
-		case <-reloadChan:
+		case <-b.reloadChan:
 			continue
 		}
 	}
 
 	return nil
+}
+
+func watchCARotations(watcher types.Watcher) {
+	for {
+		select {
+		case event := <-watcher.Events():
+			log.Debugf("CA event: %+v", event)
+			// TODO: handle CA rotations
+		case <-watcher.Done():
+			if err := watcher.Error(); err != nil {
+				log.WithError(err).Warnf("error watching for CA rotations")
+			}
+			return
+		}
+	}
 }
