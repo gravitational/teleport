@@ -24,9 +24,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -44,6 +44,18 @@ import (
 const (
 	// DefaultExporterDialTimeout is the default timeout for dialing the exporter.
 	DefaultExporterDialTimeout = time.Second * 10
+
+	// VersionKey is the attribute key for the teleport version.
+	VersionKey = "teleport.version"
+
+	// ProcessIDKey is attribute key for the process ID.
+	ProcessIDKey = "teleport.process.id"
+
+	// HostnameKey is the attribute key for the hostname.
+	HostnameKey = "teleport.host.name"
+
+	// HostIDKey is the attribute key for the host UUID.
+	HostIDKey = "teleport.host.uuid"
 )
 
 // Config used to set up the tracing exporter and provider
@@ -54,8 +66,8 @@ type Config struct {
 	Attributes []attribute.KeyValue
 	// ExporterURL is the URL of the exporter.
 	ExporterURL string
-	// SampleRatio is the sampling ratio.
-	SampleRatio float64
+	// SamplingRate determines how many spans are recorded and exported
+	SamplingRate float64
 	// TLSCert is the TLS configuration to use for the exporter.
 	TLSConfig *tls.Config
 	// DialTimeout is the timeout for dialing the exporter.
@@ -83,9 +95,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = utils.NewLogger().WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentTracing,
-		})
+		c.Logger = utils.NewLogger().WithField(trace.Component, teleport.ComponentTracing)
 	}
 
 	return nil
@@ -175,13 +185,20 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	attrs := []attribute.KeyValue{
 		// the service name used to display traces in backends
 		semconv.ServiceNameKey.String(cfg.Service),
-		attribute.String("teleport.version", teleport.Version),
+		attribute.String(VersionKey, teleport.Version),
 	}
 	attrs = append(attrs, cfg.Attributes...)
 
 	res, err := resource.New(ctx,
 		resource.WithFromEnv(),
 		resource.WithProcess(),
+		resource.WithProcessPID(),
+		resource.WithProcessExecutableName(),
+		resource.WithProcessExecutablePath(),
+		resource.WithProcessOwner(),
+		resource.WithProcessRuntimeName(),
+		resource.WithProcessRuntimeVersion(),
+		resource.WithProcessRuntimeDescription(),
 		resource.WithTelemetrySDK(),
 		resource.WithHost(),
 		resource.WithAttributes(attrs...),
@@ -201,7 +218,7 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 
 	// set global provider to our provider wrapper to have all tracers use the common TracerOptions
 	provider := &Provider{provider: sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SampleRatio))),
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SamplingRate))),
 		sdktrace.WithResource(res),
 		sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
 	)}

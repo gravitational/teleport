@@ -2395,16 +2395,16 @@ func (process *TeleportProcess) initTracingService() error {
 	process.log.Info("Initializing tracing provider and exporter.")
 
 	attrs := []attribute.KeyValue{
-		attribute.String("teleport.process.id", process.id),
-		attribute.String("teleport.host.name", process.Config.Hostname),
-		attribute.String("teleport.host.uuid", process.Config.HostUUID),
+		attribute.String(tracing.ProcessIDKey, process.id),
+		attribute.String(tracing.HostnameKey, process.Config.Hostname),
+		attribute.String(tracing.HostIDKey, process.Config.HostUUID),
 	}
 
 	traceConf := tracing.Config{
-		Service:     "teleport",
-		Attributes:  attrs,
-		ExporterURL: process.Config.Tracing.ExporterURL,
-		SampleRatio: process.Config.Tracing.SamplingRatePerMillion,
+		Service:      teleport.ComponentTeleport,
+		Attributes:   attrs,
+		ExporterURL:  process.Config.Tracing.ExporterURL,
+		SamplingRate: process.Config.Tracing.SamplingRate,
 	}
 
 	if len(process.Config.Tracing.KeyPairs) > 0 || len(process.Config.Tracing.CACerts) > 0 {
@@ -2449,7 +2449,7 @@ func (process *TeleportProcess) initTracingService() error {
 		process.OnExit("tracing.shutdown", func(payload interface{}) {
 			if payload == nil {
 				log.Info("Shutting down immediately.")
-				ctx, cancel := context.WithTimeout(process.ExitContext(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				warnOnErr(provider.Shutdown(ctx), log)
 			} else {

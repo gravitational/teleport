@@ -335,11 +335,11 @@ func TestTraceProvider(t *testing.T) {
 			name: "spans exported with gRPC+TLS",
 			config: func(c *collector) Config {
 				return Config{
-					Service:     "test",
-					SampleRatio: 1.0,
-					ExporterURL: c.GRPCAddr(),
-					DialTimeout: time.Second,
-					TLSConfig:   c.ClientTLSConfig(),
+					Service:      "test",
+					SamplingRate: 1.0,
+					ExporterURL:  c.GRPCAddr(),
+					DialTimeout:  time.Second,
+					TLSConfig:    c.ClientTLSConfig(),
 				}
 			},
 			errAssertion:      require.NoError,
@@ -351,11 +351,11 @@ func TestTraceProvider(t *testing.T) {
 			name: "spans exported with gRPC",
 			config: func(c *collector) Config {
 				return Config{
-					Service:     "test",
-					SampleRatio: 0.5,
-					ExporterURL: c.GRPCAddr(),
-					DialTimeout: time.Second,
-					TLSConfig:   c.ClientTLSConfig(),
+					Service:      "test",
+					SamplingRate: 0.5,
+					ExporterURL:  c.GRPCAddr(),
+					DialTimeout:  time.Second,
+					TLSConfig:    c.ClientTLSConfig(),
 				}
 			},
 			errAssertion:      require.NoError,
@@ -366,11 +366,11 @@ func TestTraceProvider(t *testing.T) {
 			name: "spans exported with HTTP",
 			config: func(c *collector) Config {
 				return Config{
-					Service:     "test",
-					SampleRatio: 1.0,
-					ExporterURL: c.HTTPAddr(),
-					DialTimeout: time.Second,
-					TLSConfig:   c.ClientTLSConfig(),
+					Service:      "test",
+					SamplingRate: 1.0,
+					ExporterURL:  c.HTTPAddr(),
+					DialTimeout:  time.Second,
+					TLSConfig:    c.ClientTLSConfig(),
 				}
 			},
 			errAssertion:      require.NoError,
@@ -381,11 +381,11 @@ func TestTraceProvider(t *testing.T) {
 			name: "spans exported with HTTPS",
 			config: func(c *collector) Config {
 				return Config{
-					Service:     "test",
-					SampleRatio: 1.0,
-					ExporterURL: c.HTTPSAddr(),
-					DialTimeout: time.Second,
-					TLSConfig:   c.ClientTLSConfig(),
+					Service:      "test",
+					SamplingRate: 1.0,
+					ExporterURL:  c.HTTPSAddr(),
+					DialTimeout:  time.Second,
+					TLSConfig:    c.ClientTLSConfig(),
 				}
 			},
 			errAssertion:      require.NoError,
@@ -445,32 +445,32 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 		{
 			name: "valid config",
 			cfg: Config{
-				Service:     "test",
-				SampleRatio: 1.0,
-				ExporterURL: "http://localhost:8080",
-				DialTimeout: time.Millisecond,
+				Service:      "test",
+				SamplingRate: 1.0,
+				ExporterURL:  "http://localhost:8080",
+				DialTimeout:  time.Millisecond,
 			},
 			errorAssertion: require.NoError,
 			expectedCfg: Config{
-				Service:     "test",
-				ExporterURL: "http://localhost:8080",
-				SampleRatio: 1.0,
-				DialTimeout: time.Millisecond,
+				Service:      "test",
+				ExporterURL:  "http://localhost:8080",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
 			},
 		},
 		{
 			name: "invalid service",
 			cfg: Config{
-				Service:     "",
-				SampleRatio: 1.0,
-				ExporterURL: "http://localhost:8080",
+				Service:      "",
+				SamplingRate: 1.0,
+				ExporterURL:  "http://localhost:8080",
 			},
 			errorAssertion: require.Error,
 			expectedCfg: Config{
-				Service:     "test",
-				ExporterURL: "http://localhost:8080",
-				SampleRatio: 1.0,
-				DialTimeout: time.Millisecond,
+				Service:      "test",
+				ExporterURL:  "http://localhost:8080",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
 			},
 		},
 		{
@@ -484,32 +484,32 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 		{
 			name: "empty scheme defaults to grpc",
 			cfg: Config{
-				Service:     "test",
-				SampleRatio: 1.0,
-				ExporterURL: "localhost:8080",
-				DialTimeout: time.Millisecond,
+				Service:      "test",
+				SamplingRate: 1.0,
+				ExporterURL:  "localhost:8080",
+				DialTimeout:  time.Millisecond,
 			},
 			errorAssertion: require.NoError,
 			expectedCfg: Config{
-				Service:     "test",
-				ExporterURL: "grpc://localhost:8080",
-				SampleRatio: 1.0,
-				DialTimeout: time.Millisecond,
+				Service:      "test",
+				ExporterURL:  "grpc://localhost:8080",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
 			},
 		},
 		{
 			name: "timeout defaults to DefaultExporterDialTimeout",
 			cfg: Config{
-				Service:     "test",
-				SampleRatio: 1.0,
-				ExporterURL: "grpc://localhost:8080",
+				Service:      "test",
+				SamplingRate: 1.0,
+				ExporterURL:  "grpc://localhost:8080",
 			},
 			errorAssertion: require.NoError,
 			expectedCfg: Config{
-				Service:     "test",
-				ExporterURL: "grpc://localhost:8080",
-				SampleRatio: 1.0,
-				DialTimeout: DefaultExporterDialTimeout,
+				Service:      "test",
+				ExporterURL:  "grpc://localhost:8080",
+				SamplingRate: 1.0,
+				DialTimeout:  DefaultExporterDialTimeout,
 			},
 		},
 	}

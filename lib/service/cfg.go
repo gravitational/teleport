@@ -978,9 +978,9 @@ type TracingConfig struct {
 	// CACerts are the exporter ca certs to use.
 	CACerts []string
 
-	// SamplingRate is the sampling rate for the exporter. A rate of 1_000_000 means all spans will be sampled and
-	// a value of 0 means no spans will be recorded.
-	SamplingRatePerMillion float64
+	// SamplingRate is the sampling rate for the exporter.
+	// 1.0 will record and export all spans and 0.0 won't record any spans.
+	SamplingRate float64
 }
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop

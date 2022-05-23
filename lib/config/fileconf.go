@@ -1649,8 +1649,8 @@ type TracingService struct {
 	// CACerts are the exporter ca certs to use
 	CACerts []string `yaml:"ca_certs,omitempty"`
 
-	// SamplingRate is the sampling rate for the exporter. A rate of 1_000_000 means all spans will be sampled and
-	// a value of 0 means no spans will be recorded
+	// SamplingRatePerMillion is the sampling rate for the exporter.
+	// 1_000_000 means all spans will be sampled and 0 means none are sampled.
 	SamplingRatePerMillion int `yaml:"sampling_rate_per_million"`
 }
 

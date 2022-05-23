@@ -1420,7 +1420,7 @@ func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	cfg.Tracing.ExporterURL = fc.Tracing.ExporterURL
-	cfg.Tracing.SamplingRatePerMillion = float64(fc.Tracing.SamplingRatePerMillion) / float64(1000000)
+	cfg.Tracing.SamplingRate = float64(fc.Tracing.SamplingRatePerMillion) / float64(1000000)
 
 	for _, p := range fc.Tracing.KeyPairs {
 		// Check that the certificate exists on disk. This exists to provide the
