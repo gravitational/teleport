@@ -326,10 +326,6 @@ func (h *Heartbeat) fetch() error {
 	// failed to fetch server info?
 	// reset to init state regardless of the current state
 	server, err := h.GetServerInfo()
-	if h.HeartbeatConfig.Mode == HeartbeatModeKube {
-		k, ok := server.(*types.ServerV2)
-		fmt.Printf("kube heartbeat.fetch(): %+v %v\n", k.Spec.KubernetesClusters, ok)
-	}
 	if err != nil {
 		h.reset(HeartbeatStateInit)
 		return trace.Wrap(err)

@@ -1787,7 +1787,7 @@ func enableKubernetesService(t *testing.T, config *service.Config) {
 
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
 		TeleportClusterName: "teleport-cluster",
-		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
+		ClusterAddr:         "https://" + net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
 	})
 	require.NoError(t, err)
