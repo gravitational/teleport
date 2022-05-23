@@ -17,23 +17,38 @@ func TestNewResourceItemOIDC(t *testing.T) {
 metadata:
   name: oidcName
 spec:
+  claims_to_roles:
+  - claim: roles
+    roles:
+    - admin
+    value: teleport-user
   client_id: client-id
   client_secret: ""
   issuer_url: ""
-  redirect_url: ""
+  redirect_url: https://proxy.example.com/v1/webapi/oidc/callback
 version: v3
 `
-	oidcConn, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV3{ClientID: "client-id"})
+	oidcConn, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV3{
+		ClientID: "client-id",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "roles",
+				Value: "teleport-user",
+				Roles: []string{"admin"},
+			},
+		},
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+	})
 	require.NoError(t, err)
 
 	item, err := ui.NewResourceItem(oidcConn)
 	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "oidc:oidcName",
 		Kind:    types.KindOIDCConnector,
 		Name:    "oidcName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestNewResourceItemSAML(t *testing.T) {
@@ -92,7 +107,17 @@ func TestGetAuthConnectors(t *testing.T) {
 		return []types.SAMLConnector{connector}, nil
 	}
 	m.mockGetOIDCConnectors = func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
-		connector, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV3{ClientID: "client-id"})
+		connector, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV3{
+			ClientID: "client-id",
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "roles",
+					Value: "teleport-user",
+					Roles: []string{"admin"},
+				},
+			},
+			RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		})
 		require.NoError(t, err)
 		return []types.OIDCConnector{connector}, nil
 	}

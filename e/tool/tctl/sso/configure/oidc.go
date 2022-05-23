@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/tool/tctl/sso/configure/flags"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -142,7 +143,7 @@ func addOIDCCommand(cmd *configure.SSOConfigureCommand) *configure.AuthKindComma
 	sub.Flag("issuer-url", "Issuer URL.").PlaceHolder("URL").StringVar(&spec.IssuerURL)
 
 	// auto
-	sub.Flag("redirect-url", "Authorization callback URL.").PlaceHolder("URL").StringVar(&spec.RedirectURL)
+	sub.Flag("redirect-url", "Authorization callback URL(s). Each repetition of the flag declares one redirectURL.").PlaceHolder("https://<proxy>/v1/webapi/oidc/callback").StringsVar((*[]string)(&spec.RedirectURLs))
 
 	// rarely used
 	sub.Flag("prompt", "Optional OIDC prompt. Example values: none, select_account, login, consent.").StringVar(&spec.Prompt)
@@ -210,7 +211,7 @@ func oidcRunFunc(cmd *configure.SSOConfigureCommand, spec *types.OIDCConnectorSp
 	}
 
 	if spec.GoogleServiceAccountURI != "" {
-		uri, err := utils.ParseSessionsURI(spec.GoogleServiceAccountURI)
+		uri, err := apiutils.ParseSessionsURI(spec.GoogleServiceAccountURI)
 		if err != nil {
 			return trace.BadParameter("Failed to parse --google-acc-uri: %v", err)
 		}
@@ -309,8 +310,8 @@ func oidcRunFunc(cmd *configure.SSOConfigureCommand, spec *types.OIDCConnectorSp
 		}
 	}
 
-	if spec.RedirectURL == "" {
-		spec.RedirectURL = configure.ResolveCallbackURL(cmd.Logger, clt, "RedirectURL", "https://%v/v1/webapi/oidc/callback")
+	if len(spec.RedirectURLs) == 0 {
+		spec.RedirectURLs = []string{configure.ResolveCallbackURL(cmd.Logger, clt, "RedirectURLs", "https://%v/v1/webapi/oidc/callback")}
 	}
 
 	connector, err := types.NewOIDCConnector(flags.connectorName, *spec)
