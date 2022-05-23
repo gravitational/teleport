@@ -852,7 +852,7 @@ func profileFromKey(key *Key, opts ProfileOptions) (*ProfileStatus, error) {
 		Databases:      databases,
 		Apps:           apps,
 		AWSRolesARNs:   tlsID.AWSRoleARNs,
-		IsVirtual:      true,
+		IsVirtual:      opts.IsVirtual,
 	}, nil
 }
 
@@ -879,6 +879,8 @@ func ReadProfileFromIdentity(key *Key, opts ProfileOptions) (*ProfileStatus, err
 
 		opts.SiteName = rootCluster
 	}
+
+	opts.IsVirtual = true
 
 	return profileFromKey(key, opts)
 }
@@ -921,7 +923,7 @@ func ReadProfileStatus(profileDir string, profileName string) (*ProfileStatus, e
 		Username:      profile.Username,
 		SiteName:      profile.SiteName,
 		KubeProxyAddr: profile.KubeProxyAddr,
-		IsVirtual:     true,
+		IsVirtual:     false,
 	})
 }
 
