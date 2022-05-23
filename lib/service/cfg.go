@@ -276,7 +276,7 @@ func (cfg *Config) ApplyToken(token string) (bool, error) {
 	return false, nil
 }
 
-// ApplyCAPins assigns the given CA pin(s), but only if each pin is not empty.
+// ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
 func (cfg *Config) ApplyCAPins(caPins []string) error {
 	filteredPins := make([]string, 0, len(caPins))
 	for _, pin := range caPins {
