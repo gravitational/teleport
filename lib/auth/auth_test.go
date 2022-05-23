@@ -945,13 +945,17 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test oidc create event
-	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{ClientID: "a", ClaimsToRoles: []types.ClaimMapping{
-		{
-			Claim: "dummy",
-			Value: "dummy",
-			Roles: []string{"dummy"},
+	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
+		ClientID: "a",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "dummy",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
 		},
-	}})
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+	})
 	require.NoError(t, err)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)

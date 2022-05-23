@@ -61,9 +61,15 @@ func GetRedirectURL(conn types.OIDCConnector, proxyAddr string) (string, error) 
 		return "", trace.BadParameter("No redirect URLs provided")
 	}
 
+	// If a specific proxyAddr wasn't provided in the oidc
+	// auth request, just use the default redirect URL.
+	if proxyAddr == "" {
+		return conn.GetRedirectURLs()[0], nil
+	}
+
 	proxyNetAddr, err := utils.ParseAddr(proxyAddr)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(err, "invalid proxy address %v", proxyAddr)
 	}
 
 	var matchingHostname string

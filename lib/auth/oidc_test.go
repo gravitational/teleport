@@ -37,11 +37,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	directory "google.golang.org/api/admin/directory/v1"
@@ -149,9 +149,11 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.s.URL,
-		ClientID:     "00000000000000000000000000000000",
-		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
+		IssuerURL:     idp.s.URL,
+		ClientID:      "00000000000000000000000000000000",
+		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
+		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
+		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
 
@@ -171,9 +173,11 @@ func TestUserInfoBadStatus(t *testing.T) {
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.s.URL,
-		ClientID:     "00000000000000000000000000000000",
-		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
+		IssuerURL:     idp.s.URL,
+		ClientID:      "00000000000000000000000000000000",
+		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
+		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
+		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
 	oidcClient := createInsecureOIDCClient(t, connector)
@@ -212,6 +216,7 @@ func TestSSODiagnostic(t *testing.T) {
 				Roles: []string{"access"},
 			},
 		},
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	}
 
 	oidcRequest := services.OIDCAuthRequest{
@@ -322,31 +327,53 @@ func TestSSODiagnostic(t *testing.T) {
 }
 
 // TestPingProvider confirms that the client_secret_post auth
-//method was set for a oauthclient.
+// method was set for a oauthclient.
 func TestPingProvider(t *testing.T) {
 	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
 
-	// Create OIDC connector and client.
+	// Create and upsert oidc connector into identity
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.s.URL,
-		ClientID:     "00000000000000000000000000000000",
-		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
-		Provider:     teleport.Ping,
+		IssuerURL:     idp.s.URL,
+		ClientID:      "00000000000000000000000000000000",
+		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
+		Provider:      teleport.Ping,
+		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
+		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
-
-	oidcClient, err := s.a.getCachedOIDCClient(ctx, connector, "")
+	err = s.a.Identity.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 
-	oac, err := getOAuthClient(oidcClient.client, connector)
+	for _, req := range []services.OIDCAuthRequest{
+		{
+			ConnectorID: "test-connector",
+		}, {
+			SSOTestFlow: true,
+			ConnectorID: "test-connector",
+			ConnectorSpec: &types.OIDCConnectorSpecV3{
+				IssuerURL:     idp.s.URL,
+				ClientID:      "00000000000000000000000000000000",
+				ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
+				Provider:      teleport.Ping,
+				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
+				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf("Test SSOFlow: %v", req.SSOTestFlow), func(t *testing.T) {
+			oidcConnector, oidcClient, err := s.a.getOIDCConnectorAndClient(ctx, req)
+			require.NoError(t, err)
 
-	require.NoError(t, err)
+			oac, err := getOAuthClient(oidcClient, oidcConnector)
+			require.NoError(t, err)
 
-	// authMethod should be client secret post now
-	require.Equal(t, oauth2.AuthMethodClientSecretPost, oac.GetAuthMethod())
+			// authMethod should be client secret post now
+			require.Equal(t, oauth2.AuthMethodClientSecretPost, oac.GetAuthMethod())
+		})
+	}
 }
 
 func TestOIDCClientProviderSync(t *testing.T) {
@@ -356,10 +383,12 @@ func TestOIDCClientProviderSync(t *testing.T) {
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.s.URL,
-		ClientID:     "00000000000000000000000000000000",
-		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
-		Provider:     teleport.Ping,
+		IssuerURL:     idp.s.URL,
+		ClientID:      "00000000000000000000000000000000",
+		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
+		Provider:      teleport.Ping,
+		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
+		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
 
@@ -378,14 +407,18 @@ func TestOIDCClientProviderSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// provider sync goroutine should end and first sync should fail
-	require.Equal(t, context.Canceled, client.syncCtx.Err())
-	require.Error(t, client.waitFirstSync(time.Second))
+	require.ErrorIs(t, client.syncCtx.Err(), context.Canceled)
+	err = client.waitFirstSync(100 * time.Millisecond)
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
 
 	// Create OIDC connector and client without an issuer URL for provider syncing
 	connectorNoIssuer, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		ClientID:     "00000000000000000000000000000000",
-		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
-		Provider:     teleport.Ping,
+		ClientID:      "00000000000000000000000000000000",
+		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
+		Provider:      teleport.Ping,
+		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
+		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
 
@@ -398,7 +431,7 @@ func TestOIDCClientProviderSync(t *testing.T) {
 	err = client.waitFirstSync(100 * time.Millisecond)
 	require.Error(t, err)
 	require.True(t, trace.IsConnectionProblem(err))
-	require.Equal(t, context.Canceled, client.syncCtx.Err())
+	require.ErrorIs(t, client.syncCtx.Err(), context.Canceled)
 }
 
 func TestOIDCClientCache(t *testing.T) {
@@ -407,10 +440,12 @@ func TestOIDCClientCache(t *testing.T) {
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.s.URL,
-		ClientID:     "00000000000000000000000000000000",
-		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
-		Provider:     teleport.Ping,
+		IssuerURL:     idp.s.URL,
+		ClientID:      "00000000000000000000000000000000",
+		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
+		Provider:      teleport.Ping,
+		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
+		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
 
@@ -425,10 +460,12 @@ func TestOIDCClientCache(t *testing.T) {
 
 	// Any change to the connector should cause the cached client to be replaced
 	connector, err = types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.s.URL,
-		ClientID:     "11111111111111111111111111111111",
-		ClientSecret: "1111111111111111111111111111111111111111111111111111111111111111",
-		Provider:     teleport.Ping,
+		IssuerURL:     idp.s.URL,
+		ClientID:      "11111111111111111111111111111111",
+		ClientSecret:  "1111111111111111111111111111111111111111111111111111111111111111",
+		Provider:      teleport.Ping,
+		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
+		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
 

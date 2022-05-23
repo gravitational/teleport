@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 

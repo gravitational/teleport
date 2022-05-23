@@ -49,7 +49,7 @@ func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services
 	// stateless test flow
 	if request.SSOTestFlow {
 		if request.ConnectorSpec == nil {
-			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil")
+			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is tru")
 		}
 
 		if request.ConnectorID == "" {
@@ -61,7 +61,7 @@ func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services
 			return nil, nil, trace.Wrap(err)
 		}
 
-		// we don't want to cache the client, construct it directly.
+		// we don't want to cache the client. construct it directly.
 		client, err := newOIDCClient(ctx, connector, request.ProxyAddress)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -514,7 +514,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(a.closeCtx, types.NewWebSessionRequest{
+		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
@@ -542,7 +542,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(a.closeCtx, types.CertAuthID{
+		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)
