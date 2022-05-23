@@ -507,14 +507,19 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 
 	var publishedRepoNames []string
 	for _, publishedRepoLine := range publishedRepoLines {
+		// The names may have whitespace and the command may print an extra blank line, so we remove those here
 		if trimmedRepoLine := strings.TrimSpace(publishedRepoLine); trimmedRepoLine != "" {
 			// Additional parsing should go here if needed in the future
-			repoNames := repoNameRegex.FindAllString(publishedRepoLine, -1)
-			if repoNames == nil {
+			repoNameMatches := repoNameRegex.FindAllStringSubmatch(publishedRepoLine, -1)
+			if repoNameMatches == nil {
 				return nil, trace.Errorf("failed to match repo names in line %q with regex %q", publishedRepoLine, repoNameRegexStr)
 			}
 
-			publishedRepoNames = append(publishedRepoNames, repoNames...)
+			for _, repoNameMatch := range repoNameMatches {
+				// `repoNameRegexStr` is written such that there will be exactly one match and one group in repoNameMatch
+				// for example repoNameMatch could be [": [debian-bookwork-stable-v6]", "debian-bookwork-stable-v6"]
+				publishedRepoNames = append(publishedRepoNames, repoNameMatch[1])
+			}
 		}
 	}
 
