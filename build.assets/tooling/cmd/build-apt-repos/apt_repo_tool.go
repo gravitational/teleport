@@ -118,7 +118,7 @@ func (art *AptRepoTool) publishRepos(repos []*Repo) error {
 			continue
 		}
 
-		err := art.aptly.PublishRepos(osRepoList, osRepoList[0].os)
+		err := art.aptly.PublishRepos(osRepoList, osRepoList[0].os, osRepoList[0].osVersion)
 		if err != nil {
 			return trace.Wrap(err, "failed to publish for os %q", osInfo)
 		}

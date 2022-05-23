@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -201,24 +202,28 @@ func (a *Aptly) CreateRepoIfNotExists(r *Repo) (bool, error) {
 
 // Checks to see if the Aptly described by repo `r` exists. Returns true if it exists, false otherwise.
 func (a *Aptly) DoesRepoExist(r *Repo) (bool, error) {
-	repoName := r.Name()
-	logrus.Debugf("Checking if repo %q exists...", repoName)
+	logrus.Debugf("Checking if repo %q exists...", r.Name())
 
 	existingRepoNames, err := a.GetExistingRepoNames()
 	if err != nil {
 		return false, trace.Wrap(err, "failed to get existing repo names")
 	}
 
-	for _, existingRepoName := range existingRepoNames {
-		if repoName == existingRepoName {
-			logrus.Debugf("Match found: %q matches %q", existingRepoName, repoName)
-			return true, nil
+	return isRepoNameInSlice(r, existingRepoNames), nil
+}
+
+func isRepoNameInSlice(searchRepo *Repo, repoNames []string) bool {
+	searchRepoName := searchRepo.Name()
+	for _, repoName := range repoNames {
+		if searchRepoName == repoName {
+			logrus.Debugf("Match found: %q matches %q", repoName, searchRepoName)
+			return true
 		}
-		logrus.Debugf("Did not match %q as %q", existingRepoName, repoName)
+		logrus.Debugf("Did not match %q as %q", repoName, searchRepoName)
 	}
 
-	logrus.Debugf("Match not found for repo %q", repoName)
-	return false, nil
+	logrus.Debugf("Match not found for repo %q", searchRepoName)
+	return false
 }
 
 // Gets a list of the name of Aptly repos that already exists.
@@ -382,11 +387,38 @@ func parsePackagesFileLine(line string) (string, string, error) {
 }
 
 // Publishes the Aptly repos defined in the `repos` slice to the `repoOS` subpath.
-func (a *Aptly) PublishRepos(repos []*Repo, repoOS string) error {
+func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string) error {
 	repoNames := RepoNames(repos)
 	logrus.Infof("Publishing repos for OS %q: %q...", repoOS, strings.Join(repoNames, "\", \""))
 
-	// Build the args
+	areSomeReposUnpublished, areSomeReposPublished, err := a.getRepoSlicePublishedState(repos)
+	if err != nil {
+		return trace.Wrap(err, "failed to determine if repos have been published or not")
+	}
+
+	// If all repos have been published
+	if areSomeReposPublished && !areSomeReposUnpublished {
+		// Update rather than republish
+		_, err := buildAndRunCommand("aptly", "publish", "update", repoOSVersion, repoOS)
+		if err != nil {
+			return trace.Wrap(err, "failed to update publish repos with OS %q and OS version %q", repoOS, repoOSVersion)
+		}
+
+		return nil
+	}
+
+	// If some have been published and some have not
+	// This will occur if there is a new major release, a OS version is supported, or a new release channel is added
+	if areSomeReposPublished && areSomeReposUnpublished {
+		// Drop the currently published APT repo so that it can be rebuilt from scratch
+		_, err := buildAndRunCommand("aptly", "publish", "drop", repoOSVersion, repoOS)
+		if err != nil {
+			return trace.Wrap(err, "failed to update publish repos with OS %q and OS version %q", repoOS, repoOSVersion)
+		}
+	}
+
+	// If all repos have not been published (or were just unpublished/dropped)
+	// Build the command args and publish all the repos
 	args := []string{"publish", "repo"}
 	if len(repos) > 1 {
 		componentsArgument := fmt.Sprintf("-component=%s", strings.Repeat(",", len(repos)-1))
@@ -396,12 +428,96 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string) error {
 	args = append(args, repoOS)
 
 	// Full command is `aptly publish repo -component=<, repeating len(repos) - 1 times> <repo names> <repo OS>`
-	_, err := buildAndRunCommand("aptly", args...)
+	_, err = buildAndRunCommand("aptly", args...)
 	if err != nil {
 		return trace.Wrap(err, "failed to publish repos")
 	}
 
 	return nil
+}
+
+// This function determines if `repos` contains repos that have not yet been published
+// and if it contains repos that have been published.
+//
+// Returns:
+//
+// 1. true if `repos` contains at least one unpublished repo, false otherwise
+//
+// 2. true if `repos` contains at least one published repo, false otherwise
+func (a *Aptly) getRepoSlicePublishedState(repos []*Repo) (bool, bool, error) {
+	publishedRepoNames, err := a.GetPublishedRepoNames()
+	if err != nil {
+		return false, false, trace.Wrap(err, "failed to get a list of published repos' names")
+	}
+
+	containsUnpublishedRepo := false
+	containsPublishedRepo := false
+	for _, repo := range repos {
+		hasRepoBeenPublished := isRepoNameInSlice(repo, publishedRepoNames)
+		containsUnpublishedRepo = containsUnpublishedRepo || hasRepoBeenPublished
+		containsPublishedRepo = containsPublishedRepo || hasRepoBeenPublished
+
+		// No need to keep checking if they're both already true
+		if containsUnpublishedRepo && containsPublishedRepo {
+			break
+		}
+	}
+
+	// failsafe in case of some underlying logic change
+	if !containsUnpublishedRepo && !containsPublishedRepo {
+		return false, false, trace.Errorf("something went very wrong here")
+	}
+
+	return containsUnpublishedRepo, containsPublishedRepo, nil
+}
+
+func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
+	logrus.Debugln("Getting a list of published repos...")
+	// The output of the command will be simiar to:
+	// ```
+	// Published repositories:
+	//   * <os 1>/<osVersion 1> [<APT repo supported arch 1>, ..., <APT repo supported arch M>] publishes {<APT repo component 1>: [<Aptly repo name>]}, ..., {<APT repo component N>: [<Aptly repo name>]}
+	// ...
+	//   * <os 1>/<osVersion J> [<APT repo supported arch 1>, ..., <APT repo supported arch M>] publishes {<APT repo component 1>: [<Aptly repo name>]}, ..., {<APT repo component N>: [<Aptly repo name>]}
+	//   * <os 2>/<osVersion 1> [<APT repo supported arch 1>, ..., <APT repo supported arch M>] publishes {<APT repo component 1>: [<Aptly repo name>]}, ..., {<APT repo component N>: [<Aptly repo name>]}
+	// ...
+	//   * <os I>/<osVersion J> [<APT repo supported arch 1>, ..., <APT repo supported arch M>] publishes {<APT repo component 1>: [<Aptly repo name>]}, ..., {<APT repo component N>: [<Aptly repo name>]}
+	// ```
+	//
+	// If no repos have been published then the output will be similar to:
+	// ```
+	// No snapshots/local repos have been published. Publish a snapshot by running `aptly publish snapshot ...`.
+	// ```
+	// Note that the `-raw` argument is not used here as it does not provide sufficient information
+	output, err := buildAndRunCommand("aptly", "publis", "list")
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get a list of published repos")
+	}
+
+	// Split the command output by new line
+	publishedRepoLines := strings.Split(output, "\n")
+	// In all cases the first line should exist and not be parsed
+	publishedRepoLines = publishedRepoLines[1:]
+
+	repoNameRegexStr := ": \\[(.+?)\\]"
+	repoNameRegex, err := regexp.Compile(repoNameRegexStr)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to compile repo name regex %q", repoNameRegexStr)
+	}
+
+	var publishedRepoNames []string
+	for _, publishedRepoLine := range publishedRepoLines {
+		// Additional parsing should go here if needed in the future
+		repoNames := repoNameRegex.FindAllString(publishedRepoLine, -1)
+		if repoNames == nil {
+			return nil, trace.Errorf("failed to match repo names in line %q with regex %q", publishedRepoLine, repoNameRegexStr)
+		}
+
+		publishedRepoNames = append(publishedRepoNames, repoNames...)
+	}
+
+	logrus.Debugf("Found %d published repos: %q", len(publishedRepoNames), strings.Join(publishedRepoNames, "\", \""))
+	return publishedRepoNames, nil
 }
 
 // Creates Aptly repos from a local path that has previously published Apt repos created by this tool.
