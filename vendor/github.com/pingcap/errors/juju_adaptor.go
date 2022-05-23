@@ -9,6 +9,9 @@ import (
 
 // Trace just calls AddStack.
 func Trace(err error) error {
+	if err == nil {
+		return nil
+	}
 	return AddStack(err)
 }
 
@@ -49,6 +52,48 @@ func Annotatef(err error, format string, args ...interface{}) error {
 	return &withStack{
 		err,
 		callers(),
+	}
+}
+
+var emptyStack stack
+
+// NewNoStackError creates error without error stack
+// later duplicate trace will no longer generate Stack too.
+func NewNoStackError(msg string) error {
+	return &fundamental{
+		msg:   msg,
+		stack: &emptyStack,
+	}
+}
+
+// SuspendStack suspends stack generate for error.
+func SuspendStack(err error) error {
+	if err == nil {
+		return err
+	}
+	cleared := clearStack(err)
+	if cleared {
+		return err
+	}
+	return &withStack{
+		err,
+		&emptyStack,
+	}
+}
+
+func clearStack(err error) (cleared bool) {
+	switch typedErr := err.(type) {
+	case *withMessage:
+		return clearStack(typedErr.Cause())
+	case *fundamental:
+		typedErr.stack = &emptyStack
+		return true
+	case *withStack:
+		typedErr.stack = &emptyStack
+		clearStack(typedErr.Cause())
+		return true
+	default:
+		return false
 	}
 }
 

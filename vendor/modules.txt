@@ -361,6 +361,13 @@ github.com/go-ldap/ldap/v3
 # github.com/go-logr/logr v0.2.0
 ## explicit; go 1.14
 github.com/go-logr/logr
+# github.com/go-mysql-org/go-mysql v1.5.0 => github.com/gravitational/go-mysql v1.5.0-teleport.1
+## explicit; go 1.16
+github.com/go-mysql-org/go-mysql/client
+github.com/go-mysql-org/go-mysql/mysql
+github.com/go-mysql-org/go-mysql/packet
+github.com/go-mysql-org/go-mysql/server
+github.com/go-mysql-org/go-mysql/utils
 # github.com/go-stack/stack v1.8.0
 ## explicit
 github.com/go-stack/stack
@@ -417,7 +424,7 @@ github.com/google/gofuzz
 github.com/google/gops/agent
 github.com/google/gops/internal
 github.com/google/gops/signal
-# github.com/google/uuid v1.2.0
+# github.com/google/uuid v1.3.0
 ## explicit
 github.com/google/uuid
 # github.com/googleapis/gax-go/v2 v2.1.1
@@ -628,8 +635,8 @@ github.com/nsf/termbox-go
 # github.com/pborman/uuid v1.2.1
 ## explicit
 github.com/pborman/uuid
-# github.com/pingcap/errors v0.11.0
-## explicit
+# github.com/pingcap/errors v0.11.5-0.20201126102027-b0a155152ca3
+## explicit; go 1.14
 github.com/pingcap/errors
 # github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4
 ## explicit
@@ -700,13 +707,6 @@ github.com/siddontang/go/sync2
 ## explicit
 github.com/siddontang/go-log/log
 github.com/siddontang/go-log/loggers
-# github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-teleport.2
-## explicit; go 1.15
-github.com/siddontang/go-mysql/client
-github.com/siddontang/go-mysql/mysql
-github.com/siddontang/go-mysql/packet
-github.com/siddontang/go-mysql/server
-github.com/siddontang/go-mysql/utils
 # github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21 => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 ## explicit; go 1.13
 github.com/sirupsen/logrus
