@@ -236,7 +236,7 @@ func (a *Aptly) GetExistingRepoNames() ([]string, error) {
 	}
 
 	// Split the command output by new line
-	parsedRepoNames := strings.Split(output, "")
+	parsedRepoNames := strings.Split(output, "\n")
 
 	// The names may have whitespace and the command may print an extra blank line, so we remove those here
 	var validRepoNames []string
