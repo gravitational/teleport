@@ -47,11 +47,11 @@ func main() {
 }
 
 type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
-	githubKeySrc string
-	skipUnshallow          bool
+	workspace     string
+	targetBranch  string
+	commitSHA     string
+	githubKeySrc  string
+	skipUnshallow bool
 }
 
 func parseCommandLine() (commandlineArgs, error) {

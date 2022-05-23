@@ -24,12 +24,12 @@ import (
 )
 
 type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
-	skipChown    bool
-	githubKeySrc string
-	skipUnshallow          bool
+	workspace     string
+	targetBranch  string
+	commitSHA     string
+	skipChown     bool
+	githubKeySrc  string
+	skipUnshallow bool
 }
 
 // validate ensures the suplied arguments are valid & internally consistent.
