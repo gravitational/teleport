@@ -396,6 +396,11 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 		return trace.Wrap(err, "failed to determine if repos have been published or not")
 	}
 
+	logrus.Debugln("Repo publish state:")
+	logrus.Debugf("Are some unpublished: %v", areSomeReposUnpublished)
+	logrus.Debugf("Are some published: %v", areSomeReposPublished)
+	logrus.Debugf("Repos: %v", repos)
+
 	// If all repos have been published
 	if areSomeReposPublished && !areSomeReposUnpublished {
 		// Update rather than republish
@@ -454,7 +459,8 @@ func (a *Aptly) getRepoSlicePublishedState(repos []*Repo) (bool, bool, error) {
 	containsPublishedRepo := false
 	for _, repo := range repos {
 		hasRepoBeenPublished := isRepoNameInSlice(repo, publishedRepoNames)
-		containsUnpublishedRepo = containsUnpublishedRepo || hasRepoBeenPublished
+		logrus.Debugf("Repo %q has been published: %v", repo.Name(), hasRepoBeenPublished)
+		containsUnpublishedRepo = containsUnpublishedRepo || !hasRepoBeenPublished
 		containsPublishedRepo = containsPublishedRepo || hasRepoBeenPublished
 
 		// No need to keep checking if they're both already true
