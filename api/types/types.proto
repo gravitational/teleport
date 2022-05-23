@@ -2558,7 +2558,7 @@ message OIDCConnectorSpecV3 {
     // This should match the URL on the Provider's side.
     //
     // DELETE IN 11.0.0 in favor of RedirectURLs
-    string RedirectURL = 4 [ (gogoproto.jsontag) = "redirect_url_deprecated,omitempty" ];
+    string RedirectURL = 4 [ (gogoproto.jsontag) = "-" ];
     // ACR is an Authentication Context Class Reference value. The meaning of the ACR
     // value is context-specific and varies for identity providers.
     string ACR = 5 [ (gogoproto.jsontag) = "acr_values,omitempty" ];
