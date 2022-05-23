@@ -22,11 +22,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	mathrand "math/rand"
 	"net"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -64,11 +67,13 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
+	kubeexec "k8s.io/client-go/util/exec"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -990,6 +995,7 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, role
 // execNonInteractive handles all exec sessions without a TTY.
 func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (resp interface{}, err error) {
 	defer proxy.Close()
+
 	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1011,25 +1017,59 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
-	event := &apievents.Exec{
+
+	sessionStart := f.cfg.Clock.Now().UTC()
+
+	serverMetadata := apievents.ServerMetadata{
+		ServerID:        f.cfg.ServerID,
+		ServerNamespace: f.cfg.Namespace,
+		ServerHostname:  sess.teleportCluster.name,
+		ServerAddr:      sess.kubeAddress,
+	}
+
+	sessionMetadata := apievents.SessionMetadata{
+		SessionID: uuid.NewString(),
+		WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
+	}
+
+	connectionMetdata := apievents.ConnectionMetadata{
+		RemoteAddr: req.RemoteAddr,
+		LocalAddr:  sess.kubeAddress,
+		Protocol:   events.EventProtocolKube,
+	}
+
+	sessionStartEvent := &apievents.SessionStart{
+		Metadata: apievents.Metadata{
+			Type:        events.SessionStartEvent,
+			Code:        events.SessionStartCode,
+			ClusterName: f.cfg.ClusterName,
+		},
+		ServerMetadata:            serverMetadata,
+		SessionMetadata:           sessionMetadata,
+		UserMetadata:              ctx.eventUserMeta(),
+		ConnectionMetadata:        connectionMetdata,
+		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesPodMetadata:     eventPodMeta,
+
+		InitialCommand:   request.cmd,
+		SessionRecording: ctx.recordingConfig.GetMode(),
+	}
+
+	sessionStartEvent.Impersonator = ctx.Identity.GetIdentity().Impersonator
+
+	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
+		f.log.WithError(err).Warn("Failed to emit event.")
+	}
+
+	execEvent := &apievents.Exec{
 		Metadata: apievents.Metadata{
 			Type:        events.ExecEvent,
 			ClusterName: f.cfg.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        f.cfg.ServerID,
-			ServerNamespace: f.cfg.Namespace,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: uuid.NewString(),
-			WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-		},
-		UserMetadata: ctx.eventUserMeta(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.RemoteAddr,
-			LocalAddr:  sess.kubeAddress,
-			Protocol:   events.EventProtocolKube,
-		},
+		ServerMetadata:     serverMetadata,
+		SessionMetadata:    sessionMetadata,
+		UserMetadata:       ctx.eventUserMeta(),
+		ConnectionMetadata: connectionMetdata,
 		CommandMetadata: apievents.CommandMetadata{
 			Command: strings.Join(request.cmd, " "),
 		},
@@ -1037,23 +1077,81 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		KubernetesPodMetadata:     eventPodMeta,
 	}
 
-	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, event); err != nil {
-		f.log.WithError(err).Warn("Failed to emit exec event.")
-	}
+	defer func() {
+		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
+			f.log.WithError(err).Warn("Failed to emit exec event.")
+		}
+
+		sessionEndEvent := &apievents.SessionEnd{
+			Metadata: apievents.Metadata{
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
+				ClusterName: f.cfg.ClusterName,
+			},
+			ServerMetadata:            serverMetadata,
+			SessionMetadata:           sessionMetadata,
+			UserMetadata:              ctx.eventUserMeta(),
+			ConnectionMetadata:        connectionMetdata,
+			Interactive:               false,
+			StartTime:                 sessionStart,
+			EndTime:                   f.cfg.Clock.Now().UTC(),
+			KubernetesClusterMetadata: ctx.eventClusterMeta(),
+			KubernetesPodMetadata:     eventPodMeta,
+			InitialCommand:            request.cmd,
+			SessionRecording:          ctx.recordingConfig.GetMode(),
+		}
+
+		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
+			f.log.WithError(err).Warn("Failed to emit session end event.")
+		}
+
+	}()
 
 	executor, err := f.getExecutor(*ctx, sess, req)
 	if err != nil {
+		execEvent.Code = events.ExecFailureCode
+		execEvent.Error, execEvent.ExitCode = exitCode(err)
+
 		f.log.WithError(err).Warning("Failed creating executor.")
 		return nil, trace.Wrap(err)
 	}
 
 	streamOptions := proxy.options()
 	if err = executor.Stream(streamOptions); err != nil {
+		execEvent.Code = events.ExecFailureCode
+		execEvent.Error, execEvent.ExitCode = exitCode(err)
+
 		f.log.WithError(err).Warning("Executor failed while streaming.")
 		return nil, trace.Wrap(err)
 	}
 
+	execEvent.Code = events.ExecCode
+
 	return nil, nil
+}
+
+func exitCode(err error) (errMsg, code string) {
+	var (
+		kubeStatusErr = &kubeerrors.StatusError{}
+		kubeExecErr   = kubeexec.CodeExitError{}
+	)
+
+	if errors.As(err, &kubeStatusErr) {
+		if kubeStatusErr.ErrStatus.Status == metav1.StatusSuccess {
+			return
+		}
+		errMsg = kubeStatusErr.ErrStatus.Message
+		code = strconv.Itoa(int(kubeStatusErr.ErrStatus.Code))
+	} else if errors.As(err, &kubeExecErr) {
+		if kubeExecErr.Err != nil {
+			errMsg = kubeExecErr.Err.Error()
+		}
+		code = strconv.Itoa(int(kubeExecErr.Code))
+	} else if err != nil {
+		errMsg = err.Error()
+	}
+
+	return
 }
 
 // exec forwards all exec requests to the target server, captures
