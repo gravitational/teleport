@@ -96,7 +96,7 @@ func (art *AptRepoTool) Run() error {
 		return trace.Wrap(err, "failed to sync changes to S3 bucket")
 	}
 
-	logrus.Infof("APT repo build process completed in %s\n", time.Since(start).Round(time.Millisecond))
+	logrus.Infof("APT repo build process completed in %s", time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
@@ -152,12 +152,12 @@ func (art *AptRepoTool) getArtifactRepos() ([]*Repo, error) {
 		return nil, trace.Wrap(err, "failed to create or get repos from artifact requirements")
 	}
 
-	logrus.Infof("Created or got %d artifact Aptly repos\n", len(artifactRepos))
+	logrus.Infof("Created or got %d artifact Aptly repos", len(artifactRepos))
 	return artifactRepos, nil
 }
 
 func (art *AptRepoTool) importNewDebs(repos []*Repo) error {
-	logrus.Debugf("Importing new debs into %d repos: %q\n", len(repos), strings.Join(RepoNames(repos), "\", \""))
+	logrus.Debugf("Importing new debs into %d repos: %q", len(repos), strings.Join(RepoNames(repos), "\", \""))
 	err := filepath.WalkDir(art.config.artifactPath,
 		func(debPath string, d fs.DirEntry, err error) error {
 			if err != nil {
