@@ -50,7 +50,6 @@ func CryptoPublicKey(publicKey []byte) (crypto.PublicKey, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	cryptoPubKey, ok := pubKey.(ssh.CryptoPublicKey)
 	if !ok {
 		return nil, trace.BadParameter("expected ssh.CryptoPublicKey, got %T", pubKey)
