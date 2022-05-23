@@ -509,7 +509,7 @@ func (s *session) launch() error {
 	)
 
 	defer func() {
-		// catch err by refrence so we can access any write into it in the two calls that follow
+		// catch err by reference so we can access any write into it in the two calls that follow
 		onFinished(err)
 	}()
 

@@ -1146,7 +1146,7 @@ func exitCode(err error) (errMsg, code string) {
 		if kubeExecErr.Err != nil {
 			errMsg = kubeExecErr.Err.Error()
 		}
-		code = strconv.Itoa(int(kubeExecErr.Code))
+		code = strconv.Itoa(kubeExecErr.Code)
 	} else if err != nil {
 		errMsg = err.Error()
 	}
