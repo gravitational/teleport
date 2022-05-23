@@ -35,6 +35,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -545,6 +546,11 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 	return p.ValidUntil.Sub(clock.Now()) <= 0
 }
 
+// virtualPathWarnOnce is used to ensure warnings about missing virtual path
+// environment variables are consolidated into a single message and not spammed
+// to the console.
+var virtualPathWarnOnce sync.Once
+
 // virtualPathFromEnv attempts to retrieve the path as defined by the given
 // formatter from the environment.
 func (p *ProfileStatus) virtualPathFromEnv(kind VirtualPathKind, params VirtualPathParams) (string, bool) {
@@ -557,6 +563,19 @@ func (p *ProfileStatus) virtualPathFromEnv(kind VirtualPathKind, params VirtualP
 			return val, true
 		}
 	}
+
+	// If we can't resolve any env vars, this will return garbage which we
+	// should at least warn about. As ugly as this is, arguably making every
+	// profile path lookup fallible is even uglier.
+	log.Debugf("Could not resolve path to virtual profile entry of type %s "+
+		"with parameters %+v.", kind, params)
+
+	virtualPathWarnOnce.Do(func() {
+		log.Errorf("A virtual profile is in use due to an identity file " +
+			"(`-i ...`) but this functionality requires additional files on " +
+			"disk and may fail. Consider using a compatible wrapper " +
+			"application (e.g. Machine ID) for this command.")
+	})
 
 	return "", false
 }
@@ -907,7 +926,24 @@ func ReadProfileStatus(profileDir string, profileName string) (*ProfileStatus, e
 }
 
 // StatusCurrent returns the active profile status.
-func StatusCurrent(profileDir, proxyHost string) (*ProfileStatus, error) {
+func StatusCurrent(profileDir, proxyHost, identityFilePath string) (*ProfileStatus, error) {
+	if identityFilePath != "" {
+		key, err := KeyFromIdentityFile(identityFilePath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		profile, err := ReadProfileFromIdentity(key, ProfileOptions{
+			ProfileName:  "identity",
+			WebProxyAddr: proxyHost,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return profile, nil
+	}
+
 	active, _, err := Status(profileDir, proxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -916,30 +952,6 @@ func StatusCurrent(profileDir, proxyHost string) (*ProfileStatus, error) {
 		return nil, trace.NotFound("not logged in")
 	}
 	return active, nil
-}
-
-// StatusCurrentWithIdentity returns the current ProfileStatus, using a virtual
-// profile for the current identity file if one is in use.
-func StatusCurrentWithIdentity(profileDir, proxyAddr, identityFilePath string) (*ProfileStatus, error) {
-	// Keep regular behavior if there's no identity file.
-	if identityFilePath == "" {
-		return StatusCurrent(profileDir, proxyAddr)
-	}
-
-	key, err := KeyFromIdentityFile(identityFilePath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	profile, err := ReadProfileFromIdentity(key, ProfileOptions{
-		ProfileName:  "test",
-		WebProxyAddr: proxyAddr,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return profile, nil
 }
 
 // StatusFor returns profile for the specified proxy/user.
