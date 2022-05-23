@@ -62,6 +62,7 @@ func (art *AptRepoTool) Run() error {
 	}
 
 	if isFirstRun {
+		logrus.Warningln("First run or disaster recovery detected, attempting to rebuild existing repos from APT repository...")
 		_, err := art.recreateExistingRepos()
 		if err != nil {
 			return trace.Wrap(err, "failed to recreate existing repos")
