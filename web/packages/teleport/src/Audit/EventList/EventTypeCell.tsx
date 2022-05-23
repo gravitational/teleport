@@ -69,6 +69,8 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.USER_LOCAL_LOGINFAILURE]: Icons.Info,
   [eventCodes.USER_SSO_LOGIN]: Icons.Info,
   [eventCodes.USER_SSO_LOGINFAILURE]: Icons.Info,
+  [eventCodes.USER_SSO_TEST_FLOW_LOGIN]: Icons.Info,
+  [eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE]: Icons.Info,
   [eventCodes.KUBE_REQUEST]: Icons.Kubernetes,
   [eventCodes.DATABASE_SESSION_STARTED]: Icons.Database,
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: Icons.Database,

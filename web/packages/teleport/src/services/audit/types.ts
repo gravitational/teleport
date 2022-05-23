@@ -137,6 +137,8 @@ export const eventCodes = {
   USER_PASSWORD_CHANGED: 'T1005I',
   USER_SSO_LOGIN: 'T1001I',
   USER_SSO_LOGINFAILURE: 'T1001W',
+  USER_SSO_TEST_FLOW_LOGIN: 'T1010I',
+  USER_SSO_TEST_FLOW_LOGINFAILURE: 'T1011W',
   USER_UPDATED: 'T1003I',
   X11_FORWARD: 'T3008I',
   X11_FORWARD_FAILURE: 'T3008W',
@@ -352,6 +354,13 @@ export type RawEvents = {
   [eventCodes.USER_SSO_LOGIN]: RawEvent<typeof eventCodes.USER_SSO_LOGIN>;
   [eventCodes.USER_SSO_LOGINFAILURE]: RawEvent<
     typeof eventCodes.USER_SSO_LOGINFAILURE,
+    {
+      error: string;
+    }
+  >;
+  [eventCodes.USER_SSO_TEST_FLOW_LOGIN]: RawEvent<typeof eventCodes.USER_SSO_TEST_FLOW_LOGIN>;
+  [eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE]: RawEvent<
+    typeof eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE,
     {
       error: string;
     }

@@ -310,6 +310,16 @@ export const formatters: Formatters = {
     desc: 'SSO Login Failed',
     format: ({ error }) => `SSO user login failed [${error}]`,
   },
+  [eventCodes.USER_SSO_TEST_FLOW_LOGIN]: {
+    type: 'user.login',
+    desc: 'SSO Test Flow Login',
+    format: ({ user }) => `SSO Test Flow: user [${user}] successfully logged in`,
+  },
+  [eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE]: {
+    type: 'user.login',
+    desc: 'SSO Test Flow Login Failed',
+    format: ({ error }) => `SSO Test flow: user login failed [${error}]`,
+  },
   [eventCodes.ROLE_CREATED]: {
     type: 'role.created',
     desc: 'User Role Created',

@@ -358,12 +358,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            80
+            82
           </strong>
            of
            
           <strong>
-            80
+            82
           </strong>
         </div>
         <button
@@ -434,6 +434,80 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SSO Test Flow Login Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          SSO Test flow: user login failed [No roles mapped from claims. The mappings may contain typos.]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-05-23 08:29:14
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SSO Test Flow Login
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          SSO Test Flow: user [ops@gravitational.io] successfully logged in
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-05-23 08:28:37
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td
           style="vertical-align: inherit;"
