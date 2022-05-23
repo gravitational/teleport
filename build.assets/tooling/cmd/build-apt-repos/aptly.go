@@ -246,8 +246,8 @@ func (a *Aptly) GetExistingRepoNames() ([]string, error) {
 	// The names may have whitespace and the command may print an extra blank line, so we remove those here
 	var validRepoNames []string
 	for _, parsedRepoName := range parsedRepoNames {
-		if trimedRepoName := strings.TrimSpace(parsedRepoName); trimedRepoName != "" {
-			validRepoNames = append(validRepoNames, trimedRepoName)
+		if trimmedRepoName := strings.TrimSpace(parsedRepoName); trimmedRepoName != "" {
+			validRepoNames = append(validRepoNames, trimmedRepoName)
 		}
 	}
 
@@ -507,13 +507,15 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 
 	var publishedRepoNames []string
 	for _, publishedRepoLine := range publishedRepoLines {
-		// Additional parsing should go here if needed in the future
-		repoNames := repoNameRegex.FindAllString(publishedRepoLine, -1)
-		if repoNames == nil {
-			return nil, trace.Errorf("failed to match repo names in line %q with regex %q", publishedRepoLine, repoNameRegexStr)
-		}
+		if trimmedRepoLine := strings.TrimSpace(publishedRepoLine); trimmedRepoLine != "" {
+			// Additional parsing should go here if needed in the future
+			repoNames := repoNameRegex.FindAllString(publishedRepoLine, -1)
+			if repoNames == nil {
+				return nil, trace.Errorf("failed to match repo names in line %q with regex %q", publishedRepoLine, repoNameRegexStr)
+			}
 
-		publishedRepoNames = append(publishedRepoNames, repoNames...)
+			publishedRepoNames = append(publishedRepoNames, repoNames...)
+		}
 	}
 
 	logrus.Debugf("Found %d published repos: %q", len(publishedRepoNames), strings.Join(publishedRepoNames, "\", \""))
