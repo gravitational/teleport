@@ -271,7 +271,6 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 		return nil, trace.Wrap(err)
 	}
 	return tracker, nil
-
 }
 
 func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker) bool {

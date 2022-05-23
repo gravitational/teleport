@@ -1043,8 +1043,8 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-
+	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+) ([]byte, error) {
 	out, err := c.PostJSON(context.TODO(), c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,
@@ -1659,6 +1659,15 @@ func (c *Client) DeleteAllLocks(context.Context) error {
 
 func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetTokens returns a list of active invitation tokens for nodes and users
+func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
+	resp, err := c.APIClient.GetTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }
 
 // WebService implements features used by Web UI clients
