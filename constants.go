@@ -439,6 +439,9 @@ const (
 	CertExtensionGeneration = "generation"
 )
 
+// Note: when adding new providers to this list, consider updating the help message for --provider flag
+// for `tctl sso configure oidc` and `tctl sso configure saml` commands
+// as well as docs at https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds
 const (
 	// NetIQ is an identity provider.
 	NetIQ = "netiq"
@@ -531,6 +534,9 @@ const (
 	// membership information
 	TraitTeams = "github_teams"
 
+	// TraitJWT is the name of the trait containing JWT header for app access.
+	TraitJWT = "jwt"
+
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
@@ -558,6 +564,10 @@ const (
 	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
+
+	// TraitInternalJWTVariable is the variable used to store JWT token for
+	// app sessions.
+	TraitInternalJWTVariable = "{{internal.jwt}}"
 )
 
 // SCP is Secure Copy.
@@ -620,6 +630,9 @@ const (
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
 
+	// TerminalSizeRequest is a request for the terminal size of the session.
+	TerminalSizeRequest = "x-teleport-terminal-size"
+
 	// MFAPresenceRequest is an SSH request to notify clients that MFA presence is required for a session.
 	MFAPresenceRequest = "x-teleport-mfa-presence"
 
@@ -635,6 +648,10 @@ const (
 	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
 	// requirement information should be printed.
 	EnvSSHSessionDisplayParticipantRequirements = "TELEPORT_SESSION_PARTICIPANT_REQUIREMENTS"
+
+	// SSHSessionJoinPrincipal is the SSH principal used when joining sessions.
+	// This starts with a hyphen so it isn't a valid unix login.
+	SSHSessionJoinPrincipal = "-teleport-internal-join"
 )
 
 const (

@@ -698,10 +698,15 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_USER | A Teleport user name | alice |
 | TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
+| TELEPORT_GLOBAL_TSH_CONFIG | Override location of global `tsh` config file from default `/etc/tsh.yaml` | /opt/teleport/tsh.yaml |
 
-### tsh configuration file
+### tsh configuration files
 
-`tsh` has an optional configuration file that is stored in `$TELEPORT_HOME/config/config.yaml`.
+`tsh` has an optional configuration files:
+- global, shared config: `/etc/tsh.yaml`. Location can be overridden with `TELEPORT_GLOBAL_TSH_CONFIG` environment variable.
+- user specific config: `$TELEPORT_HOME/config/config.yaml`. Unless changed, `TELEPORT_HOME` defaults to `~/.tsh`.
+
+The settings from both are merged, with the user config taking precedence.
 
 The `tsh` configuration file enables you to specify HTTP headers to be
 included in requests to Teleport Proxy Servers with addresses matching
@@ -1068,6 +1073,7 @@ $ tctl tokens add --type=TYPE [<flags>]
 | `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
+| `--format` | none | `text`, `json`, `yaml` | Output format |
 
 #### Global flags
 
@@ -1111,6 +1117,17 @@ List node and user invitation tokens:
 ```code
 $ tctl tokens ls [<flags>]
 ```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | none | `text`, `json`, `yaml` | Output format |
+
+#### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
 
 #### Example
 

@@ -19,7 +19,6 @@ package dynamoevents
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -27,9 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -124,10 +120,13 @@ func (s *DynamoeventsSuite) TestSizeBreak(c *check.C) {
 	const eventCount int = 10
 	for i := 0; i < eventCount; i++ {
 		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
-			Method:             events.LoginMethodSAML,
-			Status:             apievents.Status{Success: true},
-			UserMetadata:       apievents.UserMetadata{User: "bob"},
-			Metadata:           apievents.Metadata{Time: s.Clock.Now().UTC().Add(time.Second * time.Duration(i))},
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: "bob"},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: s.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
+			},
 			IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
 		})
 		c.Assert(err, check.IsNil)
@@ -182,121 +181,6 @@ func TestDateRangeGenerator(t *testing.T) {
 	require.Equal(t, []string{"2021-08-30", "2021-08-31", "2021-09-01"}, days)
 }
 
-func (s *DynamoeventsSuite) TestRFD24Migration(c *check.C) {
-	eventTemplate := preRFD24event{
-		SessionID:      uuid.New().String(),
-		EventIndex:     -1,
-		EventType:      "test.event",
-		Fields:         "{}",
-		EventNamespace: apidefaults.Namespace,
-	}
-
-	for i := 0; i < 10; i++ {
-		eventTemplate.EventIndex++
-		event := eventTemplate
-		event.CreatedAt = time.Date(2021, 4, 10, 8, 5, 0, 0, time.UTC).Add(time.Hour * time.Duration(24*i)).Unix()
-		err := s.log.emitTestAuditEvent(context.TODO(), event)
-		c.Assert(err, check.IsNil)
-	}
-
-	err := s.log.migrateDateAttribute(context.TODO())
-	c.Assert(err, check.IsNil)
-
-	start := time.Date(2021, 4, 9, 8, 5, 0, 0, time.UTC)
-	end := start.Add(time.Hour * time.Duration(24*11))
-	var eventArr []event
-	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		eventArr, _, err = s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{eventTypes: []string{"test.event"}})
-		return err
-	})
-	c.Assert(err, check.IsNil)
-	c.Assert(eventArr, check.HasLen, 10)
-
-	for _, event := range eventArr {
-		dateString := time.Unix(event.CreatedAt, 0).Format(iso8601DateFormat)
-		c.Assert(dateString, check.Equals, event.CreatedAtDate)
-	}
-}
-
-type preRFD24event struct {
-	SessionID      string
-	EventIndex     int64
-	EventType      string
-	CreatedAt      int64
-	Expires        *int64 `json:"Expires,omitempty"`
-	Fields         string
-	EventNamespace string
-}
-
-func (s *DynamoeventsSuite) TestFieldsMapMigration(c *check.C) {
-	ctx := context.Background()
-	eventTemplate := eventWithJSONFields{
-		SessionID:      uuid.New().String(),
-		EventIndex:     -1,
-		EventType:      "test.event",
-		Fields:         "{}",
-		EventNamespace: apidefaults.Namespace,
-	}
-	sessionEndFields := events.EventFields{"participants": []interface{}{"test-user1", "test-user2"}}
-	sessionEndFieldsJSON, err := json.Marshal(sessionEndFields)
-	c.Assert(err, check.IsNil)
-
-	start := time.Date(2021, 4, 9, 8, 5, 0, 0, time.UTC)
-	step := 24 * time.Hour
-	end := start.Add(20 * step)
-	for t := start.Add(time.Minute); t.Before(end); t = t.Add(step) {
-		eventTemplate.EventIndex++
-		event := eventTemplate
-		if t.Day()%3 == 0 {
-			event.EventType = events.SessionEndEvent
-			event.Fields = string(sessionEndFieldsJSON)
-		}
-		event.CreatedAt = t.Unix()
-		event.CreatedAtDate = t.Format(iso8601DateFormat)
-		err := s.log.emitTestAuditEvent(ctx, event)
-		c.Assert(err, check.IsNil)
-	}
-
-	err = s.log.convertFieldsToDynamoMapFormat(ctx)
-	c.Assert(err, check.IsNil)
-
-	eventArr, _, err := s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{})
-	c.Assert(err, check.IsNil)
-
-	for _, event := range eventArr {
-		fields := events.EventFields{}
-		if event.EventType == events.SessionEndEvent {
-			fields = sessionEndFields
-		}
-		c.Assert(event.FieldsMap, check.DeepEquals, fields)
-	}
-}
-
-type eventWithJSONFields struct {
-	SessionID      string
-	EventIndex     int64
-	EventType      string
-	CreatedAt      int64
-	Expires        *int64 `json:"Expires,omitempty"`
-	Fields         string
-	EventNamespace string
-	CreatedAtDate  string
-}
-
-// emitTestAuditEvent emits a struct as a test audit event.
-func (l *Log) emitTestAuditEvent(ctx context.Context, e interface{}) error {
-	av, err := dynamodbattribute.MarshalMap(e)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	input := dynamodb.PutItemInput{
-		Item:      av,
-		TableName: aws.String(l.Tablename),
-	}
-	_, err = l.svc.PutItemWithContext(ctx, &input)
-	return trace.Wrap(convertError(err))
-}
-
 type DynamoeventsLargeTableSuite struct {
 	suiteBase
 }
@@ -313,7 +197,9 @@ func (s *DynamoeventsLargeTableSuite) TestLargeTableRetrieve(c *check.C) {
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: "bob"},
-			Metadata:     apievents.Metadata{Time: s.Clock.Now().UTC()},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: s.Clock.Now().UTC()},
 		})
 		c.Assert(err, check.IsNil)
 	}

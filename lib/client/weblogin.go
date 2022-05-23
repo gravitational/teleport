@@ -43,6 +43,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
 const (
@@ -219,6 +220,8 @@ type SSHLoginMFA struct {
 	// Apart from the obvious benefits, UseStrongestAuth also avoids stdin
 	// hijacking issues from MFA prompts, as a single auth method is used.
 	UseStrongestAuth bool
+	// AuthenticatorAttachment is the desired authenticator attachment.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -262,8 +265,8 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO) (*auth.SSHLoginResponse, error) {
-	rd, err := NewRedirector(ctx, login)
+func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*auth.SSHLoginResponse, error) {
+	rd, err := NewRedirector(ctx, login, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -394,7 +397,8 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
-		UseStrongestAuth: login.UseStrongestAuth,
+		UseStrongestAuth:        login.UseStrongestAuth,
+		AuthenticatorAttachment: login.AuthenticatorAttachment,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

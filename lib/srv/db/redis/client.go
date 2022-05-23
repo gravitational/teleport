@@ -91,7 +91,6 @@ type clusterClient struct {
 // an error is returned.
 func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsConfig *tls.Config, username, password string) (redis.UniversalClient, error) {
 	connectionAddr := net.JoinHostPort(connectionOptions.address, connectionOptions.port)
-	// TODO(jakub): Use system CA bundle if connecting to AWS.
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch connectionOptions.mode {
 	case Standalone:
