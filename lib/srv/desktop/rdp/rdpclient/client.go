@@ -423,6 +423,29 @@ func (c *Client) start() {
 						return
 					}
 				}
+			case tdp.SharedDirectoryListResponse:
+				if c.cfg.AllowDirectorySharing {
+					fsoList := make([]C.CGOFileSystemObject, 0, len(m.FsoList))
+					for _, fso := range m.FsoList {
+						path := C.CString(fso.Path)
+						defer C.free(unsafe.Pointer(path))
+						fsoList = append(fsoList, C.CGOFileSystemObject{
+							last_modified: C.uint64_t(fso.LastModified),
+							size:          C.uint64_t(fso.Size),
+							file_type:     fso.FileType,
+							path:          path,
+						})
+					}
+					if errCode := C.handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
+						completion_id:   C.uint32_t(m.CompletionID),
+						err_code:        m.ErrCode,
+						fso_list_length: C.uint32_t(len(m.FsoList)),
+						fso_list:        (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList[0])),
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryListResponse failed: %v", errCode)
+						return
+					}
+				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}

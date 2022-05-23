@@ -510,6 +510,13 @@ impl<S: Read + Write> RdpClient<S> {
         self.rdpdr.handle_tdp_sd_delete_response(res, &mut self.mcs)
     }
 
+    pub fn handle_tdp_sd_list_response(
+        &mut self,
+        res: SharedDirectoryListResponse,
+    ) -> RdpResult<()> {
+        self.rdpdr.handle_tdp_sd_list_response(res, &mut self.mcs)
+    }
+
     pub fn shutdown(&mut self) -> RdpResult<()> {
         self.mcs.shutdown()
     }
@@ -738,6 +745,35 @@ pub unsafe extern "C" fn handle_tdp_sd_delete_response(
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
     match rdp_client.handle_tdp_sd_delete_response(res) {
+        Ok(()) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("failed to handle Shared Directory Create Response: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
+/// handle_tdp_sd_list_response handles a TDP Shared Directory List Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr must be a valid pointer
+/// res.fso_list must be a valid pointer
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_sd_list_response(
+    client_ptr: *mut Client,
+    res: CGOSharedDirectoryListResponse,
+) -> CGOErrCode {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+    match rdp_client.handle_tdp_sd_list_response(SharedDirectoryListResponse::from(res)) {
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to handle Shared Directory Create Response: {:?}", e);
@@ -988,8 +1024,9 @@ unsafe fn from_go_string(s: *const c_char) -> String {
 
 /// # Safety
 ///
-/// ptr must be a valid buffer of len bytes.
-unsafe fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
+/// ptr must be a valid buffer of len elements.
+/// The len argument is the number of elements, not the number of bytes.
+unsafe fn from_go_array<T: Clone>(len: u32, ptr: *mut T) -> Vec<T> {
     slice::from_raw_parts(ptr, len as usize).to_vec()
 }
 
@@ -1087,6 +1124,7 @@ impl FileSystemObject {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct CGOFileSystemObject {
     pub last_modified: u64,
     pub size: u64,
@@ -1151,16 +1189,36 @@ pub struct SharedDirectoryCreateResponse {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct SharedDirectoryListResponse {
     completion_id: u32,
     err_code: TdpErrCode,
     fso_list: Vec<FileSystemObject>,
 }
 
+impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
+    fn from(cgo: CGOSharedDirectoryListResponse) -> SharedDirectoryListResponse {
+        unsafe {
+            let cgo_fso_list = from_go_array(cgo.fso_list_length, cgo.fso_list);
+            let mut fso_list = vec![];
+            for cgo_fso in cgo_fso_list.into_iter() {
+                fso_list.push(FileSystemObject::from(cgo_fso));
+            }
+
+            SharedDirectoryListResponse {
+                completion_id: cgo.completion_id,
+                err_code: cgo.err_code,
+                fso_list,
+            }
+        }
+    }
+}
+
 #[repr(C)]
 pub struct CGOSharedDirectoryListResponse {
     completion_id: u32,
     err_code: TdpErrCode,
+    fso_list_length: u32,
     fso_list: *mut CGOFileSystemObject,
 }
 

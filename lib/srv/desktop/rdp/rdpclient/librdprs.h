@@ -121,6 +121,13 @@ typedef struct SharedDirectoryCreateResponse CGOSharedDirectoryCreateResponse;
 
 typedef struct SharedDirectoryCreateResponse CGOSharedDirectoryDeleteResponse;
 
+typedef struct CGOSharedDirectoryListResponse {
+  uint32_t completion_id;
+  enum TdpErrCode err_code;
+  uint32_t fso_list_length;
+  struct CGOFileSystemObject *fso_list;
+} CGOSharedDirectoryListResponse;
+
 /**
  * CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
  * PointerEvent is a mouse move or click update from the user.
@@ -261,6 +268,18 @@ enum CGOErrCode handle_tdp_sd_create_response(struct Client *client_ptr,
  */
 enum CGOErrCode handle_tdp_sd_delete_response(struct Client *client_ptr,
                                               CGOSharedDirectoryDeleteResponse res);
+
+/**
+ * handle_tdp_sd_list_response handles a TDP Shared Directory List Response
+ * message
+ *
+ * # Safety
+ *
+ * client_ptr must be a valid pointer
+ * res.fso_list must be a valid pointer
+ */
+enum CGOErrCode handle_tdp_sd_list_response(struct Client *client_ptr,
+                                            struct CGOSharedDirectoryListResponse res);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to

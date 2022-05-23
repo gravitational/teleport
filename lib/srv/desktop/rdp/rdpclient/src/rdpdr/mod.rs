@@ -565,12 +565,10 @@ impl Client {
                                         if let Some(dir) = cli.file_cache.get_mut(file_id) {
                                             dir.contents = res.fso_list;
                                         } else {
-                                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L633
-                                            return cli.prep_drive_query_dir_response(
-                                                &rdp_req.device_io_request,
-                                                NTSTATUS::STATUS_UNSUCCESSFUL,
-                                                None,
-                                            );
+                                            return cli
+                                                .prep_file_cache_fail_drive_query_dir_response(
+                                                    &rdp_req,
+                                                );
                                         }
 
                                         // And send back the "." directory over RDP
@@ -635,7 +633,7 @@ impl Client {
         res: SharedDirectoryInfoResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        debug!("received TDP: {:?}", res);
+        debug!("received TDP SharedDirectoryInfoResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_info_resp_handlers
             .remove(&res.completion_id)
@@ -659,7 +657,7 @@ impl Client {
         res: SharedDirectoryCreateResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        debug!("received TDP: {:?}", res);
+        debug!("received TDP SharedDirectoryCreateResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_create_resp_handlers
             .remove(&res.completion_id)
@@ -683,9 +681,33 @@ impl Client {
         res: SharedDirectoryDeleteResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        debug!("received TDP: {:?}", res);
+        debug!("received TDP SharedDirectoryDeleteResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_delete_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
+            Ok(())
+        } else {
+            return Err(try_error(&format!(
+                "received invalid completion id: {}",
+                res.completion_id
+            )));
+        }
+    }
+
+    pub fn handle_tdp_sd_list_response<S: Read + Write>(
+        &mut self,
+        res: SharedDirectoryListResponse,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        debug!("received TDP SharedDirectoryListResponse: {:?}", res);
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_list_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
@@ -778,7 +800,11 @@ impl Client {
                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
                 FsInformationClassLevel::FileBothDirectoryInformation => {
                     let buffer = FileBothDirectoryInformation::from(fso)?;
-                    self.prep_drive_query_dir_response(&req.device_io_request, NTSTATUS::STATUS_UNSUCCESSFUL, Some(FsInformationClass::FileBothDirectoryInformation(buffer)))
+                    self.prep_drive_query_dir_response(
+                        &req.device_io_request,
+                        NTSTATUS::STATUS_SUCCESS,
+                        Some(FsInformationClass::FileBothDirectoryInformation(buffer))
+                    )
                 },
                 FsInformationClassLevel::FileDirectoryInformation |
                 FsInformationClassLevel::FileFullDirectoryInformation |
