@@ -22,11 +22,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
