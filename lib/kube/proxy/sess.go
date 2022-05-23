@@ -773,6 +773,7 @@ func (s *session) join(p *party) error {
 			KubernetesCluster: s.ctx.kubeCluster,
 			KubernetesUsers:   []string{},
 			KubernetesGroups:  []string{},
+			KubernetesLabels:  s.ctx.kubeClusterLabels,
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: s.id.String(),
