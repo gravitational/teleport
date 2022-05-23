@@ -506,7 +506,7 @@ func TestMarshalYAML(t *testing.T) {
 }
 
 // TestReadToken tests reading token from file and as is
-func TestReadToken(t *testing.T) {
+func TestTryReadValueAsFile(t *testing.T) {
 	t.Parallel()
 	tok, err := TryReadValueAsFile("token")
 	require.Equal(t, "token", tok)
