@@ -863,6 +863,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
 	c.MongoProxyAddr = cp.MongoProxyAddr
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
+	c.KeysDir = profileDir
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1564,16 +1565,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
-	var session types.SessionTracker
-	sessions, err := site.GetActiveSessionTrackers(ctx)
-	if err != nil {
+	session, err := site.GetSessionTracker(ctx, string(sessionID))
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
-	}
-
-	for _, sessionIter := range sessions {
-		if sessionIter.GetSessionID() == string(sessionID) {
-			session = sessionIter
-		}
 	}
 
 	if session == nil {
@@ -3593,16 +3587,4 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 		}
 	}
 	return databases, nil
-}
-
-// GetActiveSessions fetches a list of all active sessions tracked by the SessionTracker resource
-// that the user has access to.
-func (tc *TeleportClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
-	proxy, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer proxy.Close()
-	return proxy.GetActiveSessions(ctx)
 }

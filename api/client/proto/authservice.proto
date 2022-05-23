@@ -1021,6 +1021,9 @@ message AddMFADeviceSyncRequest {
     string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
     // NewMFAResponse is a user's new mfa response to a mfa register challenge.
     MFARegisterResponse NewMFAResponse = 3 [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
+    // DeviceUsage is the requested usage for the device.
+    // Defaults to DEVICE_USAGE_MFA.
+    DeviceUsage DeviceUsage = 4 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // AddMFADeviceSyncResponse is a response to AddMFADeviceSyncRequest.
@@ -1279,10 +1282,15 @@ message CRL {
 }
 
 // ChangeUserAuthenticationRequest defines a request to change a password and if enabled
-// also adds a new MFA device from a user reset or from a new user invite. After successful changing
-// of authentications a new web session is created. Users may also receive new recovery codes if the
-// user meets the requirement to receive recovery codes. If a user previously had recovery codes,
-// the previous codes become invalid as it is replaced with newly generated ones.
+// also adds a new MFA device from a user reset or from a new user invite. User can also skip
+// setting a new password if passwordless is enabled and just provide a new webauthn register
+// response.
+//
+// After a successful request a new web session is created.
+//
+// Users may also receive new recovery codes if they meet the necessary requirements. If a user
+// previously had recovery codes, the previous codes become invalid as it is replaced with newly
+// generated ones.
 message ChangeUserAuthenticationRequest {
     // TokenID is the ID of a reset or invite token.
     // The token allows the user to change their credentials without being logged
@@ -1538,35 +1546,45 @@ message ListResourcesResponse {
 // This is not specific to any session type. Relevant fields should be set for a given session type.
 message CreateSessionTrackerRequest {
     // Namespace is a session namespace, separating sessions from each other.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace,omitempty" ];
 
     // Type describes what type of session this is.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Type = 2 [ (gogoproto.jsontag) = "type,omitempty" ];
 
     // Reason is an arbitrary string that may be used to describe the session and/or it's
     // purpose.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Reason = 3 [ (gogoproto.jsontag) = "reason,omitempty" ];
 
     // Invited is a list of invited users, this field is interpreted by different
     // clients on a best-effort basis and used for delivering notifications to invited users.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     repeated string Invited = 4 [ (gogoproto.jsontag) = "invited,omitempty" ];
 
     // Hostname is the address of the target this session is connected to.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Hostname = 5 [ (gogoproto.jsontag) = "target_hostname,omitempty" ];
 
     // Address is the address of the target this session is connected to.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Address = 6 [ (gogoproto.jsontag) = "target_address,omitempty" ];
 
     // ClusterName is the name of cluster that this session belongs to.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string ClusterName = 7 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
 
     // Login is the local login/user on the target used by the session.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Login = 8 [ (gogoproto.jsontag) = "login,omitempty" ];
 
     // Initiator is the participant that initiated the session.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     types.Participant Initiator = 9 [ (gogoproto.jsontag) = "initiator,omitempty" ];
 
     // Expires encodes the time at which this session expires and becomes invalid.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     google.protobuf.Timestamp Expires = 10 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
@@ -1574,19 +1592,27 @@ message CreateSessionTrackerRequest {
     ];
 
     // The Kubernetes cluster this session belongs to.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string KubernetesCluster = 11 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
 
     // HostUser is the user regarded as the owner of this session, RBAC checks are performed
     // against the require policies of this user.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string HostUser = 12 [ (gogoproto.jsontag) = "host_user,omitempty" ];
 
     // ID is the ID of the session.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string ID = 13 [ (gogoproto.jsontag) = "id,omitempty" ];
 
     // HostPolicies is a list of RBAC policy sets held by the host user at the time of session
     // creation.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     repeated types.SessionTrackerPolicySet HostPolicies = 14
         [ (gogoproto.jsontag) = "host_policies,omitempty" ];
+
+    // SessionTracker is the session tracker to be created.
+    types.SessionTrackerV1 SessionTracker = 15
+        [ (gogoproto.jsontag) = "session_tracker,omitempty" ];
 }
 
 // GetSessionTrackerRequest is a request to fetch a session resource.

@@ -190,6 +190,61 @@ func TestAWSIAMDocuments(t *testing.T) {
 				}},
 			},
 		},
+		"ElastiCache auto discovery": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{types.DatabaseTypeElastiCache}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"elasticache:ListTagsForResource",
+					"elasticache:DescribeReplicationGroups",
+					"elasticache:DescribeCacheClusters",
+					"elasticache:DescribeCacheSubnetGroups",
+				}},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"elasticache:ListTagsForResource",
+					"elasticache:DescribeReplicationGroups",
+					"elasticache:DescribeCacheClusters",
+					"elasticache:DescribeCacheSubnetGroups",
+				}},
+			},
+		},
+		"ElastiCache static database": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{
+						{
+							Name: "redis-1",
+							URI:  "clustercfg.redis1.xxxxxx.usw2.cache.amazonaws.com:6379",
+						},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"elasticache:ListTagsForResource",
+					"elasticache:DescribeReplicationGroups",
+					"elasticache:DescribeCacheClusters",
+					"elasticache:DescribeCacheSubnetGroups",
+				}},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"elasticache:ListTagsForResource",
+					"elasticache:DescribeReplicationGroups",
+					"elasticache:DescribeCacheClusters",
+					"elasticache:DescribeCacheSubnetGroups",
+				}},
+			},
+		},
 		"AutoDiscoveryUnknownIdentity": {
 			returnError: true,
 			target:      unknownIdentity,

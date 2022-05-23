@@ -908,6 +908,20 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 	})
+
+	t.Run("tsh global config path", func(t *testing.T) {
+		t.Run("nothing set", testEnvFlag(testCase{
+			outCLIConf: CLIConf{},
+		}))
+		t.Run("TELEPORT_GLOBAL_TSH_CONFIG set", testEnvFlag(testCase{
+			envMap: map[string]string{
+				globalTshConfigEnvVar: "/opt/teleport/tsh.yaml",
+			},
+			outCLIConf: CLIConf{
+				GlobalTshConfigPath: "/opt/teleport/tsh.yaml",
+			},
+		}))
+	})
 }
 
 func TestKubeConfigUpdate(t *testing.T) {
@@ -1437,6 +1451,13 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
 	})
 	require.NoError(t, err)
 	return connector
@@ -1599,7 +1620,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       },
       "mysql": {},
       "gcp": {},
@@ -1619,7 +1641,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       }
     }
   }]
@@ -1733,12 +1756,14 @@ func TestSerializeClusters(t *testing.T) {
 			"cluster_name": "rootCluster",
 			"status": "online",
 			"cluster_type": "root",
+			"labels": null,
 			"selected": true
 		},
 		{
 			"cluster_name": "leafCluster",
 			"status": "offline",
 			"cluster_type": "leaf",
+			"labels": {"foo": "bar", "baz": "boof"},
 			"selected": false
 		}
 	]
@@ -1754,7 +1779,11 @@ func TestSerializeClusters(t *testing.T) {
 			ClusterName: "leafCluster",
 			Status:      teleport.RemoteClusterStatusOffline,
 			ClusterType: "leaf",
-			Selected:    false,
+			Labels: map[string]string{
+				"foo": "bar",
+				"baz": "boof",
+			},
+			Selected: false,
 		},
 	}
 	testSerialization(t, expected, func(f string) (string, error) {
@@ -1945,7 +1974,8 @@ func TestSerializeKubeSessions(t *testing.T) {
     "kind": "session_tracker",
     "version": "v1",
     "metadata": {
-      "name": "id"
+      "name": "id",
+      "expires": "1970-01-01T00:00:00Z"
     },
     "spec": {
       "session_id": "id",

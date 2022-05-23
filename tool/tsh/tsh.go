@@ -39,13 +39,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
@@ -287,6 +287,9 @@ type CLIConf struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
+	// GlobalTshConfigPath is a path to global TSH config. Can be overridden with TELEPORT_GLOBAL_TSH_CONFIG.
+	GlobalTshConfigPath string
+
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
 	// LocalProxyCertFile is the client certificate used by local proxy.
@@ -380,6 +383,7 @@ const (
 	userEnvVar             = "TELEPORT_USER"
 	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
+	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -696,6 +700,12 @@ func Run(args []string, opts ...cliOption) error {
 	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
 	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
 
+	// touchid subcommands.
+	var tid *touchIDCommand
+	if touchid.IsAvailable() {
+		tid = newTouchIDCommand(app)
+	}
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
@@ -747,11 +757,11 @@ func Run(args []string, opts ...cliOption) error {
 
 	setEnvFlags(&cf, os.Getenv)
 
-	fullConfigPath := filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath)
-	confOptions, err := loadConfig(fullConfigPath)
+	confOptions, err := loadAllConfigs(cf)
 	if err != nil {
-		return trace.Wrap(err, "failed to load tsh config from %s", fullConfigPath)
+		return trace.Wrap(err)
 	}
+
 	cf.ExtraProxyHeaders = confOptions.ExtraHeaders
 
 	switch command {
@@ -851,8 +861,16 @@ func Run(args []string, opts ...cliOption) error {
 	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
 	default:
-		// This should only happen when there's a missing switch case above.
-		err = trace.BadParameter("command %q not configured", command)
+		// Handle commands that might not be available.
+		switch {
+		case tid != nil && command == tid.ls.FullCommand():
+			err = tid.ls.run(&cf)
+		case tid != nil && command == tid.rm.FullCommand():
+			err = tid.rm.run(&cf)
+		default:
+			// This should only happen when there's a missing switch case above.
+			err = trace.BadParameter("command %q not configured", command)
+		}
 	}
 
 	if trace.IsNotImplemented(err) {
@@ -1523,8 +1541,14 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	} else {
 		roles := utils.SplitIdentifiers(cf.DesiredRoles)
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-		resourceIDs := utils.SplitIdentifiers(cf.RequestedResourceIDs)
-		req, err = services.NewAccessRequestWithResources(cf.Username, roles, resourceIDs)
+		requestedResourceIDs := []types.ResourceID{}
+		if cf.RequestedResourceIDs != "" {
+			requestedResourceIDs, err = services.ResourceIDsFromString(cf.RequestedResourceIDs)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		req, err = services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1944,23 +1968,33 @@ func onListClusters(cf *CLIConf) error {
 		if cf.Quiet {
 			t = asciitable.MakeHeadlessTable(4)
 		} else {
-			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
+			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Labels", "Selected"})
 		}
 
 		t.AddRow([]string{
-			rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
+			rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName),
 		})
 		for _, cluster := range leafClusters {
+			labels := sortedLabels(cluster.GetMetadata().Labels)
 			t.AddRow([]string{
-				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
+				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", labels, showSelected(cluster.GetName()),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
-		rootClusterInfo := clusterInfo{rootClusterName, teleport.RemoteClusterStatusOnline, "root", isSelected(rootClusterName)}
+		rootClusterInfo := clusterInfo{
+			ClusterName: rootClusterName,
+			Status:      teleport.RemoteClusterStatusOnline,
+			ClusterType: "root",
+			Selected:    isSelected(rootClusterName)}
 		leafClusterInfo := make([]clusterInfo, 0, len(leafClusters))
 		for _, leaf := range leafClusters {
-			leafClusterInfo = append(leafClusterInfo, clusterInfo{leaf.GetName(), leaf.GetConnectionStatus(), "leaf", isSelected(leaf.GetName())})
+			leafClusterInfo = append(leafClusterInfo, clusterInfo{
+				ClusterName: leaf.GetName(),
+				Status:      leaf.GetConnectionStatus(),
+				ClusterType: "leaf",
+				Labels:      leaf.GetMetadata().Labels,
+				Selected:    isSelected(leaf.GetName())})
 		}
 		out, err := serializeClusters(rootClusterInfo, leafClusterInfo, format)
 		if err != nil {
@@ -1974,10 +2008,11 @@ func onListClusters(cf *CLIConf) error {
 }
 
 type clusterInfo struct {
-	ClusterName string `json:"cluster_name"`
-	Status      string `json:"status"`
-	ClusterType string `json:"cluster_type"`
-	Selected    bool   `json:"selected"`
+	ClusterName string            `json:"cluster_name"`
+	Status      string            `json:"status"`
+	ClusterType string            `json:"cluster_type"`
+	Labels      map[string]string `json:"labels"`
+	Selected    bool              `json:"selected"`
 }
 
 func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, format string) (string, error) {
@@ -2986,7 +3021,10 @@ func setEnvFlags(cf *CLIConf, fn envGetter) {
 	if cf.KubernetesCluster == "" {
 		setKubernetesClusterFromEnv(cf, fn)
 	}
+
+	// these can only be set with env vars.
 	setTeleportHomeFromEnv(cf, fn)
+	setGlobalTshConfigPathFromEnv(cf, fn)
 }
 
 // setSiteNameFromEnv sets teleport site name from environment if configured.
@@ -3011,6 +3049,13 @@ func setTeleportHomeFromEnv(cf *CLIConf, fn envGetter) {
 func setKubernetesClusterFromEnv(cf *CLIConf, fn envGetter) {
 	if kubeName := fn(kubeClusterEnvVar); kubeName != "" {
 		cf.KubernetesCluster = kubeName
+	}
+}
+
+// setGlobalTshConfigPathFromEnv sets path to global tsh config file.
+func setGlobalTshConfigPathFromEnv(cf *CLIConf, fn envGetter) {
+	if configPath := fn(globalTshConfigEnvVar); configPath != "" {
+		cf.GlobalTshConfigPath = path.Clean(configPath)
 	}
 }
 

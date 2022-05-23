@@ -60,6 +60,39 @@ func (p *ProxyLine) String() string {
 	return fmt.Sprintf("PROXY %s %s %s %d %d\r\n", p.Protocol, p.Source.IP.String(), p.Destination.IP.String(), p.Source.Port, p.Destination.Port)
 }
 
+// Bytes returns on-the wire bytes representation of proxy line conforming to the proxy v2 protocol
+func (p *ProxyLine) Bytes() []byte {
+	b := &bytes.Buffer{}
+	header := proxyV2Header{VersionCommand: (Version2 << 4) | ProxyCommand}
+	copy(header.Signature[:], proxyV2Prefix)
+	var addr interface{}
+	switch p.Protocol {
+	case TCP4:
+		header.Protocol = ProtocolTCP4
+		addr4 := proxyV2Address4{
+			SourcePort:      uint16(p.Source.Port),
+			DestinationPort: uint16(p.Destination.Port),
+		}
+		copy(addr4.Source[:], p.Source.IP.To4())
+		copy(addr4.Destination[:], p.Destination.IP.To4())
+		addr = addr4
+	case TCP6:
+		header.Protocol = ProtocolTCP6
+		addr6 := proxyV2Address6{
+			SourcePort:      uint16(p.Source.Port),
+			DestinationPort: uint16(p.Destination.Port),
+		}
+		copy(addr6.Source[:], p.Source.IP.To16())
+		copy(addr6.Destination[:], p.Destination.IP.To16())
+		addr = addr6
+	}
+	header.Length = uint16(binary.Size(addr))
+	binary.Write(b, binary.BigEndian, header)
+	binary.Write(b, binary.BigEndian, addr)
+
+	return b.Bytes()
+}
+
 // ReadProxyLine reads proxy line protocol from the reader
 func ReadProxyLine(reader *bufio.Reader) (*ProxyLine, error) {
 	line, err := reader.ReadString('\n')
