@@ -347,6 +347,10 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.serverAction(); err == nil {
+		return sessions, nil
+	}
+
 	var filteredSessions []types.SessionTracker
 	user := a.context.User
 	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
