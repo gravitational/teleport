@@ -408,6 +408,11 @@ impl Client {
                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L781
                     if rdp_req.create_disposition == flags::CreateDisposition::FILE_SUPERSEDE {
                         // If the file already exists, replace it with the given file. If it does not, create the given file.
+                        if res.err_code == TdpErrCode::Nil {
+                            return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                        } else {
+                            return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                        }
                     } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OPEN {
                         // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
                         if res.err_code == TdpErrCode::Nil {
