@@ -287,20 +287,13 @@ func onStart(botConfig *config.BotConfig) error {
 		}
 	}
 
-	// TODO: Do we actually want to run this for one-shots ?
-	{
-		caWatcher, err := authClient.NewWatcher(ctx, types.Watch{
-			Kinds: []types.WatchKind{{
-				Kind: types.KindCertAuthority,
-			}},
-		})
+	go func() {
+		err := watchCARotationsWithRetry(ctx, authClient, reloadChan)
 		if err != nil {
-			return trace.Wrap(err)
+			log.WithError(err).Error("Fatal error occurred watching for a CA rotation")
+			cancel()
 		}
-		defer caWatcher.Close()
-
-		go watchCARotations(caWatcher)
-	}
+	}()
 
 	return renewLoop(ctx, botConfig, authClient, ident, reloadChan)
 }
@@ -404,35 +397,75 @@ func handleSignals(reload chan struct{}, cancel context.CancelFunc) {
 	}
 }
 
-func watchCARotations(watcher types.Watcher) {
-	// How we handle CA state transitions:
+func watchCARotationsWithRetry(ctx context.Context, client auth.ClientI, reload chan<- struct{}) error {
+	// loop for retrying watch if the server disconnects
+	for {
+		// TODO: Protect client from concurrent access.
+		watcher, err := client.NewWatcher(ctx, types.Watch{
+			Kinds: []types.WatchKind{{
+				Kind: types.KindCertAuthority,
+			}},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = watchCARotations(ctx, watcher, reload)
+		watcher.Close()
+		if err != nil {
+			if trace.IsConnectionProblem(err) {
+				continue
+			}
+			return err
+		}
+		return nil
+	}
+}
+
+// watchCARotations takes control of a `types.Watcher`, watching for CA events
+// triggering a reload when the correct transitions occur as part of a CA
+// rotation.
+//
+// watchCAr
+func watchCARotations(ctx context.Context, watcher types.Watcher, reload chan<- struct{}) error {
+	// See https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/rotate.go#L135
+	// for server side details of how a CA rotation takes place.
 	//
-	// When entering Init phase:
-	// - Download new CA public key and trust it
-	//   - Add new CA to clients trusted set
-	//   - Add new CA to pins
-	// When entering Update Clients phase:
-	// - Get new certificate from new CA, start using it
-	// When entering Update Servers phase:
-	// - Rest easy. This isn't for us.
-	// When entering Standby from Update Servers:
-	// - Untrust old CA
-	//   - Remove old CA from pins
-	//   - Remove old CA from clients trusted set
-	// When entering Rollback:
-	// - Untrust new CA
-	//   - Remove new CA from pins
-	//   - Remove new CA from clients trusted set
+	// We need to force a renewal for the following transitions:
+	// - Init -> Update Clients: So we can receive a set of certificates issued
+	//   by the new CA, and trust the new CA.
+	// - Update Clients, Update Servers -> Rollback: So we can receive a set of
+	//   certificates issued by the old CA, and stop trusting the old CA.
+	// - Update Servers -> Standby: So we can stop trusting the old CA.
+
 	for {
 		select {
 		case event := <-watcher.Events():
+			// We need to debounce here, as multiple events will be received if
+			// the user is rotating multiple CAs at once.
 			log.Debugf("CA event: %+v", event)
-			// TODO: handle CA rotations
+
+			// TODO: Actually fetch the CA to determine which state transition
+			// has occurred, and only run the renewal if its one that we care
+			// about.
+
+			log.Infof("CA Rotation step detected; attempting to force renewal.")
+			select {
+			case reload <- struct{}{}:
+			default:
+				// TODO: Make this a bit less janky.
+				log.Warnf("Renewal already in progress")
+			}
+
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
 				log.WithError(err).Warnf("error watching for CA rotations")
+				return err
 			}
-			return
+			return nil
+
+		case <-ctx.Done():
+			return nil
 		}
 	}
 }

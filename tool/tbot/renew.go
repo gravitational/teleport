@@ -372,6 +372,8 @@ func renewIdentityViaAuth(
 	cfg *config.BotConfig,
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what mwargin?)
+	//   This should be ignored if a renewal has been triggered manually or
+	//   by a CA rotation.
 
 	// If using the IAM join method we always go through the initial join flow
 	// and fetch new nonrenewable certs
