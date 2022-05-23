@@ -489,7 +489,7 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 	// No snapshots/local repos have been published. Publish a snapshot by running `aptly publish snapshot ...`.
 	// ```
 	// Note that the `-raw` argument is not used here as it does not provide sufficient information
-	output, err := buildAndRunCommand("aptly", "publis", "list")
+	output, err := buildAndRunCommand("aptly", "publish", "list")
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a list of published repos")
 	}
