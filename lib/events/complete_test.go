@@ -261,25 +261,25 @@ func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionI
 type mockSessionTrackerServiceAccessDenied struct{}
 
 func (m *mockSessionTrackerServiceAccessDenied) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	return nil, trace.AccessDenied("Access denied")
+	return nil, trace.AccessDenied("access denied")
 }
 
 func (m *mockSessionTrackerServiceAccessDenied) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	return nil, trace.AccessDenied("Access denied")
+	return nil, trace.AccessDenied("access denied")
 }
 
 func (m *mockSessionTrackerServiceAccessDenied) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
-	return nil, trace.AccessDenied("Access denied")
+	return nil, trace.AccessDenied("access denied")
 }
 
 func (m *mockSessionTrackerServiceAccessDenied) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	return trace.AccessDenied("Access denied")
+	return trace.AccessDenied("access denied")
 }
 
 func (m *mockSessionTrackerServiceAccessDenied) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	return trace.AccessDenied("Access denied")
+	return trace.AccessDenied("access denied")
 }
 
 func (m *mockSessionTrackerServiceAccessDenied) UpdatePresence(ctx context.Context, sessionID, user string) error {
-	return trace.AccessDenied("Access denied")
+	return trace.AccessDenied("access denied")
 }
