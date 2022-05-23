@@ -256,12 +256,7 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 	// goes to the second pass to do protocol detection
 	var proxyLine *ProxyLine
 	for i := 0; i < 2; i++ {
-		bytes, err := reader.Peek(8)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to peek connection")
-		}
-
-		proto, err := detectProto(bytes)
+		proto, err := detectProto(reader)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -392,17 +387,29 @@ func isHTTP(in []byte) bool {
 }
 
 // detectProto tries to determine the network protocol used from the first
-// 8 bytes of a connection.
-func detectProto(in []byte) (Protocol, error) {
-	if len(in) < 8 {
-		return ProtoUnknown, trace.BadParameter("expected at least 8 bytes, got %d", len(in))
+// few bytes of a connection.
+func detectProto(r *bufio.Reader) (Protocol, error) {
+	// read the first 8 bytes without advancing the reader, some connections
+	// won't send more than 8 bytes at first
+	in, err := r.Peek(8)
+	if err != nil {
+		return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
 	}
 
 	switch {
 	case bytes.HasPrefix(in, proxyPrefix):
 		return ProtoProxy, nil
 	case bytes.HasPrefix(in, proxyV2Prefix[:8]):
-		return ProtoProxyV2, nil
+		// if the first 8 bytes matches the first 8 bytes of the proxy
+		// protocol v2 magic bytes, read more of the connection so we can
+		// ensure all magic bytes match
+		in, err = r.Peek(len(proxyV2Prefix))
+		if err != nil {
+			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
+		}
+		if bytes.HasPrefix(in, proxyV2Prefix) {
+			return ProtoProxyV2, nil
+		}
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil
 	case bytes.HasPrefix(in, tlsPrefix):
@@ -411,7 +418,7 @@ func detectProto(in []byte) (Protocol, error) {
 		return ProtoHTTP, nil
 	case bytes.HasPrefix(in, postgresSSLRequest), bytes.HasPrefix(in, postgresCancelRequest):
 		return ProtoPostgres, nil
-	default:
-		return ProtoUnknown, trace.BadParameter("multiplexer failed to detect connection protocol, first few bytes were: %#v", in)
 	}
+
+	return ProtoUnknown, trace.BadParameter("multiplexer failed to detect connection protocol, first few bytes were: %#v", in)
 }
