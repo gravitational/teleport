@@ -106,7 +106,9 @@ teleport:
       average: 170
       burst: 171
   diag_addr: 127.0.0.1:3000
-  ca_pin: ""
+  ca_pin:
+    - ca-pin-from-string
+    - %v
 auth_service:
   enabled: yes
   listen_addr: 10.5.5.1:3025

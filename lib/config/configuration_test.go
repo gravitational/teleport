@@ -630,6 +630,10 @@ func TestApplyConfig(t *testing.T) {
 	err := os.WriteFile(tokenPath, []byte("join-token"), 0o644)
 	require.NoError(t, err)
 
+	caPinPath := filepath.Join(tempDir, "small-config-ca-pin")
+	err = os.WriteFile(caPinPath, []byte("ca-pin-from-file"), 0o644)
+	require.NoError(t, err)
+
 	pkcs11LibPath := filepath.Join(tempDir, "fake-pkcs11-lib.so")
 	err = os.WriteFile(pkcs11LibPath, []byte("fake-pkcs11-lib"), 0o644)
 	require.NoError(t, err)
@@ -637,6 +641,7 @@ func TestApplyConfig(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(
 		SmallConfigString,
 		tokenPath,
+		caPinPath,
 		pkcs11LibPath,
 	)))
 	require.NoError(t, err)
@@ -729,7 +734,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
-	require.Empty(t, cfg.CAPins)
+	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file"}, cfg.CAPins)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
