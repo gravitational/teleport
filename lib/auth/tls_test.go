@@ -910,6 +910,36 @@ func (s *TLSSuite) TestReadOwnRole(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 }
 
+func TestGetCurrentUser(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
+	require.NoError(t, err)
+
+	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	require.NoError(t, err)
+
+	currentUser, err := client1.GetCurrentUser(ctx)
+	require.NoError(t, err)
+	require.Equal(t, &types.UserV2{
+		Kind:    "user",
+		SubKind: "",
+		Version: "v2",
+		Metadata: types.Metadata{
+			Name:        "user1",
+			Namespace:   "default",
+			Description: "",
+			Labels:      nil,
+			Expires:     nil,
+			ID:          12,
+		},
+		Spec: types.UserSpecV2{
+			Roles: []string{"user:user1"},
+		},
+	}, currentUser)
+}
+
 func (s *TLSSuite) TestAuthPreference(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
