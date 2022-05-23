@@ -24,6 +24,7 @@ extern crate log;
 #[macro_use]
 extern crate num_derive;
 
+use errors::try_error;
 use libc::{fd_set, select, FD_SET};
 use rand::Rng;
 use rand::SeedableRng;
@@ -251,7 +252,7 @@ fn connect_rdp_inner(
 
     let tdp_sd_acknowledge = Box::new(
         move |mut ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
-            debug!("sending: {:?}", ack);
+            debug!("sending TDP SharedDirectoryAcknowledge: {:?}", ack);
             unsafe {
                 if tdp_sd_acknowledge(go_ref, &mut ack) != CGOErrCode::ErrCodeSuccess {
                     return Err(RdpError::TryError(String::from(
@@ -264,7 +265,7 @@ fn connect_rdp_inner(
     );
 
     let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
-        debug!("sending: {:?}", req);
+        debug!("sending TDP SharedDirectoryInfoRequest: {:?}", req);
         // Create C compatible string from req.path
         match CString::new(req.path.clone()) {
             Ok(c_string) => {
@@ -297,7 +298,7 @@ fn connect_rdp_inner(
 
     let tdp_sd_create_request =
         Box::new(move |req: SharedDirectoryCreateRequest| -> RdpResult<()> {
-            debug!("sending: {:?}", req);
+            debug!("sending TDP SharedDirectoryCreateRequest: {:?}", req);
             // Create C compatible string from req.path
             match CString::new(req.path.clone()) {
                 Ok(c_string) => {
@@ -331,7 +332,7 @@ fn connect_rdp_inner(
 
     let tdp_sd_delete_request =
         Box::new(move |req: SharedDirectoryDeleteRequest| -> RdpResult<()> {
-            debug!("sending: {:?}", req);
+            debug!("sending TDP SharedDirectoryDeleteRequest: {:?}", req);
             // Create C compatible string from req.path
             match CString::new(req.path.clone()) {
                 Ok(c_string) => {
@@ -362,6 +363,38 @@ fn connect_rdp_inner(
             }
         });
 
+    let tdp_sd_list_request = Box::new(move |req: SharedDirectoryListRequest| -> RdpResult<()> {
+        debug!("sending TDP SharedDirectoryListRequest: {:?}", req);
+        // Create C compatible string from req.path
+        match CString::new(req.path.clone()) {
+            Ok(c_string) => {
+                unsafe {
+                    let err = tdp_sd_list_request(
+                        go_ref,
+                        &mut CGOSharedDirectoryListRequest {
+                            completion_id: req.completion_id,
+                            directory_id: req.directory_id,
+                            path: c_string.as_ptr(),
+                        },
+                    );
+                    if err != CGOErrCode::ErrCodeSuccess {
+                        return Err(RdpError::TryError(String::from(
+                            "call to tdp_sd_list_request failed",
+                        )));
+                    };
+                }
+                Ok(())
+            }
+            Err(_) => {
+                // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
+                return Err(RdpError::TryError(format!(
+                    "path contained characters that couldn't be converted to a C string: {}",
+                    req.path
+                )));
+            }
+        }
+    });
+
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(rdpdr::Config {
         cert_der: params.cert_der,
@@ -372,6 +405,7 @@ fn connect_rdp_inner(
         tdp_sd_info_request,
         tdp_sd_create_request,
         tdp_sd_delete_request,
+        tdp_sd_list_request,
     });
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -1030,13 +1064,26 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct FileSystemObject {
     last_modified: u64,
     size: u64,
     file_type: FileType,
     path: String,
+}
+
+impl FileSystemObject {
+    fn name(&self) -> RdpResult<String> {
+        if let Some(name) = self.path.split('/').last() {
+            Ok(name.to_string())
+        } else {
+            Err(try_error(&format!(
+                "failed to extract name from path: {:?}",
+                self.path
+            )))
+        }
+    }
 }
 
 #[repr(C)]
@@ -1103,24 +1150,27 @@ pub struct SharedDirectoryCreateResponse {
     pub err_code: TdpErrCode,
 }
 
-type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
-
-#[derive(Debug)]
-pub struct SharedDirectoryDeleteRequest {
+#[allow(dead_code)]
+pub struct SharedDirectoryListResponse {
     completion_id: u32,
-    directory_id: u32,
-    path: String,
+    err_code: TdpErrCode,
+    fso_list: Vec<FileSystemObject>,
 }
 
 #[repr(C)]
-pub struct CGOSharedDirectoryDeleteRequest {
-    pub completion_id: u32,
-    pub directory_id: u32,
-    pub path: *const c_char,
+pub struct CGOSharedDirectoryListResponse {
+    completion_id: u32,
+    err_code: TdpErrCode,
+    fso_list: *mut CGOFileSystemObject,
 }
 
+pub type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
+pub type SharedDirectoryDeleteRequest = SharedDirectoryInfoRequest;
+pub type CGOSharedDirectoryDeleteRequest = CGOSharedDirectoryInfoRequest;
 pub type SharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
 pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
+pub type SharedDirectoryListRequest = SharedDirectoryInfoRequest;
+pub type CGOSharedDirectoryListRequest = CGOSharedDirectoryInfoRequest;
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
@@ -1141,6 +1191,10 @@ extern "C" {
     fn tdp_sd_delete_request(
         client_ref: usize,
         req: *mut CGOSharedDirectoryDeleteRequest,
+    ) -> CGOErrCode;
+    fn tdp_sd_list_request(
+        client_ref: usize,
+        req: *mut CGOSharedDirectoryListRequest,
     ) -> CGOErrCode;
 }
 
