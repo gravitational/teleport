@@ -230,13 +230,14 @@ You can learn more about `tsh` in the [User Manual](../server-access/guides/tsh.
 ### `tctl`
 
 `tctl` is used to administer a Teleport cluster. It connects to the Teleport
-Auth Service and allows a cluster administrator to manage nodes and users in the
-cluster.
+Auth Service and allows an administrator to manage Nodes, users, and other
+resources in the cluster.
 
-`tctl` is also a tool that can be used to modify the dynamic configuration of
-the cluster, like creating new user roles or connecting trusted clusters.
+When running `tctl`, a user must authenticate to a Teleport cluster. `tctl` can
+be run either on the same host as the Teleport Auth Service or from a remote
+host.
 
-You can learn more about `tctl` in the [Admin Manual](../setup/admin.mdx).
+You can learn more about `tctl` in the [CLI Reference](../setup/reference/cli.mdx#tctl).
 
 ## Next steps
 
