@@ -1,5 +1,19 @@
 # Changelog
 
+## 9.2.4
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed compatibility issue with agents connected to older auth servers. [#12728](https://github.com/gravitational/teleport/pull/12728)
+* Fixed issue with TLS routing endpoint advertising preference for `http/1.1` over `h2`. [#12749](https://github.com/gravitational/teleport/pull/12749)
+* Implemented multiple proxy restart stability improvements. [#12632](https://github.com/gravitational/teleport/pull/12632), [#12488](https://github.com/gravitational/teleport/pull/12488), [#12689](https://github.com/gravitational/teleport/pull/12689)
+* Improved compatibility with PuTTY. [#12662](https://github.com/gravitational/teleport/pull/12662)
+* Added support for global tsh config file `/etc/tsh.yaml`. [#12626](https://github.com/gravitational/teleport/pull/12626)
+* Added `tbot configure` command. [#12576](https://github.com/gravitational/teleport/pull/12576)
+* Fixed issue with Desktop Access not working in Teleport Cloud. [#12781](https://github.com/gravitational/teleport/pull/12781)
+* Improved Web UI performance in large clusters. [#12637](https://github.com/gravitational/teleport/pull/12637)
+* Fixed issue with running MySQL stored procedures via Database Access. [#12734](https://github.com/gravitational/teleport/pull/12734)
+
 ## 9.2.3
 
 This release of Teleport contains multiple improvements and bug fixes.

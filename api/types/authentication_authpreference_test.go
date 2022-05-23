@@ -89,7 +89,7 @@ func TestU2FFacetValidation(t *testing.T) {
 					"http://foo.com:3080",
 				},
 			},
-			assertFn: require.Error,
+			assertFn: require.NoError,
 		},
 		{
 			name: "same-domain-www-prefix",
@@ -111,7 +111,7 @@ func TestU2FFacetValidation(t *testing.T) {
 					"https://foo.com:3080",
 				},
 			},
-			assertFn: require.Error,
+			assertFn: require.NoError,
 		},
 		{
 			name: "naked-protocol",
@@ -122,7 +122,7 @@ func TestU2FFacetValidation(t *testing.T) {
 					"foo.com:3080",
 				},
 			},
-			assertFn: require.Error,
+			assertFn: require.NoError,
 		},
 		{
 			name: "localhost-naked-protocol",
