@@ -695,7 +695,7 @@ find a usable shell, `tsh exec` will try in order: `$SHELL` env variable, `sh`
 , `bash`. The flag `--shell` allows for overriding of the executable to run,
 while all arguments passed to command are fed as-is.
 
-The command will be executed under modified environment, enriched with the following variables:
+The command will be executed under a modified environment, enriched with the following variables:
 
 | Name          | Value                                                |
 |---------------|------------------------------------------------------|
@@ -718,13 +718,13 @@ $ tsh exec -- -c 'echo $TSH $TSH_COMMAND $2 $1 $0' arg0 arg1 arg2
 /bin/tsh /bin/bash arg2 arg1 arg0
 ```
 
-Login to cluster `leaf` and ssh as `ubuntu` to `node-1`:
+Log in to cluster `leaf` and SSH as `ubuntu` to `node-1`:
 
 ```code
 $ tsh exec -- -c '$TSH login --proxy=tele.example.com $0 && $TSH ssh $1' leaf ubuntu@node-1
 ```
 
-Execute Python script using `python3` as interpreter:
+Execute a Python script using `python3` as the interpreter:
 
 ```code
 $ tsh exec --shell python3 -- -c "import os; print('path to tsh:', os.environ['TSH'])"
