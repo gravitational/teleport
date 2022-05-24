@@ -1,6 +1,6 @@
 {
   "name": "@gravitational/teleterm",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Teleport Connect",
   "main": "build/app/dist/main/main.js",
   "author": {
@@ -38,7 +38,7 @@
     "@types/google-protobuf": "^3.10.0",
     "clean-webpack-plugin": "4.0.0",
     "cross-env": "5.0.5",
-    "electron": "18.2.0",
+    "electron": "19.0.0",
     "electron-debug": "^3.2.0",
     "electron-notarize": "^1.2.1",
     "eslint-import-resolver-webpack": "0.13.2",
@@ -55,7 +55,6 @@
   },
   "productName": "Teleport Connect Preview",
   "build": {
-    "electronVersion": "18.2.0",
     "appId": "gravitational.teleport.connect",
     "asar": true,
     "asarUnpack": "**\\*.{node,dll}",
