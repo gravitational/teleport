@@ -302,7 +302,7 @@ func TestTokenSession(t *testing.T) {
 
 	require.NoError(t, err)
 
-	appSessions, err := testCtx.authServer.GetAppSessions(ctx)
+	appSessions, err := testCtx.authServer.GetSnowflakeSessions(ctx)
 	require.NoError(t, err)
 	require.Len(t, appSessions, 2)
 

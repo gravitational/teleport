@@ -1226,6 +1226,59 @@ func (g *GRPCServer) GetSnowflakeSession(ctx context.Context, req *proto.GetSnow
 	}, nil
 }
 
+func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *empty.Empty) (*proto.GetSnowflakeSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, err := auth.GetSnowflakeSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var out []*types.WebSessionV2
+	for _, session := range sessions {
+		sess, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", session)
+		}
+		out = append(out, sess)
+	}
+
+	return &proto.GetSnowflakeSessionsResponse{
+		Sessions: out,
+	}, nil
+}
+
+func (g *GRPCServer) DeleteSnowflakeSession(ctx context.Context, req *proto.DeleteSnowflakeSessionRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteSnowflakeSession(ctx, types.DeleteSnowflakeSessionRequest{
+		SessionID: req.GetSessionID(),
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) DeleteAllSnowflakeSessions(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteAllSnowflakeSessions(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (*proto.CreateAppSessionResponse, error) {
@@ -1259,7 +1312,7 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *proto.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := auth.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+	snowflakeSession, err := auth.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 		Username:     req.GetUsername(),
 		SessionToken: req.GetSessionToken(),
 		TokenTTL:     time.Duration(req.TokenTTL),
@@ -1267,9 +1320,9 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *proto.Crea
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, ok := session.(*types.WebSessionV2)
+	sess, ok := snowflakeSession.(*types.WebSessionV2)
 	if !ok {
-		return nil, trace.BadParameter("unexpected type %T", session)
+		return nil, trace.BadParameter("unexpected type %T", snowflakeSession)
 	}
 
 	return &proto.CreateSnowflakeSessionResponse{

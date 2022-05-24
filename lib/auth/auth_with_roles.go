@@ -3657,7 +3657,7 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 
 // GetSnowflakeSession gets a Snowflake web session.
 func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
-	session, err := a.authServer.GetAppSession(ctx, req)
+	session, err := a.authServer.GetSnowflakeSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3680,6 +3680,19 @@ func (a *ServerWithRoles) GetAppSessions(ctx context.Context) ([]types.WebSessio
 	}
 
 	sessions, err := a.authServer.GetAppSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sessions, nil
+}
+
+// GetSnowflakeSessions gets all Snowflake web sessions.
+func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, err := a.authServer.GetSnowflakeSessions(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3718,6 +3731,11 @@ func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session types.We
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertSnowflakeSession not implemented: can only be called locally.
+func (a *ServerWithRoles) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAppSession removes an application web session.
 func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest(req))
@@ -3729,6 +3747,34 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 		return trace.Wrap(err)
 	}
 	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteSnowflakeSession removes a Snowflake web session.
+func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSnowflakeSessionRequest) error {
+	session, err := a.authServer.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest(req))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Check if user can delete this web session.
+	if err := a.canDeleteWebSession(session.GetUser()); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.authServer.DeleteSnowflakeSession(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
+func (a *ServerWithRoles) DeleteAllSnowflakeSessions(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteAllSnowflakeSessions(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

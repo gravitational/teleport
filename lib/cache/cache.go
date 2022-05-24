@@ -364,21 +364,22 @@ type Cache struct {
 	// regularly called methods.
 	fnCache *utils.FnCache
 
-	trustCache           services.Trust
-	clusterConfigCache   services.ClusterConfiguration
-	provisionerCache     services.Provisioner
-	usersCache           services.UsersService
-	accessCache          services.Access
-	dynamicAccessCache   services.DynamicAccessExt
-	presenceCache        services.Presence
-	restrictionsCache    services.Restrictions
-	appsCache            services.Apps
-	databasesCache       services.Databases
-	appSessionCache      services.AppSession
-	webSessionCache      types.WebSessionInterface
-	webTokenCache        types.WebTokenInterface
-	windowsDesktopsCache services.WindowsDesktops
-	eventsFanout         *services.FanoutSet
+	trustCache            services.Trust
+	clusterConfigCache    services.ClusterConfiguration
+	provisionerCache      services.Provisioner
+	usersCache            services.UsersService
+	accessCache           services.Access
+	dynamicAccessCache    services.DynamicAccessExt
+	presenceCache         services.Presence
+	restrictionsCache     services.Restrictions
+	appsCache             services.Apps
+	databasesCache        services.Databases
+	appSessionCache       services.AppSession
+	snowflakeSessionCache services.SnowflakeSession
+	webSessionCache       types.WebSessionInterface
+	webTokenCache         types.WebTokenInterface
+	windowsDesktopsCache  services.WindowsDesktops
+	eventsFanout          *services.FanoutSet
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -423,40 +424,42 @@ func (c *Cache) read() (readGuard, error) {
 	c.rw.RLock()
 	if c.ok {
 		return readGuard{
-			trust:           c.trustCache,
-			clusterConfig:   c.clusterConfigCache,
-			provisioner:     c.provisionerCache,
-			users:           c.usersCache,
-			access:          c.accessCache,
-			dynamicAccess:   c.dynamicAccessCache,
-			presence:        c.presenceCache,
-			restrictions:    c.restrictionsCache,
-			apps:            c.appsCache,
-			databases:       c.databasesCache,
-			appSession:      c.appSessionCache,
-			webSession:      c.webSessionCache,
-			webToken:        c.webTokenCache,
-			release:         c.rw.RUnlock,
-			windowsDesktops: c.windowsDesktopsCache,
+			trust:            c.trustCache,
+			clusterConfig:    c.clusterConfigCache,
+			provisioner:      c.provisionerCache,
+			users:            c.usersCache,
+			access:           c.accessCache,
+			dynamicAccess:    c.dynamicAccessCache,
+			presence:         c.presenceCache,
+			restrictions:     c.restrictionsCache,
+			apps:             c.appsCache,
+			databases:        c.databasesCache,
+			appSession:       c.appSessionCache,
+			snowflakeSession: c.SnowflakeSession,
+			webSession:       c.webSessionCache,
+			webToken:         c.webTokenCache,
+			release:          c.rw.RUnlock,
+			windowsDesktops:  c.windowsDesktopsCache,
 		}, nil
 	}
 	c.rw.RUnlock()
 	return readGuard{
-		trust:           c.Config.Trust,
-		clusterConfig:   c.Config.ClusterConfig,
-		provisioner:     c.Config.Provisioner,
-		users:           c.Config.Users,
-		access:          c.Config.Access,
-		dynamicAccess:   c.Config.DynamicAccess,
-		presence:        c.Config.Presence,
-		restrictions:    c.Config.Restrictions,
-		apps:            c.Config.Apps,
-		databases:       c.Config.Databases,
-		appSession:      c.Config.AppSession,
-		webSession:      c.Config.WebSession,
-		webToken:        c.Config.WebToken,
-		windowsDesktops: c.Config.WindowsDesktops,
-		release:         nil,
+		trust:            c.Config.Trust,
+		clusterConfig:    c.Config.ClusterConfig,
+		provisioner:      c.Config.Provisioner,
+		users:            c.Config.Users,
+		access:           c.Config.Access,
+		dynamicAccess:    c.Config.DynamicAccess,
+		presence:         c.Config.Presence,
+		restrictions:     c.Config.Restrictions,
+		apps:             c.Config.Apps,
+		databases:        c.Config.Databases,
+		appSession:       c.Config.AppSession,
+		snowflakeSession: c.SnowflakeSession,
+		webSession:       c.Config.WebSession,
+		webToken:         c.Config.WebToken,
+		windowsDesktops:  c.Config.WindowsDesktops,
+		release:          nil,
 	}, nil
 }
 
@@ -465,22 +468,23 @@ func (c *Cache) read() (readGuard, error) {
 // function for the read lock, and ensures that it is not
 // double-called.
 type readGuard struct {
-	trust           services.Trust
-	clusterConfig   services.ClusterConfiguration
-	provisioner     services.Provisioner
-	users           services.UsersService
-	access          services.Access
-	dynamicAccess   services.DynamicAccessCore
-	presence        services.Presence
-	appSession      services.AppSession
-	restrictions    services.Restrictions
-	apps            services.Apps
-	databases       services.Databases
-	webSession      types.WebSessionInterface
-	webToken        types.WebTokenInterface
-	windowsDesktops services.WindowsDesktops
-	release         func()
-	released        bool
+	trust            services.Trust
+	clusterConfig    services.ClusterConfiguration
+	provisioner      services.Provisioner
+	users            services.UsersService
+	access           services.Access
+	dynamicAccess    services.DynamicAccessCore
+	presence         services.Presence
+	appSession       services.AppSession
+	snowflakeSession services.SnowflakeSession
+	restrictions     services.Restrictions
+	apps             services.Apps
+	databases        services.Databases
+	webSession       types.WebSessionInterface
+	webToken         types.WebTokenInterface
+	windowsDesktops  services.WindowsDesktops
+	release          func()
+	released         bool
 }
 
 // Release releases the read lock if it is held.  This method
@@ -531,7 +535,7 @@ type Config struct {
 	// Databases is a databases service.
 	Databases services.Databases
 	// SnowflakeSession holds Snowflake sessions.
-	SnowflakeSession services.AppSession
+	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
 	AppSession services.AppSession
 	// WebSession holds regular web sessions.
@@ -659,27 +663,28 @@ func New(config Config) (*Cache, error) {
 
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
-		ctx:                  ctx,
-		cancel:               cancel,
-		Config:               config,
-		generation:           atomic.NewUint64(0),
-		initC:                make(chan struct{}),
-		fnCache:              fnCache,
-		trustCache:           local.NewCAService(config.Backend),
-		clusterConfigCache:   clusterConfigCache,
-		provisionerCache:     local.NewProvisioningService(config.Backend),
-		usersCache:           local.NewIdentityService(config.Backend),
-		accessCache:          local.NewAccessService(config.Backend),
-		dynamicAccessCache:   local.NewDynamicAccessService(config.Backend),
-		presenceCache:        local.NewPresenceService(config.Backend),
-		restrictionsCache:    local.NewRestrictionsService(config.Backend),
-		appsCache:            local.NewAppService(config.Backend),
-		databasesCache:       local.NewDatabasesService(config.Backend),
-		appSessionCache:      local.NewIdentityService(config.Backend),
-		webSessionCache:      local.NewIdentityService(config.Backend).WebSessions(),
-		webTokenCache:        local.NewIdentityService(config.Backend).WebTokens(),
-		windowsDesktopsCache: local.NewWindowsDesktopService(config.Backend),
-		eventsFanout:         services.NewFanoutSet(),
+		ctx:                   ctx,
+		cancel:                cancel,
+		Config:                config,
+		generation:            atomic.NewUint64(0),
+		initC:                 make(chan struct{}),
+		fnCache:               fnCache,
+		trustCache:            local.NewCAService(config.Backend),
+		clusterConfigCache:    clusterConfigCache,
+		provisionerCache:      local.NewProvisioningService(config.Backend),
+		usersCache:            local.NewIdentityService(config.Backend),
+		accessCache:           local.NewAccessService(config.Backend),
+		dynamicAccessCache:    local.NewDynamicAccessService(config.Backend),
+		presenceCache:         local.NewPresenceService(config.Backend),
+		restrictionsCache:     local.NewRestrictionsService(config.Backend),
+		appsCache:             local.NewAppService(config.Backend),
+		databasesCache:        local.NewDatabasesService(config.Backend),
+		appSessionCache:       local.NewIdentityService(config.Backend),
+		snowflakeSessionCache: local.NewIdentityService(config.Backend),
+		webSessionCache:       local.NewIdentityService(config.Backend).WebSessions(),
+		webTokenCache:         local.NewIdentityService(config.Backend).WebTokens(),
+		windowsDesktopsCache:  local.NewWindowsDesktopService(config.Backend),
+		eventsFanout:          services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -1749,6 +1754,16 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 	}
 	defer rg.Release()
 	return rg.appSession.GetAppSession(ctx, req)
+}
+
+// GetSnowflakeSession gets Snowflake web session.
+func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.snowflakeSession.GetSnowflakeSession(ctx, req)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.

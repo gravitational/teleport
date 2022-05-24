@@ -865,7 +865,7 @@ func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
 
 func newSnowflakeSessionParser() *webSessionParser {
 	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
+		baseParser: newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindSnowflakeSession,

@@ -1134,6 +1134,20 @@ func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error)
 	return out, nil
 }
 
+// GetSnowflakeSessions gets all Snowflake web sessions.
+func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	resp, err := c.grpc.GetSnowflakeSessions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	out := make([]types.WebSession, 0, len(resp.GetSessions()))
+	for _, v := range resp.GetSessions() {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
@@ -1184,8 +1198,22 @@ func (c *Client) DeleteAppSession(ctx context.Context, req types.DeleteAppSessio
 	return trail.FromGRPC(err)
 }
 
+// DeleteSnowflakeSession removes a Snowflake web session.
+func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSnowflakeSessionRequest) error {
+	_, err := c.grpc.DeleteSnowflakeSession(ctx, &proto.DeleteSnowflakeSessionRequest{
+		SessionID: req.SessionID,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteAllAppSessions removes all application web sessions.
 func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllAppSessions(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
+func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllAppSessions(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
 }

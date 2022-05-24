@@ -111,27 +111,31 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
 func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
-	return waitForWebSession(ctx, sessionID, user, types.KindAppSession, ap.NewWatcher, ap.GetAppSession)
+	return waitForWebSession(ctx, sessionID, user, types.KindAppSession, ap.NewWatcher, func(ctx context.Context, sessionID string) (types.WebSession, error) {
+		return ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+	})
 }
 
 // WaitForSnowflakeSession waits until the requested Snowflake session shows up int the cache
 // or a timeout occurs.
 func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap SnowflakeSessionWatcher) error {
-	return waitForWebSession(ctx, sessionID, user, types.KindSnowflakeSession, ap.NewWatcher, ap.GetSnowflakeSession)
+	return waitForWebSession(ctx, sessionID, user, types.KindSnowflakeSession, ap.NewWatcher, func(ctx context.Context, sessionID string) (types.WebSession, error) {
+		return ap.GetSnowflakeSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+	})
 }
 
 // waitForWebSession is an implementation for web session wait functions.
 func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind string,
 	newWatcherFn func(ctx context.Context, watch types.Watch) (types.Watcher, error),
-	getSessionFn func(context.Context, types.GetAppSessionRequest) (types.WebSession, error),
+	getSessionFn func(ctx context.Context, sessionID string) (types.WebSession, error),
 ) error {
-	_, err := getSessionFn(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+	_, err := getSessionFn(ctx, sessionID)
 	if err == nil {
 		return nil
 	}
 	logger := log.WithField("session", sessionID)
 	if !trace.IsNotFound(err) {
-		logger.WithError(err).Debug("Failed to query application session.")
+		logger.WithError(err).Debug("Failed to query web session.")
 	}
 	// Establish a watch on application session.
 	watcher, err := newWatcherFn(ctx, types.Watch{
@@ -160,9 +164,9 @@ func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind 
 	}
 	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), clockwork.NewRealClock())
 	if err != nil {
-		logger.WithError(err).Warn("Failed to wait for application session.")
+		logger.WithError(err).Warn("Failed to wait for web session.")
 		// See again if we maybe missed the event but the session was actually created.
-		if _, err := getSessionFn(ctx, types.GetAppSessionRequest{SessionID: sessionID}); err == nil {
+		if _, err := getSessionFn(ctx, sessionID); err == nil {
 			return nil
 		}
 	}
@@ -281,7 +285,7 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
+	if err = s.Identity.UpsertSnowflakeSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated Snowflake web session for %v with TTL %v.", req.Username, ttl)

@@ -1810,6 +1810,7 @@ const (
 	remoteClustersPrefix         = "remoteClusters"
 	nodesPrefix                  = "nodes"
 	appsPrefix                   = "apps"
+	snowflakePrefix              = "snowflake"
 	serversPrefix                = "servers"
 	dbServersPrefix              = "databaseServers"
 	appServersPrefix             = "appServers"

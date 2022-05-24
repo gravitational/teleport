@@ -73,7 +73,7 @@ type testPack struct {
 	dynamicAccessS    services.DynamicAccessCore
 	presenceS         services.Presence
 	appSessionS       services.AppSession
-	snowflakeSessionS services.AppSession
+	snowflakeSessionS services.SnowflakeSession
 	restrictions      services.Restrictions
 	apps              services.Apps
 	databases         services.Databases
@@ -2621,6 +2621,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindApp:                     &types.AppV3{},
 		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
 		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
+		types.KindSnowflakeSession:        &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
 		types.KindWebToken:                &types.WebTokenV3{},
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
 		types.KindKubeService:             &types.ServerV2{},

@@ -644,6 +644,12 @@ message GetAppSessionsResponse {
     repeated types.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
 }
 
+// GetSnowflakeSessionsResponse contains all the requested Snowflake web sessions.
+message GetSnowflakeSessionsResponse {
+    // Sessions is a list of Snowflake web sessions.
+    repeated types.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
+}
+
 // CreateAppSessionRequest contains the parameters to request a application web session.
 message CreateAppSessionRequest {
     reserved 2;
@@ -692,6 +698,11 @@ message GetSnowflakeSessionResponse {
 
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
+
+// DeleteSnowflakeSessionRequest contains the parameters used to remove a Snowflake web session.
+message DeleteSnowflakeSessionRequest {
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+}
 
 // DeleteUserAppSessionsRequest contains the parameters used to remove the
 // user's application web sessions.
@@ -1888,18 +1899,25 @@ service AuthService {
     // CreateAppSession creates an application web session. Application web
     // sessions represent a browser session the client holds.
     rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);
-    // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
-    // Snowflake integration.
-    rpc CreateSnowflakeSession(CreateSnowflakeSessionRequest)
-        returns (CreateSnowflakeSessionResponse);
-    // GetSnowflakeSession returns web session with sub kind Snowflake.
-    rpc GetSnowflakeSession(GetSnowflakeSessionRequest) returns (GetSnowflakeSessionResponse);
     // DeleteAppSession removes an application web session.
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllAppSessions removes all application web sessions.
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
     // DeleteUserAppSessions deletes all user’s application sessions.
     rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
+
+    // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
+    // Snowflake integration.
+    rpc CreateSnowflakeSession(CreateSnowflakeSessionRequest)
+        returns (CreateSnowflakeSessionResponse);
+    // GetSnowflakeSession returns a web session with sub kind Snowflake.
+    rpc GetSnowflakeSession(GetSnowflakeSessionRequest) returns (GetSnowflakeSessionResponse);
+    // GetSnowflakeSessions gets all Snowflake web sessions.
+    rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse);
+    // DeleteSnowflakeSession removes a Snowflake web session.
+    rpc DeleteSnowflakeSession(DeleteSnowflakeSessionRequest) returns (google.protobuf.Empty);
+    // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
+    rpc DeleteAllSnowflakeSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // GetWebSession gets a web session.
     rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);

@@ -330,6 +330,12 @@ type DeleteAppSessionRequest struct {
 	SessionID string `json:"session_id"`
 }
 
+// DeleteSnowflakeSessionRequest are the parameters used to request removal of
+// a Snowflake web session.
+type DeleteSnowflakeSessionRequest struct {
+	SessionID string `json:"session_id"`
+}
+
 // NewWebToken returns a new web token with the given expiration and spec
 func NewWebToken(expires time.Time, spec WebTokenSpecV3) (WebToken, error) {
 	r := &WebTokenV3{
