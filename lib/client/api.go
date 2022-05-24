@@ -35,6 +35,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -426,7 +427,6 @@ type VirtualPathParams []string
 
 // VirtualPathCAParams returns parameters for selecting CA certificates.
 func VirtualPathCAParams(caType types.CertAuthType) VirtualPathParams {
-	// TODO: determine if we should accept a cluster name
 	return VirtualPathParams{
 		strings.ToUpper(string(caType)),
 	}
@@ -459,7 +459,7 @@ func VirtualPathEnvName(kind VirtualPathKind, params VirtualPathParams) string {
 	return strings.ToUpper(strings.Join(components, "_"))
 }
 
-// VirtualPathEnvName determines an ordered list of environment variables that
+// VirtualPathEnvNames determines an ordered list of environment variables that
 // should be checked to resolve an env var override. Params may be nil to
 // indicate no additional arguments are to be specified or accepted.
 func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []string {
@@ -545,6 +545,11 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 	return p.ValidUntil.Sub(clock.Now()) <= 0
 }
 
+// virtualPathWarnOnce is used to ensure warnings about missing virtual path
+// environment variables are consolidated into a single message and not spammed
+// to the console.
+var virtualPathWarnOnce sync.Once
+
 // virtualPathFromEnv attempts to retrieve the path as defined by the given
 // formatter from the environment.
 func (p *ProfileStatus) virtualPathFromEnv(kind VirtualPathKind, params VirtualPathParams) (string, bool) {
@@ -557,6 +562,19 @@ func (p *ProfileStatus) virtualPathFromEnv(kind VirtualPathKind, params VirtualP
 			return val, true
 		}
 	}
+
+	// If we can't resolve any env vars, this will return garbage which we
+	// should at least warn about. As ugly as this is, arguably making every
+	// profile path lookup fallible is even uglier.
+	log.Debugf("Could not resolve path to virtual profile entry of type %s "+
+		"with parameters %+v.", kind, params)
+
+	virtualPathWarnOnce.Do(func() {
+		log.Errorf("A virtual profile is in use due to an identity file " +
+			"(`-i ...`) but this functionality requires additional files on " +
+			"disk and may fail. Consider using a compatible wrapper " +
+			"application (e.g. Machine ID) for this command.")
+	})
 
 	return "", false
 }
@@ -870,8 +888,6 @@ func ReadProfileFromIdentity(key *Key, opts ProfileOptions) (*ProfileStatus, err
 // and returns a *ProfileStatus which can be used to print the status of the
 // profile.
 func ReadProfileStatus(profileDir string, profileName string) (*ProfileStatus, error) {
-	var err error
-
 	if profileDir == "" {
 		return nil, trace.BadParameter("profileDir cannot be empty")
 	}
@@ -909,7 +925,24 @@ func ReadProfileStatus(profileDir string, profileName string) (*ProfileStatus, e
 }
 
 // StatusCurrent returns the active profile status.
-func StatusCurrent(profileDir, proxyHost string) (*ProfileStatus, error) {
+func StatusCurrent(profileDir, proxyHost, identityFilePath string) (*ProfileStatus, error) {
+	if identityFilePath != "" {
+		key, err := KeyFromIdentityFile(identityFilePath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		profile, err := ReadProfileFromIdentity(key, ProfileOptions{
+			ProfileName:  "identity",
+			WebProxyAddr: proxyHost,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return profile, nil
+	}
+
 	active, _, err := Status(profileDir, proxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -918,30 +951,6 @@ func StatusCurrent(profileDir, proxyHost string) (*ProfileStatus, error) {
 		return nil, trace.NotFound("not logged in")
 	}
 	return active, nil
-}
-
-// StatusCurrentWithIdentity returns the current ProfileStatus, using a virtual
-// profile for the current identity file if one is in use.
-func StatusCurrentWithIdentity(profileDir, proxyAddr, identityFilePath string) (*ProfileStatus, error) {
-	// Keep regular behavior if there's no identity file.
-	if identityFilePath == "" {
-		return StatusCurrent(profileDir, proxyAddr)
-	}
-
-	key, err := KeyFromIdentityFile(identityFilePath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	profile, err := ReadProfileFromIdentity(key, ProfileOptions{
-		ProfileName:  "test",
-		WebProxyAddr: proxyAddr,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return profile, nil
 }
 
 // StatusFor returns profile for the specified proxy/user.
@@ -1396,7 +1405,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		// if the client was passed an agent in the configuration and skip local auth, use
 		// the passed in agent.
 		if c.Agent != nil {
-			webProxyHost, _ := tc.WebProxyHostPort()
+			webProxyHost := tc.WebProxyHost()
 
 			username := ""
 			var keyStore LocalKeyStore = noLocalKeyStore{}
@@ -1798,16 +1807,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
-	var session types.SessionTracker
-	sessions, err := site.GetActiveSessionTrackers(ctx)
-	if err != nil {
+	session, err := site.GetSessionTracker(ctx, string(sessionID))
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
-	}
-
-	for _, sessionIter := range sessions {
-		if sessionIter.GetSessionID() == string(sessionID) {
-			session = sessionIter
-		}
 	}
 
 	if session == nil {
@@ -3827,16 +3829,4 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 		}
 	}
 	return databases, nil
-}
-
-// GetActiveSessions fetches a list of all active sessions tracked by the SessionTracker resource
-// that the user has access to.
-func (tc *TeleportClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
-	proxy, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer proxy.Close()
-	return proxy.GetActiveSessions(ctx)
 }

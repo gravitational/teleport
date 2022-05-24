@@ -1231,9 +1231,22 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	logger := h.log.WithField("auth", "oidc")
 	logger.Debug("Callback start.")
 
-	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
+	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.Context(), r.URL.Query())
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
+
+		// try to find the auth request, which bears the original client redirect URL.
+		// if found, use it to terminate the flow.
+		//
+		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
+		if requestID := r.URL.Query().Get("state"); requestID != "" {
+			if request, errGet := h.cfg.ProxyClient.GetOIDCAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
+				if redURL, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
+					return redURL.String()
+				}
+			}
+		}
+
 		return client.LoginFailedBadCallbackRedirectURL
 	}
 
@@ -1472,18 +1485,26 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
+	clientMeta := clientMetaFromReq(r)
+
 	var webSession types.WebSession
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
+		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass, clientMeta)
 	case constants.SecondFactorOTP, constants.SecondFactorOn:
-		webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+		webSession, err = h.auth.AuthWithOTP(
+			req.User, req.Pass, req.SecondFactorToken, clientMeta,
+		)
 	case constants.SecondFactorOptional:
 		if req.SecondFactorToken == "" {
-			webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
+			webSession, err = h.auth.AuthWithoutOTP(
+				req.User, req.Pass, clientMeta,
+			)
 		} else {
-			webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+			webSession, err = h.auth.AuthWithOTP(
+				req.User, req.Pass, req.SecondFactorToken, clientMeta,
+			)
 		}
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
@@ -1515,6 +1536,15 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	return newSessionResponse(ctx)
+}
+
+func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
+	// multiplexer handles extracting real client IP using PROXY protocol where
+	// available, so we can omit checking X-Forwarded-For.
+	return &auth.ForwardedClientMetadata{
+		UserAgent:  r.UserAgent(),
+		RemoteAddr: r.RemoteAddr,
+	}
 }
 
 // deleteSession is called to sign out user
@@ -1777,7 +1807,8 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := h.auth.AuthenticateSSHUser(*req)
+	clientMeta := clientMetaFromReq(r)
+	cert, err := h.auth.AuthenticateSSHUser(*req, clientMeta)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1800,7 +1831,8 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := h.auth.AuthenticateWebUser(req)
+	clientMeta := clientMetaFromReq(r)
+	session, err := h.auth.AuthenticateWebUser(req, clientMeta)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
@@ -2442,17 +2474,19 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
+	clientMeta := clientMetaFromReq(r)
+
 	var cert *auth.SSHLoginResponse
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		cert, err = h.auth.GetCertificateWithoutOTP(*req)
+		cert, err = h.auth.GetCertificateWithoutOTP(*req, clientMeta)
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 		// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
 		if req.HOTPToken != "" {
 			req.OTPToken = req.HOTPToken
 		}
-		cert, err = h.auth.GetCertificateWithOTP(*req)
+		cert, err = h.auth.GetCertificateWithOTP(*req, clientMeta)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}

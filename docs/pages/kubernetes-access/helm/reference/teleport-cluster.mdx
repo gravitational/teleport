@@ -3,18 +3,10 @@ title: teleport-cluster Chart Reference
 description: Values that can be set using the teleport-cluster Helm chart
 ---
 
-The `teleport-cluster` Helm chart is used to deploy the Teleport Auth Service
-and Proxy Service, which is ideal for getting started with a self-hosted Teleport
-cluster on Kubernetes.
-
-<Notice scope={["cloud"]} type="warning">
-
-Teleport Cloud manages the Auth Service and Proxy Service for you. Use the
-`teleport-cluster` chart if you are interested in hosting Teleport yourself, or
-use the [`teleport-kube-agent`](./teleport-kube-agent.mdx) chart to deploy the
-Kubernetes Service, Application Service, or Database Service.
-
-</Notice>
+The `teleport-cluster` Helm chart deploys the `teleport` daemon on Kubernetes.
+You can use our preset configurations to deploy the Auth Service and Proxy
+Service, or a custom configuration to deploy agent services such as the Teleport
+Kubernetes Service or Database Service.
 
 You can
 [browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster).
