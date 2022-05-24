@@ -29,7 +29,7 @@ func promoteBuildPipeline() pipeline {
 
 // This function calls the build-apt-repos tool which handles the APT portion of RFD 0058.
 func promoteAptPipeline() pipeline {
-	testVersion := "7.3.18"
+	testVersion := "7.3.19"
 	aptVolumeName := "aptrepo"
 	artifactPath := "/go/artifacts"
 	pvcMountPoint := "/mnt"
@@ -153,7 +153,7 @@ func promoteAptPipeline() pipeline {
 				// "export VERSION=\"$(echo $DRONE_TAG | cut -d. -f1)\"",
 				fmt.Sprintf("export VERSION=\"$(echo v%s | cut -d. -f1)\"", testVersion),
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
-				"rm -rf /mnt/*",                     // Temporary to test recovery capabilities
+				// "rm -rf /mnt/*",                     // Temporary to test recovery capabilities
 				strings.Join(
 					[]string{
 						// This just makes the (long) command a little more readable
