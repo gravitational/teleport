@@ -159,14 +159,24 @@ func TestBufferedChannelPipeRead(t *testing.T) {
 	}
 }
 
+// BenchmarkBufferedChannelPipe is a benchmark test for writing
+// to a buffer, reading from it, and closing it.
 func BenchmarkBufferedChannelPipe(b *testing.B) {
-	buffer := newBufferedChannelPipe(sequenceBufferSize)
+	for n := 0; n < b.N; n++ {
+		b.Run(fmt.Sprint(n), func(b *testing.B) {
+			buffer := newBufferedChannelPipe(sequenceBufferSize)
 
-	go func() {
-		buffer.Write(make([]byte, b.N))
-		buffer.Close()
-	}()
+			errCh := make(chan error)
+			go func() {
+				_, err := io.ReadAll(buffer)
+				errCh <- err
+			}()
 
-	_, err := io.ReadAll(buffer)
-	require.NoError(b, err)
+			b.Cleanup(func() {
+				require.NoError(b, buffer.Close())
+				require.NoError(b, <-errCh)
+			})
+			buffer.Write(make([]byte, 100*sequenceBufferSize))
+		})
+	}
 }
