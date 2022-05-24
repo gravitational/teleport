@@ -1,4 +1,5 @@
 //go:build windows && cgo
+// +build windows,cgo
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -31,6 +32,8 @@ import (
 	"io"
 	"sync"
 	"unsafe"
+
+	"github.com/gravitational/trace"
 )
 
 var (
@@ -82,7 +85,9 @@ func readInputContinuous(quitHandle C.HANDLE) error {
 	C.ReadInputContinuous(quitHandle)
 
 	// Close the sequenceBuffer (terminal stdin)
-	sequenceBuffer.Close()
+	if err := sequenceBuffer.Close(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Once finished, close all existing subscriber channels to notify them
 	// of the close (they can resubscribe if it's ever restarted).
@@ -133,10 +138,7 @@ func Start() error {
 	// since waiting on channel sends is the main chokepoint. Without
 	// a sufficient buffer, the individual keystrokes won't be transmitted
 	// quickly enough for them to be grouped as a VT sequence by Windows.
-	// A buffer of 100 should provide ample buffer to hold several VT
-	// sequences (which are 5 bytes each max) and output them to the
-	// terminal in real time.
-	sequenceBuffer = newBufferedChannelPipe(100)
+	sequenceBuffer = newBufferedChannelPipe(sequenceBufferSize)
 
 	go readInputContinuous(runningQuitHandle)
 

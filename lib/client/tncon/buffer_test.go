@@ -26,19 +26,19 @@ import (
 
 func TestBufferedChannelPipeClose(t *testing.T) {
 	buffer := newBufferedChannelPipe(0)
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 
 	// Reading from a closed channel should return EOF
 	n, err := buffer.Read(make([]byte, 1))
 	require.Equal(t, 0, n)
 	require.Error(t, err)
-	require.Equal(t, io.EOF, err)
+	require.ErrorIs(t, err, io.EOF)
 
 	// Reading from a closed channel should return ErrClosedPipe
 	n, err = buffer.Write(make([]byte, 1))
 	require.Equal(t, 0, n)
 	require.Error(t, err)
-	require.Equal(t, io.ErrClosedPipe, err)
+	require.ErrorIs(t, err, io.EOF)
 }
 
 func TestBufferedChannelPipeWrite(t *testing.T) {
@@ -67,7 +67,7 @@ func TestBufferedChannelPipeWrite(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("buffer=%v, len=%v", tc.buffer, tc.len), func(t *testing.T) {
 			buffer := newBufferedChannelPipe(tc.buffer)
-			t.Cleanup(func() { buffer.Close() })
+			t.Cleanup(func() { require.NoError(t, buffer.Close()) })
 
 			// drain channel
 			rc := make(chan []byte)
@@ -140,7 +140,7 @@ func TestBufferedChannelPipeRead(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			buffer := newBufferedChannelPipe(tc.buffer)
-			t.Cleanup(func() { buffer.Close() })
+			t.Cleanup(func() { require.NoError(t, buffer.Close()) })
 
 			write := make([]byte, tc.writeLen)
 			for i := 0; i < tc.writeLen; i++ {
@@ -157,4 +157,16 @@ func TestBufferedChannelPipeRead(t *testing.T) {
 			require.Equal(t, write[:n], p[:n])
 		})
 	}
+}
+
+func BenchmarkBufferedChannelPipe(b *testing.B) {
+	buffer := newBufferedChannelPipe(sequenceBufferSize)
+
+	go func() {
+		buffer.Write(make([]byte, b.N))
+		buffer.Close()
+	}()
+
+	_, err := io.ReadAll(buffer)
+	require.NoError(b, err)
 }
