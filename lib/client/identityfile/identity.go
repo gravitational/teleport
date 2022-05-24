@@ -85,7 +85,7 @@ type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis}
+	FormatCockroach, FormatRedis, FormatSnowflake}
 
 // String returns human-readable version of FormatList, ex:
 // file, openssh, tls, kubernetes
