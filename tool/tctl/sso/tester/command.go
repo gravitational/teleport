@@ -68,6 +68,16 @@ func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *service.Con
 	}
 }
 
+func (cmd *SSOTestCommand) getSupportedKinds() []string {
+	var kinds []string
+
+	for kind := range cmd.Handlers {
+		kinds = append(kinds, kind)
+	}
+
+	return kinds
+}
+
 func (cmd *SSOTestCommand) ssoTestCommand(c auth.ClientI) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
@@ -92,11 +102,7 @@ func (cmd *SSOTestCommand) ssoTestCommand(c auth.ClientI) error {
 
 		handler, ok := cmd.Handlers[raw.Kind]
 		if !ok {
-			var kinds []string
-			for kind := range cmd.Handlers {
-				kinds = append(kinds, kind)
-			}
-			return trace.BadParameter("Resources of type %q are not supported. Supported kinds: %v", raw.Kind, kinds)
+			return trace.BadParameter("Resources of type %q are not supported. Supported kinds: %v", raw.Kind, cmd.getSupportedKinds())
 		}
 
 		requestInfo, err := handler(c, raw.Raw)
