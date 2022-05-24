@@ -161,6 +161,8 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
+	// NodeLabels is list of labels to add to newly created nodes.
+	NodeLabels string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -200,7 +202,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	s := makeSampleSSHConfig(conf, roles[defaults.RoleNode])
+	s := makeSampleSSHConfig(conf, flags, roles[defaults.RoleNode])
 
 	// Auth config:
 	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
@@ -246,7 +248,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
+func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) SSH {
 	var s SSH
 	if enabled {
 		s.EnabledFlag = "yes"
@@ -258,8 +260,13 @@ func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
 				Period:  time.Minute,
 			},
 		}
-		s.Labels = map[string]string{
-			"env": "example",
+		if len(flags.NodeLabels) > 0 {
+			labels := strings.Split(flags.NodeLabels, ",")
+			s.Labels = make(map[string]string)
+			for _, label := range labels {
+				parts := strings.Split(label, ":")
+				s.Labels[parts[0]] = parts[1]
+			}
 		}
 	} else {
 		s.EnabledFlag = "no"
