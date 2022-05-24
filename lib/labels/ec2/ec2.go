@@ -38,14 +38,14 @@ const (
 	ec2LabelUpdatePeriod = time.Hour
 )
 
-// EC2Config is the configuration for the EC2 label service.
-type EC2Config struct {
+// Config is the configuration for the EC2 label service.
+type Config struct {
 	Client aws.InstanceMetadata
 	Clock  clockwork.Clock
 	Log    logrus.FieldLogger
 }
 
-func (conf *EC2Config) checkAndSetDefaults(ctx context.Context) error {
+func (conf *Config) checkAndSetDefaults(ctx context.Context) error {
 	if conf.Client == nil {
 		client, err := utils.NewInstanceMetadataClient(ctx)
 		if err != nil {
@@ -65,14 +65,14 @@ func (conf *EC2Config) checkAndSetDefaults(ctx context.Context) error {
 // EC2 is a service that periodically imports tags from EC2 via instance
 // metadata.
 type EC2 struct {
-	c      *EC2Config
+	c      *Config
 	mu     sync.RWMutex
 	labels map[string]string
 
 	closeCh chan struct{}
 }
 
-func New(ctx context.Context, c *EC2Config) (*EC2, error) {
+func New(ctx context.Context, c *Config) (*EC2, error) {
 	if err := c.checkAndSetDefaults(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
