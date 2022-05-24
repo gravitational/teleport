@@ -22,6 +22,7 @@ package snowflake
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -153,5 +154,46 @@ type renewSessionResponse struct {
 // In our case we only care about SQLText as this is the field that contain the
 // SQL query that we need to log.
 type queryRequest struct {
-	SQLText string `json:"sqlText"`
+	SQLText    string                       `json:"sqlText"`
+	Parameters map[string]interface{}       `json:"parameters,omitempty"`
+	Bindings   map[string]execBindParameter `json:"bindings,omitempty"`
+	BindStage  string                       `json:"bindStage,omitempty"`
+}
+
+type execBindParameter struct {
+	Type  string      `json:"type"`
+	Value interface{} `json:"value"`
+}
+
+func (q *queryRequest) paramsToSlice() []string {
+	args := make([]string, 0)
+
+	args = append(args, queryBindingsToSlice(q.Bindings)...)
+	args = append(args, queryParametersToSlice(q.Parameters)...)
+
+	if q.BindStage != "" {
+		args = append(args, fmt.Sprintf("bindStage:%s", q.BindStage))
+	}
+
+	return args
+}
+
+func queryParametersToSlice(parameters map[string]interface{}) []string {
+	params := make([]string, 0)
+
+	for k, v := range parameters {
+		params = append(params, fmt.Sprintf("parameters:{%v:%v}", k, v))
+	}
+
+	return params
+}
+
+func queryBindingsToSlice(bindings map[string]execBindParameter) []string {
+	values := make([]string, 0)
+
+	for k, v := range bindings {
+		values = append(values, fmt.Sprintf("bindings:{%v:[%v,%v]}", k, v.Type, v.Value))
+	}
+
+	return values
 }
