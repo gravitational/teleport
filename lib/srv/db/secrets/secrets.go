@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	// PreviousVersion is a special version string that indicates the current
+	// CurrentVersion is a special version string that indicates the current
 	// version of the secret.
 	CurrentVersion = "CURRENT"
 
@@ -38,9 +38,10 @@ const (
 // key path and a list of versions that hold copies of current or past secret
 // values.
 type Secrets interface {
-	// Create creates the secret with the provided path and creates first
-	// version with provided value.
-	Create(ctx context.Context, key, value string) error
+	// CreateOrUpdate creates the secret with the provided path and creates
+	// first version with provided value. If secret already exists, it may try
+	// to update some settings depending on the implementation and its config.
+	CreateOrUpdate(ctx context.Context, key, value string) error
 
 	// Delete deletes the secret with the provided path. All versions of the
 	// secret are deleted at the same time.

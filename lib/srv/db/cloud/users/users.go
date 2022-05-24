@@ -56,8 +56,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.Interval == 0 {
-		// A AWS Secrets Manager secret can have at most 100 versions per day
-		// (about one new version per 15 minutes).
+		// An AWS Secrets Manager secret can have at most 100 versions per day.
+		// That is 14 minutes and 24 seconds per version at minimum. Using 15
+		// minutes here to be safe. Also with the extra jitter added, the real
+		// average on rotation will be over 16 minutes apart.
 		//
 		// https://docs.aws.amazon.com/secretsmanager/latest/userguide/reference_limits.html
 		//
@@ -160,10 +162,10 @@ func (u *Users) Start(ctx context.Context, getAllDatabases func() types.Database
 	for {
 		select {
 		case database := <-u.setupDatabaseChan:
-			u.setupDatabase(ctx, database)
+			u.setupDatabaseAndRotatePasswords(ctx, database)
 
 		case <-ticker.Next():
-			u.setupAllDatabases(ctx, getAllDatabases())
+			u.setupAllDatabasesAndRotatePassowrds(ctx, getAllDatabases())
 
 		case <-ctx.Done():
 			return
@@ -171,16 +173,16 @@ func (u *Users) Start(ctx context.Context, getAllDatabases func() types.Database
 	}
 }
 
-// setupDatabase performs setup for a single database.
-func (u *Users) setupDatabase(ctx context.Context, database types.Database) {
+// setupDatabaseAndRotatePasswords performs setup for a single database.
+func (u *Users) setupDatabaseAndRotatePasswords(ctx context.Context, database types.Database) {
 	// Database metadata is already refreshed once during database
 	// registration so no need to do it again.
-	u.setupDatabases(ctx, types.Databases{database}, false /*updateMeta*/)
+	u.setupDatabasesAndRotatePasswords(ctx, types.Databases{database}, false /*updateMeta*/)
 }
 
-// setupAllDatabases performs setup for all databases.
-func (u *Users) setupAllDatabases(ctx context.Context, allDatabases types.Databases) {
-	u.setupDatabases(ctx, allDatabases, true)
+// setupAllDatabasesAndRotatePassowrds performs setup for all databases.
+func (u *Users) setupAllDatabasesAndRotatePassowrds(ctx context.Context, allDatabases types.Databases) {
+	u.setupDatabasesAndRotatePasswords(ctx, allDatabases, true)
 
 	// Clean up.
 	u.lookup.removeUnusedDatabases(allDatabases)
@@ -196,8 +198,9 @@ func (u *Users) setupAllDatabases(ctx context.Context, allDatabases types.Databa
 	}
 }
 
-// setupDatabases performs setup for provided databases.
-func (u *Users) setupDatabases(ctx context.Context, databases types.Databases, updateMeta bool) {
+// setupDatabasesAndRotatePasswords performs setup for provided databases and
+// rotate user passwords.
+func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases types.Databases, updateMeta bool) {
 	for _, database := range databases {
 		fetcher, found := u.fetchersByType[database.GetType()]
 		if !found {

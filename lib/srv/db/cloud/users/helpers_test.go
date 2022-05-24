@@ -48,9 +48,9 @@ func TestLookupMap(t *testing.T) {
 	t.Run("getDatabaseUser", func(t *testing.T) {
 		for _, db := range []types.Database{db1, db2, db3} {
 			for _, user := range []User{user1, user2, user3} {
-				userGet, found := lookup.getDatabaseUser(db, user.GetInDatabaseName())
+				userGet, found := lookup.getDatabaseUser(db, user.GetDatabaseUsername())
 
-				if utils.SliceContainsStr(db.GetManagedUsers(), user.GetInDatabaseName()) {
+				if utils.SliceContainsStr(db.GetManagedUsers(), user.GetDatabaseUsername()) {
 					require.True(t, found)
 					require.Equal(t, user, userGet)
 				} else {
@@ -120,19 +120,19 @@ func TestSecretKeyFromAWSARN(t *testing.T) {
 }
 
 type mockUser struct {
-	id             string
-	inDatabaseName string
+	id               string
+	databaseUsername string
 }
 
-func newMockUser(id, inDatabaseName string) *mockUser {
+func newMockUser(id, databaseUsername string) *mockUser {
 	return &mockUser{
-		id:             id,
-		inDatabaseName: inDatabaseName,
+		id:               id,
+		databaseUsername: databaseUsername,
 	}
 }
 
 func (m *mockUser) GetID() string                                   { return m.id }
-func (m *mockUser) GetInDatabaseName() string                       { return m.inDatabaseName }
+func (m *mockUser) GetDatabaseUsername() string                     { return m.databaseUsername }
 func (m *mockUser) Setup(ctx context.Context) error                 { return nil }
 func (m *mockUser) Teardown(ctx context.Context) error              { return nil }
 func (m *mockUser) GetPassword(ctx context.Context) (string, error) { return "password", nil }

@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
-	libsecrets "github.com/gravitational/teleport/lib/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/trace"
 )
 
@@ -81,9 +81,9 @@ func TestUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("setupDatabse", func(t *testing.T) {
+	t.Run("setup single database", func(t *testing.T) {
 		for _, database := range []types.Database{db1, db2, db3, db4, db5} {
-			users.setupDatabase(ctx, database)
+			users.setupDatabaseAndRotatePasswords(ctx, database)
 		}
 
 		requireDatabaseWithManagedUsers(t, users, db1, []string{"alice", "bob"})
@@ -93,11 +93,11 @@ func TestUsers(t *testing.T) {
 		requireDatabaseWithManagedUsers(t, users, db5, nil)
 	})
 
-	t.Run("setupAllDatabases", func(t *testing.T) {
+	t.Run("setup all databases", func(t *testing.T) {
 		clock.Advance(time.Hour)
 
 		// Remove db2.
-		users.setupAllDatabases(ctx, types.Databases{db1, db3, db4, db5})
+		users.setupAllDatabasesAndRotatePassowrds(ctx, types.Databases{db1, db3, db4, db5})
 
 		// Validate db1 is updated thourgh cfg.UpdateMeta.
 		requireDatabaseWithManagedUsers(t, users, db1, []string{"charlie", "dan"})

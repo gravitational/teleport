@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/go-redis/redis/v8"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -191,6 +192,14 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 		if dbUser != e.sessionCtx.DatabaseUser {
 			return trace.AccessDenied("failed to authenticate as %s user. "+
 				"Please provide a correct db username when connecting to Redis", dbUser)
+		}
+
+		// For Teleport managed users, bypass the passwords sent here.
+		if apiutils.SliceContainsStr(e.sessionCtx.Database.GetManagedUsers(), dbUser) {
+			return trace.BadParameter(`%q command is ignored for Teleport managed user %q. `+
+				"Teleport service automatically authorizes managed users upon successful server connections.",
+				cmd.Args()[0], dbUser,
+			)
 		}
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,

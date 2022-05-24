@@ -52,7 +52,7 @@ func TestAWSSecretsManager(t *testing.T) {
 
 		veryLongKey := strings.Repeat("abcdef", 100)
 
-		require.True(t, trace.IsBadParameter(secrets.Create(ctx, veryLongKey, "value")))
+		require.True(t, trace.IsBadParameter(secrets.CreateOrUpdate(ctx, veryLongKey, "value")))
 		require.True(t, trace.IsBadParameter(secrets.Delete(ctx, veryLongKey)))
 		require.True(t, trace.IsBadParameter(secrets.PutValue(ctx, veryLongKey, "value", "")))
 		_, err = secrets.GetValue(ctx, veryLongKey, CurrentVersion)
@@ -71,7 +71,7 @@ func TestAWSSecretsManager(t *testing.T) {
 			Client: client,
 		})
 		require.NoError(t, err)
-		require.NoError(t, secrets.Create(ctx, "key", "value"))
+		require.NoError(t, secrets.CreateOrUpdate(ctx, "key", "value"))
 
 		output1, err := client.DescribeSecretWithContext(ctx, &secretsmanager.DescribeSecretInput{
 			SecretId: aws.String("teleport/key"),
@@ -86,7 +86,7 @@ func TestAWSSecretsManager(t *testing.T) {
 			KMSKeyID: "customKMS",
 		})
 		require.NoError(t, err)
-		require.True(t, trace.IsAlreadyExists(secrets.Create(ctx, "key", "value")))
+		require.True(t, trace.IsAlreadyExists(secrets.CreateOrUpdate(ctx, "key", "value")))
 
 		output2, err := client.DescribeSecretWithContext(ctx, &secretsmanager.DescribeSecretInput{
 			SecretId: aws.String("teleport/key"),

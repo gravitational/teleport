@@ -24,8 +24,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -48,7 +48,7 @@ func (m *lookupMap) getDatabaseUser(database types.Database, username string) (U
 	defer m.mu.RUnlock()
 
 	for _, user := range m.byDatabase[database] {
-		if user.GetInDatabaseName() == username {
+		if user.GetDatabaseUsername() == username {
 			return user, true
 		}
 	}
@@ -69,7 +69,7 @@ func (m *lookupMap) setDatabaseUsers(database types.Database, users []User) {
 	// Update database resource.
 	var usernames []string
 	for _, user := range users {
-		usernames = append(usernames, user.GetInDatabaseName())
+		usernames = append(usernames, user.GetDatabaseUsername())
 	}
 	database.SetManagedUsers(usernames)
 }
@@ -81,18 +81,20 @@ func (m *lookupMap) removeUnusedDatabases(activeDatabases types.Databases) {
 	defer m.mu.Unlock()
 
 	for database := range m.byDatabase {
-		isActive := false
-		for i := range activeDatabases {
-			if activeDatabases[i] == database {
-				isActive = true
-				break
-			}
-		}
-
-		if !isActive {
+		if isActive := findDatabase(activeDatabases, database); !isActive {
 			delete(m.byDatabase, database)
 		}
 	}
+}
+
+// findDatabase finds the database object in provided list of databases.
+func findDatabase(databases types.Databases, database types.Database) bool {
+	for i := range databases {
+		if databases[i] == database {
+			return true
+		}
+	}
+	return false
 }
 
 // usersByID returns a map of users by their IDs.

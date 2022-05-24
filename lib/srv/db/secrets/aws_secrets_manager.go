@@ -70,8 +70,8 @@ func NewAWSSecretsManager(cfg AWSSecretsManagerConfig) (*AWSSecretsManager, erro
 	}, nil
 }
 
-// Create creates a new secret. Implements Secrets.
-func (s *AWSSecretsManager) Create(ctx context.Context, key string, value string) error {
+// CreateOrUpdate creates a new secret. Implements Secrets.
+func (s *AWSSecretsManager) CreateOrUpdate(ctx context.Context, key string, value string) error {
 	secretID, err := s.secretID(key)
 	if err != nil {
 		return trace.Wrap(err)
@@ -130,7 +130,7 @@ func (s *AWSSecretsManager) Delete(ctx context.Context, key string) error {
 		ForceDeleteWithoutRecovery: aws.Bool(true),
 	})
 	if err != nil {
-		return convertSecretsManagerError(err)
+		return trace.Wrap(convertSecretsManagerError(err))
 	}
 	return nil
 }
@@ -157,7 +157,7 @@ func (s *AWSSecretsManager) GetValue(ctx context.Context, key string, version st
 
 	output, err := s.cfg.Client.GetSecretValueWithContext(ctx, input)
 	if err != nil {
-		return nil, convertSecretsManagerError(err)
+		return nil, trace.Wrap(convertSecretsManagerError(err))
 	}
 
 	return &Value{
@@ -191,7 +191,7 @@ func (s *AWSSecretsManager) PutValue(ctx context.Context, key, value, currentVer
 	}
 
 	if _, err := s.cfg.Client.PutSecretValueWithContext(ctx, input); err != nil {
-		return convertSecretsManagerError(err)
+		return trace.Wrap(convertSecretsManagerError(err))
 	}
 	return nil
 }
@@ -207,7 +207,7 @@ func (s *AWSSecretsManager) update(ctx context.Context, key string) error {
 		SecretId: secretID,
 	})
 	if err != nil {
-		return convertSecretsManagerError(err)
+		return trace.Wrap(convertSecretsManagerError(err))
 	}
 
 	configKMSKeyID := s.cfg.KMSKeyID
@@ -232,12 +232,12 @@ func (s *AWSSecretsManager) update(ctx context.Context, key string) error {
 		SecretId: secretID,
 		KmsKeyId: aws.String(configKMSKeyID),
 	})
-	return convertSecretsManagerError(err)
+	return trace.Wrap(convertSecretsManagerError(err))
 }
 
 // secretID returns the secret ID in AWS string format.
 func (s *AWSSecretsManager) secretID(key string) (*string, error) {
-	// Secret names contain 1-512 charaters.
+	// Secret names contain 1-512 characters.
 	// https://docs.aws.amazon.com/secretsmanager/latest/userguide/reference_limits.html
 	secretID := Key(s.cfg.KeyPrefix, key)
 	if len(secretID) < 1 || len(secretID) >= 512 {

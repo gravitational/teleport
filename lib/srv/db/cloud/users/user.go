@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/lib/secrets"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -30,8 +30,8 @@ import (
 type User interface {
 	// GetID returns a globally unique ID for the user.
 	GetID() string
-	// GetInDatabaseName returns in-database username for the user.
-	GetInDatabaseName() string
+	// GetDatabaseUsername returns in-database username for the user.
+	GetDatabaseUsername() string
 	// Setup preforms any setup necessary like creating password secret.
 	Setup(ctx context.Context) error
 	// Teardown performs any teardown necessary like deleting password secret.
@@ -42,6 +42,13 @@ type User interface {
 	RotatePassword(ctx context.Context) error
 }
 
+// cloudResource manages the underlying cloud resource of the database
+// user.
+type cloudResource interface {
+	// ModifyUserPassword updates user passwords of the cloud resource.
+	ModifyUserPassword(ctx context.Context, oldPassword, newPassword string) error
+}
+
 // baseUser is a base implementation of User.
 type baseUser struct {
 	// secrets is a secret store helper.
@@ -50,16 +57,15 @@ type baseUser struct {
 	secretKey string
 	// secretTTL is the lifetime of each version of the secret password.
 	secretTTL time.Duration
-	// inDatabaseName is the in-database username.
-	inDatabaseName string
+	// databaseUsername is the in-database username.
+	databaseUsername string
 	// maxPasswordLength is the size of random password to be generated.
 	maxPasswordLength int
 	// usePreviousPasswordForLogin uses previous version of the password for
 	// database login. If false, the current version of the password is used.
 	usePreviousPasswordForLogin bool
-	// modifyUserFunc is an optional callback that is called after password is
-	// rotated to update cloud user resource.
-	modifyUserFunc func(ctx context.Context, oldPassword, newPassword string) error
+	// cloudResource is used to manage the underlying cloud resource.
+	cloudResource cloudResource
 	// clock is used to control time.
 	clock clockwork.Clock
 	// log is the logrus field logger.
@@ -78,11 +84,14 @@ func (u *baseUser) CheckAndSetDefaults() error {
 	if u.secretTTL == 0 {
 		return trace.BadParameter("missing secret TTL")
 	}
-	if u.inDatabaseName == "" {
+	if u.databaseUsername == "" {
 		return trace.BadParameter("missing username")
 	}
 	if u.maxPasswordLength <= 0 {
 		return trace.BadParameter("invalid max password length")
+	}
+	if u.cloudResource == nil {
+		return trace.BadParameter("missing cloud resource")
 	}
 	if u.clock == nil {
 		u.clock = clockwork.NewRealClock()
@@ -103,9 +112,9 @@ func (u *baseUser) GetID() string {
 	return u.secretKey
 }
 
-// GetInDatabaseName returns in-database username for the user.
-func (u *baseUser) GetInDatabaseName() string {
-	return u.inDatabaseName
+// GetDatabaseUsername returns in-database username for the user.
+func (u *baseUser) GetDatabaseUsername() string {
+	return u.databaseUsername
 }
 
 // Setup preforms any setup necessary like creating password secret.
@@ -117,7 +126,7 @@ func (u *baseUser) Setup(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	err = u.secrets.Create(ctx, u.secretKey, newPassword)
+	err = u.secrets.CreateOrUpdate(ctx, u.secretKey, newPassword)
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
 			return nil
@@ -125,10 +134,7 @@ func (u *baseUser) Setup(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if u.modifyUserFunc != nil {
-		return u.modifyUserFunc(ctx, "", newPassword)
-	}
-	return nil
+	return trace.Wrap(u.cloudResource.ModifyUserPassword(ctx, "", newPassword))
 }
 
 // Teardown performs any teardown necessary like deleting password secret.
@@ -185,7 +191,7 @@ func (u *baseUser) RotatePassword(ctx context.Context) error {
 	if err != nil {
 		// Rare case check when someone else has deleted the secret.
 		if trace.IsNotFound(err) {
-			return u.Setup(ctx)
+			return trace.Wrap(u.Setup(ctx))
 		}
 
 		return trace.Wrap(err)
@@ -203,13 +209,13 @@ func (u *baseUser) RotatePassword(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// PutValue uses currentValue.Version to perform a test-and-set operation
+	// so in case of racing agents getting here at the same time, only one will
+	// succeed.
 	err = u.secrets.PutValue(ctx, u.secretKey, newPassword, currentValue.Version)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if u.modifyUserFunc != nil {
-		return u.modifyUserFunc(ctx, currentValue.Value, newPassword)
-	}
-	return nil
+	return trace.Wrap(u.cloudResource.ModifyUserPassword(ctx, "", newPassword))
 }

@@ -39,8 +39,8 @@ func secretsTestSuite(t *testing.T, createFunc func(context.Context) (Secrets, e
 	secondValue := "second value"
 
 	// Note that subtests need to be run in correct sequence.
-	t.Run("Create", func(t *testing.T) {
-		require.NoError(t, secrets.Create(ctx, key, firstValue))
+	t.Run("CreateOrUpdate", func(t *testing.T) {
+		require.NoError(t, secrets.CreateOrUpdate(ctx, key, firstValue))
 	})
 
 	t.Run("PutValue", func(t *testing.T) {

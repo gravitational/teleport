@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
-	libsecrets "github.com/gravitational/teleport/lib/secrets"
+	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
@@ -143,7 +143,10 @@ func (f *elastiCacheFetcher) getUsersForRegion(ctx context.Context, region strin
 			users = append(users, output.Users...)
 			return true
 		})
-		return users, libaws.ConvertRequestFailureError(err)
+		if err != nil {
+			return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
+		}
+		return users, nil
 	}
 
 	users, err := f.cache.Get(ctx, region, getFunc)
@@ -160,7 +163,7 @@ func (f *elastiCacheFetcher) getUserTags(ctx context.Context, user *elasticache.
 			ResourceName: user.ARN,
 		})
 		if err != nil {
-			return []*elasticache.Tag{}, libaws.ConvertRequestFailureError(err)
+			return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 		}
 		return output.TagList, nil
 	}
@@ -180,13 +183,12 @@ func (f *elastiCacheFetcher) createUser(ecUser *elasticache.User, client elastic
 	}
 
 	user := &baseUser{
-		log:            f.cfg.Log,
-		secretKey:      secretKey,
-		secrets:        secrets,
-		secretTTL:      f.cfg.Interval,
-		inDatabaseName: aws.StringValue(ecUser.UserName),
-		modifyUserFunc: modifyElastiCacheUserFunc(ecUser, client),
-		clock:          f.cfg.Clock,
+		log:              f.cfg.Log,
+		secretKey:        secretKey,
+		secrets:          secrets,
+		secretTTL:        f.cfg.Interval,
+		databaseUsername: aws.StringValue(ecUser.UserName),
+		clock:            f.cfg.Clock,
 
 		// Maximum ElastiCache User password size is 128.
 		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth.html
@@ -196,6 +198,11 @@ func (f *elastiCacheFetcher) createUser(ecUser *elasticache.User, client elastic
 		// case the Current version is not effective yet while the change is
 		// being applied to the user.
 		usePreviousPasswordForLogin: true,
+
+		cloudResource: &elastiCacheUserResource{
+			user:   ecUser,
+			client: client,
+		},
 	}
 	if err := user.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -203,25 +210,30 @@ func (f *elastiCacheFetcher) createUser(ecUser *elasticache.User, client elastic
 	return user, nil
 }
 
-// modifyElastiCacheUserFunc is a callback to update passwords for ElastiCache user.
-func modifyElastiCacheUserFunc(user *elasticache.User, client elasticacheiface.ElastiCacheAPI) func(context.Context, string, string) error {
-	return func(ctx context.Context, oldPassword, newPassword string) error {
-		passwords := []string{}
-		if oldPassword != "" {
-			passwords = append(passwords, oldPassword)
-		}
-		if newPassword != "" {
-			passwords = append(passwords, newPassword)
-		}
+// elastiCacheUserResource implements cloudResource interface for an
+// ElastiCache user.
+type elastiCacheUserResource struct {
+	user   *elasticache.User
+	client elasticacheiface.ElastiCacheAPI
+}
 
-		input := &elasticache.ModifyUserInput{
-			UserId:             user.UserId,
-			Passwords:          aws.StringSlice(passwords),
-			NoPasswordRequired: aws.Bool(len(passwords) == 0),
-		}
-		if _, err := client.ModifyUserWithContext(ctx, input); err != nil {
-			return trace.Wrap(libaws.ConvertRequestFailureError(err))
-		}
-		return nil
+// ModifyUserPassword updates passwords of an ElastiCache user.
+func (r *elastiCacheUserResource) ModifyUserPassword(ctx context.Context, oldPassword, newPassword string) error {
+	passwords := []string{}
+	if oldPassword != "" {
+		passwords = append(passwords, oldPassword)
 	}
+	if newPassword != "" {
+		passwords = append(passwords, newPassword)
+	}
+
+	input := &elasticache.ModifyUserInput{
+		UserId:             r.user.UserId,
+		Passwords:          aws.StringSlice(passwords),
+		NoPasswordRequired: aws.Bool(len(passwords) == 0),
+	}
+	if _, err := r.client.ModifyUserWithContext(ctx, input); err != nil {
+		return trace.Wrap(libaws.ConvertRequestFailureError(err))
+	}
+	return nil
 }

@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	libsecrets "github.com/gravitational/teleport/lib/secrets"
+	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -34,7 +34,7 @@ func TestBaseUser(t *testing.T) {
 
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
-	modifyUserPassword := make(chan string, 1)
+	mockCloudResource := newMockCloudResource()
 
 	secrets, err := libsecrets.NewAWSSecretsManager(libsecrets.AWSSecretsManagerConfig{
 		Client: libsecrets.NewMockSecretsManagerClient(libsecrets.MockSecretsManagerClientConfig{
@@ -47,27 +47,24 @@ func TestBaseUser(t *testing.T) {
 		secrets:                     secrets,
 		secretKey:                   "local/testuser",
 		secretTTL:                   time.Hour,
-		inDatabaseName:              "testuser",
+		databaseUsername:            "testuser",
 		maxPasswordLength:           10,
 		usePreviousPasswordForLogin: true,
 		clock:                       clock,
-		modifyUserFunc: func(ctx context.Context, oldPassword, newPassword string) error {
-			modifyUserPassword <- newPassword
-			return nil
-		},
+		cloudResource:               mockCloudResource,
 	}
 
 	t.Run("CheckAndSetDafaults", func(t *testing.T) {
 		require.NoError(t, user.CheckAndSetDefaults())
 		require.Equal(t, "local/testuser", user.GetID())
 		require.Equal(t, "local/testuser", fmt.Sprintf("%v", user))
-		require.Equal(t, "testuser", user.GetInDatabaseName())
+		require.Equal(t, "testuser", user.GetDatabaseUsername())
 	})
 
 	t.Run("Setup", func(t *testing.T) {
 		require.NoError(t, user.Setup(ctx))
-		require.Len(t, modifyUserPassword, 1)
-		passwordSet := <-modifyUserPassword
+		require.True(t, mockCloudResource.isPasswordModified())
+		passwordSet := mockCloudResource.getModifiedPassword()
 
 		// Validate password set for the cloud user is the same one fetched from secrets store.
 		password, err := user.GetPassword(ctx)
@@ -76,24 +73,24 @@ func TestBaseUser(t *testing.T) {
 
 		// Setup a second time should not fail, and nothing happens.
 		require.NoError(t, user.Setup(ctx))
-		require.Len(t, modifyUserPassword, 0)
+		require.False(t, mockCloudResource.isPasswordModified())
 	})
 
 	t.Run("RotatePassword not expired", func(t *testing.T) {
 		require.NoError(t, user.RotatePassword(ctx))
-		require.Len(t, modifyUserPassword, 0)
+		require.False(t, mockCloudResource.isPasswordModified())
 
 		clock.Advance(user.secretTTL / 2)
 		require.NoError(t, user.RotatePassword(ctx))
-		require.Len(t, modifyUserPassword, 0)
+		require.False(t, mockCloudResource.isPasswordModified())
 	})
 
 	t.Run("RotatePassword expired", func(t *testing.T) {
 		clock.Advance(user.secretTTL * 2)
 
 		require.NoError(t, user.RotatePassword(ctx))
-		require.Len(t, modifyUserPassword, 1)
-		passwordSet := <-modifyUserPassword
+		require.True(t, mockCloudResource.isPasswordModified())
+		passwordSet := mockCloudResource.getModifiedPassword()
 
 		// Validate password set for the cloud user is the same one saved in secrets store.
 		currentVersion, err := secrets.GetValue(ctx, "local/testuser", libsecrets.CurrentVersion)
@@ -114,8 +111,8 @@ func TestBaseUser(t *testing.T) {
 		require.NoError(t, secrets.Delete(ctx, "local/testuser"))
 
 		require.NoError(t, user.RotatePassword(ctx))
-		require.Len(t, modifyUserPassword, 1)
-		passwordSet := <-modifyUserPassword
+		require.True(t, mockCloudResource.isPasswordModified())
+		passwordSet := mockCloudResource.getModifiedPassword()
 
 		password, err := user.GetPassword(ctx)
 		require.NoError(t, err)
@@ -128,4 +125,28 @@ func TestBaseUser(t *testing.T) {
 		_, err := secrets.GetValue(ctx, "local/testuser", libsecrets.CurrentVersion)
 		require.True(t, trace.IsNotFound(err))
 	})
+}
+
+// mockCloudResource is a mock implementation of cloudResource.
+type mockCloudResource struct {
+	lastPasswordChan chan string
+}
+
+func newMockCloudResource() *mockCloudResource {
+	return &mockCloudResource{
+		lastPasswordChan: make(chan string, 1),
+	}
+}
+func (m *mockCloudResource) ModifyUserPassword(ctx context.Context, oldPassword, newPassword string) error {
+	m.lastPasswordChan <- newPassword
+	return nil
+}
+func (m *mockCloudResource) isPasswordModified() bool {
+	return len(m.lastPasswordChan) != 0
+}
+func (m *mockCloudResource) getModifiedPassword() string {
+	if m.isPasswordModified() {
+		return <-m.lastPasswordChan
+	}
+	return ""
 }

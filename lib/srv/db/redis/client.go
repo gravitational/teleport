@@ -27,7 +27,10 @@ import (
 	"sync"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/trace"
 )
@@ -139,10 +142,21 @@ func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
 // password on the fly then uses it for "auth".
 func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users) onClientConnectFunc {
 	return func(ctx context.Context, conn *redis.Conn) error {
+		err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
+			services.AccessMFAParams{Verified: true},
+			role.DatabaseRoleMatchers(
+				defaults.ProtocolRedis,
+				sessionCtx.DatabaseUser,
+				sessionCtx.DatabaseName,
+			)...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		username := sessionCtx.DatabaseUser
 		password, err := users.GetPassword(ctx, sessionCtx.Database, username)
 		if err != nil {
-			return trace.AccessDenied("Failed to get password for %v: %v.", username, err)
+			return trace.AccessDenied("failed to get password for %v: %v.", username, err)
 		}
 		return authConnection(ctx, conn, username, password)
 	}

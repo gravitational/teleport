@@ -27,7 +27,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -534,9 +533,6 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	printExtraConnectInfo(cf, tc, routeToDatabase, database)
-
 	log.Debug(cmd.String())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -770,40 +766,6 @@ Or view the connect command for the native database CLI client:
 		db.ServiceName,
 		utils.Color(utils.Yellow, connectCommand),
 		utils.Color(utils.Yellow, configCommand))
-}
-
-// printExtraConnectInfo prints extra instructions or information before
-// executing database client commands to connect to Teleport.
-func printExtraConnectInfo(cf *CLIConf, tc *client.TeleportClient, db *tlsca.RouteToDatabase, database types.Database) {
-	switch db.Protocol {
-
-	case defaults.ProtocolRedis:
-		if database == nil {
-			var err error
-			if database, err = getDatabase(cf, tc, db.ServiceName); err != nil {
-				log.WithError(err).Debug("Failed to get database for extra connection information.")
-				return
-			}
-		}
-
-		username := cf.DatabaseUser
-		if username == "" {
-			username = defaults.DefaultRedisUsername
-		}
-
-		if apiutils.SliceContainsStr(database.GetManagedUsers(), username) {
-			fmt.Fprintf(
-				cf.Stdout(),
-				`Database user %q is managed by Teleport.
-                                                             
-Teleport service will automatically send "auth" command with correct username
-and password on successful server connection.
-                   
-`,
-				username,
-			)
-		}
-	}
 }
 
 const (
