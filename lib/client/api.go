@@ -427,7 +427,6 @@ type VirtualPathParams []string
 
 // VirtualPathCAParams returns parameters for selecting CA certificates.
 func VirtualPathCAParams(caType types.CertAuthType) VirtualPathParams {
-	// TODO: determine if we should accept a cluster name
 	return VirtualPathParams{
 		strings.ToUpper(string(caType)),
 	}
@@ -889,8 +888,6 @@ func ReadProfileFromIdentity(key *Key, opts ProfileOptions) (*ProfileStatus, err
 // and returns a *ProfileStatus which can be used to print the status of the
 // profile.
 func ReadProfileStatus(profileDir string, profileName string) (*ProfileStatus, error) {
-	var err error
-
 	if profileDir == "" {
 		return nil, trace.BadParameter("profileDir cannot be empty")
 	}
@@ -1408,7 +1405,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		// if the client was passed an agent in the configuration and skip local auth, use
 		// the passed in agent.
 		if c.Agent != nil {
-			webProxyHost, _ := tc.WebProxyHostPort()
+			webProxyHost := tc.WebProxyHost()
 
 			username := ""
 			var keyStore LocalKeyStore = noLocalKeyStore{}
