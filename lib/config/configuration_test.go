@@ -705,8 +705,7 @@ func TestApplyConfig(t *testing.T) {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOTP,
 			U2F: &types.U2F{
-				AppID:  "app-id",
-				Facets: []string{"https://localhost:3080"},
+				AppID: "app-id",
 				DeviceAttestationCAs: []string{
 					string(u2fCAFromFile),
 					`-----BEGIN CERTIFICATE-----
