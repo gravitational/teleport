@@ -23,6 +23,8 @@ export default {
 
 export const SupportOSS = () => <Support {...props} />;
 
+export const SupportCloud = () => <Support {...props} isCloud={true} />;
+
 export const SupportEnterprise = () => (
   <Support {...props} isEnterprise={true} />
 );
@@ -36,4 +38,5 @@ const props = {
   authVersion: '4.4.0-dev',
   publicURL: 'localhost:3080',
   isEnterprise: false,
+  isCloud: false,
 };

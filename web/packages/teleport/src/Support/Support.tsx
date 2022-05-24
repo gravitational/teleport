@@ -31,6 +31,7 @@ export default function Container() {
       {...cluster}
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
+      isCloud={cfg.isCloud}
     />
   );
 }
@@ -41,6 +42,7 @@ export const Support = ({
   publicURL,
   isEnterprise,
   tunnelPublicAddress,
+  isCloud,
 }: Props) => {
   const docs = getDocUrls(authVersion, isEnterprise);
 
@@ -76,11 +78,7 @@ export const Support = ({
             <SupportLink title="Admin Guide" url={docs.adminGuide} />
             <SupportLink
               title="Download Page"
-              url={
-                isEnterprise
-                  ? 'https://dashboard.gravitational.com/web/downloads '
-                  : 'https://goteleport.com/teleport/download'
-              }
+              url={getDownloadLink(isCloud, isEnterprise)}
             />
             <SupportLink title="FAQ" url={docs.faq} />
           </Box>
@@ -158,6 +156,18 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   };
 };
 
+const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
+  if (isCloud) {
+    return 'https://goteleport.com/docs/cloud/downloads/';
+  }
+
+  if (isEnterprise) {
+    return 'https://dashboard.gravitational.com/web/downloads';
+  }
+
+  return 'https://goteleport.com/teleport/download';
+};
+
 const SupportLink = ({ title = '', url = '' }) => (
   <StyledSupportLink href={url}>{title}</StyledSupportLink>
 );
@@ -211,5 +221,6 @@ type Props = {
   authVersion: string;
   publicURL: string;
   isEnterprise: boolean;
+  isCloud: boolean;
   tunnelPublicAddress?: string;
 };
