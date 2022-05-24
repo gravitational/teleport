@@ -460,7 +460,7 @@ func VirtualPathEnvName(kind VirtualPathKind, params VirtualPathParams) string {
 	return strings.ToUpper(strings.Join(components, "_"))
 }
 
-// VirtualPathEnvName determines an ordered list of environment variables that
+// VirtualPathEnvNames determines an ordered list of environment variables that
 // should be checked to resolve an env var override. Params may be nil to
 // indicate no additional arguments are to be specified or accepted.
 func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []string {
