@@ -61,6 +61,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	flag.StringVar(&args.targetBranch, "target", "", "The PR's target branch")
 	flag.StringVar(&args.commitSHA, "commit", "HEAD", "The PR's latest commit SHA")
 	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
+	flag.BoolVar(&args.skipUnshallow, "skip-unshallow", false, "Skip unshallowing the repository.")
 
 	flag.Parse()
 
