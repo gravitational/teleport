@@ -425,9 +425,18 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryListResponse:
 				if c.cfg.AllowDirectorySharing {
+					// fsoList is memory handled by Go, and will be freed
+					// by the garbage collector automatically sometime after
+					// this code block ends.
 					fsoList := make([]C.CGOFileSystemObject, 0, len(m.FsoList))
+
+					// For each FileSystemObject in FsoList, convert
+					// to a CGOFileSystemObject.
 					for _, fso := range m.FsoList {
 						path := C.CString(fso.Path)
+						// We create the CString, so its our responsibility
+						// to free it. It's handle_tdp_sd_list_response's responsibility
+						// to copy the memory pointed to it.
 						defer C.free(unsafe.Pointer(path))
 						fsoList = append(fsoList, C.CGOFileSystemObject{
 							last_modified: C.uint64_t(fso.LastModified),
@@ -436,6 +445,7 @@ func (c *Client) start() {
 							path:          path,
 						})
 					}
+
 					if errCode := C.handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
 						completion_id:   C.uint32_t(m.CompletionID),
 						err_code:        m.ErrCode,

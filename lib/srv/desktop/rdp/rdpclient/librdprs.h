@@ -221,17 +221,30 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
  *
  * # Safety
  *
- * `client_ptr` must be a valid pointer to a Client.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * data MUST be a valid pointer.
+ * (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
  */
-enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
+enum CGOErrCode update_clipboard(struct Client *client_ptr,
+                                 uint8_t *data,
+                                 uint32_t len);
 
 /**
  * handle_tdp_sd_announce announces a new drive that's ready to be
  * redirected over RDP.
  *
+ *
  * # Safety
  *
- * The caller must ensure that drive_name points to a valid buffer.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
+ *
+ * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+ * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
  */
 enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
                                        struct CGOSharedDirectoryAnnounce sd_announce);
@@ -242,7 +255,13 @@ enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
  *
  * # Safety
  *
- * The caller must ensure that res.fso.path points to a valid buffer.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * The caller must ensure that res.fso.path MUST be a non-null pointer to a C-style null terminated string.
+ *
+ * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+ * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
  */
 enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
                                             struct CGOSharedDirectoryInfoResponse res);
@@ -253,7 +272,11 @@ enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
  *
  * # Safety
  *
- * client_ptr must be a valid pointer
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+ * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
  */
 enum CGOErrCode handle_tdp_sd_create_response(struct Client *client_ptr,
                                               CGOSharedDirectoryCreateResponse res);
@@ -264,19 +287,30 @@ enum CGOErrCode handle_tdp_sd_create_response(struct Client *client_ptr,
  *
  * # Safety
  *
- * client_ptr must be a valid pointer
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+ * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
  */
 enum CGOErrCode handle_tdp_sd_delete_response(struct Client *client_ptr,
                                               CGOSharedDirectoryDeleteResponse res);
 
 /**
- * handle_tdp_sd_list_response handles a TDP Shared Directory List Response
- * message
+ * handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
  *
  * # Safety
  *
- * client_ptr must be a valid pointer
- * res.fso_list must be a valid pointer
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * res.fso_list MUST be a valid pointer
+ * (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
+ *
+ * each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
+ *
+ * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+ * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
  */
 enum CGOErrCode handle_tdp_sd_list_response(struct Client *client_ptr,
                                             struct CGOSharedDirectoryListResponse res);
@@ -295,16 +329,20 @@ enum CGOErrCode read_rdp_output(struct Client *client_ptr);
 /**
  * # Safety
  *
- * client_ptr must be a valid pointer to a Client.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  */
-enum CGOErrCode write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
+enum CGOErrCode write_rdp_pointer(struct Client *client_ptr,
+                                  struct CGOMousePointerEvent pointer);
 
 /**
  * # Safety
  *
- * client_ptr must be a valid pointer to a Client.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  */
-enum CGOErrCode write_rdp_keyboard(struct Client *client_ptr, struct CGOKeyboardEvent key);
+enum CGOErrCode write_rdp_keyboard(struct Client *client_ptr,
+                                   struct CGOKeyboardEvent key);
 
 /**
  * # Safety
@@ -318,7 +356,8 @@ enum CGOErrCode close_rdp(struct Client *client_ptr);
  *
  * # Safety
  *
- * client_ptr must be a valid pointer to a Client.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  */
 void free_rdp(struct Client *client_ptr);
 

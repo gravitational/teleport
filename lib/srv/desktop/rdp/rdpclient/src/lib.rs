@@ -136,8 +136,8 @@ pub unsafe extern "C" fn connect_rdp(
     // Convert from C to Rust types.
     let addr = from_go_string(go_addr);
     let username = from_go_string(go_username);
-    let cert_der = from_go_array(cert_der_len, cert_der);
-    let key_der = from_go_array(key_der_len, key_der);
+    let cert_der = from_go_array(cert_der, cert_der_len);
+    let key_der = from_go_array(key_der, key_der_len);
 
     connect_rdp_inner(
         go_ref,
@@ -601,7 +601,11 @@ fn wait_for_fd(fd: usize) -> bool {
 ///
 /// # Safety
 ///
-/// `client_ptr` must be a valid pointer to a Client.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// data MUST be a valid pointer.
+/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
 #[no_mangle]
 pub unsafe extern "C" fn update_clipboard(
     client_ptr: *mut Client,
@@ -614,7 +618,7 @@ pub unsafe extern "C" fn update_clipboard(
             return cgo_error;
         }
     };
-    let data = from_go_array(len, data);
+    let data = from_go_array(data, len);
     let mut lock = client.rdp_client.lock().unwrap();
 
     match lock.cliprdr {
@@ -640,9 +644,16 @@ pub unsafe extern "C" fn update_clipboard(
 /// handle_tdp_sd_announce announces a new drive that's ready to be
 /// redirected over RDP.
 ///
+///
 /// # Safety
 ///
-/// The caller must ensure that drive_name points to a valid buffer.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
+///
+/// This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+/// All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_announce(
     client_ptr: *mut Client,
@@ -674,7 +685,13 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
 ///
 /// # Safety
 ///
-/// The caller must ensure that res.fso.path points to a valid buffer.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// The caller must ensure that res.fso.path MUST be a non-null pointer to a C-style null terminated string.
+///
+/// This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+/// All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_info_response(
     client_ptr: *mut Client,
@@ -702,7 +719,11 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+/// All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_create_response(
     client_ptr: *mut Client,
@@ -730,7 +751,11 @@ pub unsafe extern "C" fn handle_tdp_sd_create_response(
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+/// All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_delete_response(
     client_ptr: *mut Client,
@@ -753,13 +778,20 @@ pub unsafe extern "C" fn handle_tdp_sd_delete_response(
     }
 }
 
-/// handle_tdp_sd_list_response handles a TDP Shared Directory List Response
-/// message
+/// handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer
-/// res.fso_list must be a valid pointer
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// res.fso_list MUST be a valid pointer
+/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
+///
+/// each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
+///
+/// This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+/// All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_list_response(
     client_ptr: *mut Client,
@@ -910,7 +942,8 @@ impl From<CGOMousePointerEvent> for PointerEvent {
 
 /// # Safety
 ///
-/// client_ptr must be a valid pointer to a Client.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn write_rdp_pointer(
     client_ptr: *mut Client,
@@ -959,7 +992,8 @@ impl From<CGOKeyboardEvent> for KeyboardEvent {
 
 /// # Safety
 ///
-/// client_ptr must be a valid pointer to a Client.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn write_rdp_keyboard(
     client_ptr: *mut Client,
@@ -1007,7 +1041,8 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer to a Client.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
     drop(Client::from_raw(client_ptr))
@@ -1024,10 +1059,9 @@ unsafe fn from_go_string(s: *const c_char) -> String {
 
 /// # Safety
 ///
-/// ptr must be a valid buffer of len elements.
-/// The len argument is the number of elements, not the number of bytes.
-unsafe fn from_go_array<T: Clone>(len: u32, ptr: *mut T) -> Vec<T> {
-    slice::from_raw_parts(ptr, len as usize).to_vec()
+/// See https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html
+unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
+    slice::from_raw_parts(data, len as usize).to_vec()
 }
 
 #[repr(C)]
@@ -1199,7 +1233,7 @@ pub struct SharedDirectoryListResponse {
 impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
     fn from(cgo: CGOSharedDirectoryListResponse) -> SharedDirectoryListResponse {
         unsafe {
-            let cgo_fso_list = from_go_array(cgo.fso_list_length, cgo.fso_list);
+            let cgo_fso_list = from_go_array(cgo.fso_list, cgo.fso_list_length);
             let mut fso_list = vec![];
             for cgo_fso in cgo_fso_list.into_iter() {
                 fso_list.push(FileSystemObject::from(cgo_fso));
