@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1951,6 +1952,24 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 		}
 	}
 	return a.authServer.Identity.GetUser(name, withSecrets)
+}
+
+// GetCurrentUser returns current user as seen by the server.
+// Useful especially in the context of remote clusters which perform role and trait mapping.
+func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error) {
+	// check access to roles
+	for _, role := range a.context.User.GetRoles() {
+		_, err := a.GetRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	usrRes := a.context.User.WithoutSecrets()
+	if usr, ok := usrRes.(types.User); ok {
+		return usr, nil
+	}
+	return nil, trace.BadParameter("expected types.User when fetching current user information, got %T", usrRes)
 }
 
 // DeleteUser deletes an existng user in a backend by username.
