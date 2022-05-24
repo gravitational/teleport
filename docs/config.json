@@ -675,7 +675,8 @@
             },
             {
               "title": "Dual Authorization",
-              "slug": "/access-controls/guides/dual-authz/"
+              "slug": "/access-controls/guides/dual-authz/",
+              "hideInScopes": "oss"
             },
             {
               "title": "Impersonation",
@@ -683,7 +684,8 @@
             },
             {
               "title": "Moderated Sessions",
-              "slug": "/access-controls/guides/moderated-sessions/"
+              "slug": "/access-controls/guides/moderated-sessions/",
+              "hideInScopes": "oss"
             }
           ]
         },
