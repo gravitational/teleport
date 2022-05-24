@@ -947,7 +947,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
-
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
@@ -966,6 +966,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		Emitter:                       proxyClient,
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
+		CertAuthorityWatcher:          caWatcher,
 		NodeWatcher:                   nodeWatcher,
 	})
 	require.NoError(t, err)
@@ -1141,6 +1142,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:                   f.testSrv.ClusterName(),
@@ -1158,6 +1160,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1266,6 +1269,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     proxyClient.TLSConfig(),
@@ -1283,6 +1287,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 
@@ -1986,6 +1991,19 @@ func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *ser
 	require.NoError(t, err)
 	t.Cleanup(nodeWatcher.Close)
 	return nodeWatcher
+}
+
+func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Events) *services.CertAuthorityWatcher {
+	caWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	t.Cleanup(caWatcher.Close)
+	return caWatcher
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating
