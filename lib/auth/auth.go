@@ -402,8 +402,7 @@ func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.Lo
 
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
-func (a *Server) runPeriodicOperations() {
-	ctx := context.TODO()
+func (a *Server) runPeriodicOperations(ctx context.Context, heartbeatCheckTicker *interval.Interval) {
 	// run periodic functions with a semi-random period
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
@@ -414,12 +413,8 @@ func (a *Server) runPeriodicOperations() {
 	a.lock.RLock()
 	ticker := a.clock.NewTicker(period)
 	a.lock.RUnlock()
-	// Create a ticker with jitter
-	heartbeatCheckTicker := interval.New(interval.Config{
-		Duration: apidefaults.ServerKeepAliveTTL() * 2,
-		Jitter:   utils.NewSeventhJitter(),
-	})
-	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
+
+	promTicker := a.GetClock().NewTicker(defaults.PrometheusScrapeInterval)
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
@@ -449,7 +444,7 @@ func (a *Server) runPeriodicOperations() {
 			}
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
-		case <-promTicker.C:
+		case <-promTicker.Chan():
 			a.updateVersionMetrics()
 		}
 	}

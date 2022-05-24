@@ -566,12 +566,12 @@ func (h *Heartbeat) announce() error {
 	case HeartbeatStateKeepAlive:
 		keepAlive := *h.keepAlive
 		keepAlive.Expires = h.Clock.Now().UTC().Add(h.ServerTTL)
-		timeout := time.NewTimer(h.KeepAlivePeriod)
+		timeout := h.Clock.NewTimer(h.KeepAlivePeriod)
 		defer timeout.Stop()
 		select {
 		case <-h.cancelCtx.Done():
 			return nil
-		case <-timeout.C:
+		case <-timeout.Chan():
 			h.Warningf("Blocked on keep alive send, going to reset.")
 			h.reset(HeartbeatStateInit)
 			return trace.ConnectionProblem(nil, "timeout sending keep alive")

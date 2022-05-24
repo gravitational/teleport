@@ -118,11 +118,15 @@ func (u *UploadCompleter) Close() {
 
 // Serve runs the upload completer until closed or until ctx is cancelled.
 func (u *UploadCompleter) Serve(ctx context.Context) error {
-	periodic := interval.New(interval.Config{
+	periodic, err := interval.New(interval.Config{
 		Duration:      u.cfg.CheckPeriod,
 		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
 		Jitter:        utils.NewSeventhJitter(),
+		Clock:         u.cfg.Clock,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer periodic.Stop()
 
 	for {

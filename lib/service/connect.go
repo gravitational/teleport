@@ -488,11 +488,15 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		return nil
 	}
 
-	periodic := interval.New(interval.Config{
+	periodic, err := interval.New(interval.Config{
 		Duration:      process.Config.RotationConnectionInterval,
 		FirstDuration: utils.HalfJitter(process.Config.RotationConnectionInterval),
 		Jitter:        utils.NewSeventhJitter(),
+		Clock:         process.Clock,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer periodic.Stop()
 
 	for {
@@ -548,11 +552,15 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	}
 	defer watcher.Close()
 
-	periodic := interval.New(interval.Config{
+	periodic, err := interval.New(interval.Config{
 		Duration:      process.Config.PollingPeriod,
 		FirstDuration: utils.HalfJitter(process.Config.PollingPeriod),
 		Jitter:        utils.NewSeventhJitter(),
+		Clock:         process.Clock,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer periodic.Stop()
 	for {
 		select {

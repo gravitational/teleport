@@ -21,11 +21,12 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/trace"
 )
 
 // start background goroutine to track expired leases, emit events, and purge records.
@@ -35,7 +36,30 @@ func (b *Backend) start(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	b.buf.SetInit()
-	go b.run(lastEventID)
+
+	pollPeriodic, err := interval.New(interval.Config{
+		Duration:      b.PollStreamPeriod,
+		FirstDuration: utils.HalfJitter(b.PollStreamPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+		Clock:         b.Clock(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer pollPeriodic.Stop()
+
+	purgePeriodic, err := interval.New(interval.Config{
+		Duration:      b.PurgePeriod,
+		FirstDuration: utils.HalfJitter(b.PurgePeriod),
+		Jitter:        utils.NewSeventhJitter(),
+		Clock:         b.Clock(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer purgePeriodic.Stop()
+
+	go b.run(lastEventID, pollPeriodic, purgePeriodic)
 	return nil
 }
 
@@ -63,11 +87,15 @@ func (b *Backend) initLastEventID(ctx context.Context) (lastEventID int64, err e
 
 		// Retry after a short delay.
 		if periodic == nil {
-			periodic = interval.New(interval.Config{
+			periodic, err = interval.New(interval.Config{
 				Duration:      b.PollStreamPeriod,
 				FirstDuration: utils.HalfJitter(b.PollStreamPeriod),
 				Jitter:        utils.NewSeventhJitter(),
+				Clock:         b.Clock(),
 			})
+			if err != nil {
+				return 0, trace.Wrap(err)
+			}
 			defer periodic.Stop()
 		}
 		select {
@@ -87,25 +115,17 @@ func (b *Backend) initLastEventID(ctx context.Context) (lastEventID int64, err e
 // run background process.
 // - Poll the database to delete expired leases and emit events every PollStreamPeriod (1s).
 // - Purge expired backend items and emitted events every PurgePeriod (20s).
-func (b *Backend) run(eventID int64) {
-	defer close(b.bgDone)
+func (b *Backend) run(eventID int64, pollPeriodic *interval.Interval, purgePeriodic *interval.Interval) {
+	defer func() {
+		close(b.bgDone)
+		pollPeriodic.Stop()
+		purgePeriodic.Stop()
+	}()
 
-	pollPeriodic := interval.New(interval.Config{
-		Duration:      b.PollStreamPeriod,
-		FirstDuration: utils.HalfJitter(b.PollStreamPeriod),
-		Jitter:        utils.NewSeventhJitter(),
-	})
-	defer pollPeriodic.Stop()
-
-	purgePeriodic := interval.New(interval.Config{
-		Duration:      b.PurgePeriod,
-		FirstDuration: utils.HalfJitter(b.PurgePeriod),
-		Jitter:        utils.NewSeventhJitter(),
-	})
-	defer purgePeriodic.Stop()
-
-	var err error
-	var loggedError bool // don't spam logs
+	var (
+		err         error
+		loggedError bool // don't spam logs
+	)
 	for {
 		select {
 		case <-b.closeCtx.Done():

@@ -17,9 +17,11 @@ limitations under the License.
 package interval
 
 import (
-	"errors"
 	"sync"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -54,6 +56,28 @@ type Config struct {
 	// for this parameter, since periodic operations are typically costly and the
 	// effect of the jitter is cumulative.
 	Jitter utils.Jitter
+
+	// Clock to override clock in tests
+	Clock clockwork.Clock
+}
+
+// CheckAndSetDefaults checks and sets defaults
+func (c *Config) CheckAndSetDefaults() error {
+	if c.Duration <= 0 {
+		return trace.BadParameter("non-positive Duration provided")
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
+	if c.Jitter == nil {
+		c.Jitter = func(duration time.Duration) time.Duration {
+			return duration
+		}
+	}
+
+	return nil
 }
 
 // NewNoop creates a new interval that will never fire.
@@ -66,9 +90,9 @@ func NewNoop() *Interval {
 
 // New creates a new interval instance.  This function panics on non-positive
 // interval durations (equivalent to time.NewTicker).
-func New(cfg Config) *Interval {
-	if cfg.Duration <= 0 {
-		panic(errors.New("non-positive interval for interval.New"))
+func New(cfg Config) (*Interval, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	interval := &Interval{
@@ -84,11 +108,11 @@ func New(cfg Config) *Interval {
 
 	// start the timer in this goroutine to improve
 	// consistency of first tick.
-	timer := time.NewTimer(firstDuration)
+	timer := cfg.Clock.NewTimer(firstDuration)
 
 	go interval.run(timer)
 
-	return interval
+	return interval, nil
 }
 
 // Stop permanently stops the interval.  Note that stopping an interval does not
@@ -109,13 +133,10 @@ func (i *Interval) Next() <-chan time.Time {
 // duration gets the duration of the interval.  Each call applies the jitter
 // if one was supplied.
 func (i *Interval) duration() time.Duration {
-	if i.cfg.Jitter == nil {
-		return i.cfg.Duration
-	}
 	return i.cfg.Jitter(i.cfg.Duration)
 }
 
-func (i *Interval) run(timer *time.Timer) {
+func (i *Interval) run(timer clockwork.Timer) {
 	defer timer.Stop()
 
 	// we take advantage of the fact that sends on nil channels never complete,
@@ -124,7 +145,7 @@ func (i *Interval) run(timer *time.Timer) {
 	var ch chan<- time.Time
 	for {
 		select {
-		case tick = <-timer.C:
+		case tick = <-timer.Chan():
 			// timer has fired, reset to next duration and ensure that
 			// output channel is set.
 			timer.Reset(i.duration())

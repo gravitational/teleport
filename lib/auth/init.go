@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -405,7 +406,16 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")
-		go asrv.runPeriodicOperations()
+		// Create a ticker with jitter
+		heartbeatCheckTicker, err := interval.New(interval.Config{
+			Duration: apidefaults.ServerKeepAliveTTL() * 2,
+			Jitter:   utils.NewSeventhJitter(),
+			Clock:    asrv.GetClock(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		go asrv.runPeriodicOperations(context.Background(), heartbeatCheckTicker)
 	} else {
 		log.Infof("Auth server is skipping periodic operations.")
 	}

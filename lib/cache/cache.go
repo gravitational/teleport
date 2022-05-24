@@ -742,7 +742,7 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		// ensure that close operations have been run
 		c.Close()
 	}()
-	timer := time.NewTimer(c.Config.WatcherInitTimeout)
+	timer := c.Clock.NewTimer(c.Config.WatcherInitTimeout)
 	for {
 		err := c.fetchAndWatch(ctx, retry, timer)
 		c.setInitError(err)
@@ -820,7 +820,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //   we assume that this cache will eventually end up in a correct state
 //   potentially lagging behind the state of the database.
 //
-func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *time.Timer) error {
+func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer clockwork.Timer) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		QueueSize:       c.QueueSize,
 		Name:            c.Component,
@@ -836,7 +836,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	// ensure that the timer is stopped and drained
 	timer.Stop()
 	select {
-	case <-timer.C:
+	case <-timer.Chan():
 	default:
 	}
 	// set timer to watcher init timeout
@@ -865,7 +865,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 		if event.Type != types.OpInit {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
-	case <-timer.C:
+	case <-timer.Chan():
 		return trace.ConnectionProblem(nil, "timeout waiting for watcher init")
 	}
 	apply, err := c.fetch(ctx)
@@ -902,11 +902,15 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	relativeExpiryInterval := interval.NewNoop()
 	for _, watch := range c.Config.Watches {
 		if watch.Kind == types.KindNode {
-			relativeExpiryInterval = interval.New(interval.Config{
+			relativeExpiryInterval, err = interval.New(interval.Config{
 				Duration:      c.Config.RelativeExpiryCheckInterval,
 				FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
 				Jitter:        utils.NewSeventhJitter(),
+				Clock:         c.Config.Clock,
 			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			break
 		}
 	}
