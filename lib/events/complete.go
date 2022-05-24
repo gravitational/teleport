@@ -173,7 +173,7 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 		case trace.IsNotFound(err): // upload abandoned, complete upload
 		case trace.IsAccessDenied(err): // upload abandoned, complete upload
 			// Treat access denied errors as not found errors, since we expect
-			// to get them if the auth server is v9.2.3 or ealier, since only
+			// to get them if the auth server is v9.2.3 or earlier, since only
 			// node, proxy, and kube roles had permissions to create trackers.
 			// DELETE IN 11.0.0
 		default: // aka err != nil
