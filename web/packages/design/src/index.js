@@ -41,6 +41,8 @@ import SideNav, { SideNavItem } from './SideNav';
 import TopNav, { TopNavItem } from './TopNav';
 import Flex from './Flex';
 import Menu, { MenuItem, MenuItemIcon } from './Menu';
+import { Pill } from './Pill';
+import Popover from './Popover';
 
 export {
   Alert,
@@ -65,6 +67,8 @@ export {
   LabelInput,
   LabelState,
   Link,
+  Pill,
+  Popover,
   Image,
   SideNav,
   SideNavItem,
