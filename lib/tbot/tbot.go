@@ -1,4 +1,20 @@
-package main
+/*
+Copyright 2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package tbot
 
 import (
 	"bytes"
@@ -99,7 +115,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	go watchCARotations(watcher)
+	go b.watchCARotations(watcher)
 
 	defer watcher.Close()
 
@@ -140,7 +156,7 @@ func (b *Bot) initialize(ctx context.Context) error {
 
 		b.log.Infof("Successfully loaded bot identity, %s", identStr)
 
-		if err := checkIdentity(ident); err != nil {
+		if err := b.checkIdentity(ident); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -148,7 +164,7 @@ func (b *Bot) initialize(ctx context.Context) error {
 			b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
 		}
 
-		authClient, err = authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -173,13 +189,13 @@ func (b *Bot) initialize(ctx context.Context) error {
 		}
 
 		// Get first identity
-		ident, err = getIdentityFromToken(b.cfg)
+		ident, err = b.getIdentityFromToken()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		b.log.Debug("Attempting first connection using initial auth client")
-		authClient, err = authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -256,7 +272,7 @@ func checkDestinations(cfg *config.BotConfig) error {
 
 // checkIdentity performs basic startup checks on an identity and loudly warns
 // end users if it is unlikely to work.
-func checkIdentity(ident *identity.Identity) error {
+func (b *Bot) checkIdentity(ident *identity.Identity) error {
 	var validAfter time.Time
 	var validBefore time.Time
 
@@ -272,13 +288,13 @@ func checkIdentity(ident *identity.Identity) error {
 
 	now := time.Now().UTC()
 	if now.After(validBefore) {
-		log.Errorf(
+		b.log.Errorf(
 			"Identity has expired. The renewal is likely to fail. (expires: %s, current time: %s)",
 			validBefore.Format(time.RFC3339),
 			now.Format(time.RFC3339),
 		)
 	} else if now.Before(validAfter) {
-		log.Warnf(
+		b.log.Warnf(
 			"Identity is not yet valid. Confirm that the system time is correct. (valid after: %s, current time: %s)",
 			validAfter.Format(time.RFC3339),
 			now.Format(time.RFC3339),

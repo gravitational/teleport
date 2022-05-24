@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package tbot
 
 import (
 	"context"
@@ -67,7 +67,7 @@ func generateKeys() (private, sshpub, tlspub []byte, err error) {
 // identity. Note that depending on the connection address given, this may
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
-func authenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity, authServer string) (auth.ClientI, error) {
+func (b *Bot) authenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity, authServer string) (auth.ClientI, error) {
 	if id.SSHCert == nil || id.X509Cert == nil {
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
@@ -91,7 +91,7 @@ func authenticatedUserClientFromIdentity(ctx context.Context, id *identity.Ident
 		TLS:         tlsConfig,
 		SSH:         sshConfig,
 		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         log,
+		Log:         b.log,
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)
@@ -142,9 +142,8 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // called with an impersonated identity that already has the relevant
 // permissions, much like `tsh (app|db|kube) login` is already used to generate
 // an additional set of certs.
-func generateIdentity(
+func (b *Bot) generateIdentity(
 	ctx context.Context,
-	client auth.ClientI,
 	currentIdentity *identity.Identity,
 	expires time.Time,
 	destCfg *config.DestinationConfig,
@@ -165,7 +164,7 @@ func generateIdentity(
 	if len(destCfg.Roles) > 0 {
 		roleRequests = destCfg.Roles
 	} else {
-		log.Debugf("Destination specified no roles, defaults will be requested: %v", defaultRoles)
+		b.log.Debugf("Destination specified no roles, defaults will be requested: %v", defaultRoles)
 		roleRequests = defaultRoles
 	}
 
@@ -183,6 +182,7 @@ func generateIdentity(
 
 	// First, ask the auth server to generate a new set of certs with a new
 	// expiration date.
+	client := b.client()
 	certs, err := client.GenerateUserCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -256,7 +256,7 @@ func getDatabase(ctx context.Context, client auth.ClientI, name string) (types.D
 	return databases[0], nil
 }
 
-func getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.DatabaseConfig) (proto.RouteToDatabase, error) {
+func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.DatabaseConfig) (proto.RouteToDatabase, error) {
 	if dbCfg.Service == "" {
 		return proto.RouteToDatabase{}, nil
 	}
@@ -270,7 +270,7 @@ func getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.
 	if db.GetProtocol() == libdefaults.ProtocolMongoDB && username == "" {
 		// This isn't strictly a runtime error so killing the process seems
 		// wrong. We'll just loudly warn about it.
-		log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", dbCfg.Service)
+		b.log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", dbCfg.Service)
 	} else if db.GetProtocol() == libdefaults.ProtocolRedis && username == "" {
 		// Per tsh's lead, fall back to the default username.
 		username = libdefaults.DefaultRedisUsername
@@ -284,16 +284,15 @@ func getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.
 	}, nil
 }
 
-func generateImpersonatedIdentity(
+func (b *Bot) generateImpersonatedIdentity(
 	ctx context.Context,
-	client auth.ClientI,
-	authServer string,
-	currentIdentity *identity.Identity,
 	expires time.Time,
 	destCfg *config.DestinationConfig,
 	defaultRoles []string,
 ) (*identity.Identity, error) {
-	ident, err := generateIdentity(ctx, client, currentIdentity, expires, destCfg, defaultRoles, nil)
+	ident, err := b.generateIdentity(
+		ctx, b.ident(), expires, destCfg, defaultRoles, nil,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -301,12 +300,12 @@ func generateImpersonatedIdentity(
 	// Now that we have an initial impersonated identity, we can use it to
 	// request any app/db/etc certs
 	if destCfg.Database != nil {
-		impClient, err := authenticatedUserClientFromIdentity(ctx, ident, authServer)
+		impClient, err := b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		route, err := getRouteToDatabase(ctx, impClient, destCfg.Database)
+		route, err := b.getRouteToDatabase(ctx, impClient, destCfg.Database)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -315,11 +314,11 @@ func generateImpersonatedIdentity(
 		// so we'll request the database access identity using the main bot
 		// identity (having gathered the necessary info for RouteToDatabase
 		// using the correct impersonated ident.)
-		newIdent, err := generateIdentity(ctx, client, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})
 
-		log.Infof("Generated identity for database %q", destCfg.Database.Service)
+		b.log.Infof("Generated identity for database %q", destCfg.Database.Service)
 
 		return newIdent, trace.Wrap(err)
 	}
@@ -327,16 +326,16 @@ func generateImpersonatedIdentity(
 	return ident, nil
 }
 
-func getIdentityFromToken(cfg *config.BotConfig) (*identity.Identity, error) {
-	if cfg.Onboarding == nil {
+func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
+	if b.cfg.Onboarding == nil {
 		return nil, trace.BadParameter("onboarding config required via CLI or YAML")
 	}
-	if cfg.Onboarding.Token == "" {
+	if b.cfg.Onboarding.Token == "" {
 		return nil, trace.BadParameter("unable to start: no token present")
 	}
-	addr, err := utils.ParseAddr(cfg.AuthServer)
+	addr, err := utils.ParseAddr(b.cfg.AuthServer)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "invalid auth server address %+v", cfg.AuthServer)
+		return nil, trace.WrapWithMessage(err, "invalid auth server address %+v", b.cfg.AuthServer)
 	}
 
 	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
@@ -344,19 +343,19 @@ func getIdentityFromToken(cfg *config.BotConfig) (*identity.Identity, error) {
 		return nil, trace.WrapWithMessage(err, "unable to generate new keypairs")
 	}
 
-	log.Info("Attempting to generate new identity from token")
+	b.log.Info("Attempting to generate new identity from token")
 	params := auth.RegisterParams{
-		Token: cfg.Onboarding.Token,
+		Token: b.cfg.Onboarding.Token,
 		ID: auth.IdentityID{
 			Role: types.RoleBot,
 		},
 		Servers:            []utils.NetAddr{*addr},
 		PublicTLSKey:       tlsPublicKey,
 		PublicSSHKey:       sshPublicKey,
-		CAPins:             cfg.Onboarding.CAPins,
-		CAPath:             cfg.Onboarding.CAPath,
+		CAPins:             b.cfg.Onboarding.CAPins,
+		CAPath:             b.cfg.Onboarding.CAPath,
 		GetHostCredentials: client.HostCredentials,
-		JoinMethod:         cfg.Onboarding.JoinMethod,
+		JoinMethod:         b.cfg.Onboarding.JoinMethod,
 	}
 	certs, err := auth.Register(params)
 	if err != nil {
@@ -383,7 +382,7 @@ func (b *Bot) renewIdentityViaAuth(
 	}
 	switch joinMethod {
 	case types.JoinMethodIAM:
-		ident, err := getIdentityFromToken(b.cfg)
+		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:
 	}
@@ -451,7 +450,7 @@ func (b *Bot) renew(
 
 	// Immediately attempt to reconnect using the new identity (still
 	// haven't persisted the known-good certs).
-	newClient, err := authenticatedUserClientFromIdentity(
+	newClient, err := b.authenticatedUserClientFromIdentity(
 		ctx, newIdentity, b.cfg.AuthServer,
 	)
 	if err != nil {
@@ -506,7 +505,7 @@ func (b *Bot) renew(
 			return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
 		}
 
-		impersonatedIdent, err := generateImpersonatedIdentity(ctx, newClient, b.cfg.AuthServer, b.ident(), expires, dest, defaultRoles)
+		impersonatedIdent, err := b.generateImpersonatedIdentity(ctx, expires, dest, defaultRoles)
 		if err != nil {
 			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 		}
@@ -592,15 +591,15 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	return nil
 }
 
-func watchCARotations(watcher types.Watcher) {
+func (b *Bot) watchCARotations(watcher types.Watcher) {
 	for {
 		select {
 		case event := <-watcher.Events():
-			log.Debugf("CA event: %+v", event)
+			b.log.Debugf("CA event: %+v", event)
 			// TODO: handle CA rotations
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
-				log.WithError(err).Warnf("error watching for CA rotations")
+				b.log.WithError(err).Warnf("error watching for CA rotations")
 			}
 			return
 		}

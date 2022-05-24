@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package tbot
 
 import (
 	"bytes"
@@ -94,13 +94,15 @@ func TestDefaultTemplateRendering(t *testing.T) {
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 	storage, err := botConfig.Storage.GetDestination()
 	require.NoError(t, err)
+	b := NewBot(botConfig, utils.NewLoggerForTests(), nil)
 
-	ident, err := getIdentityFromToken(botConfig)
+	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
-
 	botClient := testhelpers.MakeBotAuthClient(t, fc, ident)
+	b._ident = ident
+	b._client = botClient
 
-	_, _, err = renew(context.Background(), botConfig, botClient, ident, storage)
+	err = b.renew(context.Background(), storage)
 	require.NoError(t, err)
 
 	dest := botConfig.Destinations[0]

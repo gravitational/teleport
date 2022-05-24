@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package tbot
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	libconfig "github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/tlsca"
+	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tbot/config"
 	"github.com/gravitational/teleport/tool/tbot/testhelpers"
 	"github.com/gravitational/trace"
@@ -41,7 +42,8 @@ func TestOnboardViaToken(t *testing.T) {
 	// Make and join a new bot instance.
 	botParams := testhelpers.MakeBot(t, rootClient, "test")
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
-	ident, err := getIdentityFromToken(botConfig)
+	b := NewBot(botConfig, libutils.NewLoggerForTests(), nil)
+	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
 
 	tlsIdent, err := tlsca.FromSubject(ident.X509Cert.Subject, ident.X509Cert.NotAfter)
@@ -126,14 +128,15 @@ func TestDatabaseRequest(t *testing.T) {
 	}
 
 	// Onboard the bot.
-	ident, err := getIdentityFromToken(botConfig)
+	b := NewBot(botConfig, libutils.NewLoggerForTests(), nil)
+	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
 
-	botClient := testhelpers.MakeBotAuthClient(t, fc, ident)
+	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
+	b._ident = ident
 
-	impersonatedIdent, err := generateImpersonatedIdentity(
-		context.Background(), botClient, botConfig.AuthServer, ident,
-		ident.X509Cert.NotAfter, dest, []string{roleName},
+	impersonatedIdent, err := b.generateImpersonatedIdentity(
+		context.Background(), ident.X509Cert.NotAfter, dest, []string{roleName},
 	)
 	require.NoError(t, err)
 
