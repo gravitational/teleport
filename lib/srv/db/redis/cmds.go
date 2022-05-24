@@ -189,17 +189,18 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ****", dbUser)})
 
+		// For Teleport managed users, bypass the passwords sent here.
+		if apiutils.SliceContainsStr(e.sessionCtx.Database.GetManagedUsers(), e.sessionCtx.DatabaseUser) {
+			return trace.Wrap(e.sendToClient([]string{
+				"OK",
+				fmt.Sprintf("Please note that AUTH commands are ignored for Teleport managed user '%s'.", e.sessionCtx.DatabaseUser),
+				"Teleport service automatically authorizes managed users with Redis server.",
+			}))
+		}
+
 		if dbUser != e.sessionCtx.DatabaseUser {
 			return trace.AccessDenied("failed to authenticate as %s user. "+
 				"Please provide a correct db username when connecting to Redis", dbUser)
-		}
-
-		// For Teleport managed users, bypass the passwords sent here.
-		if apiutils.SliceContainsStr(e.sessionCtx.Database.GetManagedUsers(), dbUser) {
-			return trace.BadParameter(`%q command is ignored for Teleport managed user %q. `+
-				"Teleport service automatically authorizes managed users upon successful server connections.",
-				cmd.Args()[0], dbUser,
-			)
 		}
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
