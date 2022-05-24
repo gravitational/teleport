@@ -18,19 +18,21 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -47,50 +49,32 @@ func main() {
 	}
 }
 
-type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
-	skipChown    bool
-}
-
-func parseCommandLine() (commandlineArgs, error) {
-	args := commandlineArgs{}
-
-	flag.StringVar(&args.workspace, "w", "", "Fully-qualified path to the build workspace")
-	flag.StringVar(&args.targetBranch, "t", "", "The PR's target branch")
-	flag.StringVar(&args.commitSHA, "c", "", "The PR's latest commit SHA")
-	flag.BoolVar(&args.skipChown, "skip-chown", false, "Skip reconfiguring the workspace for a nonroot user.")
-
-	flag.Parse()
-
-	if args.workspace == "" {
-		return args, trace.Errorf("workspace path must be set")
-	}
-
-	var err error
-	args.workspace, err = filepath.Abs(args.workspace)
-	if err != nil {
-		return args, trace.Wrap(err, "Unable to resole absolute path to workspace")
-	}
-
-	if args.targetBranch == "" {
-		return args, trace.Errorf("target branch must be set")
-	}
-
-	if args.commitSHA == "" {
-		return args, trace.Errorf("commit must be set")
-	}
-
-	return args, nil
-}
-
 // innerMain parses the command line, performs the highlevel docs change check
 // and creates the marker file if necessary
 func innerMain() error {
 	args, err := parseCommandLine()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If a github deploy key location was supplied...
+	var deployKey []byte
+	if args.githubKeySrc != "" {
+		// fetch the deployment key from the GCB secret manager
+		log.Infof("Fetching deploy key from %s", args.githubKeySrc)
+		deployKey, err = secrets.Fetch(context.Background(), args.githubKeySrc)
+		if err != nil {
+			return trace.Wrap(err, "failed fetching deploy key")
+		}
+	}
+
+	if !args.skipUnshallow {
+		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer unshallowCancel()
+		err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
+		if err != nil {
+			return trace.Wrap(err, "unshallow failed")
+		}
 	}
 
 	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(args.workspace, gomodcacheDir))
