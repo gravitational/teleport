@@ -217,5 +217,5 @@ func (u *baseUser) RotatePassword(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(u.cloudResource.ModifyUserPassword(ctx, "", newPassword))
+	return trace.Wrap(u.cloudResource.ModifyUserPassword(ctx, currentValue.Value, newPassword))
 }
