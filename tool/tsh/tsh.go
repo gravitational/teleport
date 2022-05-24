@@ -1968,23 +1968,33 @@ func onListClusters(cf *CLIConf) error {
 		if cf.Quiet {
 			t = asciitable.MakeHeadlessTable(4)
 		} else {
-			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
+			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Labels", "Selected"})
 		}
 
 		t.AddRow([]string{
-			rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
+			rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName),
 		})
 		for _, cluster := range leafClusters {
+			labels := sortedLabels(cluster.GetMetadata().Labels)
 			t.AddRow([]string{
-				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
+				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", labels, showSelected(cluster.GetName()),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
-		rootClusterInfo := clusterInfo{rootClusterName, teleport.RemoteClusterStatusOnline, "root", isSelected(rootClusterName)}
+		rootClusterInfo := clusterInfo{
+			ClusterName: rootClusterName,
+			Status:      teleport.RemoteClusterStatusOnline,
+			ClusterType: "root",
+			Selected:    isSelected(rootClusterName)}
 		leafClusterInfo := make([]clusterInfo, 0, len(leafClusters))
 		for _, leaf := range leafClusters {
-			leafClusterInfo = append(leafClusterInfo, clusterInfo{leaf.GetName(), leaf.GetConnectionStatus(), "leaf", isSelected(leaf.GetName())})
+			leafClusterInfo = append(leafClusterInfo, clusterInfo{
+				ClusterName: leaf.GetName(),
+				Status:      leaf.GetConnectionStatus(),
+				ClusterType: "leaf",
+				Labels:      leaf.GetMetadata().Labels,
+				Selected:    isSelected(leaf.GetName())})
 		}
 		out, err := serializeClusters(rootClusterInfo, leafClusterInfo, format)
 		if err != nil {
@@ -1998,10 +2008,11 @@ func onListClusters(cf *CLIConf) error {
 }
 
 type clusterInfo struct {
-	ClusterName string `json:"cluster_name"`
-	Status      string `json:"status"`
-	ClusterType string `json:"cluster_type"`
-	Selected    bool   `json:"selected"`
+	ClusterName string            `json:"cluster_name"`
+	Status      string            `json:"status"`
+	ClusterType string            `json:"cluster_type"`
+	Labels      map[string]string `json:"labels"`
+	Selected    bool              `json:"selected"`
 }
 
 func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, format string) (string, error) {
