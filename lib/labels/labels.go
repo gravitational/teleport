@@ -172,8 +172,10 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 type LabelImporter interface {
 	// Get returns the current labels.
 	Get() map[string]string
+	// Apply adds the current labels to the provided resource's static labels.
+	Apply(r types.ResourceWithLabels)
 	// Sync blocks and synchronously updates the labels.
-	Sync(context.Context)
+	Sync(context.Context) error
 	// Start starts a loop that continually keeps the labels updated.
 	Start(context.Context)
 }

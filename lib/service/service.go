@@ -767,7 +767,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 			return nil, trace.Wrap(err)
 		}
 
-		ec2Labels, err := ec2.NewEC2(&ec2.EC2Config{
+		ec2Labels, err := ec2.New(supervisor.ExitContext(), &ec2.EC2Config{
 			Client: imClient,
 			Clock:  cfg.Clock,
 		})

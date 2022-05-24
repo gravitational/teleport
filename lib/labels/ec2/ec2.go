@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package ec2
 
 import (
@@ -21,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -40,12 +42,12 @@ const (
 type EC2Config struct {
 	Client aws.InstanceMetadata
 	Clock  clockwork.Clock
-	Log    *logrus.Entry
+	Log    logrus.FieldLogger
 }
 
-func (conf *EC2Config) checkAndSetDefaults() error {
+func (conf *EC2Config) checkAndSetDefaults(ctx context.Context) error {
 	if conf.Client == nil {
-		client, err := utils.NewInstanceMetadataClient(context.TODO())
+		client, err := utils.NewInstanceMetadataClient(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -55,7 +57,7 @@ func (conf *EC2Config) checkAndSetDefaults() error {
 		conf.Clock = clockwork.NewRealClock()
 	}
 	if conf.Log == nil {
-		conf.Log = logrus.NewEntry(logrus.StandardLogger())
+		conf.Log = logrus.WithField(trace.Component, "ec2labels")
 	}
 	return nil
 }
@@ -70,8 +72,8 @@ type EC2 struct {
 	closeCh chan struct{}
 }
 
-func NewEC2(c *EC2Config) (*EC2, error) {
-	if err := c.checkAndSetDefaults(); err != nil {
+func New(ctx context.Context, c *EC2Config) (*EC2, error) {
+	if err := c.checkAndSetDefaults(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &EC2{
@@ -88,21 +90,28 @@ func (l *EC2) Get() map[string]string {
 	return l.labels
 }
 
+// Apply adds EC2 labels to the provided resource.
+func (l *EC2) Apply(r types.ResourceWithLabels) {
+	labels := l.Get()
+	for k, v := range r.GetStaticLabels() {
+		labels[k] = v
+	}
+	r.SetStaticLabels(labels)
+}
+
 // Sync will block and synchronously update EC2 labels.
-func (l *EC2) Sync(ctx context.Context) {
+func (l *EC2) Sync(ctx context.Context) error {
 	m := make(map[string]string)
 
 	tags, err := l.c.Client.GetTagKeys(ctx)
 	if err != nil {
-		l.c.Log.Errorf("Error fetching EC2 tags: %v", err)
-		return
+		return trace.Wrap(err)
 	}
 
 	for _, t := range tags {
 		value, err := l.c.Client.GetTagValue(ctx, t)
 		if err != nil {
-			l.c.Log.Errorf("Error fetching EC2 tags: %v", err)
-			return
+			return trace.Wrap(err)
 		}
 		m[t] = value
 	}
@@ -110,6 +119,8 @@ func (l *EC2) Sync(ctx context.Context) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.labels = toAWSLabels(m)
+
+	return nil
 }
 
 // Start will start a loop that continually keeps EC2 labels updated.
@@ -122,7 +133,9 @@ func (l *EC2) periodicUpdateLabels(ctx context.Context) {
 	defer ticker.Stop()
 
 	for {
-		l.Sync(ctx)
+		if err := l.Sync(ctx); err != nil {
+			l.c.Log.Errorf("Error fetching EC2 tags: %v", err)
+		}
 		select {
 		case <-ticker.Chan():
 		case <-ctx.Done():

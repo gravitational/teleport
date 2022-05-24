@@ -405,7 +405,7 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 		copy.SetDynamicLabels(labels.Get())
 	}
 	if s.c.CloudLabels != nil {
-		s.injectEC2Labels(copy)
+		s.c.CloudLabels.Apply(copy)
 	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewAppServerV3(types.Metadata{
@@ -480,18 +480,6 @@ func (s *Server) getApps() (apps types.Apps) {
 	return apps
 }
 
-func (s *Server) injectEC2Labels(app types.Application) {
-	if s.c.CloudLabels == nil {
-		return
-	}
-	labels := s.c.CloudLabels.Get()
-	// Let static labels override EC2 labels if they conflict.
-	for k, v := range app.GetStaticLabels() {
-		labels[k] = v
-	}
-	app.SetStaticLabels(labels)
-}
-
 // Start starts proxying all registered apps.
 func (s *Server) Start(ctx context.Context) (err error) {
 	// Register all apps from static configuration.
@@ -511,9 +499,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// proxied apps based on the application resources.
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
-	}
-	if s.c.CloudLabels != nil {
-		s.c.CloudLabels.Start(ctx)
 	}
 	return nil
 }

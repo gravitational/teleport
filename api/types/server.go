@@ -42,8 +42,6 @@ type Server interface {
 	GetHostname() string
 	// GetNamespace returns server namespace
 	GetNamespace() string
-	// GetLabels returns server's static label key pairs
-	GetLabels() map[string]string
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]CommandLabel
 	// SetCmdLabels sets command labels.
@@ -221,9 +219,14 @@ func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
 }
 
-// GetLabels returns server's static label key pairs
-func (s *ServerV2) GetLabels() map[string]string {
+// GetStaticLabels returns the server static labels.
+func (s *ServerV2) GetStaticLabels() map[string]string {
 	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the server static labels.
+func (s *ServerV2) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
 }
 
 // GetCmdLabels returns command labels

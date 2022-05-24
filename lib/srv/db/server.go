@@ -470,18 +470,6 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	return databases
 }
 
-func (s *Server) injectEC2Labels(database types.Database) {
-	if s.cfg.CloudLabels == nil {
-		return
-	}
-	labels := s.cfg.CloudLabels.Get()
-	// Let static labels override EC2 labels if they conflict.
-	for k, v := range database.GetStaticLabels() {
-		labels[k] = v
-	}
-	database.SetStaticLabels(labels)
-}
-
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
@@ -545,7 +533,7 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		copy.SetDynamicLabels(labels.Get())
 	}
 	if s.cfg.CloudLabels != nil {
-		s.injectEC2Labels(copy)
+		s.cfg.CloudLabels.Apply(copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewDatabaseServerV3(types.Metadata{
@@ -608,10 +596,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// heartbeat without error to make the component “ready”.
 	if len(s.cfg.Databases) == 0 && s.cfg.OnHeartbeat != nil {
 		s.cfg.OnHeartbeat(nil)
-	}
-
-	if s.cfg.CloudLabels != nil {
-		s.cfg.CloudLabels.Start(ctx)
 	}
 
 	return nil

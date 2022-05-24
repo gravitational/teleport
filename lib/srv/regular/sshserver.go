@@ -308,10 +308,6 @@ func (s *Server) Start() error {
 		go s.dynamicLabels.Start()
 	}
 
-	if s.cloudLabels != nil {
-		s.cloudLabels.Start(s.Context())
-	}
-
 	// If the server requested connections to it arrive over a reverse tunnel,
 	// don't call Start() which listens on a socket, return right away.
 	if s.useTunnel {

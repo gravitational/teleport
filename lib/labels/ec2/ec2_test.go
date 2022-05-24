@@ -54,11 +54,11 @@ func TestEC2LabelsSync(t *testing.T) {
 	imdsClient := &mockIMDSClient{
 		tags: tags,
 	}
-	ec2Labels, err := NewEC2(&EC2Config{
+	ec2Labels, err := New(ctx, &EC2Config{
 		Client: imdsClient,
 	})
 	require.NoError(t, err)
-	ec2Labels.Sync(ctx)
+	require.NoError(t, ec2Labels.Sync(ctx))
 	require.Equal(t, toAWSLabels(tags), ec2Labels.Get())
 }
 
@@ -66,7 +66,7 @@ func TestEC2LabelsAsync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	imdsClient := &mockIMDSClient{}
 	clock := clockwork.NewFakeClock()
-	ec2Labels, err := NewEC2(&EC2Config{
+	ec2Labels, err := New(ctx, &EC2Config{
 		Client: imdsClient,
 		Clock:  clock,
 	})
