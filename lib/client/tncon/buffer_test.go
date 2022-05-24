@@ -159,24 +159,30 @@ func TestBufferedChannelPipeRead(t *testing.T) {
 	}
 }
 
-// BenchmarkBufferedChannelPipe is a benchmark test for writing
-// to a buffer, reading from it, and closing it.
 func BenchmarkBufferedChannelPipe(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		b.Run(fmt.Sprint(n), func(b *testing.B) {
-			buffer := newBufferedChannelPipe(sequenceBufferSize)
+	for _, s := range []int{1, 10, 100, 500, 1000} {
+		data := make([]byte, 1000)
+		b.Run(fmt.Sprintf("size=%d", s), func(b *testing.B) {
+			b.StopTimer() // stop timer during setup
+			buffer := newBufferedChannelPipe(s)
+			b.Cleanup(func() { require.NoError(b, buffer.Close()) })
 
 			errCh := make(chan error)
 			go func() {
-				_, err := io.ReadAll(buffer)
+				readBuffer := make([]byte, b.N*len(data))
+				_, err := io.ReadFull(buffer, readBuffer)
 				errCh <- err
 			}()
 
-			b.Cleanup(func() {
-				require.NoError(b, buffer.Close())
-				require.NoError(b, <-errCh)
-			})
-			buffer.Write(make([]byte, 100*sequenceBufferSize))
+			// benchmark write+read
+			b.StartTimer()
+			for n := 0; n < b.N; n++ {
+				written, err := buffer.Write(data)
+				require.NoError(b, err)
+				require.Equal(b, len(data), written)
+			}
+			require.NoError(b, <-errCh)
+			b.StopTimer()
 		})
 	}
 }
