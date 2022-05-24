@@ -40,47 +40,125 @@
         {
           "title": "Deployments",
           "slug": "/setup/deployments/",
+          "hideInScopes": "cloud",
           "entries": [
-            { "title": "AWS Terraform", "slug": "/setup/deployments/aws-terraform/" },
-            { "title": "GCP", "slug": "/setup/deployments/gcp/" },
-            { "title": "IBM", "slug": "/setup/deployments/ibm/" }
+            {
+              "title": "AWS Terraform",
+              "slug": "/setup/deployments/aws-terraform/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "GCP",
+              "slug": "/setup/deployments/gcp/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "IBM",
+              "slug": "/setup/deployments/ibm/",
+              "hideInScopes": "cloud"
+            }
           ]
         },
         {
           "title": "Operations",
           "slug": "/setup/operations/",
           "entries": [
-            { "title": "Scaling", "slug": "/setup/operations/scaling/" },
-            { "title": "Upgrading", "slug": "/setup/operations/upgrading/" },
-            { "title": "Backup and Restore", "slug": "/setup/operations/backup-restore/" },
-            { "title": "Cert Authority Rotation", "slug": "/setup/operations/ca-rotation/" }
+            {
+              "title": "Scaling",
+              "slug": "/setup/operations/scaling/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "Upgrading a Cluster",
+              "slug": "/setup/operations/upgrading/"
+            },
+            {
+              "title": "Backup and Restore",
+              "slug": "/setup/operations/backup-restore/"
+            },
+            {
+              "title": "Cert Authority Rotation",
+              "slug": "/setup/operations/ca-rotation/"
+            }
+          ]
+        },
+        {
+          "title": "Security",
+          "slug": "/setup/security/",
+          "entries": [
+            {
+              "title": "Reducing the Blast Radius of Attacks",
+              "slug": "/setup/security/reduce-blast-radius/"
+            }
           ]
         },
         {
           "title": "Integrations",
           "slug": "/setup/guides/",
           "entries": [
-            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
-            { "title": "Docker", "slug": "/setup/guides/docker/" },
-            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" },
-            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" },
-            { "title": "Joining Nodes in AWS", "slug": "/setup/guides/joining-nodes-aws/" }
+            {
+              "title": "Terraform Provider",
+              "slug": "/setup/guides/terraform-provider/"
+            },
+            {
+              "title": "Docker",
+              "slug": "/setup/guides/docker/"
+            },
+            {
+              "title": "Fluentd",
+              "slug": "/setup/guides/fluentd/"
+            },
+            {
+              "title": "EC2 Tags",
+              "slug": "/setup/guides/ec2-tags/"
+            },
+            {
+              "title": "Joining Nodes in AWS",
+              "slug": "/setup/guides/joining-nodes-aws/"
+            }
           ]
         },
         {
           "title": "Reference",
           "slug": "/setup/reference/",
           "entries": [
-            { "title": "Config File", "slug": "/setup/reference/config/" },
-            { "title": "Config Resources", "slug": "/setup/reference/resources/" },            
-            { "title": "Command Line", "slug": "/setup/reference/cli/" },
-            { "title": "Metrics", "slug": "/setup/reference/metrics/" },
-            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" },
-            { "title": "Audit Events and Records", "slug": "/setup/reference/audit/" },
-            { "title": "Authentication", "slug": "/setup/reference/authentication/" },
-            { "title": "Storage Backends", "slug": "/setup/reference/backends/" },
-            { "title": "Networking", "slug": "/setup/reference/networking/" },
-            { "title": "Enterprise License File", "slug": "/setup/reference/license/" },
+            {
+              "title": "Config File",
+              "slug": "/setup/reference/config/"
+            },
+            {
+              "title": "Config Resources",
+              "slug": "/setup/reference/resources/"
+            },
+            {
+              "title": "Command Line",
+              "slug": "/setup/reference/cli/"
+            },
+            {
+              "title": "Metrics",
+              "slug": "/setup/reference/metrics/"
+            },
+            {
+              "title": "Terraform Resources",
+              "slug": "/setup/reference/terraform-provider/"
+            },
+            {
+              "title": "Audit Events and Records",
+              "slug": "/setup/reference/audit/"
+            },
+            {
+              "title": "Authentication",
+              "slug": "/setup/reference/authentication/"
+            },
+            {
+              "title": "Storage Backends",
+              "slug": "/setup/reference/backends/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "Networking",
+              "slug": "/setup/reference/networking/"
+            },
             {
               "title": "Signals",
               "slug": "/setup/reference/signals/"
