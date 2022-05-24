@@ -357,6 +357,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return nil, "", trace.Wrap(err)
 	}
 
+	log.Debug("Prompting for Touch ID")
 	sig, err := native.Authenticate(cred.CredentialID, attData.digest)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
