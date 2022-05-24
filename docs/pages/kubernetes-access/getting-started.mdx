@@ -5,6 +5,13 @@ videoBanner: VPGYLEMTdJ8
 layout: tocless-doc
 ---
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+## Deploy Teleport on Kubernetes
+
+See how you can deploy the Teleport Auth Service and Proxy Service on a
+Kubernetes cluster.
+
 <TileSet>
   <Tile title="Try Teleport on a Local Kubernetes Cluster" href="./getting-started/local.mdx">
     ![Teleport ](../../img/k8s/mini-diagrams/teleport-in-k8s-mono.svg)
@@ -14,8 +21,20 @@ layout: tocless-doc
     ![Teleport ](../../img/k8s/mini-diagrams/teleport-in-k8s-mono.svg)
     Deploy a standalone Teleport cluster in a Kubernetes cluster.
   </Tile>
+</TileSet>
+
+</ScopedBlock>
+
+## Use Teleport to access a Kubernetes cluster
+
+Register your Kubernetes clusters with Teleport for secure `kubectl`
+connections, fine-grained RBAC, and more.
+
+<TileSet>
   <Tile title="Teleport Kubernetes Agent" href="./getting-started/agent.mdx">
     ![Kubernetes agent](../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
-    Connect a Kubernetes cluster to an existing Teleport cluster.
+
+    Get started with Teleport Kubernetes Access.
+
   </Tile>
 </TileSet>

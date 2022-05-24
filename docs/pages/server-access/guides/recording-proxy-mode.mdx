@@ -3,15 +3,9 @@ title: Teleport Recording Proxy Mode
 description: Use Recording Proxy Mode to capture OpenSSH server activity
 ---
 
-<Notice scope={["cloud"]} type="warning">
-
-Teleport Cloud only supports session recording at the Node level. If you are
-interested in setting up session recording, read our
-[Server Access Getting Started Guide](../getting-started.mdx) so you can start
-replacing your OpenSSH servers with Teleport Nodes.
-
-</Notice>
-
+Teleport Recording Proxy Mode was added to allow Teleport users
+to enable session recording for servers running `sshd`, which is helpful
+when gradually transitioning large server fleets to Teleport.
 
 <Figure
   align="center"
@@ -21,9 +15,34 @@ replacing your OpenSSH servers with Teleport Nodes.
   ![Teleport OpenSSH Recording Proxy](../../../img/server-access/openssh-proxy.svg)
 </Figure>
 
-Teleport Recording Proxy Mode was added to allow Teleport users
-to enable session recording for OpenSSH's servers running `sshd`, which is helpful
-when gradually transitioning large server fleets to Teleport.
+
+<ScopedBlock scope={["cloud"]}>
+
+Teleport Cloud only supports session recording at the Node level. If you are
+interested in setting up session recording, read our
+[Server Access Getting Started Guide](../getting-started.mdx) so you can start
+replacing your OpenSSH servers with Teleport Nodes.
+
+You can also view this guide as a user of another Teleport edition:
+
+<TileSet>
+<Tile
+href="./recording-proxy-mode.mdx/?scope=oss"
+icon="stack"
+title="Open Source Teleport"
+>
+</Tile>
+<Tile
+href="./recording-proxy-mode.mdx/?scope=enterprise"
+icon="building"
+title="Teleport Enterprise"
+>
+</Tile>
+</TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 We consider Recording Proxy Mode to be less secure than recording at the Node
 level for two reasons:
@@ -251,3 +270,5 @@ dropped.
 
 To increase the concurrency level, increase the value to something like
 `MaxStartups 50:30:100`. This allows 50 concurrent connections and a max of 100.
+
+</ScopedBlock>
