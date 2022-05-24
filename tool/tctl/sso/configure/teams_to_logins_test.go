@@ -32,39 +32,46 @@ func Test_teamsToLoginsParser_Set(t *testing.T) {
 	}{
 		{
 			name:   "one set of correct args",
-			parser: nil,
+			parser: teamsToLoginsParser{mappings: new([]types.TeamMapping)},
 			arg:    "foo,bar,baz",
-			wantParser: teamsToLoginsParser{types.TeamMapping{
-				Organization: "foo",
-				Team:         "bar",
-				Logins:       []string{"baz"},
+			wantParser: teamsToLoginsParser{mappings: &[]types.TeamMapping{
+				{
+					Organization: "foo",
+					Team:         "bar",
+					Logins:       []string{"baz"},
+				},
 			}},
 			wantErr: false,
 		},
 		{
 			name: "two sets of correct args",
-			parser: teamsToLoginsParser{types.TeamMapping{
-				Organization: "foo",
-				Team:         "bar",
-				Logins:       []string{"baz"},
+			parser: teamsToLoginsParser{mappings: &[]types.TeamMapping{
+				{
+					Organization: "foo",
+					Team:         "bar",
+					Logins:       []string{"baz"},
+				},
 			}},
 			arg: "aaa,bbb,ccc,ddd",
-			wantParser: teamsToLoginsParser{types.TeamMapping{
-				Organization: "foo",
-				Team:         "bar",
-				Logins:       []string{"baz"},
-			}, types.TeamMapping{
-				Organization: "aaa",
-				Team:         "bbb",
-				Logins:       []string{"ccc", "ddd"},
+			wantParser: teamsToLoginsParser{mappings: &[]types.TeamMapping{
+				{
+					Organization: "foo",
+					Team:         "bar",
+					Logins:       []string{"baz"},
+				},
+				{
+					Organization: "aaa",
+					Team:         "bbb",
+					Logins:       []string{"ccc", "ddd"},
+				},
 			}},
 			wantErr: false,
 		},
 		{
 			name:       "one set of incorrect args",
-			parser:     nil,
+			parser:     teamsToLoginsParser{mappings: new([]types.TeamMapping)},
 			arg:        "abracadabra",
-			wantParser: nil,
+			wantParser: teamsToLoginsParser{mappings: new([]types.TeamMapping)},
 			wantErr:    true,
 		},
 	}

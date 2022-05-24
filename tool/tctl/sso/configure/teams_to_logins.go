@@ -25,13 +25,15 @@ import (
 )
 
 // teamsToLoginsParser parsers 'name,value,role1,role2,...' values into types.AttributeMapping entries. Cumulative, can handle multiple entries.
-type teamsToLoginsParser []types.TeamMapping
-
-func (a *teamsToLoginsParser) String() string {
-	return fmt.Sprintf("%q", (*[]types.TeamMapping)(a))
+type teamsToLoginsParser struct {
+	mappings *[]types.TeamMapping
 }
 
-func (a *teamsToLoginsParser) Set(s string) error {
+func (p *teamsToLoginsParser) String() string {
+	return fmt.Sprintf("%q", p.mappings)
+}
+
+func (p *teamsToLoginsParser) Set(s string) error {
 	splits := strings.Split(s, ",")
 
 	if len(splits) < 3 {
@@ -46,20 +48,18 @@ func (a *teamsToLoginsParser) Set(s string) error {
 		Organization: name,
 		Team:         value,
 		Logins:       roles, // note: logins is legacy name, 'roles' is accurate now.
-		KubeGroups:   nil,
-		KubeUsers:    nil,
 	}
 
-	*a = append(*a, mapping)
+	*p.mappings = append(*p.mappings, mapping)
 
 	return nil
 }
 
-func (a *teamsToLoginsParser) IsCumulative() bool {
+func (p *teamsToLoginsParser) IsCumulative() bool {
 	return true
 }
 
 // newTeamsToLoginsParser returns a cumulative flag parser for []types.TeamMapping.
 func newTeamsToLoginsParser(field *[]types.TeamMapping) kingpin.Value {
-	return (*teamsToLoginsParser)(field)
+	return &teamsToLoginsParser{mappings: field}
 }
