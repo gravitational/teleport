@@ -143,8 +143,6 @@ type ForwarderConfig struct {
 	CheckImpersonationPermissions ImpersonationPermissionsChecker
 	// PublicAddr is the address that can be used to reach the kube cluster
 	PublicAddr string
-
-	TLS *tls.Config
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -221,7 +219,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		checkImpersonation = cfg.CheckImpersonationPermissions
 	}
 
-	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, checkImpersonation, cfg.TLS)
+	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, checkImpersonation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

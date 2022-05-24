@@ -1764,7 +1764,7 @@ func enableKube(config *service.Config, clusterName string) error {
 	}
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
 		TeleportClusterName: clusterName,
-		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
+		ClusterAddr:         "https://" + net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
 	})
 	if err != nil {
