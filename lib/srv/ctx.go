@@ -508,23 +508,17 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 		return nil
 	}
 	// make sure whatever session is requested is a valid session
-	_, err := rsession.ParseID(ssid)
+	id, err := rsession.ParseID(ssid)
 	if err != nil {
 		return trace.BadParameter("invalid session id")
 	}
 
-	findSession := func() (*session, bool) {
-		reg.sessionsMux.Lock()
-		defer reg.sessionsMux.Unlock()
-		return reg.findSessionLocked(rsession.ID(ssid))
-	}
-
-	// update ctx with a session ID
-	c.session, _ = findSession()
-	if c.session == nil {
-		log.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
-	} else {
+	// update ctx with the session if it exists
+	if sess, found := reg.findSession(*id); found {
+		c.session = sess
 		log.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
+	} else {
+		log.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	}
 
 	return nil
