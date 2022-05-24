@@ -1454,24 +1454,22 @@ func listNodesAllClusters(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			result, err := tc.ListNodesWithFiltersAllClusters(cf.Context)
-			if err != nil {
-				return err
-			}
-			for clusterName, nodes := range result {
-				for _, node := range nodes {
-					nodeListings = append(nodeListings, nodeListing{
-						Proxy:   cf.Proxy,
-						Cluster: clusterName,
-						Node:    node,
-					})
-				}
-			}
-			return nil
-		})
+		result, err := tc.ListNodesWithFiltersAllClusters(cf.Context)
+		if client.IsExpiredCredentialError(err) {
+			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
+			continue
+		}
 		if err != nil {
-			return trace.Wrap(err)
+			return err
+		}
+		for clusterName, nodes := range result {
+			for _, node := range nodes {
+				nodeListings = append(nodeListings, nodeListing{
+					Proxy:   cf.Proxy,
+					Cluster: clusterName,
+					Node:    node,
+				})
+			}
 		}
 	}
 
@@ -3010,24 +3008,22 @@ func listAppsAllClusters(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			result, err := tc.ListAppsAllClusters(cf.Context, nil /* custom filter */)
-			if err != nil {
-				return err
-			}
-			for clusterName, apps := range result {
-				for _, app := range apps {
-					appListings = append(appListings, appListing{
-						Proxy:   cf.Proxy,
-						Cluster: clusterName,
-						App:     app,
-					})
-				}
-			}
-			return nil
-		})
+		result, err := tc.ListAppsAllClusters(cf.Context, nil /* custom filter */)
+		if client.IsExpiredCredentialError(err) {
+			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
+			continue
+		}
 		if err != nil {
-			return trace.Wrap(err)
+			return err
+		}
+		for clusterName, apps := range result {
+			for _, app := range apps {
+				appListings = append(appListings, appListing{
+					Proxy:   cf.Proxy,
+					Cluster: clusterName,
+					App:     app,
+				})
+			}
 		}
 	}
 

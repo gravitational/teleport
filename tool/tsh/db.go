@@ -113,38 +113,36 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
+		result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
+		if client.IsExpiredCredentialError(err) {
+			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
+			continue
+		}
+		if err != nil {
+			return err
+		}
+
 		proxy, err := tc.ConnectToProxy(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
+		for clusterName, databases := range result {
+			cluster, err := proxy.ConnectToCluster(cf.Context, clusterName, false)
 			if err != nil {
 				return err
 			}
-			for clusterName, databases := range result {
-				cluster, err := proxy.ConnectToCluster(cf.Context, clusterName, false)
-				if err != nil {
-					return err
-				}
-				roleSet, err := services.FetchRoles(p.Roles, cluster, p.Traits)
-				if err != nil {
-					return err
-				}
-				for _, database := range databases {
-					dbListings = append(dbListings, databaseListing{
-						Proxy:    cf.Proxy,
-						Cluster:  clusterName,
-						roleSet:  roleSet,
-						Database: database,
-					})
-				}
+			roleSet, err := services.FetchRoles(p.Roles, cluster, p.Traits)
+			if err != nil {
+				return err
 			}
-			return nil
-		})
-		if err != nil {
-			return trace.Wrap(err)
+			for _, database := range databases {
+				dbListings = append(dbListings, databaseListing{
+					Proxy:    cf.Proxy,
+					Cluster:  clusterName,
+					roleSet:  roleSet,
+					Database: database,
+				})
+			}
 		}
 	}
 

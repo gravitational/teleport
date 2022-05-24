@@ -541,6 +541,11 @@ func (p *ProfileStatus) AppNames() (result []string) {
 	return result
 }
 
+// IsExpiredCredentialError checks if an error corresponds to expired credentials.
+func IsExpiredCredentialError(err error) bool {
+	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) || trace.IsBadParameter(err) || trace.IsTrustError(err)
+}
+
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
 // RetryWithRelogin automatically enables tc.UseStrongestAuth for Login attempts
@@ -552,7 +557,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 	// Assume that failed handshake is a result of expired credentials,
 	// retry the login procedure
-	if !utils.IsHandshakeFailedError(err) && !utils.IsCertExpiredError(err) && !trace.IsBadParameter(err) && !trace.IsTrustError(err) {
+	if !IsExpiredCredentialError(err) {
 		return trace.Wrap(err)
 	}
 	// Don't try to login when using an identity file.
