@@ -32,7 +32,7 @@ import (
 
 const (
 	// TracingRequest is sent by clients to server to pass along tracing context.
-	TracingRequest = "x-teleport-tracing"
+	TracingRequest = "tracing@goteleport.com"
 )
 
 // Client is a wrapper around ssh.Client that adds tracing support.
