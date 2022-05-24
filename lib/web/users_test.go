@@ -196,7 +196,7 @@ type mockedUserAPIGetter struct {
 	mockDeleteUser func(ctx context.Context, user string) error
 }
 
-func (m *mockedUserAPIGetter) GetUser(name string, withSecrets bool) (types.User, error) {
+func (m *mockedUserAPIGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if m.mockGetUser != nil {
 		return m.mockGetUser(name, withSecrets)
 	}

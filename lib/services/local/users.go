@@ -123,7 +123,7 @@ func (s *IdentityService) CreateUser(user types.User) error {
 	}
 
 	// Confirm user doesn't exist before creating.
-	_, err := s.GetUser(user.GetName(), false)
+	_, err := s.GetUser(context.TODO(), user.GetName(), false)
 	if !trace.IsNotFound(err) {
 		if err != nil {
 			return trace.Wrap(err)
@@ -161,7 +161,7 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) error
 	}
 
 	// Confirm user exists before updating.
-	if _, err := s.GetUser(user.GetName(), false); err != nil {
+	if _, err := s.GetUser(context.TODO(), user.GetName(), false); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -269,14 +269,14 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 }
 
 // GetUser returns a user by name
-func (s *IdentityService) GetUser(user string, withSecrets bool) (types.User, error) {
+func (s *IdentityService) GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		return s.getUserWithSecrets(user)
 	}
 	if user == "" {
 		return nil, trace.BadParameter("missing user name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, paramsPrefix))
+	item, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, user, paramsPrefix))
 	if err != nil {
 		return nil, trace.NotFound("user %q is not found", user)
 	}
@@ -384,7 +384,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (ty
 
 // DeleteUser deletes a user with all the keys from the backend
 func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
-	_, err := s.GetUser(user, false)
+	_, err := s.GetUser(context.TODO(), user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

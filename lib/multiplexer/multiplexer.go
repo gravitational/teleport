@@ -248,6 +248,8 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 
 func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 	reader := bufio.NewReader(conn)
+	conn.SetReadDeadline(time.Now().Add(time.Hour * 24))
+	conn.SetDeadline(time.Now().Add(time.Hour * 24))
 
 	// the first attempt is to parse optional proxy
 	// protocol line that is injected by load balancers

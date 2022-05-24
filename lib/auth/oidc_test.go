@@ -113,7 +113,7 @@ func TestCreateOIDCUser(t *testing.T) {
 	require.Equal(t, "foo@example.com", user.GetName())
 
 	// Dry-run must not create a user.
-	_, err = s.a.GetUser("foo@example.com", false)
+	_, err = s.a.GetUser(context.TODO(), "foo@example.com", false)
 	require.Error(t, err)
 
 	// Create OIDC user with 1 minute expiry.
@@ -127,12 +127,12 @@ func TestCreateOIDCUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
-	_, err = s.a.GetUser("foo@example.com", false)
+	_, err = s.a.GetUser(context.TODO(), "foo@example.com", false)
 	require.NoError(t, err)
 
 	// Advance time 2 minutes, the user should be gone.
 	s.c.Advance(2 * time.Minute)
-	_, err = s.a.GetUser("foo@example.com", false)
+	_, err = s.a.GetUser(context.TODO(), "foo@example.com", false)
 	require.Error(t, err)
 }
 

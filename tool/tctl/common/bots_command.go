@@ -257,7 +257,7 @@ func (c *BotsCommand) LockBot(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	user, err := client.GetUser(auth.BotResourceName(c.botName), false)
+	user, err := client.GetUser(context.TODO(), auth.BotResourceName(c.botName), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

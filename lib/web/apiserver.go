@@ -584,7 +584,17 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := clt.GetUser(c.GetUser(), false)
+	ctx := r.Context()
+	if ctx.Value(auth.ContextClientAddr) == nil {
+		host, err := utils.Host(r.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ctx = context.WithValue(ctx, auth.ContextClientAddr, &net.TCPAddr{IP: net.ParseIP(host)})
+	}
+	ctx = context.WithValue(ctx, "client-addr", ctx.Value(auth.ContextClientAddr))
+
+	user, err := clt.GetUser(ctx, c.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -602,7 +612,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := clt.GetAccessCapabilities(r.Context(), types.AccessCapabilitiesRequest{
+	res, err := clt.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
 		RequestableRoles:   true,
 		SuggestedReviewers: true,
 	})

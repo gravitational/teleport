@@ -1319,7 +1319,7 @@ func TestUsers(t *testing.T) {
 	err = p.usersS.UpsertUser(user)
 	require.NoError(t, err)
 
-	user, err = p.usersS.GetUser(user.GetName(), false)
+	user, err = p.usersS.GetUser(context.TODO(), user.GetName(), false)
 	require.NoError(t, err)
 
 	select {
@@ -1329,7 +1329,7 @@ func TestUsers(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetUser(user.GetName(), false)
+	out, err := p.cache.GetUser(context.TODO(), user.GetName(), false)
 	require.NoError(t, err)
 	user.SetResourceID(out.GetResourceID())
 	require.Empty(t, cmp.Diff(user, out))
@@ -1340,7 +1340,7 @@ func TestUsers(t *testing.T) {
 	err = p.usersS.UpsertUser(user)
 	require.NoError(t, err)
 
-	user, err = p.usersS.GetUser(user.GetName(), false)
+	user, err = p.usersS.GetUser(context.TODO(), user.GetName(), false)
 	require.NoError(t, err)
 
 	select {
@@ -1350,7 +1350,7 @@ func TestUsers(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetUser(user.GetName(), false)
+	out, err = p.cache.GetUser(context.TODO(), user.GetName(), false)
 	require.NoError(t, err)
 	user.SetResourceID(out.GetResourceID())
 	require.Empty(t, cmp.Diff(user, out))
@@ -1364,7 +1364,7 @@ func TestUsers(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetUser(user.GetName(), false)
+	_, err = p.cache.GetUser(context.TODO(), user.GetName(), false)
 	require.True(t, trace.IsNotFound(err))
 }
 

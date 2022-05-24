@@ -314,7 +314,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSess
 	}
 	username = actualUser
 
-	user, err := s.GetUser(username, false /* withSecrets */)
+	user, err := s.GetUser(context.TODO(), username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -447,7 +447,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 
 	// It's safe to extract the roles and traits directly from services.User as
 	// this endpoint is only used for local accounts.
-	user, err := s.GetUser(username, false /* withSecrets */)
+	user, err := s.GetUser(context.TODO(), username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -468,6 +468,11 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		authority,
 	}
 
+	addr, err := utils.Host(req.AuthenticateUserRequest.ClientMetadata.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certs, err := s.generateUserCert(certRequest{
 		user:              user,
 		ttl:               req.TTL,
@@ -477,7 +482,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		traits:            user.GetTraits(),
 		routeToCluster:    req.RouteToCluster,
 		kubernetesCluster: req.KubernetesCluster,
-		clientIP:          req.ClientIP,
+		clientIP:          addr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

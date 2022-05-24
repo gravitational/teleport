@@ -535,7 +535,7 @@ func TestUserLock(t *testing.T) {
 		require.Error(t, err)
 	}
 
-	user, err := s.a.Identity.GetUser(username, false)
+	user, err := s.a.Identity.GetUser(context.TODO(), username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 

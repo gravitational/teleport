@@ -818,7 +818,7 @@ func certRequestClientIP(ip string) certRequestOption {
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
-	user, err := a.Identity.GetUser(username, false)
+	user, err := a.Identity.GetUser(context.TODO(), username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -863,7 +863,7 @@ type AppTestCertRequest struct {
 // GenerateUserAppTestCert generates an application specific certificate, used
 // internally for tests.
 func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error) {
-	user, err := a.Identity.GetUser(req.Username, false)
+	user, err := a.Identity.GetUser(context.TODO(), req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -917,7 +917,7 @@ type DatabaseTestCertRequest struct {
 // GenerateDatabaseTestCert generates a database access certificate for the
 // provided parameters. Used only internally in tests.
 func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, error) {
-	user, err := a.Identity.GetUser(req.Username, false)
+	user, err := a.Identity.GetUser(context.TODO(), req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1225,7 +1225,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
 func (a *Server) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := a.Identity.GetUser(username, false)
+	user, err := a.Identity.GetUser(context.TODO(), username, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If user is not found, still call authenticateFn. It should
@@ -1845,7 +1845,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		}
 
 		// Get default/static roles.
-		user, err := a.GetUser(req.User, false)
+		user, err := a.GetUser(context.TODO(), req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
@@ -1930,7 +1930,7 @@ func (a *Server) getRolesAndExpiryFromAccessRequest(ctx context.Context, user, a
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
 func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
-	u, err := a.GetUser(user, false)
+	u, err := a.GetUser(context.TODO(), user, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2310,7 +2310,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 
 // NewWebSession creates and returns a new web session for the specified request
 func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession, error) {
-	user, err := a.GetUser(req.User, false)
+	user, err := a.GetUser(context.TODO(), req.User, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2801,8 +2801,8 @@ func (a *Server) GetProxies() ([]types.Server, error) {
 }
 
 // GetUser returns a user from the cache
-func (a *Server) GetUser(name string, withSecrets bool) (user types.User, err error) {
-	return a.GetCache().GetUser(name, withSecrets)
+func (a *Server) GetUser(ctx context.Context, name string, withSecrets bool) (user types.User, err error) {
+	return a.GetCache().GetUser(context.TODO(), name, withSecrets)
 }
 
 // GetUsers returns users from the cache

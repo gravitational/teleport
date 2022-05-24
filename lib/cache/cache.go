@@ -1629,9 +1629,9 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 }
 
 // GetUser is a part of auth.Cache implementation.
-func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err error) {
+func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (user types.User, err error) {
 	if withSecrets { // cache never tracks user secrets
-		return c.Config.Users.GetUser(name, withSecrets)
+		return c.Config.Users.GetUser(context.TODO(), name, withSecrets)
 	}
 	rg, err := c.read()
 	if err != nil {
@@ -1639,13 +1639,13 @@ func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err err
 	}
 	defer rg.Release()
 
-	user, err = rg.users.GetUser(name, withSecrets)
+	user, err = rg.users.GetUser(context.TODO(), name, withSecrets)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if user, err := c.Config.Users.GetUser(name, withSecrets); err == nil {
+		if user, err := c.Config.Users.GetUser(context.TODO(), name, withSecrets); err == nil {
 			return user, nil
 		}
 	}

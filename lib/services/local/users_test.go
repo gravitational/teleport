@@ -483,7 +483,7 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 		return err
 	}
 	getViaUser := func(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
-		u, err := identity.GetUser(user, true /* withSecrets */)
+		u, err := identity.GetUser(context.TODO(), user, true)
 		if err != nil {
 			return nil, err
 		}
@@ -499,7 +499,7 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 
 	// Try a few empty reads.
 	ctx := context.Background()
-	_, err = identity.GetUser(name, true /* withSecrets */)
+	_, err = identity.GetUser(context.TODO(), name, true)
 	require.NoError(t, err) // User read should be fine.
 	_, err = identity.GetWebauthnLocalAuth(ctx, name)
 	require.True(t, trace.IsNotFound(err)) // Direct WAL read should fail.

@@ -278,7 +278,7 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 
 // Update updates existing user
 func (u *UserCommand) Update(client auth.ClientI) error {
-	user, err := client.GetUser(u.login, false)
+	user, err := client.GetUser(context.TODO(), u.login, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

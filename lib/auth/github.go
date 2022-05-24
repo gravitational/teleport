@@ -401,7 +401,7 @@ func (a *Server) createGithubUser(p *createUserParams) (types.User, error) {
 		},
 	}
 
-	existingUser, err := a.GetUser(p.username, false)
+	existingUser, err := a.GetUser(context.TODO(), p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

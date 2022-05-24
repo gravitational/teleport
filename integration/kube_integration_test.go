@@ -1321,7 +1321,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	}
 
 	// Fetch user info to get roles and max session TTL.
-	user, err := authServer.GetUser(cfg.username, false)
+	user, err := authServer.GetUser(context.TODO(), cfg.username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

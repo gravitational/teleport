@@ -127,7 +127,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.AlreadyExists("cannot add bot: role %q already exists", resourceName)
 	}
 
-	_, err = s.GetUser(resourceName, false)
+	_, err = s.GetUser(context.TODO(), resourceName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -169,7 +169,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 // deleteBotUser removes an existing bot user, ensuring that it has bot labels
 // matching the bot before deleting anything.
 func (s *Server) deleteBotUser(ctx context.Context, botName, resourceName string) error {
-	user, err := s.GetUser(resourceName, false)
+	user, err := s.GetUser(context.TODO(), resourceName, false)
 	if err != nil {
 		return trace.Wrap(err, "could not fetch expected bot user %s", resourceName)
 	}
@@ -306,7 +306,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
-	user, err := s.Identity.GetUser(user.GetName(), false)
+	user, err := s.Identity.GetUser(context.TODO(), user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -356,7 +356,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// There's a tiny chance the underlying user is mutated between calls
 		// to GetUser() but we're comparing with an older value so it'll fail
 		// safely.
-		newUser, err := s.Identity.GetUser(user.GetName(), false)
+		newUser, err := s.Identity.GetUser(context.TODO(), user.GetName(), false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -417,7 +417,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	newGeneration := currentIdentityGeneration + 1
 
 	// As above, commit some crimes to clone the User.
-	newUser, err := s.Identity.GetUser(user.GetName(), false)
+	newUser, err := s.Identity.GetUser(context.TODO(), user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -454,7 +454,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	user, err := s.GetUser(username, false)
+	user, err := s.GetUser(context.TODO(), username, false)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
 		return nil, trace.AccessDenied("access denied")

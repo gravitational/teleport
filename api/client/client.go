@@ -370,6 +370,13 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		grpc.WithChainUnaryInterceptor(
 			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
+			func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+				value := ctx.Value("client-addr")
+				if addr, ok := value.(*net.TCPAddr); ok {
+					ctx = metadata.AddMetadataToContext(ctx, map[string]string{"client_ip": addr.IP.String()})
+				}
+				return invoker(ctx, method, req, reply, cc, opts...)
+			},
 		),
 		grpc.WithChainStreamInterceptor(
 			otelgrpc.StreamClientInterceptor(),
@@ -593,11 +600,11 @@ func (c *Client) UpdateUser(ctx context.Context, user types.User) error {
 
 // GetUser returns a list of usernames registered in the system.
 // withSecrets controls whether authentication details are returned.
-func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
+func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	user, err := c.grpc.GetUser(context.TODO(), &proto.GetUserRequest{
+	user, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{
 		Name:        name,
 		WithSecrets: withSecrets,
 	}, c.callOpts...)

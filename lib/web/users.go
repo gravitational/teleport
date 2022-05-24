@@ -115,7 +115,7 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := m.GetUser(req.Name, false)
+	user, err := m.GetUser(context.TODO(), req.Name, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -207,7 +207,7 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 
 type userAPIGetter interface {
 	// GetUser returns user by name
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 	// CreateUser creates a new user
 	CreateUser(ctx context.Context, user types.User) error
 	// UpdateUser updates a user

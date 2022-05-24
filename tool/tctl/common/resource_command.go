@@ -404,7 +404,7 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 	}
 
 	userName := user.GetName()
-	existingUser, err := client.GetUser(userName, false)
+	existingUser, err := client.GetUser(context.TODO(), userName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -921,7 +921,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			}
 			return &userCollection{users: users}, nil
 		}
-		user, err := client.GetUser(rc.ref.Name, rc.withSecrets)
+		user, err := client.GetUser(context.TODO(), rc.ref.Name, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -1745,7 +1745,7 @@ type IdentityService interface {
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
 	// GetUser returns user by name
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error

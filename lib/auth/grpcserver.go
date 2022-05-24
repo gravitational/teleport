@@ -461,7 +461,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := auth.ServerWithRoles.GetUser(req.Name, req.WithSecrets)
+	user, err := auth.ServerWithRoles.GetUser(context.TODO(), req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

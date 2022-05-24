@@ -24,6 +24,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -70,6 +71,14 @@ func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.
 		return trace.Wrap(err)
 	}
 	defer authConn.Close()
+	proxy := &multiplexer.ProxyLine{
+		Protocol:    multiplexer.TCP4,
+		Source:      *(conn.RemoteAddr().(*net.TCPAddr)),
+		Destination: *(authConn.RemoteAddr().(*net.TCPAddr)),
+	}
+	if _, err = authConn.Write(proxy.Bytes()); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := s.proxyConn(ctx, conn, authConn); err != nil {
 		return trace.Wrap(err)
 	}

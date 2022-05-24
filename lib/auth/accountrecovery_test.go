@@ -244,7 +244,7 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 	require.Equal(t, startRecoveryMaxFailedAttemptsErrMsg, err.Error())
 
 	// Test locks have been placed.
-	user, err := srv.Auth().GetUser(u.username, false)
+	user, err := srv.Auth().GetUser(context.TODO(), u.username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 	require.False(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())
@@ -501,7 +501,7 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Test only login is locked.
-	user, err := srv.Auth().GetUser(u.username, false)
+	user, err := srv.Auth().GetUser(context.TODO(), u.username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 	require.True(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())
@@ -641,7 +641,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test locks are removed.
-	user, err := srv.Auth().GetUser(u.username, false)
+	user, err := srv.Auth().GetUser(context.TODO(), u.username, false)
 	require.NoError(t, err)
 	require.False(t, user.GetStatus().IsLocked)
 	require.True(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())

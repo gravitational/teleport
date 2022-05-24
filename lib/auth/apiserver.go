@@ -766,7 +766,6 @@ func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.ClientMetadata = ClientMetaFromReq(r)
 	req.Username = p.ByName("user")
 	sess, err := auth.AuthenticateWebUser(req)
 	if err != nil {
@@ -780,11 +779,6 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ip, err := utils.Host(r.RemoteAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	req.ClientIP = ip
 	req.Username = p.ByName("user")
 	return auth.AuthenticateSSHUser(req)
 }
@@ -872,7 +866,7 @@ func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, err := auth.GetUser(p.ByName("user"), false)
+	user, err := auth.GetUser(context.TODO(), p.ByName("user"), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

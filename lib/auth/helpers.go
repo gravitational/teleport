@@ -355,7 +355,7 @@ func (a *TestAuthServer) Close() error {
 // plain text format, signs it using User Certificate Authority signing key and returns the
 // resulting certificate.
 func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
-	user, err := a.AuthServer.GetUser(username, false)
+	user, err := a.AuthServer.GetUser(context.TODO(), username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -407,7 +407,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 
 	switch id := identity.I.(type) {
 	case LocalUser:
-		user, err := authServer.GetUser(id.Username, false)
+		user, err := authServer.GetUser(context.TODO(), id.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

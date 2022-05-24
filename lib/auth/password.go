@@ -84,7 +84,7 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 // This method is used to invalidate existing user password during password
 // reset process.
 func (s *Server) ResetPassword(username string) (string, error) {
-	user, err := s.GetUser(username, false)
+	user, err := s.GetUser(context.TODO(), username, false)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -361,7 +361,7 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	user, err := s.GetUser(username, false)
+	user, err := s.GetUser(context.TODO(), username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

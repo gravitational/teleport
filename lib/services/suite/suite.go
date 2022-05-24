@@ -194,18 +194,18 @@ func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	userSlicesEqual(c, u, []types.User{newUser("user1", nil), newUser("user2", nil)})
 
-	out, err := s.WebS.GetUser("user1", false)
+	out, err := s.WebS.GetUser(context.TODO(), "user1", false)
 	c.Assert(err, check.IsNil)
 	usersEqual(c, out, u[0])
 
 	user := newUser("user1", []string{"admin", "user"})
 	c.Assert(s.WebS.UpsertUser(user), check.IsNil)
 
-	out, err = s.WebS.GetUser("user1", false)
+	out, err = s.WebS.GetUser(context.TODO(), "user1", false)
 	c.Assert(err, check.IsNil)
 	usersEqual(c, out, user)
 
-	out, err = s.WebS.GetUser("user1", false)
+	out, err = s.WebS.GetUser(context.TODO(), "user1", false)
 	c.Assert(err, check.IsNil)
 	usersEqual(c, out, user)
 
@@ -239,14 +239,14 @@ func (s *ServicesTestSuite) UsersExpiry(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Make sure the user exists.
-	u, err := s.WebS.GetUser("foo", false)
+	u, err := s.WebS.GetUser(context.TODO(), "foo", false)
 	c.Assert(err, check.IsNil)
 	c.Assert(u.GetName(), check.Equals, "foo")
 
 	s.Clock.Advance(2 * time.Minute)
 
 	// Make sure the user is now gone.
-	_, err = s.WebS.GetUser("foo", false)
+	_, err = s.WebS.GetUser(context.TODO(), "foo", false)
 	c.Assert(err, check.NotNil)
 }
 
@@ -1491,7 +1491,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				err := s.Users().UpsertUser(user)
 				c.Assert(err, check.IsNil)
 
-				out, err := s.Users().GetUser(user.GetName(), false)
+				out, err := s.Users().GetUser(context.TODO(), user.GetName(), false)
 				c.Assert(err, check.IsNil)
 
 				c.Assert(s.Users().DeleteUser(ctx, user.GetName()), check.IsNil)

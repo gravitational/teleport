@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate/builder"
@@ -79,7 +80,7 @@ type AuthorizerAccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
@@ -180,13 +181,23 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		return nil, trace.Wrap(err)
 	}
 	if authContext.Checker.PinSourceIP() {
-		addr, ok := ctx.Value(ContextClientAddr).(*net.TCPAddr)
-		if !ok {
-			return nil, trace.AccessDenied("IP pinning enabled but client IP is missing")
+		var ip string
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			addr := md.Get("client_ip")
+			if len(addr) > 0 {
+				ip = addr[0]
+			}
+		}
+		if ip == "" {
+			if addr, ok := ctx.Value(ContextClientAddr).(*net.TCPAddr); ok {
+				ip = addr.IP.String()
+			} else {
+				return nil, trace.AccessDenied("IP pinning enabled but client IP is missing")
+			}
 		}
 		pinnedIP := authContext.Identity.GetIdentity().ClientIP
-		if pinnedIP != "" && pinnedIP != addr.IP.String() {
-			return nil, trace.AccessDenied("client IP %s does not match the pinned IP %s", addr.IP, pinnedIP)
+		if pinnedIP != "" && pinnedIP != ip {
+			return nil, trace.AccessDenied("client IP %s does not match the pinned IP %s", ip, pinnedIP)
 		}
 	}
 	// Enforce applicable locks.
@@ -733,7 +744,7 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 
 func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
-	user, err := accessPoint.GetUser(u.Username, false)
+	user, err := accessPoint.GetUser(context.TODO(), u.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
