@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -503,8 +504,16 @@ func (s *session) launch() error {
 		s.log.Warn("Failed to set tracker state to running")
 	}
 
-	defer onFinished()
-	executor, err := s.forwarder.getExecutor(s.ctx, s.sess, s.req)
+	var (
+		executor remotecommand.Executor
+	)
+
+	defer func() {
+		// catch err by reference so we can access any write into it in the two calls that follow
+		onFinished(err)
+	}()
+
+	executor, err = s.forwarder.getExecutor(s.ctx, s.sess, s.req)
 	if err != nil {
 		s.log.WithError(err).Warning("Failed creating executor.")
 		return trace.Wrap(err)
@@ -527,7 +536,7 @@ func (s *session) launch() error {
 	return nil
 }
 
-func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values, eventPodMeta apievents.KubernetesPodMetadata) (func(), error) {
+func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values, eventPodMeta apievents.KubernetesPodMetadata) (func(error), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -639,8 +648,8 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			}
 		}()
 	}
-
-	return func() {
+	// receive the exec error returned from API call to kube cluster
+	return func(errExec error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -650,30 +659,60 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			}
 		}
 
+		serverMetadata := apievents.ServerMetadata{
+			ServerID:        s.forwarder.cfg.ServerID,
+			ServerNamespace: s.forwarder.cfg.Namespace,
+		}
+
+		sessionMetadata := apievents.SessionMetadata{
+			SessionID: s.id.String(),
+			WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
+		}
+
+		conMetadata := apievents.ConnectionMetadata{
+			RemoteAddr: s.req.RemoteAddr,
+			LocalAddr:  s.sess.kubeAddress,
+			Protocol:   events.EventProtocolKube,
+		}
+
+		execEvent := &apievents.Exec{
+			Metadata: apievents.Metadata{
+				Type:        events.ExecEvent,
+				ClusterName: s.forwarder.cfg.ClusterName,
+				// can be changed to ExecFailureCode if errExec is not nil
+				Code: events.ExecCode,
+			},
+			ServerMetadata:     serverMetadata,
+			SessionMetadata:    sessionMetadata,
+			UserMetadata:       s.sess.eventUserMeta(),
+			ConnectionMetadata: conMetadata,
+			CommandMetadata: apievents.CommandMetadata{
+				Command: strings.Join(request.cmd, " "),
+			},
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesPodMetadata:     eventPodMeta,
+		}
+
+		if errExec != nil {
+			execEvent.Code = events.ExecFailureCode
+			execEvent.Error, execEvent.ExitCode = exitCode(err)
+
+		}
+
+		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to emit exec event.")
+		}
+
 		sessionDataEvent := &apievents.SessionData{
 			Metadata: apievents.Metadata{
 				Type:        events.SessionDataEvent,
 				Code:        events.SessionDataCode,
 				ClusterName: s.forwarder.cfg.ClusterName,
 			},
-			ServerMetadata: apievents.ServerMetadata{
-				ServerID:        s.forwarder.cfg.ServerID,
-				ServerNamespace: s.forwarder.cfg.Namespace,
-			},
-			SessionMetadata: apievents.SessionMetadata{
-				SessionID: s.id.String(),
-				WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-			},
-			UserMetadata: apievents.UserMetadata{
-				User:         s.ctx.User.GetName(),
-				Login:        s.ctx.User.GetName(),
-				Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				RemoteAddr: s.req.RemoteAddr,
-				LocalAddr:  s.sess.kubeAddress,
-				Protocol:   events.EventProtocolKube,
-			},
+			ServerMetadata:     serverMetadata,
+			SessionMetadata:    sessionMetadata,
+			UserMetadata:       s.sess.eventUserMeta(),
+			ConnectionMetadata: conMetadata,
 			// Bytes transmitted from user to pod.
 			BytesTransmitted: s.io.CountRead(),
 			// Bytes received from pod by user.
@@ -690,24 +729,10 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 				Code:        events.SessionEndCode,
 				ClusterName: s.forwarder.cfg.ClusterName,
 			},
-			ServerMetadata: apievents.ServerMetadata{
-				ServerID:        s.forwarder.cfg.ServerID,
-				ServerNamespace: s.forwarder.cfg.Namespace,
-			},
-			SessionMetadata: apievents.SessionMetadata{
-				SessionID: s.id.String(),
-				WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-			},
-			UserMetadata: apievents.UserMetadata{
-				User:         s.ctx.User.GetName(),
-				Login:        s.ctx.User.GetName(),
-				Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				RemoteAddr: s.req.RemoteAddr,
-				LocalAddr:  s.sess.kubeAddress,
-				Protocol:   events.EventProtocolKube,
-			},
+			ServerMetadata:            serverMetadata,
+			SessionMetadata:           sessionMetadata,
+			UserMetadata:              s.sess.eventUserMeta(),
+			ConnectionMetadata:        conMetadata,
 			Interactive:               true,
 			Participants:              s.allParticipants(),
 			StartTime:                 sessionStart,
