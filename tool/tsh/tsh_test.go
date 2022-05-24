@@ -31,12 +31,13 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1003,10 +1004,11 @@ func TestKubeConfigUpdate(t *testing.T) {
 			expectedValues: nil,
 		},
 		{
-			desc: "no kube clusters",
+			desc: "no kube clusters with identity file out",
 			cf: &CLIConf{
 				executablePath:    "/bin/tsh",
 				KubernetesCluster: "",
+				IdentityFileOut:   "/tmp/id.pem",
 			},
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
@@ -1020,6 +1022,22 @@ func TestKubeConfigUpdate(t *testing.T) {
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
 				Exec:                nil,
+			},
+		},
+		{
+			desc: "no kube clusters with no identity file out",
+			cf: &CLIConf{
+				executablePath:    "/bin/tsh",
+				KubernetesCluster: "",
+			},
+			kubeStatus: &kubernetesStatus{
+				clusterAddr:         "https://a.example.com:3026",
+				teleportClusterName: "a.example.com",
+				kubeClusters:        []string{},
+				credentials:         creds,
+			},
+			errorAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
 			},
 		},
 		{

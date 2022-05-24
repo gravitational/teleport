@@ -30,21 +30,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/utils"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -62,6 +48,19 @@ import (
 	"k8s.io/kubectl/pkg/polymorphichelpers"
 	"k8s.io/kubectl/pkg/scheme"
 	"k8s.io/kubectl/pkg/util/term"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type kubeCommands struct {
@@ -912,6 +911,11 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	}
 
 	if len(kubeStatus.kubeClusters) == 0 {
+		if cf.IdentityFileOut == "" {
+			// In case of empty kubeClusters list and empty IdentityFileOut
+			// return NotFount error preventing for kube context modification.
+			return nil, trace.NotFound("kube clusters not found")
+		}
 		// If there are no registered k8s clusters, we may have an older teleport cluster.
 		// Fall back to the old kubeconfig, with static credentials from v.Credentials.
 		log.Debug("Disabling exec plugin mode for kubeconfig because this Teleport cluster has no Kubernetes clusters.")
@@ -959,6 +963,10 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 
 	values, err := buildKubeConfigUpdate(cf, kubeStatus)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			log.Debugf("Skipping kubernetes config update: %v", err)
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
