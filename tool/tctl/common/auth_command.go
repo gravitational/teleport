@@ -369,6 +369,9 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	err = snowflakeAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
 		"files": strings.Join(filesWritten, ", "),
