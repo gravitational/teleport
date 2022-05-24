@@ -715,4 +715,15 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "app-name", fc.Apps.Apps[0].Name)
 		require.Equal(t, "https://localhost:8080", fc.Apps.Apps[0].URI)
 	})
+
+	t.Run("Node labels", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			NodeLabels: "foo:bar,baz:bax",
+		})
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{
+			"foo": "bar",
+			"baz": "bax",
+		}, fc.SSH.Labels)
+	})
 }
