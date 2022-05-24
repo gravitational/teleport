@@ -52,7 +52,9 @@ func githubTest(c auth.ClientI, connector types.GithubConnector) (*AuthRequestIn
 
 		request, err := c.CreateGithubAuthRequest(ghRequest)
 
-		requestInfo.RequestID = request.StateToken
+		if request != nil {
+			requestInfo.RequestID = request.StateToken
+		}
 		requestInfo.RequestCreateErr = err
 
 		if err != nil {
