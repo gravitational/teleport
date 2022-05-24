@@ -5013,16 +5013,23 @@ name: publish-apt-new-repos
 trigger:
   event:
     include:
-    - push
-  repo: {}
-  branch:
+    - promote
+  target:
     include:
-    - rfd/0058-package-distribution
+    - production
+  repo:
+    include:
+    - gravitational/*
 workspace:
   path: /go
 clone:
   disable: true
 steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -5041,7 +5048,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/7.3.19/
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/7.3.20/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -5060,7 +5067,7 @@ steps:
   - apt update
   - apt install aptly -y
   - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-  - export VERSION="$(echo v7.3.19 | cut -d. -f1)"
+  - export VERSION="$(echo $DRONE_TAG | cut -d. -f1)"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -local-bucket-path "$BUCKET_CACHE_PATH"
     -artifact-major-version "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL"
@@ -5481,6 +5488,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 75a633ac8999093e40a26380aeadb135b80e40c15398d06d2187e9160d8e61f4
+hmac: e489a19208895d6b88e2b323d7a4c26820d78a418217d82235199aa5f1bfcf85
 
 ...

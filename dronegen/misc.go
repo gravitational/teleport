@@ -29,17 +29,17 @@ func promoteBuildPipeline() pipeline {
 
 // This function calls the build-apt-repos tool which handles the APT portion of RFD 0058.
 func promoteAptPipeline() pipeline {
-	testVersion := "7.3.19"
+	testVersion := "7.3.20"
 	aptVolumeName := "aptrepo"
 	artifactPath := "/go/artifacts"
 	pvcMountPoint := "/mnt"
 
 	p := newKubePipeline("publish-apt-new-repos")
-	// p.Trigger = triggerPromote
-	p.Trigger = trigger{
-		Event:  triggerRef{Include: []string{"push"}},
-		Branch: triggerRef{Include: []string{"rfd/0058-package-distribution"}},
-	}
+	p.Trigger = triggerPromote
+	// p.Trigger = trigger{
+	// 	Event:  triggerRef{Include: []string{"push"}},
+	// 	Branch: triggerRef{Include: []string{"rfd/0058-package-distribution"}},
+	// }
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
 		{
@@ -51,13 +51,13 @@ func promoteAptPipeline() pipeline {
 		volumeTmpfs,
 	}
 	p.Steps = []step{
-		// {
-		// 	Name:  "Verify build is tagged",
-		// 	Image: "alpine:latest",
-		// 	Commands: []string{
-		// 		"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
-		// 	},
-		// },
+		{
+			Name:  "Verify build is tagged",
+			Image: "alpine:latest",
+			Commands: []string{
+				"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+			},
+		},
 		{
 			Name:  "Check out code",
 			Image: "alpine/git:latest",
@@ -104,7 +104,7 @@ func promoteAptPipeline() pipeline {
 		},
 		{
 			Name: "Publish debs to APT repos",
-			// TODO set this if `step` support s https://docs.drone.io/pipeline/ssh/syntax/parallelism/ in the future
+			// TODO set this if `step` supports https://docs.drone.io/pipeline/ssh/syntax/parallelism/ in the future
 			// DependsOn: []string {
 			// 	"Check out code",
 			// 	"Download artifacts",
@@ -145,15 +145,14 @@ func promoteAptPipeline() pipeline {
 			Commands: []string{
 				"mkdir -m0700 $GNUPGHOME",
 				"echo \"$GPG_RPM_SIGNING_ARCHIVE\" | base64 -d | tar -xzf - -C $GNUPGHOME",
-				"chown -R root:root $GNUPGHOME", // This probably won't work (gpg1 needs to be able to read it), but it's worth trying
+				"chown -R root:root $GNUPGHOME",
 				"apt update",
 				"apt install aptly -y",
 				"cd /go/src/github.com/gravitational/teleport/build.assets/tooling",
 				// TODO uncomment after more testing
-				// "export VERSION=\"$(echo $DRONE_TAG | cut -d. -f1)\"",
-				fmt.Sprintf("export VERSION=\"$(echo v%s | cut -d. -f1)\"", testVersion),
+				"export VERSION=\"$(echo $DRONE_TAG | cut -d. -f1)\"",
+				// fmt.Sprintf("export VERSION=\"$(echo v%s | cut -d. -f1)\"", testVersion),
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
-				// "rm -rf /mnt/*",                     // Temporary to test recovery capabilities
 				strings.Join(
 					[]string{
 						// This just makes the (long) command a little more readable
@@ -168,7 +167,7 @@ func promoteAptPipeline() pipeline {
 					},
 					" ",
 				),
-				"df -h \"$APTLY_ROOT_DIR\"", // More temp debugging
+				"df -h \"$APTLY_ROOT_DIR\"",
 			},
 			Volumes: []volumeRef{
 				{
