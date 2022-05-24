@@ -22,11 +22,11 @@ import (
 
 // Indent returns the string where each line is indented by the specified
 // number of spaces.
-func Indent(s string, spaces int) string {
+func Indent(s string, padding int) string {
 	var lines []string
 	scanner := bufio.NewScanner(strings.NewReader(s))
 	for scanner.Scan() {
-		lines = append(lines, fmt.Sprintf("%v%v", strings.Repeat(" ", spaces), scanner.Text()))
+		lines = append(lines, fmt.Sprintf("%v%v", strings.Repeat(" ", padding), scanner.Text()))
 	}
 	return strings.Join(lines, "\n")
 }
