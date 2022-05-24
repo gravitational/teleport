@@ -83,7 +83,7 @@ func (a *Aptly) updateConfiguration() error {
 	// Additional config can be handled here if needed in the future
 	aptlyConfigMap["rootDir"] = a.rootDir
 
-	logrus.Debugf("Build Aptly config: %v", aptlyConfigMap)
+	logrus.Debugf("Built Aptly config: %v", aptlyConfigMap)
 	saveAptlyConfigMap(aptlyConfigMap)
 
 	configOutput, err := buildAndRunCommand("aptly", "config", "show")

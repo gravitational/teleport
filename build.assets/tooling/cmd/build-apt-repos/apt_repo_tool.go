@@ -63,15 +63,16 @@ func (art *AptRepoTool) Run() error {
 
 	if isFirstRun {
 		logrus.Warningln("First run or disaster recovery detected, attempting to rebuild existing repos from APT repository...")
-		_, err := art.recreateExistingRepos()
+
+		err = art.s3Manager.DownloadExistingRepo(art.config.localBucketPath)
+		if err != nil {
+			return trace.Wrap(err, "failed to sync existing repo from S3 bucket")
+		}
+
+		_, err = art.recreateExistingRepos(art.config.localBucketPath)
 		if err != nil {
 			return trace.Wrap(err, "failed to recreate existing repos")
 		}
-	}
-
-	err = art.s3Manager.DownloadExistingRepo(art.config.localBucketPath)
-	if err != nil {
-		return trace.Wrap(err, "failed to sync existing repo from S3 bucket")
 	}
 
 	// Note: this logic will only push the artifact into the `art.supportedOSs` repos.
@@ -135,9 +136,9 @@ func (art *AptRepoTool) publishRepos() error {
 	return nil
 }
 
-func (art *AptRepoTool) recreateExistingRepos() ([]*Repo, error) {
+func (art *AptRepoTool) recreateExistingRepos(localPublishedPath string) ([]*Repo, error) {
 	logrus.Infoln("Recreating previously published repos...")
-	createdRepos, err := art.aptly.CreateReposFromPublishedPath(art.config.localBucketPath)
+	createdRepos, err := art.aptly.CreateReposFromPublishedPath(localPublishedPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to recreate existing repos")
 	}
