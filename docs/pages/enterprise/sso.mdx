@@ -4,8 +4,30 @@ description: How to set up single sign-on (SSO) for SSH using Teleport
 h1: Single Sign-On (SSO) for SSH
 ---
 
-Users of the Enterprise edition of Teleport can login with SSH, Kubernetes, Databases and Web applications
-through a Single Sign-On (SSO) provider used the rest of the organization.
+Users of the Enterprise edition of Teleport can log in to servers, Kubernetes
+clusters, databases, web applications, and Windows desktops through your
+organization's Single Sign-On (SSO) provider.
+
+<ScopedBlock scope="oss">
+<TileSet>
+    <Tile 
+    icon="bolt"
+    title="Use SSO with Teleport Cloud"
+    href="./sso.mdx/?scope=cloud"
+  >
+    Learn how to use Teleport's SSO integrations in Teleport Cloud.
+    </Tile>
+    <Tile 
+    icon="bolt"
+    title="Use SSO with Teleport Enterprise"
+    href="./sso.mdx/?scope=enterprise"
+  >
+    Learn how to use Teleport's SSO integrations in Teleport Enterprise.
+    </Tile>
+  </TileSet>
+</ScopedBlock>
+
+<ScopedBlock scope={["enterprise", "cloud"]}>
 
 <TileSet>
   <Tile icon="bolt" title="Azure Active Directory (AD)" href="./sso/azuread.mdx">
@@ -293,3 +315,4 @@ spec:
       'env': 'dev'
 version: v5
 ```
+</ScopedBlock>
