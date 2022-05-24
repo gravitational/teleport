@@ -4,13 +4,61 @@ description: Getting started with Teleport. Let's deploy Teleport in a Kubernete
 videoBanner: VPGYLEMTdJ8
 ---
 
-# Getting Started
+<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
+This guide shows you how to deploy the Teleport Auth Service and Proxy Service on a Kubernetes cluster. These services are fully managed in Teleport Cloud.
+
+Instead, Teleport Cloud users should consult the following guide, which shows you how to connect a Teleport Kubernetes Service agent to an existing Teleport cluster:
+
+<TileSet>
+<Tile
+title="Connect a Kubernetes Cluster to Teleport"
+href="./agent.mdx"
+icon="kubernetes"
+>
+</Tile>
+</TileSet>
+
+You can also view this guide as a user of another Teleport edition:
+
+<TileSet>
+<Tile
+href="./cluster.mdx/?scope=oss"
+title="Open Source"
+icon="stack"
+>
+</Tile>
+<Tile
+href="./cluster.mdx/?scope=enterprise"
+title="Enterprise"
+icon="building"
+>
+</Tile>
+</TileSet>
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 Let's deploy Teleport in a Kubernetes with SSO and Audit logs:
 
-- Install Teleport in a Kubernetes cluster.
-- Set up Single Sign-On (SSO).
-- Capture and playback Kubernetes commands.
+- Deploy Teleport in a Kubernetes cluster.
+- Set up Single Sign-On (SSO) for authentication to your Teleport cluster.
+
+While completing this guide, you will deploy a single Teleport pod running the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
+
+<Admonition type="tip" title="Have an existing Teleport cluster?">
+If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](./agent.mdx) to connect your Kubernetes cluster to Teleport.
+</Admonition>
+
+## Follow along with our video guide
+
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/VPGYLEMTdJ8?rel=0&modestbranding=1"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
 
 ## Prerequisites
 
@@ -348,3 +396,5 @@ the default one in case there is a problem.
 - [Setup CI/CD Access with Teleport](../guides/cicd.mdx)
 - [Federated Access using Trusted Clusters](../guides/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../controls.mdx)
+
+</ScopedBlock>
