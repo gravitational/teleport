@@ -613,6 +613,9 @@ impl Client {
                                 },
                             ),
                         );
+
+                        // Return nothing yet, an RDP message will be returned when the pending_sd_list_resp_handlers
+                        // closure gets called.
                         Ok(vec![])
                     } else {
                         // This isn't the initial query, ergo we already have this dir's contents filled in.
