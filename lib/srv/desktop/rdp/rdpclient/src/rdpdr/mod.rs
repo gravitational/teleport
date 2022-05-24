@@ -604,7 +604,11 @@ impl Client {
                                         // And send back the "." directory over RDP
                                         cli.prep_next_drive_query_dir_response(&rdp_req)
                                     } else {
-                                        cli.prep_file_cache_fail_drive_query_dir_response(&rdp_req)
+                                        cli.prep_drive_query_dir_response(
+                                            &rdp_req.device_io_request,
+                                            NTSTATUS::STATUS_UNSUCCESSFUL,
+                                            None,
+                                        )
                                     }
                                 },
                             ),
