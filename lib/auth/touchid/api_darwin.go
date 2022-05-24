@@ -29,7 +29,6 @@ import "C"
 import (
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"strings"
 	"unsafe"
 
@@ -60,13 +59,13 @@ func makeLabel(rpID, user string) string {
 
 func parseLabel(label string) (*parsedLabel, error) {
 	if !strings.HasPrefix(label, rpIDUserMarker) {
-		return nil, fmt.Errorf("label has unexpected prefix: %q", label)
+		return nil, trace.BadParameter("label has unexpected prefix: %q", label)
 	}
 	l := label[len(rpIDUserMarker):]
 
 	idx := strings.Index(l, labelSeparator)
 	if idx == -1 {
-		return nil, fmt.Errorf("label separator not found: %q", label)
+		return nil, trace.BadParameter("label separator not found: %q", label)
 	}
 
 	return &parsedLabel{
