@@ -838,15 +838,26 @@ impl Client {
                 // TODO(isaiah): we should support all the fs_information_class_lvl's that FreeRDP does:
                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
                 FsInformationClassLevel::FileBothDirectoryInformation => {
-                    let buffer = FileBothDirectoryInformation::from(fso)?;
+                    let buffer = Some(FsInformationClass::FileBothDirectoryInformation(
+                        FileBothDirectoryInformation::from(fso)?
+                    ));
                     self.prep_drive_query_dir_response(
                         &req.device_io_request,
                         NTSTATUS::STATUS_SUCCESS,
-                        Some(FsInformationClass::FileBothDirectoryInformation(buffer))
+                        buffer
                     )
                 },
+                FsInformationClassLevel::FileFullDirectoryInformation => {
+                    let buffer = Some(FsInformationClass::FileFullDirectoryInformation(
+                        FileFullDirectoryInformation::from(fso)?
+                    ));
+                    self.prep_drive_query_dir_response(
+                        &req.device_io_request,
+                        NTSTATUS::STATUS_SUCCESS,
+                        buffer
+                    )
+                }
                 FsInformationClassLevel::FileDirectoryInformation |
-                FsInformationClassLevel::FileFullDirectoryInformation |
                 FsInformationClassLevel::FileNamesInformation => {
                     Err(not_implemented_error(&format!(
                         "support for ServerDriveQueryDirectoryRequest with fs_information_class_lvl = {:?} is not implemented",
@@ -1852,17 +1863,18 @@ enum FsInformationClass {
     FileStandardInformation(FileStandardInformation),
     FileBothDirectoryInformation(FileBothDirectoryInformation),
     FileAttributeTagInformation(FileAttributeTagInformation),
-    // FileFullDirectoryInformation(FileFullDirectoryInformation), // TODO(isaiah),
+    FileFullDirectoryInformation(FileFullDirectoryInformation),
 }
 
 #[allow(dead_code)]
 impl FsInformationClass {
     fn encode(&self) -> RdpResult<Vec<u8>> {
         match self {
-            Self::FileBasicInformation(file_basic_info) => file_basic_info.encode(),
-            Self::FileStandardInformation(file_standard_info) => file_standard_info.encode(),
-            Self::FileBothDirectoryInformation(file_both_dir_info) => file_both_dir_info.encode(),
-            Self::FileAttributeTagInformation(file_attr_tag_info) => file_attr_tag_info.encode(),
+            Self::FileBasicInformation(fs_info_class) => fs_info_class.encode(),
+            Self::FileStandardInformation(fs_info_class) => fs_info_class.encode(),
+            Self::FileBothDirectoryInformation(fs_info_class) => fs_info_class.encode(),
+            Self::FileAttributeTagInformation(fs_info_class) => fs_info_class.encode(),
+            Self::FileFullDirectoryInformation(fs_info_class) => fs_info_class.encode(),
         }
     }
 }
@@ -1997,7 +2009,6 @@ struct FileBothDirectoryInformation {
     file_name: String,
 }
 
-#[allow(dead_code)]
 /// Base size of the FileBothDirectoryInformation, not accounting for variably sized file_name.
 /// Note that file_name's size should be calculated as if it were a Unicode string.
 /// 5 u32's (including FileAttributesFlags) + 6 i64's + 1 i8 + 24 bytes
@@ -2074,9 +2085,13 @@ impl FileBothDirectoryInformation {
     }
 }
 
+/// Base size of the FileFullDirectoryInformation, not accounting for variably sized file_name.
+/// Note that file_name's size should be calculated as if it were a Unicode string.
+/// 4 u32's (including FileAttributesFlags) + 6 i64's
+const FILE_FULL_DIRECTORY_INFORMATION_BASE_SIZE: u32 = (5 * 4) + (6 * 8); // 68
+
 /// 2.4.14 FileFullDirectoryInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e8d926d1-3a22-4654-be9c-58317a85540b
-// TODO(isaiah)
 #[derive(Debug)]
 struct FileFullDirectoryInformation {
     next_entry_offset: u32,
@@ -2119,6 +2134,42 @@ impl FileFullDirectoryInformation {
             ea_size: 0,
             file_name,
         }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.next_entry_offset)?;
+        w.write_u32::<LittleEndian>(self.file_index)?;
+        w.write_i64::<LittleEndian>(self.creation_time)?;
+        w.write_i64::<LittleEndian>(self.last_access_time)?;
+        w.write_i64::<LittleEndian>(self.last_write_time)?;
+        w.write_i64::<LittleEndian>(self.change_time)?;
+        w.write_i64::<LittleEndian>(self.end_of_file)?;
+        w.write_i64::<LittleEndian>(self.allocation_size)?;
+        w.write_u32::<LittleEndian>(self.file_attributes.bits())?;
+        w.write_u32::<LittleEndian>(self.file_name_length)?;
+        w.write_u32::<LittleEndian>(self.ea_size)?;
+        // When working with this field, use file_name_length to determine the length of the file name rather
+        // than assuming the presence of a trailing null delimiter. Dot directory names are valid for this field.
+        w.extend_from_slice(&util::to_unicode(&self.file_name, false));
+        Ok(w)
+    }
+
+    fn from(fso: FileSystemObject) -> RdpResult<Self> {
+        let file_attributes = if fso.file_type == FileType::Directory {
+            flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+        } else {
+            flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
+        };
+        Ok(Self::new(
+            i64::try_from(fso.last_modified)?,
+            i64::try_from(fso.last_modified)?,
+            i64::try_from(fso.last_modified)?,
+            i64::try_from(fso.last_modified)?,
+            i64::try_from(fso.size)?,
+            file_attributes,
+            fso.name()?,
+        ))
     }
 }
 
@@ -2483,11 +2534,11 @@ impl ClientDriveQueryDirectoryResponse {
     ) -> RdpResult<Self> {
         let length = match buffer {
             Some(ref fs_information_class) => match fs_information_class {
-                FsInformationClass::FileBothDirectoryInformation(
-                    file_both_directory_information,
-                ) => {
-                    FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE
-                        + file_both_directory_information.file_name_length
+                FsInformationClass::FileBothDirectoryInformation(fs_info_class) => {
+                    FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE + fs_info_class.file_name_length
+                }
+                FsInformationClass::FileFullDirectoryInformation(fs_info_class) => {
+                    FILE_FULL_DIRECTORY_INFORMATION_BASE_SIZE + fs_info_class.file_name_length
                 }
                 _ => {
                     return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {:?}", fs_information_class)));
