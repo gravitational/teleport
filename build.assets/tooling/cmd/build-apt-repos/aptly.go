@@ -393,18 +393,21 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 	repoNames := RepoNames(repos)
 	logrus.Infof("Publishing repos for OS %q: %q...", repoOS, strings.Join(repoNames, "\", \""))
 
-	areSomeReposUnpublished, areSomeReposPublished, err := a.getRepoSlicePublishedState(repos)
+	// Trying to publish to an already published OS/OS version will fail, and dropping a published
+	// OS/OS version when no new components (release channel/major version) are added is
+	// computationally expensive
+	areSomeUnpublished, areSomePublished, err := a.getRepoSlicePublishedState(repos)
 	if err != nil {
-		return trace.Wrap(err, "failed to determine if repos have been published or not")
+		return trace.Wrap(err, "failed to determine if repos for  have been published or not")
 	}
 
-	logrus.Debugln("Repo publish state:")
-	logrus.Debugf("Are some unpublished: %v", areSomeReposUnpublished)
-	logrus.Debugf("Are some published: %v", areSomeReposPublished)
+	logrus.Debugln("Repo OS/OS version combo publish state:")
+	logrus.Debugf("Are some unpublished: %v", areSomeUnpublished)
+	logrus.Debugf("Are some published: %v", areSomePublished)
 	logrus.Debugf("Repos: %v", RepoNames(repos))
 
 	// If all repos have been published
-	if areSomeReposPublished && !areSomeReposUnpublished {
+	if areSomePublished && !areSomeUnpublished {
 		// Update rather than republish
 		_, err := buildAndRunCommand("aptly", "publish", "update", repoOSVersion, repoOS)
 		if err != nil {
@@ -416,7 +419,7 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 
 	// If some have been published and some have not
 	// This will occur if there is a new major release, a OS version is supported, or a new release channel is added
-	if areSomeReposPublished && areSomeReposUnpublished {
+	if areSomePublished && areSomeUnpublished {
 		// Drop the currently published APT repo so that it can be rebuilt from scratch
 		_, err := buildAndRunCommand("aptly", "publish", "drop", repoOSVersion, repoOS)
 		if err != nil {
@@ -443,14 +446,29 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 	return nil
 }
 
-// This function determines if `repos` contains repos that have not yet been published
-// and if it contains repos that have been published.
+// This function determines if `repos` contains repos that have an OS/OS version combo
+// that have not yet been published, and if it contains repos that have an OS/OS version
+// combo that have been published.
 //
 // Returns:
 //
-// 1. true if `repos` contains at least one unpublished repo, false otherwise
+// 1. true if `repos` contains at least one repo who's OS/OS version combo has not been
+// published yet
 //
-// 2. true if `repos` contains at least one published repo, false otherwise
+// 2. true if `repos` contains at least one repo who's OS/OS version combo has been
+// published
+//
+// Example:
+//
+// `getRepoSlicePublishedState([<repo for debian-trixie-stable-v6>,
+// <repo for debian-buster-stable-v7>])` will return
+//
+// 1. `true, false, nil` if a repo for debian/trixie, debian/buster has not been published yet
+//
+// 2. `false, true, nil` if a repo for debian/trixie, debian/buster has been published
+//
+// 3. `true, true, nil` if a repo for debian/trixie has not been published yet but debian/buster
+// has, or vice versa
 func (a *Aptly) getRepoSlicePublishedState(repos []*Repo) (bool, bool, error) {
 	publishedOsVersions, err := a.GetPublishedOsVersions()
 	if err != nil {

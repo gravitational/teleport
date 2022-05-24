@@ -104,6 +104,7 @@ func (art *AptRepoTool) Run() error {
 func (art *AptRepoTool) publishRepos(repos []*Repo) error {
 	// Build a map keyed by os info with value of all repos that support the os in the key
 	// This will be used to structure the publish command
+	logrus.Debugf("Categorizing repos according to OS info: %v", RepoNames(repos))
 	categorizedRepos := make(map[string][]*Repo)
 	for _, r := range repos {
 		if osRepos, ok := categorizedRepos[r.OSInfo()]; ok {
@@ -112,6 +113,8 @@ func (art *AptRepoTool) publishRepos(repos []*Repo) error {
 			categorizedRepos[r.OSInfo()] = []*Repo{r}
 		}
 	}
+
+	logrus.Debugf("Categorized repos: %v", categorizedRepos)
 
 	for osInfo, osRepoList := range categorizedRepos {
 		if len(osRepoList) < 1 {

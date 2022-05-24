@@ -44,7 +44,7 @@ func (r *Repo) Component() string {
 
 // Returns a string that identifies the specific OS and OS version the Aptly repo targets.
 func (r *Repo) OSInfo() string {
-	return fmt.Sprintf("%s %s", r.os, r.osVersion)
+	return fmt.Sprintf("%s/%s", r.os, r.osVersion)
 }
 
 // Returns true if the repo is a recreation of a published repo, false otherewise.
