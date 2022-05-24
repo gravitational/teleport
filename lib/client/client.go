@@ -74,21 +74,6 @@ type NodeClient struct {
 	OnMFA     func()
 }
 
-// GetActiveSessions returns a list of active session trackers.
-func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
-	auth, err := proxy.ConnectToCurrentCluster(ctx, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer auth.Close()
-	sessions, err := auth.GetActiveSessionTrackers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sessions, nil
-}
-
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
