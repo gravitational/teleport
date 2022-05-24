@@ -219,7 +219,7 @@ func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODia
 	}
 
 	fields := []DiagnosticInfoField{
-		// common
+		// common fields across auth connector types.
 		{
 			Present: diag.Error != "",
 			Show:    cmd.config.Debug || loginErr == nil,
