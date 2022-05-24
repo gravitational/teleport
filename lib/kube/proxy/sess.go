@@ -738,11 +738,7 @@ func (s *session) join(p *party) error {
 			Roles:    roles,
 		}
 
-		modes, err := s.accessEvaluator.CanJoin(accessContext)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+		modes := s.accessEvaluator.CanJoin(accessContext)
 		if !auth.SliceContainsMode(modes, p.Mode) {
 			return trace.AccessDenied("insufficient permissions to join session")
 		}
