@@ -5478,8 +5478,3 @@ volumes:
   - name: debrepo
     claim:
       name: drone-s3-debrepo-pvc
----
-kind: signature
-hmac: e6dd0b45280f2c719fd2dd26e291d7f85de3de502f707d4cd6db8bc842ff899b
-
-...
