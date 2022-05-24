@@ -143,22 +143,22 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err)
 		}
 
-		err = e.process(ctx, sessionCtx, req, accountName)
+		err = e.processRequest(ctx, sessionCtx, req, accountName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 }
 
-// process reads request from connected Snowflake client, processes the requests/responses and send data back
+// processRequest reads request from connected Snowflake client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
+func (e *Engine) processRequest(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
 	snowflakeToken, err := e.getConnectionToken(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	requestBodyReader, err := e.processRequest(ctx, req, accountName)
+	requestBodyReader, err := e.processPath(ctx, req, accountName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -346,7 +346,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) processRequest(ctx context.Context, req *http.Request, accountName string) (io.Reader, error) {
+func (e *Engine) processPath(ctx context.Context, req *http.Request, accountName string) (io.Reader, error) {
 	var (
 		newBody io.Reader
 		err     error
@@ -381,7 +381,7 @@ func (e *Engine) processRequest(ctx context.Context, req *http.Request, accountN
 				return nil, trace.Wrap(err, "failed to extract SQL query")
 			}
 
-			e.Audit.EmitEvent(ctx, makeQueryEvent(e.sessionCtx, query))
+			e.Audit.OnQuery(ctx, e.sessionCtx, common.Query{Query: query})
 
 			return body, nil
 		})
@@ -583,13 +583,13 @@ type sessionTokens struct {
 	master  tokenTTL
 }
 
-func extractSQLStmt(body []byte) (*queryRequest, error) {
+func extractSQLStmt(body []byte) (string, error) {
 	queryRequest := &queryRequest{}
 	if err := json.Unmarshal(body, queryRequest); err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
-	return queryRequest, nil
+	return queryRequest.SQLText, nil
 }
 
 // replaceLoginReqToken modifies the login request sent by Snowflake client with Teleports credentials.
