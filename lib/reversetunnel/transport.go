@@ -143,6 +143,7 @@ type transport struct {
 	log          logrus.FieldLogger
 	closeContext context.Context
 	authClient   auth.ProxyAccessPoint
+	authServers  []string
 	channel      ssh.Channel
 	requestCh    <-chan *ssh.Request
 
@@ -210,19 +211,7 @@ func (p *transport) start() {
 	switch dreq.Address {
 	// Connect to an Auth Server.
 	case RemoteAuthServer:
-		authServers, err := p.authClient.GetAuthServers()
-		if err != nil {
-			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
-			return
-		}
-		if len(authServers) == 0 {
-			p.log.Warn("No auth servers registered in the cluster.")
-			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
-			return
-		}
-		for _, as := range authServers {
-			servers = append(servers, as.GetAddr())
-		}
+		servers = p.authServers
 	// Connect to the Kubernetes proxy.
 	case LocalKubernetes:
 		switch p.component {

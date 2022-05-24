@@ -3299,6 +3299,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
 		Log:                 rcWatchLog,
+		LocalAuthServers:    utils.NetAddrsToStrings(process.Config.AuthServers),
 	})
 	if err != nil {
 		return trace.Wrap(err)

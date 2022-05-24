@@ -661,6 +661,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		log:              s.log,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
+		authServers:      s.LocalAuthServers,
 		channel:          channel,
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,
