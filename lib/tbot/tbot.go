@@ -39,7 +39,7 @@ type Bot struct {
 	reloadChan chan struct{}
 
 	// These are protected by getter/setters with mutex locks
-	mu      *sync.Mutex
+	mu      sync.Mutex
 	_client auth.ClientI
 	_ident  *identity.Identity
 	started bool
