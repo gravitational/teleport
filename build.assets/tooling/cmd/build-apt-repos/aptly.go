@@ -655,6 +655,26 @@ func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][
 	return artifactRequirementRepos, nil
 }
 
+// Returns a list of all Aptly reported repos
+func (a *Aptly) GetAllRepos() ([]*Repo, error) {
+	repoNames, err := a.GetExistingRepoNames()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get existing repo names")
+	}
+
+	repos := make([]*Repo, len(repoNames))
+	for i, repoName := range repoNames {
+		repo, err := NewRepoFromName(repoName)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to build repo struct for repo name %q", repoName)
+		}
+
+		repos[i] = repo
+	}
+
+	return repos, nil
+}
+
 func getSubdirectories(basePath string) ([]string, error) {
 	logrus.Debugf("Getting subdirectories of %q...", basePath)
 	files, err := os.ReadDir(basePath)

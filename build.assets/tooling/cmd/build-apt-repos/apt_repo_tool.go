@@ -87,7 +87,7 @@ func (art *AptRepoTool) Run() error {
 		return trace.Wrap(err, "failed to import new debs")
 	}
 
-	err = art.publishRepos(artifactRepos)
+	err = art.publishRepos()
 	if err != nil {
 		return trace.Wrap(err, "failed to publish repos")
 	}
@@ -101,7 +101,13 @@ func (art *AptRepoTool) Run() error {
 	return nil
 }
 
-func (art *AptRepoTool) publishRepos(repos []*Repo) error {
+func (art *AptRepoTool) publishRepos() error {
+	// Pull in all Aptly repos, not just the latest ones to ensure they all get built into APT repos correctly
+	repos, err := art.aptly.GetAllRepos()
+	if err != nil {
+		return trace.Wrap(err, "failed to get all Aptly repos")
+	}
+
 	// Build a map keyed by os info with value of all repos that support the os in the key
 	// This will be used to structure the publish command
 	logrus.Debugf("Categorizing repos according to OS info: %v", RepoNames(repos))
@@ -113,7 +119,6 @@ func (art *AptRepoTool) publishRepos(repos []*Repo) error {
 			categorizedRepos[r.OSInfo()] = []*Repo{r}
 		}
 	}
-
 	logrus.Debugf("Categorized repos: %v", categorizedRepos)
 
 	for osInfo, osRepoList := range categorizedRepos {

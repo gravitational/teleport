@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -35,6 +36,20 @@ type Repo struct {
 // Returns a unique name for the repo.
 func (r *Repo) Name() string {
 	return fmt.Sprintf("%s-%s-%s-%s", r.os, r.osVersion, r.releaseChannel, r.majorVersion)
+}
+
+func NewRepoFromName(name string) (*Repo, error) {
+	splitName := strings.Split(name, "-")
+	if len(splitName) != 4 {
+		return nil, trace.Errorf("the provided repo name %q is not a valid repo name", name)
+	}
+
+	return &Repo{
+		os:             splitName[0],
+		osVersion:      splitName[1],
+		releaseChannel: splitName[2],
+		majorVersion:   splitName[3],
+	}, nil
 }
 
 // Returns the APT component to be associated with all debs in the Aptly repo.
