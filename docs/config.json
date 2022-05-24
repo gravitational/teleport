@@ -65,10 +65,23 @@
         {
           "title": "Deployments",
           "slug": "/setup/deployments/",
+          "hideInScopes": "cloud",
           "entries": [
-            { "title": "AWS Terraform", "slug": "/setup/deployments/aws-terraform/" },
-            { "title": "GCP", "slug": "/setup/deployments/gcp/" },
-            { "title": "IBM", "slug": "/setup/deployments/ibm/" }
+            {
+              "title": "AWS Terraform",
+              "slug": "/setup/deployments/aws-terraform/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "GCP",
+              "slug": "/setup/deployments/gcp/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "IBM",
+              "slug": "/setup/deployments/ibm/",
+              "hideInScopes": "cloud"
+            }
           ]
         },
         {
@@ -77,7 +90,8 @@
           "entries": [
             {
               "title": "Scaling",
-              "slug": "/setup/operations/scaling/"
+              "slug": "/setup/operations/scaling/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Upgrading a Cluster",
@@ -108,11 +122,35 @@
           "title": "Integrations",
           "slug": "/setup/guides/",
           "entries": [
-            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
-            { "title": "Docker", "slug": "/setup/guides/docker/" },
-            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" },
-            { "title": "EC2 Tags", "slug": "/setup/guides/ec2-tags/" },
-            { "title": "Joining Nodes in AWS", "slug": "/setup/guides/joining-nodes-aws/" }
+            {
+              "title": "Terraform Provider",
+              "slug": "/setup/guides/terraform-provider/"
+            },
+            {
+              "title": "Docker",
+              "slug": "/setup/guides/docker/"
+            },
+            {
+              "title": "Fluentd",
+              "slug": "/setup/guides/fluentd/"
+            },
+            {
+              "title": "EC2 Tags",
+              "slug": "/setup/guides/ec2-tags/"
+            },
+            {
+              "title": "Joining Nodes via AWS IAM",
+              "slug": "/setup/guides/joining-nodes-aws-iam/"
+            },
+            {
+              "title": "Joining Nodes via AWS EC2",
+              "slug": "/setup/guides/joining-nodes-aws-ec2/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "Using Teleport's CA with GitHub",
+              "slug": "/setup/guides/ssh-key-extensions/"
+            }
           ]
         },
         {
@@ -149,7 +187,8 @@
             },
             {
               "title": "Storage Backends",
-              "slug": "/setup/reference/backends/"
+              "slug": "/setup/reference/backends/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Networking",
