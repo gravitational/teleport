@@ -26,9 +26,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -45,7 +45,7 @@ type Bot struct {
 	started bool
 }
 
-func NewBot(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}) *Bot {
+func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}) *Bot {
 	if log == nil {
 		log = utils.NewLogger()
 	}

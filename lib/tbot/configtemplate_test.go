@@ -22,11 +22,11 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/destination"
-	"github.com/gravitational/teleport/tool/tbot/testhelpers"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -94,7 +94,7 @@ func TestDefaultTemplateRendering(t *testing.T) {
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 	storage, err := botConfig.Storage.GetDestination()
 	require.NoError(t, err)
-	b := NewBot(botConfig, utils.NewLoggerForTests(), nil)
+	b := New(botConfig, utils.NewLoggerForTests(), nil)
 
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)

@@ -26,8 +26,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tbot/config"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -218,7 +218,7 @@ func onStart(botConfig *config.BotConfig) error {
 
 	go handleSignals(log, reloadChan, cancel)
 
-	b := tbot.NewBot(botConfig, log, reloadChan)
+	b := tbot.New(botConfig, log, reloadChan)
 	return b.Run(ctx)
 }
 

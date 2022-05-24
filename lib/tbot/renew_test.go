@@ -24,10 +24,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	libconfig "github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	libutils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/testhelpers"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +42,7 @@ func TestOnboardViaToken(t *testing.T) {
 	// Make and join a new bot instance.
 	botParams := testhelpers.MakeBot(t, rootClient, "test")
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
-	b := NewBot(botConfig, libutils.NewLoggerForTests(), nil)
+	b := New(botConfig, libutils.NewLoggerForTests(), nil)
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
 
@@ -128,7 +128,7 @@ func TestDatabaseRequest(t *testing.T) {
 	}
 
 	// Onboard the bot.
-	b := NewBot(botConfig, libutils.NewLoggerForTests(), nil)
+	b := New(botConfig, libutils.NewLoggerForTests(), nil)
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
 
