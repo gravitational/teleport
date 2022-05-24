@@ -9,9 +9,16 @@
         {
           "title": "Getting Started",
           "slug": "/getting-started/",
-           "entries": [
-            { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
-            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" }
+          "entries": [
+            {
+              "title": "Linux Server",
+              "slug": "/getting-started/linux-server/",
+              "hideInScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Docker Compose",
+              "slug": "/getting-started/docker-compose/"
+            }
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
