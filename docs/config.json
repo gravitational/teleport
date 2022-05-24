@@ -9,10 +9,21 @@
         {
           "title": "Getting Started",
           "slug": "/getting-started/",
-           "entries": [
-            { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
-            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" },
-            { "title": "DigitalOcean", "slug": "/getting-started/digitalocean/" }
+          "entries": [
+            {
+              "title": "Linux Server",
+              "slug": "/getting-started/linux-server/",
+              "hideInScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Docker Compose",
+              "slug": "/getting-started/docker-compose/"
+            },
+            {
+              "title": "DigitalOcean",
+              "slug": "/getting-started/digitalocean/",
+              "hideInScopes": ["enterprise", "cloud"]
+            }
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
