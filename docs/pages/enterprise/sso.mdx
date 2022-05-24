@@ -4,8 +4,30 @@ description: How to set up single sign-on (SSO) for SSH using Gravitational Tele
 h1: Single Sign-On (SSO) for SSH
 ---
 
-Users of the Enterprise edition of Teleport can login with SSH, Kubernetes, Databases and Web applications
-through a Single Sign-On (SSO) provider used the rest of the organization.
+Users of the Enterprise edition of Teleport can log in to servers, Kubernetes
+clusters, databases, web applications, and Windows desktops through your
+organization's Single Sign-On (SSO) provider.
+
+<ScopedBlock scope="oss">
+<TileSet>
+    <Tile 
+    icon="bolt"
+    title="Use SSO with Teleport Cloud"
+    href="./sso.mdx/?scope=cloud"
+  >
+    Learn how to use Teleport's SSO integrations in Teleport Cloud.
+    </Tile>
+    <Tile 
+    icon="bolt"
+    title="Use SSO with Teleport Enterprise"
+    href="./sso.mdx/?scope=enterprise"
+  >
+    Learn how to use Teleport's SSO integrations in Teleport Enterprise.
+    </Tile>
+  </TileSet>
+</ScopedBlock>
+
+<ScopedBlock scope={["enterprise", "cloud"]}>
 
 <TileSet>
   <Tile icon="bolt" title="Azure Active Directory (AD)" href="./sso/azuread.mdx">
@@ -239,3 +261,57 @@ If something is not working, we recommend to:
 - Double-check the host names, tokens and TCP ports in a connector definition.
 - Look into Teleport's audit log for claim mapping problems. It is usually stored on the
   auth server in the `/var/lib/teleport/log` directory.ad
+
+### Using the Web UI
+
+If you get "access denied" or other login errors, the number one place to check is the Audit
+Log. You can access it in the **Activity** tab of the Teleport Web UI.
+
+![Audit Log Entry for SSO Login error](../../img/sso/teleportauditlogssofailed.png)
+
+Example of a user being denied because the role `clusteradmin` wasn't set up:
+
+```json
+{
+  "code": "T1001W",
+  "error": "role clusteradmin is not found",
+  "event": "user.login",
+  "method": "oidc",
+  "success": false,
+  "time": "2019-06-15T19:38:07Z",
+  "uid": "cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"
+}
+```
+
+### Teleport does not show the expected Nodes
+
+When Teleport's Auth Service receives a request to list Teleport Nodes,
+it only returns the Nodes that a user is authorized to access. 
+
+A user's Teleport roles must grant the user explicit access to Nodes with a particular label
+ before the user can view those Nodes. The Auth Service compares the user's 
+`traits.logins` with the `allow` and `deny` rules defined in each of the user's roles. 
+If the user's logins match a role's `allow` and `deny` rules, and a Node's labels match 
+the keys and values listed within a role's `node_labels` field, then the Auth Service will
+list the Node in response to the user's request.
+
+When configuring SSO, ensure that the identity provider is populating each user's 
+traits correctly. For a user to see a Node in Teleport, the result of populating a
+ template variable in a role's `allow.logins` must match at least one of a user's
+ `traits.logins`.
+
+
+In this example a user will have usernames `ubuntu`, `debian` and usernames from the SSO trait `logins` for Nodes that have a `env: dev` label.  If the SSO trait username is `bob` then the usernames would include `ubuntu`, `debian`, and `bob`.
+
+```yaml
+kind: role
+metadata:
+  name: example-role
+spec:
+  allow:
+    logins: ['{{external.logins}}', ubuntu, debian]
+    node_labels:
+      'env': 'dev'
+version: v5
+```
+</ScopedBlock>
