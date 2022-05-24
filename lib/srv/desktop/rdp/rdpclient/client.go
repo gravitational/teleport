@@ -446,11 +446,20 @@ func (c *Client) start() {
 						})
 					}
 
+					fsoListLen := len(fsoList)
+					var cgoFsoList *C.CGOFileSystemObject
+
+					if fsoListLen > 0 {
+						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList[0]))
+					} else {
+						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
+					}
+
 					if errCode := C.handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
 						completion_id:   C.uint32_t(m.CompletionID),
 						err_code:        m.ErrCode,
-						fso_list_length: C.uint32_t(len(m.FsoList)),
-						fso_list:        (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList[0])),
+						fso_list_length: C.uint32_t(fsoListLen),
+						fso_list:        cgoFsoList,
 					}); errCode != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("SharedDirectoryListResponse failed: %v", errCode)
 						return
