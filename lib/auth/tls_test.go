@@ -940,7 +940,7 @@ func TestGetCurrentUser(t *testing.T) {
 			Description: "",
 			Labels:      nil,
 			Expires:     nil,
-			ID:          12,
+			ID:          currentUser.GetMetadata().ID,
 		},
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
