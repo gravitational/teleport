@@ -83,7 +83,6 @@ func handleGithubConnector(c auth.ClientI, connBytes []byte) (*AuthRequestInfo, 
 
 func getGithubDiagInfoFields(diag *types.SSODiagnosticInfo, debug bool) []DiagnosticInfoField {
 	return []DiagnosticInfoField{
-		// github
 		{
 			Present: diag.GithubTokenInfo != nil,
 			Show:    debug,
