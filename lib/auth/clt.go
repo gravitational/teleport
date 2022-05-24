@@ -1260,11 +1260,11 @@ func (c *Client) GetGithubAuthRequest(ctx context.Context, id string) (*services
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response *services.GithubAuthRequest
+	var response services.GithubAuthRequest
 	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return response, nil
+	return &response, nil
 }
 
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
