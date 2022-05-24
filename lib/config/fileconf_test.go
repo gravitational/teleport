@@ -18,9 +18,7 @@ package config
 
 import (
 	"bytes"
-	"fmt"
 	"math"
-	"strings"
 	"testing"
 	"time"
 
@@ -335,31 +333,31 @@ func TestAuthenticationSection(t *testing.T) {
 }
 
 func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
-	roles := []string{"Auth", "Node", "Proxy"}
-	joinedRoles := strings.Join(roles[:], ",")
-	var token StaticToken = StaticToken(fmt.Sprintf("%s:token", joinedRoles))
+	t.Parallel()
 
-	provisionToken, err := token.Parse()
-	require.NoError(t, err)
-
-	require.Len(t, provisionToken.Roles, len(roles))
-	for i := range roles {
-		require.Equal(t, string(provisionToken.Roles[i]), roles[i])
+	tests := []struct {
+		desc  string
+		token string
+	}{
+		{"file path on windows", `C:\path\to\some\file`},
+		{"literal string", "some-literal-token"},
 	}
-	require.Equal(t, provisionToken.Token, "token")
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			authToken := StaticToken("Auth,Node,Proxy:" + tt.token)
+			provisionToken, err := authToken.Parse()
+			require.NoError(t, err)
 
-	// test parsing a windows filepath which contains a colon
-	windowsTokenPath := "C:\\path\\to\\some\\token\\file"
-	token = StaticToken(fmt.Sprintf("%s:%s", joinedRoles, windowsTokenPath))
-
-	provisionToken, err = token.Parse()
-	require.NoError(t, err)
-
-	require.Len(t, provisionToken.Roles, len(roles))
-	for i := range roles {
-		require.Equal(t, string(provisionToken.Roles[i]), roles[i])
+			want := &types.ProvisionTokenV1{
+				Roles: []types.SystemRole{
+					types.RoleAuth, types.RoleNode, types.RoleProxy,
+				},
+				Token:   tt.token,
+				Expires: provisionToken.Expires,
+			}
+			require.Equal(t, provisionToken, want)
+		})
 	}
-	require.Equal(t, provisionToken.Token, windowsTokenPath)
 }
 
 func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
