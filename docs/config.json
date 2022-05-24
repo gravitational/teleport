@@ -459,32 +459,75 @@
         { "title": "Introduction", "slug": "/enterprise/introduction/" },
         {
           "title": "Getting Started",
-          "slug": "/enterprise/getting-started/"
+          "slug": "/enterprise/getting-started/",
+          "hideInScopes": ["oss", "cloud"]
         },
         {
-          "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/",
+          "title": "Single Sign-On (SSO)",
+          "slug": "/enterprise/sso/",
+          "hideInScopes": ["oss"],
           "entries": [
-            { "title": "Azure Active Directory (AD)", "slug": "/enterprise/sso/azuread/" },
-            { "title": "Active Directory (ADFS)", "slug": "/enterprise/sso/adfs/" },
-            { "title": "Google Workspace", "slug": "/enterprise/sso/google-workspace/" },
-            { "title": "GitLab", "slug": "/enterprise/sso/gitlab/" },
-            { "title": "OneLogin", "slug": "/enterprise/sso/one-login/" },
-            { "title": "OIDC", "slug": "/enterprise/sso/oidc/" },
-            { "title": "Okta", "slug": "/enterprise/sso/okta/" }
+            {
+              "title": "Azure Active Directory (AD)",
+              "slug": "/enterprise/sso/azuread/",
+              "hideInScopes": ["oss"]
+            },
+            {
+              "title": "Active Directory (ADFS)",
+              "slug": "/enterprise/sso/adfs/",
+              "hideInScopes": ["oss"]
+            },
+            {
+              "title": "Google Workspace",
+              "slug": "/enterprise/sso/google-workspace/",
+              "hideInScopes": ["oss"]
+            },
+            {
+              "title": "GitLab",
+              "slug": "/enterprise/sso/gitlab/",
+              "hideInScopes": ["oss"]
+            },
+            {
+              "title": "OneLogin",
+              "slug": "/enterprise/sso/one-login/",
+              "hideInScopes": ["oss"]
+            },
+            {
+              "title": "OIDC",
+              "slug": "/enterprise/sso/oidc/",
+              "hideInScopes": ["oss"]
+            },
+            {
+              "title": "Okta",
+              "slug": "/enterprise/sso/okta/",
+              "hideInScopes": ["oss"]
+            }
           ]
         },
-        { "title": "Access Requests", "slug": "/enterprise/workflow/" },
+        {
+          "title": "Access Requests",
+          "slug": "/enterprise/workflow/",
+          "hideInScopes": ["oss"]
+        },
         {
           "title": "FedRAMP",
-          "slug": "/enterprise/fedramp/"
+          "slug": "/enterprise/fedramp/",
+          "hideInScopes": ["cloud", "oss"]
         },
         {
           "title": "SOC2",
-          "slug": "/enterprise/soc2/"
+          "slug": "/enterprise/soc2/",
+          "hideInScopes": ["oss"]
         },
         {
           "title": "HSM",
-          "slug": "/enterprise/hsm/"
+          "slug": "/enterprise/hsm/",
+          "hideInScopes": ["cloud", "oss"]
+        },
+        {
+          "title": "Enterprise License File",
+          "slug": "/enterprise/license/",
+          "hideInScopes": ["cloud", "oss"]
         }
       ]
     },
