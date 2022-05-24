@@ -58,7 +58,6 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 
 	sub.Alias("gh")
 
-	// TODO: update examples
 	sub.Alias(`
 Examples:
 
