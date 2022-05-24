@@ -20,17 +20,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
@@ -113,8 +114,8 @@ func getSSHVersion() (*semver.Version, error) {
 }
 
 func (c *TemplateSSHClient) CheckAndSetDefaults() error {
-	if c.ProxyPort == 0 {
-		c.ProxyPort = defaults.SSHProxyListenPort
+	if c.ProxyPort != 0 {
+		log.Warnf("Proxy port for ssh_client config is deprecated and will be removed in a future release.")
 	}
 	return nil
 }
@@ -133,6 +134,10 @@ func (c *TemplateSSHClient) Describe() []FileDescription {
 		},
 	}
 }
+
+// sshConfigUnsupportedWarning is used to ensure we don't spam log messages if
+// using non-filesystem backends.
+var sshConfigUnsupportedWarning sync.Once
 
 func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
@@ -155,34 +160,42 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
 	}
 
-	// TODO: ideally it'd be nice to fetch this dynamically
-	// TODO: eventually we could consider including `tsh proxy`
-	// functionality and sidestep this entirely.
-	proxyPort := strconv.Itoa(int(c.ProxyPort))
-
 	// Backend note: Prefer to use absolute paths for filesystem backends.
 	// If the backend is something else, use "". ssh_config will generate with
 	// paths relative to the destination. This doesn't work with ssh in
 	// practice so adjusting the config for impossible-to-determine-in-advance
 	// destination backends is left as an exercise to the user.
-	var dataDir string
+	var destDir string
 	if dir, ok := dest.(*DestinationDirectory); ok {
-		dataDir, err = filepath.Abs(dir.Path)
+		destDir, err = filepath.Abs(dir.Path)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		dataDir = ""
+		destDir = ""
 	}
 
+	// We'll write known_hosts regardless of destination type, it's still
+	// useful alongside a manually-written ssh_config.
 	knownHosts, err := fetchKnownHosts(ctx, authClient, clusterName.GetClusterName(), proxyHost)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	knownHostsPath := filepath.Join(dataDir, knownHostsName)
 	if err := dest.Write(knownHostsName, []byte(knownHosts)); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If dataDir is unset, we're not using a filesystem destination and
+	// ssh_config will not be sensible. Log a note and bail early without
+	// writing ssh_config. (Future users of k8s secrets will need to bring
+	// their own config, we can't predict where paths will be in practice.)
+	if destDir == "" {
+		sshConfigUnsupportedWarning.Do(func() {
+			log.Infof("Note: no ssh_config will be written for non-filesystem "+
+				"destination %s.", destination)
+		})
+		return nil
 	}
 
 	// Default to including the RSA deprecation workaround.
@@ -197,19 +210,24 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 		log.Debugf("OpenSSH version %s will use workaround for RSA deprecation", version)
 	}
 
+	executablePath, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var sshConfigBuilder strings.Builder
-	identityFilePath := filepath.Join(dataDir, identity.PrivateKeyKey)
-	certificateFilePath := filepath.Join(dataDir, identity.SSHCertKey)
-	sshConfigPath := filepath.Join(dataDir, sshConfigName)
+	knownHostsPath := filepath.Join(destDir, knownHostsName)
+	identityFilePath := filepath.Join(destDir, identity.PrivateKeyKey)
+	certificateFilePath := filepath.Join(destDir, identity.SSHCertKey)
 	if err := sshConfigTemplate.Execute(&sshConfigBuilder, sshConfigParameters{
 		ClusterName:          clusterName.GetClusterName(),
 		ProxyHost:            proxyHost,
-		ProxyPort:            proxyPort,
 		KnownHostsPath:       knownHostsPath,
 		IdentityFilePath:     identityFilePath,
 		CertificateFilePath:  certificateFilePath,
-		SSHConfigPath:        sshConfigPath,
 		IncludeRSAWorkaround: rsaWorkaround,
+		TBotPath:             executablePath,
+		DestinationDir:       destDir,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -227,8 +245,8 @@ type sshConfigParameters struct {
 	IdentityFilePath    string
 	CertificateFilePath string
 	ProxyHost           string
-	ProxyPort           string
-	SSHConfigPath       string
+	TBotPath            string
+	DestinationDir      string
 
 	// IncludeRSAWorkaround controls whether the RSA deprecation workaround is
 	// included in the generated configuration. Newer versions of OpenSSH
@@ -241,7 +259,7 @@ type sshConfigParameters struct {
 }
 
 var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(`
-# Begin generated Teleport configuration for {{ .ProxyHost }} from tbot config
+# Begin generated Teleport configuration for {{ .ProxyHost }} by tbot
 
 # Common flags for all {{ .ClusterName }} hosts
 Host *.{{ .ClusterName }} {{ .ProxyHost }}
@@ -254,7 +272,7 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
     Port 3022
-    ProxyCommand ssh -F {{ .SSHConfigPath }} -l %r -p {{ .ProxyPort }} {{ .ProxyHost }} -s proxy:$(echo %h | cut -d '.' -f 1):%p@{{ .ClusterName }}
+    ProxyCommand "{{ .TBotPath }}" proxy --destination-dir={{ .DestinationDir }} --proxy={{ .ProxyHost }} ssh --cluster={{ .ClusterName }}  %r@%h:%p
 
 # End generated Teleport configuration
 `))
