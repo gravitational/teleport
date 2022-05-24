@@ -128,7 +128,12 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		var contextDialer client.ContextDialer
+		if cfg.IgnoreHTTPProxy {
+			contextDialer = client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		} else {
+			contextDialer = client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		}
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -1077,9 +1082,22 @@ func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 	return response, nil
 }
 
+// GetOIDCAuthRequest gets OIDC AuthnRequest
+func (c *Client) GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error) {
+	out, err := c.Get(ctx, c.Endpoint("oidc", "requests", "get", id), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *services.OIDCAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
-func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
 		Query: q,
 	})
 	if err != nil {
@@ -1678,8 +1696,11 @@ type IdentityService interface {
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 
+	// GetOIDCAuthRequest returns OIDC auth request if found
+	GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error)
+
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
-	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 
 	// CreateSAMLConnector creates SAML connector
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
@@ -1725,6 +1746,10 @@ type IdentityService interface {
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
+
+	// GetCurrentUser returns current user as seen by the server.
+	// Useful especially in the context of remote clusters which perform role and trait mapping.
+	GetCurrentUser(ctx context.Context) (types.User, error)
 
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error

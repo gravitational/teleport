@@ -29,6 +29,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
@@ -239,6 +240,63 @@ func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, 
 	})
 }
 
+// NewDatabaseFromElastiCacheConfigurationEndpoint creates a database resource
+// from ElastiCache configuration endpoint.
+func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Database, error) {
+	if cluster.ConfigurationEndpoint == nil {
+		return nil, trace.BadParameter("missing configuration endpoint")
+	}
+
+	return newElastiCacheDatabase(cluster, cluster.ConfigurationEndpoint, awsutils.ElastiCacheConfigurationEndpoint, extraLabels)
+}
+
+// NewDatabasesFromElastiCacheNodeGroups creates database resources from
+// ElastiCache node groups.
+func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
+	var databases types.Databases
+	for _, nodeGroup := range cluster.NodeGroups {
+		if nodeGroup.PrimaryEndpoint != nil {
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.PrimaryEndpoint, awsutils.ElastiCachePrimaryEndpoint, extraLabels)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			databases = append(databases, database)
+		}
+
+		if nodeGroup.ReaderEndpoint != nil {
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.ReaderEndpoint, awsutils.ElastiCacheReaderEndpoint, extraLabels)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			databases = append(databases, database)
+		}
+	}
+	return databases, nil
+}
+
+// newElastiCacheDatabase returns a new ElastiCache database.
+func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *elasticache.Endpoint, endpointType string, extraLabels map[string]string) (types.Database, error) {
+	metadata, err := MetadataFromElastiCacheCluster(cluster, endpointType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	name := aws.StringValue(cluster.ReplicationGroupId)
+	if endpointType == awsutils.ElastiCacheReaderEndpoint {
+		name = fmt.Sprintf("%s-%s", name, endpointType)
+	}
+
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        name,
+		Description: fmt.Sprintf("ElastiCache cluster in %v (%v endpoint)", metadata.Region, endpointType),
+		Labels:      labelsFromElastiCacheCluster(metadata, endpointType, extraLabels),
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+		AWS:      *metadata,
+	})
+}
+
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
 func MetadataFromRDSInstance(rdsInstance *rds.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
@@ -289,6 +347,67 @@ func MetadataFromRedshiftCluster(cluster *redshift.Cluster) (*types.AWS, error) 
 	}, nil
 }
 
+// MetadataFromElastiCacheCluster creates AWS metadata for the provided
+// ElastiCache cluster.
+func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpointType string) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		ElastiCache: types.ElastiCache{
+			ReplicationGroupID:       aws.StringValue(cluster.ReplicationGroupId),
+			UserGroupIDs:             aws.StringValueSlice(cluster.UserGroupIds),
+			TransitEncryptionEnabled: aws.BoolValue(cluster.TransitEncryptionEnabled),
+			EndpointType:             endpointType,
+		},
+	}, nil
+}
+
+// ExtraElastiCacheLabels returns a list of extra labels for provided
+// ElastiCache cluster.
+func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elasticache.Tag, allNodes []*elasticache.CacheCluster, allSubnetGroups []*elasticache.CacheSubnetGroup) map[string]string {
+	replicationGroupID := aws.StringValue(cluster.ReplicationGroupId)
+	subnetGroupName := ""
+	labels := make(map[string]string)
+
+	// Add AWS resource tags.
+	for _, tag := range tags {
+		key := aws.StringValue(tag.Key)
+		if types.IsValidLabelKey(key) {
+			labels[key] = aws.StringValue(tag.Value)
+		} else {
+			log.Debugf("Skipping ElastiCache tag %q, not a valid label key.", key)
+		}
+	}
+
+	// Find any node belongs to this cluster and set engine version label.
+	for _, node := range allNodes {
+		if aws.StringValue(node.ReplicationGroupId) == replicationGroupID {
+			subnetGroupName = aws.StringValue(node.CacheSubnetGroupName)
+			labels[labelEngineVersion] = aws.StringValue(node.EngineVersion)
+			break
+		}
+	}
+
+	// Find the subnet group used by this cluster and set VPC ID label.
+	//
+	// ElastiCache servers do not have public IPs so they are usually only
+	// accessible within the same VPC. Having a VPC ID label can be very useful
+	// for filtering.
+	for _, subnetGroup := range allSubnetGroups {
+		if aws.StringValue(subnetGroup.CacheSubnetGroupName) == subnetGroupName {
+			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
+			break
+		}
+	}
+
+	return labels
+}
+
 // engineToProtocol converts RDS instance engine to the database protocol.
 func engineToProtocol(engine string) string {
 	switch engine {
@@ -331,11 +450,27 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 		key := aws.StringValue(tag.Key)
 		if types.IsValidLabelKey(key) {
 			labels[key] = aws.StringValue(tag.Value)
+		} else {
+			log.Debugf("Skipping Redshift tag %q, not a valid label key.", key)
 		}
 	}
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
+	return labels
+}
+
+// labelsFromElastiCacheCluster creates database labels for the provided
+// ElastiCache cluster.
+func labelsFromElastiCacheCluster(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
+	labels := make(map[string]string)
+	for key, value := range extraLabels {
+		labels[key] = value
+	}
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelAccountID] = meta.AccountID
+	labels[labelRegion] = meta.Region
+	labels[labelEndpointType] = endpointType
 	return labels
 }
 
@@ -379,8 +514,7 @@ func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
 	return !ver.LessThan(*minIAMSupportedVer)
 }
 
-// IsRDSClusterSupported checks whether the aurora cluster is supported and logs
-// related info if not.
+// IsRDSClusterSupported checks whether the Aurora cluster is supported.
 func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	switch aws.StringValue(cluster.EngineMode) {
 	// Aurora Serverless (v1 and v2) does not support IAM authentication
@@ -398,6 +532,12 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	}
 
 	return true
+}
+
+// IsElastiCacheClusterSupported checks whether the ElastiCache cluster is
+// supported.
+func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
+	return aws.BoolValue(cluster.TransitEncryptionEnabled)
 }
 
 // IsRDSInstanceAvailable checks if the RDS instance is available.
@@ -501,6 +641,26 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 	}
 }
 
+// IsElastiCacheClusterAvailable checks if the ElastiCache cluster is
+// available.
+func IsElastiCacheClusterAvailable(cluster *elasticache.ReplicationGroup) bool {
+	switch aws.StringValue(cluster.Status) {
+	case "available", "modifying", "snapshotting":
+		return true
+
+	case "creating", "deleting", "create-failed":
+		return false
+
+	default:
+		log.Warnf("Unknown status type: %q. Assuming ElastiCache %q is available.",
+			aws.StringValue(cluster.Status),
+			aws.StringValue(cluster.ReplicationGroupId),
+		)
+		return true
+
+	}
+}
+
 // auroraMySQLVersion extracts aurora mysql version from engine version
 func auroraMySQLVersion(cluster *rds.DBCluster) string {
 	// version guide: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.Versions.html
@@ -548,6 +708,8 @@ const (
 	labelEngineVersion = "engine-version"
 	// labelEndpointType is the label key containing the RDS endpoint type.
 	labelEndpointType = "endpoint-type"
+	// labelVPCID is the label key containing the VPC ID.
+	labelVPCID = "vpc-id"
 )
 
 const (
@@ -565,7 +727,7 @@ const (
 	RDSEngineAuroraPostgres = "aurora-postgresql"
 )
 
-// RDSEndpointType specifies the endpoint type
+// RDSEndpointType specifies the endpoint type for RDS clusters.
 type RDSEndpointType string
 
 const (

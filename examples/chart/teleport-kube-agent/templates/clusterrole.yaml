@@ -2,6 +2,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ .Values.clusterRoleName | default .Release.Name }}
+{{- if .Values.extraLabels.clusterRole }}
+  labels:
+  {{- toYaml .Values.extraLabels.clusterRole | nindent 4 }}
+{{- end }}
 rules:
 - apiGroups:
   - ""

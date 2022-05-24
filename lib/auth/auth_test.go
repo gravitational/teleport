@@ -945,7 +945,13 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test oidc create event
-	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{ClientID: "a"})
+	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{ClientID: "a", ClaimsToRoles: []types.ClaimMapping{
+		{
+			Claim: "dummy",
+			Value: "dummy",
+			Roles: []string{"dummy"},
+		},
+	}})
 	require.NoError(t, err)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
@@ -1609,7 +1615,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
 				require.NoError(t, err)
 
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName())
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
