@@ -4,16 +4,31 @@ description: How to install Teleport on DigitalOcean?
 videoBanner: voHQlSX_czE
 ---
 
+This tutorial will guide you through quickly getting started with Teleport on
+DigitalOcean with the Teleport 1-Click Droplet app.
 
-<Admonition
-  type="note"
-  title="Note"
+<ScopedBlock scope={["enterprise", "cloud"]}>
+
+This guide is intended for users of Teleport Open Source.
+
+<TileSet>
+<Tile 
+href="./digitalocean.mdx/?scope=oss"
+icon="stack"
+title="View this guide as a Teleport Open Source user"
 >
-This tutorial will guide you through quickly getting started with Teleport on DigitalOcean with Teleport 1-Click Droplet app. If you are looking for a manual installation, refer to our [Linux installation guide](./linux-server.mdx). 
+</Tile>
+</TileSet>
 
-</Admonition>
+</ScopedBlock>
 
-(!docs/pages/includes/cloud/cloudmanagedadvisory.mdx!)
+<ScopedBlock scope="oss">
+
+<Notice type="tip">
+
+If you are looking for a manual installation, refer to our [Linux installation guide](./linux-server.mdx). 
+
+</Notice>
 
 ## Prerequisites
 - A Fully Qualified Domain Name (FQDN).
@@ -119,3 +134,5 @@ You can also secure access to databases, DigitalOcean Marketplace apps, and Kube
     Secure access to Windows Server.
   </Tile>
 </TileSet>
+
+</ScopedBlock>
