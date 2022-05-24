@@ -22,7 +22,6 @@
 /// convert it to RDP's preferred format and send it over the wire.
 pub fn to_unicode(s: &str) -> Vec<u8> {
     let mut buf: Vec<u8> = s.encode_utf16().flat_map(|v| v.to_le_bytes()).collect();
-    let mut null_terminator: Vec<u8> = vec![0, 0];
-    buf.append(&mut null_terminator);
+    buf.extend_from_slice(&[0, 0]);
     buf
 }
