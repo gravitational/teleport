@@ -89,18 +89,22 @@
         {
           "title": "Deployments",
           "slug": "/setup/deployments/",
+          "hideInScopes": "cloud",
           "entries": [
             {
               "title": "AWS Terraform",
-              "slug": "/setup/deployments/aws-terraform/"
+              "slug": "/setup/deployments/aws-terraform/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "GCP",
-              "slug": "/setup/deployments/gcp/"
+              "slug": "/setup/deployments/gcp/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "IBM",
-              "slug": "/setup/deployments/ibm/"
+              "slug": "/setup/deployments/ibm/",
+              "hideInScopes": "cloud"
             }
           ]
         },
@@ -110,7 +114,8 @@
           "entries": [
             {
               "title": "Scaling",
-              "slug": "/setup/operations/scaling/"
+              "slug": "/setup/operations/scaling/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Upgrading a Cluster",
@@ -166,7 +171,8 @@
             },
             {
               "title": "Joining Nodes via AWS EC2",
-              "slug": "/setup/guides/joining-nodes-aws-ec2/"
+              "slug": "/setup/guides/joining-nodes-aws-ec2/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Using Teleport's CA with GitHub",
@@ -208,7 +214,8 @@
             },
             {
               "title": "Storage Backends",
-              "slug": "/setup/reference/backends/"
+              "slug": "/setup/reference/backends/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Networking",
