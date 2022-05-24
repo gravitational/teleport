@@ -535,10 +535,28 @@
       "icon": "cloud",
       "title": "Cloud",
       "entries": [
-        { "title": "Introduction", "slug": "/cloud/introduction/" },
-        { "title": "Getting Started", "slug": "/cloud/getting-started/" },
-        { "title": "Architecture", "slug": "/cloud/architecture/" },
-        { "title": "FAQ", "slug": "/cloud/faq/" }
+        {
+          "title": "Introduction",
+          "slug": "/cloud/introduction/"
+        },
+        {
+          "title": "Getting Started",
+          "slug": "/cloud/getting-started/",
+          "hideInScopes": ["oss", "enterprise"]
+        },
+        {
+          "title": "Architecture",
+          "slug": "/cloud/architecture/"
+        },
+        {
+          "title": "Downloads",
+          "slug": "/cloud/downloads/",
+          "hideInScopes": ["oss", "enterprise"]
+        },
+        {
+          "title": "FAQ",
+          "slug": "/cloud/faq/"
+        }
       ]
     },
     {
