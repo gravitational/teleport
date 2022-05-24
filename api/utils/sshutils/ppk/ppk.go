@@ -83,11 +83,11 @@ func ConvertToPPK(priv []byte, pub []byte) ([]byte, error) {
 
 	// read Teleport public key
 	// fortunately, this is the one thing that's in exactly the same format that the PPK file uses, so we can just copy it verbatim
-	// remove ssh-rsa from beginning of string if present
-	if !bytes.HasPrefix(pub, []byte(constants.SSHRSAType)) {
+	// remove ssh-rsa plus additional space from beginning of string if present
+	if !bytes.HasPrefix(pub, []byte(constants.SSHRSAType+" ")) {
 		return nil, trace.BadParameter("pub does not appear to be an ssh-rsa public key")
 	}
-	pub = bytes.TrimSuffix(bytes.TrimPrefix(pub, []byte(constants.SSHRSAType)), []byte("\n"))
+	pub = bytes.TrimSuffix(bytes.TrimPrefix(pub, []byte(constants.SSHRSAType+" ")), []byte("\n"))
 
 	// the PPK file contains an anti-tampering MAC which is made up of various values which appear in the file.
 	// copied from Section C.3 of https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixC.html#ppk:
