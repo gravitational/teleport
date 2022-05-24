@@ -32,6 +32,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 // This provides wrapper functions for the Aptly command. Aptly is written in Go but it doesn't appear
@@ -450,7 +452,7 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 //
 // 2. true if `repos` contains at least one published repo, false otherwise
 func (a *Aptly) getRepoSlicePublishedState(repos []*Repo) (bool, bool, error) {
-	publishedRepoNames, err := a.GetPublishedRepoNames()
+	publishedOsVersions, err := a.GetPublishedOsVersions()
 	if err != nil {
 		return false, false, trace.Wrap(err, "failed to get a list of published repos' names")
 	}
@@ -458,7 +460,7 @@ func (a *Aptly) getRepoSlicePublishedState(repos []*Repo) (bool, bool, error) {
 	containsUnpublishedRepo := false
 	containsPublishedRepo := false
 	for _, repo := range repos {
-		hasRepoBeenPublished := isRepoNameInSlice(repo, publishedRepoNames)
+		hasRepoBeenPublished := slices.Contains(maps.Keys(publishedOsVersions), repo.os) && slices.Contains(publishedOsVersions[repo.os], repo.osVersion)
 		logrus.Debugf("Repo %q has been published: %v", repo.Name(), hasRepoBeenPublished)
 		containsUnpublishedRepo = containsUnpublishedRepo || !hasRepoBeenPublished
 		containsPublishedRepo = containsPublishedRepo || hasRepoBeenPublished
@@ -477,7 +479,7 @@ func (a *Aptly) getRepoSlicePublishedState(repos []*Repo) (bool, bool, error) {
 	return containsUnpublishedRepo, containsPublishedRepo, nil
 }
 
-func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
+func (a *Aptly) GetPublishedOsVersions() (map[string][]string, error) {
 	logrus.Debugln("Getting a list of published repos...")
 	// The output of the command will be simiar to:
 	// ```
@@ -505,13 +507,13 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 	// In all cases the first line should exist and not be parsed
 	publishedRepoLines = publishedRepoLines[1:]
 
-	repoNameRegexStr := ": \\[(.+?)\\]"
+	repoNameRegexStr := ": \\[([^-]+?)-([^-]+?)-([^-]+?)-([^-]+?)\\]"
 	repoNameRegex, err := regexp.Compile(repoNameRegexStr)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to compile repo name regex %q", repoNameRegexStr)
 	}
 
-	var publishedRepoNames []string
+	publishedOsVersions := make(map[string][]string)
 	for _, publishedRepoLine := range publishedRepoLines {
 		// The names may have whitespace and the command may print an extra blank line, so we remove those here
 		if trimmedRepoLine := strings.TrimSpace(publishedRepoLine); trimmedRepoLine != "" {
@@ -523,14 +525,21 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 
 			for _, repoNameMatch := range repoNameMatches {
 				// `repoNameRegexStr` is written such that there will be exactly one match and one group in repoNameMatch
-				// for example repoNameMatch could be [": [debian-bookwork-stable-v6]", "debian-bookwork-stable-v6"]
-				publishedRepoNames = append(publishedRepoNames, repoNameMatch[1])
+				// for example repoNameMatch could be [": [debian-bookwork-stable-v6]", "debian", "bookwork", "stable", "v6"]
+				os := repoNameMatch[1]
+				osVersion := repoNameMatch[2]
+
+				if osVersions, ok := publishedOsVersions[os]; ok {
+					publishedOsVersions[os] = append(osVersions, osVersion)
+				} else {
+					publishedOsVersions[os] = []string{osVersion}
+				}
 			}
 		}
 	}
 
-	logrus.Debugf("Found %d published repos: %q", len(publishedRepoNames), publishedRepoNames)
-	return publishedRepoNames, nil
+	logrus.Debugf("Found %d published OSs: %q", len(publishedOsVersions), publishedOsVersions)
+	return publishedOsVersions, nil
 }
 
 // Creates Aptly repos from a local path that has previously published Apt repos created by this tool.
