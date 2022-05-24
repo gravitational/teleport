@@ -1017,15 +1017,14 @@ impl FileCacheObject {
 /// all the files of a directory one by one. In this case, the directory
 /// is the FileCacheObject itself, with it's own fso field representing
 /// the directory, and its contents being represented by FileSystemObject's
-/// in its fso_list field.
+/// in its contents field.
 ///
 /// We account for an idiosyncrasy of the RDP protocol here: when fielding an
 /// IRP_MJ_DIRECTORY_CONTROL, RDP first expects to receive an entry for the "."
 /// directory, and next an entry for the ".." directory. Only after those two
 /// directories have been sent do we begin sending the actual contents of this
-/// directory (the fso_list). This is why fsos_index, so we can track the iteration
-/// through these psuedo FileSystemObjects (see the actual implementation below if
-/// this wording seems confusing).
+/// directory (the contents field). (This is why we maintain dot_sent and dotdot_sent
+/// fields on each FileCacheObject)
 ///
 /// Note that this implementation only makes sense in the case that this FileCacheObject
 /// is itself a directory (fso.file_type == FileType::Directory). We leave it up to the
