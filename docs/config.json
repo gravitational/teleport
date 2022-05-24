@@ -33,8 +33,8 @@
             { "title": "Labels", "slug": "/setup/admin/labels/" },
             { "title": "Local users", "slug": "/setup/admin/users/" },
             { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
-            { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
-            { "title": "Daemon", "slug": "/setup/admin/daemon/" }
+            { "title": "Upgrading the Teleport Binary", "slug": "/setup/admin/graceful-restarts/" },
+            { "title": "Run Teleport as a Daemon", "slug": "/setup/admin/daemon/" }
           ]
         },
         {
@@ -80,7 +80,11 @@
             { "title": "Authentication", "slug": "/setup/reference/authentication/" },
             { "title": "Storage Backends", "slug": "/setup/reference/backends/" },
             { "title": "Networking", "slug": "/setup/reference/networking/" },
-            { "title": "Enterprise License File", "slug": "/setup/reference/license/" }
+            { "title": "Enterprise License File", "slug": "/setup/reference/license/" },
+            {
+              "title": "Signals",
+              "slug": "/setup/reference/signals/"
+            }
           ]
         }
       ]
