@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"path"
 	"strings"
 )
 
@@ -28,10 +29,10 @@ func promoteBuildPipeline() pipeline {
 
 // This function calls the build-apt-repos tool which handles the APT portion of RFD 0058.
 func promoteAptPipeline() pipeline {
-	testVersion := "7.3.17"
+	testVersion := "7.3.18"
 	aptVolumeName := "aptrepo"
 	artifactPath := "/go/artifacts"
-	aptlyRootDir := "/aptly"
+	pvcMountPoint := "/mnt"
 
 	p := newKubePipeline("publish-apt-new-repos")
 	// p.Trigger = triggerPromote
@@ -113,6 +114,12 @@ func promoteAptPipeline() pipeline {
 				"APT_S3_BUCKET": {
 					fromSecret: "APT_REPO_NEW_AWS_S3_BUCKET",
 				},
+				"BUCKET_CACHE_PATH": {
+					// If we need to cache the bucket on the PVC for some reason in the future
+					// uncomment this line
+					// raw: path.Join(pvcMountPoint, "bucket-cache"),
+					raw: "/tmp/bucket",
+				},
 				"AWS_REGION": {
 					raw: "us-west-2",
 				},
@@ -126,7 +133,7 @@ func promoteAptPipeline() pipeline {
 					raw: artifactPath,
 				},
 				"APTLY_ROOT_DIR": {
-					raw: aptlyRootDir,
+					raw: path.Join(pvcMountPoint, "aptly"),
 				},
 				"GNUPGHOME": {
 					raw: "/tmpfs/gnupg",
@@ -146,12 +153,13 @@ func promoteAptPipeline() pipeline {
 				// "export VERSION=\"$(echo $DRONE_TAG | cut -d. -f1)\"",
 				fmt.Sprintf("export VERSION=\"$(echo v%s | cut -d. -f1)\"", testVersion),
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
-				// "rm -rf \"$APTLY_ROOT_DIR\"/*",      // Temporary to test recovery capabilities
+				"rm -rf /mnt/*",                     // Temporary to test recovery capabilities
 				strings.Join(
 					[]string{
 						// This just makes the (long) command a little more readable
 						"go run ./cmd/build-apt-repos",
 						"-bucket \"$APT_S3_BUCKET\"",
+						"-local-bucket-path \"$BUCKET_CACHE_PATH\"",
 						"-artifact-major-version \"$VERSION\"",
 						"-artifact-release-channel \"$RELEASE_CHANNEL\"",
 						"-aptly-root-dir \"$APTLY_ROOT_DIR\"",
@@ -165,7 +173,7 @@ func promoteAptPipeline() pipeline {
 			Volumes: []volumeRef{
 				{
 					Name: aptVolumeName,
-					Path: aptlyRootDir,
+					Path: pvcMountPoint,
 				},
 				volumeRefTmpfs,
 			},
