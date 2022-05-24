@@ -6,7 +6,30 @@ description: Install and configure an HA Teleport cluster using an AWS EKS clust
 In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and AWS products (DynamoDB and S3).
 
+<ScopedBlock scope="cloud">
+
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
+
+You can also view this guide as a user of another Teleport edition:
+
+<TileSet>
+<Tile
+href="./aws.mdx/?scope=oss"
+title="Open Source"
+icon="stack"
+>
+</Tile>
+<Tile
+href="./aws.mdx/?scope=enterprise"
+title="Enterprise"
+icon="building"
+>
+</Tile>
+</TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ## Prerequisites
 
@@ -532,3 +555,5 @@ Teleport cluster.
 See the [high availability section of our Helm chart reference](../reference/teleport-cluster.mdx#highavailability) for more details on high availability.
 
 Read the [`cert-manager` documentation](https://cert-manager.io/docs/).
+
+</ScopedBlock>

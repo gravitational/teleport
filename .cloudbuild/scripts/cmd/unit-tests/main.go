@@ -179,8 +179,9 @@ func run() error {
 func runUnitTests(workspace string) error {
 	cmd := exec.Command("make", "test")
 	cmd.Dir = workspace
-	cmd.Env = append(os.Environ(), "TELEPORT_ETCD_TEST=yes")
-	cmd.Env = append(os.Environ(), "TELEPORT_XAUTH_TEST=yes")
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "TELEPORT_ETCD_TEST=yes")
+	cmd.Env = append(cmd.Env, "TELEPORT_XAUTH_TEST=yes")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

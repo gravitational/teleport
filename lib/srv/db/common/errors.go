@@ -20,19 +20,18 @@ import (
 	"net/http"
 	"strings"
 
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/pkg/errors"
-	"github.com/siddontang/go-mysql/mysql"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/status"
 
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // ConvertError converts errors to trace errors.
