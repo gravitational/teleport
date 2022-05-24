@@ -279,9 +279,10 @@
               "title": "Local Demo Cluster",
               "slug": "/kubernetes-access/getting-started/local/"
             },
-            {
-              "title": "Cluster",
-              "slug": "/kubernetes-access/getting-started/cluster/"
+            { 
+              "title": "Cluster", 
+              "slug": "/kubernetes-access/getting-started/cluster/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Agent",
@@ -303,12 +304,33 @@
         {
           "title": "Helm Guides",
           "slug": "/kubernetes-access/helm/guides/",
+          "hideInScopes": "cloud",
           "entries": [
-            { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
-            { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
-            { "title": "DigitalOcean Kubernetes Cluster", "slug": "/kubernetes-access/helm/guides/digitalocean/" },
-            { "title": "Customize Deployment Config", "slug": "/kubernetes-access/helm/guides/custom/" },
-            { "title": "Migrating From Older Charts", "slug": "/kubernetes-access/helm/guides/migration/" }
+            {
+              "title": "AWS EKS Cluster",
+              "slug": "/kubernetes-access/helm/guides/aws/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "Google Cloud GKE Cluster",
+              "slug": "/kubernetes-access/helm/guides/gcp/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "DigitalOcean Kubernetes Cluster",
+              "slug": "/kubernetes-access/helm/guides/digitalocean/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "Customize Deployment Config",
+              "slug": "/kubernetes-access/helm/guides/custom/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "Migrating From Older Charts",
+              "slug": "/kubernetes-access/helm/guides/migration/",
+              "hideInScopes": "cloud"
+            }
           ]
         },
         {
