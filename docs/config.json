@@ -18,7 +18,8 @@
           "entries": [
             {
               "title": "Linux Server",
-              "slug": "/getting-started/linux-server/"
+              "slug": "/getting-started/linux-server/",
+              "hideInScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Docker Compose",
@@ -26,7 +27,8 @@
             },
             {
               "title": "DigitalOcean",
-              "slug": "/getting-started/digitalocean/"
+              "slug": "/getting-started/digitalocean/",
+              "hideInScopes": ["enterprise", "cloud"]
             }
           ]
         },
