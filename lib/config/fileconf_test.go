@@ -18,7 +18,9 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -330,6 +332,34 @@ func TestAuthenticationSection(t *testing.T) {
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
 		})
 	}
+}
+
+func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
+	roles := []string{"Auth", "Node", "Proxy"}
+	joinedRoles := strings.Join(roles[:], ",")
+	var token StaticToken = StaticToken(fmt.Sprintf("%s:token", joinedRoles))
+
+	provisionToken, err := token.Parse()
+	require.NoError(t, err)
+
+	require.Len(t, provisionToken.Roles, len(roles))
+	for i := range roles {
+		require.Equal(t, string(provisionToken.Roles[i]), roles[i])
+	}
+	require.Equal(t, provisionToken.Token, "token")
+
+	// test parsing a windows filepath which contains a colon
+	windowsTokenPath := "C:\\path\\to\\some\\token\\file"
+	token = StaticToken(fmt.Sprintf("%s:%s", joinedRoles, windowsTokenPath))
+
+	provisionToken, err = token.Parse()
+	require.NoError(t, err)
+
+	require.Len(t, provisionToken.Roles, len(roles))
+	for i := range roles {
+		require.Equal(t, string(provisionToken.Roles[i]), roles[i])
+	}
+	require.Equal(t, provisionToken.Token, windowsTokenPath)
 }
 
 func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
