@@ -1081,9 +1081,7 @@ message U2F {
     // AppID returns the application ID for universal second factor.
     string AppID = 1 [ (gogoproto.jsontag) = "app_id,omitempty" ];
 
-    // Facets returns the facets for universal second factor.
-    // DELETE IN 11.0, time to sunset U2F (codingllama).
-    repeated string Facets = 2 [ (gogoproto.jsontag) = "facets,omitempty" ];
+    reserved 2; // repeated string Facets
 
     // DeviceAttestationCAs contains the trusted attestation CAs for U2F
     // devices.
