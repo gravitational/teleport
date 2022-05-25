@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
@@ -53,8 +55,7 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	sub.Flag("redirect-url", "Authorization callback URL.").PlaceHolder("URL").StringVar(&spec.RedirectURL)
 
 	// ignores
-	ignoreMissingRoles := false
-	sub.Flag("ignore-missing-roles", "Ignore non-existing roles referenced in --claims-to-roles.").BoolVar(&ignoreMissingRoles)
+	sub.Flag("ignore-missing-roles", "Ignore non-existing roles referenced in --teams-to-logins.").BoolVar(&gh.ignoreMissingRoles)
 
 	sub.Alias("gh")
 
@@ -86,43 +87,31 @@ Examples:
 }
 
 func ghRunFunc(cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flags *ghExtraFlags, clt auth.ClientI) error {
-	allRoles, err := clt.GetRoles(context.TODO())
-	if err != nil {
-		cmd.Logger.WithError(err).Warn("unable to get roles list. Skipping attributes_to_roles sanity checks.")
-	} else {
-		roleMap := map[string]bool{}
-		var roleNames []string
-		for _, role := range allRoles {
-			roleMap[role.GetName()] = true
-			roleNames = append(roleNames, role.GetName())
-		}
-
-		for _, mapping := range spec.TeamsToLogins {
-			for _, role := range mapping.Logins {
-				_, found := roleMap[role]
-				if !found {
-					if flags.ignoreMissingRoles {
-						cmd.Logger.Warnf("teams-to-logins references non-existing role: %q. Available roles: %v.", role, roleNames)
-					} else {
-						return trace.BadParameter("teams-to-logins references non-existing role: %v. Correct the mapping, or add --ignore-missing-roles to ignore this error. Available roles: %v.", role, roleNames)
-					}
-				}
-			}
-		}
+	if err := specCheckRoles(cmd.Logger, spec, flags.ignoreMissingRoles, clt); err != nil {
+		return trace.Wrap(err)
 	}
 
+	specResolveRedirectURL(cmd.Logger, spec, clt)
+
+	connector, err := types.NewGithubConnector(flags.connectorName, *spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(utils.WriteYAML(os.Stdout, connector))
+}
+
+func specResolveRedirectURL(logger *logrus.Entry, spec *types.GithubConnectorSpecV3, clt auth.ClientI) {
 	if spec.RedirectURL == "" {
-		cmd.Logger.Info("RedirectURL empty, resolving automatically.")
+		logger.Info("RedirectURL empty, resolving automatically.")
 		proxies, err := clt.GetProxies()
 		if err != nil {
-			cmd.Logger.WithError(err).Error("unable to get proxy list.")
+			logger.WithError(err).Error("unable to get proxy list.")
 		}
 
 		// find first proxy with public addr
 		for _, proxy := range proxies {
 			publicAddr := proxy.GetPublicAddr()
 			if publicAddr != "" {
-				// TODO: double check this is correct
 				spec.RedirectURL = fmt.Sprintf("https://%v/v1/webapi/github/callback", publicAddr)
 				break
 			}
@@ -130,16 +119,39 @@ func ghRunFunc(cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flag
 
 		// check if successfully set.
 		if spec.RedirectURL == "" {
-			cmd.Logger.Warn("Unable to fill RedirectURL automatically, cluster's public address unknown.")
+			logger.Warn("Unable to fill RedirectURL automatically, cluster's public address unknown.")
 		} else {
-			cmd.Logger.Infof("RedirectURL set to %q", spec.RedirectURL)
+			logger.Infof("RedirectURL set to %q", spec.RedirectURL)
+		}
+	}
+}
+
+func specCheckRoles(logger *logrus.Entry, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt auth.ClientI) error {
+	allRoles, err := clt.GetRoles(context.TODO())
+	if err != nil {
+		logger.WithError(err).Warn("unable to get roles list. Skipping teams-to-logins sanity checks.")
+		return nil
+	}
+
+	roleMap := map[string]bool{}
+	var roleNames []string
+	for _, role := range allRoles {
+		roleMap[role.GetName()] = true
+		roleNames = append(roleNames, role.GetName())
+	}
+
+	for _, mapping := range spec.TeamsToLogins {
+		for _, role := range mapping.Logins {
+			_, found := roleMap[role]
+			if !found {
+				if ignoreMissingRoles {
+					logger.Warnf("teams-to-logins references non-existing role: %q. Available roles: %v.", role, roleNames)
+				} else {
+					return trace.BadParameter("teams-to-logins references non-existing role: %v. Correct the mapping, or add --ignore-missing-roles to ignore this error. Available roles: %v.", role, roleNames)
+				}
+			}
 		}
 	}
 
-	connector, err := types.NewGithubConnector(flags.connectorName, *spec)
-
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(utils.WriteYAML(os.Stdout, connector))
+	return nil
 }
