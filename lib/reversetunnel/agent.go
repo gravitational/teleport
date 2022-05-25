@@ -156,6 +156,10 @@ type agent struct {
 	hbChannel ssh.Channel
 	// hbRequests are requests going over the heartbeat channel.
 	hbRequests <-chan *ssh.Request
+	// discoveryC receives new discovery channels.
+	discoveryC <-chan ssh.NewChannel
+	// transportC receives new tranport channels.
+	transportC <-chan ssh.NewChannel
 	// unclaim releases the claim to the proxy in the tracker.
 	unclaim func()
 	// ctx is the internal context used to release resources used by  the agent.
@@ -354,19 +358,20 @@ func (a *agent) connect() error {
 	a.unclaim = unclaim
 
 	startupCtx, cancel := context.WithCancel(a.ctx)
-	done := make(chan struct{})
+
+	// Add channel handlers immediately to avoid rejecting a channel.
+	a.discoveryC = a.client.HandleChannelOpen(chanDiscovery)
+	a.transportC = a.client.HandleChannelOpen(constants.ChanTransport)
 
 	// Temporarily reply to global requests during startup. This is necessary
 	// due to the server sending a version request when we connect.
 	go func() {
 		a.handleGlobalRequests(startupCtx, a.client.GlobalRequests())
-		close(done)
 	}()
 
-	// Ensure we stop handling global requests before returning.
+	// Stop handling global requests before returning.
 	defer func() {
 		cancel()
-		<-done
 	}()
 
 	err = a.sendFirstHeartbeat(a.ctx)
@@ -450,6 +455,18 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
+			case reconnectRequest:
+				a.log.Debugf("Receieved reconnect advisory request from proxy.")
+				if r.WantReply {
+					err := a.client.Reply(r, true, nil)
+					if err != nil {
+						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					}
+				}
+
+				// Fire off stop but continue to handle global requests until the
+				// context is canceled to allow the agent to drain.
+				go a.Stop()
 			default:
 				// This handles keep-alive messages and matches the behaviour of OpenSSH.
 				err := a.client.Reply(r, false, nil)
@@ -465,12 +482,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 }
 
 func (a *agent) isDraining() bool {
-	select {
-	case <-a.drainCtx.Done():
-		return true
-	default:
-		return false
-	}
+	return a.drainCtx.Err() != nil
 }
 
 // signalDraining will signal one time when the draining context is canceled.
@@ -490,7 +502,6 @@ func (a *agent) signalDraining() <-chan struct{} {
 func (a *agent) handleDrainChannels() error {
 	ticker := time.NewTicker(a.keepAlive)
 	defer ticker.Stop()
-	newTransportC := a.client.HandleChannelOpen(constants.ChanTransport)
 
 	// once ensures drainWG.Done() is called one more time
 	// after no more transports will be created.
@@ -533,7 +544,7 @@ func (a *agent) handleDrainChannels() error {
 			}
 			a.log.Debugf("Ping -> %v.", a.client.RemoteAddr())
 		// Handle transport requests.
-		case nch := <-newTransportC:
+		case nch := <-a.transportC:
 			if nch == nil {
 				continue
 			}
@@ -566,15 +577,13 @@ func (a *agent) handleDrainChannels() error {
 
 // handleChannels handles channels that should run for the entire lifetime of the agent.
 func (a *agent) handleChannels() error {
-	newDiscoveryC := a.client.HandleChannelOpen(chanDiscovery)
-
 	for {
 		select {
 		// need to exit:
 		case <-a.ctx.Done():
 			return trace.Wrap(a.ctx.Err())
 		// new discovery request channel
-		case nch := <-newDiscoveryC:
+		case nch := <-a.discoveryC:
 			if nch == nil {
 				continue
 			}
@@ -624,9 +633,13 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				return
 			}
 
+			var proxies []string
 			for _, proxy := range r.Proxies {
-				a.tracker.TrackExpected(proxy.GetName())
+				proxies = append(proxies, proxy.GetName())
 			}
+
+			a.log.Debugf("Received discovery request: %v", proxies)
+			a.tracker.TrackExpected(proxies...)
 		}
 	}
 }
@@ -635,6 +648,7 @@ const (
 	chanHeartbeat    = "teleport-heartbeat"
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
+	reconnectRequest = "reconnect@goteleport.com"
 )
 
 const (

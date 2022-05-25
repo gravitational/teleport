@@ -52,7 +52,7 @@ func (g *ConnectedProxyGetter) setProxyIDs(ids []string) {
 		return
 	}
 
-	if ids == nil {
+	if len(ids) == 0 {
 		g.ids = nil
 		return
 	}

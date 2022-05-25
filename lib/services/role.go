@@ -445,7 +445,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		case teleport.TraitLogins, teleport.TraitWindowsLogins,
 			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
 			teleport.TraitDBNames, teleport.TraitDBUsers,
-			teleport.TraitAWSRoleARNs:
+			teleport.TraitAWSRoleARNs, teleport.TraitJWT:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -677,6 +677,10 @@ type AccessChecker interface {
 	// RecordDesktopSession returns true if a role in the role set has enabled
 	// desktop session recoring.
 	RecordDesktopSession() bool
+	// DesktopDirectorySharing returns true if the role set has directory sharing
+	// enabled. This setting is enabled if one or more of the roles in the set has
+	// enabled it.
+	DesktopDirectorySharing() bool
 
 	// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
 	// to a user who should be submitting access reviews. Because not all rolesets
@@ -2018,6 +2022,18 @@ func (set RoleSet) RecordDesktopSession() bool {
 func (set RoleSet) DesktopClipboard() bool {
 	for _, role := range set {
 		if !types.BoolDefaultTrue(role.GetOptions().DesktopClipboard) {
+			return false
+		}
+	}
+	return true
+}
+
+// DesktopDirectorySharing returns true if the role set has directory sharing
+// enabled. This setting is enabled if one or more of the roles in the set has
+// enabled it.
+func (set RoleSet) DesktopDirectorySharing() bool {
+	for _, role := range set {
+		if !types.BoolDefaultTrue(role.GetOptions().DesktopDirectorySharing) {
 			return false
 		}
 	}

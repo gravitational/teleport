@@ -116,7 +116,7 @@ auth_service:
   - "auth:yyy"
   ca_key_params:
     pkcs11:
-      module_path: /usr/local/lib/example/path.so
+      module_path: %s
       token_label: "example_token"
       slot_number: 1
       pin: "example_pin"

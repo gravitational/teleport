@@ -168,7 +168,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	// Fetch desired reverse tunnels and convert them to a set of
 	// remoteClusterKeys.
-	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels()
+	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -224,9 +224,9 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		Component: teleport.ComponentProxy,
 
 		// Configs for remote cluster.
-		Cluster:              cluster,
-		Resolver:             StaticResolver(addr),
-		IgnoreTunnelStrategy: true,
+		Cluster:         cluster,
+		Resolver:        StaticResolver(addr),
+		IsRemoteCluster: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)

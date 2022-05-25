@@ -28,9 +28,7 @@ type agentStore struct {
 
 // newAgentStore creates a new agentStore instance.
 func newAgentStore() *agentStore {
-	return &agentStore{
-		agents: make([]Agent, 0),
-	}
+	return &agentStore{}
 }
 
 // len returns the number of agents in the store.
@@ -85,12 +83,16 @@ func (s *agentStore) poplen(l int) (Agent, bool) {
 	return agent, true
 }
 
-// proxyIDs returns a list of proxy ids that each agent is connected to.
+// proxyIDs returns a list of proxy ids that each agent is connected to ordered
+// from newest to oldest connected proxy id.
 func (s *agentStore) proxyIDs() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var ids []string
+	ids := make([]string, 0, len(s.agents))
+
+	// New agents are always appended to the store so reversing the list
+	// orders the ids from newest to oldest.
 	for i := len(s.agents) - 1; i >= 0; i-- {
 		if id, ok := s.agents[i].GetProxyID(); ok {
 			ids = append(ids, id)

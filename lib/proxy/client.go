@@ -21,9 +21,8 @@ import (
 	"sync"
 	"time"
 
-	clientapi "github.com/gravitational/teleport/api/client/proto"
-
 	"github.com/gravitational/teleport"
+	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -229,7 +228,10 @@ func (c *Client) sync() {
 	for {
 		select {
 		case <-c.ctx.Done():
-			c.config.Log.Debug("Stopping peer proxy sync.")
+			c.config.Log.Debug("Stopping peer proxy sync: context done.")
+			return
+		case <-proxyWatcher.Done():
+			c.config.Log.Debug("Stopping peer proxy sync: proxy watcher done.")
 			return
 		case proxies := <-proxyWatcher.ProxiesC:
 			if err := c.updateConnections(proxies); err != nil {
@@ -344,6 +346,10 @@ func (c *Client) DialNode(
 	}
 
 	if msg.GetConnectionEstablished() == nil {
+		err := stream.CloseSend()
+		if err != nil {
+			c.config.Log.Debugf("error closing stream: %w", err)
+		}
 		return nil, trace.ConnectionProblem(nil, "received malformed connection established frame")
 	}
 
@@ -565,13 +571,6 @@ func (c *Client) startStream(conn *clientConn) (clientapi.ProxyService_DialNodeC
 	if err != nil {
 		return nil, trace.Wrap(err, "Error opening stream to proxy %+v", conn.id)
 	}
-
-	go func() {
-		<-conn.ctx.Done()
-		if err := stream.CloseSend(); err != nil {
-			c.config.Log.Debugf("error closing stream: %+v", err)
-		}
-	}()
 
 	return stream, nil
 }

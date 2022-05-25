@@ -131,9 +131,6 @@ type Config struct {
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
-	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
-	KeyStore keystore.Config
-
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
 	HostUUID string
@@ -710,6 +707,8 @@ type DatabaseAWS struct {
 	Redshift DatabaseAWSRedshift
 	// RDS contains RDS specific settings.
 	RDS DatabaseAWSRDS
+	// ElastiCache contains ElastiCache specific settings.
+	ElastiCache DatabaseAWSElastiCache
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -724,6 +723,12 @@ type DatabaseAWSRDS struct {
 	InstanceID string
 	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
+}
+
+// DatabaseAWSElastiCache contains settings for ElastiCache databases.
+type DatabaseAWSElastiCache struct {
+	// ReplicationGroupID is the ElastiCache replication group ID.
+	ReplicationGroupID string
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.

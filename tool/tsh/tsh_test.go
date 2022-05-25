@@ -908,6 +908,20 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 	})
+
+	t.Run("tsh global config path", func(t *testing.T) {
+		t.Run("nothing set", testEnvFlag(testCase{
+			outCLIConf: CLIConf{},
+		}))
+		t.Run("TELEPORT_GLOBAL_TSH_CONFIG set", testEnvFlag(testCase{
+			envMap: map[string]string{
+				globalTshConfigEnvVar: "/opt/teleport/tsh.yaml",
+			},
+			outCLIConf: CLIConf{
+				GlobalTshConfigPath: "/opt/teleport/tsh.yaml",
+			},
+		}))
+	})
 }
 
 func TestKubeConfigUpdate(t *testing.T) {
@@ -1067,7 +1081,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1078,7 +1093,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
@@ -1088,7 +1104,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTimeout: time.Minute,
 			},
-		}, {
+		},
+		{
 			desc: "$DISPLAY not set",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1108,7 +1125,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1116,7 +1134,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1124,7 +1143,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1133,7 +1153,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=no",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1142,7 +1163,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Timeout=60",
 			opts:        []string{"ForwardX11Timeout=60"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1164,7 +1186,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1176,7 +1199,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1188,7 +1212,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1200,7 +1225,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1212,7 +1238,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m with -oForwardX11Timeout=120",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
@@ -1424,6 +1451,13 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
 	})
 	require.NoError(t, err)
 	return connector
@@ -1476,9 +1510,35 @@ func testSerialization(t *testing.T, expected string, serializer func(string) (s
 }
 
 func TestSerializeVersion(t *testing.T) {
-	expected := fmt.Sprintf(`{"version": %q, "gitref": %q, "runtime": %q}`,
-		teleport.Version, teleport.Gitref, runtime.Version())
-	testSerialization(t, expected, serializeVersion)
+	testCases := []struct {
+		name     string
+		expected string
+
+		proxyVersion string
+	}{
+		{
+			name: "no proxy version provided",
+			expected: fmt.Sprintf(
+				`{"version": %q, "gitref": %q, "runtime": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(),
+			),
+		},
+		{
+			name:         "proxy version provided",
+			proxyVersion: "1.33.7",
+			expected: fmt.Sprintf(
+				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7"),
+		},
+	}
+
+	for _, tC := range testCases {
+		t.Run(tC.name, func(t *testing.T) {
+			testSerialization(t, tC.expected, func(fmt string) (string, error) {
+				return serializeVersion(fmt, tC.proxyVersion)
+			})
+		})
+	}
 }
 
 func TestSerializeApps(t *testing.T) {
@@ -1560,7 +1620,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       },
       "mysql": {},
       "gcp": {},
@@ -1580,7 +1641,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       }
     }
   }]
@@ -1906,7 +1968,8 @@ func TestSerializeKubeSessions(t *testing.T) {
     "kind": "session_tracker",
     "version": "v1",
     "metadata": {
-      "name": "id"
+      "name": "id",
+      "expires": "1970-01-01T00:00:00Z"
     },
     "spec": {
       "session_id": "id",
