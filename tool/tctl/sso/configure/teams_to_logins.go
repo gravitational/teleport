@@ -55,6 +55,7 @@ func (p *teamsToLoginsParser) Set(s string) error {
 	return nil
 }
 
+// IsCumulative returns true if flag is repeatable. This is checked by kingpin library.
 func (p *teamsToLoginsParser) IsCumulative() bool {
 	return true
 }
