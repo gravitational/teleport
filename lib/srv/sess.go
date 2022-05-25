@@ -965,12 +965,6 @@ func (s *session) launch(ctx *ServerContext) error {
 // startInteractive starts a new interactive process (or a shell) in the
 // current session.
 func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
-	// create a new "party" (connected client)
-	p := newParty(s, types.SessionPeerMode, ch, ctx)
-
-	// Emit a session.start event for the interactive session.
-	s.emitSessionStartEvent(ctx)
-
 	inReader, inWriter := io.Pipe()
 	s.inWriter = inWriter
 	s.io.AddReader("reader", inReader)
@@ -982,7 +976,11 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 
-	// addParty to launch/join the session.
+	// Emit a session.start event for the interactive session.
+	s.emitSessionStartEvent(ctx)
+
+	// create a new "party" (connected client) and launch/join the session.
+	p := newParty(s, types.SessionPeerMode, ch, ctx)
 	if err := s.addParty(p, types.SessionPeerMode); err != nil {
 		return trace.Wrap(err)
 	}
