@@ -103,6 +103,8 @@ impl Client {
     /// update_clipboard is invoked from Go.
     /// It updates the local clipboard cache and returns the encoded message
     /// that should be sent to the RDP server.
+    ///
+    /// The data passed to this function should be valid UTF-8 text.
     pub fn update_clipboard(&mut self, data: Vec<u8>) -> RdpResult<Vec<Vec<u8>>> {
         // convert LF to CRLF, as required by CF_OEMTEXT, CF_TEXT and CF_UNICODETEXT
         let len_orig = data.len();
@@ -121,22 +123,7 @@ impl Client {
             }
         }
 
-        let (format, mut data) = match encode_clipboard(converted) {
-            EncodedText::Ascii(data) => (ClipboardFormat::CF_OEMTEXT, data),
-            EncodedText::UTF16(data) => (ClipboardFormat::CF_UNICODETEXT, data),
-        };
-
-        // Windows requires a null terminator, so add one if necessary
-        if matches!(data.last(), Some(x) if *x != 0x00) {
-            let terminator: &[u8] = match format {
-                ClipboardFormat::CF_OEMTEXT => &[b'\0'],
-                ClipboardFormat::CF_UNICODETEXT => &[b'\0'; 2],
-                _ => &[b'\0'],
-            };
-
-            data.extend_from_slice(terminator);
-        }
-
+        let (data, format) = encode_clipboard(converted)?;
         self.clipboard.insert(format as u32, data);
         self.add_headers_and_chunkify(
             ClipboardPDUType::CB_FORMAT_LIST,
@@ -558,17 +545,19 @@ impl<T: FormatName> FormatListPDU<T> {
     }
 }
 
-enum EncodedText {
-    Ascii(Vec<u8>),
-    UTF16(Vec<u8>),
-}
-
-fn encode_clipboard(data: Vec<u8>) -> EncodedText {
+fn encode_clipboard(mut data: Vec<u8>) -> RdpResult<(Vec<u8>, ClipboardFormat)> {
     if data.is_ascii() {
-        EncodedText::Ascii(data)
+        if matches!(data.last(), Some(x) if *x != 0) {
+            data.push(0);
+        }
+
+        Ok((data, ClipboardFormat::CF_OEMTEXT))
     } else {
-        let str = std::str::from_utf8(&data).unwrap();
-        EncodedText::UTF16(util::to_unicode(str))
+        let str = std::str::from_utf8(&data)
+            .map_err(|_| invalid_data_error("invalid UTF-8 clipboard data"))?;
+
+        data = util::to_unicode(str);
+        Ok((data, ClipboardFormat::CF_UNICODETEXT))
     }
 }
 
