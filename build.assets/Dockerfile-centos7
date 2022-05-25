@@ -76,7 +76,15 @@ RUN yum groupinstall -y 'Development Tools' && \
         perl-IPC-Cmd \
         tree \
         zip \
+        elfutils-libelf-devel \
+        elfutils-libelf-devel-static \
+        zlib-devel \
+        zlib-static \
+        centos-release-scl \
+        which \
     yum clean all
+
+RUN yum install -y devtoolset-11-gcc* && yum clean all
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
@@ -91,6 +99,12 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLA
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+# Install libbpf
+ARG LIBBPF_VERSION
+RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
+    scl enable devtoolset-11 "make && make install"
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/

@@ -335,8 +335,6 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	rm -rf $(ER_BPF_BUILDDIR)
-	rm -rf $(RS_BPF_BUILDDIR)
 	-cargo clean
 	-go clean -cache
 	rm -rf teleport
