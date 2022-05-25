@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func onProxyDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
+func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	runner, err := tshwrap.NewRunner()
 	if err != nil {
 		return trace.Wrap(err)

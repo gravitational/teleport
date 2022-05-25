@@ -123,8 +123,9 @@ func Run(args []string, stdout io.Writer) error {
 		return trace.Wrap(err)
 	}
 
-	// It's unfortunate but we'll need to handle remaining args after parsing
-	// to ensure we don't overwrite anything.
+	// Remaining args are stored directly to a []string rather than written to
+	// a shared ref like most other kingpin args, so we'll need to manually
+	// move them to the remaining args field.
 	if len(*dbRemaining) > 0 {
 		cf.RemainingArgs = *dbRemaining
 	} else if len(*proxyRemaining) > 0 {
@@ -155,7 +156,7 @@ func Run(args []string, stdout io.Writer) error {
 	case dbCmd.FullCommand():
 		err = onDBCommand(botConfig, &cf)
 	case proxyCmd.FullCommand():
-		err = onProxyDBCommand(botConfig, &cf)
+		err = onProxyCommand(botConfig, &cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
