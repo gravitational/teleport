@@ -555,18 +555,18 @@ func extractAccountName(uri string) (string, error) {
 		uri = "https://" + uri
 	}
 
-	snowflakeUrl, err := url.Parse(uri)
+	snowflakeURL, err := url.Parse(uri)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	query := snowflakeUrl.Query()
+	query := snowflakeURL.Query()
 	// Read the account name from account query if provided. This should help with some Snowflake corner cases.
 	if query.Has("account") {
 		return query.Get("account"), nil
 	}
 
-	uriParts := strings.Split(snowflakeUrl.Host, ".")
+	uriParts := strings.Split(snowflakeURL.Host, ".")
 
 	switch len(uriParts) {
 	case 3:
