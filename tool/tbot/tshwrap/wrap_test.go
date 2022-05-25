@@ -137,3 +137,55 @@ func TestGetEnvForTSH(t *testing.T) {
 		require.Equal(t, v, env[k])
 	}
 }
+
+func TestGetDestinationPath(t *testing.T) {
+	destination := config.DestinationConfig{
+		DestinationMixin: config.DestinationMixin{
+			Directory: &config.DestinationDirectory{
+				Path: "/foo",
+			},
+		},
+	}
+	require.NoError(t, destination.CheckAndSetDefaults())
+
+	path, err := GetDestinationPath(&destination)
+	require.NoError(t, err)
+	require.Equal(t, "/foo", path)
+}
+
+func TestGetIdentityTemplate(t *testing.T) {
+	destination := config.DestinationConfig{
+		DestinationMixin: config.DestinationMixin{
+			Directory: &config.DestinationDirectory{
+				Path: "/foo",
+			},
+		},
+	}
+	require.NoError(t, destination.CheckAndSetDefaults())
+
+	tpl, err := GetIdentityTemplate(&destination)
+	require.NoError(t, err)
+
+	// We don't particularly care where the file goes, but it does need to be
+	// set.
+	require.NotEmpty(t, tpl.FileName)
+}
+
+func TestGetTLSCATemplate(t *testing.T) {
+	destination := config.DestinationConfig{
+		DestinationMixin: config.DestinationMixin{
+			Directory: &config.DestinationDirectory{
+				Path: "/foo",
+			},
+		},
+	}
+	require.NoError(t, destination.CheckAndSetDefaults())
+
+	tpl, err := GetTLSCATemplate(&destination)
+	require.NoError(t, err)
+
+	// As above, the name is arbitrary but these do need to exist.
+	require.NotEmpty(t, tpl.HostCAPath)
+	require.NotEmpty(t, tpl.UserCAPath)
+	require.NotEmpty(t, tpl.DatabaseCAPath)
+}
