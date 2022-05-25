@@ -1756,12 +1756,14 @@ func TestSerializeClusters(t *testing.T) {
 			"cluster_name": "rootCluster",
 			"status": "online",
 			"cluster_type": "root",
+			"labels": null,
 			"selected": true
 		},
 		{
 			"cluster_name": "leafCluster",
 			"status": "offline",
 			"cluster_type": "leaf",
+			"labels": {"foo": "bar", "baz": "boof"},
 			"selected": false
 		}
 	]
@@ -1777,7 +1779,11 @@ func TestSerializeClusters(t *testing.T) {
 			ClusterName: "leafCluster",
 			Status:      teleport.RemoteClusterStatusOffline,
 			ClusterType: "leaf",
-			Selected:    false,
+			Labels: map[string]string{
+				"foo": "bar",
+				"baz": "boof",
+			},
+			Selected: false,
 		},
 	}
 	testSerialization(t, expected, func(f string) (string, error) {

@@ -1027,12 +1027,9 @@ pkg:
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
+	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
-	cp ./build.assets/build-package.sh $(BUILDDIR)/
-	chmod +x $(BUILDDIR)/build-package.sh
-	# arch and runtime are currently ignored on OS X
-	# we pass them through for consistency - they will be dropped by the build script
-	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -a $(ARCH) -m tsh $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	mv tsh*.pkg* $(BUILDDIR)/
 
 # build .rpm
 .PHONY: rpm
