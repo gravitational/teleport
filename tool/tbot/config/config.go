@@ -59,7 +59,7 @@ func (r *RemainingArgsList) IsCumulative() bool {
 	return true
 }
 
-// RemainingArgs returns 
+// RemainingArgs returns a list of remaining arguments for the given command.
 func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	target = new([]string)
 	s.SetValue((*RemainingArgsList)(target))

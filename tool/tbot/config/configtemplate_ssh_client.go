@@ -193,7 +193,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 	if destDir == "" {
 		sshConfigUnsupportedWarning.Do(func() {
 			log.Infof("Note: no ssh_config will be written for non-filesystem "+
-				"destination %s.", destination)
+				"destination %s.", dest)
 		})
 		return nil
 	}
