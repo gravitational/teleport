@@ -377,6 +377,11 @@ Switch to `Advanced` tab and set any value as `account` and add new record named
 
 ![JetBrains Advanced](../../../img/database-access/guides/snowflake/jetbrains-advanced.png)
 
+<Admonition type="note">
+  Password and account name are being ignored as Teleport uses the values provided in the Database Agent configuration.
+  SSL set to `off` disables only encryption on local machine. Connection to Snowflake is encrypted by Teleport.
+</Admonition>
+
 Now you can click _Test Connection_ to check your configuration.
 
 ![JetBrains Success](../../../img/database-access/guides/snowflake/jetbrains-success.png)
@@ -406,11 +411,16 @@ and enter any value in the `Password` field:
 
 ![DBeaver Main](../../../img/database-access/guides/snowflake/dbeaver-main.png)
 
-Next click on `Driver properties` tab and set `account` to any value and in _User properties_ set `ssl` to `off`.
+Next click on `Driver properties` tab and set `account` to any value and in _User properties_ set `ssl` to `off`:
 
 ![DBeaver Driver](../../../img/database-access/guides/snowflake/dbeaver-driver.png)
 
-Now you can click on `Test Connection...` in the left bottom corner.
+<Admonition type="note">
+  Password and account name are being ignored as Teleport uses the values provided in the Database Agent configuration.
+  SSL set to `off` disables only encryption on local machine. Connection to Snowflake is encrypted by Teleport.
+</Admonition>
+
+Now you can click on `Test Connection...` in the left bottom corner:
 
 ![DBeaver Success](../../../img/database-access/guides/snowflake/dbeaver-success.png)
 
