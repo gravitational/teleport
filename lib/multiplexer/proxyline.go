@@ -28,6 +28,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/gravitational/trace"
 )
@@ -180,9 +181,11 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 	if cmd != ProxyCommand {
 		return nil, trace.BadParameter("unsupported command %d", cmd)
 	}
+	var size uint16
 	switch header.Protocol {
 	case ProtocolTCP4:
 		var addr proxyV2Address4
+		size = uint16(unsafe.Sizeof(addr))
 		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -191,6 +194,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 		ret.Destination = net.TCPAddr{IP: addr.Destination[:], Port: int(addr.DestinationPort)}
 	case ProtocolTCP6:
 		var addr proxyV2Address6
+		size = uint16(unsafe.Sizeof(addr))
 		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -199,6 +203,12 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 		ret.Destination = net.TCPAddr{IP: addr.Destination[:], Port: int(addr.DestinationPort)}
 	default:
 		return nil, trace.BadParameter("unsupported protocol %x", header.Protocol)
+	}
+
+	if header.Length > size {
+		if _, err := io.CopyN(io.Discard, reader, int64(header.Length-size)); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &ret, nil
