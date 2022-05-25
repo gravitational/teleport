@@ -75,7 +75,7 @@ func (c *execCommand) runCommand(cf *CLIConf) error {
 
 	// env variables from `tsh env`.
 	// ignore errors if there is no profile.
-	profile, _ := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, _ := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	env := getTeleportEnvironment(profile)
 
 	// extra stuff
@@ -104,6 +104,7 @@ func (c *execCommand) runCommand(cf *CLIConf) error {
 func newExecCommand(app *kingpin.Application) *execCommand {
 	execCmd := execCommand{}
 	execCmd.cmd = app.Command("exec", "Run provided command, by default using a shell, with Teleport-specific environment variables set. Can be used to create combined commands.")
+	execCmd.cmd.Hidden()
 	execCmd.cmd.Flag("shell", "Shell to use. May be any executable. Defaults to first found out of: $SHELL, bash, sh.").StringVar(&execCmd.shell)
 	execCmd.cmd.Arg("arguments", "Command arguments").StringsVar(&execCmd.arguments)
 	execCmd.cmd.Alias(`
