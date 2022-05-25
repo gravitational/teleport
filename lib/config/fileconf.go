@@ -202,7 +202,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	s := makeSampleSSHConfig(conf, flags, roles[defaults.RoleNode])
+	s, err := makeSampleSSHConfig(conf, flags, roles[defaults.RoleNode])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Auth config:
 	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
@@ -248,7 +251,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) SSH {
+func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) (SSH, error) {
 	var s SSH
 	if enabled {
 		s.EnabledFlag = "yes"
@@ -265,6 +268,9 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 			s.Labels = make(map[string]string)
 			for _, label := range labels {
 				parts := strings.Split(label, ":")
+				if len(parts) != 2 {
+					return s, fmt.Errorf("Invalid node label `%s`; labels must be in the format key:value", label)
+				}
 				s.Labels[parts[0]] = parts[1]
 			}
 		}
@@ -272,7 +278,7 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 		s.EnabledFlag = "no"
 	}
 
-	return s
+	return s, nil
 }
 
 func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {

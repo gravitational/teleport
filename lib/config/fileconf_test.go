@@ -726,4 +726,11 @@ func TestMakeSampleFileConfig(t *testing.T) {
 			"baz": "bax",
 		}, fc.SSH.Labels)
 	})
+
+	t.Run("Node labels - invalid", func(t *testing.T) {
+		_, err := MakeSampleFileConfig(SampleFlags{
+			NodeLabels: "foo:bar,baz",
+		})
+		require.Error(t, err)
+	})
 }
