@@ -1,0 +1,17 @@
+
+# Begin generated Teleport configuration for tele.blackmesa.gov from tbot config
+
+# Common flags for all black-mesa hosts
+Host *.black-mesa tele.blackmesa.gov
+    UserKnownHostsFile "/test/dir/known_hosts"
+    IdentityFile "/test/dir/key"
+    CertificateFile "/test/dir/sshcert"
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
+    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
+
+# Flags for all black-mesa hosts except the proxy
+Host *.black-mesa !tele.blackmesa.gov
+    Port 3022
+    ProxyCommand ssh -F /test/dir/ssh_config -l %r -p 1337 tele.blackmesa.gov -s proxy:$(echo %h | cut -d '.' -f 1):%p@black-mesa
+
+# End generated Teleport configuration
