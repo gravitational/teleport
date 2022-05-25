@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -115,7 +116,7 @@ func getSSHVersion() (*semver.Version, error) {
 
 func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 	if c.ProxyPort != 0 {
-		log.Warnf("Proxy port for ssh_client config is deprecated and will be removed in a future release.")
+		log.Warnf("ssh_client's proxy_port parameter is deprecated and will be removed in a future release.")
 	}
 	return nil
 }
@@ -124,15 +125,20 @@ func (c *TemplateSSHClient) Name() string {
 	return TemplateSSHClientName
 }
 
-func (c *TemplateSSHClient) Describe() []FileDescription {
-	return []FileDescription{
-		{
-			Name: "ssh_config",
-		},
+func (c *TemplateSSHClient) Describe(destination destination.Destination) []FileDescription {
+	ret := []FileDescription{
 		{
 			Name: "known_hosts",
 		},
 	}
+
+	if _, ok := destination.(*DestinationDirectory); ok {
+		ret = append(ret, FileDescription{
+			Name: "ssh_config",
+		})
+	}
+
+	return ret
 }
 
 // sshConfigUnsupportedWarning is used to ensure we don't spam log messages if
