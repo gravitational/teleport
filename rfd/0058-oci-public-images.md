@@ -20,28 +20,51 @@ Moving our public image infrastructure from [Quay.io](https://quay.io/) to Amazo
 ### Infrastructure
 Hosting our own _oci-compatible_ registry is similar to hosting our own [terraform registry](https://github.com/gravitational/teleport-plugins/blob/master/rfd/0002-custom-terraform-registry.md). However, the [OCI Distribution Spec](https://github.com/opencontainers/distribution-spec) has additional complexities that can't be solved by S3 and CloudFront<sup>*</sup> alone. These complexities warrant the use of [Docker Registry](https://docs.docker.com/registry/).
 
+An example infrastructure diagram is shown below:
+
 ```
-                                        oci.releases.teleport.dev
-
-                                                    │
-                                                    │
-                                                    ▼
-                                            ┌──────────────┐
-                                            │  CloudFront  │
-                                            └──────────────┘
-
-                                                    │
-                                                    ▼
-                                          ┌───────────────────┐
-                                          │  Docker Registry  │
-                                          └───────────────────┘
-
-                                                    │
-                                                    ▼
-                                                  ┌────┐
-                                                  │ S3 │
-                                                  └────┘
+                                    ┌───────────────────────────────────┐
+                                    │                                   │
+                                    │     oci.releases.teleport.dev     │
+                                    │                                   │
+                                    │                 │                 │
+                                    │                 │                 │
+                                    │                 ▼                 │
+                                    │   ┌──────┬──────────────┬──────┐  │
+                                    │   │      │  CloudFront  │      │  │
+                                    │   │      └──────────────┘      │  │
+                                    │   │                            │  │
+                                    │   │             │              │  │
+                                    │   │             │              │  │
+                                    │   │             ▼              │  │
+                                    │   │  ┌───────────────────────┐ │  │
+                                    │   │  │ Elastic Load Balancer │ │  │
+                                    │   │  └───────────────────────┘ │  │
+                                    │   │                            │  │
+                                    │   │             │              │  │
+                                    │   │             │              │  │
+                                    │   │             ▼              │  │
+                                    │   │  ┌───────────────────────┐ │  │
+                                    │   │  │ ECS / EKS             │ │  │
+                                    │   │  │ ┌───────────────────┐ │ │  │
+                                    │   │  │ │  Docker Registry  │ │ │  │
+                                    │   │  │ └───────────────────┘ │ │  │
+                                    │   │  │                       │ │  │
+                                    │   │  └───────────────────────┘ │  │
+                                    │   │                            │  │
+                                    │   │             │              │  │
+                                    │   │             │              │  │
+                                    │   │             ▼              │  │
+                                    │   │          ┌────┐            │  │
+                                    │   │          │ S3 │            │  │
+                                    │   │          └────┘            │  │
+                                    │   │WAF                         │  │
+                                    │   └────────────────────────────┘  │
+                                    │AWS Account: teleport-prod         │
+                                    └───────────────────────────────────┘
 ```
+
+
 
 Note<sup>*</sup>: A minimal, read-only, _oci-compatible_, registry could be mimicked through CloudFront functions. See alternatives(TODO: Add link to this alternative)
 
