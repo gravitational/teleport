@@ -1080,30 +1080,30 @@ mod tests {
 
     #[test]
     fn update_clipboard_conversion() {
-        struct Item<'a>(&'a str, &'a dyn AsRef<[u8]>, ClipboardFormat);
+        struct Item(&'static [u8], &'static [u8], ClipboardFormat);
         for Item(input, expected, format) in [
-            Item("abc\0", &"abc\0", ClipboardFormat::CF_OEMTEXT), // already null-terminated, no conversion necessary
-            Item("\n123", &"\r\n123\0", ClipboardFormat::CF_OEMTEXT), // starts with LF
-            Item("def\r\n", &"def\r\n\0", ClipboardFormat::CF_OEMTEXT), // already CRLF, no conversion necessary
+            Item(b"abc\0", b"abc\0", ClipboardFormat::CF_OEMTEXT), // already null-terminated, no conversion necessary
+            Item(b"\n123", b"\r\n123\0", ClipboardFormat::CF_OEMTEXT), // starts with LF
+            Item(b"def\r\n", b"def\r\n\0", ClipboardFormat::CF_OEMTEXT), // already CRLF, no conversion necessary
             Item(
-                "gh\r\nij\nk",
-                &"gh\r\nij\r\nk\0",
+                b"gh\r\nij\nk",
+                b"gh\r\nij\r\nk\0",
                 ClipboardFormat::CF_OEMTEXT,
             ), // mixture of both
             Item(
-                "🤑",
+                "🤑".as_bytes(),
                 &[62, 216, 17, 221, 0, 0],
                 ClipboardFormat::CF_UNICODETEXT,
             ), // detection and utf8 -> utf16 conversion
         ] {
             let mut c: Client = Default::default();
-            c.update_clipboard(String::from(input).into_bytes())
-                .unwrap();
+            c.update_clipboard(input.to_vec()).unwrap();
+
             assert_eq!(
-                expected.as_ref(),
+                expected,
                 *c.clipboard.get(&(format as u32)).unwrap(),
                 "testing {}",
-                input
+                String::from_utf8_lossy(input),
             );
         }
     }
