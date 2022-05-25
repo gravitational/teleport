@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -38,13 +39,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/touchid"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -65,7 +67,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/ghodss/yaml"
-	gops "github.com/google/gops/agent"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
@@ -73,6 +74,14 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTSH,
 })
+
+const (
+	// mfaModeAuto, mfaModeCrossPlatform and mfaModePlatform correspond to
+	// wancli.AuthenticatorAttachment values.
+	mfaModeAuto          = "auto"
+	mfaModeCrossPlatform = "cross-platform"
+	mfaModePlatform      = "platform"
+)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
@@ -88,6 +97,9 @@ type CLIConf struct {
 	SuggestedReviewers string
 	// NoWait can be used with an access request to exit without waiting for a request resolution.
 	NoWait bool
+	// RequestedResourceIDs is a list of resources to request access to
+	// separated by commas.
+	RequestedResourceIDs string
 	// RequestID is an access request ID
 	RequestID string
 	// ReviewReason indicates the reason for an access review.
@@ -176,11 +188,6 @@ type CLIConf struct {
 	BenchValueScale float64
 	// Context is a context to control execution
 	Context context.Context
-	// Gops starts gops agent on a specified address
-	// if not specified, gops won't start
-	Gops bool
-	// GopsAddr specifies to gops addr to listen on
-	GopsAddr string
 	// IdentityFileIn is an argument to -i flag (path to the private key+cert file)
 	IdentityFileIn string
 	// Compatibility flags, --compat, specifies OpenSSH compatibility flags.
@@ -203,6 +210,9 @@ type CLIConf struct {
 
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
+
+	// MFAMode is the preferred mode for MFA/Passwordless assertions.
+	MFAMode string
 
 	// SkipVersionCheck skips version checking for client and server
 	SkipVersionCheck bool
@@ -277,6 +287,9 @@ type CLIConf struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
+	// GlobalTshConfigPath is a path to global TSH config. Can be overridden with TELEPORT_GLOBAL_TSH_CONFIG.
+	GlobalTshConfigPath string
+
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
 	// LocalProxyCertFile is the client certificate used by local proxy.
@@ -329,6 +342,14 @@ func (c *CLIConf) Stderr() io.Writer {
 	return os.Stderr
 }
 
+type exitCodeError struct {
+	code int
+}
+
+func (e *exitCodeError) Error() string {
+	return fmt.Sprintf("exit code %d", e.code)
+}
+
 func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
@@ -344,6 +365,10 @@ func main() {
 		cmdLine = cmdLineOrig
 	}
 	if err := Run(cmdLine); err != nil {
+		var exitError *exitCodeError
+		if errors.As(err, &exitError) {
+			os.Exit(exitError.code)
+		}
 		utils.FatalError(err)
 	}
 }
@@ -361,11 +386,12 @@ const (
 	userEnvVar             = "TELEPORT_USER"
 	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
+	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
 	searchHelp  = `List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")`
-	queryHelp   = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels.key1 == "value1" && labels.key2 != "value2"')`
+	queryHelp   = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels["key1"] == "value1" && labels["key2"] != "value2"')`
 	labelHelp   = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)"
 	// proxyDefaultResolutionTimeout is how long to wait for an unknown proxy
 	// port to be resolved.
@@ -415,8 +441,6 @@ func Run(args []string, opts ...cliOption) error {
 
 	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
-	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
-	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
@@ -429,6 +453,10 @@ func Run(args []string, opts ...cliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform}
+	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
+		Default(mfaModeAuto).
+		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the version")
@@ -635,10 +663,13 @@ func Run(args []string, opts ...cliOption) error {
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	reqCreate := req.Command("new", "Create a new access request").Alias("create")
-	reqCreate.Flag("roles", "Roles to be requested").Required().StringVar(&cf.DesiredRoles)
+	reqCreate.Flag("roles", "Roles to be requested").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
+	// TODO(nic): unhide this command when the rest of search-based access
+	// requests is implemented (#10887)
+	reqCreate.Flag("resources", "List of resources to request access to separated by commas").Hidden().StringVar(&cf.RequestedResourceIDs)
 
 	reqReview := req.Command("review", "Review an access request")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -674,6 +705,12 @@ func Run(args []string, opts ...cliOption) error {
 
 	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
 	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
+
+	// touchid subcommands.
+	var tid *touchIDCommand
+	if touchid.IsAvailable() {
+		tid = newTouchIDCommand(app)
+	}
 
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
@@ -715,14 +752,6 @@ func Run(args []string, opts ...cliOption) error {
 	}()
 	cf.Context = ctx
 
-	if cf.Gops {
-		log.Debugf("Starting gops agent.")
-		err = gops.Listen(gops.Options{Addr: cf.GopsAddr})
-		if err != nil {
-			log.Warningf("Failed to start gops agent %v.", err)
-		}
-	}
-
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -734,11 +763,11 @@ func Run(args []string, opts ...cliOption) error {
 
 	setEnvFlags(&cf, os.Getenv)
 
-	fullConfigPath := filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath)
-	confOptions, err := loadConfig(fullConfigPath)
+	confOptions, err := loadAllConfigs(cf)
 	if err != nil {
-		return trace.Wrap(err, "failed to load tsh config from %s", fullConfigPath)
+		return trace.Wrap(err)
 	}
+
 	cf.ExtraProxyHeaders = confOptions.ExtraHeaders
 
 	switch command {
@@ -838,8 +867,16 @@ func Run(args []string, opts ...cliOption) error {
 	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
 	default:
-		// This should only happen when there's a missing switch case above.
-		err = trace.BadParameter("command %q not configured", command)
+		// Handle commands that might not be available.
+		switch {
+		case tid != nil && command == tid.ls.FullCommand():
+			err = tid.ls.run(&cf)
+		case tid != nil && command == tid.rm.FullCommand():
+			err = tid.rm.run(&cf)
+		default:
+			// This should only happen when there's a missing switch case above.
+			err = trace.BadParameter("command %q not configured", command)
+		}
 	}
 
 	if trace.IsNotImplemented(err) {
@@ -851,12 +888,20 @@ func Run(args []string, opts ...cliOption) error {
 
 // onVersion prints version info.
 func onVersion(cf *CLIConf) error {
+	proxyVersion, err := fetchProxyVersion(cf)
+	if err != nil {
+		fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+	}
+
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
 		utils.PrintVersion()
+		if proxyVersion != "" {
+			fmt.Printf("Proxy version: %s\n", proxyVersion)
+		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format)
+		out, err := serializeVersion(format, proxyVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -864,16 +909,50 @@ func onVersion(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
+
 	return nil
 }
 
-func serializeVersion(format string) (string, error) {
+// fetchProxyVersion returns the current version of the Teleport Proxy.
+func fetchProxyVersion(cf *CLIConf) (string, error) {
+	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return "", nil
+		}
+		return "", trace.Wrap(err)
+	}
+
+	if profile == nil {
+		return "", nil
+	}
+
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	ctx, cancel := context.WithTimeout(cf.Context, time.Second*5)
+	defer cancel()
+	pingRes, err := tc.Ping(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return pingRes.ServerVersion, nil
+}
+
+func serializeVersion(format string, proxyVersion string) (string, error) {
 	versionInfo := struct {
-		Version string `json:"version"`
-		Gitref  string `json:"gitref"`
-		Runtime string `json:"runtime"`
+		Version      string `json:"version"`
+		Gitref       string `json:"gitref"`
+		Runtime      string `json:"runtime"`
+		ProxyVersion string `json:"proxyVersion,omitempty"`
 	}{
-		teleport.Version, teleport.Gitref, runtime.Version(),
+		teleport.Version,
+		teleport.Gitref,
+		runtime.Version(),
+		proxyVersion,
 	}
 	var out []byte
 	var err error
@@ -1333,7 +1412,7 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				os.Exit(1)
+				return trace.Wrap(&exitCodeError{code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -1417,6 +1496,9 @@ func onListNodes(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	}
 	sort.Slice(nodes, func(i, j int) bool {
@@ -1525,8 +1607,8 @@ func serializeNodesWithClusters(nodes []nodeListing, format string) (string, err
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" && cf.RequestID == "" {
-		return trace.BadParameter("at least one role or a request ID must be specified")
+	if cf.DesiredRoles == "" && cf.RequestID == "" && cf.RequestedResourceIDs == "" {
+		return trace.BadParameter("at least one role or resource or a request ID must be specified")
 	}
 	if cf.Username == "" {
 		cf.Username = tc.Username
@@ -1563,7 +1645,14 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	} else {
 		roles := utils.SplitIdentifiers(cf.DesiredRoles)
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-		req, err = services.NewAccessRequest(cf.Username, roles...)
+		requestedResourceIDs := []types.ResourceID{}
+		if cf.RequestedResourceIDs != "" {
+			requestedResourceIDs, err = services.ResourceIDsFromString(cf.RequestedResourceIDs)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		req, err = services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1844,6 +1933,11 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 }
 
 func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+	// may happen if fetching the role set failed for any reason.
+	if roleSet == nil {
+		return "(unknown)"
+	}
+
 	dbUsers := roleSet.EnumerateDatabaseUsers(database)
 	allowed := dbUsers.Allowed()
 
@@ -2032,23 +2126,33 @@ func onListClusters(cf *CLIConf) error {
 		if cf.Quiet {
 			t = asciitable.MakeHeadlessTable(4)
 		} else {
-			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
+			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Labels", "Selected"})
 		}
 
 		t.AddRow([]string{
-			rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
+			rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName),
 		})
 		for _, cluster := range leafClusters {
+			labels := sortedLabels(cluster.GetMetadata().Labels)
 			t.AddRow([]string{
-				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
+				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", labels, showSelected(cluster.GetName()),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
-		rootClusterInfo := clusterInfo{rootClusterName, teleport.RemoteClusterStatusOnline, "root", isSelected(rootClusterName)}
+		rootClusterInfo := clusterInfo{
+			ClusterName: rootClusterName,
+			Status:      teleport.RemoteClusterStatusOnline,
+			ClusterType: "root",
+			Selected:    isSelected(rootClusterName)}
 		leafClusterInfo := make([]clusterInfo, 0, len(leafClusters))
 		for _, leaf := range leafClusters {
-			leafClusterInfo = append(leafClusterInfo, clusterInfo{leaf.GetName(), leaf.GetConnectionStatus(), "leaf", isSelected(leaf.GetName())})
+			leafClusterInfo = append(leafClusterInfo, clusterInfo{
+				ClusterName: leaf.GetName(),
+				Status:      leaf.GetConnectionStatus(),
+				ClusterType: "leaf",
+				Labels:      leaf.GetMetadata().Labels,
+				Selected:    isSelected(leaf.GetName())})
 		}
 		out, err := serializeClusters(rootClusterInfo, leafClusterInfo, format)
 		if err != nil {
@@ -2062,10 +2166,11 @@ func onListClusters(cf *CLIConf) error {
 }
 
 type clusterInfo struct {
-	ClusterName string `json:"cluster_name"`
-	Status      string `json:"status"`
-	ClusterType string `json:"cluster_type"`
-	Selected    bool   `json:"selected"`
+	ClusterName string            `json:"cluster_name"`
+	Status      string            `json:"status"`
+	ClusterType string            `json:"cluster_type"`
+	Labels      map[string]string `json:"labels"`
+	Selected    bool              `json:"selected"`
 }
 
 func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, format string) (string, error) {
@@ -2109,15 +2214,16 @@ func onSSH(cf *CLIConf) error {
 			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 			fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 			fmt.Fprintf(os.Stderr, "\n")
-			os.Exit(1)
+			return trace.Wrap(&exitCodeError{code: 1})
 		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			os.Exit(tc.ExitStatus)
-		} else {
-			return trace.Wrap(err)
+			if _, ok := trace.Unwrap(err).(*ssh.ExitError); !ok {
+				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			}
+			return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -2136,7 +2242,7 @@ func onBenchmark(cf *CLIConf) error {
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(255)
+		return trace.Wrap(&exitCodeError{code: 255})
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
@@ -2173,6 +2279,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	cf.NodeLogin = teleport.SSHSessionJoinPrincipal
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2209,7 +2316,7 @@ func onSCP(cf *CLIConf) error {
 	// exit with the same exit status as the failed command:
 	if tc.ExitStatus != 0 {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(tc.ExitStatus)
+		return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 	}
 	return trace.Wrap(err)
 }
@@ -2324,6 +2431,17 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		}
 		log.Debugf("Extracted username %q from the identity file %v.", certUsername, cf.IdentityFileIn)
 		c.Username = certUsername
+
+		// Also configure missing KeyIndex fields.
+		key.ProxyHost, err = utils.Host(cf.Proxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key.ClusterName = rootCluster
+		key.Username = certUsername
+
+		// With the key index fields properly set, preload this key into a local store.
+		c.PreloadKey = key
 
 		identityAuth, err = authFromIdentity(key)
 		if err != nil {
@@ -2452,6 +2570,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.AuthConnector != "" {
 		c.AuthConnector = cf.AuthConnector
 	}
+	c.AuthenticatorAttachment, err = mfaModeToAttachment(cf.MFAMode)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -2528,6 +2650,19 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	tc.Config.Invited = cf.Invited
 	tc.Config.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	return tc, nil
+}
+
+func mfaModeToAttachment(val string) (wancli.AuthenticatorAttachment, error) {
+	switch val {
+	case "", mfaModeAuto:
+		return wancli.AttachmentAuto, nil
+	case mfaModeCrossPlatform:
+		return wancli.AttachmentCrossPlatform, nil
+	case mfaModePlatform:
+		return wancli.AttachmentPlatform, nil
+	default:
+		return wancli.AttachmentAuto, fmt.Errorf("invalid MFA mode: %q", val)
+	}
 }
 
 // setX11Config sets X11 config using CLI and SSH option flags.
@@ -2925,9 +3060,12 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
 // and saving the updated profile.
 func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...string) error {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if profile.IsVirtual {
+		return trace.BadParameter("cannot reissue certificates while using an identity file (-i)")
 	}
 	params := client.ReissueParams{
 		AccessRequests: reqIDs,
@@ -2968,11 +3106,14 @@ func onApps(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	}
 
 	// Retrieve profile to be able to show which apps user is logged into.
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3089,7 +3230,7 @@ func serializeAppsWithClusters(apps []appListing, format string) (string, error)
 
 // onEnvironment handles "tsh env" command.
 func onEnvironment(cf *CLIConf) error {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3159,7 +3300,10 @@ func setEnvFlags(cf *CLIConf, fn envGetter) {
 	if cf.KubernetesCluster == "" {
 		setKubernetesClusterFromEnv(cf, fn)
 	}
+
+	// these can only be set with env vars.
 	setTeleportHomeFromEnv(cf, fn)
+	setGlobalTshConfigPathFromEnv(cf, fn)
 }
 
 // setSiteNameFromEnv sets teleport site name from environment if configured.
@@ -3184,6 +3328,13 @@ func setTeleportHomeFromEnv(cf *CLIConf, fn envGetter) {
 func setKubernetesClusterFromEnv(cf *CLIConf, fn envGetter) {
 	if kubeName := fn(kubeClusterEnvVar); kubeName != "" {
 		cf.KubernetesCluster = kubeName
+	}
+}
+
+// setGlobalTshConfigPathFromEnv sets path to global tsh config file.
+func setGlobalTshConfigPathFromEnv(cf *CLIConf, fn envGetter) {
+	if configPath := fn(globalTshConfigEnvVar); configPath != "" {
+		cf.GlobalTshConfigPath = path.Clean(configPath)
 	}
 }
 

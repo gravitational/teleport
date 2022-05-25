@@ -15,7 +15,7 @@ RUN yum groupinstall -y 'Development Tools' && \
 # libudev-zero replaces systemd's libudev
 RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
-    make install-static
+    make install-static LIBDIR='$(PREFIX)/lib64'
 
 # Instal openssl.
 # Pulled from source because repository versions are too old.
@@ -23,10 +23,7 @@ RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1n && \
     cd openssl && \
     ./config --release && \
     make && \
-    make install && \
-# Link for `make build/tsh`.
-    mkdir -p /usr/lib/x86_64-linux-gnu && \
-    ln -s /usr/local/lib64/libcrypto.a /usr/lib/x86_64-linux-gnu/
+    make install
 
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
@@ -37,9 +34,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DWITH_EXAMPLES=OFF . && \
     make && \
-    make install && \
-# Link for `make build/tsh`.
-    ln -s /usr/local/lib64/libcbor.{a,so} /usr/local/lib/
+    make install
 
 # Install libfido2.
 # Depends on libcbor, openssl, zlib-devel and libudev.
@@ -53,8 +48,6 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
         -DCMAKE_BUILD_TYPE=Release . && \
     make && \
     make install && \
-# Link for `make build/tsh`.
-    ln -s /usr/local/lib64/libfido2.{a,so} /usr/local/lib/ && \
 # Update ld.
     echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
     ldconfig
@@ -126,6 +119,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
 # Do this last to take better advantage of the multi-stage build.
 USER root
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
+COPY --from=libfido2 /usr/local/lib64/pkgconfig/ /usr/local/lib64/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib64/libcbor.a \
     /usr/local/lib64/libcrypto.a \
@@ -134,23 +128,19 @@ COPY --from=libfido2 \
     /usr/local/lib64/libfido2.so.1.10.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.1.1 \
+    /usr/local/lib64/libudev.a \
     /usr/local/lib64/
-COPY --from=libfido2 /usr/local/lib/libudev.a /usr/local/lib/
 RUN cd /usr/local/lib64 && \
 # Re-create usual lib64 links.
     ln -s libcrypto.so.1.1 libcrypto.so && \
     ln -s libfido2.so.1.10.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.1.1 libssl.so && \
-# Links for `make build/tsh`.
-    ln -s /usr/local/lib64/libcbor.a \
-        /usr/local/lib64/libfido2.{a,so} \
-        /usr/local/lib/ && \
-    mkdir -p /usr/lib/x86_64-linux-gnu && \
-    ln -s /usr/local/lib64/libcrypto.a /usr/lib/x86_64-linux-gnu/ && \
 # Update ld.
     echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
     ldconfig
+COPY pkgconfig/centos7/ /
+ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
 USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]

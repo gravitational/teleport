@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/stretchr/testify/require"
@@ -73,11 +74,25 @@ func TestAWSMetadata(t *testing.T) {
 		},
 	}
 
+	// Configure ElastiCache API mock.
+	elasticache := &ElastiCacheMock{
+		ReplicationGroups: []*elasticache.ReplicationGroup{
+			{
+				ARN:                      aws.String("arn:aws:elasticache:us-west-1:123456789:replicationgroup:my-redis"),
+				ReplicationGroupId:       aws.String("my-redis"),
+				ClusterEnabled:           aws.Bool(true),
+				TransitEncryptionEnabled: aws.Bool(true),
+				UserGroupIds:             []*string{aws.String("my-user-group")},
+			},
+		},
+	}
+
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
 		Clients: &common.TestCloudClients{
-			RDS:      rds,
-			Redshift: redshift,
+			RDS:         rds,
+			Redshift:    redshift,
+			ElastiCache: elasticache,
 		},
 	})
 	require.NoError(t, err)
@@ -163,6 +178,25 @@ func TestAWSMetadata(t *testing.T) {
 				Region:    "us-east-2",
 				Redshift: types.Redshift{
 					ClusterID: "redshift-cluster-2",
+				},
+			},
+		},
+		{
+			name: "ElastiCache",
+			inAWS: types.AWS{
+				ElastiCache: types.ElastiCache{
+					ReplicationGroupID: "my-redis",
+					EndpointType:       "configuration",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "123456789",
+				Region:    "us-west-1",
+				ElastiCache: types.ElastiCache{
+					ReplicationGroupID:       "my-redis",
+					UserGroupIDs:             []string{"my-user-group"},
+					TransitEncryptionEnabled: true,
+					EndpointType:             "configuration",
 				},
 			},
 		},

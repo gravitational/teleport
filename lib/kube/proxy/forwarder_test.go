@@ -45,10 +45,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -187,6 +189,11 @@ func TestAuthenticate(t *testing.T) {
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "local",
+						StaticLabels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+						DynamicLabels: map[string]types.CommandLabelV2{},
 					}},
 				},
 			}},
@@ -195,6 +202,10 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "local",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -217,9 +228,10 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -241,9 +253,10 @@ func TestAuthenticate(t *testing.T) {
 				},
 			}},
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -332,9 +345,10 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -373,9 +387,10 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -414,6 +429,10 @@ func TestAuthenticate(t *testing.T) {
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "foo",
+						StaticLabels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
 					}},
 				},
 			}},
@@ -422,6 +441,10 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "foo",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -1052,4 +1075,119 @@ func (m *mockWatcher) Events() <-chan types.Event {
 
 func (m *mockWatcher) Done() <-chan struct{} {
 	return m.ctx.Done()
+}
+
+func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
+	return &Forwarder{
+		log:            logrus.New(),
+		router:         *httprouter.New(),
+		cfg:            cfg,
+		activeRequests: make(map[string]context.Context),
+		ctx:            ctx,
+	}
+}
+
+type mockSemaphoreClient struct {
+	auth.ClientI
+	sem   types.Semaphores
+	roles map[string]types.Role
+}
+
+func (m *mockSemaphoreClient) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	return m.sem.AcquireSemaphore(ctx, params)
+}
+
+func (m *mockSemaphoreClient) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	return m.sem.CancelSemaphoreLease(ctx, lease)
+}
+
+func (m *mockSemaphoreClient) GetRole(ctx context.Context, name string) (types.Role, error) {
+	role, ok := m.roles[name]
+	if !ok {
+		return nil, trace.NotFound("role %q not found", name)
+	}
+
+	return role, nil
+}
+
+func TestKubernetesConnectionLimit(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type testCase struct {
+		name        string
+		connections int
+		role        types.Role
+		assert      require.ErrorAssertionFunc
+	}
+
+	unlimitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	limitedRole, err := types.NewRole("unlimited", types.RoleSpecV5{
+		Options: types.RoleOptions{
+			MaxKubernetesConnections: 5,
+		},
+	})
+	require.NoError(t, err)
+
+	testCases := []testCase{
+		{
+			name:        "unlimited",
+			connections: 7,
+			role:        unlimitedRole,
+			assert:      require.NoError,
+		},
+		{
+			name:        "limited-success",
+			connections: 5,
+			role:        limitedRole,
+			assert:      require.NoError,
+		},
+		{
+			name:        "limited-fail",
+			connections: 6,
+			role:        limitedRole,
+			assert:      require.Error,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			user, err := types.NewUser("bob")
+			require.NoError(t, err)
+			user.SetRoles([]string{testCase.role.GetName()})
+
+			backend, err := memory.New(memory.Config{})
+			require.NoError(t, err)
+
+			sem := local.NewPresenceService(backend)
+			client := &mockSemaphoreClient{
+				sem:   sem,
+				roles: map[string]types.Role{testCase.role.GetName(): testCase.role},
+			}
+
+			forwarder := newTestForwarder(ctx, ForwarderConfig{
+				AuthClient:        client,
+				CachingAuthClient: client,
+			})
+
+			identity := &authContext{
+				Context: auth.Context{
+					User: user,
+					Identity: auth.WrapIdentity(tlsca.Identity{
+						Username: user.GetName(),
+						Groups:   []string{testCase.role.GetName()},
+					}),
+				},
+			}
+
+			for i := 0; i < testCase.connections; i++ {
+				err = forwarder.acquireConnectionLockWithIdentity(ctx, identity)
+				if i == testCase.connections-1 {
+					testCase.assert(t, err)
+				}
+			}
+		})
+	}
 }

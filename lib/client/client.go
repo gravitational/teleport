@@ -30,13 +30,11 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -47,13 +45,16 @@ import (
 	"github.com/gravitational/teleport/lib/utils/socks"
 
 	"github.com/gravitational/trace"
+	"github.com/moby/term"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
 // It can provide list of nodes or connect to nodes
 type ProxyClient struct {
 	teleportClient  *TeleportClient
-	Client          *ssh.Client
+	Client          *tracessh.Client
 	hostLogin       string
 	proxyAddress    string
 	proxyPrincipal  string
@@ -67,32 +68,17 @@ type ProxyClient struct {
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
 	Namespace string
-	Client    *ssh.Client
+	Client    *tracessh.Client
 	Proxy     *ProxyClient
 	TC        *TeleportClient
 	OnMFA     func()
 }
 
-// GetActiveSessions returns a list of active session trackers.
-func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
-	auth, err := proxy.ConnectToCurrentCluster(ctx, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer auth.Close()
-	sessions, err := auth.GetActiveSessionTrackers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sessions, nil
-}
-
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
-func (proxy *ProxyClient) GetSites() ([]types.Site, error) {
-	proxySession, err := proxy.Client.NewSession()
+func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
+	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -612,7 +598,7 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 
 // FindNodesByFilters returns list of the nodes in the current cluster which have filters matched.
 func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -631,7 +617,7 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 
 	resources, err := client.GetResourcesWithFilters(ctx, site, req)
 	if err != nil {
-		// ListResources for nodes not availalbe, provide fallback.
+		// ListResources for nodes not available, provide fallback.
 		// Fallback does not support search/predicate support, so if users
 		// provide them, it does nothing.
 		//
@@ -656,7 +642,7 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 
 // FindAppServersByFilters returns a list of application servers in the current cluster which have filters matched.
 func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.AppServer, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -674,7 +660,7 @@ func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context,
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for app servers not availalbe, provide fallback.
+		// ListResources for app servers not available, provide fallback.
 		// Fallback does not support filters, so if users
 		// provide them, it does nothing.
 		//
@@ -749,9 +735,9 @@ func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.
 	return nil
 }
 
-// FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the current cluster.
+// FindDatabaseServersByFilters returns registered database proxy servers that match the provided filter.
 func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -769,7 +755,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for db servers not availalbe, provide fallback.
+		// ListResources for db servers not available, provide fallback.
 		// Fallback does not support filters, so if users
 		// provide them, it does nothing.
 		//
@@ -814,7 +800,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 // and could be cached based on the access policy
 func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet bool) (auth.ClientI, error) {
 	// get the current cluster:
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -840,7 +826,7 @@ func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName st
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCurrentCluster(ctx context.Context, quiet bool) (auth.ClientI, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1022,7 +1008,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		return nil, trace.Wrap(err)
 	}
 
-	proxySession, err := proxy.Client.NewSession()
+	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1140,7 +1126,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		return nil, trace.Wrap(err)
 	}
 
-	proxySession, err := proxy.Client.NewSession()
+	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1173,7 +1159,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
+		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1225,10 +1211,8 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
 
-	client := ssh.NewClient(conn, chans, emptyCh)
-
 	nc := &NodeClient{
-		Client:    client,
+		Client:    tracessh.NewClient(conn, chans, emptyCh),
 		Proxy:     proxy,
 		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
@@ -1267,7 +1251,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
+		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1297,10 +1281,8 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
 
-	client := ssh.NewClient(conn, chans, emptyCh)
-
 	nc := &NodeClient{
-		Client:    client,
+		Client:    tracessh.NewClient(conn, chans, emptyCh),
 		Proxy:     proxy,
 		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
@@ -1409,7 +1391,7 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 		return trace.Wrap(err)
 	}
 
-	s, err := c.Client.NewSession()
+	s, err := c.Client.NewSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1640,14 +1622,32 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 	}
 }
 
+// GetRemoteTerminalSize fetches the terminal size of a given SSH session.
+func (c *NodeClient) GetRemoteTerminalSize(sessionID string) (*term.Winsize, error) {
+	ok, payload, err := c.Client.SendRequest(teleport.TerminalSizeRequest, true, []byte(sessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	} else if !ok {
+		return nil, trace.BadParameter("failed to get terminal size")
+	}
+
+	ws := new(term.Winsize)
+	err = json.Unmarshal(payload, ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ws, nil
+}
+
 // Close closes client and it's operations
 func (c *NodeClient) Close() error {
 	return c.Client.Close()
 }
 
 // currentCluster returns the connection to the API of the current cluster
-func (proxy *ProxyClient) currentCluster() (*types.Site, error) {
-	sites, err := proxy.GetSites()
+func (proxy *ProxyClient) currentCluster(ctx context.Context) (*types.Site, error) {
+	sites, err := proxy.GetSites(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1681,8 +1681,8 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			NodeName:       nodeName(nodeAddr.Addr),
 			RouteToCluster: nodeAddr.Cluster,
 		},
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, c, proxyAddr, nil /* opts */)
+		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return proxy.teleportClient.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
 		},
 	)
 	if err != nil {

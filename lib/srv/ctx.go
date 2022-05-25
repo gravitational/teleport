@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -274,7 +275,7 @@ type ServerContext struct {
 
 	// RemoteClient holds a SSH client to a remote server. Only used by the
 	// recording proxy.
-	RemoteClient *ssh.Client
+	RemoteClient *tracessh.Client
 
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
@@ -336,6 +337,9 @@ type ServerContext struct {
 
 	// x11Config holds the xauth and XServer listener config for this session.
 	x11Config *X11Config
+
+	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
+	JoinOnly bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -380,6 +384,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		trace.Component:       child.srv.Component(),
 		trace.ComponentFields: fields,
 	})
+
+	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+		child.JoinOnly = true
+	}
 
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
@@ -507,8 +515,8 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	}
 
 	findSession := func() (*session, bool) {
-		reg.mu.Lock()
-		defer reg.mu.Unlock()
+		reg.sessionsMux.Lock()
+		defer reg.sessionsMux.Unlock()
 		return reg.findSessionLocked(rsession.ID(ssid))
 	}
 

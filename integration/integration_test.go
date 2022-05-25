@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -93,7 +94,7 @@ func newSuite(t *testing.T) *integrationTestSuite {
 	suite := &integrationTestSuite{}
 
 	var err error
-	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair("")
+	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Find AllocatePortsNum free listening ports to use.
@@ -241,6 +242,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
 		}, {
+			comment:          "recording proxy with upload to file server",
 			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
@@ -1013,32 +1015,23 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 
 	person := NewTerminal(250)
 
-	// commandsC receive commands
-	commandsC := make(chan string)
+	cl, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    Host,
+		Port:    teleport.GetPortSSHInt(),
+	})
+	require.NoError(t, err)
+	cl.Stdout = person
+	cl.Stdin = person
 
-	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
-	openSession := func() {
-		cl, err := teleport.NewClient(ClientConfig{
-			Login:   suite.me.Username,
-			Cluster: Site,
-			Host:    Host,
-			Port:    teleport.GetPortSSHInt(),
-		})
-		require.NoError(t, err)
-		cl.Stdout = person
-		cl.Stdin = person
-
-		go func() {
-			for command := range commandsC {
-				person.Type(command)
-			}
-		}()
-
-		err = cl.SSH(context.TODO(), []string{}, false)
-		require.NoError(t, err)
-	}
-
-	go openSession()
+	sshCtx, sshCancel := context.WithCancel(context.Background())
+	t.Cleanup(sshCancel)
+	sshErr := make(chan error)
+	go func() {
+		sshErr <- cl.SSH(sshCtx, nil, false)
+		sshCancel()
+	}()
 
 	retry := func(command, pattern string) {
 		person.Type(command)
@@ -1068,11 +1061,29 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.TODO()
 	shutdownContext := teleport.Process.StartShutdown(ctx)
 
+	require.Eventually(t, func() bool {
+		// TODO: check that we either get a connection that fully works or a connection refused error
+		c, err := net.DialTimeout("tcp", teleport.GetReverseTunnelAddr(), 250*time.Millisecond)
+		if err != nil {
+			require.True(t, utils.IsConnectionRefused(trace.Unwrap(err)))
+			return true
+		}
+		require.NoError(t, c.Close())
+		return false
+	}, time.Second*5, time.Millisecond*500, "proxy should not accept new connections while shutting down")
+
 	// make sure that terminal still works
 	retry("echo howdy \r\n", ".*howdy.*")
 
 	// now type exit and wait for shutdown to complete
 	person.Type("exit\n\r")
+
+	select {
+	case err := <-sshErr:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "failed to shutdown ssh session")
+	}
 
 	select {
 	case <-shutdownContext.Done():
@@ -3706,7 +3717,20 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
+
+	require.Eventually(t, func() bool {
+		_, err := svc.GetIdentity(types.RoleNode)
+		return err == nil
+	}, 5*time.Second, 500*time.Millisecond)
+	checkSSHPrincipals := func(svc *service.TeleportProcess) {
+		id, err := svc.GetIdentity(types.RoleNode)
+		require.NoError(t, err)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname+"."+Site)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID+"."+Site)
+	}
+	checkSSHPrincipals(svc)
 
 	// Setup user in the cluster
 	err = SetupUser(svc, suite.me.Username, nil)
@@ -3743,7 +3767,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reload
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
 		Login:   suite.me.Username,
@@ -3757,6 +3780,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// client works as is before servers have been rotated
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
@@ -3774,7 +3798,6 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reloaded
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	// new credentials will work from this phase to others
 	newCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: suite.me.Username})
@@ -3786,6 +3809,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// new client works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
@@ -3803,11 +3827,11 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// wait until service reloaded
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
-	defer svc.Shutdown(context.TODO())
 
 	// new client still works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Rotation has completed. Shutting down service.")
 
@@ -3834,6 +3858,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	tconf := s.rotationConfig(true)
 	teleport := s.newTeleportInstance()
+	defer teleport.StopAll()
 	logins := []string{s.me.Username}
 	for _, login := range logins {
 		teleport.AddUser(login, []string{login})
@@ -3856,6 +3881,20 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		_, err := svc.GetIdentity(types.RoleNode)
+		return err == nil
+	}, 5*time.Second, 500*time.Millisecond)
+	checkSSHPrincipals := func(svc *service.TeleportProcess) {
+		id, err := svc.GetIdentity(types.RoleNode)
+		require.NoError(t, err)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname)
+		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname+"."+Site)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID)
+		require.Contains(t, id.Cert.ValidPrincipals, HostID+"."+Site)
+	}
+	checkSSHPrincipals(svc)
 
 	// Setup user in the cluster
 	err = SetupUser(svc, s.me.Username, nil)
@@ -3902,6 +3941,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// client works as is before servers have been rotated
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseUpdateServers)
 
@@ -3932,6 +3972,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// old client works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
+	checkSSHPrincipals(svc)
 
 	t.Log("Service reloaded. Rotation has completed. Shuttting down service.")
 
@@ -4062,45 +4103,39 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	require.NoError(t, err)
 
+	watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Clock:     tconf.Clock,
+			Client:    aux.GetSiteAPI(clusterAux),
+		},
+		Types: []types.CertAuthType{types.HostCA},
+	})
+	require.NoError(t, err)
+	t.Cleanup(watcher.Close)
+
 	// waitForPhase waits until aux cluster detects the rotation
-	waitForPhase := func(phase string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), tconf.PollingPeriod*10)
-		defer cancel()
-
-		watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: teleport.ComponentProxy,
-				Clock:     tconf.Clock,
-				Client:    aux.GetSiteAPI(clusterAux),
-			},
-			WatchCertTypes: []types.CertAuthType{types.HostCA},
-		})
-		if err != nil {
-			return err
-		}
-		defer watcher.Close()
-
-		var lastPhase string
-		for i := 0; i < 10; i++ {
-			select {
-			case <-ctx.Done():
-				return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
-			case cas := <-watcher.CertAuthorityC:
-				for _, ca := range cas {
-					if ca.GetClusterName() == clusterMain &&
-						ca.GetType() == types.HostCA &&
-						ca.GetRotation().Phase == phase {
-						return nil
-					}
-					lastPhase = ca.GetRotation().Phase
-				}
+	waitForPhase := func(phase string) {
+		require.Eventually(t, func() bool {
+			ca, err := aux.Process.GetAuthServer().GetCertAuthority(
+				ctx,
+				types.CertAuthID{
+					Type:       types.HostCA,
+					DomainName: clusterMain,
+				}, false)
+			if err != nil {
+				return false
 			}
-		}
-		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
+
+			if ca.GetRotation().Phase == phase {
+				return true
+			}
+
+			return false
+		}, tconf.PollingPeriod*10, tconf.PollingPeriod/2, "failed to converge to phase %q", phase)
 	}
 
-	err = waitForPhase(types.RotationPhaseInit)
-	require.NoError(t, err)
+	waitForPhase(types.RotationPhaseInit)
 
 	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
@@ -4113,8 +4148,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
-	err = waitForPhase(types.RotationPhaseUpdateClients)
-	require.NoError(t, err)
+	waitForPhase(types.RotationPhaseUpdateClients)
 
 	// old client should work as is
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
@@ -4133,8 +4167,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
-	err = waitForPhase(types.RotationPhaseUpdateServers)
-	require.NoError(t, err)
+	waitForPhase(types.RotationPhaseUpdateServers)
 
 	// new credentials will work from this phase to others
 	newCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: suite.me.Username})
@@ -4162,8 +4195,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	t.Log("Service reload completed, waiting for phase.")
 
-	err = waitForPhase(types.RotationPhaseStandby)
-	require.NoError(t, err)
+	waitForPhase(types.RotationPhaseStandby)
 	t.Log("Phase completed.")
 
 	// new client still works
@@ -4303,12 +4335,12 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 
 	t.Log("change signature algorithm with custom config value and manual rotation")
 	// Change the signing algorithm in config file.
-	signingAlg := ssh.SigAlgoRSA
+	signingAlg := ssh.KeyAlgoRSA
 	config.CASignatureAlgorithm = &signingAlg
 	svc, cancel = restart(svc, cancel)
 	// Do a manual rotation - this should change the signing algorithm.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	t.Log("preserve signature algorithm with empty config value and manual rotation")
 	// Unset the config value.
@@ -4318,7 +4350,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 	// Do a manual rotation - this should leave the signing algorithm
 	// unaffected because config value is not set.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	// shut down the service
 	cancel()
@@ -4367,17 +4399,6 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
-
-	eventC := make(chan service.Event, 1)
-	svc.WaitForEvent(context.TODO(), service.TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-
-	case <-time.After(20 * time.Second):
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
-	}
-
 	return svc, nil
 }
 
@@ -4501,7 +4522,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
-		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
+		cl.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
 			err = s.WindowChange(48, 160)
 			if err != nil {
 				return true, trace.Wrap(err)
@@ -4846,7 +4867,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 	// Check if BPF tests can be run on this host.
 	err := canTestBPF()
 	if err != nil {
-		t.Skip(fmt.Sprintf("Tests for BPF functionality can not be run: %v.", err))
+		t.Skipf("Tests for BPF functionality can not be run: %v.", err)
 		return
 	}
 
@@ -4974,7 +4995,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 	// Check if BPF tests can be run on this host.
 	err := canTestBPF()
 	if err != nil {
-		t.Skip(fmt.Sprintf("Tests for BPF functionality can not be run: %v.", err))
+		t.Skipf("Tests for BPF functionality can not be run: %v.", err)
 		return
 	}
 
@@ -5209,7 +5230,7 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 	// Check if BPF tests can be run on this host.
 	err := canTestBPF()
 	if err != nil {
-		t.Skip(fmt.Sprintf("Tests for BPF functionality can not be run: %v.", err))
+		t.Skipf("Tests for BPF functionality can not be run: %v.", err)
 		return
 	}
 
@@ -5772,7 +5793,7 @@ func dumpGoroutineProfile() {
 
 // TestWebProxyInsecure makes sure that proxy endpoint works when TLS is disabled.
 func TestWebProxyInsecure(t *testing.T) {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	rc := NewInstance(InstanceConfig{
@@ -5815,7 +5836,7 @@ func TestWebProxyInsecure(t *testing.T) {
 func TestTraitsPropagation(t *testing.T) {
 	log := utils.NewLoggerForTests()
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Create root cluster.

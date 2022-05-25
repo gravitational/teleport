@@ -51,7 +51,7 @@ var artifacts = []Artifact{
 	// SSH artifacts
 	{
 		Key:  SSHCertKey,
-		Kind: KindSSH,
+		Kind: KindAlways,
 		ToBytes: func(i *Identity) []byte {
 			return i.CertBytes
 		},
@@ -60,8 +60,13 @@ var artifacts = []Artifact{
 		},
 	},
 	{
-		Key:  SSHCACertsKey,
-		Kind: KindSSH,
+		Key: SSHCACertsKey,
+
+		// SSH CAs in this format are only used for saving/loading of bot
+		// identities and are not particularly useful to end users. We encode
+		// the current SSH CAs inside the known_hosts file generated with the
+		// `ssh_config` template, which is actually readable by OpenSSH.
+		Kind: KindBotInternal,
 		ToBytes: func(i *Identity) []byte {
 			return bytes.Join(i.SSHCACertBytes, []byte("$"))
 		},
@@ -73,7 +78,7 @@ var artifacts = []Artifact{
 	// TLS artifacts
 	{
 		Key:  TLSCertKey,
-		Kind: KindTLS,
+		Kind: KindAlways,
 		ToBytes: func(i *Identity) []byte {
 			return i.TLSCertBytes
 		},
@@ -82,8 +87,15 @@ var artifacts = []Artifact{
 		},
 	},
 	{
-		Key:  TLSCACertsKey,
-		Kind: KindTLS,
+		Key: TLSCACertsKey,
+
+		// TLS CA certs are useful to end users, but this artifact contains an
+		// arbitrary number of CAs, including both Teleport's user and host CAs
+		// and potentially multiple sets if they've been rotated.
+		// Instead of exposing this mess of CAs to end users, we'll keep these
+		// for internal use and just present single standard CAs in destination
+		// dirs.
+		Kind: KindBotInternal,
 		ToBytes: func(i *Identity) []byte {
 			return bytes.Join(i.TLSCACertsBytes, []byte("$"))
 		},

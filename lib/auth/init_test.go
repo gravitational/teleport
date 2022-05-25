@@ -54,7 +54,7 @@ import (
 func TestReadIdentity(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	a := testauthority.NewWithClock(clock)
-	priv, pub, err := a.GenerateKeyPair("")
+	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestReadIdentity(t *testing.T) {
 
 func TestBadIdentity(t *testing.T) {
 	a := testauthority.New()
-	priv, pub, err := a.GenerateKeyPair("")
+	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
@@ -467,7 +467,7 @@ func TestCASigningAlg(t *testing.T) {
 	auth, err := Init(conf)
 	require.NoError(t, err)
 	defer auth.Close()
-	verifyCAs(auth, ssh.SigAlgoRSASHA2512)
+	verifyCAs(auth, ssh.KeyAlgoRSASHA512)
 
 	require.NoError(t, auth.Close())
 
@@ -477,19 +477,19 @@ func TestCASigningAlg(t *testing.T) {
 	conf.DataDir = t.TempDir()
 
 	// Start a new server with non-default signing alg.
-	signingAlg := ssh.SigAlgoRSA
+	signingAlg := ssh.KeyAlgoRSA
 	conf.CASigningAlg = &signingAlg
 	auth, err = Init(conf)
 	require.NoError(t, err)
 	defer auth.Close()
-	verifyCAs(auth, ssh.SigAlgoRSA)
+	verifyCAs(auth, ssh.KeyAlgoRSA)
 
 	// Start again, using a different alg. This should not change the existing
 	// CA.
-	signingAlg = ssh.SigAlgoRSASHA2256
+	signingAlg = ssh.KeyAlgoRSASHA256
 	auth, err = Init(conf)
 	require.NoError(t, err)
-	verifyCAs(auth, ssh.SigAlgoRSA)
+	verifyCAs(auth, ssh.KeyAlgoRSA)
 }
 
 // TestPresets tests behavior of presets
@@ -948,7 +948,7 @@ func TestIdentityChecker(t *testing.T) {
 			require.NoError(t, err)
 
 			dialer := proxy.DialerFromEnvironment(sshServer.Addr())
-			sconn, err := dialer.Dial("tcp", sshServer.Addr(), sshClientConfig)
+			sconn, err := dialer.Dial(ctx, "tcp", sshServer.Addr(), sshClientConfig)
 			if test.err {
 				require.Error(t, err)
 			} else {
@@ -1004,10 +1004,10 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	conf := setupConfig(t)
 
 	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
-	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
-	privHost, _, err := keygen.GenerateKeyPair("")
+	keygen := native.New(context.TODO())
+	privHost, _, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
-	privUser, _, err := keygen.GenerateKeyPair("")
+	privUser, _, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 
 	hostCA := suite.NewTestCA(types.HostCA, "me.localhost", privHost)

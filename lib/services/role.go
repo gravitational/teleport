@@ -292,17 +292,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
 		inRoleARNs := r.GetAWSRoleARNs(condition)
-		var outRoleARNs []string
-		for _, arn := range inRoleARNs {
-			variableValues, err := ApplyValueTraits(arn, traits)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Skipping AWS role ARN %v: %v.", arn, err)
-				}
-				continue
-			}
-			outRoleARNs = append(outRoleARNs, variableValues...)
-		}
+		outRoleARNs := applyValueTraitsSlice(inRoleARNs, traits, "AWS role ARN")
 		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
 
 		// apply templates to kubernetes groups
@@ -454,7 +444,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		switch variable.Name() {
 		case teleport.TraitLogins, teleport.TraitWindowsLogins,
 			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
-			teleport.TraitDBNames, teleport.TraitDBUsers:
+			teleport.TraitDBNames, teleport.TraitDBUsers,
+			teleport.TraitAWSRoleARNs, teleport.TraitJWT:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -686,6 +677,10 @@ type AccessChecker interface {
 	// RecordDesktopSession returns true if a role in the role set has enabled
 	// desktop session recoring.
 	RecordDesktopSession() bool
+	// DesktopDirectorySharing returns true if the role set has directory sharing
+	// enabled. This setting is enabled if one or more of the roles in the set has
+	// enabled it.
+	DesktopDirectorySharing() bool
 
 	// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
 	// to a user who should be submitting access reviews. Because not all rolesets
@@ -1117,6 +1112,19 @@ func (set RoleSet) MaxSessions() int64 {
 		}
 	}
 	return ms
+}
+
+// MaxConnections returns the maximum number of concurrent Kubernetes connections
+// allowed.  If MaxConnections is zero then no maximum was defined
+// and the number of concurrent connections is unconstrained.
+func (set RoleSet) MaxKubernetesConnections() int64 {
+	var mcs int64
+	for _, role := range set {
+		if m := role.GetOptions().MaxKubernetesConnections; m != 0 && (m < mcs || mcs == 0) {
+			mcs = m
+		}
+	}
+	return mcs
 }
 
 // AdjustClientIdleTimeout adjusts requested idle timeout
@@ -2014,6 +2022,18 @@ func (set RoleSet) RecordDesktopSession() bool {
 func (set RoleSet) DesktopClipboard() bool {
 	for _, role := range set {
 		if !types.BoolDefaultTrue(role.GetOptions().DesktopClipboard) {
+			return false
+		}
+	}
+	return true
+}
+
+// DesktopDirectorySharing returns true if the role set has directory sharing
+// enabled. This setting is enabled if one or more of the roles in the set has
+// enabled it.
+func (set RoleSet) DesktopDirectorySharing() bool {
+	for _, role := range set {
+		if !types.BoolDefaultTrue(role.GetOptions().DesktopDirectorySharing) {
 			return false
 		}
 	}

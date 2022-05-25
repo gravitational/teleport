@@ -108,7 +108,7 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 		switch match, err := parser.EvalBoolPredicate(filter.PredicateExpression); {
 		case err != nil:
-			return false, trace.Wrap(err)
+			return false, trace.BadParameter("failed to parse predicate expression: %s", err.Error())
 		case !match:
 			return false, nil
 		}
@@ -180,4 +180,6 @@ const (
 	AWSMatcherRDS = "rds"
 	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
 	AWSMatcherRedshift = "redshift"
+	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
+	AWSMatcherElastiCache = "elasticache"
 )

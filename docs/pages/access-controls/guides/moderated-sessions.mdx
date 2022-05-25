@@ -4,11 +4,6 @@ description: Moderated Sessions
 h1: Moderated Sessions
 ---
 
-<Notice type="warning" scope="oss">
-
-  Moderated Sessions requires Teleport Enterprise or Teleport Cloud.
-
-</Notice>
 
 ## Introduction
 
@@ -16,6 +11,23 @@ Moderated Sessions allows Teleport administrators to define requirements for
 other users to be present in a Server or Kubernetes Access session. Depending on
 the requirements, these users can observe the session in real time, participate
 in the session, and terminate the session at will.
+
+<ScopedBlock scope="oss">
+
+  Moderated Sessions requires Teleport Enterprise or Teleport Cloud.
+
+  View this guide as a user of another Teleport edition:
+
+  <TileSet>
+  <Tile href="./moderated-sessions.mdx/?scope=cloud" title="Teleport Cloud" icon="cloud">
+  </Tile>
+  <Tile href="./moderated-sessions.mdx/?scope=enterprise" title="Teleport Enterprise" icon="building">
+  </Tile>
+  </TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud", "enterprise"]}>
 
 ### Use cases
 
@@ -214,3 +226,5 @@ example be used to enable notifications over some external communication system.
 ## RFD
 
 - [Moderated Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0043-kubeaccess-multiparty.md)
+
+</ScopedBlock>
