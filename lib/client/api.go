@@ -2413,14 +2413,14 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	})
 }
 
-func ListKubeClusterNamesWithFiltersAllClusters(ctx context.Context, p *ProxyClient, req proto.ListResourcesRequest) (map[string][]string, error) {
-	clusters, err := p.GetSites(ctx)
+func ListKubeClusterNamesWithFiltersAllClusters(ctx context.Context, pc *ProxyClient, req proto.ListResourcesRequest) (map[string][]string, error) {
+	clusters, err := pc.GetSites(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	kubeClusters := make(map[string][]string, 0)
 	for _, cluster := range clusters {
-		ac, err := p.ConnectToCluster(ctx, cluster.Name, true)
+		ac, err := pc.ConnectToCluster(ctx, cluster.Name, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

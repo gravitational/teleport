@@ -668,6 +668,74 @@ type kubeListing struct {
 	KubeCluster string `json:"kube_cluster"`
 }
 
+func (c *kubeLSCommand) run(cf *CLIConf) error {
+	cf.SearchKeywords = c.searchKeywords
+	cf.UserHost = c.labels
+	cf.PredicateExpression = c.predicateExpr
+
+	if c.listAll {
+		return trace.Wrap(c.runAllClusters(cf))
+	}
+
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	selectedCluster := selectedKubeCluster(currentTeleportCluster)
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		var t asciitable.Table
+		if cf.Quiet {
+			t = asciitable.MakeHeadlessTable(2)
+		} else {
+			t = asciitable.MakeTable([]string{"Kube Cluster Name", "Selected"})
+		}
+		for _, cluster := range kubeClusters {
+			var selectedMark string
+			if cluster == selectedCluster {
+				selectedMark = "*"
+			}
+			t.AddRow([]string{cluster, selectedMark})
+		}
+		fmt.Println(t.AsBuffer().String())
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeKubeClusters(kubeClusters, selectedCluster, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+
+	return nil
+}
+
+func serializeKubeClusters(kubeClusters []string, selectedCluster, format string) (string, error) {
+	type cluster struct {
+		KubeClusterName string `json:"kube_cluster_name"`
+		Selected        bool   `json:"selected"`
+	}
+	clusterInfo := make([]cluster, 0, len(kubeClusters))
+	for _, cl := range kubeClusters {
+		clusterInfo = append(clusterInfo, cluster{cl, cl == selectedCluster})
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(clusterInfo)
+	}
+	return string(out), trace.Wrap(err)
+}
+
 func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 	profile, profiles, err := client.Status(cf.HomePath, "")
 	if err != nil {
@@ -758,74 +826,6 @@ func serializeKubeListings(kubeListings []kubeListing, format string) (string, e
 		out, err = utils.FastMarshalIndent(kubeListings, "", "  ")
 	} else {
 		out, err = yaml.Marshal(kubeListings)
-	}
-	return string(out), trace.Wrap(err)
-}
-
-func (c *kubeLSCommand) run(cf *CLIConf) error {
-	cf.SearchKeywords = c.searchKeywords
-	cf.UserHost = c.labels
-	cf.PredicateExpression = c.predicateExpr
-
-	if c.listAll {
-		return trace.Wrap(c.runAllClusters(cf))
-	}
-
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	selectedCluster := selectedKubeCluster(currentTeleportCluster)
-	format := strings.ToLower(c.format)
-	switch format {
-	case teleport.Text, "":
-		var t asciitable.Table
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(2)
-		} else {
-			t = asciitable.MakeTable([]string{"Kube Cluster Name", "Selected"})
-		}
-		for _, cluster := range kubeClusters {
-			var selectedMark string
-			if cluster == selectedCluster {
-				selectedMark = "*"
-			}
-			t.AddRow([]string{cluster, selectedMark})
-		}
-		fmt.Println(t.AsBuffer().String())
-	case teleport.JSON, teleport.YAML:
-		out, err := serializeKubeClusters(kubeClusters, selectedCluster, format)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(out)
-	default:
-		return trace.BadParameter("unsupported format %q", cf.Format)
-	}
-
-	return nil
-}
-
-func serializeKubeClusters(kubeClusters []string, selectedCluster, format string) (string, error) {
-	type cluster struct {
-		KubeClusterName string `json:"kube_cluster_name"`
-		Selected        bool   `json:"selected"`
-	}
-	clusterInfo := make([]cluster, 0, len(kubeClusters))
-	for _, cl := range kubeClusters {
-		clusterInfo = append(clusterInfo, cluster{cl, cl == selectedCluster})
-	}
-	var out []byte
-	var err error
-	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
-	} else {
-		out, err = yaml.Marshal(clusterInfo)
 	}
 	return string(out), trace.Wrap(err)
 }

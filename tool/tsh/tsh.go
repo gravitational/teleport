@@ -591,7 +591,7 @@ func Run(args []string, opts ...cliOption) error {
 	ls.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	ls.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	ls.Flag("all", "list nodes from all clusters and proxies").Short('R').BoolVar(&cf.ListAll)
+	ls.Flag("all", "List nodes from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
@@ -1542,7 +1542,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 			continue
 		}
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		for clusterName, nodes := range result {
 			for _, node := range nodes {
@@ -3155,7 +3155,7 @@ func listAppsAllClusters(cf *CLIConf) error {
 			continue
 		}
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		for clusterName, apps := range result {
 			for _, app := range apps {

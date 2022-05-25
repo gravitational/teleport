@@ -143,7 +143,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			continue
 		}
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 
 		proxy, err := tc.ConnectToProxy(cf.Context)
@@ -153,11 +153,11 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		for clusterName, databases := range result {
 			cluster, err := proxy.ConnectToCluster(cf.Context, clusterName, false)
 			if err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 			roleSet, err := services.FetchRoles(p.Roles, cluster, p.Traits)
 			if err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 			for _, database := range databases {
 				dbListings = append(dbListings, databaseListing{

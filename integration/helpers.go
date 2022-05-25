@@ -989,11 +989,6 @@ func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*ser
 	conf.SSH.Enabled = false
 	conf.Databases.Enabled = false
 
-	kubeconfigDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conf.Kube.KubeconfigPath = filepath.Join(kubeconfigDir, "kube_config")
 	if err := enableKube(conf, clusterName); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1839,7 +1834,9 @@ func enableKubernetesService(t *testing.T, config *service.Config) {
 
 func enableKube(config *service.Config, clusterName string) error {
 	kubeConfigPath := config.Kube.KubeconfigPath
-
+	if kubeConfigPath == "" {
+		return trace.BadParameter("missing kubeconfig path")
+	}
 	key, err := genUserKey()
 	if err != nil {
 		return trace.Wrap(err)
