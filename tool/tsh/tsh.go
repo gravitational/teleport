@@ -2060,7 +2060,9 @@ func onSSH(cf *CLIConf) error {
 		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			if _, ok := trace.Unwrap(err).(*ssh.ExitError); !ok {
+				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			}
 			return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 		}
 		return trace.Wrap(err)
@@ -2271,6 +2273,17 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		}
 		log.Debugf("Extracted username %q from the identity file %v.", certUsername, cf.IdentityFileIn)
 		c.Username = certUsername
+
+		// Also configure missing KeyIndex fields.
+		key.ProxyHost, err = utils.Host(cf.Proxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key.ClusterName = rootCluster
+		key.Username = certUsername
+
+		// With the key index fields properly set, preload this key into a local store.
+		c.PreloadKey = key
 
 		identityAuth, err = authFromIdentity(key)
 		if err != nil {
@@ -2889,9 +2902,12 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
 // and saving the updated profile.
 func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...string) error {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if profile.IsVirtual {
+		return trace.BadParameter("cannot reissue certificates while using an identity file (-i)")
 	}
 	params := client.ReissueParams{
 		AccessRequests: reqIDs,
@@ -2936,7 +2952,7 @@ func onApps(cf *CLIConf) error {
 	}
 
 	// Retrieve profile to be able to show which apps user is logged into.
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2951,7 +2967,7 @@ func onApps(cf *CLIConf) error {
 
 // onEnvironment handles "tsh env" command.
 func onEnvironment(cf *CLIConf) error {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
