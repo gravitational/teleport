@@ -71,6 +71,7 @@ func readRequestBody(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer req.Body.Close()
 
 	return maybeReadGzip(&req.Header, body)
 }
@@ -80,6 +81,7 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer resp.Body.Close()
 
 	return maybeReadGzip(&resp.Header, body)
 }
@@ -88,20 +90,22 @@ func maybeReadGzip(headers *http.Header, body []byte) ([]byte, error) {
 	gzipMagic := []byte{0x1f, 0x8b, 0x08}
 
 	// Check if the body is gzip encoded.
-	if bytes.HasPrefix(body, gzipMagic) {
-		bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer bodyGZ.Close()
-
-		body, err = io.ReadAll(bodyGZ)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// Make sure that the content-encoding is correct.
-		headers.Set("Content-Encoding", "gzip")
+	if !bytes.HasPrefix(body, gzipMagic) {
+		return body, nil
 	}
+
+	bodyGZ, err := gzip.NewReader(bytes.NewReader(body))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer bodyGZ.Close()
+
+	body, err = io.ReadAll(bodyGZ)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Make sure that the content-encoding is correct.
+	headers.Set("Content-Encoding", "gzip")
 
 	return body, nil
 }

@@ -457,6 +457,8 @@ func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []by
 func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (string, error) {
 	sessionToken := extractSnowflakeToken(req.Header)
 
+	// Authentication header always starts with "Teleport:", so we know that the token was set by us.
+	// Some SDK set this header to a "random" value (Python SDK sends None for example).
 	if !strings.Contains(sessionToken, teleportAuthHeaderPrefix) {
 		return "", nil
 	}
@@ -506,7 +508,10 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tok
 	}
 
 	if !loginResp.Success {
-		return nil, trace.Errorf("Snowflake authentication failed: %s", loginResp.Message)
+		e.Log.Errorf("Snowflake authentication failed: %s", loginResp.Message)
+		// Return not modified response, so client can handle it. Otherwise, the client my keep retrying where
+		// most likely each response will return the same error (invalid JWT when user doesn't exist for ex.)
+		return bodyBytes, nil
 	}
 
 	tokens, err := loginResp.getTokens()

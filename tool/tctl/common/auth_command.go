@@ -613,7 +613,8 @@ tls-protocols "TLSv1.2 TLSv1.3"
 
 	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 
-Please add the generated key to the Snowflake users as described here: https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
+Please add the generated key to the Snowflake users as described here:
+https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
 `))
 )
 
