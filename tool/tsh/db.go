@@ -27,6 +27,9 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -38,8 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -165,7 +166,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			}
 			defer proxy.Close()
 
-			sites, err := proxy.GetSites()
+			sites, err := proxy.GetSites(groupCtx)
 			if err != nil {
 				return trace.Wrap(err)
 			}

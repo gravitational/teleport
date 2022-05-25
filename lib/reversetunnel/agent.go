@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
@@ -285,7 +286,7 @@ func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
 	return &pd
 }
 
-func (a *Agent) connect() (conn *ssh.Client, err error) {
+func (a *Agent) connect() (conn *tracessh.Client, err error) {
 	if a.reverseTunnelDetails == nil {
 		a.reverseTunnelDetails = a.getReverseTunnelDetails()
 	}
@@ -303,7 +304,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	for _, authMethod := range a.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
 		dialer := proxy.DialerFromEnvironment(a.Addr.Addr, opts...)
-		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
+		pconn, err := dialer.DialTimeout(a.Context, a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
 		if err != nil {
 			a.log.WithError(err).Debugf("Dial to %v failed.", a.Addr.Addr)
 			continue
@@ -324,7 +325,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 
 		// Build a new client connection. This is done to get access to incoming
 		// global requests which dialer.Dial would not provide.
-		conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
+		conn, chans, reqs, err := tracessh.NewClientConn(a.Context, pconn, a.Addr.Addr, &ssh.ClientConfig{
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: callback,
@@ -340,7 +341,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		emptyCh := make(chan *ssh.Request)
 		close(emptyCh)
 
-		client := ssh.NewClient(conn, chans, emptyCh)
+		client := tracessh.NewClient(conn, chans, emptyCh)
 
 		// Start a goroutine to process global requests from the server.
 		go a.handleGlobalRequests(a.ctx, reqs)
@@ -476,7 +477,7 @@ const ConnectedEvent = "connected"
 // processRequests is a blocking function which runs in a loop sending heartbeats
 // to the given SSH connection and processes inbound requests from the
 // remote proxy
-func (a *Agent) processRequests(conn *ssh.Client) error {
+func (a *Agent) processRequests(conn *tracessh.Client) error {
 	netConfig, err := a.AccessPoint.GetClusterNetworkingConfig(a.ctx)
 	if err != nil {
 		return trace.Wrap(err)
