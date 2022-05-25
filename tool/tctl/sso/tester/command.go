@@ -135,10 +135,13 @@ func (cmd *SSOTestCommand) TryRun(selectedCommand string, c auth.ClientI) (match
 	return false, nil
 }
 
-// AuthRequestInfo is helper type that holds information about SSO test in flight.
+// AuthRequestInfo is helper type, useful for tying together test handlers of different auth types.
 type AuthRequestInfo struct {
-	Config           *client.RedirectorConfig
-	RequestID        string
+	// Config holds *client.RedirectorConfig used for SSO redirect.
+	Config *client.RedirectorConfig
+	// RequestID is ID of auth request created for SSO test.
+	RequestID string
+	// RequestCreateErr holds an error in case auth request creation failed.
 	RequestCreateErr error
 }
 
