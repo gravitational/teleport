@@ -760,6 +760,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		}
 
 		pc, err := tc.ConnectToProxy(cf.Context)
+		// Don't make the user re-login to every proxy.
 		if client.IsExpiredCredentialError(err) {
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
 			continue

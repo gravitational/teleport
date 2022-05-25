@@ -1537,6 +1537,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 		}
 
 		result, err := tc.ListNodesWithFiltersAllClusters(cf.Context)
+		// Don't make the user re-login to every proxy.
 		if client.IsExpiredCredentialError(err) {
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
 			continue
@@ -3150,6 +3151,7 @@ func listAppsAllClusters(cf *CLIConf) error {
 		}
 
 		result, err := tc.ListAppsAllClusters(cf.Context, nil /* custom filter */)
+		// Don't make the user re-login to every proxy.
 		if client.IsExpiredCredentialError(err) {
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
 			continue

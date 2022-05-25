@@ -138,6 +138,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		}
 
 		result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
+		// Don't make the user re-login to every proxy.
 		if client.IsExpiredCredentialError(err) {
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
 			continue
