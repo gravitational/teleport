@@ -685,54 +685,6 @@ registered devices using [`tsh mfa ls`](cli.mdx#tsh-mfa-ls).
 $ tsh mfa rm <device-name>
 ```
 
-### tsh exec
-
-Run provided command, by default using a shell, with Teleport-specific environment
-variables set. Can be used to create combined commands.
-
-The command can be used to run external executables, defaulting to a shell. To
-find a usable shell, `tsh exec` will try in order: `$SHELL` env variable, `sh`
-, `bash`. The flag `--shell` allows for overriding of the executable to run,
-while all arguments passed to command are fed as-is.
-
-The command will be executed under a modified environment, enriched with the following variables:
-
-| Name          | Value                                                |
-|---------------|------------------------------------------------------|
-| `TSH_COMMAND` | The program being executed.                          |
-| `TSH`         | The path of the `tsh` binary that invoked the alias. |
-
-Additionally, any variables reported by `tsh env` will also be included. If
-the `tsh env` reports no variables (e.g. because the user is not logged in), no
-variables will be added. Currently, the list of variables from `tsh env` may
-include: `TELEPORT_PROXY`, `TELEPORT_CLUSTER`, `TELEPORT_KUBE_CLUSTER`
-, `KUBECONFIG`.
-
-#### Examples
-
-Print some environment variables as well as reversed arguments:
-
-```code
-$ tsh exec -- -c 'echo $TSH $TSH_COMMAND $2 $1 $0' arg0 arg1 arg2
-
-/bin/tsh /bin/bash arg2 arg1 arg0
-```
-
-Log in to cluster `leaf` and SSH as `ubuntu` to `node-1`:
-
-```code
-$ tsh exec -- -c '$TSH login --proxy=tele.example.com $0 && $TSH ssh $1' leaf ubuntu@node-1
-```
-
-Execute a Python script using `python3` as the interpreter:
-
-```code
-$ tsh exec --shell python3 -- -c "import os; print('path to tsh:', os.environ['TSH'])"
-path to tsh: /opt/teleport/bin/tsh
-```
-
-### Environment variables for `tsh`
-
 Environment variables configure your tsh client and can help you avoid using flags repetitively.
 
 | Environment Variable | Description | Example Value |
