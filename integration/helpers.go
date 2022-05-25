@@ -989,6 +989,7 @@ func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*ser
 	conf.SSH.Enabled = false
 	conf.Databases.Enabled = false
 
+	conf.Kube.KubeconfigPath = filepath.Join(dataDir, "kube_config")
 	if err := enableKube(conf, clusterName); err != nil {
 		return nil, trace.Wrap(err)
 	}

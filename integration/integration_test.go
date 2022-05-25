@@ -6465,13 +6465,11 @@ func testListKubeClustersAcrossClusters(t *testing.T, suite *integrationTestSuit
 		kubeConf := suite.defaultServiceConfig()
 
 		for _, k := range rootNodes {
-			kubeConf.Kube.KubeconfigPath = filepath.Join(t.TempDir(), "kube_config")
 			_, err := root.StartKube(kubeConf, k)
 			require.NoError(t, err)
 		}
 
 		for _, k := range leafNodes {
-			kubeConf.Kube.KubeconfigPath = filepath.Join(t.TempDir(), "kube_config")
 			_, err := leaf.StartKube(kubeConf, k)
 			require.NoError(t, err)
 		}

@@ -2176,6 +2176,7 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	return servers, nil
 }
 
+// ListNodesWithFiltersAllClusters returns a map of all nodes in all clusters connected to this proxy.
 func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (map[string][]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
@@ -2229,6 +2230,7 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	return servers, nil
 }
 
+// ListAppServersWithFiltersAllClusters returns a map of all app servers in all clusters connected to this proxy.
 func (tc *TeleportClient) ListAppServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
@@ -2413,6 +2415,7 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	})
 }
 
+// ListKubeClusterNamesWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
 func ListKubeClusterNamesWithFiltersAllClusters(ctx context.Context, pc *ProxyClient, req proto.ListResourcesRequest) (map[string][]string, error) {
 	clusters, err := pc.GetSites(ctx)
 	if err != nil {
