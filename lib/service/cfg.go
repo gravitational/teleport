@@ -277,20 +277,25 @@ func (cfg *Config) ApplyToken(token string) (bool, error) {
 }
 
 // ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
+// If a pin is specified as a path to a file, that file must not be empty.
 func (cfg *Config) ApplyCAPins(caPins []string) error {
-	if len(caPins) == 0 {
+	if len(caPins) == 0 || (len(caPins) == 1 && caPins[0] == "") {
 		return nil
 	}
 	filteredPins := make([]string, 0, len(caPins))
-	for _, pin := range caPins {
-		if pin != "" {
-			var err error
-			pin, err = utils.TryReadValueAsFile(pin)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			filteredPins = append(filteredPins, pin)
+	for _, pinOrPath := range caPins {
+		if pinOrPath == "" {
+			continue
 		}
+		pin, err := utils.TryReadValueAsFile(pinOrPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// an empty pin file is less obvious than a blank ca_pin in the config yaml.
+		if pin == "" {
+			return trace.BadParameter("empty ca_pin file: %v", pinOrPath)
+		}
+		filteredPins = append(filteredPins, pin)
 	}
 	if len(filteredPins) == 0 {
 		return nil
