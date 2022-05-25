@@ -161,7 +161,7 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
-	// NodeLabels is list of labels to add to newly created nodes.
+	// NodeLabels is list of labels in the format `foo:bar,baz:bax` to add to newly created nodes.
 	NodeLabels string
 }
 

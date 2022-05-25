@@ -299,7 +299,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
 	dump.Flag("app-name", "Name of the application to start when using app role.").StringVar(&dumpFlags.AppName)
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
-	dump.Flag("node-labels", "Labels to add to newly created nodes").StringVar(&dumpFlags.NodeLabels)
+	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes ex) env:staging,cloud:aws.").StringVar(&dumpFlags.NodeLabels)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
