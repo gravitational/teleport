@@ -81,22 +81,22 @@ func handleGithubConnector(c auth.ClientI, connBytes []byte) (*AuthRequestInfo, 
 	return requestInfo, nil
 }
 
-func getGithubDiagInfoFields(diag *types.SSODiagnosticInfo, debug bool) []DiagnosticInfoField {
-	return []DiagnosticInfoField{
-		{
-			Present: diag.GithubTokenInfo != nil,
-			Show:    debug,
-			Msg:     FormatJSON("[GitHub] OAuth2 token info", diag.GithubTokenInfo),
-		},
-		{
-			Present: diag.GithubClaims != nil,
-			Show:    true,
-			Msg:     FormatYAML("[GitHub] Received claims", diag.GithubClaims),
-		},
-		{
-			Present: diag.GithubTeamsToLogins != nil,
-			Show:    true,
-			Msg:     FormatYAML("[GitHub] Connector team to logins mapping", diag.GithubTeamsToLogins),
-		},
+func getGithubDiagInfoFields(diag *types.SSODiagnosticInfo, debug bool) []string {
+	return []string{
+		GetDiagMessage(
+			diag.GithubTokenInfo != nil,
+			debug,
+			FormatJSON("[GitHub] OAuth2 token info", diag.GithubTokenInfo),
+		),
+		GetDiagMessage(
+			diag.GithubClaims != nil,
+			true,
+			FormatYAML("[GitHub] Received claims", diag.GithubClaims),
+		),
+		GetDiagMessage(
+			diag.GithubTeamsToLogins != nil,
+			true,
+			FormatYAML("[GitHub] Connector team to logins mapping", diag.GithubTeamsToLogins),
+		),
 	}
 }

@@ -47,7 +47,7 @@ type SSOTestCommand struct {
 	// Handlers is a mapping between auth kind and appropriate handling function
 	Handlers map[string]func(c auth.ClientI, connBytes []byte) (*AuthRequestInfo, error)
 	// GetDiagInfoFields provides auth kind-specific diagnostic info fields.
-	GetDiagInfoFields map[string]func(diag *types.SSODiagnosticInfo, debug bool) []DiagnosticInfoField
+	GetDiagInfoFields map[string]func(diag *types.SSODiagnosticInfo, debug bool) []string
 }
 
 // Initialize allows a caller-defined command to plug itself into CLI
@@ -63,7 +63,7 @@ func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *service.Con
 		types.KindGithubConnector: handleGithubConnector,
 	}
 
-	cmd.GetDiagInfoFields = map[string]func(diag *types.SSODiagnosticInfo, debug bool) []DiagnosticInfoField{
+	cmd.GetDiagInfoFields = map[string]func(diag *types.SSODiagnosticInfo, debug bool) []string{
 		types.KindGithubConnector: getGithubDiagInfoFields,
 	}
 }
@@ -135,6 +135,7 @@ func (cmd *SSOTestCommand) TryRun(selectedCommand string, c auth.ClientI) (match
 	return false, nil
 }
 
+// AuthRequestInfo is helper type that holds information about SSO test in flight.
 type AuthRequestInfo struct {
 	Config           *client.RedirectorConfig
 	RequestID        string
@@ -182,10 +183,12 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string,
 	}, config)
 }
 
-type DiagnosticInfoField struct {
-	Present bool
-	Show    bool
-	Msg     string
+// GetDiagMessage is helper function for preparing message set to be shown to user.
+func GetDiagMessage(present bool, show bool, msg string) string {
+	if present && show {
+		return msg
+	}
+	return ""
 }
 
 func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODiagnosticInfo, infoErr error, loginResponse *auth.SSHLoginResponse, loginErr error) (errResult error) {
@@ -218,18 +221,16 @@ func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODia
 		return errResult
 	}
 
-	fields := []DiagnosticInfoField{
+	fields := []string{
 		// common fields across auth connector types.
-		{
-			Present: diag.Error != "",
-			Show:    cmd.config.Debug || loginErr == nil,
-			Msg:     FormatString("Original error", diag.Error),
-		},
-		{
-			Present: diag.CreateUserParams != nil,
-			Show:    true,
-			Msg:     formatUserDetails("Authentication details", diag.CreateUserParams),
-		},
+		GetDiagMessage(
+			diag.Error != "",
+			cmd.config.Debug || loginErr == nil,
+			FormatString("Original error", diag.Error)),
+		GetDiagMessage(
+			diag.CreateUserParams != nil,
+			true,
+			formatUserDetails("Authentication details", diag.CreateUserParams)),
 	}
 
 	// enrich the fields with auth-specific fields
@@ -239,19 +240,14 @@ func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODia
 
 	// we want this field last.
 	// raw data - debug
-	fields = append(fields,
-		DiagnosticInfoField{
-			Present: true,
-			Show:    cmd.config.Debug,
-			Msg:     FormatJSON("Raw data", diag),
-		})
+	fields = append(fields, GetDiagMessage(true, cmd.config.Debug, FormatJSON("Raw data", diag)))
 
 	const termWidth = 80
 
-	for _, f := range fields {
-		if f.Present && f.Show {
+	for _, msg := range fields {
+		if msg != "" {
 			fmt.Println(strings.Repeat("-", termWidth))
-			fmt.Println(f.Msg)
+			fmt.Println(msg)
 		}
 	}
 
