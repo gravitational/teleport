@@ -334,6 +334,10 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// TracingProvider is the provider to be used for exporting traces. In the event
+	// that tracing is disabled this will be a no-op provider that drops all spans.
+	TracingProvider *tracing.Provider
 }
 
 type keyPairKey struct {
@@ -753,6 +757,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
+		TracingProvider:     tracing.NoopProvider(),
 	}
 
 	process.registerAppDepend()
@@ -773,7 +778,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	if cfg.Tracing.Enabled {
 		if err := process.initTracingService(); err != nil {
-			process.log.Warn("Failed to initialize tracing service: %v.", err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -2392,7 +2397,8 @@ func (process *TeleportProcess) initDiagnosticService() error {
 }
 
 func (process *TeleportProcess) initTracingService() error {
-	process.log.Info("Initializing tracing provider and exporter.")
+	log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentTracing, process.id))
+	log.Info("Initializing tracing provider and exporter.")
 
 	attrs := []attribute.KeyValue{
 		attribute.String(tracing.ProcessIDKey, process.id),
@@ -2405,18 +2411,12 @@ func (process *TeleportProcess) initTracingService() error {
 		Attributes:   attrs,
 		ExporterURL:  process.Config.Tracing.ExporterURL,
 		SamplingRate: process.Config.Tracing.SamplingRate,
+		Logger:       log,
 	}
 
-	if len(process.Config.Tracing.KeyPairs) > 0 || len(process.Config.Tracing.CACerts) > 0 {
-		tlsConfig := &tls.Config{}
-		for _, pair := range process.Config.Tracing.KeyPairs {
-			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
-			if err != nil {
-				return trace.Wrap(err, "failed to read keypair: %+v", err)
-			}
-			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
-		}
-
+	tlsConfig := &tls.Config{}
+	// if a custom CA is specified, use a custom cert pool
+	if len(process.Config.Tracing.CACerts) > 0 {
 		pool := x509.NewCertPool()
 		for _, caCertPath := range process.Config.Tracing.CACerts {
 			caCert, err := os.ReadFile(caCertPath)
@@ -2428,40 +2428,44 @@ func (process *TeleportProcess) initTracingService() error {
 				return trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
 			}
 		}
-
 		tlsConfig.ClientCAs = pool
 		tlsConfig.RootCAs = pool
+	}
+
+	// add any custom certificates for mTLS
+	if len(process.Config.Tracing.KeyPairs) > 0 {
+		for _, pair := range process.Config.Tracing.KeyPairs {
+			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+			if err != nil {
+				return trace.Wrap(err, "failed to read keypair: %+v", err)
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+		}
+	}
+
+	if len(process.Config.Tracing.CACerts) > 0 || len(process.Config.Tracing.KeyPairs) > 0 {
 		traceConf.TLSConfig = tlsConfig
 	}
 
-	log := process.log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentTracing, process.id),
-	})
+	provider, err := tracing.NewTraceProvider(process.ExitContext(), traceConf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.TracingProvider = provider
 
-	process.RegisterFunc("tracing.init", func() error {
-		ctx, cancel := context.WithTimeout(process.ExitContext(), 5*time.Second)
-		defer cancel()
-		provider, err := tracing.NewTraceProvider(ctx, traceConf)
-		if err != nil {
-			return trace.Wrap(err)
+	process.OnExit("tracing.shutdown", func(payload interface{}) {
+		if payload == nil {
+			log.Info("Shutting down immediately.")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			warnOnErr(provider.Shutdown(ctx), log)
+		} else {
+			log.Infof("Shutting down gracefully.")
+			ctx := payloadContext(payload, log)
+			warnOnErr(provider.Shutdown(ctx), log)
 		}
-
-		process.OnExit("tracing.shutdown", func(payload interface{}) {
-			if payload == nil {
-				log.Info("Shutting down immediately.")
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				warnOnErr(provider.Shutdown(ctx), log)
-			} else {
-				log.Infof("Shutting down gracefully.")
-				ctx := payloadContext(payload, log)
-				warnOnErr(provider.Shutdown(ctx), log)
-			}
-			process.log.Info("Exited.")
-		})
-		return nil
+		process.log.Info("Exited.")
 	})
-
 	return nil
 }
 

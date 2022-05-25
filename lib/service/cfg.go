@@ -971,11 +971,11 @@ type TracingConfig struct {
 	// ExporterURL is the OTLP exporter URL to send spans to.
 	ExporterURL string
 
-	// KeyPairs are the key and certificate pairs that the tracing service will.
-	// use for mTLS.
+	// KeyPairs are the paths for key and certificate pairs that the tracing
+	// service will use for outbound TLS connections.
 	KeyPairs []KeyPairPath
 
-	// CACerts are the exporter ca certs to use.
+	// CACerts are the paths to the CA certs used to validate the collector.
 	CACerts []string
 
 	// SamplingRate is the sampling rate for the exporter.

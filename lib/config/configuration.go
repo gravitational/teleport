@@ -1420,7 +1420,7 @@ func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	cfg.Tracing.ExporterURL = fc.Tracing.ExporterURL
-	cfg.Tracing.SamplingRate = float64(fc.Tracing.SamplingRatePerMillion) / float64(1000000)
+	cfg.Tracing.SamplingRate = float64(fc.Tracing.SamplingRatePerMillion) / 1_000_000.0
 
 	for _, p := range fc.Tracing.KeyPairs {
 		// Check that the certificate exists on disk. This exists to provide the
@@ -1430,22 +1430,6 @@ func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		if !utils.FileExists(p.Certificate) {
 			return trace.NotFound("tracing_service cert does not exist: %s", p.Certificate)
-		}
-
-		certificateChainBytes, err := utils.ReadPath(p.Certificate)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if !utils.IsSelfSigned(certificateChain) {
-			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
-				return trace.BadParameter("unable to verify the tracing_service certificate chain in %v: %s",
-					p.Certificate, utils.UserMessageFromError(err))
-			}
 		}
 
 		cfg.Tracing.KeyPairs = append(cfg.Tracing.KeyPairs, service.KeyPairPath{

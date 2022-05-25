@@ -22,9 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
@@ -39,11 +36,13 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/gravitational/teleport"
 )
 
 const (
 	// DefaultExporterDialTimeout is the default timeout for dialing the exporter.
-	DefaultExporterDialTimeout = time.Second * 10
+	DefaultExporterDialTimeout = 5 * time.Second
 
 	// VersionKey is the attribute key for the teleport version.
 	VersionKey = "teleport.version"
@@ -95,7 +94,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = utils.NewLogger().WithField(trace.Component, teleport.ComponentTracing)
+		c.Logger = logrus.WithField(trace.Component, teleport.ComponentTracing)
 	}
 
 	return nil
@@ -140,7 +139,7 @@ func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error)
 	exporter, err := otlptrace.New(ctx, traceClient)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return nil, trace.ConnectionProblem(err, "failed to connect to tracing exporter %q: %v", cfg.ExporterURL, err)
+		return nil, trace.ConnectionProblem(err, "failed to connect to tracing exporter %s: %v", cfg.ExporterURL, err)
 	case err != nil:
 		return nil, trace.NewAggregate(err, traceClient.Stop(context.Background()))
 	}
@@ -168,7 +167,14 @@ func (p *Provider) Tracer(instrumentationName string, opts ...oteltrace.TracerOp
 
 // Shutdown shuts down the span processors in the order they were registered.
 func (p *Provider) Shutdown(ctx context.Context) error {
-	return trace.Wrap(p.provider.ForceFlush(ctx), p.provider.Shutdown(ctx))
+	return trace.NewAggregate(p.provider.ForceFlush(ctx), p.provider.Shutdown(ctx))
+}
+
+// NoopProvider creates a new Provider that never samples any spans.
+func NoopProvider() *Provider {
+	return &Provider{provider: sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.NeverSample()),
+	)}
 }
 
 // NewTraceProvider creates a new Provider that is configured per the provided Config.
@@ -213,7 +219,7 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	// override the global logging handled with one that uses the
 	// configured logger instead
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-		cfg.Logger.Warnf("failed to export traces: %v", err)
+		cfg.Logger.WithError(err).Warnf("failed to export traces.")
 	}))
 
 	// set global provider to our provider wrapper to have all tracers use the common TracerOptions
