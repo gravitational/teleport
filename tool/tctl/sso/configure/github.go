@@ -91,7 +91,9 @@ func ghRunFunc(cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flag
 		return trace.Wrap(err)
 	}
 
-	specResolveRedirectURL(cmd.Logger, spec, clt)
+	if spec.RedirectURL == "" {
+		spec.RedirectURL = ResolveCallbackURL(cmd.Logger, clt, "RedirectURL", "https://%v/v1/webapi/github/callback")
+	}
 
 	connector, err := types.NewGithubConnector(flags.connectorName, *spec)
 	if err != nil {
@@ -100,30 +102,32 @@ func ghRunFunc(cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flag
 	return trace.Wrap(utils.WriteYAML(os.Stdout, connector))
 }
 
-func specResolveRedirectURL(logger *logrus.Entry, spec *types.GithubConnectorSpecV3, clt auth.ClientI) {
-	if spec.RedirectURL == "" {
-		logger.Info("RedirectURL empty, resolving automatically.")
-		proxies, err := clt.GetProxies()
-		if err != nil {
-			logger.WithError(err).Error("unable to get proxy list.")
-		}
+// ResolveCallbackURL deals with common pattern of resolving callback URL for IdP to use.
+func ResolveCallbackURL(logger *logrus.Entry, clt auth.ClientI, fieldName string, callbackPattern string) string {
+	var callbackURL string
 
-		// find first proxy with public addr
-		for _, proxy := range proxies {
-			publicAddr := proxy.GetPublicAddr()
-			if publicAddr != "" {
-				spec.RedirectURL = fmt.Sprintf("https://%v/v1/webapi/github/callback", publicAddr)
-				break
-			}
-		}
+	logger.Infof("%v empty, resolving automatically.", fieldName)
+	proxies, err := clt.GetProxies()
+	if err != nil {
+		logger.WithError(err).Error("unable to get proxy list.")
+	}
 
-		// check if successfully set.
-		if spec.RedirectURL == "" {
-			logger.Warn("Unable to fill RedirectURL automatically, cluster's public address unknown.")
-		} else {
-			logger.Infof("RedirectURL set to %q", spec.RedirectURL)
+	// find first proxy with public addr
+	for _, proxy := range proxies {
+		publicAddr := proxy.GetPublicAddr()
+		if publicAddr != "" {
+			callbackURL = fmt.Sprintf(callbackPattern, publicAddr)
+			break
 		}
 	}
+
+	// check if successfully set.
+	if callbackURL == "" {
+		logger.Warnf("Unable to fill %v automatically, cluster's public address unknown.", fieldName)
+	} else {
+		logger.Infof("%v set to %q", fieldName, callbackURL)
+	}
+	return callbackURL
 }
 
 func specCheckRoles(logger *logrus.Entry, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt auth.ClientI) error {
