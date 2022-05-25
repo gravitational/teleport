@@ -438,7 +438,7 @@ func mapKeysToSlice(m map[string]string) []string {
 }
 
 func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

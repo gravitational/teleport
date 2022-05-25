@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -96,7 +97,9 @@ func (l *ListenerMuxWrapper) startAcceptingConnectionServiceListener() {
 	for {
 		conn, err := l.Listener.Accept()
 		if err != nil {
-			l.errC <- err
+			if !utils.IsUseOfClosedNetworkError(err) {
+				l.errC <- err
+			}
 			return
 		}
 		select {
