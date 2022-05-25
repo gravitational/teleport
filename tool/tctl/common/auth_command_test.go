@@ -278,7 +278,7 @@ type mockClient struct {
 	appSession     types.WebSession
 }
 
-func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+func (c *mockClient) GetClusterName(context.Context, ...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
 func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.UserCertsRequest) (*proto.Certs, error) {

@@ -59,3 +59,10 @@ func isLoopbackWithResolver(host string, resolver nameResolver) bool {
 
 	return true
 }
+
+const (
+	// ContextUser is a user set in the context of the request
+	ContextUser contextKey = "teleport-user"
+	// ContextClientAddr is a client address set in the context of the request
+	ContextClientAddr contextKey = "client-addr"
+)

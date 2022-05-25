@@ -1315,7 +1315,7 @@ func kubeProxyTLSConfig(cfg kubeProxyConfig) (*tls.Config, error) {
 // kubeProxyClient returns kubernetes client using local teleport proxy
 func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	authServer := cfg.t.Process.GetAuthServer()
-	clusterName, err := authServer.GetClusterName()
+	clusterName, err := authServer.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

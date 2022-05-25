@@ -41,7 +41,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetClusterName()
+	clusterName, err := s.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,7 +123,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 
 	log.Debugf("Signing database CSR for cluster %v.", req.ClusterName)
 
-	clusterName, err := s.GetClusterName()
+	clusterName, err := s.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

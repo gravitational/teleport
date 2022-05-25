@@ -297,7 +297,7 @@ func generateChallenge() (string, error) {
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
 func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
+	clientAddr, ok := ctx.Value(utils.ContextClientAddr).(net.Addr)
 	if !ok {
 		return nil, trace.BadParameter("logic error: client address was not set")
 	}

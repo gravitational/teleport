@@ -115,7 +115,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		Login:        sconn.User(),
 	}
 
-	clusterName, err := h.c.AccessPoint.GetClusterName()
+	clusterName, err := h.c.AccessPoint.GetClusterName(context.TODO())
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -293,7 +293,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 	log.Debugf("Successfully authenticated")
 
-	clusterName, err := h.c.AccessPoint.GetClusterName()
+	clusterName, err := h.c.AccessPoint.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

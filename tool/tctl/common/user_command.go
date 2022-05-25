@@ -298,7 +298,7 @@ func (u *UserCommand) Update(client auth.ClientI) error {
 
 // List prints all existing user accounts
 func (u *UserCommand) List(client auth.ClientI) error {
-	users, err := client.GetUsers(false)
+	users, err := client.GetUsers(context.TODO(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

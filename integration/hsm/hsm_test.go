@@ -156,7 +156,7 @@ func (t *teleportService) waitForShutdown(ctx context.Context) error {
 
 func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error {
 	t.log.Debugf("Waiting for %s to have local additional keys", t.name)
-	clusterName, err := t.process.GetAuthServer().GetClusterName()
+	clusterName, err := t.process.GetAuthServer().GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -492,7 +492,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 		return clt
 	}
 	testClient := func(clt *auth.Client) error {
-		_, err = clt.GetClusterName()
+		_, err = clt.GetClusterName(context.TODO())
 		return err
 	}
 	clt := getAdminClient()
@@ -570,8 +570,8 @@ func TestHSMDualAuthRotation(t *testing.T) {
 		return clt
 	}
 	testClient = func(clt *auth.Client) error {
-		_, err1 := clt.GetClusterName()
-		_, err2 := clt.GetClusterName()
+		_, err1 := clt.GetClusterName(context.TODO())
+		_, err2 := clt.GetClusterName(context.TODO())
 		return trace.NewAggregate(err1, err2)
 	}
 	clt = getAdminClient()
@@ -795,8 +795,8 @@ func TestHSMMigrate(t *testing.T) {
 		return clt
 	}
 	testClient := func(clt *auth.Client) error {
-		_, err1 := clt.GetClusterName()
-		_, err2 := clt.GetClusterName()
+		_, err1 := clt.GetClusterName(context.TODO())
+		_, err2 := clt.GetClusterName(context.TODO())
 		return trace.NewAggregate(err1, err2)
 	}
 	clt := getAdminClient()

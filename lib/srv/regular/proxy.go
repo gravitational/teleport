@@ -18,6 +18,7 @@ package regular
 
 import (
 	"bytes"
+	context2 "context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -327,7 +328,7 @@ func (t *proxySubsys) proxyToHost(
 		nodeWatcher *services.NodeWatcher
 		err         error
 	)
-	localCluster, _ := t.srv.proxyAccessPoint.GetClusterName()
+	localCluster, _ := t.srv.proxyAccessPoint.GetClusterName(context2.TODO())
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {

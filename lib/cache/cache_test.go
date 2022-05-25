@@ -1237,7 +1237,7 @@ func TestClusterName(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	outName, err := p.cache.GetClusterName()
+	outName, err := p.cache.GetClusterName(context.TODO())
 	require.NoError(t, err)
 
 	clusterName.SetResourceID(outName.GetResourceID())

@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -400,7 +401,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, a.DeleteToken(ctx, token.GetName())) })
 
 			requestContext := context.Background()
-			requestContext = context.WithValue(requestContext, ContextClientAddr, &net.IPAddr{})
+			requestContext = context.WithValue(requestContext, utils.ContextClientAddr, &net.IPAddr{})
 			requestContext = context.WithValue(requestContext, stsClientKey{}, tc.stsClient)
 
 			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {

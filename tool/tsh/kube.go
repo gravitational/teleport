@@ -796,7 +796,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		}
 		defer ac.Close()
 
-		cn, err := ac.GetClusterName()
+		cn, err := ac.GetClusterName(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}

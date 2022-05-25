@@ -41,7 +41,7 @@ type sitesGetter interface {
 }
 
 type authGetter interface {
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 	GetAuthServers() ([]types.Server, error)
 }
 
@@ -102,7 +102,7 @@ func getClusterName(info alpnproxy.ConnectionInfo) (string, error) {
 }
 
 func (s *AuthProxyDialerService) dialAuthServer(ctx context.Context, clusterNameFromSNI string) (net.Conn, error) {
-	clusterName, err := s.accessPoint.GetClusterName()
+	clusterName, err := s.accessPoint.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

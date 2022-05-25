@@ -870,7 +870,7 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// But can not get users or nodes
-	_, err = client.GetUsers(false)
+	_, err = client.GetUsers(context.TODO(), false)
 	fixtures.ExpectAccessDenied(c, err)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
@@ -979,14 +979,14 @@ func (s *TLSSuite) TestUsersCRUD(c *check.C) {
 	err = clt.UpsertPassword("user1", []byte("some pass"))
 	c.Assert(err, check.IsNil)
 
-	users, err := clt.GetUsers(false)
+	users, err := clt.GetUsers(context.TODO(), false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(users), check.Equals, 1)
 	c.Assert(users[0].GetName(), check.Equals, "user1")
 
 	c.Assert(clt.DeleteUser(context.TODO(), "user1"), check.IsNil)
 
-	users, err = clt.GetUsers(false)
+	users, err = clt.GetUsers(context.TODO(), false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(users), check.Equals, 0)
 }
@@ -2403,7 +2403,7 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Requests should fail.
-	_, err = client.GetClusterName()
+	_, err = client.GetClusterName(context.TODO())
 	c.Assert(err, check.NotNil)
 }
 
@@ -2950,7 +2950,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	suite.ExpectResource(c, w, 3*time.Second, auditConfigResource)
 
 	// update cluster name resource metadata
-	clusterNameResource, err := s.server.Auth().GetClusterName()
+	clusterNameResource, err := s.server.Auth().GetClusterName(context.TODO())
 	c.Assert(err, check.IsNil)
 
 	// update the resource with different labels to test the change
@@ -2972,7 +2972,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	err = s.server.Auth().SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
-	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
+	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName(context.TODO())
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
 }

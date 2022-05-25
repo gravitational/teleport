@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	context2 "context"
 	"fmt"
 	"os"
 	"sort"
@@ -359,7 +360,7 @@ func onRequestSearch(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	clusterNameResource, err := authClient.GetClusterName()
+	clusterNameResource, err := authClient.GetClusterName(context2.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}

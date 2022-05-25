@@ -607,14 +607,14 @@ func (a *Server) GetSessionRecordingConfig(ctx context.Context, opts ...services
 
 // GetClusterName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
-func (a *Server) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	return a.GetCache().GetClusterName(opts...)
+func (a *Server) GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error) {
+	return a.GetCache().GetClusterName(context.TODO(), opts...)
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -631,7 +631,7 @@ type LocalCAResponse struct {
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
 // the cluster has multiple TLS certs, they will all be concatenated.
 func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1604,7 +1604,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	// Emit deleted event.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1704,7 +1704,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", req.deviceResp.Response)
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1845,7 +1845,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		}
 
 		// Get default/static roles.
-		user, err := a.GetUser(context.TODO(), req.User, false)
+		user, err := a.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
@@ -2060,7 +2060,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	generateRequestsCurrent.Inc()
 	defer generateRequestsCurrent.Dec()
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2522,7 +2522,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 }
 
 func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2630,7 +2630,7 @@ func (a *Server) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2802,12 +2802,12 @@ func (a *Server) GetProxies() ([]types.Server, error) {
 
 // GetUser returns a user from the cache
 func (a *Server) GetUser(ctx context.Context, name string, withSecrets bool) (user types.User, err error) {
-	return a.GetCache().GetUser(context.TODO(), name, withSecrets)
+	return a.GetCache().GetUser(ctx, name, withSecrets)
 }
 
 // GetUsers returns users from the cache
-func (a *Server) GetUsers(withSecrets bool) (users []types.User, err error) {
-	return a.GetCache().GetUsers(withSecrets)
+func (a *Server) GetUsers(ctx context.Context, withSecrets bool) (users []types.User, err error) {
+	return a.GetCache().GetUsers(context.TODO(), withSecrets)
 }
 
 // GetTunnelConnections are not using recent cache as they are designed
@@ -3599,7 +3599,7 @@ func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
 // deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
 // auth server which are not currently used in any CAs.
 func (a *Server) deleteUnusedKeys(ctx context.Context) error {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}

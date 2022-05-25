@@ -41,7 +41,7 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetClusterName()
+	clusterName, err := s.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

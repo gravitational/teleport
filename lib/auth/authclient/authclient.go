@@ -63,7 +63,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	}
 
 	// Check connectivity by calling something on the client.
-	_, err = client.GetClusterName()
+	_, err = client.GetClusterName(ctx)
 	if err != nil {
 		directDialErr := trace.Wrap(err, "failed direct dial to auth server: %v", err)
 		if cfg.SSH == nil {
@@ -107,7 +107,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 			return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
 		}
 		// Check connectivity by calling something on the client.
-		if _, err := client.GetClusterName(); err != nil {
+		if _, err := client.GetClusterName(ctx); err != nil {
 			tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
 			return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
 		}

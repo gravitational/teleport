@@ -57,7 +57,7 @@ func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params 
 		return nil, trace.Wrap(err)
 	}
 
-	return getUsers(clt)
+	return getUsers(r.Context(), clt)
 }
 
 func (h *Handler) deleteUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -115,7 +115,7 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := m.GetUser(context.TODO(), req.Name, false)
+	user, err := m.GetUser(r.Context(), req.Name, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,8 +128,8 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	return ui.NewUser(user)
 }
 
-func getUsers(m userAPIGetter) ([]ui.User, error) {
-	users, err := m.GetUsers(false)
+func getUsers(ctx context.Context, m userAPIGetter) ([]ui.User, error) {
+	users, err := m.GetUsers(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -213,7 +213,7 @@ type userAPIGetter interface {
 	// UpdateUser updates a user
 	UpdateUser(ctx context.Context, user types.User) error
 	// GetUsers returns a list of users
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// DeleteUser deletes a user by name.
 	DeleteUser(ctx context.Context, user string) error
 }

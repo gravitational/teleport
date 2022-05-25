@@ -244,7 +244,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		sessionLingeringThreshold = *cfg.cachedSessionLingeringThreshold
 	}
 
-	auth, err := newSessionCache(sessionCacheOptions{
+	a, err := newSessionCache(sessionCacheOptions{
 		proxyClient:               cfg.ProxyClient,
 		accessPoint:               cfg.AccessPoint,
 		servers:                   []utils.NetAddr{cfg.AuthServers},
@@ -255,7 +255,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.auth = auth
+	h.auth = a
 
 	_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
 	if err != nil {
@@ -494,6 +494,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				XCSRF: csrfToken,
 			}
 
+			r, err := auth.WithClientAddr(r)
+			if err != nil {
+				h.log.WithError(err).Warn("Failed to get client address")
+			}
 			ctx, err := h.AuthenticateRequest(w, r, false)
 			if err == nil {
 				resp, err := newSessionResponse(ctx)
@@ -567,7 +571,7 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 // GET /webapi/sites/:site/context
 //
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	cn, err := h.cfg.AccessPoint.GetClusterName()
+	cn, err := h.cfg.AccessPoint.GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -584,17 +588,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	ctx := r.Context()
-	if ctx.Value(auth.ContextClientAddr) == nil {
-		host, err := utils.Host(r.RemoteAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ctx = context.WithValue(ctx, auth.ContextClientAddr, &net.TCPAddr{IP: net.ParseIP(host)})
-	}
-	ctx = context.WithValue(ctx, "client-addr", ctx.Value(auth.ContextClientAddr))
-
-	user, err := clt.GetUser(ctx, c.GetUser(), false)
+	user, err := clt.GetUser(r.Context(), c.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -612,7 +606,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := clt.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+	res, err := clt.GetAccessCapabilities(r.Context(), types.AccessCapabilitiesRequest{
 		RequestableRoles:   true,
 		SuggestedReviewers: true,
 	})
@@ -999,7 +993,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		TunnelPublicAddress: tunnelPublicAddr,
 	}
 
-	resource, err := h.cfg.ProxyClient.GetClusterName()
+	resource, err := h.cfg.ProxyClient.GetClusterName(r.Context())
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to query cluster name.")
 	} else {
@@ -1870,7 +1864,7 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := clt.GetClusterName()
+	clusterName, err := clt.GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1920,7 +1914,7 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1992,7 +1986,7 @@ func (h *Handler) siteNodeConnect(
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2021,7 +2015,7 @@ type siteSessionGenerateResponse struct {
 // siteSessionCreate generates a new site session that can be used by UI
 // The ServerID from request can be in the form of hostname, uuid, or ip address.
 func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2067,7 +2061,7 @@ type siteSessionsGetResponse struct {
 //
 // {"sessions": [{"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}, ...] }
 func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2108,7 +2102,7 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	h.log.Infof("web.getSession(%v)", sessionID)
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2220,7 +2214,7 @@ func clusterEventsList(ctx *SessionContext, site reversetunnel.RemoteSite, value
 
 	startKey := values.Get("startKey")
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(context.TODO(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2307,6 +2301,11 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
 	}
 
+	r, err := auth.WithClientAddr(r)
+	if err != nil {
+		h.log.WithError(err).Warn("Failed to get client address.")
+	}
+
 	// authenticate first:
 	ctx, err := h.AuthenticateRequest(w, r, true)
 	if err != nil {
@@ -2320,7 +2319,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	// get the site interface:
 	siteName := p.ByName("site")
 	if siteName == currentSiteShortcut {
-		res, err := h.cfg.ProxyClient.GetClusterName()
+		res, err := h.cfg.ProxyClient.GetClusterName(r.Context())
 		if err != nil {
 			onError(trace.Wrap(err))
 			return
@@ -2344,7 +2343,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		onError(trace.Wrap(err))
 		return
 	}
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
@@ -2414,7 +2413,7 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.BadParameter("invalid session ID %q", p.ByName("sid"))
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2560,6 +2559,10 @@ type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 // WithClusterAuth ensures that request is authenticated and is issued for existing cluster
 func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		r, err := auth.WithClientAddr(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			h.log.WithError(err).Warn("Failed to authenticate.")
@@ -2568,7 +2571,7 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 
 		clusterName := p.ByName("site")
 		if clusterName == currentSiteShortcut {
-			res, err := h.cfg.ProxyClient.GetClusterName()
+			res, err := h.cfg.ProxyClient.GetClusterName(r.Context())
 			if err != nil {
 				h.log.WithError(err).Warn("Failed to query cluster name.")
 				return nil, trace.Wrap(err)
@@ -2635,6 +2638,10 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 // WithAuth ensures that request is authenticated
 func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		r, err := auth.WithClientAddr(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			return nil, trace.Wrap(err)

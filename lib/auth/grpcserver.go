@@ -27,6 +27,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/uuid"
+	utils2 "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
@@ -232,7 +233,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			clusterName, err := auth.GetClusterName()
+			clusterName, err := auth.GetClusterName(context.TODO())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -317,7 +318,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
 	}
 
-	if clusterName, err := auth.GetClusterName(); err == nil {
+	if clusterName, err := auth.GetClusterName(context.TODO()); err == nil {
 		// we might want to enforce a filter for older clients in certain conditions
 		maybeFilterCertAuthorityWatches(stream.Context(), clusterName.GetClusterName(), auth.Checker.RoleNames(), &servicesWatch)
 	}
@@ -461,7 +462,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := auth.ServerWithRoles.GetUser(context.TODO(), req.Name, req.WithSecrets)
+	user, err := auth.ServerWithRoles.GetUser(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -478,7 +479,7 @@ func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthServi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	users, err := auth.ServerWithRoles.GetUsers(req.WithSecrets)
+	users, err := auth.ServerWithRoles.GetUsers(context.TODO(), req.WithSecrets)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1487,7 +1488,7 @@ func (g *GRPCServer) UpsertKubeService(ctx context.Context, req *proto.UpsertKub
 	// the server.Addr field. It's not useful for other services that want to
 	// connect to it (like a proxy). Remote address of the gRPC connection is
 	// the closest thing we have to a public IP for the service.
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
+	clientAddr, ok := ctx.Value(utils2.ContextClientAddr).(net.Addr)
 	if !ok {
 		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
 	}
@@ -1514,7 +1515,7 @@ func (g *GRPCServer) UpsertKubeServiceV2(ctx context.Context, req *proto.UpsertK
 	// the server.Addr field. It's not useful for other services that want to
 	// connect to it (like a proxy). Remote address of the gRPC connection is
 	// the closest thing we have to a public IP for the service.
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
+	clientAddr, ok := ctx.Value(utils2.ContextClientAddr).(net.Addr)
 	if !ok {
 		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
 	}
@@ -1782,7 +1783,7 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 		return trace.Wrap(err)
 	}
 
-	clusterName, err := actx.GetClusterName()
+	clusterName, err := actx.GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3239,7 +3240,7 @@ func (g *GRPCServer) UpsertWindowsDesktopService(ctx context.Context, service *t
 	// the server.Addr field. It's not useful for other services that want to
 	// connect to it (like a proxy). Remote address of the gRPC connection is
 	// the closest thing we have to a public IP for the service.
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
+	clientAddr, ok := ctx.Value(utils2.ContextClientAddr).(net.Addr)
 	if !ok {
 		return nil, status.Errorf(codes.FailedPrecondition, "client address not found in request context")
 	}
@@ -3815,7 +3816,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 }
 
 func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
-	clusterName, err := cfg.AuthServer.Services.GetClusterName()
+	clusterName, err := cfg.AuthServer.Services.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

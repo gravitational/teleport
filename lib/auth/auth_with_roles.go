@@ -1819,7 +1819,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	// The Ping method does not require special permissions since it only returns
 	// basic status information.  This is an intentional design choice.  Alternative
 	// methods should be used for relaying any sensitive information.
-	cn, err := a.authServer.GetClusterName()
+	cn, err := a.authServer.GetClusterName(context.TODO())
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
@@ -1858,7 +1858,7 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
-func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
+func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
@@ -1886,7 +1886,7 @@ func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetUsers(withSecrets)
+	return a.authServer.GetUsers(context.TODO(), withSecrets)
 }
 
 func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
@@ -1922,7 +1922,7 @@ func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets 
 			}
 		}
 	}
-	return a.authServer.Identity.GetUser(context.TODO(), name, withSecrets)
+	return a.authServer.Identity.GetUser(ctx, name, withSecrets)
 }
 
 // DeleteUser deletes an existng user in a backend by username.
@@ -1995,7 +1995,7 @@ func (a *ServerWithRoles) determineDesiredRolesAndTraits(req proto.UserCertsRequ
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	value := ctx.Value(ContextClientAddr)
+	value := ctx.Value(apiutils.ContextClientAddr)
 	if clientIP, ok := value.(*net.TCPAddr); ok {
 		return a.generateUserCerts(ctx, req, certRequestClientIP(clientIP.IP.String()))
 	}
@@ -2050,7 +2050,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	user, err := a.authServer.GetUser(context.TODO(), req.Username, false)
+	user, err := a.authServer.GetUser(ctx, req.Username, false)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", req.Username)
 		return nil, trace.AccessDenied("access denied")
@@ -2951,11 +2951,11 @@ func (a *ServerWithRoles) DeleteClusterName() error {
 }
 
 // GetClusterName gets the name of the cluster.
-func (a *ServerWithRoles) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (a *ServerWithRoles) GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterName, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetClusterName()
+	return a.authServer.GetClusterName(context.TODO())
 }
 
 // SetClusterName sets the name of the cluster. SetClusterName can only be called once.

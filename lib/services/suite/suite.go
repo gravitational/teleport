@@ -183,14 +183,14 @@ func newUser(name string, roles []string) types.User {
 
 func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
 	ctx := context.Background()
-	u, err := s.WebS.GetUsers(false)
+	u, err := s.WebS.GetUsers(context.TODO(), false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(u), check.Equals, 0)
 
 	c.Assert(s.WebS.UpsertPasswordHash("user1", []byte("hash")), check.IsNil)
 	c.Assert(s.WebS.UpsertPasswordHash("user2", []byte("hash2")), check.IsNil)
 
-	u, err = s.WebS.GetUsers(false)
+	u, err = s.WebS.GetUsers(context.TODO(), false)
 	c.Assert(err, check.IsNil)
 	userSlicesEqual(c, u, []types.User{newUser("user1", nil), newUser("user2", nil)})
 
@@ -211,7 +211,7 @@ func (s *ServicesTestSuite) UsersCRUD(c *check.C) {
 
 	c.Assert(s.WebS.DeleteUser(ctx, "user1"), check.IsNil)
 
-	u, err = s.WebS.GetUsers(false)
+	u, err = s.WebS.GetUsers(context.TODO(), false)
 	c.Assert(err, check.IsNil)
 	userSlicesEqual(c, u, []types.User{newUser("user2", nil)})
 
@@ -1090,7 +1090,7 @@ func (s *ServicesTestSuite) ClusterName(c *check.C, opts ...Option) {
 	err = s.ConfigS.SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
-	gotName, err := s.ConfigS.GetClusterName()
+	gotName, err := s.ConfigS.GetClusterName(context.TODO())
 	c.Assert(err, check.IsNil)
 	clusterName.SetResourceID(gotName.GetResourceID())
 	fixtures.DeepCompare(c, clusterName, gotName)
@@ -1098,13 +1098,13 @@ func (s *ServicesTestSuite) ClusterName(c *check.C, opts ...Option) {
 	err = s.ConfigS.DeleteClusterName()
 	c.Assert(err, check.IsNil)
 
-	_, err = s.ConfigS.GetClusterName()
+	_, err = s.ConfigS.GetClusterName(context.TODO())
 	fixtures.ExpectNotFound(c, err)
 
 	err = s.ConfigS.UpsertClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
-	gotName, err = s.ConfigS.GetClusterName()
+	gotName, err = s.ConfigS.GetClusterName(context.TODO())
 	c.Assert(err, check.IsNil)
 	clusterName.SetResourceID(gotName.GetResourceID())
 	fixtures.DeepCompare(c, clusterName, gotName)
@@ -1654,7 +1654,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				err = s.ConfigS.UpsertClusterName(clusterName)
 				c.Assert(err, check.IsNil)
 
-				out, err := s.ConfigS.GetClusterName()
+				out, err := s.ConfigS.GetClusterName(context.TODO())
 				c.Assert(err, check.IsNil)
 
 				err = s.ConfigS.DeleteClusterName()

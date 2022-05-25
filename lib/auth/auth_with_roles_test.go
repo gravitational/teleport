@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	utils2 "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -955,7 +956,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
 
 	// Attempt a request.
-	_, err = impersonatedClient.GetClusterName()
+	_, err = impersonatedClient.GetClusterName(context.TODO())
 	require.NoError(t, err)
 
 	// Attempt to generate new certs for a different (allowed) role.
@@ -2085,7 +2086,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, test.identity.I))
+			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, utils2.ContextUser, test.identity.I))
 			require.NoError(t, err)
 
 			s := &ServerWithRoles{
@@ -2280,7 +2281,7 @@ func TestKindClusterConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
-		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestUser(user.GetName()).I))
+		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, utils2.ContextUser, TestUser(user.GetName()).I))
 		require.NoError(t, err, trace.DebugReport(err))
 		s := &ServerWithRoles{
 			authServer: srv.AuthServer,
@@ -2713,7 +2714,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestBuiltin(types.RoleProxy).I))
+	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, utils2.ContextUser, TestBuiltin(types.RoleProxy).I))
 	require.NoError(t, err)
 
 	s := &ServerWithRoles{

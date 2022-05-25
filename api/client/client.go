@@ -371,16 +371,23 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-				value := ctx.Value("client-addr")
+				value := ctx.Value(utils.ContextClientAddr)
 				if addr, ok := value.(*net.TCPAddr); ok {
-					ctx = metadata.AddMetadataToContext(ctx, map[string]string{"client_ip": addr.IP.String()})
+					ctx = metadata.AddMetadataToContext(ctx, map[string]string{"client_addr": addr.String()})
 				}
 				return invoker(ctx, method, req, reply, cc, opts...)
 			},
 		),
 		grpc.WithChainStreamInterceptor(
 			otelgrpc.StreamClientInterceptor(),
-			metadata.StreamClientInterceptor),
+			metadata.StreamClientInterceptor,
+			func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+				value := ctx.Value(utils.ContextClientAddr)
+				if addr, ok := value.(*net.TCPAddr); ok {
+					ctx = metadata.AddMetadataToContext(ctx, map[string]string{"client_addr": addr.String()})
+				}
+				return streamer(ctx, desc, cc, method, opts...)
+			}),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
 	// to explicitly provide gprc.WithInsecure in the client's dial options.
@@ -616,8 +623,8 @@ func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (ty
 
 // GetUsers returns a list of users.
 // withSecrets controls whether authentication details are returned.
-func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
-	stream, err := c.grpc.GetUsers(context.TODO(), &proto.GetUsersRequest{
+func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
 		WithSecrets: withSecrets,
 	}, c.callOpts...)
 	if err != nil {

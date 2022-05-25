@@ -30,6 +30,7 @@ import (
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/oxy/utils"
+	utils2 "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -162,7 +163,7 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func getUserIdentityFromContext(ctx context.Context) (*tlsca.Identity, error) {
-	ctxUser := ctx.Value(auth.ContextUser)
+	ctxUser := ctx.Value(utils2.ContextUser)
 	userI, ok := ctxUser.(auth.IdentityGetter)
 	if !ok {
 		return nil, trace.BadParameter("failed to get user identity")

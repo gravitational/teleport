@@ -142,7 +142,7 @@ func FindPublicAddr(authClient auth.ReadAppsAccessPoint, appPublicAddr string, a
 	}
 
 	// Fall back to cluster name.
-	cn, err := authClient.GetClusterName()
+	cn, err := authClient.GetClusterName(context.TODO())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

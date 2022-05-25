@@ -41,11 +41,11 @@ func (h *Handler) getRolesHandle(w http.ResponseWriter, r *http.Request, params 
 		return nil, trace.Wrap(err)
 	}
 
-	return getRoles(clt)
+	return getRoles(clt, r.Context())
 }
 
-func getRoles(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	roles, err := clt.GetRoles(context.TODO())
+func getRoles(clt resourcesAPIGetter, ctx context.Context) ([]ui.ResourceItem, error) {
+	roles, err := clt.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

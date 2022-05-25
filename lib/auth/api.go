@@ -110,7 +110,7 @@ type ReadNodeAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -168,7 +168,7 @@ type ReadProxyAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -299,7 +299,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -395,7 +395,7 @@ type ReadKubernetesAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -456,7 +456,7 @@ type ReadAppsAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -523,7 +523,7 @@ type ReadDatabaseAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -590,7 +590,7 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -657,7 +657,7 @@ type AccessCache interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // Cache is a subset of the auth interface handling
@@ -673,7 +673,7 @@ type Cache interface {
 	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -718,7 +718,7 @@ type Cache interface {
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetUsers returns a list of local users registered with this domain
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)

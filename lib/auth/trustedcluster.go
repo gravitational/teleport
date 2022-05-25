@@ -185,7 +185,7 @@ func (a *Server) checkLocalRoles(ctx context.Context, roleMap types.RoleMap) err
 // DeleteTrustedCluster removes types.CertAuthority, services.ReverseTunnel,
 // and services.TrustedCluster resources.
 func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}

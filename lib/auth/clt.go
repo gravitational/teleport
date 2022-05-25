@@ -35,9 +35,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	utils2 "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -137,9 +139,23 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
-				if err == nil {
-					return conn, nil
+				if err != nil {
+					continue
 				}
+				if source, ok := ctx.Value(utils2.ContextClientAddr).(*net.TCPAddr); ok {
+					line := multiplexer.ProxyLine{
+						Protocol: "TCP4",
+						Source:   *source,
+						Destination: net.TCPAddr{
+							IP: net.ParseIP(addr),
+						},
+					}
+					if _, err := conn.Write(line.Bytes()); err != nil {
+						conn.Close()
+						return nil, err
+					}
+				}
+				return conn, nil
 			}
 			// not wrapping on purpose to preserve the original error
 			return nil, err
@@ -1409,8 +1425,8 @@ func (c *Client) CreateRole(role types.Role) error {
 }
 
 // GetClusterName returns a cluster name
-func (c *Client) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("configuration", "name"), url.Values{})
+func (c *Client) GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error) {
+	out, err := c.Get(ctx, c.Endpoint("configuration", "name"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1764,7 +1780,7 @@ type IdentityService interface {
 	DeleteUser(ctx context.Context, user string) error
 
 	// GetUsers returns a list of usernames registered in the system
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// ChangePassword changes user password
 	ChangePassword(req services.ChangePasswordReq) error

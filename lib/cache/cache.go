@@ -197,7 +197,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 func ForNode(cfg Config) Config {
 	var caFilter map[string]string
 	if cfg.ClusterConfig != nil {
-		clusterName, err := cfg.ClusterConfig.GetClusterName()
+		clusterName, err := cfg.ClusterConfig.GetClusterName(context.TODO())
 		if err == nil {
 			caFilter = types.CertAuthorityFilter{
 				types.HostCA: clusterName.GetClusterName(),
@@ -1328,7 +1328,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 }
 
 // GetClusterName gets the name of the cluster from the backend.
-func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (c *Cache) GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1337,7 +1337,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterName) {} // compile-time type assertion
 		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func() (interface{}, error) {
-			cfg, err := rg.clusterConfig.GetClusterName(opts...)
+			cfg, err := rg.clusterConfig.GetClusterName(context.TODO(), opts...)
 			ta(cfg)
 			return cfg, err
 		})
@@ -1348,7 +1348,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 		ta(cachedCfg)
 		return cachedCfg.Clone(), nil
 	}
-	return rg.clusterConfig.GetClusterName(opts...)
+	return rg.clusterConfig.GetClusterName(context.TODO(), opts...)
 }
 
 // GetRoles is a part of auth.Cache implementation
@@ -1631,7 +1631,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 // GetUser is a part of auth.Cache implementation.
 func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (user types.User, err error) {
 	if withSecrets { // cache never tracks user secrets
-		return c.Config.Users.GetUser(context.TODO(), name, withSecrets)
+		return c.Config.Users.GetUser(ctx, name, withSecrets)
 	}
 	rg, err := c.read()
 	if err != nil {
@@ -1639,13 +1639,13 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (use
 	}
 	defer rg.Release()
 
-	user, err = rg.users.GetUser(context.TODO(), name, withSecrets)
+	user, err = rg.users.GetUser(ctx, name, withSecrets)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if user, err := c.Config.Users.GetUser(context.TODO(), name, withSecrets); err == nil {
+		if user, err := c.Config.Users.GetUser(ctx, name, withSecrets); err == nil {
 			return user, nil
 		}
 	}
@@ -1653,16 +1653,16 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (use
 }
 
 // GetUsers is a part of auth.Cache implementation
-func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
+func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) (users []types.User, err error) {
 	if withSecrets { // cache never tracks user secrets
-		return c.Users.GetUsers(withSecrets)
+		return c.Users.GetUsers(context.TODO(), withSecrets)
 	}
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.users.GetUsers(withSecrets)
+	return rg.users.GetUsers(context.TODO(), withSecrets)
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation

@@ -140,7 +140,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 		return trace.Wrap(err)
 	}
 
-	clusterName, err := authClient.GetClusterName()
+	clusterName, err := authClient.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -54,7 +54,7 @@ type UsersService interface {
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(ctx context.Context, user string) error
 	// GetUsers returns a list of users registered with the local auth server
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
 }

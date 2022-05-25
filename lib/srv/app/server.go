@@ -636,7 +636,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 // session in the backend.
 func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
-	userType := r.Context().Value(auth.ContextUser)
+	userType := r.Context().Value(apiutils.ContextUser)
 	switch userType.(type) {
 	case auth.LocalUser, auth.RemoteUser:
 	default:

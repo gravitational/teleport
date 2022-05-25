@@ -758,7 +758,7 @@ Outer:
 }
 
 func NewReviewPermissionChecker(ctx context.Context, getter UserAndRoleGetter, username string) (ReviewPermissionChecker, error) {
-	user, err := getter.GetUser(context.TODO(), username, false)
+	user, err := getter.GetUser(ctx, username, false)
 	if err != nil {
 		return ReviewPermissionChecker{}, trace.Wrap(err)
 	}

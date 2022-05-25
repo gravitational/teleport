@@ -379,7 +379,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	const accessDeniedMsg = "[00] access denied"
 
 	var isRemoteUser bool
-	userTypeI := req.Context().Value(auth.ContextUser)
+	userTypeI := req.Context().Value(apiutils.ContextUser)
 	switch userTypeI.(type) {
 	case auth.LocalUser:
 

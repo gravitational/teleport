@@ -208,7 +208,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) err
 	if err := req.CheckAndSetDefaults(a.clock); err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -261,7 +261,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 	if ca == nil {
 		return trace.BadParameter("missing certificate authority")
 	}
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -317,7 +317,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 // does nothing if no rotation parameters were set up
 // or it is too early to rotate per schedule
 func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}

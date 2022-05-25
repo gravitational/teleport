@@ -763,7 +763,7 @@ func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	cn, err := s.a.GetClusterName()
+	cn, err := s.a.GetClusterName(context.TODO())
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err := s.a.GetStaticTokens()
@@ -802,7 +802,7 @@ func TestUpdateConfig(t *testing.T) {
 
 	// check first auth server and make sure it returns the correct values
 	// (original cluster name, new static tokens)
-	cn, err = s.a.GetClusterName()
+	cn, err = s.a.GetClusterName(context.TODO())
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err = s.a.GetStaticTokens()

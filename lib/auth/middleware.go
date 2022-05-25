@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/trace"
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
@@ -281,7 +282,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	pool, totalSubjectsLen, err := DefaultClientCertPool(t.cfg.AccessPoint, clusterName)
 	if err != nil {
 		var ourClusterName string
-		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
+		if clusterName, err := t.cfg.AccessPoint.GetClusterName(context.TODO()); err == nil {
 			ourClusterName = clusterName.GetClusterName()
 		}
 		t.log.Errorf("Failed to retrieve client pool. Client cluster %v, target cluster %v, error:  %v.", clusterName, ourClusterName, trace.DebugReport(err))
@@ -379,8 +380,22 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
-	return context.WithValue(ctx, ContextUser, user), nil
+	addr := peerInfo.Addr
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		caddr := md.Get("client_addr")
+		if len(caddr) > 0 {
+			naddr, err := utils.ParseHostPortAddr(caddr[0], 0)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			addr = &net.TCPAddr{
+				IP:   net.ParseIP(naddr.Host()),
+				Port: naddr.Port(0),
+			}
+		}
+	}
+	ctx = context.WithValue(ctx, apiutils.ContextClientAddr, addr)
+	return context.WithValue(ctx, apiutils.ContextUser, user), nil
 }
 
 // withAuthenticatedUserUnaryInterceptor is a gRPC unary server interceptor
@@ -459,7 +474,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 		// https://github.com/kubernetes/kubernetes/pull/34524/files#diff-2b283dde198c92424df5355f39544aa4R59
 		return nil, trace.AccessDenied("access denied: intermediaries are not supported")
 	}
-	localClusterName, err := a.AccessPoint.GetClusterName()
+	localClusterName, err := a.AccessPoint.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -588,7 +603,7 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// determine authenticated user based on the request parameters
-	requestWithContext := r.WithContext(context.WithValue(baseContext, ContextUser, user))
+	requestWithContext := r.WithContext(context.WithValue(baseContext, apiutils.ContextUser, user))
 	a.Handler.ServeHTTP(w, requestWithContext)
 }
 
@@ -606,8 +621,8 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	requestWithContext := context.WithValue(ctx, ContextUser, user)
-	requestWithContext = context.WithValue(requestWithContext, ContextClientAddr, conn.RemoteAddr())
+	requestWithContext := context.WithValue(ctx, apiutils.ContextUser, user)
+	requestWithContext = context.WithValue(requestWithContext, apiutils.ContextClientAddr, conn.RemoteAddr())
 	return requestWithContext, nil
 }
 

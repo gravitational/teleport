@@ -31,7 +31,7 @@ type mockAuthGetter struct {
 	servers []types.Server
 }
 
-func (m mockAuthGetter) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+func (m mockAuthGetter) GetClusterName(context.Context, ...services.MarshalOption) (types.ClusterName, error) {
 	return nil, nil
 }
 

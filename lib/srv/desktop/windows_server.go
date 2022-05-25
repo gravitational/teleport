@@ -315,7 +315,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning.")
 	}
 
-	clusterName, err := cfg.AccessPoint.GetClusterName()
+	clusterName, err := cfg.AccessPoint.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching cluster name")
 	}

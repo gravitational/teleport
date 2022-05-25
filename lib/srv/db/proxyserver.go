@@ -584,8 +584,8 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn *tls.Conn, params c
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if ctx.Value(auth.ContextClientAddr) == nil {
-		ctx = context.WithValue(ctx, auth.ContextClientAddr, &net.TCPAddr{IP: net.ParseIP(params.ClientIP)})
+	if ctx.Value(apiutils.ContextClientAddr) == nil {
+		ctx = context.WithValue(ctx, apiutils.ContextClientAddr, &net.TCPAddr{IP: net.ParseIP(params.ClientIP)})
 	}
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {

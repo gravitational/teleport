@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	utils2 "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -245,19 +246,31 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 // HandlerWithAuthFunc is http handler with passed auth context
 type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
 
+func WithClientAddr(r *http.Request) (*http.Request, error) {
+	ctx := r.Context()
+	if ctx.Value(utils2.ContextClientAddr) != nil {
+		return r, nil
+	}
+	addr, err := utils.ParseHostPortAddr(r.RemoteAddr, 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tcpAddr := &net.TCPAddr{
+		IP:   net.ParseIP(addr.Host()),
+		Port: addr.Port(0),
+	}
+	return r.WithContext(context.WithValue(ctx, utils2.ContextClientAddr, tcpAddr)), nil
+}
+
 func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
-		ctx := r.Context()
-		if ctx.Value(ContextClientAddr) == nil {
-			host, err := utils.Host(r.RemoteAddr)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			ctx = context.WithValue(ctx, ContextClientAddr, &net.TCPAddr{IP: net.ParseIP(host)})
+		r, err := WithClientAddr(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		authContext, err := s.Authorizer.Authorize(ctx)
+		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
 			// propagate connection problem error so we can differentiate
 			// between connection failed and access denied
@@ -866,7 +879,7 @@ func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, err := auth.GetUser(context.TODO(), p.ByName("user"), false)
+	user, err := auth.GetUser(r.Context(), p.ByName("user"), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -882,7 +895,7 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 }
 
 func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	users, err := auth.GetUsers(false)
+	users, err := auth.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1907,7 +1920,7 @@ type upsertRoleRawReq struct {
 }
 
 func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cn, err := auth.GetClusterName()
+	cn, err := auth.GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

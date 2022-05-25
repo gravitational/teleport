@@ -617,7 +617,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	}, diagCtx.info)
 
 	// make sure no users have been created.
-	users, err := a.GetUsers(false)
+	users, err := a.GetUsers(context.TODO(), false)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(users))
 }

@@ -93,13 +93,13 @@ func QueryNodeAccess(ctx context.Context, client auth.ClientI, req NodeAccessReq
 
 	// Since we can filter on specific usernames, this conditional will only retrieve and build the facts for the required user(s).
 	if req.Username != "" {
-		u, err := client.GetUser(context.TODO(), req.Username, false)
+		u, err := client.GetUser(ctx, req.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		resp.createUserPredicates(u, req.Login)
 	} else {
-		us, err := client.GetUsers(false)
+		us, err := client.GetUsers(context.TODO(), false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

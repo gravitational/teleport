@@ -54,7 +54,7 @@ func TestOnboardViaToken(t *testing.T) {
 
 	// Make sure the bot identity actually works.
 	botClient := testhelpers.MakeBotAuthClient(t, fc, ident)
-	_, err = botClient.GetClusterName()
+	_, err = botClient.GetClusterName(context.TODO())
 	require.NoError(t, err)
 }
 

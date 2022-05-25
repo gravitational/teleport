@@ -380,7 +380,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 		return trace.Wrap(err)
 	}
 
-	cn, err := clusterAPI.GetClusterName()
+	cn, err := clusterAPI.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -452,7 +452,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		// The actual O value doesn't matter as long as it matches on all
 		// MongoDB cluster members so set it to the Teleport cluster name
 		// to avoid hardcoding anything.
-		clusterName, err := clusterAPI.GetClusterName()
+		clusterName, err := clusterAPI.GetClusterName(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -591,7 +591,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 			return trace.Wrap(err)
 		}
 	} else {
-		cn, err := clusterAPI.GetClusterName()
+		cn, err := clusterAPI.GetClusterName(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -742,7 +742,7 @@ func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.Clie
 		return nil
 	}
 
-	localCluster, err := clusterAPI.GetClusterName()
+	localCluster, err := clusterAPI.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

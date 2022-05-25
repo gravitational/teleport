@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -168,7 +169,7 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		ctx := context.WithValue(context.Background(), auth.ContextUser, auth.LocalUser{Username: "user"})
+		ctx := context.WithValue(context.Background(), utils.ContextUser, auth.LocalUser{Username: "user"})
 		svc.Handle(writer, request.WithContext(ctx))
 	})
 	server := httptest.NewServer(mux)

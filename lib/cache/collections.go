@@ -1056,7 +1056,7 @@ func (c *clusterName) erase(ctx context.Context) error {
 
 func (c *clusterName) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
 	var noName bool
-	clusterName, err := c.ClusterConfig.GetClusterName()
+	clusterName, err := c.ClusterConfig.GetClusterName(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -1128,7 +1128,7 @@ func (c *user) erase(ctx context.Context) error {
 }
 
 func (c *user) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Users.GetUsers(false)
+	resources, err := c.Users.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

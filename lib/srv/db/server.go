@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	utils2 "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -800,7 +801,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
-	userType := ctx.Value(auth.ContextUser)
+	userType := ctx.Value(utils2.ContextUser)
 	switch userType.(type) {
 	case auth.LocalUser, auth.RemoteUser:
 	default:

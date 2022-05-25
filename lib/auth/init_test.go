@@ -408,7 +408,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterName()
+	cc, err := authServer.GetClusterName(context.TODO())
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEqual(t, clusterID, "")
@@ -418,7 +418,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterName()
+	cc, err = authServer.GetClusterName(context.TODO())
 	require.NoError(t, err)
 	require.Equal(t, cc.GetClusterID(), clusterID)
 }
@@ -441,7 +441,7 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cn, err := authServer.GetClusterName()
+	cn, err := authServer.GetClusterName(context.TODO())
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())

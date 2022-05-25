@@ -290,7 +290,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// is trying to change the name.
 	if trace.IsAlreadyExists(err) {
 		// Get current name of cluster from the backend.
-		cn, err := asrv.ClusterConfiguration.GetClusterName()
+		cn, err := asrv.ClusterConfiguration.GetClusterName(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -965,7 +965,7 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
 func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
-	clusterName, err := asrv.GetClusterName()
+	clusterName, err := asrv.GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1051,7 +1051,7 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 //
 // DELETE IN 11.0
 func migrateDBAuthority(ctx context.Context, asrv *Server) error {
-	localClusterName, err := asrv.GetClusterName()
+	localClusterName, err := asrv.GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}

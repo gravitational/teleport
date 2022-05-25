@@ -112,7 +112,7 @@ func (r *ResourceSuite) runUserResourceTest(c *check.C, withSecrets bool) {
 	b, err := s.GetUser(context.TODO(), "bob", withSecrets)
 	c.Assert(err, check.IsNil)
 	c.Assert(services.UsersEquals(bob, b), check.Equals, true, check.Commentf("dynamically inserted user does not match"))
-	allUsers, err := s.GetUsers(withSecrets)
+	allUsers, err := s.GetUsers(context.TODO(), withSecrets)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(allUsers), check.Equals, 2, check.Commentf("expected exactly two users"))
 	for _, user := range allUsers {
@@ -128,7 +128,7 @@ func (r *ResourceSuite) runUserResourceTest(c *check.C, withSecrets bool) {
 
 	// Advance the clock to let the users to expire.
 	r.bk.Clock().(clockwork.FakeClock).Advance(2 * time.Minute)
-	allUsers, err = s.GetUsers(withSecrets)
+	allUsers, err = s.GetUsers(context.TODO(), withSecrets)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(allUsers), check.Equals, 0, check.Commentf("expected all users to expire"))
 }

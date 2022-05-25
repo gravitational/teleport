@@ -37,7 +37,7 @@ type Getter interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // Match will match a list of applications with the passed in matcher function. Matcher
@@ -120,7 +120,7 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, p
 	// Try and match FQDN to public address of application within cluster.
 	servers, err := Match(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {
-		clusterName, err := clt.GetClusterName()
+		clusterName, err := clt.GetClusterName(context.TODO())
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

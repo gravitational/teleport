@@ -138,7 +138,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.BadParameter("invalid reset password token request type")
 	}
 
-	_, err = s.GetUser(context.TODO(), req.Name, false)
+	_, err = s.GetUser(ctx, req.Name, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -295,7 +295,7 @@ func (s *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetClusterName()
+	clusterName, err := s.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -507,7 +507,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
 
-		clusterName, err := a.GetClusterName()
+		clusterName, err := a.GetClusterName(context.TODO())
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to obtain cluster name.")
 		}

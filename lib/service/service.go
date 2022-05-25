@@ -1896,7 +1896,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		clusterName, err := authClient.GetClusterName()
+		clusterName, err := authClient.GetClusterName(context.TODO())
 		if err != nil {
 			return trace.Wrap(err)
 		}

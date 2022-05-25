@@ -84,7 +84,7 @@ type AccessPoint interface {
 	types.Semaphores
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
@@ -1109,7 +1109,7 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 // ComputeLockTargets computes lock targets inferred from a Server
 // and an IdentityContext.
 func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error) {
-	clusterName, err := s.GetAccessPoint().GetClusterName()
+	clusterName, err := s.GetAccessPoint().GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

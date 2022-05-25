@@ -144,9 +144,9 @@ func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
 // the requested site. If the site is local a client with the users local role
 // is returned. If the site is remote a client with the users remote role is
 // returned.
-func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnel.RemoteSite) (auth.ClientI, error) {
 	// get the name of the current cluster
-	clusterName, err := c.clt.GetClusterName()
+	clusterName, err := c.clt.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -470,7 +470,7 @@ type sessionCacheOptions struct {
 
 // newSessionCache returns new instance of the session cache
 func newSessionCache(config sessionCacheOptions) (*sessionCache, error) {
-	clusterName, err := config.proxyClient.GetClusterName()
+	clusterName, err := config.proxyClient.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

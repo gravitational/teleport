@@ -175,7 +175,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
-	userI := ctx.Value(ContextUser)
+	userI := ctx.Value(utils.ContextUser)
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -189,7 +189,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 			}
 		}
 		if ip == "" {
-			if addr, ok := ctx.Value(ContextClientAddr).(*net.TCPAddr); ok {
+			if addr, ok := ctx.Value(utils.ContextClientAddr).(*net.TCPAddr); ok {
 				ip = addr.IP.String()
 			} else {
 				return nil, trace.AccessDenied("IP pinning enabled but client IP is missing")
@@ -774,15 +774,6 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint) (*Conte
 	}, nil
 }
 
-type contextKey string
-
-const (
-	// ContextUser is a user set in the context of the request
-	ContextUser contextKey = "teleport-user"
-	// ContextClientAddr is a client address set in the context of the request
-	ContextClientAddr contextKey = "client-addr"
-)
-
 // WithDelegator alias for backwards compatibility
 var WithDelegator = utils.WithDelegator
 
@@ -790,7 +781,7 @@ var WithDelegator = utils.WithDelegator
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, teleport.UserSystem is returned.
 func ClientUsername(ctx context.Context) string {
-	userI := ctx.Value(ContextUser)
+	userI := ctx.Value(utils.ContextUser)
 	userWithIdentity, ok := userI.(IdentityGetter)
 	if !ok {
 		return teleport.UserSystem
@@ -806,7 +797,7 @@ func ClientUsername(ctx context.Context) string {
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, returns an error.
 func GetClientUsername(ctx context.Context) (string, error) {
-	userI := ctx.Value(ContextUser)
+	userI := ctx.Value(utils.ContextUser)
 	userWithIdentity, ok := userI.(IdentityGetter)
 	if !ok {
 		return "", trace.AccessDenied("missing identity")
@@ -821,7 +812,7 @@ func GetClientUsername(ctx context.Context) (string, error) {
 // ClientImpersonator returns the impersonator username of a remote client
 // making the call. If not present, returns an empty string
 func ClientImpersonator(ctx context.Context) string {
-	userI := ctx.Value(ContextUser)
+	userI := ctx.Value(utils.ContextUser)
 	userWithIdentity, ok := userI.(IdentityGetter)
 	if !ok {
 		return ""
@@ -835,7 +826,7 @@ func ClientImpersonator(ctx context.Context) string {
 // did not come from an HTTP request, metadata for teleport.UserSystem is
 // returned.
 func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
+	userI := ctx.Value(utils.ContextUser)
 	userWithIdentity, ok := userI.(IdentityGetter)
 	if !ok {
 		return apievents.UserMetadata{
@@ -853,7 +844,7 @@ func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
 // by a remote client making a call, with the specified username overriding the one
 // from the remote client.
 func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.UserMetadata {
-	userI := ctx.Value(ContextUser)
+	userI := ctx.Value(utils.ContextUser)
 	userWithIdentity, ok := userI.(IdentityGetter)
 	if !ok {
 		return apievents.UserMetadata{

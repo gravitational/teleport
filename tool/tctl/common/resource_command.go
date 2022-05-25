@@ -915,7 +915,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 	switch rc.ref.Kind {
 	case types.KindUser:
 		if rc.ref.Name == "" {
-			users, err := client.GetUsers(rc.withSecrets)
+			users, err := client.GetUsers(context.TODO(), rc.withSecrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

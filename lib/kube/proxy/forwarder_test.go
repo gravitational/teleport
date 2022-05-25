@@ -32,6 +32,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	utils2 "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
@@ -485,7 +486,7 @@ func TestAuthenticate(t *testing.T) {
 					},
 				},
 			}
-			ctx := context.WithValue(context.Background(), auth.ContextUser, tt.user)
+			ctx := context.WithValue(context.Background(), utils2.ContextUser, tt.user)
 			req = req.WithContext(ctx)
 
 			if tt.haveKubeCreds {

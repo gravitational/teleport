@@ -56,8 +56,8 @@ func NewClusterConfigurationService(backend backend.Backend) (*ClusterConfigurat
 }
 
 // GetClusterName gets the name of the cluster from the backend.
-func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, namePrefix))
+func (s *ClusterConfigurationService) GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, namePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			clusterNameNotFound.Inc()

@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -85,13 +86,13 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	require.NoError(t, err)
 	upsertLockWithPutEvent(ctx, t, srv, mfaLock)
 
-	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, utils.ContextUser, localUser))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Remove the MFA record from the user value being authorized.
 	localUser.Identity.MFAVerified = ""
-	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, utils.ContextUser, localUser))
 	require.NoError(t, err)
 
 	// Add an access request lock.
@@ -102,13 +103,13 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	upsertLockWithPutEvent(ctx, t, srv, requestLock)
 
 	// localUser's identity with a locked access request is locked out.
-	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, utils.ContextUser, localUser))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Not locked out without the request.
 	localUser.Identity.ActiveRequests = nil
-	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, utils.ContextUser, localUser))
 	require.NoError(t, err)
 
 	// Create a lock targeting the role written in the user's identity.
@@ -118,7 +119,7 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	require.NoError(t, err)
 	upsertLockWithPutEvent(ctx, t, srv, roleLock)
 
-	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, utils.ContextUser, localUser))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 }
@@ -148,12 +149,12 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 	upsertLockWithPutEvent(ctx, t, srv, nodeLock)
 
-	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, builtinRole))
+	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, utils.ContextUser, builtinRole))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	builtinRole.Identity.Username = ""
-	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, builtinRole))
+	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, utils.ContextUser, builtinRole))
 	require.NoError(t, err)
 }
 

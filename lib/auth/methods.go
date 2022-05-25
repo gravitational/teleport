@@ -434,7 +434,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
-	clusterName, err := s.GetClusterName()
+	clusterName, err := s.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

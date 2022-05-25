@@ -68,7 +68,7 @@ func (s *IdentityService) DeleteAllUsers() error {
 }
 
 // GetUsers returns a list of users registered with the local auth server
-func (s *IdentityService) GetUsers(withSecrets bool) ([]types.User, error) {
+func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		return s.getUsersWithSecrets()
 	}
@@ -161,7 +161,7 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) error
 	}
 
 	// Confirm user exists before updating.
-	if _, err := s.GetUser(context.TODO(), user.GetName(), false); err != nil {
+	if _, err := s.GetUser(ctx, user.GetName(), false); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -335,7 +335,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(user string, auth types.LocalAu
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
 func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (types.User, error) {
-	users, err := s.GetUsers(false)
+	users, err := s.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -352,7 +352,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 // GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns
 // first user specified with this identity.
 func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (types.User, error) {
-	users, err := s.GetUsers(false)
+	users, err := s.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -368,7 +368,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (type
 
 // GetUserByGithubIdentity returns the first found user with specified Github identity
 func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (types.User, error) {
-	users, err := s.GetUsers(false)
+	users, err := s.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -384,7 +384,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (ty
 
 // DeleteUser deletes a user with all the keys from the backend
 func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
-	_, err := s.GetUser(context.TODO(), user, false)
+	_, err := s.GetUser(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

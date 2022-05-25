@@ -250,7 +250,7 @@ type mockClusterName struct {
 	name string
 }
 
-func (c mockAuthClient) GetClusterName(_ ...services.MarshalOption) (types.ClusterName, error) {
+func (c mockAuthClient) GetClusterName(ctx context.Context, opts ...services.MarshalOption) (types.ClusterName, error) {
 	return mockClusterName{name: c.clusterName}, nil
 }
 

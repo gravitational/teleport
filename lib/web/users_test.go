@@ -104,7 +104,7 @@ func TestCRUDs(t *testing.T) {
 	require.Contains(t, user.Roles, "newrole")
 
 	// test list
-	users, err := getUsers(m)
+	users, err := getUsers(context.TODO(), m)
 	require.Nil(t, err)
 	require.Len(t, users, 1)
 	require.Equal(t, "testname", users[0].Name)
@@ -156,7 +156,7 @@ func TestCRUDErrors(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Nil(t, user)
 
-	users, err := getUsers(m)
+	users, err := getUsers(context.TODO(), m)
 	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, users)
 
@@ -217,7 +217,7 @@ func (m *mockedUserAPIGetter) UpdateUser(ctx context.Context, user types.User) e
 	return trace.NotImplemented("mockUpdateUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) GetUsers(withSecrets bool) ([]types.User, error) {
+func (m *mockedUserAPIGetter) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if m.mockGetUsers != nil {
 		return m.mockGetUsers(withSecrets)
 	}

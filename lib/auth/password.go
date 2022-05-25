@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	utils2 "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -61,7 +62,7 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	}
 
 	clientIP := ""
-	if addr, ok := ctx.Value(ContextClientAddr).(*net.TCPAddr); ok {
+	if addr, ok := ctx.Value(utils2.ContextClientAddr).(*net.TCPAddr); ok {
 		clientIP = addr.IP.String()
 	}
 	webSession, err := s.createUserWebSession(ctx, user, clientIP)
@@ -361,7 +362,7 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	user, err := s.GetUser(context.TODO(), username, false)
+	user, err := s.GetUser(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
