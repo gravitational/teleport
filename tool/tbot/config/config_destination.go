@@ -51,6 +51,10 @@ type DestinationConfig struct {
 	Roles   []string         `yaml:"roles,omitempty"`
 	Configs []TemplateConfig `yaml:"configs,omitempty"`
 
+	// Kinds is a deprecated field that remains for compatibility and should be
+	// removed in a future release in v11 or later.
+	Kinds []string `yaml:"kinds,omitempty"`
+
 	Database *DatabaseConfig `yaml:"database,omitempty"`
 }
 
@@ -105,6 +109,12 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if len(dc.Kinds) > 0 {
+		log.Warnf("The `kinds` configuration field has been deprecated and " +
+			"will be removed in a future release. It is now a no-op and can " +
+			"safely be removed the configuration file.")
 	}
 
 	return nil
