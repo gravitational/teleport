@@ -478,20 +478,3 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
 If HTTPS proxy setting cannot be configured for the application, try using
 "{{.endpointURL}}" as the AWS endpoint URL.
 `))
-
-// awsExecCommandTemplate is the message that gets printed to a user when a
-// command is executed after the AWS proxy is started.
-var awsExecCommandTemplate = template.Must(template.New("").Parse(
-	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
-
-The following environment variables are set for the command:
-{{- range $key, $value := .envVars }}
-  {{ $key }}={{ $value -}}
-{{ end }}
-
-If HTTPS proxy setting cannot be configured for the application, try using
-"{{.endpointURL}}" as the AWS endpoint URL.
-
-Executing command: {{.command}}
-
-`))

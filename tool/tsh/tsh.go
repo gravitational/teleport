@@ -488,10 +488,6 @@ func Run(args []string, opts ...cliOption) error {
 	aws := app.Command("aws", "Access AWS API.")
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI.").StringsVar(&cf.AWSCommandArgs)
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
-	aws.Flag("port", " Specifies the source port used by the HTTPS proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
-	aws.Flag("endpoint-url-port", " Specifies the port used for AWS endpoint URL.").Short('e').StringVar(&cf.AWSEndpointURLPort)
-	aws.Flag("exec", "Execute provided command under proxy instead of running AWS CLI.").Default("false").BoolVar(&cf.LocalExec)
-	aws.Flag("verbose", "Show proxy information when executing a command.").Short('v').BoolVar(&cf.Verbose)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")

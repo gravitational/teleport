@@ -45,15 +45,6 @@ const (
 )
 
 func onAWS(cf *CLIConf) error {
-	cmd := exec.Command(awsCLIBinaryName, cf.AWSCommandArgs...)
-	if cf.LocalExec {
-		if len(cf.AWSCommandArgs) == 0 {
-			return trace.BadParameter("Please provide a command to execute.")
-		}
-
-		cmd = exec.Command(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
-	}
-
 	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -70,24 +61,7 @@ func onAWS(cf *CLIConf) error {
 		}
 	}()
 
-	if cf.Verbose {
-		envVars, err := awsApp.GetEnvVars()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		templateData := map[string]interface{}{
-			"envVars":     envVars,
-			"address":     awsApp.GetForwardProxyAddr(),
-			"endpointURL": awsApp.GetEndpointURL(),
-			"command":     cmd.String(),
-		}
-
-		if err = awsExecCommandTemplate.Execute(os.Stdout, templateData); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
+	cmd := exec.Command(awsCLIBinaryName, cf.AWSCommandArgs...)
 	return awsApp.RunCommand(cmd)
 }
 
@@ -207,12 +181,6 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
 		"AWS_CA_BUNDLE":         caPath,
-
-		// Required for GO SDK to use AWS_CA_BUNDLE properly.
-		"AWS_SDK_LOAD_CONFIG": "true",
-
-		// Required for JavaScript SDK to use correct CA.
-		"NODE_EXTRA_CA_CERTS": caPath,
 
 		// Set proxy settings.
 		"HTTPS_PROXY": "http://" + a.localForwardProxy.GetAddr(),
