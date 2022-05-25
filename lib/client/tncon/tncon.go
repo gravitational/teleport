@@ -36,6 +36,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// A buffer of 100 should provide ample buffer to hold several VT
+// sequences (which are 5 bytes each max) and output them to the
+// terminal in real time.
+const sequenceBufferSize = 100
+
 var (
 	sequenceBuffer *bufferedChannelPipe
 

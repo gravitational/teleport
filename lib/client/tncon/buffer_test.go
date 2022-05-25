@@ -113,29 +113,17 @@ func TestBufferedChannelPipeRead(t *testing.T) {
 			readLen:  1,
 			expectN:  1,
 		}, {
-			desc:     "read with sufficient buffer",
+			desc:     "read with equal buffer",
 			buffer:   10,
 			writeLen: 10,
 			readLen:  10,
 			expectN:  10,
 		}, {
-			desc:     "large read with sufficient buffer",
-			buffer:   255,
-			writeLen: 255,
-			readLen:  255,
-			expectN:  255,
-		}, {
-			desc:     "read with smaller write",
+			desc:     "large read with large buffer",
 			buffer:   100,
-			writeLen: 10,
-			readLen:  100,
-			expectN:  10,
-		}, {
-			desc:     "read with larger write",
-			buffer:   100,
-			writeLen: 100,
-			readLen:  10,
-			expectN:  10,
+			writeLen: 10000,
+			readLen:  10000,
+			expectN:  10000,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -151,7 +139,7 @@ func TestBufferedChannelPipeRead(t *testing.T) {
 			go buffer.Write(write)
 
 			p := make([]byte, tc.readLen)
-			n, err := buffer.Read(p)
+			n, err := io.ReadFull(buffer, p)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectN, n)
 			require.Equal(t, write[:n], p[:n])

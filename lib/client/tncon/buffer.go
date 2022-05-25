@@ -8,11 +8,6 @@ import (
 	"io"
 )
 
-// A buffer of 100 should provide ample buffer to hold several VT
-// sequences (which are 5 bytes each max) and output them to the
-// terminal in real time.
-const sequenceBufferSize = 100
-
 // bufferedChannelPipe is a synchronous buffered pipe implemented with a channel. This pipe
 // is much more efficient than the standard io.Pipe, and can keep up with real-time
 // shell output, which is needed for the lib/client/tncon implementation.
