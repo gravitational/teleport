@@ -2532,6 +2532,36 @@ impl ClientDriveQueryDirectoryResponse {
         io_status: NTSTATUS,
         buffer: Option<FsInformationClass>,
     ) -> RdpResult<Self> {
+        // This match block ensures that the passed parameters are in a configuration that's
+        // explicitly supported by the length calculation (below) and the self.encode() method.
+        match io_status {
+            NTSTATUS::STATUS_SUCCESS => {
+                if buffer.is_none() {
+                    return Err(invalid_data_error(
+                        "a ClientDriveQueryDirectoryResponse with NTSTATUS::STATUS_SUCCESS \
+                        should have Some(FsInformationClass) buffer, got None",
+                    ));
+                }
+            }
+            NTSTATUS::STATUS_NOT_SUPPORTED
+            | NTSTATUS::STATUS_NO_MORE_FILES
+            | NTSTATUS::STATUS_UNSUCCESSFUL => {
+                if buffer.is_some() {
+                    return Err(invalid_data_error(&format!(
+                        "a ClientDriveQueryDirectoryResponse with NTSTATUS = {:?} \
+                        should have a None buffer, got {:?}",
+                        io_status, buffer,
+                    )));
+                }
+            }
+            _ => {
+                return Err(invalid_data_error(&format!(
+                    "received unsupported io_status for ClientDriveQueryDirectoryResponse: {:?}",
+                    io_status
+                )))
+            }
+        }
+
         let length = match buffer {
             Some(ref fs_information_class) => match fs_information_class {
                 FsInformationClass::FileBothDirectoryInformation(fs_info_class) => {
