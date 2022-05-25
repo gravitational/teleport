@@ -51,6 +51,7 @@ export default class TtyTerminal {
     this.term = new Terminal({
       cursorBlink: false,
       fontFamily: this.options.fontFamily,
+      scrollback: 5000,
       theme: {
         background: theme.colors.primary.darker,
       },
