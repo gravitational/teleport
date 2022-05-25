@@ -106,7 +106,7 @@ impl Client {
     ///
     /// The data passed to this function should be valid UTF-8 text.
     pub fn update_clipboard(&mut self, data: Vec<u8>) -> RdpResult<Vec<Vec<u8>>> {
-        // convert LF to CRLF, as required by CF_OEMTEXT, CF_TEXT and CF_UNICODETEXT
+        // convert LF to CRLF, as required by CF_TEXT and CF_UNICODETEXT
         let len_orig = data.len();
         let mut converted = Vec::with_capacity(len_orig);
         for i in 0..len_orig {
@@ -551,7 +551,7 @@ fn encode_clipboard(mut data: Vec<u8>) -> RdpResult<(Vec<u8>, ClipboardFormat)> 
             data.push(0);
         }
 
-        Ok((data, ClipboardFormat::CF_OEMTEXT))
+        Ok((data, ClipboardFormat::CF_TEXT))
     } else {
         let str = std::str::from_utf8(&data)
             .map_err(|_| invalid_data_error("invalid UTF-8 clipboard data"))?;
@@ -1064,7 +1064,7 @@ mod tests {
         assert_eq!(ClipboardPDUType::CB_FORMAT_LIST, header.msg_type);
         assert_eq!(1, format_list.format_names.len());
         assert_eq!(
-            ClipboardFormat::CF_OEMTEXT as u32,
+            ClipboardFormat::CF_TEXT as u32,
             format_list.format_names[0].format_id
         );
 
@@ -1072,9 +1072,7 @@ mod tests {
         // (with a null-terminating character)
         assert_eq!(
             String::from("abc\0").into_bytes(),
-            *c.clipboard
-                .get(&(ClipboardFormat::CF_OEMTEXT as u32))
-                .unwrap()
+            *c.clipboard.get(&(ClipboardFormat::CF_TEXT as u32)).unwrap()
         );
     }
 
@@ -1082,14 +1080,10 @@ mod tests {
     fn update_clipboard_conversion() {
         struct Item(&'static [u8], &'static [u8], ClipboardFormat);
         for Item(input, expected, format) in [
-            Item(b"abc\0", b"abc\0", ClipboardFormat::CF_OEMTEXT), // already null-terminated, no conversion necessary
-            Item(b"\n123", b"\r\n123\0", ClipboardFormat::CF_OEMTEXT), // starts with LF
-            Item(b"def\r\n", b"def\r\n\0", ClipboardFormat::CF_OEMTEXT), // already CRLF, no conversion necessary
-            Item(
-                b"gh\r\nij\nk",
-                b"gh\r\nij\r\nk\0",
-                ClipboardFormat::CF_OEMTEXT,
-            ), // mixture of both
+            Item(b"abc\0", b"abc\0", ClipboardFormat::CF_TEXT), // already null-terminated, no conversion necessary
+            Item(b"\n123", b"\r\n123\0", ClipboardFormat::CF_TEXT), // starts with LF
+            Item(b"def\r\n", b"def\r\n\0", ClipboardFormat::CF_TEXT), // already CRLF, no conversion necessary
+            Item(b"gh\r\nij\nk", b"gh\r\nij\r\nk\0", ClipboardFormat::CF_TEXT), // mixture of both
             Item(
                 "🤑".as_bytes(),
                 &[62, 216, 17, 221, 0, 0],
