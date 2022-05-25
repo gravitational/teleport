@@ -340,9 +340,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.MACAlgorithms != nil {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
-	if fc.CASignatureAlgorithm != nil {
-		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
-	}
 
 	// Read in how nodes will validate the CA. A single empty string in the file
 	// conf should indicate no pins.

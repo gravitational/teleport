@@ -210,7 +210,6 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      signer,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,

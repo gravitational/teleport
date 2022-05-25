@@ -191,11 +191,6 @@ teleport:
         write_max_capacity: int
         write_target_value: float
 
-    # CA Signing algorithm used for OpenSSH Certificates
-    # Defaults to rsa-sha2-512 in 4.3 and above.
-    # valid values are: ssh-rsa, rsa-sha2-256, rsa-sha2-512; ssh-rsa is SHA1
-    ca_signature_algo: "rsa-sha2-512"
-
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
     ciphers:

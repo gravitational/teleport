@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -76,7 +75,6 @@ func TestServerKeyAuth(t *testing.T) {
 			key: func() ssh.PublicKey {
 				rawCert, err := ta.GenerateHostCert(services.HostCertParams{
 					CASigner:      caSigner,
-					CASigningAlg:  defaults.CASignatureAlgorithm,
 					PublicHostKey: pub,
 					HostID:        "host-id",
 					NodeName:      con.User(),
@@ -101,7 +99,6 @@ func TestServerKeyAuth(t *testing.T) {
 			key: func() ssh.PublicKey {
 				rawCert, err := ta.GenerateUserCert(services.UserCertParams{
 					CASigner:          caSigner,
-					CASigningAlg:      defaults.CASignatureAlgorithm,
 					PublicUserKey:     pub,
 					Username:          con.User(),
 					AllowedLogins:     []string{con.User()},

@@ -595,21 +595,6 @@ teleport:
 `,
 			outError: true,
 		},
-		{
-			desc: "change CA signature alg, valid",
-			inConfig: `
-teleport:
-  ca_signature_algo: ssh-rsa
-`,
-		},
-		{
-			desc: "invalid CA signature alg, not valid",
-			inConfig: `
-teleport:
-  ca_signature_algo: foobar
-`,
-			outError: true,
-		},
 	}
 
 	for _, tt := range tests {
