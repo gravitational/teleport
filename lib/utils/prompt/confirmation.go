@@ -99,7 +99,9 @@ func Input(ctx context.Context, out io.Writer, in Reader, question string) (stri
 // the answer is read from in.
 // The in reader has to be a terminal.
 func Password(ctx context.Context, out io.Writer, in SecureReader, question string) (string, error) {
-	fmt.Fprintf(out, "%s:\n", question)
+	if question != "" {
+		fmt.Fprintf(out, "%s:\n", question)
+	}
 	answer, err := in.ReadPassword(ctx)
 	if err != nil {
 		return "", trace.Wrap(err, "failed reading prompt response")
