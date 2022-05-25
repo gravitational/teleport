@@ -65,12 +65,25 @@ EOF
   You can skip this step if you already have a `teleport.yaml` file locally that you'd like to use.
 </Admonition>
 
-You can create the namespace for the config and add the `teleport.yaml` from your local disk like this:
+Create the namespace for the config and add the `teleport.yaml` from your local
+disk:
 
 ```code
 $ kubectl create namespace teleport
 $ kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml
 ```
+
+<Admonition type="note">
+  The name of the `ConfigMap` used must match the name of the Helm release that you install below (the name just after `helm install`).
+  In this example, it's `teleport`.
+
+  The name (key) of the configuration file uploaded to your `ConfigMap` must be `teleport.yaml`. If your configuration file is named differently
+  on disk, you can specify the key that should be used in the `kubectl` command:
+
+  ```code
+  $ kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml=my-teleport-config-file.yaml
+  ```
+</Admonition>
 
 <ScopedBlock scope="enterprise">
 
@@ -90,18 +103,6 @@ $ kubectl -n teleport create secret generic license --from-file=license.pem
 
 </ScopedBlock>
 
-<Admonition type="note">
-  The name of the `ConfigMap` used must match the name of the Helm release that you install below (the name just after `helm install`).
-  In this example, it's `teleport`.
-
-  The name (key) of the configuration file uploaded to your `ConfigMap` must be `teleport.yaml`. If your configuration file is named differently
-  on disk, you can specify the key that should be used in the `kubectl` command:
-
-  ```code
-  $ kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml=my-teleport-config-file.yaml
-  ```
-</Admonition>
-
 After the `ConfigMap` has been created<ScopedBlock scope="enterprise"> and you
 have deployed the secret containing your license file</ScopedBlock>, you can
 deploy the Helm chart into a Kubernetes cluster with a command like this:
@@ -110,7 +111,6 @@ deploy the Helm chart into a Kubernetes cluster with a command like this:
 
 ```code
 $ helm install teleport teleport/teleport-cluster \
-  --create-namespace \
   --namespace teleport \
   --set chartMode=custom
 ```
@@ -120,7 +120,6 @@ $ helm install teleport teleport/teleport-cluster \
 
 ```code
 $ helm install teleport teleport/teleport-cluster \
-  --create-namespace \
   --namespace teleport \
   --set chartMode=custom \
   --set enterprise=true
