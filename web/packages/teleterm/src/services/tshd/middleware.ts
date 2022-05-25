@@ -1,10 +1,12 @@
-/* eslint-disable @typescript-eslint/ban-types */
 import * as grpc from '@grpc/grpc-js';
 import Logger from 'teleterm/logger';
+import { isObject, transform } from 'lodash';
+
+const SENSITIVE_PROPERTIES = ['passw'];
 
 export type UnaryInterceptor = (
-  options: any,
-  nextCall: any
+  options: grpc.InterceptorOptions,
+  nextCall: (options: grpc.InterceptorOptions) => grpc.InterceptingCall
 ) => grpc.InterceptingCall;
 
 // This is custom grpc middleware implementation that uses JS Proxy to intercept method calls
@@ -65,18 +67,20 @@ export default function middleware<T extends Record<string, any>>(
   });
 }
 
-export const withLogging = (logger: Logger) => {
-  const interceptor: UnaryInterceptor = (options: any, nextCall: Function) => {
+export const withLogging = (logger: Logger): UnaryInterceptor => {
+  return (options, nextCall) => {
     const method = options.method_definition.path;
-    const params = {
-      start(metadata: any, listener: any, next: Function) {
+    const params: grpc.Requester = {
+      start(metadata, listener, next) {
         next(metadata, {
           onReceiveMetadata(metadata, next) {
             next(metadata);
           },
 
           onReceiveMessage(message, next) {
-            const json = message ? message.toObject() : null;
+            const json = message
+              ? filterSensitiveProperties(message.toObject())
+              : null;
             logger.info(`receive: ${method} -> (${JSON.stringify(json)})`);
             next(message);
           },
@@ -91,14 +95,39 @@ export const withLogging = (logger: Logger) => {
         });
       },
 
-      sendMessage(message: any, next: Function) {
-        logger.info(`send: ${method}(${JSON.stringify(message.toObject())})`);
+      sendMessage(message, next) {
+        logger.info(
+          `send: ${method}(${JSON.stringify(
+            filterSensitiveProperties(message.toObject())
+          )})`
+        );
         next(message);
       },
     };
 
     return new grpc.InterceptingCall(nextCall(options), params);
   };
-
-  return interceptor;
 };
+
+function filterSensitiveProperties(toFilter: object): object {
+  return transform(
+    toFilter,
+    (result: object, value: any, key: any) => {
+      if (
+        SENSITIVE_PROPERTIES.some(
+          sensitiveProp =>
+            typeof key === 'string' && key.includes(sensitiveProp)
+        )
+      ) {
+        result[key] = '~FILTERED~';
+        return;
+      }
+      if (isObject(value)) {
+        result[key] = filterSensitiveProperties(value);
+        return;
+      }
+      result[key] = value;
+    },
+    {}
+  );
+}
