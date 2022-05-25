@@ -16,6 +16,8 @@ limitations under the License.
 
 package aws
 
+import "strings"
+
 const (
 	// TagKeyTeleportCreated defines a tag key that indicates the the cloud
 	// resource is created by Teleport.
@@ -28,3 +30,15 @@ const (
 	// TagValueTrue is the tag value "true" in string format.
 	TagValueTrue = "true"
 )
+
+// IsTagValueTrue checks whether a tag value is true.
+func IsTagValueTrue(value string) bool {
+	// Here doing a lenient negative check. Any other value is assumed to be
+	// true.
+	switch strings.ToLower(value) {
+	case "false", "no", "disable", "disabled":
+		return false
+	default:
+		return true
+	}
+}

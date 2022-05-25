@@ -126,7 +126,7 @@ func (f *elastiCacheFetcher) getManagedUsersForGroup(ctx context.Context, region
 		}
 		for _, tag := range userTags {
 			if aws.StringValue(tag.Key) == libaws.TagKeyTeleportManaged &&
-				aws.StringValue(tag.Value) == libaws.TagValueTrue {
+				libaws.IsTagValueTrue(aws.StringValue(tag.Value)) {
 				managedUsers = append(managedUsers, user)
 				break
 			}
