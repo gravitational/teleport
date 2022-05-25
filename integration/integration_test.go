@@ -3038,24 +3038,6 @@ func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 	)
 }
 
-// waitForMaxActiveTunnelConnections fails when the tunnel's RemoteSite reports
-// a tunnel count greater than maxCount.
-func waitForMaxActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, maxCount int) {
-	require.Never(
-		t,
-		func() bool {
-			cluster, err := tunnel.GetSite(clusterName)
-			if err != nil {
-				return false
-			}
-			return cluster.GetTunnelsCount() > maxCount
-		},
-		15*time.Second,
-		time.Second,
-		"Active tunnel connections surpassed %v in the expected time frame", maxCount,
-	)
-}
-
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
 func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
 	require.Eventually(

@@ -71,31 +71,31 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 		},
 	}
 
-	// boostrap a load balancer for proxies.
+	// bootstrap a load balancer for proxies.
 	p.makeLoadBalancer(t)
 
-	// boostrap an auth instance.
+	// bootstrap an auth instance.
 	p.makeAuth(t, strategy)
 
-	// boostrap two proxy instances.
+	// bootstrap two proxy instances.
 	p.makeProxy(t)
 	p.makeProxy(t)
 	require.Len(t, p.proxies, 2)
 
-	// boostrap a node instance.
+	// bootstrap a node instance.
 	p.makeNode(t)
 
-	// boostrap a db instance.
+	// bootstrap a db instance.
 	p.makeDatabase(t)
 
 	// wait for the node and database to open reverse tunnels to both proxies.
 	waitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 2)
 	waitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 2)
 
-	// make sure we can connect to the node going though any proxy.
+	// make sure we can connect to the node going through any proxy.
 	p.dialNode(t)
 
-	// make sure we can connect to the database going though any proxy.
+	// make sure we can connect to the database going through any proxy.
 	p.dialDatabase(t)
 }
 
@@ -117,41 +117,38 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 		},
 	}
 
-	// boostrap a load balancer for proxies.
+	// bootstrap a load balancer for proxies.
 	p.makeLoadBalancer(t)
 
-	// boostrap an auth instance.
+	// bootstrap an auth instance.
 	p.makeAuth(t, strategy)
 
-	// boostrap the first proxy instance.
+	// bootstrap the first proxy instance.
 	p.makeProxy(t)
 	require.Len(t, p.proxies, 1)
 
-	// boostrap a node instance.
+	// bootstrap a node instance.
 	p.makeNode(t)
 
-	// boostrap a db instance.
+	// bootstrap a db instance.
 	p.makeDatabase(t)
 
-	// wait for the node to open a reverse tunnel to the first proxy.
+	// wait for the node and db to open reverse tunnels to the first proxy.
 	waitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 2)
 
-	// boostrap the second proxy instance after the node has already established
-	// a reverse tunnel to the first proxy.
+	// bootstrap the second proxy instance after the node and db have already
+	// established reverse tunnels to the first proxy.
 	p.makeProxy(t)
 	require.Len(t, p.proxies, 2)
-
-	// make sure node doesn't open any reverse tunnel to the second proxy.
-	waitForMaxActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 0)
 
 	// make sure both proxies are connected to each other.
 	waitForActivePeerProxyConnections(t, p.proxies[0].Tunnel, 1)
 	waitForActivePeerProxyConnections(t, p.proxies[1].Tunnel, 1)
 
-	// make sure we can connect to the node going though any proxy.
+	// make sure we can connect to the node going through any proxy.
 	p.dialNode(t)
 
-	// make sure we can connect to the database going though any proxy.
+	// make sure we can connect to the database going through any proxy.
 	p.dialDatabase(t)
 }
 
@@ -272,7 +269,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T, strategy *types.TunnelStrat
 	p.auth = auth
 }
 
-// makeProxy boostraps a new teleport proxy instance.
+// makeProxy bootstraps a new teleport proxy instance.
 // It's public address points to a load balancer.
 func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	proxy := NewInstance(InstanceConfig{
@@ -309,7 +306,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	p.proxies = append(p.proxies, proxy)
 }
 
-// makeNode boostraps a new teleport node instance.
+// makeNode bootstraps a new teleport node instance.
 // It connects to a proxy via a reverse tunnel going through a load balancer.
 func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	if p.node != nil {
@@ -342,7 +339,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	p.node = node
 }
 
-// makeDatabase boostraps a new teleport db instance.
+// makeDatabase bootstraps a new teleport db instance.
 // It connects to a proxy via a reverse tunnel going through a load balancer.
 func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	if p.db != nil {
