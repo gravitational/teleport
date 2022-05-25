@@ -25,7 +25,12 @@ import (
 )
 
 func onProxyDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
-	if err := tshwrap.CheckTSHSupported(); err != nil {
+	runner, err := tshwrap.NewRunner()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := tshwrap.CheckTSHSupported(runner); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -44,7 +49,7 @@ func onProxyDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	env, err := tshwrap.GetEnvForTSH(destination, destinationPath)
+	env, err := tshwrap.GetEnvForTSH(destination)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -64,5 +69,5 @@ func onProxyDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		args = append([]string{"-d"}, args...)
 	}
 
-	return trace.Wrap(tshwrap.ExecTSH(env, args...), "executing `tsh proxy`")
+	return trace.Wrap(runner.Exec(env, args...), "executing `tsh proxy`")
 }

@@ -42,7 +42,7 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
 
-// RemainingArgs is a custom kingpin parse that consumes all remaining
+// RemainingArgs is a custom kingpin parser that consumes all remaining
 // arguments.
 type RemainingArgsList []string
 
@@ -59,6 +59,7 @@ func (r *RemainingArgsList) IsCumulative() bool {
 	return true
 }
 
+// RemainingArgs returns 
 func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	target = new([]string)
 	s.SetValue((*RemainingArgsList)(target))

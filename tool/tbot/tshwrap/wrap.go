@@ -35,12 +35,55 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
 
-// LocateTSH attempts to locate a `tsh` binary on the local system. The
+// TSHRunner is a method for executing tsh.
+type TSHRunner interface {
+	// Capture runs tsh and captures its standard output.
+	Capture(args ...string) ([]byte, error)
+
+	// exec runs tsh with the given additional environment variables and args.
+	// It should inherit the current process's input and output streams.
+	Exec(env map[string]string, args ...string) error
+}
+
+type execTSHRunner struct {
+	path string
+}
+
+func (r *execTSHRunner) Capture(args ...string) ([]byte, error) {
+	out, err := exec.Command(r.path, args...).Output()
+	if err != nil {
+		return nil, trace.Wrap(err, "error executing tsh")
+	}
+
+	return out, nil
+}
+
+func (r *execTSHRunner) Exec(env map[string]string, args ...string) error {
+	// The subprocess should inherit the environment plus our vars.
+	environ := os.Environ()
+	for k, v := range env {
+		environ = append(environ, k+"="+v)
+	}
+
+	log.Debugf("executing %s with env=%+v and args=%+v", r.path, env, args)
+
+	child := exec.Command(r.path, args...)
+	child.Env = environ
+	child.Stdin = os.Stdin
+	child.Stdout = os.Stdout
+	child.Stderr = os.Stderr
+
+	return trace.Wrap(child.Run(), "unable to execute tsh")
+}
+
+// NewRunner attempts to locate a `tsh` binary on the local system. The
 // standard path lookup behavior can be overridden by setting the `$TSH`
 // environment variable to point to a different tsh executable.
-func LocateTSH() (string, error) {
+func NewRunner() (TSHRunner, error) {
 	if val, ok := os.LookupEnv(TSHVarName); ok {
-		return val, nil
+		return &execTSHRunner{
+			path: val,
+		}, nil
 	}
 
 	binary := "tsh"
@@ -50,56 +93,17 @@ func LocateTSH() (string, error) {
 
 	path, err := exec.LookPath(binary)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return path, nil
-}
-
-// ExecTSH executes tsh with the given args. It inherits the current processes
-// input and output streams.
-func ExecTSH(env map[string]string, args ...string) error {
-	tshPath, err := LocateTSH()
-	if err != nil {
-		return trace.Wrap(err, "unable to locate tsh executable")
-	}
-
-	// The subprocess should inherit the environment plus our vars.
-	environ := os.Environ()
-	for k, v := range env {
-		environ = append(environ, k+"="+v)
-	}
-
-	log.Debugf("executing %s with env=%+v and args=%+v", tshPath, env, args)
-
-	child := exec.Command(tshPath, args...)
-	child.Env = environ
-	child.Stdin = os.Stdin
-	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
-
-	return trace.Wrap(child.Run(), "unable to execute tsh")
-}
-
-// CaptureTSH runs and captures tsh stdout with the given arguments. It's only
-// appropriate for simple queries as it only attaches piped output.
-func CaptureTSH(args ...string) ([]byte, error) {
-	tshPath, err := LocateTSH()
-	if err != nil {
-		return nil, trace.Wrap(err, "unable to locate tsh executable")
-	}
-
-	out, err := exec.Command(tshPath, args...).Output()
-	if err != nil {
-		return nil, trace.Wrap(err, "error executing tsh")
-	}
-
-	return out, nil
+	return &execTSHRunner{
+		path: path,
+	}, nil
 }
 
 // GetTSHVersion queries the system tsh for its version.
-func GetTSHVersion() (*semver.Version, error) {
-	rawVersion, err := CaptureTSH("version", "-f", "json")
+func GetTSHVersion(r TSHRunner) (*semver.Version, error) {
+	rawVersion, err := r.Capture("version", "-f", "json")
 	if err != nil {
 		return nil, trace.Wrap(err, "error querying tsh version")
 	}
@@ -120,8 +124,8 @@ func GetTSHVersion() (*semver.Version, error) {
 }
 
 // CheckTSHSupported checks if the current tsh supports Machine ID.
-func CheckTSHSupported() error {
-	version, err := GetTSHVersion()
+func CheckTSHSupported(r TSHRunner) error {
+	version, err := GetTSHVersion(r)
 	if err != nil {
 		return trace.Wrap(err, "unable to determine tsh version")
 	}
@@ -221,8 +225,13 @@ func mergeEnv(m map[string]string, value string, keys ...string) {
 
 // GetEnvForTSH returns a map of environment variables needed to properly wrap
 // tsh so that it uses our Machine ID certificates where necessary.
-func GetEnvForTSH(destination *config.DestinationConfig, destPath string) (map[string]string, error) {
+func GetEnvForTSH(destination *config.DestinationConfig) (map[string]string, error) {
 	tlsCAs, err := GetTLSCATemplate(destination)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	destPath, err := GetDestinationPath(destination)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
