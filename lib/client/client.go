@@ -616,15 +616,15 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := proxy.FindNodesByFiltersForCluster(ctx, req, *cluster)
+	servers, err := proxy.FindNodesByFiltersForCluster(ctx, req, cluster.Name)
 	return servers, trace.Wrap(err)
 }
 
 // FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
-func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster types.Site) ([]types.Server, error) {
+func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
 	req.ResourceType = types.KindNode
 
-	site, err := proxy.ClusterAccessPoint(ctx, cluster.Name, false)
+	site, err := proxy.ClusterAccessPoint(ctx, cluster, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -660,14 +660,14 @@ func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := proxy.FindAppServersByFiltersForCluster(ctx, req, *cluster)
+	servers, err := proxy.FindAppServersByFiltersForCluster(ctx, req, cluster.Name)
 	return servers, trace.Wrap(err)
 }
 
 // FindAppServersByFiltersForCluster returns a list of application servers for a given cluster which have filters matched.
-func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster types.Site) ([]types.AppServer, error) {
+func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.AppServer, error) {
 	req.ResourceType = types.KindAppServer
-	authClient, err := proxy.ClusterAccessPoint(ctx, cluster.Name, false)
+	authClient, err := proxy.ClusterAccessPoint(ctx, cluster, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -755,14 +755,14 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := proxy.FindDatabaseServersByFiltersForCluster(ctx, req, *cluster)
+	servers, err := proxy.FindDatabaseServersByFiltersForCluster(ctx, req, cluster.Name)
 	return servers, trace.Wrap(err)
 }
 
 // FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the current cluster.
-func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster types.Site) ([]types.DatabaseServer, error) {
+func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
 	req.ResourceType = types.KindDatabaseServer
-	authClient, err := proxy.ClusterAccessPoint(ctx, cluster.Name, false)
+	authClient, err := proxy.ClusterAccessPoint(ctx, cluster, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

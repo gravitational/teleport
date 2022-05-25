@@ -1983,7 +1983,7 @@ func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (
 			Labels:              tc.Labels,
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
-		}, cluster)
+		}, cluster.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2041,7 +2041,7 @@ func (tc *TeleportClient) ListAppServersWithFiltersAllClusters(ctx context.Conte
 	}
 	servers := make(map[string][]types.AppServer, len(clusters))
 	for _, cluster := range clusters {
-		s, err := proxyClient.FindAppServersByFiltersForCluster(ctx, *filter, cluster)
+		s, err := proxyClient.FindAppServersByFiltersForCluster(ctx, *filter, cluster.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2150,7 +2150,7 @@ func (tc *TeleportClient) ListDatabaseServersWithFiltersAllClusters(ctx context.
 	}
 	servers := make(map[string][]types.DatabaseServer, len(clusters))
 	for _, cluster := range clusters {
-		s, err := proxyClient.FindDatabaseServersByFiltersForCluster(ctx, *filter, cluster)
+		s, err := proxyClient.FindDatabaseServersByFiltersForCluster(ctx, *filter, cluster.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -207,10 +207,10 @@ func TestIntegrations(t *testing.T) {
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
-	t.Run("TestListNodesAcrossClusters", suite.bind(testListNodesAcrossClusters))
-	t.Run("TestListAppsAcrossClusters", suite.bind(testListAppsAcrossClusters))
-	t.Run("TestListDatabasesAcrossClusters", suite.bind(testListDatabasesAcrossClusters))
-	t.Run("TestListKubeClustersAcrossClusters", suite.bind(testListKubeClustersAcrossClusters))
+	t.Run("ListNodesAcrossClusters", suite.bind(testListNodesAcrossClusters))
+	t.Run("ListAppsAcrossClusters", suite.bind(testListAppsAcrossClusters))
+	t.Run("ListDatabasesAcrossClusters", suite.bind(testListDatabasesAcrossClusters))
+	t.Run("ListKubeClustersAcrossClusters", suite.bind(testListKubeClustersAcrossClusters))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
