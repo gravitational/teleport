@@ -224,6 +224,12 @@ func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODia
 		return errResult
 	}
 
+	cmd.printDiagnosticInfo(authKind, diag, loginErr)
+
+	return errResult
+}
+
+func (cmd *SSOTestCommand) printDiagnosticInfo(authKind string, diag *types.SSODiagnosticInfo, loginErr error) {
 	fields := []string{
 		// common fields across auth connector types.
 		GetDiagMessage(
@@ -241,8 +247,7 @@ func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODia
 		fields = append(fields, getFields(diag, cmd.config.Debug)...)
 	}
 
-	// we want this field last.
-	// raw data - debug
+	// raw data - debug. we want this field last.
 	fields = append(fields, GetDiagMessage(true, cmd.config.Debug, FormatJSON("Raw data", diag)))
 
 	const termWidth = 80
@@ -260,6 +265,4 @@ func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODia
 	}
 
 	fmt.Println()
-
-	return errResult
 }
