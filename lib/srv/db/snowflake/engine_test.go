@@ -35,14 +35,49 @@ func Test_extractAccountName(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "correct AWS address",
+			name: "correct AWS address - AWS US East (Ohio)",
+			uri:  "https://abc123.us-east-2.aws.snowflakecomputing.com",
+			want: "abc123.us-east-2.aws",
+		},
+		{
+			name: "correct AWS address - AWS US East (Ohio) missing protocol",
 			uri:  "abc123.us-east-2.aws.snowflakecomputing.com",
 			want: "abc123.us-east-2.aws",
 		},
 		{
-			name: "correct AWS address",
+			name: "correct AWS address - AWS US West (Oregon)",
 			uri:  "abc123.snowflakecomputing.com",
 			want: "abc123",
+		},
+		{
+			name: "correct AWS address - AWS EU (Frankfurt)",
+			uri:  "abc123.eu-central-1.snowflakecomputing.com",
+			want: "abc123.eu-central-1",
+		},
+		{
+			name: "correct GCP address",
+			uri:  "abc123.us-central1.gcp.snowflakecomputing.com",
+			want: "abc123.us-central1.gcp",
+		},
+		{
+			name: "correct Azure address",
+			uri:  "abc123.central-us.azure.snowflakecomputing.com",
+			want: "abc123.central-us.azure",
+		},
+		{
+			name: "user account query is provided",
+			uri:  "abc123.us-east-2.aws.snowflakecomputing.com?account=someAccount",
+			want: "someAccount",
+		},
+		{
+			name:    "empty returns error",
+			uri:     "",
+			wantErr: true,
+		},
+		{
+			name:    "incorrect url returns error",
+			uri:     "blah",
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {

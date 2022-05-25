@@ -65,6 +65,8 @@ func newTestSnowflakeEngine(ec common.EngineConfig) common.Engine {
 					}
 					return (&net.Dialer{}).DialContext(ctx, network, "localhost:"+port)
 				},
+				// Match the original client.
+				DisableCompression: true,
 			},
 		},
 	}

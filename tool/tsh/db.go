@@ -464,12 +464,15 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 
 // localProxyConfig is an argument pack used in prepareLocalProxyOptions().
 type localProxyConfig struct {
-	cliConf          *CLIConf
-	teleportClient   *client.TeleportClient
-	profile          *client.ProfileStatus
-	routeToDatabase  *tlsca.RouteToDatabase
-	database         types.Database
-	listener         net.Listener
+	cliConf         *CLIConf
+	teleportClient  *client.TeleportClient
+	profile         *client.ProfileStatus
+	routeToDatabase *tlsca.RouteToDatabase
+	database        types.Database
+	listener        net.Listener
+	// localProxyTunnel keeps the same value as cliConf.LocalProxyTunnel, but
+	// it's always true for Snowflake database. Value is copied here to not modify
+	// cli arguments directly.
 	localProxyTunnel bool
 }
 

@@ -30,6 +30,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -64,6 +65,8 @@ func getDefaultHTTPClient() *http.Client {
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
 			},
+			// We don't want the http.Client to automatically decompress the data.
+			DisableCompression: true,
 		},
 	}
 }
@@ -547,16 +550,31 @@ func extractAccountName(uri string) (string, error) {
 		return "", trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 	}
 
-	if strings.HasPrefix(uri, "https://") {
-		uri = strings.TrimSuffix(uri, "https://")
+	// if the protocol is missing add it, so we can parse it.
+	if !strings.Contains(uri, "://") {
+		uri = "https://" + uri
 	}
 
-	uriParts := strings.Split(uri, ".")
+	snowflakeUrl, err := url.Parse(uri)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	query := snowflakeUrl.Query()
+	// Read the account name from account query if provided. This should help with some Snowflake corner cases.
+	if query.Has("account") {
+		return query.Get("account"), nil
+	}
+
+	uriParts := strings.Split(snowflakeUrl.Host, ".")
 
 	switch len(uriParts) {
 	case 3:
 		// address in https://test.snowflakecomputing.com format
 		return uriParts[0], nil
+	case 4:
+		// address in https://test.eu-central-1.snowflakecomputing.com format
+		return strings.Join(uriParts[:2], "."), nil
 	case 5:
 		// address in https://test.us-east-2.aws.snowflakecomputing.com format
 		return strings.Join(uriParts[:3], "."), nil
