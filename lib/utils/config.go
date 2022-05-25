@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,10 +34,15 @@ func TryReadValueAsFile(value string) (string, error) {
 		return value, nil
 	}
 	// treat it as an absolute filepath
-	out, err := os.ReadFile(value)
+	contents, err := os.ReadFile(value)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
 	// trim newlines as tokens in files tend to have newlines
-	return strings.TrimSpace(string(out)), nil
+	out := strings.TrimSpace(string(contents))
+
+	if out == "" {
+		fmt.Fprintf(os.Stderr, "WARNING: empty config value file: %v\n", value)
+	}
+	return out, nil
 }
