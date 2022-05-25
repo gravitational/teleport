@@ -1043,8 +1043,8 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-
+	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+) ([]byte, error) {
 	out, err := c.PostJSON(context.TODO(), c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,
@@ -1754,6 +1754,10 @@ type IdentityService interface {
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
 
+	// GetCurrentUser returns current user as seen by the server.
+	// Useful especially in the context of remote clusters which perform role and trait mapping.
+	GetCurrentUser(ctx context.Context) (types.User, error)
+
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error
 
@@ -1876,7 +1880,7 @@ type IdentityService interface {
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
-	GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error)
+	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)

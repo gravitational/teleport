@@ -607,6 +607,16 @@ func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
 	return user, nil
 }
 
+// GetCurrentUser returns current user as seen by the server.
+// Useful especially in the context of remote clusters which perform role and trait mapping.
+func (c *Client) GetCurrentUser(ctx context.Context) (types.User, error) {
+	currentUser, err := c.grpc.GetCurrentUser(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return currentUser, nil
+}
+
 // GetUsers returns a list of users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {

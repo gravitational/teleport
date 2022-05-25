@@ -67,7 +67,7 @@ func (c *touchIDLsCommand) run(cf *CLIConf) error {
 		return i1.CredentialID < i2.CredentialID
 	})
 
-	t := asciitable.MakeTable([]string{"RPID", "User", "Key Handle"})
+	t := asciitable.MakeTable([]string{"RPID", "User", "Credential ID"})
 	for _, info := range infos {
 		t.AddRow([]string{
 			info.RPID,
