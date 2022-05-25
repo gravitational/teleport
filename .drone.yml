@@ -535,7 +535,7 @@ steps:
   - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override set $RUST_VERSION
-  - make clean release OS=$OS ARCH=$ARCH
+  - make clean release OS=$OS ARCH=$ARCH TOUCHID=yes
   environment:
     ARCH: amd64
     GOCACHE: /tmp/push-build-darwin-amd64/go/cache
@@ -2954,7 +2954,7 @@ steps:
   - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override set $RUST_VERSION
-  - make clean release OS=$OS ARCH=$ARCH
+  - make clean release OS=$OS ARCH=$ARCH TOUCHID=yes
   environment:
     ARCH: amd64
     GOCACHE: /tmp/build-darwin-amd64/go/cache
@@ -5388,6 +5388,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 911be33673b40e57c1d482bfcebeec7fef697e5cb52ceea9c4cddcd268bed4d1
+hmac: 350d7354fc9de834704c0158c259b0d5e4e372d38e628391b47ec7d32cf71715
 
 ...

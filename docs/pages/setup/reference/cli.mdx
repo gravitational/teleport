@@ -1197,7 +1197,7 @@ $ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags
 | `--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` | identity format |
 | `--identity` | `file` | `file` | identity format |
 | `--auth-server` | none | auth host & port | Remote Teleport host name |
-| `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate |
+| `--ttl` | `12h` | relative duration like `5s`, `2m`, or `3h` | TTL (time to live) for the generated certificate |
 | `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag |
 | `--proxy` | `""` | Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file |
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
