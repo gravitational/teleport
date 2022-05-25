@@ -70,7 +70,11 @@ func RemainingArgs(s kingpin.Settings) (target *[]string) {
 type CLIConf struct {
 	ConfigPath string
 
-	Debug      bool
+	Debug bool
+
+	// AuthServer is a Teleport auth server address. It may either point
+	// directly to an auth server, or to a Teleport proxy server in which case
+	// a tunneled auth connection will be established.
 	AuthServer string
 
 	// DataDir stores the bot's internal data.
@@ -125,7 +129,8 @@ type CLIConf struct {
 	// should be written to
 	ConfigureOutput string
 
-	// Proxy is the teleport proxy address
+	// Proxy is the teleport proxy address. Unlike `AuthServer` this must
+	// explicitly point to a Teleport proxy.
 	Proxy string
 
 	// Cluster is the name of the Teleport cluster on which resources should
