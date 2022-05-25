@@ -88,11 +88,11 @@ Here is an example on how to start the proxy:
 
 ```bash
 # First, login into the database.
-$ tsh db login <database-name>
+$ tsh db login |database-name|
 
 # Then, start the local proxy.
-$ tsh proxy db --tunnel <database-name>
-Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.
+$ tsh proxy db --tunnel |database-name|
+Started authenticated tunnel for the engine database "|database-name|" in cluster "cluster-name" on 127.0.0.1:62652.
 ```
 
 You can then connect to the address the proxy command returns, in our example it
@@ -105,12 +105,12 @@ the following command to start a local TLS proxy your GUI database client will
 be connecting to:
 
 ```code
-$ tsh proxy db <database-name>
+$ tsh proxy db |database-name|
 Started DB proxy on 127.0.0.1:61740
 
-Use following credentials to connect to the <database-name> proxy:
+Use following credentials to connect to the |database-name| proxy:
   ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
+  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/|database-name|-x509.pem
   key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
 ```
 
@@ -155,12 +155,12 @@ Use the following command to start a local TLS proxy your GUI database client
 will be connecting to:
 
 ```code
-$ tsh proxy db <database-name>
+$ tsh proxy db database-name
 Started DB proxy on 127.0.0.1:61740
 
-Use following credentials to connect to the <database-name> proxy:
+Use following credentials to connect to the database-name proxy:
   ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
+  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/database-name-x509.pem
   key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
 ```
 
@@ -353,3 +353,65 @@ Click `Add Redis Database`.
 Congratulations! You have just connected to your Redis instance.
 
 ![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)
+
+
+## Snowflake - JetBrains (IntelliJ, Goland, DataGrip, PyCharm etc.)
+
+<Admonition type="note">
+  Snowflake integration works only in the authenticated proxy mode. Remember to add `--tunnel` flag when starting the proxy, example:
+  ```
+  tsh proxy db --tunnel --port 2000 snowflake
+  ```
+</Admonition>
+
+In _Database Explorer_ click and the add button and then pick _Data Source_ and pick _Snowflake_:
+
+![JetBrains Add Database](../../../img/database-access/guides/snowflake/jetbrains-add-database.png)
+
+Next set `Host` to `localhost` and `port` as the one returned by the proxy command (`2000` in the example above).
+Set the `Username` to match the one that you are connecting to using Teleport and enter any value in the `Password` field:
+
+![JetBrains General](../../../img/database-access/guides/snowflake/jetbrains-general.png)
+
+Switch to `Advanced` tab and set any value as `account` and add new record named `ssl` with value `off`:
+
+![JetBrains Advanced](../../../img/database-access/guides/snowflake/jetbrains-advanced.png)
+
+Now you can click _Test Connection_ to check your configuration.
+
+![JetBrains Success](../../../img/database-access/guides/snowflake/jetbrains-success.png)
+
+Congratulations! 🎉 You have just connected to your Snowflake instance.
+
+## Snowflake - DBeaver
+
+<Admonition type="note">
+  Snowflake integration works only in the authenticated proxy mode. Remember to add `--tunnel` flag when starting the proxy, example:
+  ```
+  tsh proxy db --tunnel --port 2000 snowflake
+  ```
+</Admonition>
+
+Add new database by clicking the add icon in the left top corner:
+
+![DBeaver Main Screen](../../../img/database-access/guides/snowflake/dbeaver-main-screen.png)
+
+In the search bar of the "Connect to a database" window that opens up, type "snowflake", select the Snowflake driver, and click "Next":
+
+![DBeaver Select Database](../../../img/database-access/guides/snowflake/dbeaver-select-database.png)
+
+Set `Host` to `localhost` and `port` as the one returned by the proxy command (`2000` in the example above).
+In the _Authentication_ section set the `Username` to match the one that you are connecting to using Teleport
+and enter any value in the `Password` field:
+
+![DBeaver Main](../../../img/database-access/guides/snowflake/dbeaver-main.png)
+
+Next click on `Driver properties` tab and set `account` to any value and in _User properties_ set `ssl` to `off`.
+
+![DBeaver Driver](../../../img/database-access/guides/snowflake/dbeaver-driver.png)
+
+Now you can click on `Test Connection...` in the left bottom corner.
+
+![DBeaver Success](../../../img/database-access/guides/snowflake/dbeaver-success.png)
+
+Congratulations! 🎉 You have just connected to your Snowflake instance.
