@@ -20,11 +20,11 @@ This guide will help you to:
 - Connect to Snowflake through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-  <h1>TODO Add Snowflake architecture diagram.</h1>
+  ![Teleport Database Access Snowflake Self-Hosted](../../../img/database-access/guides/snowflake_selfhosted.png)
 </ScopedBlock>
 
 <ScopedBlock scope={["cloud"]}>
-  <h1>TODO Add Snowflake architecture diagram.</h1>
+  ![Teleport Database Access Snowflake Cloud](../../../img/database-access/guides/snowflake_cloud.png)
 </ScopedBlock>
 
 ## Prerequisites
@@ -128,7 +128,7 @@ LwIDAQAB';
 ```
 
 where `alice` is the name of the Snowflake user and the `rsa_public_key` is the key generated earlier without
-the PEM type (first and the last line).
+the PEM header/footer (first and the last line).
 
 You can use `describe user` command to verify the user's public key.
 
