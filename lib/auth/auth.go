@@ -818,6 +818,9 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		return nil, nil, trace.Wrap(err)
 	}
 	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
