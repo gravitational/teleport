@@ -2587,40 +2587,18 @@ impl ClientDriveQueryDirectoryResponse {
         })
     }
 
-    // TODO(isaiah): make this logic more sane
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_reply.encode()?);
-
-        if self.device_io_reply.io_status == NTSTATUS::to_u32(&NTSTATUS::STATUS_SUCCESS).unwrap() {
-            w.write_u32::<LittleEndian>(self.length)?;
-            w.extend_from_slice(
-                &self
-                    .buffer.as_ref()
-                    .ok_or_else(|| invalid_data_error(
-                        "ClientDriveQueryDirectoryResponse with NTSTATUS::STATUS_SUCCESS expects a FsInformationClass"
-                    ))?
-                    .encode()?,
-            );
-        } else if self.device_io_reply.io_status
+        w.write_u32::<LittleEndian>(self.length)?;
+        if let Some(buffer) = &self.buffer {
+            w.extend_from_slice(&buffer.encode()?);
+        }
+        if self.device_io_reply.io_status
             == NTSTATUS::to_u32(&NTSTATUS::STATUS_NO_MORE_FILES).unwrap()
         {
-            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L935-L937
-            w.write_u32::<LittleEndian>(0)?;
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L937
             w.write_u8(0)?;
-        } else if self.device_io_reply.io_status
-            == NTSTATUS::to_u32(&NTSTATUS::STATUS_NOT_SUPPORTED).unwrap()
-            || self.device_io_reply.io_status
-                == NTSTATUS::to_u32(&NTSTATUS::STATUS_UNSUCCESSFUL).unwrap()
-        {
-            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L665
-            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L634
-            w.write_u32::<LittleEndian>(self.length)?;
-        } else {
-            return Err(invalid_data_error(&format!(
-                "Found ClientDriveQueryDirectoryResponse with invalid or unhandled NTSTATUS: {:?}",
-                self.device_io_reply.io_status
-            )));
         }
 
         Ok(w)
