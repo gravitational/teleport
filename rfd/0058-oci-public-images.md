@@ -17,7 +17,7 @@ As of August 1st, 2021 Quay.io no longer supports any other authentication provi
 
 Moving our public image infrastructure from [Quay.io](https://quay.io/) to Amazon [Elastic Container Registry](https://aws.amazon.com/ecr/) gives Teleport improved security controls with Amazon SSO + Okta, as well as IAM policies + Security Auditing. In addition to the aforementioned improvements, [image tag mutability](https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-tag-mutability.html) can prevent accidental overwrites and add an additional layer of security to ensure images are not replaced maliciously. 
 
-### Infrastructure
+### **Infrastructure**
 Hosting our own _oci-compatible_ registry is similar to hosting our own [terraform registry](https://github.com/gravitational/teleport-plugins/blob/master/rfd/0002-custom-terraform-registry.md). However, the [OCI Distribution Spec](https://github.com/opencontainers/distribution-spec) has additional complexities that can't be solved by S3 and CloudFront<sup>*</sup> alone. These complexities warrant the use of [Docker Registry](https://docs.docker.com/registry/).
 
 An example infrastructure diagram is shown below:
@@ -45,7 +45,7 @@ An example infrastructure diagram is shown below:
                                     │   │             │              │  │
                                     │   │             ▼              │  │
                                     │   │  ┌───────────────────────┐ │  │
-                                    │   │  │ ECS / EKS             │ │  │
+                                    │   │  │ ECS / EKS / EC2       │ │  │
                                     │   │  │ ┌───────────────────┐ │ │  │
                                     │   │  │ │  Docker Registry  │ │ │  │
                                     │   │  │ └───────────────────┘ │ │  │
@@ -64,9 +64,35 @@ An example infrastructure diagram is shown below:
                                     └───────────────────────────────────┘
 ```
 
+#### **Web Application Firewall**
+Amazon [WAF](https://aws.amazon.com/waf/) is a web application firewall that helps protect your web applications. Amazon WAF can be leveraged to implement [rate-based](https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-statement-type-rate-based.html) rules to prevent the Docker Registry process from being overloaded. Additional rules can be added as seen fit improve the stability and security of the Docker Registry. 
 
+#### **CloudFront**
+[CloudFront](https://aws.amazon.com/cloudfront/) will be leveraged to ensure fast, secure, downloads of Teleport OCI images across the globe.
+
+#### Elastic Load Balancer
+An internal [Amazon ELB](https://aws.amazon.com/elasticloadbalancing/) will be used to connect CloudFront CDN with whatever we choose to run the registry with. 
+
+#### ECS / EKS / EC2
+TODO: Importance and use of either ECS / EKS / EC2
+
+#### S3
+TODO: Add comments on S3 as a backend to docker registry. 
 
 Note<sup>*</sup>: A minimal, read-only, _oci-compatible_, registry could be mimicked through CloudFront functions. See alternatives(TODO: Add link to this alternative)
+
+### Implementation
+TODO: Include in-depth step by step guide on how the above solution will be created and migrated
+
+* Multi step process. AWS ECR Infrastructure in the `cloud-terraform` repository
+* Push to Quay and ECR
+* Replicate existing images from quay.io to ECR
+* update documentation to new location 
+* retire quay repository
+
+### Security Improvements
+Image tag immutability
+TODO: Add more here or find a way to consolidate in another section. 
 
 ### **Alternatives**
 
@@ -77,7 +103,18 @@ Harbor can be installed via [Docker Compose](https://docs.docker.com/compose/) o
 
 Harbor supports authentication via an OIDC single sign-on provider, such as Okta.<sup>[[3]]</sup> 
 
+#### Custom Registry w/ CloudFront Functions
+TODO: Thoughts on implementing read-only part of distribution spec to remove middle layer that runs docker registry.
+This solution essentially becomes CloudFront + S3 similar to our other artifact stuff.
+Additional complexities with pushing the images to S3 as custom script would be needed to make sure the layers are uploaded correctly. 
+
+This solution potentially has the least operational overhead but requires understanding the docker-registry protocol at a decent level. 
+
+#### **Third Party Registry**
+TODO: Dockerhub, AWS ECR Public, potential reference to mirroring RFD that would handle this
+
 ## References
+TODO: Fix or remove broken references list (trying to be fancy)
 
 \[1\] - https://access.redhat.com/articles/5925591
 \[2\] - https://goharbor.io/
@@ -89,15 +126,11 @@ Harbor supports authentication via an OIDC single sign-on provider, such as Okta
 
 ## Brain Dump
 
-* CloudFront needs rate limiting to prevent clients from running up too high of a cost
-* CloudFront with javascript functions to mimic the read part of API
-* CloudFront to EC2 with some type of docker registry process
-* Image signing with Cosign
-* Images stored in `aws-teleport-team-prod`
-* Will immutable tags allow for better caching? Since image should never change 
+* Is discoverability of the images and tags in scope for this RFD? Should users just assume that for each valid release there is a valid tag? Must ensure that release pipeline succeeds or a core release member should be alerted to fix any issues. 
 
-* Multi step process. AWS ECR Infrastructure in the `cloud-terraform` repository
-* Push to Quay and ECR
-* Replicate existing images from quay.io to ECR
-* update documentation to new location 
-* retire quay repository
+### Out of scope 
+* Rate limiting
+* Cosign image signing
+
+### In scope
+* Secured policy and auditing
