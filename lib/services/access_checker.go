@@ -172,10 +172,6 @@ type AccessChecker interface {
 type AccessInfo struct {
 	// Roles is the list of cluster local roles for the identity.
 	Roles []string
-	// Unmapped roles is the list of roles held by the identity before mapping
-	// to cluster local roles. For local identities, this will be identical to
-	// Roles.
-	UnmappedRoles []string
 	// Traits is the set of traits for the identity.
 	Traits wrappers.Traits
 	// AllowedResourceIDs is the list of resource IDs the identity is allowed to
@@ -287,7 +283,6 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate, access RoleGetter) (*
 	}
 
 	return &AccessInfo{
-		UnmappedRoles:      roles,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -340,7 +335,6 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, r
 	}
 
 	return &AccessInfo{
-		UnmappedRoles:      unmappedRoles,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -385,7 +379,6 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access RoleAndUserGett
 	}
 
 	return &AccessInfo{
-		UnmappedRoles:      roles,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -441,7 +434,6 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, ro
 	allowedResourceIDs := identity.AllowedResourceIDs
 
 	return &AccessInfo{
-		UnmappedRoles:      roles,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -461,9 +453,8 @@ func AccessInfoFromUser(user types.User, access RoleGetter) (*AccessInfo, error)
 		return nil, trace.Wrap(err)
 	}
 	return &AccessInfo{
-		UnmappedRoles: roles,
-		Roles:         roles,
-		Traits:        traits,
-		RoleSet:       roleSet,
+		Roles:   roles,
+		Traits:  traits,
+		RoleSet: roleSet,
 	}, nil
 }

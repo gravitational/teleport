@@ -136,11 +136,15 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 	identity.CertAuthority = certAuthority
 
+	identity.UnmappedRoles, err = services.ExtractRolesFromCert(certificate)
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
+	}
+
 	accessInfo, err := h.fetchAccessInfo(certificate, certAuthority, identity.TeleportUser, clusterName.GetClusterName())
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
-	identity.UnmappedRoles = accessInfo.UnmappedRoles
 	identity.AllowedResourceIDs = accessInfo.AllowedResourceIDs
 	identity.AccessChecker = services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 
