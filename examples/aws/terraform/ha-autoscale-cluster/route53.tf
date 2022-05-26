@@ -33,6 +33,19 @@ resource "aws_route53_record" "proxy_acm" {
   }
 }
 
+resource "aws_route53_record" "proxy_acm_wildcard" {
+  zone_id = data.aws_route53_zone.proxy.zone_id
+  name    = "*.${var.route53_domain}"
+  type    = "A"
+  count   = var.use_acm ? 1 : 0
+
+  alias {
+    name                   = aws_lb.proxy_acm[0].dns_name
+    zone_id                = aws_lb.proxy_acm[0].zone_id
+    evaluate_target_health = false
+  }
+}
+
 // ACM (NLB)
 resource "aws_route53_record" "proxy_acm_nlb_alias" {
   zone_id = data.aws_route53_zone.proxy.zone_id
