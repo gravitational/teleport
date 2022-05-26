@@ -51,9 +51,10 @@ type UploadCompleterConfig struct {
 	CheckPeriod time.Duration
 	// Clock is used to override clock in tests
 	Clock clockwork.Clock
-	// Unstarted does not start automatic goroutine,
-	// is useful when completer is embedded in another function
-	Unstarted bool
+	// DELETE IN 11.0.0 in favor of SessionTrackerService
+	// GracePeriod is the period after which an upload's session
+	// tracker will be check to see if it's an abandoned upload.
+	GracePeriod time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -76,37 +77,47 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewUploadCompleter returns a new instance of the upload completer
-// the completer has to be closed to release resources and goroutines
+// NewUploadCompleter returns a new UploadCompleter.
 func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
 	u := &UploadCompleter{
 		cfg: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(cfg.Component, "completer"),
 		}),
-		cancel:   cancel,
-		closeCtx: ctx,
-	}
-	if !cfg.Unstarted {
-		go u.run()
+		closeC: make(chan struct{}),
 	}
 	return u, nil
+}
+
+// StartNewUploadCompleter starts an upload completer background process that will
+// will close once the provided ctx is closed.
+func StartNewUploadCompleter(ctx context.Context, cfg UploadCompleterConfig) error {
+	uc, err := NewUploadCompleter(cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go uc.Serve(ctx)
+	return nil
 }
 
 // UploadCompleter periodically scans uploads that have not been completed
 // and completes them
 type UploadCompleter struct {
-	cfg      UploadCompleterConfig
-	log      *log.Entry
-	cancel   context.CancelFunc
-	closeCtx context.Context
+	cfg    UploadCompleterConfig
+	log    *log.Entry
+	closeC chan struct{}
 }
 
-func (u *UploadCompleter) run() {
+// Close stops the UploadCompleter
+func (u *UploadCompleter) Close() {
+	close(u.closeC)
+}
+
+// Serve runs the upload completer until closed or until ctx is cancelled.
+func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration:      u.cfg.CheckPeriod,
 		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
@@ -117,17 +128,19 @@ func (u *UploadCompleter) run() {
 	for {
 		select {
 		case <-periodic.Next():
-			if err := u.CheckUploads(u.closeCtx); err != nil {
+			if err := u.checkUploads(ctx); err != nil {
 				u.log.WithError(err).Warningf("Failed to check uploads.")
 			}
-		case <-u.closeCtx.Done():
-			return
+		case <-u.closeC:
+			return nil
+		case <-ctx.Done():
+			return nil
 		}
 	}
 }
 
-// CheckUploads fetches uploads and completes any abandoned uploads
-func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
+// checkUploads fetches uploads and completes any abandoned uploads
+func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 	uploads, err := u.cfg.Uploader.ListUploads(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -140,11 +153,21 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 	}()
 
+	// Complete upload for any uploads without an active session tracker
 	for _, upload := range uploads {
-		// Check for an active session tracker for the session upload.
-		_, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String())
-		if err == nil {
-			// session appears to be active, don't complete the upload.
+		// DELETE IN 11.0.0
+		// To support v9/v8 versions which do not use SessionTrackerService,
+		// sessions are only considered abandoned after the provided grace period.
+		if u.cfg.GracePeriod != 0 {
+			gracePoint := upload.Initiated.Add(u.cfg.GracePeriod)
+			if gracePoint.After(u.cfg.Clock.Now()) {
+				// uploads are ordered oldest to newest, stop checking
+				// once an upload doesn't exceed the grace point
+				return nil
+			}
+		}
+
+		if _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); err == nil {
 			continue
 		} else if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -204,12 +227,6 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
-	return nil
-}
-
-// Close closes all outstanding operations without waiting
-func (u *UploadCompleter) Close() error {
-	u.cancel()
 	return nil
 }
 

@@ -66,36 +66,6 @@ func (m *MultiLog) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
-// EmitAuditEventLegacy emits audit event
-func (m *MultiLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
-	var errors []error
-	for _, log := range m.loggers {
-		errors = append(errors, log.EmitAuditEventLegacy(event, fields))
-	}
-	return trace.NewAggregate(errors...)
-}
-
-// UploadSessionRecording uploads session recording to the audit server
-func (m *MultiLog) UploadSessionRecording(rec SessionRecording) error {
-	var errors []error
-	for _, log := range m.loggers {
-		errors = append(errors, log.UploadSessionRecording(rec))
-	}
-	return trace.NewAggregate(errors...)
-}
-
-// DELETE IN: 2.7.0
-// This method is no longer necessary as nodes and proxies >= 2.7.0
-// use UploadSessionRecording method.
-// PostSessionSlice sends chunks of recorded session to the event log
-func (m *MultiLog) PostSessionSlice(slice SessionSlice) error {
-	var errors []error
-	for _, log := range m.loggers {
-		errors = append(errors, log.PostSessionSlice(slice))
-	}
-	return trace.NewAggregate(errors...)
-}
-
 // GetSessionChunk returns a reader which can be used to read a byte stream
 // of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 // beginning) up to maxBytes bytes.

@@ -29,6 +29,12 @@ type ProxyGetter interface {
 	GetProxies() ([]types.Server, error)
 }
 
+// NodesGetter is a service that gets nodes.
+type NodesGetter interface {
+	// GetNodes returns a list of registered servers.
+	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
@@ -43,12 +49,11 @@ type Presence interface {
 
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
-
-	// GetNodes returns a list of registered servers.
-	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
-
 	// ListNodes returns a paginated list of registered servers.
 	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+
+	// NodesGetter gets nodes
+	NodesGetter
 
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
@@ -103,7 +108,7 @@ type Presence interface {
 	GetReverseTunnel(name string, opts ...MarshalOption) (types.ReverseTunnel, error)
 
 	// GetReverseTunnels returns a list of registered servers
-	GetReverseTunnels(opts ...MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context, opts ...MarshalOption) ([]types.ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(domainName string) error

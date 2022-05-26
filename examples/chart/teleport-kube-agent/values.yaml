@@ -167,6 +167,28 @@ affinity: {}
 # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
 nodeSelector: {}
 
+# Kubernetes labels to apply
+# https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+extraLabels:
+  # Labels for the Cluster Role
+  clusterRole: {}
+  # Labels for the Cluster Role Binding
+  clusterRoleBinding: {}
+  # Labels for the ConfigMap
+  config: {}
+  # Labels for the Deployment/StatefulSet
+  deployment: {}
+  # Labels for each Pod in the Deployment/StatefulSet
+  pod: {}
+  # Labels for the Pod Disruption Budget (ignored when disabled)
+  podDisruptionBudget: {}
+  # Labels for the Pod Security Policy (ignored when disabled)
+  podSecurityPolicy: {}
+  # Labels for the Secret (ignored when disabled)
+  secret: {}
+  # Labels for the ServiceAccount object
+  serviceAccount: {}
+
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 annotations:
@@ -213,6 +235,9 @@ resources: {}
 #  requests:
 #    cpu: "1"
 #    memory: "2Gi"
+
+# Priority class name to add to the deployment
+priorityClassName: ""
 
 # Tolerations for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
