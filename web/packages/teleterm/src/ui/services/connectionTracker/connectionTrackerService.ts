@@ -32,6 +32,7 @@ import {
   TrackedGatewayConnection,
 } from './types';
 import { getClusterName } from 'teleterm/ui/utils';
+import { routing } from 'teleterm/ui/uri';
 
 export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerState> {
   private _trackedConnectionOperationsFactory: TrackedConnectionOperationsFactory;
@@ -64,10 +65,11 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     return this.state.connections.map(connection => {
       const { rootClusterUri, leafClusterUri } =
         this._trackedConnectionOperationsFactory.create(connection);
-      const cluster = this._clusterService.findCluster(
-        leafClusterUri || rootClusterUri
-      );
-      return { ...connection, clusterName: getClusterName(cluster) };
+      const clusterUri = leafClusterUri || rootClusterUri;
+      const clusterName =
+        getClusterName(this._clusterService.findCluster(clusterUri)) ||
+        routing.parseClusterName(clusterUri);
+      return { ...connection, clusterName };
     });
   }
 
@@ -80,6 +82,15 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       await this._workspacesService.setActiveWorkspace(rootClusterUri);
     }
     activate();
+  }
+
+  setState(
+    nextState: (
+      draftState: ConnectionTrackerState
+    ) => ConnectionTrackerState | void
+  ): void {
+    super.setState(nextState);
+    this._statePersistenceService.saveConnectionTrackerState(this.state);
   }
 
   async disconnectItem(id: string): Promise<void> {
@@ -97,18 +108,23 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     this._statePersistenceService.saveConnectionTrackerState(this.state);
   }
 
+  removeItemsBelongingToRootCluster(clusterUri: string): void {
+    this.setState(draft => {
+      draft.connections = draft.connections.filter(i => {
+        const { rootClusterUri } =
+          this._trackedConnectionOperationsFactory.create(i);
+        return rootClusterUri !== clusterUri;
+      });
+    });
+  }
+
   dispose(): void {
     this._workspacesService.unsubscribe(this._refreshState);
+    this._clusterService.unsubscribe(this._refreshState);
   }
 
   private _refreshState = () => {
     this.setState(draft => {
-      // filter out connections from removed clusters
-      draft.connections = draft.connections.filter(i => {
-        const uri = i.kind === 'connection.gateway' ? i.targetUri : i.serverUri;
-        return !!this._clusterService.findClusterByResource(uri);
-      });
-
       // assign default "connected" values
       draft.connections.forEach(i => {
         if (i.kind === 'connection.gateway') {
@@ -175,8 +191,6 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         }
       }
     });
-
-    this._statePersistenceService.saveConnectionTrackerState(this.state);
   };
 
   private _restoreConnectionItems(): TrackedConnection[] {
