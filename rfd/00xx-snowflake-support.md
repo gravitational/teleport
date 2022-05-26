@@ -25,7 +25,7 @@ The Snowflake support can be split into 4 parts:
 ### Snowflake architecture
 
 * Snowflake uses REST API for communication. 
-* Payload is a regular JSON. Some queries can also carry payload in [Arrow format](https://arrow.apache.org/). 
+* Payload is a regular JSON. Some responses can also carry payload in [Arrow format](https://arrow.apache.org/). 
 * Snowflake uses a slightly modified JWT token flow for authentication (details below).
 
 ### Teleport configuration
@@ -42,9 +42,10 @@ db_service:
       uri: "im12345.us-east-2.aws.snowflakecomputing.com"
 ```
 
-The next step would be to add teleport CA to the Snowflake user account. `tctl` could learn to export the required keys 
-in the same way as it does today for different databases (`tctl auth sign` command). The exported key must then be added 
-to Snowflake by an administrator. The procedure of adding the key to Snowflake is described [here](https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user).
+The next step would be to add the public part of Teleport's database CA to the Snowflake user account. 
+`tctl` could learn to export the required keys in the same way as it does today for different databases 
+(`tctl auth sign` command). The exported key must then be added to Snowflake by an administrator. 
+The procedure of adding the key to Snowflake is described [here](https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user).
 
 ### Database access support
 
@@ -93,12 +94,52 @@ the token as client doesn't have access to the token (login response contains th
 
 #### Query logging
 
-Queries can be extracted from requests sent to `/queries/v1/query-request` endpoint, field `data.sqltext`.
+Queries can be extracted from requests sent to `/queries/v1/query-request` endpoint, field `data.sqltext` and additional
+`data.parameters`, `data.bindings` and `data.bindStage` with query parameters/options.
 
 #### User authentication
 
-Username can be extracted from `/session/v1/login-request` requests, field `data.LOGIN_NAME`. The extracted username
-can be then use to authenticate the user against the Teleport RBAC.
+Teleport will use the db-username from the client certificate to generate JWT token that includes the database username.
+Generated JWT will be then replaced in a request to `/session/v1/login-request`. 
+
+#### Session management
+
+A new type of web session will be created, SnowflakeWebSession. Those session will be used to store the session and
+master token returned by `/session/v1/login-request` and `/session/token-request`. On each response from those endpoint
+Teleport will extract both token, and replace it with Teleport Web Session ID prefixed with `Teleport:`, example:
+Response from snowflake:
+
+```json
+{
+  "data": {
+    "masterToken": "ver:1-hint:8521912329-ETMsDgAAAX+VsGDlABRBRVMvQ0JDL1BLQ1M1UGF...",
+    "masterValidityInSeconds": 14400,
+    "token": "ver:1-hint:96v0Tt5AVts5HtZThaT24G+HXb/hwCQhuL30azivEPDOg96oe7vMHlqymAcx6o3/dG2b...",
+    "validityInSeconds": 3600
+  },
+  "success": true
+}
+```
+
+Teleport response returned to client:
+```json
+{
+  "data": {
+    "masterToken": "Teleport:2a69645c635316359205cba3c3b52d6a8e9c3ebb3c2032999676ed120b51ff56",
+    "masterValidityInSeconds": 14400,
+    "token": "Teleport:b712b5421a75f571018569d8623713c20739654b827900dffee086ab55c441d7",
+    "validityInSeconds": 3600
+  },
+  "success": true
+}
+```
+
+Then on each request token passed in the Authentication header will be mapped to the Snowflake token and replaced before
+the request is sent to Snowflake. `Teleport:` prefix is added to web session ID only for easier identification purposes
+(some Snowflake clients set this header to a "random" value, for ex. Python SDK can send `None`).
+
+Snowflake web session are implemented on top existing web session tokens in Teleport which allows one token to be read 
+by many DB agents in HA configuration.
 
 ### CLI support 
 
