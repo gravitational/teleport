@@ -1,6 +1,6 @@
 ---
 authors: Krzysztof Skrzętnicki <krzysztof.skrzetnicki@goteleport.com>
-state: draft
+state: implemented
 ---
 
 # RFD 70 - `tctl sso configure` command
