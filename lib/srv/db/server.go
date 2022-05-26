@@ -897,8 +897,17 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 	}
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
-	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.cfg.AuthClient)
-	if err != nil {
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
+	switch {
+	case err == nil:
+	case trace.IsAccessDenied(err):
+		// Ignore access denied errors, which we may get if the auth
+		// server is v9.2.3 or earlier, since only node, proxy, and
+		// kube roles had permission to create session trackers.
+		// DELETE IN 11.0.0
+		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
+		return nil
+	default: // aka err != nil
 		return trace.Wrap(err)
 	}
 

@@ -93,7 +93,7 @@ func (s *SessionTracker) updateExpirationLoop(ctx context.Context, ticker clockw
 				return trace.Wrap(err)
 			}
 		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
+			return nil
 		case <-s.closeC:
 			return nil
 		}

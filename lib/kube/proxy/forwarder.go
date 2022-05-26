@@ -22,11 +22,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	mathrand "math/rand"
 	"net"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -64,11 +66,13 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
+	kubeexec "k8s.io/client-go/util/exec"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -311,11 +315,12 @@ func (f *Forwarder) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
 	auth.Context
-	kubeGroups      map[string]struct{}
-	kubeUsers       map[string]struct{}
-	kubeCluster     string
-	teleportCluster teleportClusterClient
-	recordingConfig types.SessionRecordingConfig
+	kubeGroups        map[string]struct{}
+	kubeUsers         map[string]struct{}
+	kubeClusterLabels map[string]string
+	kubeCluster       string
+	teleportCluster   teleportClusterClient
+	recordingConfig   types.SessionRecordingConfig
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
 	// disconnectExpiredCert if set, controls the time when the connection
@@ -340,6 +345,7 @@ func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
 		KubernetesCluster: c.kubeCluster,
 		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
 		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
+		KubernetesLabels:  c.kubeClusterLabels,
 	}
 }
 
@@ -535,6 +541,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
 	}
+
 	isRemoteCluster := f.cfg.ClusterName != teleportClusterName
 
 	if isRemoteCluster && isRemoteUser {
@@ -556,18 +563,23 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		}
 	}
 
-	var kubeUsers, kubeGroups []string
+	var (
+		kubeUsers, kubeGroups []string
+		kubeLabels            map[string]string
+	)
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
 	// leaf and checked there.
 	if !isRemoteCluster {
-		var err error
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
-		kubeGroups, kubeUsers, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
+		kubeAccessDetails, err := f.getKubeAccessDetails(roles, kubeCluster, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		kubeUsers = kubeAccessDetails.kubeUsers
+		kubeGroups = kubeAccessDetails.kubeGroups
+		kubeLabels = kubeAccessDetails.clusterLabels
 	}
 
 	// By default, if no kubernetes_users is set (which will be a majority),
@@ -651,6 +663,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
+		kubeClusterLabels: kubeLabels,
 		recordingConfig:   recordingConfig,
 		kubeCluster:       kubeCluster,
 		teleportCluster: teleportClusterClient{
@@ -675,14 +688,24 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	return authCtx, nil
 }
 
-// getKubeGroupsAndUsers returns the allowed kube groups/users names for a local kube cluster.
-func (f *Forwarder) getKubeGroupsAndUsers(
+// kubeAccessDetails holds the allowed kube groups/users names and the cluster labels for a local kube cluster.
+type kubeAccessDetails struct {
+	// list of allowed kube users
+	kubeUsers []string
+	// list of allowed kube groups
+	kubeGroups []string
+	// kube cluster labels
+	clusterLabels map[string]string
+}
+
+// getKubeAccessDetails returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
+func (f *Forwarder) getKubeAccessDetails(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (groups, users []string, err error) {
+	sessionTTL time.Duration) (kubeAccessDetails, error) {
 	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return kubeAccessDetails{}, trace.Wrap(err)
 	}
 
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
@@ -695,15 +718,23 @@ func (f *Forwarder) getKubeGroupsAndUsers(
 			// Get list of allowed kube user/groups based on kubernetes service labels.
 			labels := types.CombineLabels(c.StaticLabels, c.DynamicLabels)
 			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
-			groups, users, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
+			groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
 			if err != nil {
-				return nil, nil, trace.Wrap(err)
+				return kubeAccessDetails{}, trace.Wrap(err)
 			}
-			return groups, users, nil
+			return kubeAccessDetails{
+				kubeGroups:    groups,
+				kubeUsers:     users,
+				clusterLabels: labels,
+			}, nil
 		}
 	}
 	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
-	return []string{}, []string{}, nil
+	return kubeAccessDetails{
+		kubeGroups:    []string{},
+		kubeUsers:     []string{},
+		clusterLabels: map[string]string{},
+	}, nil
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
@@ -963,6 +994,7 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, role
 // execNonInteractive handles all exec sessions without a TTY.
 func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (resp interface{}, err error) {
 	defer proxy.Close()
+
 	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -984,25 +1016,57 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
-	event := &apievents.Exec{
+
+	sessionStart := f.cfg.Clock.Now().UTC()
+
+	serverMetadata := apievents.ServerMetadata{
+		ServerID:        f.cfg.ServerID,
+		ServerNamespace: f.cfg.Namespace,
+		ServerHostname:  sess.teleportCluster.name,
+		ServerAddr:      sess.kubeAddress,
+	}
+
+	sessionMetadata := apievents.SessionMetadata{
+		SessionID: uuid.NewString(),
+		WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
+	}
+
+	connectionMetdata := apievents.ConnectionMetadata{
+		RemoteAddr: req.RemoteAddr,
+		LocalAddr:  sess.kubeAddress,
+		Protocol:   events.EventProtocolKube,
+	}
+
+	sessionStartEvent := &apievents.SessionStart{
+		Metadata: apievents.Metadata{
+			Type:        events.SessionStartEvent,
+			Code:        events.SessionStartCode,
+			ClusterName: f.cfg.ClusterName,
+		},
+		ServerMetadata:            serverMetadata,
+		SessionMetadata:           sessionMetadata,
+		UserMetadata:              ctx.eventUserMeta(),
+		ConnectionMetadata:        connectionMetdata,
+		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesPodMetadata:     eventPodMeta,
+
+		InitialCommand:   request.cmd,
+		SessionRecording: ctx.recordingConfig.GetMode(),
+	}
+
+	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
+		f.log.WithError(err).Warn("Failed to emit event.")
+	}
+
+	execEvent := &apievents.Exec{
 		Metadata: apievents.Metadata{
 			Type:        events.ExecEvent,
 			ClusterName: f.cfg.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        f.cfg.ServerID,
-			ServerNamespace: f.cfg.Namespace,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: uuid.NewString(),
-			WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-		},
-		UserMetadata: ctx.eventUserMeta(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.RemoteAddr,
-			LocalAddr:  sess.kubeAddress,
-			Protocol:   events.EventProtocolKube,
-		},
+		ServerMetadata:     serverMetadata,
+		SessionMetadata:    sessionMetadata,
+		UserMetadata:       ctx.eventUserMeta(),
+		ConnectionMetadata: connectionMetdata,
 		CommandMetadata: apievents.CommandMetadata{
 			Command: strings.Join(request.cmd, " "),
 		},
@@ -1010,23 +1074,81 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		KubernetesPodMetadata:     eventPodMeta,
 	}
 
-	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, event); err != nil {
-		f.log.WithError(err).Warn("Failed to emit exec event.")
-	}
+	defer func() {
+		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
+			f.log.WithError(err).Warn("Failed to emit exec event.")
+		}
+
+		sessionEndEvent := &apievents.SessionEnd{
+			Metadata: apievents.Metadata{
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
+				ClusterName: f.cfg.ClusterName,
+			},
+			ServerMetadata:            serverMetadata,
+			SessionMetadata:           sessionMetadata,
+			UserMetadata:              ctx.eventUserMeta(),
+			ConnectionMetadata:        connectionMetdata,
+			Interactive:               false,
+			StartTime:                 sessionStart,
+			EndTime:                   f.cfg.Clock.Now().UTC(),
+			KubernetesClusterMetadata: ctx.eventClusterMeta(),
+			KubernetesPodMetadata:     eventPodMeta,
+			InitialCommand:            request.cmd,
+			SessionRecording:          ctx.recordingConfig.GetMode(),
+		}
+
+		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
+			f.log.WithError(err).Warn("Failed to emit session end event.")
+		}
+
+	}()
 
 	executor, err := f.getExecutor(*ctx, sess, req)
 	if err != nil {
+		execEvent.Code = events.ExecFailureCode
+		execEvent.Error, execEvent.ExitCode = exitCode(err)
+
 		f.log.WithError(err).Warning("Failed creating executor.")
 		return nil, trace.Wrap(err)
 	}
 
 	streamOptions := proxy.options()
 	if err = executor.Stream(streamOptions); err != nil {
+		execEvent.Code = events.ExecFailureCode
+		execEvent.Error, execEvent.ExitCode = exitCode(err)
+
 		f.log.WithError(err).Warning("Executor failed while streaming.")
 		return nil, trace.Wrap(err)
 	}
 
+	execEvent.Code = events.ExecCode
+
 	return nil, nil
+}
+
+func exitCode(err error) (errMsg, code string) {
+	var (
+		kubeStatusErr = &kubeerrors.StatusError{}
+		kubeExecErr   = kubeexec.CodeExitError{}
+	)
+
+	if errors.As(err, &kubeStatusErr) {
+		if kubeStatusErr.ErrStatus.Status == metav1.StatusSuccess {
+			return
+		}
+		errMsg = kubeStatusErr.ErrStatus.Message
+		code = strconv.Itoa(int(kubeStatusErr.ErrStatus.Code))
+	} else if errors.As(err, &kubeExecErr) {
+		if kubeExecErr.Err != nil {
+			errMsg = kubeExecErr.Err.Error()
+		}
+		code = strconv.Itoa(kubeExecErr.Code)
+	} else if err != nil {
+		errMsg = err.Error()
+	}
+
+	return
 }
 
 // exec forwards all exec requests to the target server, captures
@@ -1607,7 +1729,6 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	if !ok {
 		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeCluster)
 	}
-	f.log.Debugf("local Servername: %v", creds.tlsConfig.ServerName)
 
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
 	return &clusterSession{
@@ -1658,7 +1779,9 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 		if err := http2.ConfigureTransport(transport); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
+	} else if sess.tlsConfig != nil {
+		// when certificate-authority-data is not provided in kubeconfig the tlsConfig can be nil,
+		// meaning that we will use the system default CA store.
 		sess.tlsConfig.NextProtos = nil
 	}
 
