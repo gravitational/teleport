@@ -51,8 +51,9 @@ type DestinationConfig struct {
 	Roles   []string         `yaml:"roles,omitempty"`
 	Configs []TemplateConfig `yaml:"configs,omitempty"`
 
-	// Kinds is a deprecated field that remains for compatibility and should be
-	// removed in a future release in v11 or later.
+	// Kinds is a deprecated and unused field that remains for compatibility
+	// reasons.
+	// DELETE IN 11.0.0: Kinds should be removed after a grace period.
 	Kinds []string `yaml:"kinds,omitempty"`
 
 	Database *DatabaseConfig `yaml:"database,omitempty"`
