@@ -61,6 +61,8 @@ type OIDCConnector interface {
 	SetClientID(string)
 	// SetIssuerURL sets the endpoint of the provider
 	SetIssuerURL(string)
+	// SetRedirectURLs sets the list of redirectURLs
+	SetRedirectURLs([]string)
 	// SetPrompt sets OIDC prompt value
 	SetPrompt(string)
 	// GetPrompt returns OIDC prompt value,
@@ -223,6 +225,11 @@ func (o *OIDCConnectorV3) SetIssuerURL(issuerURL string) {
 	o.Spec.IssuerURL = issuerURL
 }
 
+// SetRedirectURLs sets the list of redirectURLs
+func (o *OIDCConnectorV3) SetRedirectURLs(redirectURLs []string) {
+	o.Spec.RedirectURLs = redirectURLs
+}
+
 // SetACR sets the Authentication Context Class Reference (ACR) value.
 func (o *OIDCConnectorV3) SetACR(acrValue string) {
 	o.Spec.ACR = acrValue
@@ -364,7 +371,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 
 	if _, err := url.Parse(o.GetIssuerURL()); err != nil {
-		return trace.BadParameter("IssuerURL: bad url: '%v'", o.GetIssuerURL())
+		return trace.BadParameter("bad IssuerURL '%v', err: %v", o.GetIssuerURL(), err)
 	}
 
 	// RedirectURL must be checked/set when communicating with an old server or client.
@@ -380,7 +387,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 	for _, redirectURL := range o.GetRedirectURLs() {
 		if _, err := url.Parse(redirectURL); err != nil {
-			return trace.BadParameter("RedirectURL: bad url: '%v'", redirectURL)
+			return trace.BadParameter("bad RedirectURL '%v', err: %v", redirectURL, err)
 		}
 	}
 

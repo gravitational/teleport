@@ -116,10 +116,11 @@ func (a *Server) getCachedOIDCClient(ctx context.Context, conn types.OIDCConnect
 
 	cachedClient, ok := a.oidcClients[clientMapKey]
 	if ok {
-		if cmp.Equal(cachedClient.connector, conn) && cachedClient.syncCtx.Err() == nil {
+		if !cachedClient.needsRefresh(conn) && cachedClient.syncCtx.Err() == nil {
 			return cachedClient, nil
 		}
-		// Cached client is out of date or is no longer syncing.
+		// Cached client needs to be refreshed or is no longer syncing.
+		cachedClient.syncCancel()
 		delete(a.oidcClients, clientMapKey)
 	}
 
@@ -160,6 +161,17 @@ func oidcConfig(conn types.OIDCConnector, redirectURL string) oidc.ClientConfig 
 		// open id notifies provider that we are using OIDC scopes
 		Scope: apiutils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
+}
+
+// needsRefresh returns whether the client's connector and the
+// given connector have the same values for fields relevant to
+// generating and syncing an oidc.Client.
+func (c *oidcClient) needsRefresh(conn types.OIDCConnector) bool {
+	return !cmp.Equal(conn.GetRedirectURLs(), c.connector.GetRedirectURLs()) ||
+		conn.GetClientID() != c.connector.GetClientID() ||
+		conn.GetClientSecret() != c.connector.GetClientSecret() ||
+		!cmp.Equal(conn.GetScope(), c.connector.GetScope()) ||
+		conn.GetIssuerURL() != c.connector.GetIssuerURL()
 }
 
 // startSync starts a goroutine to sync the client with its provider

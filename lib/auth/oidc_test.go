@@ -439,48 +439,86 @@ func TestOIDCClientCache(t *testing.T) {
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
-	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
+	connectorSpec := types.OIDCConnectorSpecV3{
 		IssuerURL:     idp.s.URL,
 		ClientID:      "00000000000000000000000000000000",
 		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
 		Provider:      teleport.Ping,
 		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
 		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-	})
+	}
+	connector, err := types.NewOIDCConnector("test-connector", connectorSpec)
 	require.NoError(t, err)
 
 	// Create and cache a new oidc client
 	client, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
 
-	// The next call should return the same client
-	client2, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
-	require.NoError(t, err)
-	require.True(t, client == client2)
-
-	// Any change to the connector should cause the cached client to be replaced
-	connector, err = types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.s.URL,
-		ClientID:      "11111111111111111111111111111111",
-		ClientSecret:  "1111111111111111111111111111111111111111111111111111111111111111",
-		Provider:      teleport.Ping,
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-	})
-	require.NoError(t, err)
-
-	newClient, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
-	require.NoError(t, err)
-	require.False(t, client == newClient)
-
-	// Canceling provider sync on a cached client should cause it to be replaced
+	// The next call should return the same client (compare memory address)
 	cachedClient, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
-	cachedClient.syncCancel()
+	require.True(t, client == cachedClient)
 
-	newClient2, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	// Canceling provider sync on a cached client should cause it to be replaced
+	client.syncCancel()
+	cachedClient, err = s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
-	require.False(t, newClient == newClient2)
+	require.False(t, client == cachedClient)
+
+	// Certain changes to the connector should cause the cached client to be refreshed
+	originalClient := cachedClient
+	for _, tc := range []struct {
+		desc            string
+		mutateConnector func(types.OIDCConnector)
+		expectNoRefresh bool
+	}{
+		{
+			desc: "IssuerURL",
+			mutateConnector: func(conn types.OIDCConnector) {
+				conn.SetIssuerURL(newFakeIDP(t, false /* tls */).s.URL)
+			},
+		}, {
+			desc: "ClientID",
+			mutateConnector: func(conn types.OIDCConnector) {
+				conn.SetClientID("11111111111111111111111111111111")
+			},
+		}, {
+			desc: "ClientSecret",
+			mutateConnector: func(conn types.OIDCConnector) {
+				conn.SetClientSecret("1111111111111111111111111111111111111111111111111111111111111111")
+			},
+		}, {
+			desc: "RedirectURLs",
+			mutateConnector: func(conn types.OIDCConnector) {
+				conn.SetRedirectURLs([]string{"https://other.example.com/v1/webapi/oidc/callback"})
+			},
+		}, {
+			desc: "Scope",
+			mutateConnector: func(conn types.OIDCConnector) {
+				conn.SetScope([]string{"groups"})
+			},
+		}, {
+			desc: "Prompt - no refresh",
+			mutateConnector: func(conn types.OIDCConnector) {
+				conn.SetPrompt("none")
+			},
+			expectNoRefresh: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			newConnector, err := types.NewOIDCConnector("test-connector", connectorSpec)
+			require.NoError(t, err)
+			tc.mutateConnector(newConnector)
+
+			client, err = s.a.getCachedOIDCClient(ctx, newConnector, "proxy.example.com")
+			require.NoError(t, err)
+			require.True(t, (client == originalClient) == tc.expectNoRefresh)
+
+			// reset cached client to the original client for remaining tests
+			originalClient, err = s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+			require.NoError(t, err)
+		})
+	}
 }
 
 // fakeIDP is a configurable OIDC IdP that can be used to mock responses in
