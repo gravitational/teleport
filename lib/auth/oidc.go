@@ -49,7 +49,7 @@ func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services
 	// stateless test flow
 	if request.SSOTestFlow {
 		if request.ConnectorSpec == nil {
-			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is tru")
+			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
 		}
 
 		if request.ConnectorID == "" {

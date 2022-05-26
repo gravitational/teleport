@@ -2226,8 +2226,6 @@ func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWi
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected OIDC connector type %T", oc)
 	}
-	// DELETE IN 11.0.0
-	connector.CheckAndSetRedirectURL()
 	return connector, nil
 }
 
@@ -2247,8 +2245,6 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 		if connectors[i], ok = oc.(*types.OIDCConnectorV3); !ok {
 			return nil, trace.Errorf("encountered unexpected OIDC connector type %T", oc)
 		}
-		// DELETE IN 11.0.0
-		connectors[i].CheckAndSetRedirectURL()
 	}
 	return &types.OIDCConnectorV3List{
 		OIDCConnectors: connectors,
@@ -2259,11 +2255,6 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// DELETE IN 11.0.0
-	oidcConnector.CheckAndSetRedirectURLs()
-	if err = oidcConnector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err = auth.ServerWithRoles.UpsertOIDCConnector(ctx, oidcConnector); err != nil {

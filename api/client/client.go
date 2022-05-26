@@ -1423,8 +1423,13 @@ func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets 
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+
+	// Set RedirectURLs if not already set
 	// DELETE IN 11.0.0
-	resp.CheckAndSetRedirectURLs()
+	if err := resp.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return resp, nil
 }
 
@@ -1437,8 +1442,11 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	}
 	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
 	for i, oidcConnector := range resp.OIDCConnectors {
+		// Set RedirectURLs if not already set
 		// DELETE IN 11.0.0
-		oidcConnector.CheckAndSetRedirectURLs()
+		if err := oidcConnector.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		oidcConnectors[i] = oidcConnector
 	}
 	return oidcConnectors, nil
@@ -1450,8 +1458,6 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	// DELETE IN 11.0.0
-	connector.CheckAndSetRedirectURL()
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }

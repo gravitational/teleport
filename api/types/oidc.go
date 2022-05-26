@@ -367,6 +367,14 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("IssuerURL: bad url: '%v'", o.GetIssuerURL())
 	}
 
+	// RedirectURL must be checked/set when communicating with an old server or client.
+	// DELETE IN 11.0.0
+	if o.Spec.RedirectURL == "" && len(o.Spec.RedirectURLs) != 0 {
+		o.Spec.RedirectURL = o.Spec.RedirectURLs[0]
+	} else if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
+		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
+	}
+
 	if len(o.GetRedirectURLs()) == 0 {
 		return trace.BadParameter("RedirectURL: missing redirect_url")
 	}
@@ -400,28 +408,4 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// CheckAndSetRedirectURL checks if RedirectURL is set, and sets it to
-// RedirectURLs[0] if it isn't. This is used when the connector
-// is sent in a request/response to an old server/client respectively.
-//
-// DELETE IN 11.0.0
-func (o *OIDCConnectorV3) CheckAndSetRedirectURL() {
-	if o.Spec.RedirectURL == "" && len(o.Spec.RedirectURLs) != 0 {
-		o.Spec.RedirectURL = o.Spec.RedirectURLs[0]
-	}
-}
-
-// CheckAndSetRedirectURLs checks if RedirectURLs is set, and sets its first
-// element to RedirectURL if it's empty. This is used when the connector
-// is received from a request/response of an old client/server respectively.
-//
-// DELETE IN 11.0.0
-func (o *OIDCConnectorV3) CheckAndSetRedirectURLs() {
-	if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
-		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
-	}
-	// unset deprectated field to prevent it from being unmarshalled in yaml
-	o.Spec.RedirectURL = ""
 }

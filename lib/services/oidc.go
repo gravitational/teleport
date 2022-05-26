@@ -61,9 +61,9 @@ func GetRedirectURL(conn types.OIDCConnector, proxyAddr string) (string, error) 
 		return "", trace.BadParameter("No redirect URLs provided")
 	}
 
-	// If a specific proxyAddr wasn't provided in the oidc
-	// auth request, just use the default redirect URL.
-	if proxyAddr == "" {
+	// If a specific proxyAddr wasn't provided in the oidc auth request,
+	// or there is only one redirect URL, use the first redirect URL.
+	if proxyAddr == "" || len(conn.GetRedirectURLs()) == 1 {
 		return conn.GetRedirectURLs()[0], nil
 	}
 
@@ -95,6 +95,7 @@ func GetRedirectURL(conn types.OIDCConnector, proxyAddr string) (string, error) 
 		return matchingHostname, nil
 	}
 
+	// No match, default to the first redirect URL.
 	return conn.GetRedirectURLs()[0], nil
 }
 
