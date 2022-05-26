@@ -114,7 +114,7 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	if len(dc.Kinds) > 0 {
 		log.Warnf("The `kinds` configuration field has been deprecated and " +
 			"will be removed in a future release. It is now a no-op and can " +
-			"safely be removed the configuration file.")
+			"safely be removed from the configuration file.")
 	}
 
 	return nil
