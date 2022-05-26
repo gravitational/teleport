@@ -50,8 +50,8 @@ pub fn to_utf8(s: &str) -> Vec<u8> {
 }
 
 /// Takes a Rust string slice and calculates it's unicode size in bytes.
-pub fn unicode_size(s: &str) -> u32 {
-    u32::try_from(to_unicode(s, false).len()).unwrap()
+pub fn unicode_size(s: &str, with_null_term: bool) -> u32 {
+    u32::try_from(to_unicode(s, with_null_term).len()).unwrap()
 }
 
 #[cfg(test)]
