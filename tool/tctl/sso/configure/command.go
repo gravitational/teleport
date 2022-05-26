@@ -47,7 +47,7 @@ func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *servic
 	cmd.config = cfg
 	cmd.Logger = cfg.Log.WithField(trace.Component, teleport.ComponentClient)
 
-	sso := app.Command("sso", "SSO operations")
+	sso := app.Command("sso", "A family of commands for configuring and testing auth connectors (SSO).")
 	cmd.ConfigureCmd = sso.Command("configure", "Create auth connector configuration.")
 	cmd.AuthCommands = []*AuthKindCommand{addGithubCommand(cmd)}
 }

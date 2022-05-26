@@ -42,12 +42,12 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	sub := cmd.ConfigureCmd.Command("github", "Configure Github auth connector.")
 	// commonly used flags
 	sub.Flag("name", "Connector name.").Default("github").Short('n').StringVar(&gh.connectorName)
-	sub.Flag("teams-to-logins", "Sets teams-to-logins mapping in the form 'organization,team_name,role1,role2,...'. Repeatable.").
+	sub.Flag("teams-to-logins", "Sets teams-to-logins mapping using format 'organization,name,role1,role2,...'. Repeatable.").
 		Short('r').
 		Required().
 		PlaceHolder("org,team,role1,role2,...").
 		SetValue(newTeamsToLoginsParser(&spec.TeamsToLogins))
-	sub.Flag("display", "Display controls how this connector is displayed.").StringVar(&spec.Display)
+	sub.Flag("display", "Sets the connector display name.").StringVar(&spec.Display)
 	sub.Flag("id", "Github app client ID.").PlaceHolder("ID").Required().StringVar(&spec.ClientID)
 	sub.Flag("secret", "Github app client secret.").Required().PlaceHolder("SECRET").StringVar(&spec.ClientSecret)
 
@@ -55,7 +55,7 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	sub.Flag("redirect-url", "Authorization callback URL.").PlaceHolder("URL").StringVar(&spec.RedirectURL)
 
 	// ignores
-	sub.Flag("ignore-missing-roles", "Ignore non-existing roles referenced in --teams-to-logins.").BoolVar(&gh.ignoreMissingRoles)
+	sub.Flag("ignore-missing-roles", "Ignore missing roles referenced in --teams-to-logins.").BoolVar(&gh.ignoreMissingRoles)
 
 	sub.Alias("gh")
 

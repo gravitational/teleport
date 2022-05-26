@@ -56,8 +56,22 @@ func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *service.Con
 	cmd.config = cfg
 
 	sso := app.GetCommand("sso")
-	cmd.ssoTestCmd = sso.Command("test", "Test SSO auth connector")
-	cmd.ssoTestCmd.Arg("filename", "Connector resource definition filename, empty for stdin").StringVar(&cmd.connectorFileName)
+	cmd.ssoTestCmd = sso.Command("test", "Perform end-to-end test of SSO flow using provided auth connector definition.")
+	cmd.ssoTestCmd.Arg("filename", "Connector resource definition filename. Empty for stdin.").StringVar(&cmd.connectorFileName)
+	cmd.ssoTestCmd.Alias(`
+Examples:
+
+  Test the auth connector from connector.yaml:
+
+  > tctl sso test connector.yaml
+
+  The command is designed to be used in conjunction with "tctl sso configure" family of commands:
+
+  > tctl sso configure github ... | tctl sso test
+
+  The pipeline may also utilise "tee" to capture the connector generated with "tctl sso configure".
+
+  > tctl sso configure github ... | tee connector.yaml | tctl sso test`)
 
 	cmd.Handlers = map[string]func(c auth.ClientI, connBytes []byte) (*AuthRequestInfo, error){
 		types.KindGithubConnector: handleGithubConnector,
