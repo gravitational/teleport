@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ButtonIcon, Flex, Label, Text } from 'design';
@@ -23,8 +23,6 @@ export function IdentityListItem(props: IdentityListItemProps) {
     index: props.index,
     onRun: props.onSelect,
   });
-  const ref = useRef<HTMLElement>();
-  const [newWidth, setMaxWidth] = useState<number>();
 
   const title = props.userName
     ? `${props.userName}@${props.clusterName}`
@@ -32,18 +30,16 @@ export function IdentityListItem(props: IdentityListItemProps) {
 
   return (
     <ListItem
-      css={`border-radius: 0; height: 38px`}
+      css={`
+        border-radius: 0;
+        height: 38px;
+      `}
       onClick={props.onSelect}
       isActive={isActive}
-      ref={ref}
-      style={{ maxWidth: newWidth && newWidth + 'px' }}
       onMouseEnter={() => {
-        // we set maxWidth to list item element, because otherwise it becomes wider on hover (new element is added to it)
-        setMaxWidth(ref.current.clientWidth);
         setIsHovered(true);
       }}
       onMouseLeave={() => {
-        setMaxWidth(undefined);
         setIsHovered(false);
       }}
     >
@@ -58,20 +54,22 @@ export function IdentityListItem(props: IdentityListItemProps) {
               active
             </Label>
           ) : null}
-          {isHovered && (
-            <ButtonIcon
-              mr="-10px"
-              ml={1}
-              color="text.placeholder"
-              title={`Log out from ${props.clusterName}`}
-              onClick={e => {
-                e.stopPropagation();
-                props.onLogout();
-              }}
-            >
-              <CircleCross fontSize={12} />
-            </ButtonIcon>
-          )}
+          <ButtonIcon
+            mr="-10px"
+            style={{
+              visibility: isHovered ? 'visible' : 'hidden',
+              transition: 'none',
+            }}
+            ml={2}
+            color="text.placeholder"
+            title={`Log out from ${props.clusterName}`}
+            onClick={e => {
+              e.stopPropagation();
+              props.onLogout();
+            }}
+          >
+            <CircleCross fontSize={12} />
+          </ButtonIcon>
         </Flex>
       </Flex>
     </ListItem>
