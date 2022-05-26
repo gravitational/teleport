@@ -339,8 +339,8 @@ func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
 		desc  string
 		token string
 	}{
-		{"file path on windows", `C:\path\to\some\file`},
-		{"literal string", "some-literal-token"},
+		{desc: "file path on windows", token: `C:\path\to\some\file`},
+		{desc: "literal string", token: "some-literal-token"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
