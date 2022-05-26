@@ -262,6 +262,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 		utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
 		log.Debugf("Debug logging has been enabled.")
 	}
+	cfg.Log = log.StandardLogger()
 
 	// If the config file path provided is not a blank string, load the file and apply its values
 	var fileConf *config.FileConfig
