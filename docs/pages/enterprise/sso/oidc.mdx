@@ -78,9 +78,25 @@ the `user` role depending on the value returned for `group` within the claims.
 
 Create the connector:
 
-```bsh
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+# Log in to your Teleport cluster so you can use tctl remotely.
+# You can also run tctl on your Auth Service host.
+$ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create oidc-connector.yaml
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+# Log in to your Teleport cluster so you can use tctl remotely
+$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+$ tctl create oidc-connector.yaml
+```
+
+</ScopedBlock>
 
 ## Create Teleport Roles
 
