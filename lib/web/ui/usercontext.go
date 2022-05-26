@@ -52,6 +52,8 @@ type AccessCapabilities struct {
 type userACL struct {
 	// Sessions defines access to recorded sessions.
 	Sessions access `json:"sessions"`
+	// ActiveSessions defines access to active sessions.
+	ActiveSessions access `json:"activeSessions"`
 	// AuthConnectors defines access to auth.connectors.
 	AuthConnectors access `json:"authConnectors"`
 	// Roles defines access to roles.
@@ -200,6 +202,7 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled bool) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, types.KindSession)
+	activeSessionAccess := newAccess(userRoles, ctx, types.KindSSHSession)
 	roleAccess := newAccess(userRoles, ctx, types.KindRole)
 	authConnectors := newAccess(userRoles, ctx, types.KindAuthConnector)
 	trustedClusterAccess := newAccess(userRoles, ctx, types.KindTrustedCluster)
@@ -233,6 +236,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		AuthConnectors:          authConnectors,
 		TrustedClusters:         trustedClusterAccess,
 		Sessions:                sessionAccess,
+		ActiveSessions:          activeSessionAccess,
 		Roles:                   roleAccess,
 		Events:                  eventAccess,
 		SSHLogins:               logins,
