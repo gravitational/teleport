@@ -110,6 +110,10 @@ type CommandLineFlags struct {
 	// configuration.
 	FIPS bool
 
+	// SkipVersionCheck allows Teleport to connect to auth servers that
+	// have an earlier major version number.
+	SkipVersionCheck bool
+
 	// AppName is the name of the application to proxy.
 	AppName string
 
@@ -1785,6 +1789,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 		}
+	}
+
+	// apply --skip-version-check flag.
+	if clf.SkipVersionCheck {
+		cfg.SkipVersionCheck = clf.SkipVersionCheck
 	}
 
 	// Apply diagnostic address flag.
