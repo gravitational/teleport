@@ -92,8 +92,8 @@ func (s *GithubSuite) TestPopulateClaims(c *check.C) {
 
 func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
 	// Dry-run creation of Github user.
-	user, err := s.a.createOIDCUser(&createUserParams{
-		connectorName: "oidcService",
+	user, err := s.a.createGithubUser(context.Background(), &createUserParams{
+		connectorName: "github",
 		username:      "foo@example.com",
 		logins:        []string{"foo"},
 		roles:         []string{"admin"},
