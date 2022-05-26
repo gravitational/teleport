@@ -41,6 +41,9 @@ join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
 ```code
+# Log in to your cluster with tsh so you can use tctl.
+# You can also run tctl on your Auth Service host.
+$ tsh login --user=myuser --proxy=teleport.example.com
 $ tctl tokens add \
     --type=app \
     --app-name=grafana \
