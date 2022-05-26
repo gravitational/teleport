@@ -4,8 +4,13 @@
         # Download Teleport's PGP public key
         $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
           -o /usr/share/keyrings/teleport-archive-keyring.asc
+        # Source variables about OS version
+        $ source /etc/os-release
         # Add the Teleport APT repository
-        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main" \
+        # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
+        # and the codename your distro was forked from instead
+        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+          https://apt.releases.teleport.dev/$ID $VERSION_CODENAME stable/v(=teleport.major_version=)" \
         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
         $ sudo apt-get update
