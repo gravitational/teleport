@@ -293,7 +293,7 @@ func TestAuditWriter(t *testing.T) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
 				OnEmitAuditEvent: func(_ context.Context, _ session.ID, _ apievents.AuditEvent) error {
-					// Returns an unrecorable error.
+					// Returns an unrecoverable error.
 					return errors.New(uploaderReservePartErrorMessage)
 				},
 			})

@@ -1540,7 +1540,7 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 	for _, role := range set {
 		recordSession := role.GetOptions().RecordSession
 
-		// If one of the dafault values is "strict", set it as the value.
+		// If one of the default values is "strict", set it as the value.
 		if recordSession.Default == constants.SessionRecordingModeStrict {
 			defaultValue = constants.SessionRecordingModeStrict
 		}

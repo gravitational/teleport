@@ -289,7 +289,7 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 	}
 }
 
-// ReserUploadPart reserves an upload part.
+// ReserveUploadPart reserves an upload part.
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
 	return nil
 }
