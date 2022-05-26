@@ -11,8 +11,14 @@ This section will cover:
 
 ## Prerequisites
 
-- Teleport v(=teleport.version=) Enterprise self-hosted.
+- Teleport v(=teleport.version=) Enterprise (self-hosted).
+
+- The `tctl` administration tool version >= (=teleport.version=).
+
+  (!docs/pages/includes/tctl.mdx!)
+
 - An HSM reachable from your Teleport auth server.
+
 - The PKCS#11 module for your HSM.
 
 While most PKCS#11 HSMs should be supported, the Teleport team tests with AWS
