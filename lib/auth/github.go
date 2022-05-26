@@ -204,11 +204,13 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request servic
 			return nil, nil, trace.Wrap(err)
 		}
 
-		// get client, but don't cache it.
-		client, err := a.getGithubOAuth2Client(connector, false)
+		// construct client directly.
+		config := newGithubOAuth2Config(connector)
+		client, err := oauth2.NewClient(http.DefaultClient, config)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+
 		return connector, client, nil
 	}
 
@@ -218,12 +220,48 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request servic
 		return nil, nil, trace.Wrap(err)
 	}
 
-	client, err := a.getGithubOAuth2Client(connector, true)
+	client, err := a.getGithubOAuth2Client(connector)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	return connector, client, nil
+}
+
+func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
+	return oauth2.Config{
+		Credentials: oauth2.ClientCredentials{
+			ID:     connector.GetClientID(),
+			Secret: connector.GetClientSecret(),
+		},
+		RedirectURL: connector.GetRedirectURL(),
+		Scope:       GithubScopes,
+		AuthURL:     GithubAuthURL,
+		TokenURL:    GithubTokenURL,
+	}
+}
+
+func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2.Client, error) {
+	config := newGithubOAuth2Config(connector)
+
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	cachedClient, ok := a.githubClients[connector.GetName()]
+	if ok && oauth2ConfigsEqual(cachedClient.config, config) {
+		return cachedClient.client, nil
+	}
+
+	delete(a.githubClients, connector.GetName())
+	client, err := oauth2.NewClient(http.DefaultClient, config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	a.githubClients[connector.GetName()] = &githubClient{
+		client: client,
+		config: config,
+	}
+	return client, nil
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
@@ -545,45 +583,6 @@ func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) 
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Claims: %#v.", claims)
 	return claims, nil
-}
-
-func (a *Server) getGithubOAuth2Client(connector types.GithubConnector, rememberClient bool) (*oauth2.Client, error) {
-	config := oauth2.Config{
-		Credentials: oauth2.ClientCredentials{
-			ID:     connector.GetClientID(),
-			Secret: connector.GetClientSecret(),
-		},
-		RedirectURL: connector.GetRedirectURL(),
-		Scope:       GithubScopes,
-		AuthURL:     GithubAuthURL,
-		TokenURL:    GithubTokenURL,
-	}
-
-	// no locking required for single-use client.
-	if !rememberClient {
-		client, err := oauth2.NewClient(http.DefaultClient, config)
-		return client, trace.Wrap(err)
-	}
-
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	cachedClient, ok := a.githubClients[connector.GetName()]
-	if ok && oauth2ConfigsEqual(cachedClient.config, config) {
-		return cachedClient.client, nil
-	}
-
-	delete(a.githubClients, connector.GetName())
-	client, err := oauth2.NewClient(http.DefaultClient, config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	a.githubClients[connector.GetName()] = &githubClient{
-		client: client,
-		config: config,
-	}
-	return client, nil
-
 }
 
 // githubAPIClientI defines an interface for Github API wrapper
