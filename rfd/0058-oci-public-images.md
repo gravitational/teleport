@@ -127,6 +127,10 @@ TODO: Fix or remove broken references list (trying to be fancy)
 ## Brain Dump
 
 * Is discoverability of the images and tags in scope for this RFD? Should users just assume that for each valid release there is a valid tag? Must ensure that release pipeline succeeds or a core release member should be alerted to fix any issues. 
+* Make sure to give reference to precedence of existing RFDS such as:
+    * [Terraform Registry](https://github.com/gravitational/teleport-plugins/blob/master/rfd/0002-custom-terraform-registry.md)
+    * [Release Asset Management](https://github.com/gravitational/cloud/blob/master/rfd/0004-Release-Asset-Management.md)
+    * [Package Distribution](https://github.com/gravitational/teleport/pull/10746)
 
 ### Out of scope 
 * Rate limiting
