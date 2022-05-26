@@ -1451,6 +1451,13 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
 	})
 	require.NoError(t, err)
 	return connector
@@ -1613,7 +1620,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       },
       "mysql": {},
       "gcp": {},
@@ -1633,7 +1641,8 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift": {},
         "rds": {
           "iam_auth": false
-        }
+        },
+        "elasticache": {}
       }
     }
   }]
@@ -1747,12 +1756,14 @@ func TestSerializeClusters(t *testing.T) {
 			"cluster_name": "rootCluster",
 			"status": "online",
 			"cluster_type": "root",
+			"labels": null,
 			"selected": true
 		},
 		{
 			"cluster_name": "leafCluster",
 			"status": "offline",
 			"cluster_type": "leaf",
+			"labels": {"foo": "bar", "baz": "boof"},
 			"selected": false
 		}
 	]
@@ -1768,7 +1779,11 @@ func TestSerializeClusters(t *testing.T) {
 			ClusterName: "leafCluster",
 			Status:      teleport.RemoteClusterStatusOffline,
 			ClusterType: "leaf",
-			Selected:    false,
+			Labels: map[string]string{
+				"foo": "bar",
+				"baz": "boof",
+			},
+			Selected: false,
 		},
 	}
 	testSerialization(t, expected, func(f string) (string, error) {

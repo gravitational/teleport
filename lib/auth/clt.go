@@ -223,41 +223,6 @@ func (c *HTTPClient) GetTransport() *http.Transport {
 	return c.transport
 }
 
-// ClientConfig contains configuration of the client
-// DELETE IN: 7.0.0.
-type ClientConfig struct {
-	// Addrs is a list of addresses to dial
-	Addrs []utils.NetAddr
-	// Dialer is a custom dialer that is used instead of Addrs when provided
-	Dialer client.ContextDialer
-	// DialTimeout defines how long to attempt dialing before timing out
-	DialTimeout time.Duration
-	// KeepAlivePeriod defines period between keep alives
-	KeepAlivePeriod time.Duration
-	// KeepAliveCount specifies the amount of missed keep alives
-	// to wait for before declaring the connection as broken
-	KeepAliveCount int
-	// TLS is the client's TLS config
-	TLS *tls.Config
-}
-
-// NewTLSClient returns a new TLS client that uses mutual TLS authentication
-// and dials the remote server using dialer.
-// DELETE IN: 7.0.0.
-func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
-	c := client.Config{
-		Addrs:           utils.NetAddrsToStrings(cfg.Addrs),
-		Dialer:          cfg.Dialer,
-		DialTimeout:     cfg.DialTimeout,
-		KeepAlivePeriod: cfg.KeepAlivePeriod,
-		KeepAliveCount:  cfg.KeepAliveCount,
-		Credentials: []client.Credentials{
-			client.LoadTLS(cfg.TLS),
-		},
-	}
-	return NewClient(c, params...)
-}
-
 // ClientTimeout sets idle and dial timeouts of the HTTP transport
 // used by the client.
 func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
@@ -1043,8 +1008,8 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-
+	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+) ([]byte, error) {
 	out, err := c.PostJSON(context.TODO(), c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,
@@ -1082,9 +1047,22 @@ func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 	return response, nil
 }
 
+// GetOIDCAuthRequest gets OIDC AuthnRequest
+func (c *Client) GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error) {
+	out, err := c.Get(ctx, c.Endpoint("oidc", "requests", "get", id), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *services.OIDCAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
-func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
 		Query: q,
 	})
 	if err != nil {
@@ -1683,8 +1661,11 @@ type IdentityService interface {
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 
+	// GetOIDCAuthRequest returns OIDC auth request if found
+	GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error)
+
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
-	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 
 	// CreateSAMLConnector creates SAML connector
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
@@ -1730,6 +1711,10 @@ type IdentityService interface {
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
+
+	// GetCurrentUser returns current user as seen by the server.
+	// Useful especially in the context of remote clusters which perform role and trait mapping.
+	GetCurrentUser(ctx context.Context) (types.User, error)
 
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error
@@ -1853,7 +1838,7 @@ type IdentityService interface {
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
-	GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error)
+	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
