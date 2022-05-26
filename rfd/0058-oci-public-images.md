@@ -131,6 +131,7 @@ TODO: Fix or remove broken references list (trying to be fancy)
     * [Terraform Registry](https://github.com/gravitational/teleport-plugins/blob/master/rfd/0002-custom-terraform-registry.md)
     * [Release Asset Management](https://github.com/gravitational/cloud/blob/master/rfd/0004-Release-Asset-Management.md)
     * [Package Distribution](https://github.com/gravitational/teleport/pull/10746)
+    * [Artifact Storage Standards](https://github.com/gravitational/cloud/blob/master/rfd/0017-artifact-storage-standards.md)
 
 ### Out of scope 
 * Rate limiting
@@ -138,3 +139,19 @@ TODO: Fix or remove broken references list (trying to be fancy)
 
 ### In scope
 * Secured policy and auditing
+
+
+What
+Why
+Details
+    Overview
+        Address expected questions
+            * WHy not dockerhub
+        Terminology
+
+    Scope
+    Infrastructure
+        Individual Components Summaries and Justifications
+    Implementation
+    Alternatives
+    
