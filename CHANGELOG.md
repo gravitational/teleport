@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.3.21
+
+This release of Teleport contains multiple bug fixes and stability improvements.
+
+* Fixed issue with `tctl` not outputting debug logs. [#12918](https://github.com/gravitational/teleport/pull/12918)
+* Improved proxy restart stability. [#12694](https://github.com/gravitational/teleport/pull/12694)
+* Improved memory usage in large clusters. [#12722](https://github.com/gravitational/teleport/pull/12722)
+
 ## 7.3.20
 
 This release of Teleport contains multiple performance and stability improvements.
