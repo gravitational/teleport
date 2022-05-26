@@ -29,6 +29,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -276,10 +277,20 @@ func TestNewExporter(t *testing.T) {
 			exporterAssertion: require.Nil,
 		},
 		{
-			name: "successful grpc exporter",
+			name: "successful explicit grpc exporter",
 			config: Config{
 				Service:     "test",
 				ExporterURL: c.GRPCAddr(),
+				DialTimeout: time.Second,
+			},
+			errAssertion:      require.NoError,
+			exporterAssertion: require.NotNil,
+		},
+		{
+			name: "successful inferred grpc exporter",
+			config: Config{
+				Service:     "test",
+				ExporterURL: c.GRPCAddr()[len("grpc://"):],
 				DialTimeout: time.Second,
 			},
 			errAssertion:      require.NoError,
@@ -441,6 +452,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 		cfg            Config
 		errorAssertion require.ErrorAssertionFunc
 		expectedCfg    Config
+		expectedURL    *url.URL
 	}{
 		{
 			name: "valid config",
@@ -456,6 +468,10 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				ExporterURL:  "http://localhost:8080",
 				SamplingRate: 1.0,
 				DialTimeout:  time.Millisecond,
+			},
+			expectedURL: &url.URL{
+				Scheme: "http",
+				Host:   "localhost:8080",
 			},
 		},
 		{
@@ -482,7 +498,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			errorAssertion: require.Error,
 		},
 		{
-			name: "empty scheme defaults to grpc",
+			name: "network address defaults to grpc",
 			cfg: Config{
 				Service:      "test",
 				SamplingRate: 1.0,
@@ -492,9 +508,33 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			errorAssertion: require.NoError,
 			expectedCfg: Config{
 				Service:      "test",
-				ExporterURL:  "grpc://localhost:8080",
+				ExporterURL:  "localhost:8080",
 				SamplingRate: 1.0,
 				DialTimeout:  time.Millisecond,
+			},
+			expectedURL: &url.URL{
+				Scheme: "grpc",
+				Host:   "localhost:8080",
+			},
+		},
+		{
+			name: "empty scheme defaults to grpc",
+			cfg: Config{
+				Service:      "test",
+				SamplingRate: 1.0,
+				ExporterURL:  "exporter.example.com:4317",
+				DialTimeout:  time.Millisecond,
+			},
+			errorAssertion: require.NoError,
+			expectedCfg: Config{
+				Service:      "test",
+				ExporterURL:  "exporter.example.com:4317",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
+			},
+			expectedURL: &url.URL{
+				Scheme: "grpc",
+				Host:   "exporter.example.com:4317",
 			},
 		},
 		{
@@ -502,14 +542,18 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			cfg: Config{
 				Service:      "test",
 				SamplingRate: 1.0,
-				ExporterURL:  "grpc://localhost:8080",
+				ExporterURL:  "https://localhost:8080",
 			},
 			errorAssertion: require.NoError,
 			expectedCfg: Config{
 				Service:      "test",
-				ExporterURL:  "grpc://localhost:8080",
+				ExporterURL:  "https://localhost:8080",
 				SamplingRate: 1.0,
 				DialTimeout:  DefaultExporterDialTimeout,
+			},
+			expectedURL: &url.URL{
+				Scheme: "https",
+				Host:   "localhost:8080",
 			},
 		},
 	}
@@ -521,7 +565,10 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(tt.expectedCfg, tt.cfg, cmpopts.IgnoreInterfaces(struct{ logrus.FieldLogger }{})))
+			require.Empty(t, cmp.Diff(tt.expectedCfg, tt.cfg,
+				cmpopts.IgnoreUnexported(Config{}),
+				cmpopts.IgnoreInterfaces(struct{ logrus.FieldLogger }{})),
+			)
 			require.NotNil(t, tt.cfg.Logger)
 		})
 	}

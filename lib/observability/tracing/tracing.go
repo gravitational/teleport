@@ -18,8 +18,8 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"net"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -73,6 +73,8 @@ type Config struct {
 	DialTimeout time.Duration
 	// Logger is the logger to use.
 	Logger logrus.FieldLogger
+
+	exporterURL *url.URL
 }
 
 // CheckAndSetDefaults checks the config and sets default values.
@@ -85,8 +87,21 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("exporter URL cannot be empty")
 	}
 
-	if !strings.Contains(c.ExporterURL, "://") {
-		c.ExporterURL = "grpc://" + c.ExporterURL
+	// first check if a network address is specified, if it was, default
+	// to using grpc. If provided a URL, ensure that it is valid
+	_, _, err := net.SplitHostPort(c.ExporterURL)
+	if err == nil {
+		c.exporterURL = &url.URL{
+			Scheme: "grpc",
+			Host:   c.ExporterURL,
+		}
+	} else {
+		exporterURL, err := url.Parse(c.ExporterURL)
+		if err != nil {
+			return trace.BadParameter("failed to parse exporter URL: %v", err)
+		}
+		c.exporterURL = exporterURL
+
 	}
 
 	if c.DialTimeout <= 0 {
@@ -106,11 +121,6 @@ func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error)
 		return nil, trace.Wrap(err)
 	}
 
-	addr, err := url.Parse(cfg.ExporterURL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var httpOptions []otlptracehttp.Option
 	grpcOptions := []otlptracegrpc.Option{otlptracegrpc.WithDialOption(grpc.WithBlock())}
 
@@ -123,15 +133,15 @@ func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error)
 	}
 
 	var traceClient otlptrace.Client
-	switch addr.Scheme {
+	switch cfg.exporterURL.Scheme {
 	case "http", "https":
-		httpOptions = append(httpOptions, otlptracehttp.WithEndpoint(cfg.ExporterURL[len(addr.Scheme)+3:]))
+		httpOptions = append(httpOptions, otlptracehttp.WithEndpoint(cfg.ExporterURL[len(cfg.exporterURL.Scheme)+3:]))
 		traceClient = otlptracehttp.NewClient(httpOptions...)
 	case "grpc":
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithEndpoint(cfg.ExporterURL[len(addr.Scheme)+3:]))
+		grpcOptions = append(grpcOptions, otlptracegrpc.WithEndpoint(cfg.ExporterURL[len(cfg.exporterURL.Scheme)+3:]))
 		traceClient = otlptracegrpc.NewClient(grpcOptions...)
 	default:
-		return nil, trace.BadParameter("unsupported exporter scheme: %q", addr.Scheme)
+		return nil, trace.BadParameter("unsupported exporter scheme: %q", cfg.exporterURL.Scheme)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
