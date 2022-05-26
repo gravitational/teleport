@@ -1213,8 +1213,8 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	return logins, nil
 }
 
-// GetLogins returns all valid unix logins for the RoleSet.
-func (set RoleSet) GetLogins() []string {
+// GetAllLogins returns all valid unix logins for the RoleSet.
+func (set RoleSet) GetAllLogins() []string {
 	logins, _ := set.GetLoginsForTTL(0)
 	return logins
 }

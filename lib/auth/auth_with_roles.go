@@ -1116,7 +1116,8 @@ func (n *nodeChecker) CanAccess(resource types.Resource) error {
 		return nil
 	}
 
-	for _, login := range n.accessChecker.GetLogins() {
+	// Check if we can access the node with any of our possible logins.
+	for _, login := range n.accessChecker.GetAllLogins() {
 		err := n.accessChecker.CheckAccess(server, services.AccessMFAParams{Verified: true}, services.NewLoginMatcher(login))
 		if err == nil {
 			return nil

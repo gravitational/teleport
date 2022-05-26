@@ -156,8 +156,8 @@ type AccessChecker interface {
 	// SessionPolicySets returns the list of SessionPolicySets for all roles.
 	SessionPolicySets() []*types.SessionTrackerPolicySet
 
-	// GetLogins returns all valid unix logins for the AccessChecker.
-	GetLogins() []string
+	// GetAllLogins returns all valid unix logins for the AccessChecker.
+	GetAllLogins() []string
 
 	// GetAllowedResourceIDs returns the list of allowed resources the identity for
 	// the AccessChecker is allowed to access. An empty or nil list indicates that
