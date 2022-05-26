@@ -116,6 +116,9 @@ type Config struct {
 	// Databases defines database proxy service configuration.
 	Databases DatabasesConfig
 
+	// Tracing defines the tracing service configuration.
+	Tracing TracingConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
@@ -757,6 +760,27 @@ func (a App) Check() error {
 		}
 	}
 	return nil
+}
+
+
+// TracingConfig specifies the configuration for the tracing service
+type TracingConfig struct {
+	// Enabled turns the tracing service role on or off for this process.
+	Enabled bool
+
+	// ExporterURL is the OTLP exporter URL to send spans to.
+	ExporterURL string
+
+	// KeyPairs are the paths for key and certificate pairs that the tracing
+	// service will use for outbound TLS connections.
+	KeyPairs []KeyPairPath
+
+	// CACerts are the paths to the CA certs used to validate the collector.
+	CACerts []string
+
+	// SamplingRate is the sampling rate for the exporter.
+	// 1.0 will record and export all spans and 0.0 won't record any spans.
+	SamplingRate float64
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

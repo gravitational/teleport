@@ -221,6 +221,9 @@ const (
 	// and vice versa.
 	ComponentKeepAlive = "keepalive"
 
+	// ComponentTeleport is the "teleport" binary.
+	ComponentTeleport = "teleport"
+
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
@@ -245,6 +248,9 @@ const (
 
 	// ComponentSAML is a SAML service provider.
 	ComponentSAML = "saml"
+
+	// ComponentTracing is a tracing exporter
+	ComponentTracing = "tracing"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"

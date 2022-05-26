@@ -7,7 +7,7 @@ require (
 	github.com/go-logr/stdr v1.2.2
 	github.com/google/go-cmp v0.5.7
 	github.com/stretchr/testify v1.7.1
-	go.opentelemetry.io/otel/trace v1.6.1
+	go.opentelemetry.io/otel/trace v1.7.0
 )
 
 replace go.opentelemetry.io/otel => ./

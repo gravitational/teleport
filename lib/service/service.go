@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -40,19 +41,21 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -74,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -158,6 +162,10 @@ const (
 	// DatabasesReady is generated when the Teleport database proxy service
 	// is ready to start accepting connections.
 	DatabasesReady = "DatabasesReady"
+
+	// TracingReady is generated when the Teleport tracing service is ready to
+	// start exporting spans.
+	TracingReady = "TracingReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -308,6 +316,10 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// TracingProvider is the provider to be used for exporting traces. In the event
+	// that tracing is disabled this will be a no-op provider that drops all spans.
+	TracingProvider *tracing.Provider
 }
 
 type keyPairKey struct {
@@ -692,6 +704,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
+		TracingProvider:     tracing.NoopProvider(),
 	}
 
 	process.registerAppDepend()
@@ -708,6 +721,12 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic), process.log)
+	}
+
+	if cfg.Tracing.Enabled {
+		if err := process.initTracingService(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -744,6 +763,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 	if cfg.Databases.Enabled {
 		eventMapping.In = append(eventMapping.In, DatabasesReady)
+	}
+	if cfg.Tracing.Enabled {
+		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
 	process.RegisterEventMapping(eventMapping)
 
@@ -2091,6 +2113,80 @@ func (process *TeleportProcess) initDiagnosticService() error {
 			warnOnErr(server.Shutdown(ctx), log)
 		}
 		log.Infof("Exited.")
+	})
+
+	return nil
+}
+
+func (process *TeleportProcess) initTracingService() error {
+	log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentTracing, process.id))
+	log.Info("Initializing tracing provider and exporter.")
+
+	attrs := []attribute.KeyValue{
+		attribute.String(tracing.ProcessIDKey, process.id),
+		attribute.String(tracing.HostnameKey, process.Config.Hostname),
+		attribute.String(tracing.HostIDKey, process.Config.HostUUID),
+	}
+
+	traceConf := tracing.Config{
+		Service:      teleport.ComponentTeleport,
+		Attributes:   attrs,
+		ExporterURL:  process.Config.Tracing.ExporterURL,
+		SamplingRate: process.Config.Tracing.SamplingRate,
+		Logger:       log,
+	}
+
+	tlsConfig := &tls.Config{}
+	// if a custom CA is specified, use a custom cert pool
+	if len(process.Config.Tracing.CACerts) > 0 {
+		pool := x509.NewCertPool()
+		for _, caCertPath := range process.Config.Tracing.CACerts {
+			caCert, err := os.ReadFile(caCertPath)
+			if err != nil {
+				return trace.Wrap(err, "failed to read tracing CA certificate %+v", caCertPath)
+			}
+
+			if !pool.AppendCertsFromPEM(caCert) {
+				return trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
+			}
+		}
+		tlsConfig.ClientCAs = pool
+		tlsConfig.RootCAs = pool
+	}
+
+	// add any custom certificates for mTLS
+	if len(process.Config.Tracing.KeyPairs) > 0 {
+		for _, pair := range process.Config.Tracing.KeyPairs {
+			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+			if err != nil {
+				return trace.Wrap(err, "failed to read keypair: %+v", err)
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+		}
+	}
+
+	if len(process.Config.Tracing.CACerts) > 0 || len(process.Config.Tracing.KeyPairs) > 0 {
+		traceConf.TLSConfig = tlsConfig
+	}
+
+	provider, err := tracing.NewTraceProvider(process.ExitContext(), traceConf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.TracingProvider = provider
+
+	process.OnExit("tracing.shutdown", func(payload interface{}) {
+		if payload == nil {
+			log.Info("Shutting down immediately.")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			warnOnErr(provider.Shutdown(ctx), log)
+		} else {
+			log.Infof("Shutting down gracefully.")
+			ctx := payloadContext(payload, log)
+			warnOnErr(provider.Shutdown(ctx), log)
+		}
+		process.log.Info("Exited.")
 	})
 	return nil
 }
