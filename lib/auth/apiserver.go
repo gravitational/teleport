@@ -90,7 +90,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/kube/csr", srv.withAuth(srv.processKubeCSR))
 
 	// Operations on certificate authorities
-	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))
+	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName)) // DELETE IN 11.0.0 REST method replaced by gRPC
 	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert))
 
 	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
@@ -1006,8 +1006,10 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
 }
 
+// Replaced with gRPC endpoint
+// DELETE IN 11.0.0
 func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	domain, err := auth.GetDomainName()
+	domain, err := auth.GetDomainName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

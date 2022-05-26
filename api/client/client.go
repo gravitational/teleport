@@ -2631,3 +2631,12 @@ func (c *Client) MaintainSessionPresence(ctx context.Context) (proto.AuthService
 	stream, err := c.grpc.MaintainSessionPresence(ctx, c.callOpts...)
 	return stream, trail.FromGRPC(err)
 }
+
+// GetDomainName returns local auth domain of the current auth server
+func (c *Client) GetDomainName(ctx context.Context) (string, error) {
+	resp, err := c.grpc.GetDomainName(ctx, &empty.Empty{})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+	return resp.DomainName, nil
+}

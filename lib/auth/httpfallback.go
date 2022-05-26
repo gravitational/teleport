@@ -224,3 +224,25 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 
 	return re, nil
 }
+
+// GetDomainName returns local auth domain of the current auth server
+// DELETE IN 11.0.0
+func (c *Client) GetDomainName(ctx context.Context) (string, error) {
+	if resp, err := c.APIClient.GetDomainName(ctx); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return "", trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	out, err := c.Get(ctx, c.Endpoint("domain"), url.Values{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var domain string
+	if err := json.Unmarshal(out.Bytes(), &domain); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return domain, nil
+}

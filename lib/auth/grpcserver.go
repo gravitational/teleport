@@ -3749,6 +3749,21 @@ func (g *GRPCServer) UpdateSessionTracker(ctx context.Context, req *proto.Update
 	return &empty.Empty{}, nil
 }
 
+// GetDomainName returns local auth domain of the current auth server.
+func (g *GRPCServer) GetDomainName(ctx context.Context, req *empty.Empty) (*proto.GetDomainNameResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dn, err := auth.ServerWithRoles.GetDomainName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.GetDomainNameResponse{
+		DomainName: dn,
+	}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

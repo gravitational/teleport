@@ -1680,6 +1680,11 @@ message PresenceMFAChallengeSend {
     }
 }
 
+message GetDomainNameResponse {
+    // DomainName is the local auth domain of the current auth server.
+    string DomainName = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
@@ -2183,4 +2188,7 @@ service AuthService {
 
     // ListResources retrieves a paginated list of resources.
     rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+
+    // GetDomainName returns local auth domain of the current auth server
+    rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);
 }
