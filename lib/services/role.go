@@ -1549,8 +1549,6 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 		switch service {
 		case constants.SessionRecordingServiceSSH:
 			roleMode = recordSession.SSH
-		case constants.SessionRecordingServiceKubernetes:
-			roleMode = recordSession.Kubernetes
 		}
 
 		switch roleMode {
