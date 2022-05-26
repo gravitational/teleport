@@ -90,8 +90,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/kube/csr", srv.withAuth(srv.processKubeCSR))
 
 	// Operations on certificate authorities
-	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName)) // DELETE IN 11.0.0 REST method replaced by gRPC
-	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert))
+	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))    // DELETE IN 11.0.0 REST method replaced by gRPC
+	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert)) // DELETE IN 11.0.0 REST method replaced by gRPC
 
 	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.withAuth(srv.rotateCertAuthority))
@@ -1016,16 +1016,27 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 	return domain, nil
 }
 
+// deprecatedLocalCAResponse contains the concatenated PEM-encoded TLS certs for
+// the local cluster's Host CA
+// DELETE IN 11.0.0
+type deprecatedLocalCAResponse struct {
+	// TLSCA is a PEM-encoded TLS certificate authority.
+	TLSCA []byte `json:"tls_ca"`
+}
+
 // getClusterCACert returns the PEM-encoded TLS certs for the local cluster
 // without signing keys. If the cluster has multiple TLS certs, they will all
 // be appended.
+// DELETE IN 11.0.0
 func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	localCA, err := auth.GetClusterCACert()
+	localCA, err := auth.GetClusterCACert(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return localCA, nil
+	return deprecatedLocalCAResponse{
+		TLSCA: localCA.TLSCA,
+	}, nil
 }
 
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

@@ -343,20 +343,6 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	return trace.Wrap(err)
 }
 
-// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
-// the cluster has multiple TLS certs, they will all be concatenated.
-func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("cacert"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var localCA LocalCAResponse
-	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &localCA, nil
-}
-
 func (c *Client) Close() error {
 	c.HTTPClient.Close()
 	return c.APIClient.Close()
@@ -1861,7 +1847,7 @@ type ClientI interface {
 
 	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster.
 	// If the cluster has multiple TLS certs, they will all be concatenated.
-	GetClusterCACert() (*LocalCAResponse, error)
+	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 
 	// GenerateHostCerts generates new host certificates (signed
 	// by the host certificate authority) for a node

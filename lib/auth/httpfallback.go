@@ -246,3 +246,28 @@ func (c *Client) GetDomainName(ctx context.Context) (string, error) {
 	}
 	return domain, nil
 }
+
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be concatenated.
+// DELETE IN 11.0.0
+func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
+	if resp, err := c.APIClient.GetClusterCACert(ctx); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	out, err := c.Get(context.TODO(), c.Endpoint("cacert"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var localCA deprecatedLocalCAResponse
+	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.GetClusterCACertResponse{
+		TLSCA: localCA.TLSCA,
+	}, nil
+}

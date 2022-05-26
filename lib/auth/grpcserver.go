@@ -3764,6 +3764,19 @@ func (g *GRPCServer) GetDomainName(ctx context.Context, req *empty.Empty) (*prot
 	}, nil
 }
 
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
+// without signing keys. If the cluster has multiple TLS certs, they will all
+// be appended.
+func (g *GRPCServer) GetClusterCACert(
+	ctx context.Context, req *empty.Empty,
+) (*proto.GetClusterCACertResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auth.ServerWithRoles.GetClusterCACert(ctx)
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

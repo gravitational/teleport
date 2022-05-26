@@ -1682,7 +1682,13 @@ message PresenceMFAChallengeSend {
 
 message GetDomainNameResponse {
     // DomainName is the local auth domain of the current auth server.
-    string DomainName = 1;
+    string DomainName = 1 [ (gogoproto.jsontag) = "domain_name" ];
+}
+
+// GetClusterCACertResponse is a response from GetClusterCACert
+message GetClusterCACertResponse {
+    // TLSCA is a PEM-encoded TLS certificate authority.
+    bytes TLSCA = 1 [ (gogoproto.jsontag) = "tlc_ca" ];
 }
 
 // AuthService is authentication/authorization service implementation
@@ -2191,4 +2197,8 @@ service AuthService {
 
     // GetDomainName returns local auth domain of the current auth server
     rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);
+    // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
+    // without signing keys. If the cluster has multiple TLS certs, they will
+    // all be appended.
+    rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
 }

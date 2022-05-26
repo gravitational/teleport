@@ -2640,3 +2640,13 @@ func (c *Client) GetDomainName(ctx context.Context) (string, error) {
 	}
 	return resp.DomainName, nil
 }
+
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be concatenated.
+func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
+	resp, err := c.grpc.GetClusterCACert(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
