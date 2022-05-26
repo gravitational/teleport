@@ -316,9 +316,7 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 	diagCtx := a.newSSODiagContext(types.KindOIDC)
 
 	auth, err := a.validateOIDCAuthCallback(ctx, diagCtx, q)
-	if err != nil {
-		diagCtx.info.Error = trace.UserMessage(err)
-	}
+	diagCtx.info.Error = trace.UserMessage(err)
 
 	diagCtx.writeToBackend(ctx)
 
@@ -632,7 +630,7 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
-	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
+	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v. Dry run: %v.", p.connectorName, p.username, p.roles, dryRun)
 	user := &types.UserV2{
 		Kind:    types.KindUser,
 		Version: types.V2,
@@ -814,7 +812,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	return a.getClaimsFun(a.closeCtx, oidcClient, connector, code)
 }
 
-// getClaimsFun implements Server.getClaims, but allows that code path to be overridden for testing.
+// getClaims implements Server.getClaims, but allows that code path to be overridden for testing.
 func getClaims(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
 	oac, err := getOAuthClient(oidcClient, connector)
 

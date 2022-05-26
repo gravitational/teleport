@@ -2468,7 +2468,15 @@ func TestGetWebConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a test connector.
-	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{})
+	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
 	err = env.server.Auth().CreateGithubConnector(github)
 	require.NoError(t, err)
