@@ -9,7 +9,7 @@ files in partials, this partial uses relative URL paths instead.
 - A running Teleport cluster. For details on how to set this up, see one of our
   [Getting Started](/docs/getting-started) guides. 
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=) on a Desktop or administrative access on the Teleport Auth Service machine.
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
 
   ```code
   $ tctl version
@@ -24,26 +24,39 @@ files in partials, this partial uses relative URL paths instead.
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
-- Installed Enterprise version of Teleport (downloaded via the [Enterprise dashboard](https://dashboard.gravitational.com/web/login)).
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=) on a Desktop or administrative access on the Teleport Auth Service machine.
-You can download these by visiting the
+
+- A running Teleport cluster. For details on how to set this up, see our Enterprise
+  [Getting Started](/docs/enterprise/getting-started) guide.
+
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
+  which you can download by visiting the
   [customer portal](https://dashboard.gravitational.com/web/login).
+
   ```code
   $ tctl version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
+
 </TabItem>
 <TabItem scope={["cloud"]}
   label="Teleport Cloud">
-- Teleport Cloud account (sign up for a [free trial](https://goteleport.com/signup)).
 
-- The `tctl` admin client version >= (=cloud.version=).
+- A Teleport Cloud account. If you do not have one, visit the
+  [sign up page](https://goteleport.com/signup/) to begin your free trial.
 
-  You can download this from [Teleport Cloud Downloads](/docs/cloud/downloads).
+- The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
+  To download these tools, visit the [Downloads](/docs/cloud/downloads) page.
 
   ```code
   $ tctl version
   # Teleport v(=cloud.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=cloud.version=) go(=teleport.golang=)
   ```
+
 </TabItem>
 </Tabs>
