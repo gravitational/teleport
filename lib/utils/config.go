@@ -17,12 +17,12 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // TryReadValueAsFile is a utility function to read a value
@@ -42,7 +42,7 @@ func TryReadValueAsFile(value string) (string, error) {
 	out := strings.TrimSpace(string(contents))
 
 	if out == "" {
-		fmt.Fprintf(os.Stderr, "WARNING: empty config value file: %v\n", value)
+		log.Warnf("Empty config value file: %v", value)
 	}
 	return out, nil
 }
