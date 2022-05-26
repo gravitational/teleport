@@ -10,6 +10,10 @@ resource "aws_acm_certificate" "cert" {
   validation_method = "DNS"
   count             = var.use_acm ? 1 : 0
 
+  subject_alternative_names = [
+    "*.${var.route53_domain}"
+  ]
+
   lifecycle {
     create_before_destroy = true
   }
