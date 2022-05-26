@@ -1458,6 +1458,11 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
+	// Set RedirectURL if not already set
+	// DELETE IN 11.0.0
+	if err := oidcConnector.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
