@@ -56,7 +56,7 @@ type TSHRunner interface {
 	// Capture runs tsh and captures its standard output.
 	Capture(args ...string) ([]byte, error)
 
-	// exec runs tsh with the given additional environment variables and args.
+	// Exec runs tsh with the given additional environment variables and args.
 	// It should inherit the current process's input and output streams.
 	Exec(env map[string]string, args ...string) error
 }
@@ -121,7 +121,7 @@ func NewRunner() (TSHRunner, error) {
 func GetTSHVersion(r TSHRunner) (*semver.Version, error) {
 	rawVersion, err := r.Capture("version", "-f", "json")
 	if err != nil {
-		return nil, trace.Wrap(err, "error querying tsh version")
+		return nil, trace.Wrap(err, "querying tsh version")
 	}
 
 	versionInfo := struct {
@@ -280,7 +280,7 @@ func GetEnvForTSH(destination *config.DestinationConfig) (map[string]string, err
 		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA)),
 	)
 
-	// TODO: Kubernetes support. We don't generate kubeconfigs yet, so we have
+	// TODO(timothyb89): Kubernetes support. We don't generate kubeconfigs yet, so we have
 	// nothing to give tsh for now.
 
 	return env, nil
@@ -307,6 +307,7 @@ func LoadIdentity(identityPath string) (*tlsca.Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer f.Close()
 
 	idFile, err := identityfile.Read(f)
 	if err != nil {
@@ -319,9 +320,5 @@ func LoadIdentity(identityPath string) (*tlsca.Identity, error) {
 	}
 
 	parsed, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return parsed, nil
+	return parsed, trace.Wrap(err)
 }

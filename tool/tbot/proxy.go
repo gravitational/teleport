@@ -59,8 +59,8 @@ func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Note: We could consider supporting a --cluster passthrough here as in
-	// `tbot db ...`
+	// TODO(timothyb89):  We could consider supporting a --cluster passthrough
+	//  here as in `tbot db ...`.
 	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.Proxy}
 	args = append(args, cf.RemainingArgs...)
 

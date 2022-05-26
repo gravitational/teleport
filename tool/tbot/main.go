@@ -104,7 +104,7 @@ func Run(args []string, stdout io.Writer) error {
 	dbCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
 	dbRemaining := config.RemainingArgs(dbCmd.Arg(
 		"args",
-		"Arguments to `tsh db ...`; consider prefixing with `-- ` to ensure flags are passed correctly.",
+		"Arguments to `tsh db ...`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
 
 	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode")
@@ -113,7 +113,7 @@ func Run(args []string, stdout io.Writer) error {
 	proxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
 	proxyRemaining := config.RemainingArgs(proxyCmd.Arg(
 		"args",
-		"Arguments to `tsh proxy ...`; consider prefixing with `-- ` to ensure flags are passed correctly.",
+		"Arguments to `tsh proxy ...`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
 
 	utils.UpdateAppUsageTemplate(app, args)

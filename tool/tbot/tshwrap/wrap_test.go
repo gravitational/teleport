@@ -133,8 +133,7 @@ func TestGetEnvForTSH(t *testing.T) {
 	env, err := GetEnvForTSH(&destination)
 	require.NoError(t, err)
 	for k, v := range expected {
-		require.Contains(t, env, k)
-		require.Equal(t, v, env[k])
+		assert.Equal(t, v, env[k])
 	}
 }
 

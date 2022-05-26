@@ -116,7 +116,7 @@ func getSSHVersion() (*semver.Version, error) {
 
 func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 	if c.ProxyPort != 0 {
-		log.Warnf("ssh_client's proxy_port parameter is deprecated and will be removed in a future release.")
+		log.Warn("ssh_client's proxy_port parameter is deprecated and will be removed in a future release.")
 	}
 	return nil
 }
@@ -192,7 +192,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 		return trace.Wrap(err)
 	}
 
-	// If dataDir is unset, we're not using a filesystem destination and
+	// If destDir is unset, we're not using a filesystem destination and
 	// ssh_config will not be sensible. Log a note and bail early without
 	// writing ssh_config. (Future users of k8s secrets will need to bring
 	// their own config, we can't predict where paths will be in practice.)
