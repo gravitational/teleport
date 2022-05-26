@@ -99,7 +99,7 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, er
 	clusterName := parseName(webProxyAddress)
 	for _, pname := range profiles {
 		if pname == clusterName {
-			return nil, trace.BadParameter("cluster %v already exists", clusterName)
+			return s.GetByName(pname)
 		}
 	}
 
