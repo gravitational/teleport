@@ -367,8 +367,8 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		tlsConfig.ServerName = dbTLSConfig.ServerName
 	}
 
-	// RDS/Aurora/Redshift and Cloud SQL auth is done with an auth token so
-	// don't generate a client certificate and exit here.
+	// RDS/Aurora/Redshift/ElastiCache and Cloud SQL auth is done with an auth
+	// token so don't generate a client certificate and exit here.
 	if sessionCtx.Database.IsCloudHosted() {
 		return tlsConfig, nil
 	}
@@ -438,6 +438,7 @@ func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *Session) (*tls.Config, er
 			return nil, trace.BadParameter("invalid server CA certificate")
 		}
 	}
+
 	return tlsConfig, nil
 }
 

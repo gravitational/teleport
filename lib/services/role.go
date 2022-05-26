@@ -1948,6 +1948,18 @@ func (set RoleSet) DesktopClipboard() bool {
 	return true
 }
 
+// DesktopDirectorySharing returns true if the role set has directory sharing
+// enabled. This setting is enabled if one or more of the roles in the set has
+// enabled it.
+func (set RoleSet) DesktopDirectorySharing() bool {
+	for _, role := range set {
+		if !types.BoolDefaultTrue(role.GetOptions().DesktopDirectorySharing) {
+			return false
+		}
+	}
+	return true
+}
+
 // MaybeCanReviewRequests attempts to guess if this RoleSet belongs
 // to a user who should be submitting access reviews.  Because not all rolesets
 // are derived from statically assigned roles, this may return false positives.

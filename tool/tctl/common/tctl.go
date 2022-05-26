@@ -196,6 +196,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
 		log.Debugf("Debug logging has been enabled.")
 	}
+	cfg.Log = log.StandardLogger()
 
 	// If the config file path provided is not a blank string, load the file and apply its values
 	var fileConf *config.FileConfig
@@ -221,7 +222,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		// No config file or identity file.
 		// Try the extension loader.
 		log.Debug("No config file or identity file, loading auth config via extension.")
-		authConfig, err := loadConfigFromProfile(ccf, cfg)
+		authConfig, err := LoadConfigFromProfile(ccf, cfg)
 		if err == nil {
 			return authConfig, nil
 		}
@@ -315,8 +316,8 @@ func (m *sshTrustedHostKeyWrapper) GetKnownHostKeys(hostname string) ([]ssh.Publ
 	return trustedKeys, nil
 }
 
-// loadConfigFromProfile applies config from ~/.tsh/ profile if it's present
-func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+// LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
+func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	if ccf.IdentityFilePath != "" {
 		return nil, trace.NotFound("identity has been supplied, skip loading the config")
 	}
@@ -325,8 +326,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
-
-	profile, _, err := client.Status("", proxyAddr)
+	profile, _, err := client.Status(cfg.TeleportHome, proxyAddr)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)

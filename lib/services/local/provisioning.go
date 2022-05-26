@@ -97,7 +97,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (s *ProvisioningService) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
+func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	startKey := backend.Key(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -105,8 +105,11 @@ func (s *ProvisioningService) GetTokens(ctx context.Context, opts ...services.Ma
 	}
 	tokens := make([]types.ProvisionToken, len(result.Items))
 	for i, item := range result.Items {
-		t, err := services.UnmarshalProvisionToken(item.Value,
-			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+		t, err := services.UnmarshalProvisionToken(
+			item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

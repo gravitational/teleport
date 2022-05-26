@@ -324,7 +324,7 @@ func (t tempSelfSignedLocalCert) Clean() error {
 }
 
 func pickActiveAWSApp(cf *CLIConf) (string, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

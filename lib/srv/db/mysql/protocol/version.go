@@ -27,10 +27,10 @@ import (
 	"io"
 	"net"
 
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/go-mysql-org/go-mysql/mysql"
+	mysqlpacket "github.com/go-mysql-org/go-mysql/packet"
 	"github.com/gravitational/trace"
-	"github.com/siddontang/go-mysql/client"
-	"github.com/siddontang/go-mysql/mysql"
-	mysqlpacket "github.com/siddontang/go-mysql/packet"
 )
 
 // FetchMySQLVersionInternal connects to a MySQL instance with provided dialer and tries to read the server

@@ -442,6 +442,9 @@ const (
 	CertExtensionAllowedResources = "teleport-allowed-resources"
 )
 
+// Note: when adding new providers to this list, consider updating the help message for --provider flag
+// for `tctl sso configure oidc` and `tctl sso configure saml` commands
+// as well as docs at https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds
 const (
 	// NetIQ is an identity provider.
 	NetIQ = "netiq"

@@ -559,7 +559,10 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 
 // AuthWithOTP authenticates the specified user with the given password and OTP token.
 // Returns a new web session if successful.
-func (s *sessionCache) AuthWithOTP(user, pass, otpToken string) (types.WebSession, error) {
+func (s *sessionCache) AuthWithOTP(
+	user, pass, otpToken string,
+	clientMeta *auth.ForwardedClientMetadata,
+) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		Pass:     &auth.PassCreds{Password: []byte(pass)},
@@ -567,23 +570,30 @@ func (s *sessionCache) AuthWithOTP(user, pass, otpToken string) (types.WebSessio
 			Password: []byte(pass),
 			Token:    otpToken,
 		},
+		ClientMetadata: clientMeta,
 	})
 }
 
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
-func (s *sessionCache) AuthWithoutOTP(user, pass string) (types.WebSession, error) {
+func (s *sessionCache) AuthWithoutOTP(
+	user, pass string, clientMeta *auth.ForwardedClientMetadata,
+) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		Pass: &auth.PassCreds{
 			Password: []byte(pass),
 		},
+		ClientMetadata: clientMeta,
 	})
 }
 
-func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserRequest) (types.WebSession, error) {
+func (s *sessionCache) AuthenticateWebUser(
+	req *client.AuthenticateWebUserRequest, clientMeta *auth.ForwardedClientMetadata,
+) (types.WebSession, error) {
 	authReq := auth.AuthenticateUserRequest{
-		Username: req.User,
+		Username:       req.User,
+		ClientMetadata: clientMeta,
 	}
 	if req.WebauthnAssertionResponse != nil {
 		authReq.Webauthn = req.WebauthnAssertionResponse
@@ -592,13 +602,16 @@ func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserReques
 }
 
 // GetCertificateWithoutOTP returns a new user certificate for the specified request.
-func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*auth.SSHLoginResponse, error) {
+func (s *sessionCache) GetCertificateWithoutOTP(
+	c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
+) (*auth.SSHLoginResponse, error) {
 	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: auth.AuthenticateUserRequest{
 			Username: c.User,
 			Pass: &auth.PassCreds{
 				Password: []byte(c.Password),
 			},
+			ClientMetadata: clientMeta,
 		},
 		PublicKey:         c.PubKey,
 		CompatibilityMode: c.Compatibility,
@@ -610,7 +623,9 @@ func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*aut
 
 // GetCertificateWithOTP returns a new user certificate for the specified request.
 // The request is used with the given OTP token.
-func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.SSHLoginResponse, error) {
+func (s *sessionCache) GetCertificateWithOTP(
+	c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
+) (*auth.SSHLoginResponse, error) {
 	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: auth.AuthenticateUserRequest{
 			Username: c.User,
@@ -618,6 +633,7 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.S
 				Password: []byte(c.Password),
 				Token:    c.OTPToken,
 			},
+			ClientMetadata: clientMeta,
 		},
 		PublicKey:         c.PubKey,
 		CompatibilityMode: c.Compatibility,
@@ -627,9 +643,13 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.S
 	})
 }
 
-func (s *sessionCache) AuthenticateSSHUser(c client.AuthenticateSSHUserRequest) (*auth.SSHLoginResponse, error) {
+func (s *sessionCache) AuthenticateSSHUser(
+	c client.AuthenticateSSHUserRequest,
+	clientMeta *auth.ForwardedClientMetadata,
+) (*auth.SSHLoginResponse, error) {
 	authReq := auth.AuthenticateUserRequest{
-		Username: c.User,
+		Username:       c.User,
+		ClientMetadata: clientMeta,
 	}
 	if c.Password != "" {
 		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}

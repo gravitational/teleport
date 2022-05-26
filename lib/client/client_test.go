@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -185,8 +186,10 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 
 func (s *ClientTestSuite) TestListenAndForwardCancel(c *check.C) {
 	client := &NodeClient{
-		Client: &ssh.Client{
-			Conn: &fakeSSHConn{},
+		Client: &tracessh.Client{
+			Client: &ssh.Client{
+				Conn: &fakeSSHConn{},
+			},
 		},
 	}
 

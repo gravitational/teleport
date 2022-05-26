@@ -189,6 +189,11 @@ func TestAuthenticate(t *testing.T) {
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "local",
+						StaticLabels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+						DynamicLabels: map[string]types.CommandLabelV2{},
 					}},
 				},
 			}},
@@ -197,6 +202,10 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "local",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -219,9 +228,10 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -243,9 +253,10 @@ func TestAuthenticate(t *testing.T) {
 				},
 			}},
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -334,9 +345,10 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -375,9 +387,10 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -416,6 +429,10 @@ func TestAuthenticate(t *testing.T) {
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "foo",
+						StaticLabels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
 					}},
 				},
 			}},
@@ -424,6 +441,10 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "foo",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
