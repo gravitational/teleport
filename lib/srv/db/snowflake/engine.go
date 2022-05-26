@@ -83,6 +83,10 @@ type Engine struct {
 	// tokens is a tokens cache that holds the current session and master token
 	// used in the communication with the Snowflake.
 	tokens tokenCache
+	// accountName is the Snowflake account name
+	accountName string
+	// snowflakeHost is the Snowflake host URL that the engine is talking to.
+	snowflakeHost string
 }
 
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
@@ -126,7 +130,8 @@ func (e *Engine) SendError(err error) {
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
-	accountName, err := extractAccountName(sessionCtx.Database.GetURI())
+	var err error
+	e.accountName, e.snowflakeHost, err = parseConnectionString(sessionCtx.Database.GetURI())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -146,7 +151,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			return trace.Wrap(err)
 		}
 
-		err = e.process(ctx, sessionCtx, req, accountName)
+		err = e.process(ctx, sessionCtx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -155,13 +160,13 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // process reads request from connected Snowflake client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, accountName string) error {
+func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request) error {
 	snowflakeToken, err := e.getConnectionToken(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	requestBodyReader, err := e.processRequest(ctx, req, accountName)
+	requestBodyReader, err := e.processRequest(ctx, req, e.accountName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -172,7 +177,7 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 	}
 
 	reqCopy.URL.Scheme = "https"
-	reqCopy.URL.Host = sessionCtx.Database.GetURI()
+	reqCopy.URL.Host = e.snowflakeHost
 
 	e.setAuthorizationHeader(reqCopy, snowflakeToken)
 
@@ -543,11 +548,11 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tok
 	return newResp, err
 }
 
-// extractAccountName extracts account name from provided Snowflake URL
+// parseConnectionString extracts account name from provided Snowflake URL
 // ref: https://docs.snowflake.com/en/user-guide/admin-account-identifier.html
-func extractAccountName(uri string) (string, error) {
+func parseConnectionString(uri string) (string, string, error) {
 	if !strings.Contains(uri, defaults.SnowflakeURL) {
-		return "", trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
+		return "", "", trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 	}
 
 	// if the protocol is missing add it, so we can parse it.
@@ -557,13 +562,13 @@ func extractAccountName(uri string) (string, error) {
 
 	snowflakeURL, err := url.Parse(uri)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
 	query := snowflakeURL.Query()
 	// Read the account name from account query if provided. This should help with some Snowflake corner cases.
 	if query.Has("account") {
-		return query.Get("account"), nil
+		return query.Get("account"), snowflakeURL.Host, nil
 	}
 
 	uriParts := strings.Split(snowflakeURL.Host, ".")
@@ -571,15 +576,15 @@ func extractAccountName(uri string) (string, error) {
 	switch len(uriParts) {
 	case 3:
 		// address in https://test.snowflakecomputing.com format
-		return uriParts[0], nil
+		return uriParts[0], snowflakeURL.Host, nil
 	case 4:
 		// address in https://test.eu-central-1.snowflakecomputing.com format
-		return strings.Join(uriParts[:2], "."), nil
+		return strings.Join(uriParts[:2], "."), snowflakeURL.Host, nil
 	case 5:
 		// address in https://test.us-east-2.aws.snowflakecomputing.com format
-		return strings.Join(uriParts[:3], "."), nil
+		return strings.Join(uriParts[:3], "."), snowflakeURL.Host, nil
 	default:
-		return "", trace.BadParameter("invalid Snowflake url: %s", uri)
+		return "", "", trace.BadParameter("invalid Snowflake url: %s", uri)
 	}
 }
 

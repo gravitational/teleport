@@ -29,45 +29,53 @@ import (
 
 func Test_extractAccountName(t *testing.T) {
 	tests := []struct {
-		name    string
-		uri     string
-		want    string
-		wantErr bool
+		name        string
+		uri         string
+		wantAccName string
+		wantHost    string
+		wantErr     bool
 	}{
 		{
-			name: "correct AWS address - AWS US East (Ohio)",
-			uri:  "https://abc123.us-east-2.aws.snowflakecomputing.com",
-			want: "abc123.us-east-2.aws",
+			name:        "correct AWS address - AWS US East (Ohio)",
+			uri:         "https://abc123.us-east-2.aws.snowflakecomputing.com",
+			wantAccName: "abc123.us-east-2.aws",
+			wantHost:    "abc123.us-east-2.aws.snowflakecomputing.com",
 		},
 		{
-			name: "correct AWS address - AWS US East (Ohio) missing protocol",
-			uri:  "abc123.us-east-2.aws.snowflakecomputing.com",
-			want: "abc123.us-east-2.aws",
+			name:        "correct AWS address - AWS US East (Ohio) missing protocol",
+			uri:         "abc123.us-east-2.aws.snowflakecomputing.com",
+			wantAccName: "abc123.us-east-2.aws",
+			wantHost:    "abc123.us-east-2.aws.snowflakecomputing.com",
 		},
 		{
-			name: "correct AWS address - AWS US West (Oregon)",
-			uri:  "abc123.snowflakecomputing.com",
-			want: "abc123",
+			name:        "correct AWS address - AWS US West (Oregon)",
+			uri:         "abc123.snowflakecomputing.com",
+			wantAccName: "abc123",
+			wantHost:    "abc123.snowflakecomputing.com",
 		},
 		{
-			name: "correct AWS address - AWS EU (Frankfurt)",
-			uri:  "abc123.eu-central-1.snowflakecomputing.com",
-			want: "abc123.eu-central-1",
+			name:        "correct AWS address - AWS EU (Frankfurt)",
+			uri:         "abc123.eu-central-1.snowflakecomputing.com",
+			wantAccName: "abc123.eu-central-1",
+			wantHost:    "abc123.eu-central-1.snowflakecomputing.com",
 		},
 		{
-			name: "correct GCP address",
-			uri:  "abc123.us-central1.gcp.snowflakecomputing.com",
-			want: "abc123.us-central1.gcp",
+			name:        "correct GCP address",
+			uri:         "abc123.us-central1.gcp.snowflakecomputing.com",
+			wantAccName: "abc123.us-central1.gcp",
+			wantHost:    "abc123.us-central1.gcp.snowflakecomputing.com",
 		},
 		{
-			name: "correct Azure address",
-			uri:  "abc123.central-us.azure.snowflakecomputing.com",
-			want: "abc123.central-us.azure",
+			name:        "correct Azure address",
+			uri:         "abc123.central-us.azure.snowflakecomputing.com",
+			wantAccName: "abc123.central-us.azure",
+			wantHost:    "abc123.central-us.azure.snowflakecomputing.com",
 		},
 		{
-			name: "user account query is provided",
-			uri:  "abc123.us-east-2.aws.snowflakecomputing.com?account=someAccount",
-			want: "someAccount",
+			name:        "user account query is provided",
+			uri:         "abc123.us-east-2.aws.snowflakecomputing.com?account=someAccount",
+			wantAccName: "someAccount",
+			wantHost:    "abc123.us-east-2.aws.snowflakecomputing.com",
 		},
 		{
 			name:    "empty returns error",
@@ -82,13 +90,14 @@ func Test_extractAccountName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := extractAccountName(tt.uri)
+			gotAccName, gotHost, err := parseConnectionString(tt.uri)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("extractAccountName() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("parseConnectionString() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantAccName, gotAccName)
+			require.Equal(t, tt.wantHost, gotHost)
 		})
 	}
 }
