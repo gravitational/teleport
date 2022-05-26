@@ -37,7 +37,6 @@ func Creat(path string, mode uint32) (fd int, err error) {
 }
 
 //sys	utimes(path string, times *[2]Timeval) (err error)
-
 func Utimes(path string, tv []Timeval) error {
 	if len(tv) != 2 {
 		return EINVAL
@@ -46,7 +45,6 @@ func Utimes(path string, tv []Timeval) error {
 }
 
 //sys	utimensat(dirfd int, path string, times *[2]Timespec, flag int) (err error)
-
 func UtimesNano(path string, ts []Timespec) error {
 	if len(ts) != 2 {
 		return EINVAL
@@ -217,12 +215,18 @@ func Accept(fd int) (nfd int, sa Sockaddr, err error) {
 	return
 }
 
-func recvmsgRaw(fd int, p, oob []byte, flags int, rsa *RawSockaddrAny) (n, oobn int, recvflags int, err error) {
+func Recvmsg(fd int, p, oob []byte, flags int) (n, oobn int, recvflags int, from Sockaddr, err error) {
 	// Recvmsg not implemented on AIX
-	return -1, -1, -1, ENOSYS
+	sa := new(SockaddrUnix)
+	return -1, -1, -1, sa, ENOSYS
 }
 
-func sendmsgN(fd int, p, oob []byte, ptr unsafe.Pointer, salen _Socklen, flags int) (n int, err error) {
+func Sendmsg(fd int, p, oob []byte, to Sockaddr, flags int) (err error) {
+	_, err = SendmsgN(fd, p, oob, to, flags)
+	return
+}
+
+func SendmsgN(fd int, p, oob []byte, to Sockaddr, flags int) (n int, err error) {
 	// SendmsgN not implemented on AIX
 	return -1, ENOSYS
 }
@@ -302,13 +306,11 @@ func direntNamlen(buf []byte) (uint64, bool) {
 }
 
 //sys	getdirent(fd int, buf []byte) (n int, err error)
-
 func Getdents(fd int, buf []byte) (n int, err error) {
 	return getdirent(fd, buf)
 }
 
 //sys	wait4(pid Pid_t, status *_C_int, options int, rusage *Rusage) (wpid Pid_t, err error)
-
 func Wait4(pid int, wstatus *WaitStatus, options int, rusage *Rusage) (wpid int, err error) {
 	var status _C_int
 	var r Pid_t
@@ -376,7 +378,6 @@ func (w WaitStatus) TrapCause() int { return -1 }
 //sys	fcntl(fd int, cmd int, arg int) (val int, err error)
 
 //sys	fsyncRange(fd int, how int, start int64, length int64) (err error) = fsync_range
-
 func Fsync(fd int) error {
 	return fsyncRange(fd, O_SYNC, 0, 0)
 }
@@ -457,8 +458,8 @@ func Fsync(fd int) error {
 //sys	Listen(s int, n int) (err error)
 //sys	lstat(path string, stat *Stat_t) (err error)
 //sys	Pause() (err error)
-//sys	pread(fd int, p []byte, offset int64) (n int, err error) = pread64
-//sys	pwrite(fd int, p []byte, offset int64) (n int, err error) = pwrite64
+//sys	Pread(fd int, p []byte, offset int64) (n int, err error) = pread64
+//sys	Pwrite(fd int, p []byte, offset int64) (n int, err error) = pwrite64
 //sys	Select(nfd int, r *FdSet, w *FdSet, e *FdSet, timeout *Timeval) (n int, err error)
 //sys	Pselect(nfd int, r *FdSet, w *FdSet, e *FdSet, timeout *Timespec, sigmask *Sigset_t) (n int, err error)
 //sysnb	Setregid(rgid int, egid int) (err error)
@@ -541,7 +542,6 @@ func Poll(fds []PollFd, timeout int) (n int, err error) {
 //sys	Getsystemcfg(label int) (n uint64)
 
 //sys	umount(target string) (err error)
-
 func Unmount(target string, flags int) (err error) {
 	if flags != 0 {
 		// AIX doesn't have any flags for umount.
