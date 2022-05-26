@@ -1663,7 +1663,7 @@ message RecordSession {
     ];
 
     // SSH indicates the session mode used on SSH sessions.
-    string SSH = 4 [
+    string SSH = 3 [
         (gogoproto.jsontag) = "ssh,omitempty",
         (gogoproto.casttype) =
             "github.com/gravitational/teleport/api/constants.SessionRecordingMode"
