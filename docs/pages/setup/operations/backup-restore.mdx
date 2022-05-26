@@ -114,6 +114,9 @@ When migrating backends, you should back up your Auth Service's
 ### Example of backing up and restoring a cluster
 
 ```code
+# Log in to your cluster with tsh so you can use tctl.
+# You can also run tctl on your Auth Service host.
+$ tsh login --user=myuser --proxy=teleport.example.com
 # Export dynamic configuration state from old cluster
 $ tctl get all --with-secrets > state.yaml
 
@@ -174,6 +177,9 @@ When migrating backends, you should back up your Auth Service's
 ### Example of backing up and restoring a cluster
 
 ```code
+# Log in to your cluster with tsh so you can use tctl.
+# You can also run tctl on your Auth Service host.
+$ tsh login --user=myuser --proxy=teleport.example.com
 # Export dynamic configuration state from old cluster
 $ tctl get all --with-secrets > state.yaml
 
@@ -216,12 +222,15 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
-In Teleport Cloud, backend data is managed for you automatically. If you would
-like to migrate configuration resources to a self-hosted Teleport cluster,
-follow our recommended backup practice of storing configuration resources in a
-git repository and running `tctl create -f` regularly for each resource. This
-will enable you to keep your configuration resources up to date regardless of
-storage backend.
+In Teleport Cloud, backend data is managed for you automatically. 
+
+If you would like to migrate configuration resources to a self-hosted Teleport
+cluster, follow our recommended backup practice of storing configuration
+resources in a git repository and running `tctl create -f` regularly for each
+resource. 
+
+This will enable you to keep your configuration resources up to date regardless
+of storage backend.
 
 </TabItem>
 </Tabs>
