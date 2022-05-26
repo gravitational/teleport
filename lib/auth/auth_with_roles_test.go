@@ -2850,7 +2850,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 
 	testNames := []string{"a", "b", "c", "d"}
 
-	// Add some kube services.
+	// Add a kube service with 3 clusters.
 	kubeService, err := types.NewServer("bar", types.KindKubeService, types.ServerSpecV2{
 		KubernetesClusters: []*types.KubernetesCluster{{Name: "d"}, {Name: "b"}, {Name: "a"}},
 	})
@@ -2858,7 +2858,8 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	_, err = s.UpsertKubeServiceV2(ctx, kubeService)
 	require.NoError(t, err)
 
-	// Include a duplicate cluster name to test deduplicate.
+	// Add a kube service with 2 clusters.
+	// Includes a duplicate cluster name to test deduplicate.
 	kubeService, err = types.NewServer("foo", types.KindKubeService, types.ServerSpecV2{
 		KubernetesClusters: []*types.KubernetesCluster{{Name: "a"}, {Name: "c"}},
 	})
@@ -2881,7 +2882,8 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Resources, len(testNames))
 		require.Empty(t, res.NextKey)
-		require.Empty(t, res.TotalCount)
+		// There is 2 kube services, but 4 unique clusters.
+		require.Equal(t, 4, res.TotalCount)
 
 		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
 		require.NoError(t, err)
@@ -3153,7 +3155,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, 2)
-			require.Equal(t, resp.TotalCount, len(uniqueNames))
+			require.Equal(t, len(uniqueNames), resp.TotalCount)
 			fetchedResources = append(fetchedResources, resp.Resources...)
 
 			resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{

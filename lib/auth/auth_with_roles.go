@@ -1014,7 +1014,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			switch match, err := services.MatchResourceByFilters(resource, filter); {
+			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches  */); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case match:
@@ -1220,7 +1220,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 
-		servers := types.AppServers(types.DeduplicateAppServers(appservers))
+		servers := types.AppServers(appservers)
 		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1232,7 +1232,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 
-		servers := types.DatabaseServers(types.DeduplicateDatabaseServers(dbservers))
+		servers := types.DatabaseServers(dbservers)
 		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1256,7 +1256,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			}
 		}
 
-		sortedClusters := types.KubeClusters(types.DeduplicateKubeClusters(clusters))
+		sortedClusters := types.KubeClusters(clusters)
 		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1268,7 +1268,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 
-		desktops := types.WindowsDesktops(types.DeduplicateDesktops(windowsdesktops))
+		desktops := types.WindowsDesktops(windowsdesktops)
 		if err := desktops.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
