@@ -17,7 +17,7 @@
 
 package touchid
 
-// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc
+// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.12
 // #cgo LDFLAGS: -framework CoreFoundation -framework Foundation -framework LocalAuthentication -framework Security
 // #include <stdlib.h>
 // #include "authenticate.h"
