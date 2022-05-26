@@ -222,6 +222,9 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
+	// TeleportVersion is used to control the Teleport version in tests.
+	TeleportVersion string
+
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
 

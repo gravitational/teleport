@@ -109,7 +109,12 @@ func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportVersion, err := semver.NewVersion(teleport.Version)
+
+	version := teleport.Version
+	if process.Config.TeleportVersion != "" {
+		version = process.Config.TeleportVersion
+	}
+	teleportVersion, err := semver.NewVersion(version)
 	if err != nil {
 		return trace.Wrap(err)
 	}
