@@ -88,7 +88,7 @@ type Template interface {
 	// statically as this must be callable without any auth clients (or any
 	// secrets) for use with `tbot init`. If an arbitrary number of files must
 	// be generated, they should be placed in a subdirectory.
-	Describe() []FileDescription
+	Describe(destination destination.Destination) []FileDescription
 
 	// Render writes the config template to the destination.
 	Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error
