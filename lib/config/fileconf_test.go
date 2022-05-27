@@ -344,11 +344,14 @@ func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			authToken := StaticToken("Auth,Node,Proxy:" + tt.token)
-			provisionToken, err := authToken.Parse()
+			staticToken := StaticToken("Auth,Node,Proxy:" + tt.token)
+			provisionTokens, err := staticToken.Parse()
 			require.NoError(t, err)
 
-			want := &types.ProvisionTokenV1{
+			require.Len(t, provisionTokens, 1)
+			provisionToken := provisionTokens[0]
+
+			want := types.ProvisionTokenV1{
 				Roles: []types.SystemRole{
 					types.RoleAuth, types.RoleNode, types.RoleProxy,
 				},
