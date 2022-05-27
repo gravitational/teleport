@@ -89,41 +89,41 @@ To ensure the connector is working as intended: SSO flow is passing, roles are a
 
 ```code
 $ tctl sso test github.yaml
-If browser window does not open automatically, open it by clicking on the link:
- http://127.0.0.1:62482/e1fadd3f-dc6a-420b-9791-94fd29dfc2db
-Success! Logged in as: ExampleGithubUser
---------------------------------------------------------------------------------
-Authentication details:
-   logins:
-   - access
-   roles:
-   - access
-   traits:
-     github_teams:
-     - admins
-     kubernetes_groups: null
-     kubernetes_users: null
-     logins:
-     - ExampleGithubUser
-   username: ExampleGithubUser
---------------------------------------------------------------------------------
-[GitHub] Received claims:
-organization_to_teams:
-  octocats:
-  - admins
-teams:
-- admins
-username: ExampleGithubUser
-
---------------------------------------------------------------------------------
-[GitHub] Connector team to logins mapping:
-- logins:
-  - access
-  organization: octocats
-  team: admins
-
---------------------------------------------------------------------------------
-For more details repeat the command with --debug flag.
+# If browser window does not open automatically, open it by clicking on the link:
+#  http://127.0.0.1:62482/e1fadd3f-dc6a-420b-9791-94fd29dfc2db
+# Success! Logged in as: ExampleGithubUser
+# --------------------------------------------------------------------------------
+# Authentication details:
+#    logins:
+#    - access
+#    roles:
+#    - access
+#    traits:
+#      github_teams:
+#      - admins
+#      kubernetes_groups: null
+#      kubernetes_users: null
+#      logins:
+#      - ExampleGithubUser
+#    username: ExampleGithubUser
+# --------------------------------------------------------------------------------
+# [GitHub] Received claims:
+# organization_to_teams:
+#   octocats:
+#   - admins
+# teams:
+# - admins
+# username: ExampleGithubUser
+# 
+# --------------------------------------------------------------------------------
+# [GitHub] Connector team to logins mapping:
+# - logins:
+#   - access
+#   organization: octocats
+#   team: admins
+# 
+# --------------------------------------------------------------------------------
+# For more details repeat the command with --debug flag.
 ```
 
 The test command can accept the auth connector from standard input. The pipeline may also utilise `tee` to save the connector to file:
