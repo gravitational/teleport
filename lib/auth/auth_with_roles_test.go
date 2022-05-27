@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -37,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -623,6 +624,180 @@ func TestOIDCAuthRequest(t *testing.T) {
 			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
 
 			requestCopy, err := clientReader.GetOIDCAuthRequest(ctx, request.StateToken)
+			require.NoError(t, err)
+			require.Equal(t, request, requestCopy)
+		})
+	}
+}
+
+func TestGithubAuthRequest(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindGithubRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindGithub},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindGithub, types.KindGithubRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindGithubRequest},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	conn, err := types.NewGithubConnector("example", types.GithubConnectorSpecV3{
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "sign in with github",
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "idp-admin",
+				Logins:       []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = srv.Auth().UpsertGithubConnector(context.Background(), conn)
+	require.NoError(t, err)
+
+	reqNormal := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
+	reqTest := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "sign in with github",
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "idp-admin",
+				Logins:       []string{"access"},
+			},
+		},
+	}}
+
+	tests := []struct {
+		desc               string
+		roles              []string
+		request            services.GithubAuthRequest
+		expectAccessDenied bool
+	}{
+		{
+			desc:               "empty role - no access",
+			roles:              []string{emptyRole.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "cannot create sso test request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create normal request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create sso test request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "can create sso test request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: false,
+		},
+	}
+
+	user, err := CreateUser(srv.Auth(), "dummy")
+	require.NoError(t, err)
+
+	userReader, err := CreateUser(srv.Auth(), "dummy-reader", readerRole)
+	require.NoError(t, err)
+
+	clientReader, err := srv.NewClient(TestUser(userReader.GetName()))
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			user.SetRoles(tt.roles)
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			request, err := client.CreateGithubAuthRequest(tt.request)
+			if tt.expectAccessDenied {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotEmpty(t, request.StateToken)
+			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
+
+			requestCopy, err := clientReader.GetGithubAuthRequest(ctx, request.StateToken)
 			require.NoError(t, err)
 			require.Equal(t, request, requestCopy)
 		})
