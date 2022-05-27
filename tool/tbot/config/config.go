@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
@@ -41,11 +42,39 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
 
+// RemainingArgs is a custom kingpin parser that consumes all remaining
+// arguments.
+type RemainingArgsList []string
+
+func (r *RemainingArgsList) Set(value string) error {
+	*r = append(*r, value)
+	return nil
+}
+
+func (r *RemainingArgsList) String() string {
+	return strings.Join([]string(*r), " ")
+}
+
+func (r *RemainingArgsList) IsCumulative() bool {
+	return true
+}
+
+// RemainingArgs returns a list of remaining arguments for the given command.
+func RemainingArgs(s kingpin.Settings) (target *[]string) {
+	target = new([]string)
+	s.SetValue((*RemainingArgsList)(target))
+	return
+}
+
 // CLIConf is configuration from the CLI.
 type CLIConf struct {
 	ConfigPath string
 
-	Debug      bool
+	Debug bool
+
+	// AuthServer is a Teleport auth server address. It may either point
+	// directly to an auth server, or to a Teleport proxy server in which case
+	// a tunneled auth connection will be established.
 	AuthServer string
 
 	// DataDir stores the bot's internal data.
@@ -99,6 +128,18 @@ type CLIConf struct {
 	// ConfigureOutput provides a path that the generated configuration file
 	// should be written to
 	ConfigureOutput string
+
+	// Proxy is the teleport proxy address. Unlike `AuthServer` this must
+	// explicitly point to a Teleport proxy.
+	Proxy string
+
+	// Cluster is the name of the Teleport cluster on which resources should
+	// be accessed.
+	Cluster string
+
+	// RemainingArgs is the remaining string arguments for commands that
+	// require them.
+	RemainingArgs []string
 }
 
 // OnboardingConfig contains values only required on first connect.
@@ -197,6 +238,12 @@ func NewDefaultConfig(authServer string) (*BotConfig, error) {
 	return &cfg, nil
 }
 
+// isJoinMethodDefault determines if the given join method (as input on the
+// CLI) is set to a default value.
+func isJoinMethodDefault(joinMethod string) bool {
+	return joinMethod == "" || joinMethod == DefaultJoinMethod
+}
+
 // FromCLIConf loads bot config from CLI parameters, potentially loading and
 // merging a configuration file if specified. CheckAndSetDefaults() will
 // be called. Note that CLI flags, if specified, will override file values.
@@ -281,9 +328,9 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// (CAPath, CAPins, etc follow different codepaths so we don't want a
 	// situation where different fields become set weirdly due to struct
 	// merging)
-	if cf.Token != "" || len(cf.CAPins) > 0 || cf.JoinMethod != DefaultJoinMethod {
+	if cf.Token != "" || len(cf.CAPins) > 0 || !isJoinMethodDefault(cf.JoinMethod) {
 		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || cf.JoinMethod != DefaultJoinMethod {
+		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || !isJoinMethodDefault(cf.JoinMethod) {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}

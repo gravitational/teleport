@@ -118,13 +118,18 @@ func (dc *DestinationConfig) ListSubdirectories() ([]string, error) {
 	// properly on the fly.
 	var subdirs []string
 
+	dest, err := dc.GetDestination()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	for _, config := range dc.Configs {
 		template, err := config.GetConfigTemplate()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, file := range template.Describe() {
+		for _, file := range template.Describe(dest) {
 			if file.IsDir {
 				subdirs = append(subdirs, file.Name)
 			}
