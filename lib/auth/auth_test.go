@@ -920,7 +920,15 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test github create event
-	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
