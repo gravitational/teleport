@@ -2512,16 +2512,6 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 	return a.authServer.DeleteOIDCConnector(ctx, connectorID)
 }
 
-func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if modules.GetModules().Features().SAML == false {
-		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
-	}
-	return a.authServer.UpsertSAMLConnector(ctx, connector)
-}
-
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
@@ -2627,16 +2617,6 @@ func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID s
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteSAMLConnector(ctx, connectorID)
-}
-
-func (a *ServerWithRoles) CreateGithubConnector(connector types.GithubConnector) error {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.checkGithubConnector(connector); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.CreateGithubConnector(connector)
 }
 
 func (a *ServerWithRoles) checkGithubConnector(connector types.GithubConnector) error {

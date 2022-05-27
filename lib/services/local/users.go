@@ -1073,27 +1073,6 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 	return &req, nil
 }
 
-// CreateSAMLConnector creates SAML Connector
-func (s *IdentityService) CreateSAMLConnector(connector types.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalSAMLConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
 	if err := services.ValidateSAMLConnector(connector); err != nil {
@@ -1270,27 +1249,6 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	}
 
 	return &req, nil
-}
-
-// CreateGithubConnector creates a new Github connector
-func (s *IdentityService) CreateGithubConnector(connector types.GithubConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalGithubConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // UpsertGithubConnector creates or updates a Github connector
