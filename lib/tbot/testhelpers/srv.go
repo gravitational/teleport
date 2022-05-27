@@ -148,6 +148,27 @@ func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) auth.ClientI {
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)
 
+	// Wait for the server to become available.
+	for i := 1; i <= 10; i++ {
+		ping, err := client.Ping(context.Background())
+		if err != nil {
+			t.Logf("server is not yet available, waiting (attempt %d of 10)...", i)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		// Make sure the returned proxy address is sane, it should at least be
+		// parseable.
+		_, _, err = utils.SplitHostPort(ping.ProxyPublicAddr)
+		if err != nil {
+			t.Logf("proxy public address is not not valid: %q (attempt %d of 10)", ping.ProxyPublicAddr, i)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		break
+	}
+
 	return client
 }
 
