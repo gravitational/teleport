@@ -183,19 +183,19 @@ type AccessInfo struct {
 	RoleSet RoleSet
 }
 
-// AccessCheckerImpl implements the AccessChecker interface.
-type AccessCheckerImpl struct {
+// accessChecker implements the AccessChecker interface.
+type accessChecker struct {
 	info         *AccessInfo
 	localCluster string
 
 	// RoleSet is embedded to use the existing implementation for most
 	// AccessChecker methods. Methods which require AllowedResourceIDs (relevant
 	// to search-based access requests) will be implemented by
-	// AccessCheckerImpl.
+	// accessChecker.
 	RoleSet
 }
 
-// NewAccessChecker returns a new *AccessCheckerImpl which may be used to check
+// NewAccessChecker returns a new AccessChecker which may be used to check
 // access to resources.
 // Args:
 // - `info *AccessInfo` should at a minimum hold a valid RoleSet for the
@@ -205,15 +205,15 @@ type AccessCheckerImpl struct {
 // - `localCluster string` should be the name of the local cluster in which
 //   access will be checked. You cannot check for access to resources in remote
 //   clusters.
-func NewAccessChecker(info *AccessInfo, localCluster string) *AccessCheckerImpl {
-	return &AccessCheckerImpl{
+func NewAccessChecker(info *AccessInfo, localCluster string) AccessChecker {
+	return &accessChecker{
 		info:         info,
 		localCluster: localCluster,
 		RoleSet:      info.RoleSet,
 	}
 }
 
-func (a *AccessCheckerImpl) checkAllowedResources(r AccessCheckable) error {
+func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	if len(a.info.AllowedResourceIDs) == 0 {
 		// certificate does not contain a list of specifically allowed
 		// resources, only role-based access control is used
@@ -233,7 +233,7 @@ func (a *AccessCheckerImpl) checkAllowedResources(r AccessCheckable) error {
 
 // CheckAccess checks if the identity for this AccessChecker has access to the
 // given resource.
-func (a *AccessCheckerImpl) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
@@ -243,14 +243,14 @@ func (a *AccessCheckerImpl) CheckAccess(r AccessCheckable, mfa AccessMFAParams, 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for
 // the AccessChecker is allowed to access. An empty or nil list indicates that
 // there are no resource-specific restrictions.
-func (a *AccessCheckerImpl) GetAllowedResourceIDs() []types.ResourceID {
+func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceID {
 	return a.info.AllowedResourceIDs
 }
 
 // GetSearchAsRoles returns the list of roles which the AccessChecker should be
 // able to "assume" while searching for resources, and should be able to request
 // with a search-based access request.
-func (a *AccessCheckerImpl) GetSearchAsRoles() []string {
+func (a *accessChecker) GetSearchAsRoles() []string {
 	if len(a.info.AllowedResourceIDs) > 0 {
 		// cannot search with extended roles while already logged in the
 		// search-based access request.
