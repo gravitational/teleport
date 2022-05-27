@@ -268,7 +268,7 @@ func darwinTagBuildCommands() []string {
 		`export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`rustup override set $RUST_VERSION`,
-		`make clean release OS=$OS ARCH=$ARCH`,
+		`make clean release OS=$OS ARCH=$ARCH TOUCHID=yes`,
 	}
 }
 

@@ -93,59 +93,6 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// GetTokens returns a list of active invitation tokens for nodes and users
-func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
-	if resp, err := c.APIClient.GetTokens(ctx); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	out, err := c.Get(ctx, c.Endpoint("tokens"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var tokens []types.ProvisionTokenV1
-	if err := json.Unmarshal(out.Bytes(), &tokens); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return types.ProvisionTokensFromV1(tokens), nil
-}
-
-// GetToken returns provisioning token
-func (c *Client) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
-	if resp, err := c.APIClient.GetToken(ctx, token); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	out, err := c.Get(ctx, c.Endpoint("tokens", token), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalProvisionToken(out.Bytes())
-}
-
-// DeleteToken deletes a given provisioning token on the auth server (CA). It
-// could be a reset password token or a machine token
-func (c *Client) DeleteToken(ctx context.Context, token string) error {
-	if err := c.APIClient.DeleteToken(ctx, token); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	_, err := c.Delete(ctx, c.Endpoint("tokens", token))
-	return trace.Wrap(err)
-}
-
 // UpsertOIDCConnector updates or creates OIDC connector
 func (c *Client) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
 	if err := c.APIClient.UpsertOIDCConnector(ctx, connector); err != nil {

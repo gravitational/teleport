@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -274,7 +275,7 @@ type ServerContext struct {
 
 	// RemoteClient holds a SSH client to a remote server. Only used by the
 	// recording proxy.
-	RemoteClient *ssh.Client
+	RemoteClient *tracessh.Client
 
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
@@ -508,23 +509,17 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 		return nil
 	}
 	// make sure whatever session is requested is a valid session
-	_, err := rsession.ParseID(ssid)
+	id, err := rsession.ParseID(ssid)
 	if err != nil {
 		return trace.BadParameter("invalid session id")
 	}
 
-	findSession := func() (*session, bool) {
-		reg.sessionsMux.Lock()
-		defer reg.sessionsMux.Unlock()
-		return reg.findSessionLocked(rsession.ID(ssid))
-	}
-
-	// update ctx with a session ID
-	c.session, _ = findSession()
-	if c.session == nil {
-		log.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
+	// update ctx with the session if it exists
+	if sess, found := reg.findSession(*id); found {
+		c.session = sess
+		c.Logger.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
 	} else {
-		log.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
+		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	}
 
 	return nil
@@ -675,16 +670,16 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 				// The client's session hasn't been fully set up yet so this
 				// could potentially be a break-in attempt.
 				if ok, err := c.x11Ready(); err != nil {
-					log.WithError(err).Debug("Failed to get X11 ready status")
+					c.Logger.WithError(err).Debug("Failed to get X11 ready status")
 					return
 				} else if !ok {
-					log.WithError(err).Debug("Rejecting X11 request, XServer Proxy is not ready")
+					c.Logger.WithError(err).Debug("Rejecting X11 request, XServer Proxy is not ready")
 					return
 				}
 
 				xchan, sin, err := c.ServerConn.OpenChannel(sshutils.X11ChannelRequest, x11ChannelReqPayload)
 				if err != nil {
-					log.WithError(err).Debug("Failed to open a new X11 channel")
+					c.Logger.WithError(err).Debug("Failed to open a new X11 channel")
 					return
 				}
 				defer xchan.Close()
@@ -696,12 +691,12 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 				go func() {
 					err := sshutils.ForwardRequests(ctx, sin, c.RemoteSession)
 					if err != nil {
-						log.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
+						c.Logger.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
 					}
 				}()
 
 				if err := x11.Forward(ctx, xconn, xchan); err != nil {
-					log.WithError(err).Debug("Encountered error during X11 forwarding")
+					c.Logger.WithError(err).Debug("Encountered error during X11 forwarding")
 				}
 			}()
 
@@ -939,7 +934,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				// If the trait isn't passed by the IdP due to misconfiguration
 				// we fallback to setting a value which will indicate this.
 				if trace.IsNotFound(err) {
-					log.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
+					c.Logger.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
 					continue
 				}
 
@@ -1032,11 +1027,11 @@ func buildEnvironment(ctx *ServerContext) []string {
 	// SSH_CONNECTION environment variables.
 	remoteHost, remotePort, err := net.SplitHostPort(ctx.ServerConn.RemoteAddr().String())
 	if err != nil {
-		log.Debugf("Failed to split remote address: %v.", err)
+		ctx.Logger.Debugf("Failed to split remote address: %v.", err)
 	} else {
 		localHost, localPort, err := net.SplitHostPort(ctx.ServerConn.LocalAddr().String())
 		if err != nil {
-			log.Debugf("Failed to split local address: %v.", err)
+			ctx.Logger.Debugf("Failed to split local address: %v.", err)
 		} else {
 			env = append(env,
 				fmt.Sprintf("SSH_CLIENT=%s %s %s", remoteHost, remotePort, localPort),
