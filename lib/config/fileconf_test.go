@@ -718,7 +718,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 
 	t.Run("Node labels", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
-			NodeLabels: "foo:bar,baz:bax",
+			NodeLabels: "foo=bar,baz=bax",
 		})
 		require.NoError(t, err)
 		require.Equal(t, map[string]string{
@@ -729,7 +729,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 
 	t.Run("Node labels - invalid", func(t *testing.T) {
 		_, err := MakeSampleFileConfig(SampleFlags{
-			NodeLabels: "foo:bar,baz",
+			NodeLabels: "foo=bar,baz",
 		})
 		require.Error(t, err)
 	})
