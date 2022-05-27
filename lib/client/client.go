@@ -580,24 +580,6 @@ func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
 	return resp.IsBoring, trace.Wrap(err)
 }
 
-// FindServersByLabels returns list of the nodes which have labels exactly matching
-// the given label set.
-//
-// A server is matched when ALL labels match.
-// If no labels are passed, ALL nodes are returned.
-//
-// DELETE IN 11.0.0 replaced by FindNodesByFilters.
-func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(auth.MissingNamespaceError)
-	}
-	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return client.GetNodesWithLabels(ctx, site, namespace, labels)
-}
-
 // FindServersByFilters returns list of the nodes which have filters matched.
 func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
 	req.ResourceType = types.KindNode
@@ -609,18 +591,6 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 
 	resources, err := client.GetResourcesWithFilters(ctx, site, req)
 	if err != nil {
-		// ListResources for nodes not available, provide fallback.
-		// Fallback does not support search/predicate support, so if users
-		// provide them, it does nothing.
-		//
-		// DELETE IN 11.0.0
-		if trace.IsNotImplemented(err) {
-			servers, err := proxy.FindServersByLabels(ctx, req.Namespace, req.Labels)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return servers, nil
-		}
 		return nil, trace.Wrap(err)
 	}
 

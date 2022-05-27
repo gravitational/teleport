@@ -237,59 +237,6 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 	return servers, nil
 }
 
-// ListNodes returns a paginated list of registered servers.
-// StartKey is a resource name, which is the suffix of its key.
-//
-// DELETE IN 10.0.0 in favor of ListResources.
-func (s *PresenceService) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
-	// NOTE: changes to the outward behavior of this method may require updating cache.Cache.ListNodes, since that method
-	// emulates this one but relies on a different implementation internally.
-	if req.Namespace == "" {
-		return nil, "", trace.BadParameter("missing namespace value")
-	}
-	limit := int(req.Limit)
-	if limit <= 0 {
-		return nil, "", trace.BadParameter("nonpositive limit value")
-	}
-
-	// Get all items in the bucket within the given range.
-	rangeStart := backend.Key(nodesPrefix, req.Namespace, req.StartKey)
-	keyPrefix := backend.Key(nodesPrefix, req.Namespace)
-	rangeEnd := backend.RangeEnd(keyPrefix)
-
-	var servers []types.Server
-	err = backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			if len(servers) == limit {
-				break
-			}
-			server, err := services.UnmarshalServer(
-				item.Value,
-				types.KindNode,
-				services.WithResourceID(item.ID),
-				services.WithExpires(item.Expires),
-			)
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-			if server.MatchAgainst(req.Labels) {
-				servers = append(servers, server)
-			}
-		}
-		return len(servers) == limit, nil
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	// If a full page was filled, set nextKey using the last node.
-	if len(servers) == limit {
-		nextKey = backend.NextPaginationKey(servers[len(servers)-1])
-	}
-
-	return servers, nextKey, nil
-}
-
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
 func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {

@@ -2743,37 +2743,6 @@ func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	return a.GetCache().GetNodes(ctx, namespace)
 }
 
-// ListNodes lists nodes from the cache
-func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	return a.GetCache().ListNodes(ctx, req)
-}
-
-// NodePageFunc is a function to run on each page iterated over.
-type NodePageFunc func(next []types.Server) (stop bool, err error)
-
-// IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
-	for {
-		nextPage, nextKey, err := a.ListNodes(ctx, req)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		stop, err := f(nextPage)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
-		}
-
-		req.StartKey = nextKey
-	}
-}
-
 // ResourcePageFunc is a function to run on each page iterated over.
 type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
 

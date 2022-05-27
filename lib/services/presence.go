@@ -43,8 +43,6 @@ type Presence interface {
 
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
-	// ListNodes returns a paginated list of registered servers.
-	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 
 	// NodesGetter gets nodes
 	NodesGetter
