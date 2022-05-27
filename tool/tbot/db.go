@@ -26,12 +26,12 @@ import (
 )
 
 func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
-	runner, err := tshwrap.NewRunner()
+	wrapper, err := tshwrap.New()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := tshwrap.CheckTSHSupported(runner); err != nil {
+	if err := tshwrap.CheckTSHSupported(wrapper); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -78,5 +78,5 @@ func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		args = append([]string{"-d"}, args...)
 	}
 
-	return trace.Wrap(runner.Exec(env, args...), "executing `tsh db`")
+	return trace.Wrap(wrapper.Exec(env, args...), "executing `tsh db`")
 }

@@ -30,23 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockRunner is a mock tsh runner
-type mockRunner struct {
-	captureErr error
-	captureOut []byte
-}
-
-func (r *mockRunner) capture(args ...string) ([]byte, error) {
-	if r.captureErr != nil {
-		return nil, r.captureErr
-	}
-	return r.captureOut, nil
-}
-
-func (r *mockRunner) Exec(env map[string]string, args ...string) error {
-	return trace.NotImplemented("not implemented")
-}
-
 // TestTSHSupported ensures that the tsh version check works as expected (and,
 // implicitly, that the version capture and parsing works.)
 func TestTSHSupported(t *testing.T) {
@@ -80,12 +63,17 @@ func TestTSHSupported(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runner := &mockRunner{
-				captureOut: tt.out,
-				captureErr: tt.err,
+			wrapper := Wrapper{
+				path: "tsh", // path is arbitrary here
+				capture: func(tshPaths string, args ...string) ([]byte, error) {
+					if tt.err != nil {
+						return nil, tt.err
+					}
+					return tt.out, nil
+				},
 			}
 
-			tt.expect(t, CheckTSHSupported(runner))
+			tt.expect(t, CheckTSHSupported(&wrapper))
 		})
 	}
 }

@@ -60,12 +60,11 @@ type TSHRunner interface {
 	Exec(env map[string]string, args ...string) error
 }
 
-type execTSHRunner struct {
-	path string
-}
-
-func (r *execTSHRunner) capture(args ...string) ([]byte, error) {
-	out, err := exec.Command(r.path, args...).Output()
+// capture runs a command (presumably tsh) with the given arguments and
+// returns it's captured stdout. Stderr is ignored. Errors are returned per
+// exec.Command().Output() semantics.
+func capture(tshPath string, args ...string) ([]byte, error) {
+	out, err := exec.Command(tshPath, args...).Output()
 	if err != nil {
 		return nil, trace.Wrap(err, "error executing tsh")
 	}
@@ -73,31 +72,24 @@ func (r *execTSHRunner) capture(args ...string) ([]byte, error) {
 	return out, nil
 }
 
-func (r *execTSHRunner) Exec(env map[string]string, args ...string) error {
-	// The subprocess should inherit the environment plus our vars.
-	environ := os.Environ()
-	for k, v := range env {
-		environ = append(environ, k+"="+v)
-	}
+// Wrapper is a wrapper to execute `tsh` commands via a subprocess.
+type Wrapper struct {
+	// path is a path to the tsh executable
+	path string
 
-	log.Debugf("executing %s with env=%+v and args=%+v", r.path, env, args)
-
-	child := exec.Command(r.path, args...)
-	child.Env = environ
-	child.Stdin = os.Stdin
-	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
-
-	return trace.Wrap(child.Run(), "unable to execute tsh")
+	// capture is the function for capturing a command's output. It may be
+	// overridden by tests for mocking purposes, but by default is expected to
+	// execute an actual tsh binary on the host system.
+	capture func(tshPath string, args ...string) ([]byte, error)
 }
 
-// NewRunner attempts to locate a `tsh` binary on the local system. The
-// standard path lookup behavior can be overridden by setting the `$TSH`
-// environment variable to point to a different tsh executable.
-func NewRunner() (TSHRunner, error) {
+// New creates a new tsh wrapper. If a $TSH var is set it uses that path,
+// otherwise looks for tsh on the OS path.
+func New() (*Wrapper, error) {
 	if val, ok := os.LookupEnv(TSHVarName); ok {
-		return &execTSHRunner{
-			path: val,
+		return &Wrapper{
+			path:    val,
+			capture: capture,
 		}, nil
 	}
 
@@ -111,14 +103,38 @@ func NewRunner() (TSHRunner, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &execTSHRunner{
-		path: path,
+	return &Wrapper{
+		path:    path,
+		capture: capture,
 	}, nil
 }
 
+// Exec runs tsh with the given environment variables and arguments. The child
+// process inherits stdin/stdout/stderr and runs until completion. Errors are
+// returned per `exec.Command().Run()` semantics.
+func (w *Wrapper) Exec(env map[string]string, args ...string) error {
+	// The subprocess should inherit the environment plus our vars. Our env
+	// vars will safely overwrite those from the environment, per `exec.Cmd`
+	// docs.
+	environ := os.Environ()
+	for k, v := range env {
+		environ = append(environ, k+"="+v)
+	}
+
+	log.Debugf("executing %s with env=%+v and args=%+v", w.path, env, args)
+
+	child := exec.Command(w.path, args...)
+	child.Env = environ
+	child.Stdin = os.Stdin
+	child.Stdout = os.Stdout
+	child.Stderr = os.Stderr
+
+	return trace.Wrap(child.Run(), "unable to execute tsh")
+}
+
 // GetTSHVersion queries the system tsh for its version.
-func GetTSHVersion(r TSHRunner) (*semver.Version, error) {
-	rawVersion, err := r.capture("version", "-f", "json")
+func GetTSHVersion(w *Wrapper) (*semver.Version, error) {
+	rawVersion, err := w.capture("version", "-f", "json")
 	if err != nil {
 		return nil, trace.Wrap(err, "querying tsh version")
 	}
@@ -139,8 +155,8 @@ func GetTSHVersion(r TSHRunner) (*semver.Version, error) {
 }
 
 // CheckTSHSupported checks if the current tsh supports Machine ID.
-func CheckTSHSupported(r TSHRunner) error {
-	version, err := GetTSHVersion(r)
+func CheckTSHSupported(w *Wrapper) error {
+	version, err := GetTSHVersion(w)
 	if err != nil {
 		return trace.Wrap(err, "unable to determine tsh version")
 	}
