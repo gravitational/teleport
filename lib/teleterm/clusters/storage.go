@@ -89,7 +89,11 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, er
 	clusterName := parseName(webProxyAddress)
 	for _, pname := range profiles {
 		if pname == clusterName {
-			return s.fromProfile(clusterName, "")
+			cluster, err := s.fromProfile(clusterName, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return cluster, nil
 		}
 	}
 
