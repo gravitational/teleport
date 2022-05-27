@@ -616,9 +616,11 @@ func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 // notifyStale is called when the maximum acceptable staleness (if specified)
 // is exceeded.
 func (p *lockCollector) notifyStale() {
-	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
+
+	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
+
 	// Do not clear p.current here, the most recent lock set may still be used
 	// with LockingModeBestEffort.
 	p.isStale = true
