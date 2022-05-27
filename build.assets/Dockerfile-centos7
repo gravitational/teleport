@@ -41,7 +41,7 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLA
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
-    /opt/go/bin/go version \
+    /opt/go/bin/go version
 
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
