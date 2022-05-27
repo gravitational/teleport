@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -161,7 +162,7 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
-	// NodeLabels is list of labels in the format `foo:bar,baz:bax` to add to newly created nodes.
+	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
 }
 
@@ -263,17 +264,11 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 				Period:  time.Minute,
 			},
 		}
-		if len(flags.NodeLabels) > 0 {
-			labels := strings.Split(flags.NodeLabels, ",")
-			s.Labels = make(map[string]string)
-			for _, label := range labels {
-				parts := strings.Split(label, ":")
-				if len(parts) != 2 {
-					return s, fmt.Errorf("Invalid node label `%s`; labels must be in the format key:value", label)
-				}
-				s.Labels[parts[0]] = parts[1]
-			}
+		labels, err := client.ParseLabelSpec(flags.NodeLabels)
+		if err != nil {
+			return s, err
 		}
+		s.Labels = labels
 	} else {
 		s.EnabledFlag = "no"
 	}
