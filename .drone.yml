@@ -142,7 +142,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -245,7 +245,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -352,7 +352,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -465,6 +465,7 @@ trigger:
     include:
     - master
     - branch/*
+    - zmb3/build-teleport-connect
 workspace:
   path: /tmp/push-build-darwin-amd64
 platform:
@@ -490,6 +491,11 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -512,7 +518,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.9
+    RUNTIME: go1.18.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -525,17 +531,38 @@ steps:
   - rustup toolchain install $RUST_VERSION
   environment:
     WORKSPACE_DIR: /tmp/push-build-darwin-amd64
+- name: Install Node Toolchain
+  commands:
+  - set -u
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
+  - export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - mkdir -p $TOOLCHAIN_DIR
+  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
+  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
+  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
+  - export PATH=$NODE_DIR/bin:$PATH
+  - corepack enable yarn
+  environment:
+    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
 - name: Build Mac artifacts
   commands:
   - set -u
+  - export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
-  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export CARGO_HOME=$TOOLCHAIN_DIR
   - export RUST_HOME=$CARGO_HOME
-  - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
+  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override set $RUST_VERSION
   - make clean release OS=$OS ARCH=$ARCH
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
   environment:
     ARCH: amd64
     GOCACHE: /tmp/push-build-darwin-amd64/go/cache
@@ -597,7 +624,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -700,7 +727,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
   UID: "1000"
 trigger:
   event:
@@ -1052,7 +1079,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
@@ -1060,7 +1087,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -1209,7 +1236,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
@@ -1217,7 +1244,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -1365,7 +1392,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
@@ -1373,7 +1400,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -1519,7 +1546,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
@@ -1527,7 +1554,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -1673,7 +1700,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -1854,7 +1881,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -2032,7 +2059,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -2199,7 +2226,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -2363,7 +2390,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
@@ -2371,7 +2398,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -2517,7 +2544,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -2698,7 +2725,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -2906,6 +2933,11 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -2931,7 +2963,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.9
+    RUNTIME: go1.18.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -2944,18 +2976,43 @@ steps:
   - rustup toolchain install $RUST_VERSION
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Install Node Toolchain
+  commands:
+  - set -u
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
+  - export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - mkdir -p $TOOLCHAIN_DIR
+  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
+  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
+  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
+  - export PATH=$NODE_DIR/bin:$PATH
+  - corepack enable yarn
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Build Mac release artifacts
   commands:
   - set -u
+  - export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
-  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export CARGO_HOME=$TOOLCHAIN_DIR
   - export RUST_HOME=$CARGO_HOME
-  - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
+  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override set $RUST_VERSION
   - make clean release OS=$OS ARCH=$ARCH
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
   environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
     ARCH: amd64
     GOCACHE: /tmp/build-darwin-amd64/go/cache
     GOPATH: /tmp/build-darwin-amd64/go
@@ -2967,8 +3024,12 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+  - cp "Teleport Connect Preview*.dmg" $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
     $FILE > $FILE.sha256; done && ls -l
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in "Teleport Connect Preview*.dmg";
+    do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Upload to S3
@@ -3102,6 +3163,11 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -3283,6 +3349,11 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -3421,7 +3492,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
@@ -3429,7 +3500,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -3575,7 +3646,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
@@ -3583,7 +3654,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -3729,7 +3800,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -3896,7 +3967,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -4063,7 +4134,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -4244,7 +4315,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:461
 ################################################
 
 kind: pipeline
@@ -4425,7 +4496,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
@@ -4433,7 +4504,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.17.9
+  RUNTIME: go1.18.2
 trigger:
   event:
     include:
@@ -5388,6 +5459,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: fce237c39d1cb94d4d9faaa5889b61717068d1602c9c3b9c4fd92ca4054e8569
+hmac: a4b606a9114dc27b6c4403ab8011ff25738d57d64796462c969f2f6428c0b376
 
 ...

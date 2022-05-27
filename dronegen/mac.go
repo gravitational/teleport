@@ -39,7 +39,11 @@ func newDarwinPipeline(name string) pipeline {
 func darwinPushPipeline() pipeline {
 	b := buildType{os: "darwin", arch: "amd64"}
 	p := newDarwinPipeline("push-build-darwin-amd64")
-	p.Trigger = triggerPush
+	p.Trigger = trigger{
+		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*", "zmb3/build-teleport-connect"}}, // TODO(tcsc): Remove debug trigger
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
 	p.Steps = []step{
 		setUpExecStorageStep(p.Workspace.Path),
 		{
@@ -52,6 +56,7 @@ func darwinPushPipeline() pipeline {
 		},
 		installGoToolchainStep(),
 		installRustToolchainStep(p.Workspace.Path),
+		installNodeToolchainStep(p.Workspace.Path),
 		{
 			Name: "Build Mac artifacts",
 			Environment: map[string]value{
@@ -63,7 +68,6 @@ func darwinPushPipeline() pipeline {
 			},
 			Commands: darwinTagBuildCommands(b),
 		},
-		installNodeToolchainStep(p.Workspace.Path),
 		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),
 		{
