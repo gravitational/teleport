@@ -152,6 +152,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/reversetunnels", srv.withAuth(srv.getReverseTunnels))
 	srv.DELETE("/:version/reversetunnels/:domain", srv.withAuth(srv.deleteReverseTunnel))
 
+	// trusted clusters
+	srv.POST("/:version/trustedclusters/validate", srv.withAuth(srv.validateTrustedCluster))
+
 	// Tokens
 	srv.POST("/:version/tokens", srv.withAuth(srv.generateToken))
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
@@ -555,6 +558,30 @@ func (s *APIServer) deleteReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("reverse tunnel %v deleted", domainName)), nil
+}
+
+func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var validateRequestRaw ValidateTrustedClusterRequestRaw
+	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateRequest, err := validateRequestRaw.ToNative()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponse, err := auth.ValidateTrustedCluster(r.Context(), validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponseRaw, err := validateResponse.ToRaw()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return validateResponseRaw, nil
 }
 
 func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
