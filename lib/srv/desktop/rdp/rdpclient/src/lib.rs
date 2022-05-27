@@ -471,7 +471,7 @@ pub unsafe extern "C" fn update_clipboard(
     }
 }
 
-/// handle_tdp_sd_announce announces a new drivethat's ready to be
+/// handle_tdp_sd_announce announces a new drive that's ready to be
 /// redirected over RDP.
 ///
 /// # Safety
