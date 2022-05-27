@@ -223,41 +223,6 @@ func (c *HTTPClient) GetTransport() *http.Transport {
 	return c.transport
 }
 
-// ClientConfig contains configuration of the client
-// DELETE IN: 7.0.0.
-type ClientConfig struct {
-	// Addrs is a list of addresses to dial
-	Addrs []utils.NetAddr
-	// Dialer is a custom dialer that is used instead of Addrs when provided
-	Dialer client.ContextDialer
-	// DialTimeout defines how long to attempt dialing before timing out
-	DialTimeout time.Duration
-	// KeepAlivePeriod defines period between keep alives
-	KeepAlivePeriod time.Duration
-	// KeepAliveCount specifies the amount of missed keep alives
-	// to wait for before declaring the connection as broken
-	KeepAliveCount int
-	// TLS is the client's TLS config
-	TLS *tls.Config
-}
-
-// NewTLSClient returns a new TLS client that uses mutual TLS authentication
-// and dials the remote server using dialer.
-// DELETE IN: 7.0.0.
-func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
-	c := client.Config{
-		Addrs:           utils.NetAddrsToStrings(cfg.Addrs),
-		Dialer:          cfg.Dialer,
-		DialTimeout:     cfg.DialTimeout,
-		KeepAlivePeriod: cfg.KeepAlivePeriod,
-		KeepAliveCount:  cfg.KeepAliveCount,
-		Credentials: []client.Credentials{
-			client.LoadTLS(cfg.TLS),
-		},
-	}
-	return NewClient(c, params...)
-}
-
 // ClientTimeout sets idle and dial timeouts of the HTTP transport
 // used by the client.
 func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
@@ -1254,9 +1219,22 @@ func (c *Client) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 	return &response, nil
 }
 
+// GetGithubAuthRequest gets Github AuthnRequest
+func (c *Client) GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error) {
+	out, err := c.Get(ctx, c.Endpoint("github", "requests", "get", id), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response services.GithubAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &response, nil
+}
+
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
-func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("github", "requests", "validate"),
+func (c *Client) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("github", "requests", "validate"),
 		validateGithubAuthCallbackReq{Query: q})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1741,8 +1719,10 @@ type IdentityService interface {
 	DeleteGithubConnector(ctx context.Context, id string) error
 	// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 	CreateGithubAuthRequest(services.GithubAuthRequest) (*services.GithubAuthRequest, error)
+	// GetGithubAuthRequest returns Github auth request if found
+	GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error)
 	// ValidateGithubAuthCallback validates Github auth callback
-	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
+	ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error)
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
