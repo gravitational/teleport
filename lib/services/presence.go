@@ -59,9 +59,6 @@ type Presence interface {
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
-	// UpsertNodes bulk inserts nodes.
-	UpsertNodes(namespace string, servers []types.Server) error
-
 	// DELETE IN: 5.1.0
 	//
 	// This logic has been moved to KeepAliveServer.

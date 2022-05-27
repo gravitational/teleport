@@ -335,43 +335,6 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h types.KeepAlive) 
 	return trace.Wrap(err)
 }
 
-// UpsertNodes is used for bulk insertion of nodes.
-func (s *PresenceService) UpsertNodes(namespace string, servers []types.Server) error {
-	batch, ok := s.Backend.(backend.Batch)
-	if !ok {
-		return trace.BadParameter("backend does not support batch interface")
-	}
-	if namespace == "" {
-		return trace.BadParameter("missing node namespace")
-	}
-
-	start := time.Now()
-
-	items := make([]backend.Item, len(servers))
-	for i, server := range servers {
-		value, err := services.MarshalServer(server)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		items[i] = backend.Item{
-			Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
-			Value:   value,
-			Expires: server.Expiry(),
-			ID:      server.GetResourceID(),
-		}
-	}
-
-	err := batch.PutRange(context.TODO(), items)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.log.Debugf("UpsertNodes(%v) in %v", len(servers), time.Since(start))
-
-	return nil
-}
-
 // GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)

@@ -122,7 +122,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.withAuth(srv.keepAliveNode))
-	srv.PUT("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNodes))
 	srv.POST("/:version/authservers", srv.withAuth(srv.upsertAuthServer))
 	srv.GET("/:version/authservers", srv.withAuth(srv.getAuthServers))
 	srv.POST("/:version/proxies", srv.withAuth(srv.upsertProxy))
@@ -343,35 +342,6 @@ func (s *APIServer) keepAliveNode(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := auth.KeepAliveServer(r.Context(), handle); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message("ok"), nil
-}
-
-type upsertNodesReq struct {
-	Nodes     json.RawMessage `json:"nodes"`
-	Namespace string          `json:"namespace"`
-}
-
-// upsertNodes is used to bulk insert nodes into the backend.
-func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req upsertNodesReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !types.IsValidNamespace(req.Namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", req.Namespace)
-	}
-
-	nodes, err := services.UnmarshalServers(req.Nodes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.UpsertNodes(req.Namespace, nodes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return message("ok"), nil
 }
 
