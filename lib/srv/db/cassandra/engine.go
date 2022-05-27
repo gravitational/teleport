@@ -27,9 +27,11 @@ import (
 	"io"
 	"net"
 
+	"github.com/datastax/go-cassandra-native-protocol/client"
 	"github.com/datastax/go-cassandra-native-protocol/frame"
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
+	"github.com/datastax/go-cassandra-native-protocol/segment"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -98,6 +100,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	codec := frame.NewRawCodec()
+	segmentCodec := segment.NewCodec()
+	isV5 := false
 
 	e.Log.Info("Accepted new connection")
 
@@ -106,10 +110,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	bconn := &buffConn{
-		buff: make([]byte, 0),
-		r:    e.clientConn,
-	}
+	bconn := newInMemoryReader(e.clientConn)
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
@@ -122,12 +123,34 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	go io.Copy(e.clientConn, srvConn)
 
 	for {
-		rawFrame, err := codec.DecodeRawFrame(bconn)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
+		var rawFrame *frame.RawFrame
+
+		if isV5 {
+			seg, err := segmentCodec.DecodeSegment(bconn)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return nil
+				}
+				return trace.Wrap(err, "failed to decode frame")
 			}
-			return trace.Wrap(err, "failed to decode frame")
+
+			payloadReader := bytes.NewReader(seg.Payload.UncompressedData)
+
+			rawFrame, err = codec.DecodeRawFrame(payloadReader)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return nil
+				}
+				return trace.Wrap(err, "failed to decode frame")
+			}
+		} else {
+			rawFrame, err = codec.DecodeRawFrame(bconn)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return nil
+				}
+				return trace.Wrap(err, "failed to decode frame")
+			}
 		}
 
 		//f, err := rawFrame.Dump()
@@ -139,6 +162,21 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		//e.Log.Infof("OpCode: %+v", rawFrame.Header.OpCode)
 
 		switch rawFrame.Header.OpCode {
+		case primitive.OpCodeStartup:
+			body, err := codec.ConvertFromRawFrame(rawFrame)
+			if err != nil {
+				return trace.Wrap(err, "failed to decode auth response")
+			}
+
+			if startup, ok := body.Body.Message.(*message.Startup); ok {
+				if body.Header.Version == primitive.ProtocolVersion5 {
+					// TODO(jakule): we should also check the supported version returned by the DB, not only client.
+					isV5 = true
+				}
+				compression := startup.GetCompression()
+				e.Log.Infof("compression: %v", compression)
+				codec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
+			}
 		case primitive.OpCodeAuthResponse:
 			body, err := codec.ConvertFromRawFrame(rawFrame)
 			if err != nil {
@@ -146,9 +184,11 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			}
 
 			if authResp, ok := body.Body.Message.(*message.AuthResponse); ok {
+				// auth token contains username and password split by \0 character
+				// ex: \0username\0password
 				data := bytes.Split(authResp.Token, []byte{0})
 				if len(data) != 3 {
-					return trace.BadParameter("failed to extract username from auth package.")
+					return trace.BadParameter("failed to extract username from the auth package.")
 				}
 				username := string(data[1])
 
@@ -166,13 +206,34 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 			if query, ok := body.Body.Message.(*message.Query); ok {
 				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-					Query:      query.Query,
-					Parameters: []string{"keyspace", query.Options.Keyspace}, //TODO(jakule): What is the correct format?
+					Query: query.String(),
+				})
+			}
+		case primitive.OpCodePrepare:
+			body, err := codec.ConvertFromRawFrame(rawFrame)
+			if err != nil {
+				return trace.Wrap(err, "failed to decode prepare")
+			}
+
+			if prepare, ok := body.Body.Message.(*message.Prepare); ok {
+				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+					Query: prepare.String(),
+				})
+			}
+		case primitive.OpCodeExecute:
+			body, err := codec.ConvertFromRawFrame(rawFrame)
+			if err != nil {
+				return trace.Wrap(err, "failed to decode prepare")
+			}
+
+			if execute, ok := body.Body.Message.(*message.Execute); ok {
+				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+					Query: execute.String(),
 				})
 			}
 		}
 
-		_, err = srvConn.Write(bconn.Buff())
+		_, err = srvConn.Write(bconn.Bytes())
 		if err != nil {
 			return trace.Wrap(err, "failed to write frame to cassandra: %v", err)
 		}
@@ -225,7 +286,8 @@ func (e *Engine) sendAuthError(accessErr error) {
 
 		switch rawFrame.Header.OpCode {
 		case primitive.OpCodeStartup:
-			startupFrame := frame.NewFrame(rawFrame.Header.Version, rawFrame.Header.StreamId, &message.Authenticate{Authenticator: "org.apache.cassandra.auth.PasswordAuthenticator"})
+			startupFrame := frame.NewFrame(rawFrame.Header.Version, rawFrame.Header.StreamId,
+				&message.Authenticate{Authenticator: "org.apache.cassandra.auth.PasswordAuthenticator"})
 
 			if err := codec.EncodeFrame(startupFrame, e.clientConn); err != nil {
 				e.Log.WithError(err).Error("failed to send startup frame")
@@ -244,21 +306,28 @@ func (e *Engine) sendAuthError(accessErr error) {
 	}
 }
 
-type buffConn struct {
+type inMemoryReader struct {
 	buff []byte
 	r    io.Reader
 }
 
-func (b *buffConn) Read(p []byte) (int, error) {
+func newInMemoryReader(reader io.Reader) *inMemoryReader {
+	return &inMemoryReader{
+		buff: make([]byte, 0),
+		r:    reader,
+	}
+}
+
+func (b *inMemoryReader) Read(p []byte) (int, error) {
 	n, err := b.r.Read(p)
 	b.buff = append(b.buff, p...)
 	return n, err
 }
 
-func (b *buffConn) Buff() []byte {
+func (b *inMemoryReader) Bytes() []byte {
 	return b.buff
 }
 
-func (b *buffConn) Reset() {
+func (b *inMemoryReader) Reset() {
 	b.buff = b.buff[:0]
 }
