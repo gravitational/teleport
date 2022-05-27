@@ -132,6 +132,8 @@ func (c *TemplateSSHClient) Describe(destination destination.Destination) []File
 		},
 	}
 
+	// Only include ssh_config if we're using a filesystem destination as
+	// otherwise ssh_config will not be sensible.
 	if _, ok := destination.(*DestinationDirectory); ok {
 		ret = append(ret, FileDescription{
 			Name: "ssh_config",

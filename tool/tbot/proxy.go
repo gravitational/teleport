@@ -64,7 +64,8 @@ func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.Proxy}
 	args = append(args, cf.RemainingArgs...)
 
-	// Pass through the debug flag.
+	// Pass through the debug flag, and prepend to satisfy argument ordering
+	// needs.
 	if botConfig.Debug {
 		args = append([]string{"-d"}, args...)
 	}
