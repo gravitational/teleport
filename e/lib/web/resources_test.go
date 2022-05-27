@@ -73,7 +73,13 @@ func TestGetAuthConnectors(t *testing.T) {
 
 	m := &mockedResourceAPIGetter{}
 	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-		connector, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+		connector, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		}})
 		require.NoError(t, err)
 		return []types.GithubConnector{connector}, nil
 	}

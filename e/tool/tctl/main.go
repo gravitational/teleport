@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2021 Gravitational, Inc.
+Copyright 2017-2022 Gravitational, Inc.
 Package main contains the enterprise edition of tctl CLI tool.
 */
 
@@ -7,30 +7,32 @@ package main
 
 import (
 	"github.com/gravitational/teleport/e/tool/modules"
-
+	"github.com/gravitational/teleport/e/tool/tctl/sso/configure"
+	"github.com/gravitational/teleport/e/tool/tctl/sso/tester"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
 func main() {
 	modules.SetModules(nil)
+
 	commands := []common.CLICommand{
 		&common.UserCommand{},
 		&common.NodeCommand{},
 		&common.TokensCommand{},
 		&common.AuthCommand{},
+		&ResourceCommandE{},
 		&common.StatusCommand{},
 		&common.TopCommand{},
 		&common.AccessRequestCommand{},
-		&ResourceCommandE{},
 		&SAMLCommand{},
-		&SSOTestCommand{},
-		&SSOConfigureCommand{},
+		&configure.SSOConfigureCommandE{},
+		&tester.SSOTestCommandE{},
 		&common.AppsCommand{},
 		&common.DBCommand{},
-		&common.LockCommand{},
-		&common.AccessCommand{},
 		&common.KubeCommand{},
 		&common.DesktopCommand{},
+		&common.AccessCommand{},
+		&common.LockCommand{},
 		&common.BotsCommand{},
 	}
 	common.Run(commands)

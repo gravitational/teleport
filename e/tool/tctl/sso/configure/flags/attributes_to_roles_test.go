@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,42 +18,47 @@ func Test_attributesToRolesParser_Set(t *testing.T) {
 	}{
 		{
 			name:   "one set of correct args",
-			parser: nil,
+			parser: attributesToRolesParser{mappings: &[]types.AttributeMapping{}},
 			arg:    "foo,bar,baz",
-			wantParser: attributesToRolesParser{types.AttributeMapping{
-				Name:  "foo",
-				Value: "bar",
-				Roles: []string{"baz"},
-			}},
+			wantParser: attributesToRolesParser{mappings: &[]types.AttributeMapping{
+				{
+					Name:  "foo",
+					Value: "bar",
+					Roles: []string{"baz"},
+				}}},
 			wantErr: false,
 		},
 		{
 			name: "two sets of correct args",
-			parser: attributesToRolesParser{types.AttributeMapping{
-				Name:  "foo",
-				Value: "bar",
-				Roles: []string{"baz"},
-			}},
+			parser: attributesToRolesParser{mappings: &[]types.AttributeMapping{
+				{
+					Name:  "foo",
+					Value: "bar",
+					Roles: []string{"baz"},
+				}}},
 			arg: "aaa,bbb,ccc,ddd",
-			wantParser: attributesToRolesParser{types.AttributeMapping{
-				Name:  "foo",
-				Value: "bar",
-				Roles: []string{"baz"},
-			}, types.AttributeMapping{
-				Name:  "aaa",
-				Value: "bbb",
-				Roles: []string{"ccc", "ddd"},
-			}},
+			wantParser: attributesToRolesParser{mappings: &[]types.AttributeMapping{
+				{
+					Name:  "foo",
+					Value: "bar",
+					Roles: []string{"baz"},
+				},
+				{
+					Name:  "aaa",
+					Value: "bbb",
+					Roles: []string{"ccc", "ddd"},
+				}}},
 			wantErr: false,
 		},
 		{
 			name:       "one set of incorrect args",
-			parser:     nil,
+			parser:     attributesToRolesParser{mappings: &[]types.AttributeMapping{}},
 			arg:        "abracadabra",
-			wantParser: nil,
+			wantParser: attributesToRolesParser{mappings: &[]types.AttributeMapping{}},
 			wantErr:    true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.parser.Set(tt.arg)
