@@ -1720,9 +1720,6 @@ service AuthService {
 
     // GetNode retrieves a node described by the given request.
     rpc GetNode(types.ResourceInNamespaceRequest) returns (types.ServerV2);
-    // GetNodes retrieves all nodes.
-    // DELETE IN 8.0.0 in favor of ListNodes
-    rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
     // ListNodes retrieves a paginated list of nodes.
     // DELETE IN 10.0. Deprecated, use ListResources.
     rpc ListNodes(ListNodesRequest) returns (ListNodesResponse) { option deprecated = true; };
