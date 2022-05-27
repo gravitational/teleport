@@ -1412,7 +1412,7 @@ type getNodesCacheKey struct {
 var _ map[getNodesCacheKey]struct{} // compile-time hashability check
 
 // GetNodes is a part of auth.Cache implementation
-func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1420,7 +1420,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	defer rg.Release()
 
 	if !rg.IsCacheRead() {
-		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace, opts...)
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1431,7 +1431,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 		return nodes, nil
 	}
 
-	return rg.presence.GetNodes(ctx, namespace, opts...)
+	return rg.presence.GetNodes(ctx, namespace)
 }
 
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
@@ -1441,7 +1441,7 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func(ctx context.Context) (interface{}, error) {
 		// use cache's close context instead of request context in order to ensure
 		// that we don't cache a context cancellation error.
-		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+		nodes, err := rg.presence.GetNodes(c.ctx, namespace)
 		ta(nodes)
 		return nodes, err
 	})

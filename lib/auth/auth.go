@@ -2739,8 +2739,8 @@ func (a *Server) GetNamespaces() ([]types.Namespace, error) {
 }
 
 // GetNodes returns nodes from the cache
-func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	return a.GetCache().GetNodes(ctx, namespace, opts...)
+func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	return a.GetCache().GetNodes(ctx, namespace)
 }
 
 // ListNodes lists nodes from the cache

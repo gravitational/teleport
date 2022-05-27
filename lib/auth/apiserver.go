@@ -121,12 +121,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
 
 	// Servers and presence heartbeat
-	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
 	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.withAuth(srv.keepAliveNode))
 	srv.PUT("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNodes))
-	srv.GET("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.getNodes))
-	srv.DELETE("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.deleteAllNodes))
-	srv.DELETE("/:version/namespaces/:namespace/nodes/:name", srv.withAuth(srv.deleteNode))
 	srv.POST("/:version/authservers", srv.withAuth(srv.upsertAuthServer))
 	srv.GET("/:version/authservers", srv.withAuth(srv.getAuthServers))
 	srv.POST("/:version/proxies", srv.withAuth(srv.upsertProxy))
@@ -376,55 +372,6 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	return message("ok"), nil
-}
-
-// upsertNode is called by remote SSH nodes when they ping back into the auth service
-func (s *APIServer) upsertNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, types.RoleNode, r, p)
-}
-
-// getNodes returns registered SSH nodes
-func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
-	servers, err := auth.GetNodes(r.Context(), namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return marshalServers(servers, version)
-}
-
-// deleteAllNodes deletes all nodes
-func (s *APIServer) deleteAllNodes(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	err := auth.DeleteAllNodes(r.Context(), namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// deleteNode deletes node
-func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	name := p.ByName("name")
-	if name == "" {
-		return nil, trace.BadParameter("missing node name")
-	}
-	err := auth.DeleteNode(r.Context(), namespace, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return message("ok"), nil
 }
 

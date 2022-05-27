@@ -206,7 +206,7 @@ func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (
 }
 
 // GetNodes returns a list of registered servers
-func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace value")
 	}
@@ -223,9 +223,11 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 		server, err := services.UnmarshalServer(
 			item.Value,
 			types.KindNode,
-			services.AddOptions(opts,
+			[]services.MarshalOption{
 				services.WithResourceID(item.ID),
-				services.WithExpires(item.Expires))...)
+				services.WithExpires(item.Expires),
+			}...,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

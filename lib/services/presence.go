@@ -32,7 +32,7 @@ type ProxyGetter interface {
 // NodesGetter is a service that gets nodes.
 type NodesGetter interface {
 	// GetNodes returns a list of registered servers.
-	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
 // Presence records and reports the presence of all components
