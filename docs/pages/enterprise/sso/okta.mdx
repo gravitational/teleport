@@ -49,9 +49,9 @@ like:
 
 First, create a SAML 2.0 Web App in Okta configuration section
 
-### 1. Select Create New App
+- Select "Create New App"
+- Select "Web Platform" and "SAML 2.0 Sign On Method".
 
-Select Web Platform and SAML 2.0 Sign On Method.
 ![Create APP](../../../img/sso/okta/okta-saml-1.png)
 
 ## Configure the App
@@ -59,36 +59,43 @@ Select Web Platform and SAML 2.0 Sign On Method.
 We are going to map the Okta groups we've created above to the SAML Attribute
 statements (special signed metadata exposed via a SAML XML response).
 
-GENERAL
+### Section: _"General"_
 
-- Single sign on URL `https://teleport-proxy.example.com:443/v1/webapi/saml/acs`
-- Audience URI (SP Entity ID)`https://teleport-proxy.example.com:443/v1/webapi/saml/acs`
-- Name ID format `EmailAddress`
-- Application username `Okta username`
+Configure general settings section. Make sure there are no typos in the callback URL.
 
-SINGLE ATTRIBUTE STATEMENTS
+| Field                       | Value                                                       |
+|-----------------------------|-------------------------------------------------------------|
+| Single sign on URL          | `https://teleport-proxy.example.com:443/v1/webapi/saml/acs` |
+| Audience URI (SP Entity ID) | `https://teleport-proxy.example.com:443/v1/webapi/saml/acs` |
+| Name ID format              | `EmailAddress`                                              |
+| Application username        | `Okta username`                                             |
 
-- Name: `username`  | Name format: `Unspecified` | Value: `user.login`
+### Section: _"Single Attribute Statements"_
 
-GROUP ATTRIBUTE STATEMENTS
+Configure single-value attributes to be passed to Teleport on login.
 
-- Name: `groups` | Name format: `Unspecified`
-- Filter: `Matches regex` |  `.*`
+| Name       | Name format   | Value        |
+|------------|---------------|--------------|
+| `username` | `Unspecified` | `user.login` |
+| `email`    | `Basic`       | `user.email` |
+
+### Section: _"Group Attribute Statements"_
+
+Configure which group information to be passed to Teleport on login. To pass all groups via the claim named `groups`:
+
+| Name     | Name format   | Filter type     | Filter definition |
+|----------|---------------|-----------------|-------------------|
+| `groups` | `Unspecified` | `Matches regex` | `.*`              |
+
+<Admonition type="warning" title="Matching all groups">
+  The regular expression matching all groups is `.*`. If you leave the filter definition empty it will match no groups.
+</Admonition>
+
+### Review
+
+Afterwards the app configuration should look similar to this:
 
 ![Configure APP](../../../img/sso/okta/setup-redirection.png)
-
-### Note: RegEx requires `.*`
-
-![Configure APP](../../../img/sso/okta/regex.png)
-
-<Admonition
-  type="tip"
-  title="tip"
->
-  Notice that we have set "NameID" to the email format and mapped the groups with
-  a wildcard regex in the Group Attribute statements. We have also set the "Audience"
-  and SSO URL to the same value.
-</Admonition>
 
 ## Create & Assign Groups
 
@@ -106,24 +113,10 @@ Assign groups and people to your SAML app:
 
 ![Configure APP](../../../img/sso/okta/okta-saml-3.1.png)
 
-Make sure to download the metadata in the form of an XML document. It will be used it to
+Make sure to download the metadata in the form of an XML document and save it (e.g. as `entity_desc.xml`). It will be used it to
 configure a Teleport connector:
 
 ![Download metadata](../../../img/sso/okta/okta-saml-4.png)
-
-## Create a SAML Connector
-
-Now, create a SAML connector [resource](../../setup/reference/resources.mdx):
-
-```yaml
-(!examples/resources/saml-connector.yaml!)
-```
-
-Create the connector using `tctl` tool:
-
-```bsh
-$ tctl create okta-connector.yaml
-```
 
 ## Create a Developer Teleport Role
 
@@ -158,10 +151,101 @@ We'll use tctl to create this role on the auth server:
 $ tctl create dev.yaml
 ```
 
-## Testing
+## Create & Test SAML Connector
 
-The Web UI will now contain a new button: "Login with Okta". The CLI is
-the same as before:
+Now, create a SAML connector [resource](../../setup/reference/resources.mdx).
+
+Use the [`tctl sso configure saml`](../../setup/reference/cli.mdx#tctl-sso-configure-saml) command like so:
+
+```code
+$ tctl sso configure saml -p okta -e entity_desc.xml -r groups,okta-admin,editor -r groups,okta-dev,dev \
+  | tee okta-connector.yaml
+```
+
+The resulting file should be similar to this:
+
+```yaml
+(!examples/resources/saml-connector.yaml!)
+```
+
+Before creating the connector, you should test it using [`tctl sso test`](../../setup/reference/cli.mdx#tctl-sso-test) command:
+
+```code
+$ tctl sso test okta-connector.yaml
+```
+
+You can also run both commands as a pipeline:
+
+```code
+$ tctl sso configure saml -p okta -e entity_desc.xml -r groups,okta-admin,editor -r groups,okta-dev,dev \
+  | tee okta-connector.yaml | tctl sso test
+# INFO [CLIENT]    ACS empty, resolving automatically.
+# INFO [CLIENT]    ACS set to "https://teleport-proxy.example.com:443/v1/webapi/saml/acs"
+# INFO [CLIENT]    Cannot parse entity descriptor as URL, missing scheme: "entity_desc.xml".
+# INFO [CLIENT]    Entity descriptor read from file "entity_desc.xml".
+# If browser window does not open automatically, open it by clicking on the link:
+#  http://127.0.0.1:64847/9d140755-1a1e-4b21-b9d7-11ce0aa1eb6c
+# Success! Logged in as: oktauser@example.com
+# --------------------------------------------------------------------------------
+# Authentication details:
+#    roles:
+#    - editor
+#    - dev
+#    traits:
+#      email:
+#      - oktauser@example.com
+#      groups:
+#      - Everyone
+#      - okta-admin
+#      - okta-dev
+#      username:
+#      - oktauser@example.com
+#    username: oktauser@example.com
+# --------------------------------------------------------------------------------
+# [SAML] Attributes to roles:
+# - name: groups
+#   roles:
+#   - editor
+#   value: okta-admin
+# - name: groups
+#   roles:
+#   - dev
+#   value: okta-dev
+# 
+# --------------------------------------------------------------------------------
+# [SAML] Attributes statements:
+# email:
+# - oktauser@example.com
+# groups:
+# - Everyone
+# - okta-admin
+# - okta-dev
+# username:
+# - oktauser@example.com
+# 
+# --------------------------------------------------------------------------------
+# For more details repeat the command with --debug flag.
+```
+
+In the example above, we:
+1. Configure the SAML connector using `okta` preset.
+2. Save the connector to `okta-connector.yaml`.
+3. Run end-to-end SSO flow test with `tctl sso test`.
+4. When prompted, authenticate as `oktauser@example.com` on Okta login page.
+5. Review the diagnostic information, observing that:
+   - the login was successful
+   - `oktauser@example.com` is member of both `okta-dev` and `okta-admin` Okta groups.
+   - there are `email`, `username` and `groups` attribute statements present, matching our configuration of Okta App.
+
+Once happy with the test results, create the connector using `tctl` tool:
+
+```bsh
+$ tctl create okta-connector.yaml
+```
+
+## Validation
+
+The Web UI will now contain a new button: "Login with Okta". You can also login with `tsh`:
 
 ```bsh
 $ tsh login --proxy=proxy.example.com --auth=okta
