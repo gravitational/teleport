@@ -543,6 +543,7 @@ func Test_clientMetaFromReq(t *testing.T) {
 
 func TestSAMLSuccess(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	s := newWebSuite(t)
 	input := fixtures.SAMLOktaConnectorV2
 
@@ -573,7 +574,7 @@ func TestSAMLSuccess(t *testing.T) {
 	err = s.server.Auth().UpsertRole(s.ctx, role)
 	require.NoError(t, err)
 
-	err = s.server.Auth().CreateSAMLConnector(connector)
+	err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
@@ -2478,7 +2479,7 @@ func TestGetWebConfig(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = env.server.Auth().CreateGithubConnector(github)
+	err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 
 	expectedCfg := webclient.WebConfig{
