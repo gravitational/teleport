@@ -777,7 +777,7 @@ type StaticToken string
 // Parse is applied to a string in "role,role,role:token" format. It breaks it
 // apart and constructs a list of services.ProvisionToken which contains the token,
 // role, and expiry (infinite).
-// If the token string is a file path, the file may contain multiple newline dilimited
+// If the token string is a file path, the file may contain multiple newline delimited
 // tokens, in which case each token is used to construct a services.ProvisionToken
 // with the same roles.
 func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
