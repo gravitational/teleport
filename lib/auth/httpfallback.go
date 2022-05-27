@@ -571,7 +571,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	switch resp, err := c.APIClient.GenerateToken(ctx, req); {
 	case err == nil:
-		return resp.GetName(), nil
+		return resp, nil
 	case !trace.IsNotImplemented(err):
 		return "", trace.Wrap(err)
 	}

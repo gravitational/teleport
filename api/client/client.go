@@ -1636,9 +1636,9 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 }
 
 // UpsertToken creates or updates a provision token.
-func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (types.ProvisionToken, error) {
-	token, err := c.grpc.GenerateToken(ctx, req, c.callOpts...)
-	return token, trail.FromGRPC(err)
+func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	resp, err := c.grpc.GenerateToken(ctx, req, c.callOpts...)
+	return resp.Token, trail.FromGRPC(err)
 }
 
 // DeleteToken deletes a provision token by name.

@@ -1695,6 +1695,12 @@ message GenerateTokenRequest {
     map<string, string> Labels = 4 [ (gogoproto.jsontag) = "labels" ];
 }
 
+// GenerateTokenResponse is a token response
+message GenerateTokenResponse {
+    // Token if the generated token
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
@@ -2018,7 +2024,7 @@ service AuthService {
     // UpsertToken upserts a token in a backend.
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
     // GenerateToken generates a new auth token.
-    rpc GenerateToken(GenerateTokenRequest) returns (types.ProvisionTokenV2);
+    rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 
