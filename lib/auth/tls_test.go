@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"encoding/base32"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -838,11 +839,16 @@ func (s *TLSSuite) TestRemoteUser(c *check.C) {
 	// User is not authorized to perform any actions
 	// as local cluster does not trust the remote cluster yet
 	_, err = remoteClient.GetDomainName(ctx)
-	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
+	fixtures.ExpectConnectionProblem(c, err)
 
 	// Establish trust, the request will still fail, there is
 	// no role mapping set up
 	err = s.server.AuthServer.Trust(ctx, remoteServer, nil)
+	c.Assert(err, check.IsNil)
+
+	// Create fresh client now trust is established
+	remoteClient, err = remoteServer.NewRemoteClient(
+		TestUser(remoteUser.GetName()), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 	_, err = remoteClient.GetDomainName(ctx)
 	fixtures.ExpectAccessDenied(c, err)
@@ -2248,7 +2254,7 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-// TestTLSFailover tests client failover between two tls servers
+// TestTLSFailover tests HTTP client failover between two tls servers
 func (s *TLSSuite) TestTLSFailover(c *check.C) {
 	otherServer, err := s.server.AuthServer.NewTestTLSServer()
 	c.Assert(err, check.IsNil)
@@ -2272,8 +2278,8 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 
 	// couple of runs to get enough connections
 	for i := 0; i < 4; i++ {
-		_, err = client.GetDomainName(ctx)
-		c.Assert(err, check.IsNil)
+		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
+		fixtures.ExpectNotFound(c, err)
 	}
 
 	// stop the server to get response
@@ -2282,8 +2288,8 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 
 	// client detects closed sockets and reconnect to the backup server
 	for i := 0; i < 4; i++ {
-		_, err = client.GetDomainName(ctx)
-		c.Assert(err, check.IsNil)
+		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
+		fixtures.ExpectNotFound(c, err)
 	}
 }
 
