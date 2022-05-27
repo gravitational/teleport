@@ -261,6 +261,8 @@ func installNodeToolchainStep(workspacePath string) step {
 			`rm -f node-v$NODE_VERSION-darwin-x64.tar.gz`,
 			`export PATH=$NODE_DIR/bin:$PATH`,
 			`corepack enable yarn`,
+			`echo Node reporting version $(node --version)`,
+			`echo Yarn reporting version $(yarn --version)`,
 		},
 	}
 }

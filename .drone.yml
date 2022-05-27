@@ -544,6 +544,8 @@ steps:
   - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
   - export PATH=$NODE_DIR/bin:$PATH
   - corepack enable yarn
+  - echo Node reporting version $(node --version)
+  - echo Yarn reporting version $(yarn --version)
   environment:
     WORKSPACE_DIR: /tmp/push-build-darwin-amd64
 - name: Build Mac artifacts
@@ -2989,6 +2991,8 @@ steps:
   - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
   - export PATH=$NODE_DIR/bin:$PATH
   - corepack enable yarn
+  - echo Node reporting version $(node --version)
+  - echo Yarn reporting version $(yarn --version)
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Build Mac release artifacts
@@ -5459,6 +5463,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: a4b606a9114dc27b6c4403ab8011ff25738d57d64796462c969f2f6428c0b376
+hmac: 417ee3689c77c049826be206687aea6a5e91c82a7960c7a2414500e4aa1bf429
 
 ...
