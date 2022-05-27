@@ -560,14 +560,9 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 
 // DELETE IN 11.0.0, to remove fallback and grpc call is already defined in api/client/client.go
 //
-// GenerateToken creates a special provisioning token for a new SSH server
-// that is valid for ttl period seconds.
-//
-// This token is used by SSH server to authenticate with Auth server
-// and get signed certificate and private key from the auth server.
-//
-// If token is not supplied, it will be auto generated and returned.
-// If TTL is not supplied, token will be valid until removed.
+// GenerateToken generates a new auth token for the given service roles.
+// This token can be used by corresponding servcies to authenticate with
+// the Auth server and get a signed certificate and private key.
 func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	switch resp, err := c.APIClient.GenerateToken(ctx, req); {
 	case err == nil:
