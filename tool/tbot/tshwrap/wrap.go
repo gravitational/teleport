@@ -50,16 +50,6 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
 
-// TSHRunner is a method for executing tsh.
-type TSHRunner interface {
-	// capture runs tsh and captures its standard output.
-	capture(args ...string) ([]byte, error)
-
-	// Exec runs tsh with the given additional environment variables and args.
-	// It should inherit the current process's input and output streams.
-	Exec(env map[string]string, args ...string) error
-}
-
 // capture runs a command (presumably tsh) with the given arguments and
 // returns it's captured stdout. Stderr is ignored. Errors are returned per
 // exec.Command().Output() semantics.
@@ -118,6 +108,7 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 	// docs.
 	environ := os.Environ()
 	for k, v := range env {
+		// In case of similar keys, last env var wins.
 		environ = append(environ, k+"="+v)
 	}
 
@@ -282,9 +273,12 @@ func GetEnvForTSH(destination *config.DestinationConfig) (map[string]string, err
 
 	// We don't want to provide a fallback for CAs since it would be ambiguous,
 	// so we'll specify them exactly.
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, tlsCAs.UserCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, tlsCAs.HostCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, tlsCAs.DatabaseCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] =
+		filepath.Join(destPath, tlsCAs.UserCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] =
+		filepath.Join(destPath, tlsCAs.HostCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] =
+		filepath.Join(destPath, tlsCAs.DatabaseCAPath)
 
 	// TODO(timothyb89): Kubernetes support. We don't generate kubeconfigs yet, so we have
 	// nothing to give tsh for now.
