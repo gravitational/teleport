@@ -110,6 +110,10 @@ type CommandLineFlags struct {
 	// configuration.
 	FIPS bool
 
+	// SkipVersionCheck allows Teleport to connect to auth servers that
+	// have an earlier major version number.
+	SkipVersionCheck bool
+
 	// AppName is the name of the application to proxy.
 	AppName string
 
@@ -429,6 +433,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.WindowsDesktop.Enabled() {
 		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Tracing.Enabled() {
+		if err := applyTracingConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1405,6 +1414,47 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
+// applyTracingConfig applies file configuration for the "tracing_service" section.
+func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
+	// Tracing is enabled.
+	cfg.Tracing.Enabled = true
+
+	if fc.Tracing.ExporterURL == "" {
+		return trace.BadParameter("tracing_service is enabled but no exporter_url is specified")
+	}
+
+	cfg.Tracing.ExporterURL = fc.Tracing.ExporterURL
+	cfg.Tracing.SamplingRate = float64(fc.Tracing.SamplingRatePerMillion) / 1_000_000.0
+
+	for _, p := range fc.Tracing.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(p.PrivateKey) {
+			return trace.NotFound("tracing_service private key does not exist: %s", p.PrivateKey)
+		}
+		if !utils.FileExists(p.Certificate) {
+			return trace.NotFound("tracing_service cert does not exist: %s", p.Certificate)
+		}
+
+		cfg.Tracing.KeyPairs = append(cfg.Tracing.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
+	}
+
+	for _, caCert := range fc.Tracing.CACerts {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(caCert) {
+			return trace.NotFound("tracing_service ca cert does not exist: %s", caCert)
+		}
+
+		cfg.Tracing.CACerts = append(cfg.Tracing.CACerts, caCert)
+	}
+
+	return nil
+}
+
 // parseAuthorizedKeys parses keys in the authorized_keys format and
 // returns a types.CertAuthority.
 func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
@@ -1785,6 +1835,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 		}
+	}
+
+	// apply --skip-version-check flag.
+	if clf.SkipVersionCheck {
+		cfg.SkipVersionCheck = clf.SkipVersionCheck
 	}
 
 	// Apply diagnostic address flag.

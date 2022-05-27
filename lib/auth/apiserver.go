@@ -215,6 +215,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/github/connectors/:id", srv.withAuth(srv.deleteGithubConnector))
 	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest))
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
+	srv.GET("/:version/github/requests/get/:id", srv.withAuth(srv.getGithubAuthRequest))
 
 	// SSO diag info
 	srv.GET("/:version/sso/diag/:auth/:id", srv.withAuth(srv.getSSODiagnosticInfo))
@@ -1589,6 +1590,14 @@ func (s *APIServer) createGithubAuthRequest(auth ClientI, w http.ResponseWriter,
 	return response, nil
 }
 
+func (s *APIServer) getGithubAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	request, err := auth.GetGithubAuthRequest(r.Context(), p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return request, nil
+}
+
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
 type validateGithubAuthCallbackReq struct {
 	// Query is the callback query string
@@ -1626,7 +1635,7 @@ func (s *APIServer) validateGithubAuthCallback(auth ClientI, w http.ResponseWrit
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.ValidateGithubAuthCallback(req.Query)
+	response, err := auth.ValidateGithubAuthCallback(r.Context(), req.Query)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

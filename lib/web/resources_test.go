@@ -80,19 +80,32 @@ spec:
   client_secret: ""
   display: ""
   redirect_url: ""
-  teams_to_logins: null
+  teams_to_logins:
+  - logins:
+    - dummy
+    organization: octocats
+    team: dummy
 version: v3
 `
-	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
 	item, err := ui.NewResourceItem(githubConn)
-	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.NoError(t, err)
+
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "github:githubName",
 		Kind:    types.KindGithubConnector,
 		Name:    "githubName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestNewResourceItemRole(t *testing.T) {
@@ -232,7 +245,15 @@ func TestGetGithubConnectors(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
+			TeamsToLogins: []types.TeamMapping{
+				{
+					Organization: "octocats",
+					Team:         "dummy",
+					Logins:       []string{"dummy"},
+				},
+			},
+		})
 		require.NoError(t, err)
 
 		return []types.GithubConnector{connector}, nil
