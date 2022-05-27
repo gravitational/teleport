@@ -4,7 +4,22 @@ description: How to configure Hardware Security Modules to manage your Teleport 
 h1: Teleport HSM Support
 ---
 
-This guide will show you how to set up the Teleport Auth Server to use a hardware security module (HSM) to store and handle private keys.
+This guide will show you how to set up the Teleport Auth Service to use a
+hardware security module (HSM) to store and handle private keys.
+
+<ScopedBlock scope={["oss", "cloud"]}>
+
+This guide is intended for Teleport Enterprise users.
+
+<TileSet>
+<Tile title="View this guide as a Teleport Enterprise user" icon="building" href="./hsm.mdx/?scope=enterprise">
+
+</Tile>
+</TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope="enterprise">
 
 ## Prerequisites
 
@@ -12,9 +27,11 @@ This guide will show you how to set up the Teleport Auth Server to use a hardwar
 - An HSM reachable from your Teleport auth server.
 - The PKCS#11 module for your HSM.
 
-<Details scope={["cloud", "oss"]} opened={true} scopeOnly={true} title="Compatibility Warning">
+<Admonition type="warning" scope={["cloud", "oss"]} opened={true} scopeOnly={true} title="Compatibility Warning">
 Teleport Cloud and Teleport Open Source do not currently support HSM.
-</Details>
+
+You can view this guide as a [Teleport Enterprise user](./hsm.mdx/?scope=enterprise).
+</Admonition>
 
 While most PKCS#11 HSMs should be supported, the Teleport team tests with AWS
 CloudHSM, YubiHSM2, and SoftHSM2.
@@ -203,3 +220,5 @@ access to the cluster and have to re-join.
 You are all set! Check the teleport logs for `Creating new HSM key pair` to
 confirm that the feature is working. You can also check that keys were created
 in your HSM using your HSM's admin tool.
+
+</ScopedBlock>

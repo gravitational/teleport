@@ -1747,6 +1747,10 @@ type IdentityService interface {
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
 
+	// GetCurrentUser returns current user as seen by the server.
+	// Useful especially in the context of remote clusters which perform role and trait mapping.
+	GetCurrentUser(ctx context.Context) (types.User, error)
+
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error
 
