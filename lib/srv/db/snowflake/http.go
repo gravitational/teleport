@@ -89,7 +89,9 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 func maybeReadGzip(headers *http.Header, body []byte) ([]byte, error) {
 	gzipMagic := []byte{0x1f, 0x8b, 0x08}
 
-	// Check if the body is gzip encoded.
+	// Check if the body is gzip encoded. Alternative here could check
+	// Content-Encoding header, but for some reason during testing header check
+	// didn't always work.
 	if !bytes.HasPrefix(body, gzipMagic) {
 		return body, nil
 	}

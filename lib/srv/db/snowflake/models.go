@@ -63,6 +63,7 @@ type loginResponse struct {
 func decodeLoginResponse(bodyBytes []byte) (*loginResponse, error) {
 	loginResp := &loginResponse{}
 	decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
+	// Use numbers to not modify the numbers values when processing payload.
 	decoder.UseNumber()
 	if err := decoder.Decode(loginResp); err != nil {
 		return nil, trace.Wrap(err)
@@ -99,6 +100,7 @@ func (l *loginResponse) getTokens() (sessionTokens, error) {
 		return validFor.Int64()
 	}
 
+	// Use dynamic get function as we modify the request on the fly.
 	snowflakeSessionToken, err := getField("token")
 	if err != nil {
 		return sessionTokens{}, trace.Wrap(err)

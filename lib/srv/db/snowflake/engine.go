@@ -49,7 +49,7 @@ func init() {
 	common.RegisterEngine(newEngine, defaults.ProtocolSnowflake)
 }
 
-// newEngine create new Redis engine.
+// newEngine create new Snowflake engine.
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
@@ -166,7 +166,7 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 		return trace.Wrap(err)
 	}
 
-	requestBodyReader, err := e.processRequest(ctx, req, e.accountName)
+	requestBodyReader, err := e.processRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -190,93 +190,99 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 
 	switch req.URL.Path {
 	case loginRequestPath:
-		err := e.processResponse(resp, func(body []byte) ([]byte, error) {
-			newResp, err := e.processLoginResponse(body, func(tokens sessionTokens) (string, string, error) {
-				// Create one session for connection token.
-				snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
-					Username:     sessionCtx.Identity.Username,
-					SessionToken: tokens.session.token,
-					// TokenTTL is the TTL of the token in auth server. Technically we could remove the token when
-					// the Snowflake token expires too, but Snowflake API requires the old token to be added as a part
-					// of the renewal request. Because of that adding extra 10 minutes should allow the client to
-					// renew the token even if it's not in our "tokens" cache.
-					TokenTTL: tokens.session.ttl + 600, // add 10 minutes
-				})
-				if err != nil {
-					return "", "", trace.Wrap(err)
-				}
-
-				// And another one for master/renew one.
-				snowflakeMasterSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
-					Username:     sessionCtx.Identity.Username,
-					SessionToken: tokens.master.token,
-					TokenTTL:     tokens.master.ttl + 600, // add 10 minutes
-				})
-				if err != nil {
-					return "", "", trace.Wrap(err)
-				}
-
-				return snowflakeSession.GetName(), snowflakeMasterSession.GetName(), nil
-			})
-			if err != nil {
-				return nil, trace.Wrap(err, "failed to extract Snowflake session token")
-			}
-
-			return newResp, nil
-		})
-
-		// Return here - processLoginResponse sends the response.
-		return trace.Wrap(err)
+		// Return here - loginResponseHandler sends the response.
+		return trace.Wrap(e.loginResponseHandler(ctx, sessionCtx, resp))
 	case tokenRequestPath:
-		err := e.processResponse(resp, func(body []byte) ([]byte, error) {
-			renewSessResp := &renewSessionResponse{}
-			if err := json.Unmarshal(body, renewSessResp); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if renewSessResp.Data.SessionToken == "" {
-				return nil, trace.Errorf("Snowflake renew token response doesn't contain new session token")
-			}
-
-			snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
-				Username:     sessionCtx.Identity.Username,
-				SessionToken: renewSessResp.Data.SessionToken,
-				TokenTTL:     renewSessResp.Data.ValidityInSecondsST,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			e.tokens.setToken(snowflakeSession.GetName(), renewSessResp.Data.SessionToken)
-			renewSessResp.Data.SessionToken = teleportAuthHeaderPrefix + snowflakeSession.GetName()
-
-			if renewSessResp.Data.MasterToken != "" {
-				masterToken, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
-					Username:     sessionCtx.Identity.Username,
-					SessionToken: renewSessResp.Data.MasterToken,
-					TokenTTL:     renewSessResp.Data.ValidityInSecondsMT,
-				})
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				e.tokens.setToken(masterToken.GetName(), renewSessResp.Data.MasterToken)
-				renewSessResp.Data.MasterToken = teleportAuthHeaderPrefix + masterToken.GetName()
-			}
-
-			newBody, err := json.Marshal(renewSessResp)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return newBody, nil
-		})
-
-		// Return here - processLoginResponse sends the response.
-		return trace.Wrap(err)
+		// Return here - tokenResponseHandler sends the response.
+		return trace.Wrap(e.tokenResponseHandler(ctx, sessionCtx, resp))
 	}
 
 	return trace.Wrap(e.sendResponse(resp))
+}
+
+func (e *Engine) tokenResponseHandler(ctx context.Context, sessionCtx *common.Session, resp *http.Response) error {
+	err := e.processResponse(resp, func(body []byte) ([]byte, error) {
+		renewSessResp := &renewSessionResponse{}
+		if err := json.Unmarshal(body, renewSessResp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if renewSessResp.Data.SessionToken == "" {
+			return nil, trace.Errorf("Snowflake renew token response doesn't contain new session token")
+		}
+
+		snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+			Username:     sessionCtx.Identity.Username,
+			SessionToken: renewSessResp.Data.SessionToken,
+			TokenTTL:     renewSessResp.Data.ValidityInSecondsST,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		e.tokens.setToken(snowflakeSession.GetName(), renewSessResp.Data.SessionToken)
+		renewSessResp.Data.SessionToken = teleportAuthHeaderPrefix + snowflakeSession.GetName()
+
+		if renewSessResp.Data.MasterToken != "" {
+			masterToken, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+				Username:     sessionCtx.Identity.Username,
+				SessionToken: renewSessResp.Data.MasterToken,
+				TokenTTL:     renewSessResp.Data.ValidityInSecondsMT,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			e.tokens.setToken(masterToken.GetName(), renewSessResp.Data.MasterToken)
+			renewSessResp.Data.MasterToken = teleportAuthHeaderPrefix + masterToken.GetName()
+		}
+
+		newBody, err := json.Marshal(renewSessResp)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return newBody, nil
+	})
+	return trace.Wrap(err)
+}
+
+func (e *Engine) loginResponseHandler(ctx context.Context, sessionCtx *common.Session, resp *http.Response) error {
+	err := e.processResponse(resp, func(body []byte) ([]byte, error) {
+		newResp, err := e.processLoginResponse(body, func(tokens sessionTokens) (string, string, error) {
+			// Create one session for connection token.
+			snowflakeSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+				Username:     sessionCtx.Identity.Username,
+				SessionToken: tokens.session.token,
+				// TokenTTL is the TTL of the token in auth server. Technically we could remove the token when
+				// the Snowflake token expires too, but Snowflake API requires the old token to be added as a part
+				// of the renewal request. Because of that adding extra 10 minutes should allow the client to
+				// renew the token even if it's not in our "tokens" cache.
+				TokenTTL: tokens.session.ttl + 600, // add 10 minutes
+			})
+			if err != nil {
+				return "", "", trace.Wrap(err)
+			}
+
+			// And another one for master/renew one.
+			snowflakeMasterSession, err := e.AuthClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+				Username:     sessionCtx.Identity.Username,
+				SessionToken: tokens.master.token,
+				TokenTTL:     tokens.master.ttl + 600, // add 10 minutes
+			})
+			if err != nil {
+				return "", "", trace.Wrap(err)
+			}
+
+			return snowflakeSession.GetName(), snowflakeMasterSession.GetName(), nil
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to extract Snowflake session token")
+		}
+
+		return newResp, nil
+	})
+	return trace.Wrap(err)
 }
 
 // sendResponse sends the response back to the Snowflake client.
@@ -354,7 +360,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) processRequest(ctx context.Context, req *http.Request, accountName string) (io.Reader, error) {
+func (e *Engine) processRequest(ctx context.Context, req *http.Request) (io.Reader, error) {
 	var (
 		newBody io.Reader
 		err     error
@@ -362,64 +368,19 @@ func (e *Engine) processRequest(ctx context.Context, req *http.Request, accountN
 
 	switch req.URL.Path {
 	case loginRequestPath:
-		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
-			jwtToken, err := e.AuthClient.GenerateSnowflakeJWT(ctx, types.GenerateSnowflakeJWT{
-				Username: e.sessionCtx.DatabaseUser,
-				Account:  accountName,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			newLoginPayload, err := replaceLoginReqToken(body, jwtToken, accountName, e.sessionCtx.DatabaseUser)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return newLoginPayload, nil
-		})
+		newBody, err = e.handleLoginRequest(ctx, req)
 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case queryRequestPath:
-		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
-			query, err := extractSQLStmt(body)
-			if err != nil {
-				return nil, trace.Wrap(err, "failed to extract SQL query")
-			}
-
-			e.Audit.OnQuery(ctx, e.sessionCtx, common.Query{
-				Query:      query.SQLText,
-				Parameters: query.paramsToSlice(),
-			})
-
-			return body, nil
-		})
+		newBody, err = e.handleQueryRequest(ctx, req)
 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case tokenRequestPath:
-		newBody, err = e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
-			refreshReq := &renewSessionRequest{}
-			if err := json.Unmarshal(body, &refreshReq); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			sessionToken := strings.TrimPrefix(refreshReq.OldSessionToken, teleportAuthHeaderPrefix)
-			refreshReq.OldSessionToken, err = e.getSnowflakeToken(ctx, sessionToken)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			newData, err := json.Marshal(refreshReq)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return newData, nil
-		})
+		newBody, err = e.handleTokenRequest(ctx, req)
 
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -431,79 +392,47 @@ func (e *Engine) processRequest(ctx context.Context, req *http.Request, accountN
 	return newBody, nil
 }
 
-func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []byte) ([]byte, error)) (*bytes.Buffer, error) {
-	body, err := readRequestBody(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	body, err = modifyReqFn(body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	buf := &bytes.Buffer{}
-	if req.Header.Get("Content-Encoding") == "gzip" {
-		newGzBody := gzip.NewWriter(buf)
-
-		if _, err := newGzBody.Write(body); err != nil {
+func (e *Engine) handleTokenRequest(ctx context.Context, req *http.Request) (io.Reader, error) {
+	return e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
+		refreshReq := &renewSessionRequest{}
+		if err := json.Unmarshal(body, &refreshReq); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if err := newGzBody.Close(); err != nil {
+		sessionToken := strings.TrimPrefix(refreshReq.OldSessionToken, teleportAuthHeaderPrefix)
+
+		var err error
+		refreshReq.OldSessionToken, err = e.getSnowflakeToken(ctx, sessionToken)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		buf.Write(body)
-	}
 
-	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+		newData, err := json.Marshal(refreshReq)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	return buf, nil
-}
-
-func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (string, error) {
-	sessionToken := extractSnowflakeToken(req.Header)
-
-	// Authentication header always starts with "Teleport:", so we know that the token was set by us.
-	// Some SDK set this header to a "random" value (Python SDK sends None for example).
-	if !strings.Contains(sessionToken, teleportAuthHeaderPrefix) {
-		return "", nil
-	}
-
-	sessionToken = strings.TrimPrefix(sessionToken, teleportAuthHeaderPrefix)
-
-	snowflakeToken, err := e.getSnowflakeToken(ctx, sessionToken)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return snowflakeToken, nil
-}
-
-// getSnowflakeToken returns the Snowflake token from local in memory cache or from auth server if local cache doesn't have it.
-// This function may time out if auth server doesn't respond in reasonable time.
-func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (string, error) {
-	snowflakeToken := e.tokens.getToken(sessionToken)
-	if snowflakeToken != "" {
-		return snowflakeToken, nil
-	}
-
-	// Fetch the token from the auth server if not found in the local cache.
-	if err := auth.WaitForSnowflakeSession(ctx, sessionToken, e.sessionCtx.Identity.Username, e.AuthClient); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	snowflakeSession, err := e.AuthClient.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{
-		SessionID: sessionToken,
+		return newData, nil
 	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+}
 
-	// Add token to the local cache, so we don't need to fetch it every time.
-	e.tokens.setToken(sessionToken, snowflakeSession.GetBearerToken())
-	return snowflakeSession.GetBearerToken(), nil
+func (e *Engine) handleLoginRequest(ctx context.Context, req *http.Request) (io.Reader, error) {
+	return e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
+		jwtToken, err := e.AuthClient.GenerateSnowflakeJWT(ctx, types.GenerateSnowflakeJWT{
+			Username: e.sessionCtx.DatabaseUser,
+			Account:  e.accountName,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newLoginPayload, err := replaceLoginReqToken(body, jwtToken, e.accountName, e.sessionCtx.DatabaseUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return newLoginPayload, nil
+	})
 }
 
 // processLoginResponse extracts session and master token from /queries/v1/query-request and store in auth server as
@@ -546,6 +475,97 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tok
 	}
 
 	return newResp, err
+}
+
+func (e *Engine) handleQueryRequest(ctx context.Context, req *http.Request) (io.Reader, error) {
+	return e.modifyRequestBody(req, func(body []byte) ([]byte, error) {
+		query, err := extractSQLStmt(body)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to extract SQL query")
+		}
+
+		e.Audit.OnQuery(ctx, e.sessionCtx, common.Query{
+			Query:      query.SQLText,
+			Parameters: query.paramsToSlice(),
+		})
+
+		return body, nil
+	})
+}
+
+func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (string, error) {
+	sessionToken := extractSnowflakeToken(req.Header)
+
+	// Authentication header always starts with "Teleport:", so we know that the token was set by us.
+	// Some SDK set this header to a "random" value (Python SDK sends None for example).
+	if !strings.Contains(sessionToken, teleportAuthHeaderPrefix) {
+		return "", nil
+	}
+
+	sessionToken = strings.TrimPrefix(sessionToken, teleportAuthHeaderPrefix)
+
+	snowflakeToken, err := e.getSnowflakeToken(ctx, sessionToken)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return snowflakeToken, nil
+}
+
+func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []byte) ([]byte, error)) (*bytes.Buffer, error) {
+	body, err := readRequestBody(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	body, err = modifyReqFn(body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	buf := &bytes.Buffer{}
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		newGzBody := gzip.NewWriter(buf)
+
+		if _, err := newGzBody.Write(body); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := newGzBody.Close(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		buf.Write(body)
+	}
+
+	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+
+	return buf, nil
+}
+
+// getSnowflakeToken returns the Snowflake token from local in memory cache or from auth server if local cache doesn't have it.
+// This function may time out if auth server doesn't respond in reasonable time.
+func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (string, error) {
+	snowflakeToken := e.tokens.getToken(sessionToken)
+	if snowflakeToken != "" {
+		return snowflakeToken, nil
+	}
+
+	// Fetch the token from the auth server if not found in the local cache.
+	if err := auth.WaitForSnowflakeSession(ctx, sessionToken, e.sessionCtx.Identity.Username, e.AuthClient); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	snowflakeSession, err := e.AuthClient.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{
+		SessionID: sessionToken,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Add token to the local cache, so we don't need to fetch it every time.
+	e.tokens.setToken(sessionToken, snowflakeSession.GetBearerToken())
+	return snowflakeSession.GetBearerToken(), nil
 }
 
 // parseConnectionString extracts account name from provided Snowflake URL
@@ -604,25 +624,6 @@ func extractSnowflakeToken(headers http.Header) string {
 	return ""
 }
 
-type tokenTTL struct {
-	token string
-	ttl   time.Duration
-}
-
-type sessionTokens struct {
-	session tokenTTL
-	master  tokenTTL
-}
-
-func extractSQLStmt(body []byte) (*queryRequest, error) {
-	queryRequest := &queryRequest{}
-	if err := json.Unmarshal(body, queryRequest); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return queryRequest, nil
-}
-
 // replaceLoginReqToken modifies the login request sent by Snowflake client with Teleports credentials.
 func replaceLoginReqToken(loginReq []byte, jwtToken, accountName, dbUser string) ([]byte, error) {
 	logReq := &loginRequest{}
@@ -649,4 +650,23 @@ func replaceLoginReqToken(loginReq []byte, jwtToken, accountName, dbUser string)
 	}
 
 	return resp, nil
+}
+
+func extractSQLStmt(body []byte) (*queryRequest, error) {
+	queryRequest := &queryRequest{}
+	if err := json.Unmarshal(body, queryRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return queryRequest, nil
+}
+
+type tokenTTL struct {
+	token string
+	ttl   time.Duration
+}
+
+type sessionTokens struct {
+	session tokenTTL
+	master  tokenTTL
 }
