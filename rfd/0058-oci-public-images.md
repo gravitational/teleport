@@ -145,7 +145,7 @@ Docker Hub supports bringing your own [SSO provider](https://docs.docker.com/sin
 Amazon ECR Public supports [image scanning](https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-scanning.html) and would leverage our existing Okta SSO infrastructure. Additionally, repositories would be managed using Terraform IaC. However, Amazon ECR Public doesn't have support for custom domains. This means images would be pulled using `public.ecr.aws/gravitational/teleport`.
 
 ### **Implementation**
-TODO: Include in-depth step by step guide on how the above solution will be created and migrated
+The following steps will be followed 
 
 * Multi step process. AWS ECR Infrastructure in the `cloud-terraform` repository
 * Push to Quay and Harbor
@@ -153,7 +153,7 @@ TODO: Include in-depth step by step guide on how the above solution will be crea
 * update documentation to new location 
 * retire quay repository
 
-## References
+## **References**
 \[1\] - https://access.redhat.com/articles/5925591
 \[2\] - https://goharbor.io/
 \[3\] - https://goharbor.io/docs/2.4.0/administration/configure-authentication/oidc-auth/
@@ -161,6 +161,35 @@ TODO: Include in-depth step by step guide on how the above solution will be crea
 [1]: https://access.redhat.com/articles/5925591
 [2]: https://goharbor.io/
 [3]: https://goharbor.io/docs/2.4.0/administration/configure-authentication/oidc-auth/
+
+## Appendix A
+The following table represents a best guess guide to migration of existing images from Quay to Harbor. They have been marked as such given their perceived relevance based on Quay activity and number of references in the Gravitational organization. 
+Key:
+* **Y**: Will Migrate
+* **N**: Won't Migrate
+* **U**: Unsure
+
+| Repository | Migration | Repository | Migration | Repository | Migration | Repository | Migration |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| teleport | Y | netbox | N | sync-kubeconfig | N | sync-kubesecrets | N |
+| teleport-ent | Y | debian-venti | Y | stress | N | docker-gc | N |
+| teleport-buildbox | Y | debian-grande | Y | robotest | N | robotest-e2e | N |
+| next | Y | teleport-buildbox-centos6 | N | robotest-suite | Y | mattermost-worker | N |
+| rig | U | fpm-centos | Y | keygen | N | busyloop | N |
+| debian-tall | Y | fpm-debian | Y | mkdocs-base | Y | teleport-ent-dev | U |
+| teleport-buildbox-arm | Y | teleport-buildbox-fips | Y | slackbot | Y | cve-2018-1002105 | N |
+| teleport-lab | Y |  prometheus-operator | Y | wormhole-dev | U | kaniko-init-container | N |
+| buildbox-base | Y | kube-router | Y | watcher | N | nginx-controller | N |
+| satellite | Y | teleport-plugin-slack | Y | stolon-pgbouncer | N | pithos | N |
+| planet | Y | ubuntu-venti | Y | stolon | N | stolon-etcd | N |
+| wormhole | Y | nethealth-dev | N | teleport-buildbox-centos6-fips | N | stolonctl | N |
+| teleport-plugin-email | Y | provisioner | N | pithosctl | N | s3-mounter | N |
+| ubuntu-tall | Y | ubuntu-grande | Y | alpine | N | force | N |
+| teleport-plugin-jira | Y | teleport-plugin-mattermost | Y | pithos-proxy | N | gravity-scan | N |
+| teleport-plugin-pagerduty | Y | teleport-plugin-event-handler | Y | monitoring-grafana | N | docker-alpine-build | N |
+| nginx | N | tube | N | alpine-glibc | N | monitoring-influxdb | N |
+| teleport-dev | N | teleport-buildbox-arm-fips | Y | drone-fork-approval-extension | N | aws-ecr-helper | Y |
+
 
 ## Brain Dump
 
