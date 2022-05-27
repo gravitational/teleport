@@ -14,6 +14,7 @@ Teleport images are currently hosted on [Quay.io](https://quay.io/organization/g
 As of August 1st, 2021 Quay.io no longer supports any other authentication provider other than Red Hat Single-Sign On.<sup>[[1]]</sup> Users in the Gravitational organization on Quay must be manually removed when they leave Teleport which presents a potential security risk. Migrating to a solution with support for our existing SSO infrastructure helps remediate this issue.
 
 ## **Details**
+In this RFD, we propose migrating from Quay to [Harbor](https://goharbor.io/).
 
 Moving our public image infrastructure from Quay to Harbor gives us improved security controls with support for:
 * [SSO through Okta](https://goharbor.io/docs/2.5.0/administration/configure-authentication/oidc-auth/)
@@ -28,6 +29,8 @@ Moving our public image infrastructure from Quay to Harbor gives us improved sec
 There is existing precedence within Teleport for maintaining close control of the distribution of our software. See:
 * Cloud [RFD 0004](https://github.com/gravitational/cloud/blob/master/rfd/0004-Release-Asset-Management.md)
 * Terraform Registry [RFD 0002](https://github.com/gravitational/teleport-plugins/blob/master/rfd/0002-custom-terraform-registry.md)
+
+Running our own container registry maximizes the control we have over the distribution of our software.
 
 **What about name squatting on other image registries?**
 
@@ -44,7 +47,7 @@ This RFD will also include a detailed deprecation plan for the existing Quay.io 
 ### **Infrastructure**
 Hosting our own _oci-compatible_ registry is similar to hosting our own [terraform registry](https://github.com/gravitational/teleport-plugins/blob/master/rfd/0002-custom-terraform-registry.md). However, the [OCI Distribution Spec](https://github.com/opencontainers/distribution-spec) has additional complexities that can't be solved by S3 and CloudFront<sup>*</sup> alone. These complexities warrant the use of [Harbor](https://goharbor.io/).
 
-Note<sup>*</sup>: A minimal, read-only, _oci-compatible_, registry could be mimicked through CloudFront functions. See alternatives(TODO: Add link to this alternative)
+Note<sup>*</sup>: A minimal, read-only, _oci-compatible_, registry could be mimicked through CloudFront functions. See alternatives.
 
 An example infrastructure diagram is shown below:
 
@@ -151,8 +154,6 @@ TODO: Include in-depth step by step guide on how the above solution will be crea
 * retire quay repository
 
 ## References
-TODO: Fix or remove broken references list (trying to be fancy)
-
 \[1\] - https://access.redhat.com/articles/5925591
 \[2\] - https://goharbor.io/
 \[3\] - https://goharbor.io/docs/2.4.0/administration/configure-authentication/oidc-auth/
