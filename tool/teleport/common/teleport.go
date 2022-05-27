@@ -136,6 +136,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Start Teleport in FedRAMP/FIPS 140-2 mode.").
 		Default("false").
 		BoolVar(&ccf.FIPS)
+	start.Flag("skip-version-check",
+		"Skip version checking between server and client.").
+		Default("false").
+		BoolVar(&ccf.SkipVersionCheck)
 	// All top-level --app-XXX flags are deprecated in favor of
 	// "teleport start app" subcommand.
 	start.Flag("app-name",

@@ -3366,7 +3366,8 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 // username.
 func (a *Server) validateMFAAuthResponse(
 	ctx context.Context,
-	resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	resp *proto.MFAAuthenticateResponse, user string, passwordless bool,
+) (*types.MFADevice, string, error) {
 	// Sanity check user/passwordless.
 	if user == "" && !passwordless {
 		return nil, "", trace.BadParameter("user required")
@@ -3474,7 +3475,8 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 	ctx context.Context,
 	currentCA types.CertAuthority,
 	newKeys types.CAKeySet,
-	needsUpdate func(types.CertAuthority) bool) error {
+	needsUpdate func(types.CertAuthority) bool,
+) error {
 	for {
 		select {
 		case <-a.closeCtx.Done():
