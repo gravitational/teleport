@@ -2230,8 +2230,8 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	return servers, nil
 }
 
-// ListAppServersWithFiltersAllClusters returns a map of all app servers in all clusters connected to this proxy.
-func (tc *TeleportClient) ListAppServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.AppServer, error) {
+// listAppServersWithFiltersAllClusters returns a map of all app servers in all clusters connected to this proxy.
+func (tc *TeleportClient) listAppServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2278,7 +2278,7 @@ func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.List
 
 // ListAppsAllClusters returns all registered applications accross all clusters.
 func (tc *TeleportClient) ListAppsAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Application, error) {
-	serversByCluster, err := tc.ListAppServersWithFiltersAllClusters(ctx, customFilter)
+	serversByCluster, err := tc.listAppServersWithFiltersAllClusters(ctx, customFilter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2339,8 +2339,8 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	return servers, nil
 }
 
-// ListDatabaseServersWithFilters returns all registered database proxy servers across all clusters.
-func (tc *TeleportClient) ListDatabaseServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.DatabaseServer, error) {
+// listDatabaseServersWithFilters returns all registered database proxy servers across all clusters.
+func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.DatabaseServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2385,9 +2385,9 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 	return types.DeduplicateDatabases(databases), nil
 }
 
-// ListAppsAllClusters returns all registered databases accross all clusters.
+// ListDatabasesAllClusters returns all registered databases accross all clusters.
 func (tc *TeleportClient) ListDatabasesAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Database, error) {
-	serversByCluster, err := tc.ListDatabaseServersWithFiltersAllClusters(ctx, customFilter)
+	serversByCluster, err := tc.listDatabaseServersWithFiltersAllClusters(ctx, customFilter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
