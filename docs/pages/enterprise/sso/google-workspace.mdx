@@ -46,11 +46,9 @@ Before you get started you’ll need:
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Enable default OIDC authentication
-
 (!docs/pages/includes/enterprise/oidcauthentication.mdx!)
 
-## Step 2/4. Configure Google Workspace
+## Configure Google Workspace
 
 The setup will consist of:
 
@@ -233,7 +231,7 @@ Configure [domain-wide
     fetch both direct and indirect groups or just direct groups, respectively.
 
 
-## Step 3/4. Create an OIDC connector
+## Create an OIDC connector
 
 Create the following OIDC connector [resource spec](../../setup/reference/resources.mdx) as `gworkspace-connector.yaml`. We will explain how to choose values for fields within the resource spec below.
 
@@ -291,7 +289,7 @@ While a `v3` connector is configured, you can no longer downgrade Teleport to a
 version before 8.1.2. Before such a downgrade, follow the above instructions and
 change the version number back to `v2`.
 
-## Step 4/4. Test your Google Workspace OIDC connector
+## Test your Google Workspace OIDC connector
 
 The Web UI will now contain a new button: "Login with Google". The CLI is
 the same as before:
