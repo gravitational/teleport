@@ -2,12 +2,23 @@ import React, { useState } from 'react';
 import { ClusterAdd } from './ClusterAdd';
 import { ClusterLogin } from './ClusterLogin';
 import Dialog from 'design/Dialog';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export function ClusterConnect(props: ClusterConnectProps) {
   const [createdClusterUri, setCreatedClusterUri] = useState<
     string | undefined
   >();
+  const { clustersService } = useAppContext();
   const clusterUri = props.clusterUri || createdClusterUri;
+
+  function handleClusterAdd(clusterUri: string): void {
+    const cluster = clustersService.findCluster(clusterUri);
+    if (cluster?.connected) {
+      props.onSuccess(clusterUri);
+    } else {
+      setCreatedClusterUri(clusterUri);
+    }
+  }
 
   return (
     <Dialog
@@ -21,10 +32,7 @@ export function ClusterConnect(props: ClusterConnectProps) {
       open={true}
     >
       {!clusterUri ? (
-        <ClusterAdd
-          onCancel={props.onCancel}
-          onSuccess={setCreatedClusterUri}
-        />
+        <ClusterAdd onCancel={props.onCancel} onSuccess={handleClusterAdd} />
       ) : (
         <ClusterLogin
           clusterUri={clusterUri}
