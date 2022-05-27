@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/tls"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -317,27 +316,26 @@ func checkCerts(t *testing.T,
 	accessRequests []string,
 	resourceIDs []types.ResourceID,
 ) {
+	t.Helper()
+
+	// Parse SSH cert.
 	sshCert, err := sshutils.ParseCertificate(certs.SSH)
 	require.NoError(t, err)
 
+	// Parse TLS cert.
 	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
 	require.NoError(t, err)
 	tlsIdentity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 	require.NoError(t, err)
 
+	// Make sure both certs have the expected roles.
 	rawSSHCertRoles := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]
 	sshCertRoles, err := services.UnmarshalCertRoles(rawSSHCertRoles)
 	require.NoError(t, err)
-	sort.Strings(roles)
-	for _, certRoles := range [][]string{
-		sshCertRoles,
-		tlsIdentity.Groups,
-	} {
-		sort.Strings(certRoles)
-		require.Equal(t, roles, certRoles)
-	}
+	require.ElementsMatch(t, roles, sshCertRoles)
+	require.ElementsMatch(t, roles, tlsIdentity.Groups)
 
-	sort.Strings(logins)
+	// Make sure both certs have the expected logins/principals.
 	for _, certLogins := range [][]string{sshCert.ValidPrincipals, tlsIdentity.Principals} {
 		// filter out invalid logins placed in the cert
 		validCertLogins := []string{}
@@ -346,34 +344,25 @@ func checkCerts(t *testing.T,
 				validCertLogins = append(validCertLogins, certLogin)
 			}
 		}
-		sort.Strings(validCertLogins)
-		if len(logins) == 0 {
-			require.Empty(t, validCertLogins)
-		} else {
-			require.Equal(t, logins, validCertLogins)
-		}
+		require.ElementsMatch(t, logins, validCertLogins)
 	}
 
+	// Make sure both certs have the expected access requests, if any.
 	rawSSHCertAccessRequests := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests]
 	sshCertAccessRequests := services.RequestIDs{}
 	if len(rawSSHCertAccessRequests) > 0 {
 		require.NoError(t, sshCertAccessRequests.Unmarshal([]byte(rawSSHCertAccessRequests)))
 	}
-	sort.Strings(accessRequests)
-	for _, certAccessRequests := range [][]string{
-		sshCertAccessRequests.AccessRequests,
-		tlsIdentity.ActiveRequests,
-	} {
-		sort.Strings(certAccessRequests)
-		require.Equal(t, accessRequests, certAccessRequests)
-	}
+	require.ElementsMatch(t, accessRequests, sshCertAccessRequests.AccessRequests)
+	require.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
 
+	// Make sure both certs have the expected allowed resources, if any.
 	for _, certResourcesStr := range []string{
 		sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources],
 		tlsIdentity.AllowedResourceIDs,
 	} {
 		certResources, err := services.ResourceIDsFromString(certResourcesStr)
 		require.NoError(t, err)
-		require.Equal(t, resourceIDs, certResources)
+		require.ElementsMatch(t, resourceIDs, certResources)
 	}
 }
