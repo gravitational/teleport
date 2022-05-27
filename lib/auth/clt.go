@@ -1219,9 +1219,22 @@ func (c *Client) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 	return &response, nil
 }
 
+// GetGithubAuthRequest gets Github AuthnRequest
+func (c *Client) GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error) {
+	out, err := c.Get(ctx, c.Endpoint("github", "requests", "get", id), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response services.GithubAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &response, nil
+}
+
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
-func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("github", "requests", "validate"),
+func (c *Client) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("github", "requests", "validate"),
 		validateGithubAuthCallbackReq{Query: q})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1706,8 +1719,10 @@ type IdentityService interface {
 	DeleteGithubConnector(ctx context.Context, id string) error
 	// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 	CreateGithubAuthRequest(services.GithubAuthRequest) (*services.GithubAuthRequest, error)
+	// GetGithubAuthRequest returns Github auth request if found
+	GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error)
 	// ValidateGithubAuthCallback validates Github auth callback
-	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
+	ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error)
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
