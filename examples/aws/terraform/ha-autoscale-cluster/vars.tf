@@ -61,6 +61,12 @@ variable "route53_domain" {
   type = string
 }
 
+// Whether to set wildcard Route53
+// for use in Application Access
+variable "add_wildcard_route53_record" {
+  type = string
+}
+
 // Email for letsencrypt domain registration
 variable "email" {
   type = string

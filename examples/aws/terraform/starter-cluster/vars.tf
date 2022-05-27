@@ -31,6 +31,11 @@ variable "route53_domain" {
   type = string
 }
 
+//Whether to add a while a wildcard entry *.proxy.example.com for application access
+variable "add_wildcard_route53_record" {
+  type = string
+}
+
 // S3 Bucket to create for encrypted letsencrypt certificates
 variable "s3_bucket_name" {
   type = string
