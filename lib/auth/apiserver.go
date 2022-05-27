@@ -152,13 +152,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/reversetunnels", srv.withAuth(srv.getReverseTunnels))
 	srv.DELETE("/:version/reversetunnels/:domain", srv.withAuth(srv.deleteReverseTunnel))
 
-	// trusted clusters
-	srv.POST("/:version/trustedclusters", srv.withAuth(srv.upsertTrustedCluster))
-	srv.POST("/:version/trustedclusters/validate", srv.withAuth(srv.validateTrustedCluster))
-	srv.GET("/:version/trustedclusters", srv.withAuth(srv.getTrustedClusters))
-	srv.GET("/:version/trustedclusters/:name", srv.withAuth(srv.getTrustedCluster))
-	srv.DELETE("/:version/trustedclusters/:name", srv.withAuth(srv.deleteTrustedCluster))
-
 	// Tokens
 	srv.POST("/:version/tokens", srv.withAuth(srv.generateToken))
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
@@ -562,73 +555,6 @@ func (s *APIServer) deleteReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("reverse tunnel %v deleted", domainName)), nil
-}
-
-type upsertTrustedClusterReq struct {
-	TrustedCluster json.RawMessage `json:"trusted_cluster"`
-}
-
-// upsertTrustedCluster creates or updates a trusted cluster.
-func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertTrustedClusterReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	trustedCluster, err := services.UnmarshalTrustedCluster(req.TrustedCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := services.ValidateTrustedCluster(trustedCluster); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := auth.UpsertTrustedCluster(r.Context(), trustedCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalTrustedCluster(out, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var validateRequestRaw ValidateTrustedClusterRequestRaw
-	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	validateRequest, err := validateRequestRaw.ToNative()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	validateResponse, err := auth.ValidateTrustedCluster(r.Context(), validateRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	validateResponseRaw, err := validateResponse.ToRaw()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return validateResponseRaw, nil
-}
-
-func (s *APIServer) getTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return auth.GetTrustedCluster(r.Context(), p.ByName("name"))
-}
-
-func (s *APIServer) getTrustedClusters(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return auth.GetTrustedClusters(r.Context())
-}
-
-// deleteTrustedCluster deletes a trusted cluster by name.
-func (s *APIServer) deleteTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteTrustedCluster(r.Context(), p.ByName("name"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message("ok"), nil
 }
 
 func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
