@@ -29,7 +29,8 @@ fetch_and_build() {
 
   local tmp=''
   tmp="$(mktemp -d)"
-  #shellcheck disable=SC2064  # Early expansion on purpose.
+  # Early expansion on purpose.
+  #shellcheck disable=SC2064
   trap "rm -fr '$tmp'" exit
 
   local fullname="$name-$version"
@@ -154,7 +155,8 @@ build() {
   if [[ ! -f "$pkgfile" ]]; then
     local tmp=''
     tmp="$(mktemp)"  # file, not dir!
-    #shellcheck disable=SC2064  # Early expansion on purpose.
+    # Early expansion on purpose.
+    #shellcheck disable=SC2064
     trap "rm -f '$tmp'" EXIT
 
     # Write libfido2-static.pc to tmp.
