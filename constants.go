@@ -203,6 +203,9 @@ const (
 	// and vice versa.
 	ComponentKeepAlive = "keepalive"
 
+	// ComponentTeleport is the "teleport" binary.
+	ComponentTeleport = "teleport"
+
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
@@ -236,6 +239,9 @@ const (
 
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
+
+	// ComponentTracing is a tracing exporter
+	ComponentTracing = "tracing"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
@@ -437,6 +443,9 @@ const (
 	// CertExtensionGeneration counts the number of times a certificate has
 	// been renewed.
 	CertExtensionGeneration = "generation"
+	// CertExtensionAllowedResources lists the resources which this certificate
+	// should be allowed to access
+	CertExtensionAllowedResources = "allowed-resources"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
