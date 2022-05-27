@@ -17,7 +17,7 @@ limitations under the License.
 package tshwrap
 
 import (
-	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/tool/tbot/config"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +36,7 @@ type mockRunner struct {
 	captureOut []byte
 }
 
-func (r *mockRunner) Capture(args ...string) ([]byte, error) {
+func (r *mockRunner) capture(args ...string) ([]byte, error) {
 	if r.captureErr != nil {
 		return nil, r.captureErr
 	}
@@ -50,43 +51,30 @@ func (r *mockRunner) Exec(env map[string]string, args ...string) error {
 // implicitly, that the version capture and parsing works.)
 func TestTSHSupported(t *testing.T) {
 	version := func(v string) []byte {
-		bytes, err := json.Marshal(struct {
-			Version string `json:"version"`
-		}{
-			Version: v,
-		})
-		require.NoError(t, err)
-
-		return bytes
+		return []byte(fmt.Sprintf(`{"version": "%s"}`, v))
 	}
 
 	tests := []struct {
 		name   string
 		out    []byte
 		err    error
-		expect func(t *testing.T, err error)
+		expect func(t require.TestingT, err error, msgAndArgs ...interface{})
 	}{
 		{
 			// Before `-f json` is supported
-			name: "very old tsh",
-			err:  trace.Errorf("unsupported"),
-			expect: func(t *testing.T, err error) {
-				require.Error(t, err)
-			},
+			name:   "very old tsh",
+			err:    trace.Errorf("unsupported"),
+			expect: require.Error,
 		},
 		{
-			name: "too old",
-			out:  version("9.2.0"),
-			expect: func(t *testing.T, err error) {
-				require.Error(t, err)
-			},
+			name:   "too old",
+			out:    version("9.2.0"),
+			expect: require.Error,
 		},
 		{
-			name: "supported",
-			out:  version(TSHMinVersion),
-			expect: func(t *testing.T, err error) {
-				require.NoError(t, err)
-			},
+			name:   "supported",
+			out:    version(TSHMinVersion),
+			expect: require.NoError,
 		},
 	}
 

@@ -22,7 +22,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
@@ -53,8 +52,8 @@ var log = logrus.WithFields(logrus.Fields{
 
 // TSHRunner is a method for executing tsh.
 type TSHRunner interface {
-	// Capture runs tsh and captures its standard output.
-	Capture(args ...string) ([]byte, error)
+	// capture runs tsh and captures its standard output.
+	capture(args ...string) ([]byte, error)
 
 	// Exec runs tsh with the given additional environment variables and args.
 	// It should inherit the current process's input and output streams.
@@ -65,7 +64,7 @@ type execTSHRunner struct {
 	path string
 }
 
-func (r *execTSHRunner) Capture(args ...string) ([]byte, error) {
+func (r *execTSHRunner) capture(args ...string) ([]byte, error) {
 	out, err := exec.Command(r.path, args...).Output()
 	if err != nil {
 		return nil, trace.Wrap(err, "error executing tsh")
@@ -119,7 +118,7 @@ func NewRunner() (TSHRunner, error) {
 
 // GetTSHVersion queries the system tsh for its version.
 func GetTSHVersion(r TSHRunner) (*semver.Version, error) {
-	rawVersion, err := r.Capture("version", "-f", "json")
+	rawVersion, err := r.capture("version", "-f", "json")
 	if err != nil {
 		return nil, trace.Wrap(err, "querying tsh version")
 	}
@@ -148,7 +147,7 @@ func CheckTSHSupported(r TSHRunner) error {
 
 	minVersion := semver.New(TSHMinVersion)
 	if version.LessThan(*minVersion) {
-		return trace.Errorf(
+		return trace.BadParameter(
 			"installed tsh version %s does not support Machine ID proxies, "+
 				"please upgrade to at least %s",
 			version, minVersion,
@@ -233,7 +232,7 @@ func GetIdentityTemplate(destination *config.DestinationConfig) (*config.Templat
 }
 
 // mergeEnv applies the given value to each key inside the specified map.
-func mergeEnv(m map[string]string, value string, keys ...string) {
+func mergeEnv(m map[string]string, value string, keys []string) {
 	for _, key := range keys {
 		m[key] = value
 	}
@@ -256,47 +255,25 @@ func GetEnvForTSH(destination *config.DestinationConfig) (map[string]string, err
 	// everything but also has generic fallbacks. We'll use the fallbacks for
 	// now but could eventually communicate more info to tsh if desired.
 	env := make(map[string]string)
-	mergeEnv(env, filepath.Join(destPath, identity.PrivateKeyKey), client.VirtualPathEnvNames(client.VirtualPathKey, nil)...)
+	mergeEnv(env, filepath.Join(destPath, identity.PrivateKeyKey), client.VirtualPathEnvNames(client.VirtualPathKey, nil))
 
 	// Database certs are a bit awkward since a few databases (cockroach) have
 	// special naming requirements. We can document around these for now and
 	// automate later. (I don't think tsh handles this perfectly today anyway).
-	mergeEnv(env, filepath.Join(destPath, identity.TLSCertKey), client.VirtualPathEnvNames(client.VirtualPathDatabase, nil)...)
+	mergeEnv(env, filepath.Join(destPath, identity.TLSCertKey), client.VirtualPathEnvNames(client.VirtualPathDatabase, nil))
 
-	mergeEnv(env, filepath.Join(destPath, identity.TLSCertKey), client.VirtualPathEnvNames(client.VirtualPathApp, nil)...)
+	mergeEnv(env, filepath.Join(destPath, identity.TLSCertKey), client.VirtualPathEnvNames(client.VirtualPathApp, nil))
 
 	// We don't want to provide a fallback for CAs since it would be ambiguous,
 	// so we'll specify them exactly.
-	mergeEnv(env,
-		filepath.Join(destPath, tlsCAs.UserCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)),
-	)
-	mergeEnv(env,
-		filepath.Join(destPath, tlsCAs.HostCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)),
-	)
-	mergeEnv(env,
-		filepath.Join(destPath, tlsCAs.DatabaseCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA)),
-	)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, tlsCAs.UserCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, tlsCAs.HostCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, tlsCAs.DatabaseCAPath)
 
 	// TODO(timothyb89): Kubernetes support. We don't generate kubeconfigs yet, so we have
 	// nothing to give tsh for now.
 
 	return env, nil
-}
-
-// AnyArgsStartWith determines if any of the string arguments have the given
-// prefix. Useful for determining if an arg for tsh got caught in
-// RemainingArgs.
-func AnyArgsStartWith(prefix string, args []string) bool {
-	for _, arg := range args {
-		if strings.HasPrefix(arg, prefix) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // LoadIdentity loads a Teleport identity from an identityfile. Secondary bot

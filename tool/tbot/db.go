@@ -19,6 +19,7 @@ package main
 import (
 	"path/filepath"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tbot/config"
 	"github.com/gravitational/teleport/tool/tbot/tshwrap"
 	"github.com/gravitational/trace"
@@ -64,7 +65,7 @@ func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	if cf.Cluster != "" {
 		// If we caught --cluster in our args, pass it through.
 		args = append(args, "--cluster="+cf.Cluster)
-	} else if !tshwrap.AnyArgsStartWith("--cluster", cf.RemainingArgs) {
+	} else if !utils.HasPrefixAny("--cluster", cf.RemainingArgs) {
 		// If no `--cluster` was provided after a `--`, pass along the cluster
 		// name in the identity.
 		args = append(args, "--cluster="+identity.RouteToCluster)
