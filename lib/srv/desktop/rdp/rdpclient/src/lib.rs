@@ -254,7 +254,7 @@ fn connect_rdp_inner(
                 != CGOErrCode::ErrCodeSuccess
             {
                 return Err(RdpError::TryError(String::from(
-                    "call to sd_info_request failed",
+                    "call to tdp_sd_acknowledge failed",
                 )));
             }
         }
@@ -476,7 +476,7 @@ pub unsafe extern "C" fn update_clipboard(
 ///
 /// # Safety
 ///
-/// The caller must ensure that drive_name points to a valid buffer.
+/// The caller must ensure that sd_announce.name points to a valid buffer.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_announce(
     client_ptr: *mut Client,
@@ -745,8 +745,8 @@ pub unsafe extern "C" fn free_rust_string(s: *mut c_char) {
 /// # Safety
 ///
 /// s must be a C-style null terminated string.
-/// s is cloned here, and the caller is responsible for
-/// ensuring its memory is freed.
+/// s is copied here, and the caller is responsible for ensuring
+/// that the original memory is freed
 unsafe fn from_go_string(s: *mut c_char) -> String {
     CStr::from_ptr(s).to_string_lossy().into_owned()
 }
