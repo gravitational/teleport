@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 )
@@ -75,7 +76,7 @@ func (t *TemplateTLSCAs) Name() string {
 	return TemplateTLSCAsName
 }
 
-func (t *TemplateTLSCAs) Describe() []FileDescription {
+func (t *TemplateTLSCAs) Describe(destination destination.Destination) []FileDescription {
 	return []FileDescription{
 		{
 			Name: t.UserCAPath,
