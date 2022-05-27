@@ -25,10 +25,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"math/big"
 	"net"
-	"net/http"
 	"net/url"
 	"testing"
 	"time"
@@ -38,13 +36,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
-	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
 )
 
 func generateTLSCertificate() (tls.Certificate, error) {
@@ -88,144 +79,53 @@ func generateTLSCertificate() (tls.Certificate, error) {
 	return tlsCertificate, nil
 }
 
-type collector struct {
-	grpcLn     net.Listener
-	httpLn     net.Listener
-	grpcServer *grpc.Server
-	httpServer *http.Server
+func TestNewClient(t *testing.T) {
+	t.Parallel()
+	c, err := NewCollector(CollectorConfig{})
+	require.NoError(t, err)
 
-	coltracepb.TraceServiceServer
-	spans []*otlp.ScopeSpans
-}
-
-type collectorConfig struct {
-	WithTLS bool
-}
-
-func newCollector(cfg collectorConfig) (*collector, error) {
-	grpcLn, err := net.Listen("tcp4", "")
-	if err != nil {
-		return nil, trace.Wrap(err)
+	cfg := Config{
+		Service:     "test",
+		ExporterURL: c.GRPCAddr(),
+		DialTimeout: time.Second,
 	}
 
-	httpLn, err := net.Listen("tcp4", "")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var tlsConfig *tls.Config
-	creds := insecure.NewCredentials()
-	if cfg.WithTLS {
-		tlsCertificate, err := generateTLSCertificate()
-		if err != nil {
-			return nil, err
-		}
-		tlsConfig = &tls.Config{
-			Certificates: []tls.Certificate{tlsCertificate},
-		}
-		creds = credentials.NewTLS(tlsConfig)
-	}
-
-	c := &collector{
-		grpcLn:     grpcLn,
-		httpLn:     httpLn,
-		grpcServer: grpc.NewServer(grpc.Creds(creds)),
-	}
-
-	c.httpServer = &http.Server{Handler: c, TLSConfig: tlsConfig}
-
-	coltracepb.RegisterTraceServiceServer(c.grpcServer, c)
-
-	return c, nil
-}
-
-func (c *collector) ClientTLSConfig() *tls.Config {
-	if c.httpServer.TLSConfig == nil {
-		return nil
-	}
-
-	return &tls.Config{
-		InsecureSkipVerify: true,
-	}
-}
-
-func (c collector) GRPCAddr() string {
-	return "grpc://" + c.grpcLn.Addr().String()
-}
-
-func (c collector) HTTPAddr() string {
-	return "http://" + c.httpLn.Addr().String()
-}
-
-func (c collector) HTTPSAddr() string {
-	return "https://" + c.httpLn.Addr().String()
-}
-
-func (c collector) Start() error {
-	var g errgroup.Group
-
-	g.Go(func() error {
-		if c.httpServer.TLSConfig != nil {
-			return c.httpServer.ServeTLS(c.httpLn, "", "")
-		}
-		return c.httpServer.Serve(c.httpLn)
+	t.Cleanup(func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer shutdownCancel()
+		require.NoError(t, c.Shutdown(shutdownCtx))
 	})
+	go func() {
+		c.Start()
+	}()
 
-	g.Go(func() error {
-		return c.grpcServer.Serve(c.grpcLn)
-	})
+	// NewClient shouldn't fail - it won't attempt to connect to the Collector
+	clt, err := NewClient(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, clt)
 
-	return g.Wait()
-}
+	// NewStartedClient shouldn't fail if the Collector is up
+	clt, err = NewStartedClient(context.Background(), cfg)
+	require.NoError(t, err)
+	require.NotNil(t, clt)
 
-func (c collector) Shutdown(ctx context.Context) error {
-	c.grpcServer.Stop()
-	return c.httpServer.Shutdown(ctx)
-}
+	// Stop the Collector
+	require.NoError(t, c.Shutdown(context.Background()))
 
-func (c *collector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/v1/traces" {
-		response := coltracepb.ExportTraceServiceResponse{}
-		rawResponse, err := proto.Marshal(&response)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	// NewClient shouldn't fail - it won't attempt to connect to the Collector
+	clt, err = NewClient(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, clt)
 
-		rawRequest, err := io.ReadAll(r.Body)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		req := &coltracepb.ExportTraceServiceRequest{}
-		if err := proto.Unmarshal(rawRequest, req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		for _, span := range req.ResourceSpans {
-			c.spans = append(c.spans, span.ScopeSpans...)
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(rawResponse)
-	}
-}
-
-func (c *collector) Export(ctx context.Context, req *coltracepb.ExportTraceServiceRequest) (*coltracepb.ExportTraceServiceResponse, error) {
-	for _, span := range req.ResourceSpans {
-		c.spans = append(c.spans, span.ScopeSpans...)
-	}
-
-	return &coltracepb.ExportTraceServiceResponse{}, nil
+	// NewStartedClient should fail if the Collector is down
+	clt, err = NewStartedClient(context.Background(), cfg)
+	require.Error(t, err)
+	require.Nil(t, clt)
 }
 
 func TestNewExporter(t *testing.T) {
 	t.Parallel()
-	c, err := newCollector(collectorConfig{
-		WithTLS: false,
-	})
+	c, err := NewCollector(CollectorConfig{})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -320,17 +220,24 @@ func TestNewExporter(t *testing.T) {
 func TestTraceProvider(t *testing.T) {
 	t.Parallel()
 	const spansCreated = 4
+
+	tlsCertificate, err := generateTLSCertificate()
+	require.NoError(t, err)
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{tlsCertificate},
+	}
+
 	cases := []struct {
 		name              string
-		config            func(c *collector) Config
+		config            func(c *Collector) Config
 		errAssertion      require.ErrorAssertionFunc
 		providerAssertion require.ValueAssertionFunc
 		collectedLen      int
-		withTLS           bool
+		tlsConfig         *tls.Config
 	}{
 		{
 			name: "not sampling prevents exporting",
-			config: func(c *collector) Config {
+			config: func(c *Collector) Config {
 				return Config{
 					Service:     "test",
 					ExporterURL: c.GRPCAddr(),
@@ -344,7 +251,7 @@ func TestTraceProvider(t *testing.T) {
 		},
 		{
 			name: "spans exported with gRPC+TLS",
-			config: func(c *collector) Config {
+			config: func(c *Collector) Config {
 				return Config{
 					Service:      "test",
 					SamplingRate: 1.0,
@@ -356,11 +263,11 @@ func TestTraceProvider(t *testing.T) {
 			errAssertion:      require.NoError,
 			providerAssertion: require.NotNil,
 			collectedLen:      spansCreated,
-			withTLS:           true,
+			tlsConfig:         tlsConfig,
 		},
 		{
 			name: "spans exported with gRPC",
-			config: func(c *collector) Config {
+			config: func(c *Collector) Config {
 				return Config{
 					Service:      "test",
 					SamplingRate: 0.5,
@@ -375,7 +282,7 @@ func TestTraceProvider(t *testing.T) {
 		},
 		{
 			name: "spans exported with HTTP",
-			config: func(c *collector) Config {
+			config: func(c *Collector) Config {
 				return Config{
 					Service:      "test",
 					SamplingRate: 1.0,
@@ -390,7 +297,7 @@ func TestTraceProvider(t *testing.T) {
 		},
 		{
 			name: "spans exported with HTTPS",
-			config: func(c *collector) Config {
+			config: func(c *Collector) Config {
 				return Config{
 					Service:      "test",
 					SamplingRate: 1.0,
@@ -402,15 +309,15 @@ func TestTraceProvider(t *testing.T) {
 			errAssertion:      require.NoError,
 			providerAssertion: require.NotNil,
 			collectedLen:      spansCreated,
-			withTLS:           true,
+			tlsConfig:         tlsConfig,
 		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			collector, err := newCollector(collectorConfig{
-				WithTLS: tt.withTLS,
+			collector, err := NewCollector(CollectorConfig{
+				TLSConfig: tt.tlsConfig,
 			})
 			require.NoError(t, err)
 
@@ -440,8 +347,8 @@ func TestTraceProvider(t *testing.T) {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			require.NoError(t, provider.Shutdown(shutdownCtx))
-			require.LessOrEqual(t, len(collector.spans), tt.collectedLen)
-			require.GreaterOrEqual(t, len(collector.spans), 0)
+			require.LessOrEqual(t, len(collector.Spans), tt.collectedLen)
+			require.GreaterOrEqual(t, len(collector.Spans), 0)
 		})
 	}
 }
