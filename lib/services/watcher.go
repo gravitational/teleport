@@ -617,8 +617,10 @@ func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 // is exceeded.
 func (p *lockCollector) notifyStale() {
 	p.currentRW.Lock()
-	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
 	defer p.currentRW.Unlock()
+
+	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
+
 	// Do not clear p.current here, the most recent lock set may still be used
 	// with LockingModeBestEffort.
 	p.isStale = true
