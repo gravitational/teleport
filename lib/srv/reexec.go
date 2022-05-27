@@ -245,6 +245,26 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
+	// If we're planning on changing credentials, we should first park an
+	// innocuous process with the same UID and then check the user database
+	// again, to avoid it getting deleted under our nose.
+	var uidParker io.Closer
+	if cmd.SysProcAttr.Credential != nil {
+		uidParker, err := newParker(*cmd.SysProcAttr.Credential)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		defer uidParker.Close()
+
+		localUserCheck, err := user.Lookup(c.Login)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("user %q has been changed", c.Login)
+		}
+	}
+
 	if c.X11Config.XServerUnixSocket != "" {
 		// Set the open XServer unix socket's owner to the localuser
 		// to prevent a potential privilege escalation vulnerability.
@@ -309,6 +329,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	err = cmd.Start()
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	if uidParker != nil {
+		uidParker.Close()
 	}
 
 	// Wait for the command to exit. It doesn't make sense to print an error
@@ -719,6 +743,63 @@ func checkHomeDir(localUser *user.User) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return true, nil
+}
+
+type parker struct {
+	cmd  *exec.Cmd
+	pipe *os.File
+}
+
+func (p *parker) Close() error {
+	if p.cmd != nil {
+		p.cmd.Process.Kill()
+		p.cmd.Wait()
+		p.cmd = nil
+	}
+	if p.pipe != nil {
+		p.pipe.Close()
+		p.pipe = nil
+	}
+	return nil
+}
+
+// Spawns a process with the given credentials; uses `teleport forward`
+// internally, which will block reading from the pipe at FD 3. Returns a
+// io.Closer that should be closed when the parked process is no longer needed.
+func newParker(credential syscall.Credential) (io.Closer, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rp, wp, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rp.Close()
+
+	cmd := &exec.Cmd{
+		Path: executable,
+		Args: []string{executable, teleport.ForwardSubCommand},
+		SysProcAttr: &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: &credential,
+		},
+		ExtraFiles: []*os.File{rp},
+	}
+
+	// Perform OS-specific tweaks to the command.
+	reexecCommandOSTweaks(cmd)
+
+	if err := cmd.Start(); err != nil {
+		wp.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	return &parker{
+		cmd:  cmd,
+		pipe: wp,
+	}, nil
 }
 
 // getCmdCredentials parses the uid, gid, and groups of the
