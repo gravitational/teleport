@@ -185,8 +185,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/configuration/static_tokens", srv.withAuth(srv.getStaticTokens))
 	srv.DELETE("/:version/configuration/static_tokens", srv.withAuth(srv.deleteStaticTokens))
 	srv.POST("/:version/configuration/static_tokens", srv.withAuth(srv.setStaticTokens))
-	srv.GET("/:version/authentication/preference", srv.withAuth(srv.getClusterAuthPreference))
-	srv.POST("/:version/authentication/preference", srv.withAuth(srv.setClusterAuthPreference))
 
 	// OIDC
 	srv.POST("/:version/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
@@ -1939,41 +1937,6 @@ func (s *APIServer) setStaticTokens(auth ClientI, w http.ResponseWriter, r *http
 	}
 
 	return message(fmt.Sprintf("static tokens set: %+v", st)), nil
-}
-
-func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalAuthPreference(cap, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-type setClusterAuthPreferenceReq struct {
-	ClusterAuthPreference json.RawMessage `json:"cluster_auth_prerference"`
-}
-
-func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *setClusterAuthPreferenceReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cap, err := services.UnmarshalAuthPreference(req.ClusterAuthPreference)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cap.SetOrigin(types.OriginDynamic)
-
-	err = auth.SetAuthPreference(r.Context(), cap)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("cluster authentication preference set: %+v", cap)), nil
 }
 
 type upsertTunnelConnectionRawReq struct {
