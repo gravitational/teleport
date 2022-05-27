@@ -443,6 +443,9 @@ const (
 	// CertExtensionGeneration counts the number of times a certificate has
 	// been renewed.
 	CertExtensionGeneration = "generation"
+	// CertExtensionAllowedResources lists the resources which this certificate
+	// should be allowed to access
+	CertExtensionAllowedResources = "allowed-resources"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

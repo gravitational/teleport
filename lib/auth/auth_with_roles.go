@@ -2143,19 +2143,25 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
+	var requestedResourceIDs []types.ResourceID
 	if len(req.AccessRequests) > 0 {
 		// add any applicable access request values.
 		req.AccessRequests = apiutils.Deduplicate(req.AccessRequests)
 		for _, reqID := range req.AccessRequests {
-			newRoles, accessRequestExpiry, err := a.authServer.getRolesAndExpiryFromAccessRequest(ctx, req.Username, reqID)
+			accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, req.Username, reqID)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if accessRequestExpiry.Before(req.Expires) {
+			if accessRequest.GetAccessExpiry().Before(req.Expires) {
 				// cannot generate a cert that would outlive the access request
-				req.Expires = accessRequestExpiry
+				req.Expires = accessRequest.GetAccessExpiry()
 			}
-			roles = append(roles, newRoles...)
+			roles = append(roles, accessRequest.GetRoles()...)
+
+			if len(accessRequest.GetRequestedResourceIDs()) > 0 && len(requestedResourceIDs) > 0 {
+				return nil, trace.BadParameter("cannot generate certificate with multiple search-based access requests")
+			}
+			requestedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
 		// nothing prevents an access-request from including roles already possessed by the
 		// user, so we must make sure to trim duplicate roles.
@@ -2257,6 +2263,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
+		requestedResourceIDs: requestedResourceIDs,
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
