@@ -158,7 +158,7 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
 enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
 
 /**
- * handle_tdp_sd_announce announces a new drivethat's ready to be
+ * handle_tdp_sd_announce announces a new drive that's ready to be
  * redirected over RDP.
  *
  * # Safety
