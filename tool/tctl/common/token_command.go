@@ -28,6 +28,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -157,9 +158,9 @@ func (c *TokensCommand) Add(client auth.ClientI) error {
 	}
 
 	// Generate token.
-	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{
+	token, err := client.GenerateToken(context.TODO(), &proto.GenerateTokenRequest{
 		Roles:  roles,
-		TTL:    c.ttl,
+		TTL:    proto.Duration(c.ttl),
 		Token:  c.value,
 		Labels: labels,
 	})

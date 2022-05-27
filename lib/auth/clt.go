@@ -490,7 +490,6 @@ func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
 func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -1745,7 +1744,7 @@ type IdentityService interface {
 	//
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
+	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the

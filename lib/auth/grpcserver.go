@@ -2537,12 +2537,7 @@ func (g *GRPCServer) GenerateToken(ctx context.Context, req *proto.GenerateToken
 		return nil, trace.Wrap(err)
 	}
 
-	tokenString, err := auth.ServerWithRoles.GenerateToken(ctx, GenerateTokenRequest{
-		Token:  req.Token,
-		Roles:  req.Roles,
-		TTL:    req.TTL.Get(),
-		Labels: req.Labels,
-	})
+	tokenString, err := auth.ServerWithRoles.GenerateToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

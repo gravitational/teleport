@@ -568,20 +568,15 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 //
 // If token is not supplied, it will be auto generated and returned.
 // If TTL is not supplied, token will be valid until removed.
-func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
-	switch resp, err := c.APIClient.GenerateToken(ctx, proto.GenerateTokenRequest{
-		Token:  req.Token,
-		Roles:  req.Roles,
-		TTL:    proto.Duration(req.TTL),
-		Labels: req.Labels,
-	}); {
+func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	switch resp, err := c.APIClient.GenerateToken(ctx, req); {
 	case err == nil:
 		return resp.GetName(), nil
 	case !trace.IsNotImplemented(err):
 		return "", trace.Wrap(err)
 	}
 
-	out, err := c.PostJSON(c.Endpoint("tokens"), req)
+	out, err := c.PostJSON(ctx, c.Endpoint("tokens"), req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

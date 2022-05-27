@@ -1945,26 +1945,11 @@ func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
 	return sess, nil
 }
 
-// TODO (Joerger): Replace this with proto.GenerateTokenRequest
-// GenerateTokenRequest is a request to generate auth token
-type GenerateTokenRequest struct {
-	// Token if provided sets the token value, otherwise will be auto generated
-	Token string `json:"token"`
-	// Roles is a list of roles this token authenticates as
-	Roles types.SystemRoles `json:"roles"`
-	// TTL is a time to live for token
-	TTL time.Duration `json:"ttl"`
-	// Labels sets token labels, e.g. {env: prod, region: us-west}.
-	// Labels are later passed to resources that are joining
-	// e.g. remote clusters and in the future versions, nodes and proxies.
-	Labels map[string]string `json:"labels"`
-}
-
 // GenerateToken generates multi-purpose authentication token.
-func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
+func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	expires := a.clock.Now().UTC()
 	if req.TTL != 0 {
-		expires.Add(req.TTL)
+		expires.Add(req.TTL.Get())
 	} else {
 		expires.Add(defaults.ProvisioningTokenTTL)
 	}

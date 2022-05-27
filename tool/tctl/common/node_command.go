@@ -141,7 +141,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{Roles: roles, TTL: c.ttl, Token: c.token})
+	token, err := client.GenerateToken(context.TODO(), &proto.GenerateTokenRequest{Roles: roles, TTL: proto.Duration(c.ttl), Token: c.token})
 	if err != nil {
 		return trace.Wrap(err)
 	}

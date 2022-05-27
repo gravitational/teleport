@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -212,9 +213,9 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 }
 
 func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
-	req := auth.GenerateTokenRequest{
+	req := &proto.GenerateTokenRequest{
 		Roles: roles,
-		TTL:   defaults.NodeJoinTokenTTL,
+		TTL:   proto.Duration(defaults.NodeJoinTokenTTL),
 	}
 
 	token, err := m.GenerateToken(ctx, req)
@@ -354,7 +355,7 @@ type nodeAPIGetter interface {
 	//
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req auth.GenerateTokenRequest) (string, error)
+	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GetClusterCACert returns the CAs for the local cluster without signing keys.
 	GetClusterCACert() (*auth.LocalCAResponse, error)
