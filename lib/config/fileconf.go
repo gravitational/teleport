@@ -269,7 +269,7 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 		}
 		labels, err := client.ParseLabelSpec(flags.NodeLabels)
 		if err != nil {
-			return s, err
+			return s, trace.Wrap(err)
 		}
 		s.Labels = labels
 	} else {
