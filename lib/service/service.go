@@ -765,10 +765,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if imClient.IsAvailable(supervisor.ExitContext()) {
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
 		if err == nil {
-			cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
-			cfg.Hostname = ec2Hostname
+			if ec2Hostname != "" {
+				cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
+				cfg.Hostname = ec2Hostname
+			}
 		} else if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+			cfg.Log.Errorf("Unexpected error while looking for EC2 hostname: %v", err)
 		}
 
 		ec2Labels, err := ec2.New(supervisor.ExitContext(), &ec2.Config{

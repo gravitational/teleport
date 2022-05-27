@@ -25,10 +25,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/aws/smithy-go"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/trace"
 )
+
+// metadataReadLimit is the largest number of bytes that will be read from imds responses.
+const metadataReadLimit = 1_000_000
 
 // GetEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
 // from the IMDS for this EC2 instance.
@@ -115,10 +117,10 @@ func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 func (client *InstanceMetadataClient) getMetadata(ctx context.Context, path string) (string, error) {
 	output, err := client.c.GetMetadata(ctx, &imds.GetMetadataInput{Path: path})
 	if err != nil {
-		return "", trace.Wrap(parseMetadataClientError(err))
+		return "", trace.Wrap(aws.ParseMetadataClientError(err))
 	}
 	defer output.Content.Close()
-	body, err := io.ReadAll(output.Content)
+	body, err := ReadAtMost(output.Content, metadataReadLimit)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -141,18 +143,4 @@ func (client *InstanceMetadataClient) GetTagValue(ctx context.Context, key strin
 		return "", trace.Wrap(err)
 	}
 	return body, nil
-}
-
-// parseMetadataClientError attempts to convert a failed imds call to a trace error.
-// If it can't, it returns the original error instead.
-func parseMetadataClientError(err error) error {
-	opError, ok := err.(*smithy.OperationError)
-	if !ok {
-		return err
-	}
-	httpErr, ok := opError.Err.(*smithyhttp.ResponseError)
-	if !ok {
-		return err
-	}
-	return trace.ReadError(httpErr.HTTPStatusCode(), nil)
 }
