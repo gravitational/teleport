@@ -1239,13 +1239,13 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (c *Cache) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
+func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.provisioner.GetTokens(ctx, opts...)
+	return rg.provisioner.GetTokens(ctx)
 }
 
 // GetToken finds and returns token by ID
