@@ -318,7 +318,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		},
 	}
 
-	connector, provider, err := a.getConnectorAndProvider(context.Background(), request)
+	connector, provider, err := a.getSAMLConnectorAndProvider(context.Background(), request)
 	require.NoError(t, err)
 	require.NotNil(t, connector)
 	require.NotNil(t, provider)
@@ -353,7 +353,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		SSOTestFlow: false,
 	}
 
-	connector, provider, err = a.getConnectorAndProvider(context.Background(), request2)
+	connector, provider, err = a.getSAMLConnectorAndProvider(context.Background(), request2)
 	require.NoError(t, err)
 	require.NotNil(t, connector)
 	require.NotNil(t, provider)

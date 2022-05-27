@@ -2812,6 +2812,40 @@ message SSODiagnosticInfo {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "oidc_connector_trait_mapping,omitempty"
     ];
+
+    // GithubClaims represents Github user information obtained during OAuth2 flow.
+    GithubClaims GithubClaims = 30 [ (gogoproto.jsontag) = "github_claims,omitempty" ];
+
+    // GithubTeamsToLogins is TeamsToLogins mapping from Github connector used in the SSO flow.
+    repeated TeamMapping GithubTeamsToLogins = 31
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "github_teams_to_logins,omitempty" ];
+
+    // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
+    GithubTokenInfo GithubTokenInfo = 32 [ (gogoproto.jsontag) = "github_token_info,omitempty" ];
+}
+
+// GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
+// The token itself is secret and therefore not included.
+message GithubTokenInfo {
+    string TokenType = 1 [ (gogoproto.jsontag) = "token_type" ];
+    int64 Expires = 2 [ (gogoproto.jsontag) = "expires" ];
+    string Scope = 3 [ (gogoproto.jsontag) = "scope" ];
+}
+
+// GithubClaims represents Github user information obtained during OAuth2 flow
+message GithubClaims {
+    // Username is the user's username
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+
+    // OrganizationToTeams is the user's organization and team membership
+    wrappers.LabelValues OrganizationToTeams = 2 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "organization_to_teams",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // Teams is the users team membership
+    repeated string Teams = 3 [ (gogoproto.jsontag) = "teams" ];
 }
 
 // TeamMapping represents a single team membership mapping.

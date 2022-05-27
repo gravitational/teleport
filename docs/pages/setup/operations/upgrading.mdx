@@ -50,6 +50,10 @@ When running multiple binaries of Teleport within a cluster, the following rules
   9.x.x Node will work with an 8.x.x Proxy Service. This also means you must not
   attempt to upgrade from 6.x.x straight to 8.x.x. You must upgrade to 7.x.x
   first.
+- Proxy Services and Nodes do not support Auth Services that are on an older major
+  version, and will fail to connect to older Auth Services by default. This behavior
+  can be overridden by passing `--skip-version-check` when starting Proxy Services and
+  Nodes.
 
 ## Backup
 
