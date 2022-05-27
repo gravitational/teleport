@@ -41,7 +41,7 @@ func darwinPushPipeline() pipeline {
 	p := newDarwinPipeline("push-build-darwin-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
-		Branch: triggerRef{Include: []string{"master", "branch/*", "zmb3/build-teleport-connect"}}, // TODO(tcsc): Remove debug trigger
+		Branch: triggerRef{Include: []string{"master", "branch/*"}},
 		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
 	p.Steps = []step{
