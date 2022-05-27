@@ -214,6 +214,10 @@ type IdentityContext struct {
 	// Generation counts the number of times this identity's certificate has
 	// been renewed.
 	Generation uint64
+
+	// AllowedResourceIDs lists the resources this identity should be allowed to
+	// access
+	AllowedResourceIDs []types.ResourceID
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
