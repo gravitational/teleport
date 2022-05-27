@@ -115,6 +115,7 @@ auth_service:
   cluster_name: magadan
   tokens:
   - "proxy,node:xxx"
+  - "node:%v"
   - "auth:yyy"
   ca_key_params:
     pkcs11:
