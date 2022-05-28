@@ -197,6 +197,26 @@ func TestBatchCassandra(t *testing.T) {
 	}
 }
 
+func TestEventCassandra(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"cassandra"}, []string{types.Wildcard})
+
+	dbConn, err := testCtx.cassandraClient(ctx, "alice", "cassandra", "cassandra")
+	require.NoError(t, err)
+	t.Cleanup(dbConn.Close)
+
+	for {
+		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		query := event.(*events.DatabaseSessionQuery).DatabaseQuery
+		if strings.Contains(query, "REGISTER") {
+			break
+		}
+	}
+}
+
 func withCassandra(name string, opts ...cassandra.TestServerOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		cassandraServer, err := cassandra.NewTestServer(common.TestServerConfig{

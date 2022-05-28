@@ -258,6 +258,17 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 					},
 				})
 			}
+		case primitive.OpCodeRegister:
+			body, err := codec.ConvertFromRawFrame(rawFrame)
+			if err != nil {
+				return trace.Wrap(err, "failed to decode register")
+			}
+
+			if register, ok := body.Body.Message.(*message.Register); ok {
+				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+					Query: register.String(),
+				})
+			}
 		}
 
 		_, err = srvConn.Write(bconn.Bytes())
