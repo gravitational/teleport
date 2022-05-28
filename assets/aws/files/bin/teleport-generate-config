@@ -81,6 +81,38 @@ write_https_keypairs_section() {
 EOS
 }
 
+write_database_section() {
+    # use the value of the variable name which was passed in
+    # this is done because there are two different ways of getting the external hostname
+    # depending on how the AMI is being used and we should support both
+    EXTERNAL_HOSTNAME="${!1}"
+    if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
+        # if an alias for the ACM NLB is configured, use that for proxy's database public_addrs
+        if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
+            MYSQL_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3036'"
+            POSTGRES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:5432'"
+            MONGO_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:27017'"
+        else
+            MYSQL_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:3036'"
+            POSTGRES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:5432'"
+            MONGO_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:27017'"
+        fi
+    else
+        MYSQL_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3036'"
+        POSTGRES_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:5432'"
+        MONGO_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:27017'"
+    fi
+    # set up the database listeners and public addresses
+    cat << EOS >> ${USE_CONFIG_PATH}
+  mysql_listen_addr: "0.0.0.0:3036"
+  postgres_listen_addr: "0.0.0.0:5432"
+  mongo_listen_addr: "0.0.0.0:27017"
+  mysql_public_addr: [${MYSQL_PUBLIC_ADDR}]
+  postgres_public_addr: [${POSTGRES_PUBLIC_ADDR}]
+  mongo_public_addr: [${MONGO_PUBLIC_ADDR}]
+EOS
+}
+
 write_kubernetes_section() {
     # use the value of the variable name which was passed in
     # this is done because there are two different ways of getting the external hostname
@@ -305,6 +337,9 @@ EOF
     if [[ "${USE_ACM}" != "true" ]]; then
         write_https_keypairs_section
     fi
+    
+    # set up the database listeners
+    write_database_section TELEPORT_DOMAIN_NAME
 
     # set up the kubernetes listener
     write_kubernetes_section TELEPORT_DOMAIN_NAME
@@ -457,6 +492,9 @@ EOF
         if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
             write_https_keypairs_section
 
+            # set up the database listeners
+            write_database_section TELEPORT_EXTERNAL_HOSTNAME
+    
             # set up the kubernetes listener
             write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
 
@@ -475,6 +513,9 @@ EOF
     elif [[ "${USE_ACM}" == "true" ]]; then
         echo "ACM support enabled"
 
+        # set up the database listeners
+        write_database_section TELEPORT_EXTERNAL_HOSTNAME
+            
         # set up the kubernetes listener
         write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
 
@@ -534,6 +575,9 @@ EOF
 
     # write ssh/tunnel config
     write_ssh_and_tunnel_section 3080
+    
+    # set up the database listeners
+    write_database_section TELEPORT_EXTERNAL_HOSTNAME
 
     # set up the kubernetes listener
     write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
@@ -560,9 +604,6 @@ EOF
         fi
     elif [[ "${USE_ACM}" == "true" ]]; then
         echo "ACM support enabled"
-
-        # set up the kubernetes listener
-        write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
 
         systemctl_wrap disable teleport.service
         systemctl_wrap stop --no-block teleport.service
