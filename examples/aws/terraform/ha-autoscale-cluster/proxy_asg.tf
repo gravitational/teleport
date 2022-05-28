@@ -19,6 +19,9 @@ resource "aws_autoscaling_group" "proxy" {
     aws_lb_target_group.proxy_proxy.arn,
     aws_lb_target_group.proxy_web[0].arn,
     aws_lb_target_group.proxy_kube.arn,
+    aws_lb_target_group.proxy_mysql.arn,
+    aws_lb_target_group.proxy_postgres.arn,
+    aws_lb_target_group.proxy_mongodb.arn,    
   ]
   count             = var.use_acm ? 0 : 1
 
@@ -63,6 +66,9 @@ resource "aws_autoscaling_group" "proxy_acm" {
     aws_lb_target_group.proxy_tunnel_acm[0].arn,
     aws_lb_target_group.proxy_web_acm[0].arn,
     aws_lb_target_group.proxy_kube.arn,
+    aws_lb_target_group.proxy_mysql.arn,
+    aws_lb_target_group.proxy_postgres.arn,
+    aws_lb_target_group.proxy_mongodb.arn,    
   ]
   count             = var.use_acm ? 1 : 0
 
