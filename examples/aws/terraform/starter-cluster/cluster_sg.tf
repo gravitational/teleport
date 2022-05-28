@@ -1,9 +1,8 @@
 /* 
 Security Groups and Rules for Cluster.
 
-Note: Please see our Production Guide for network security
-recommendations. 
-https://gravitational.com/teleport/docs/production/#firewall-configuration
+Note: Please see the list of networking ports documentation for their usage. 
+https://goteleport.com/docs/setup/reference/networking/#ports
 */
 
 // Create a Security Group
