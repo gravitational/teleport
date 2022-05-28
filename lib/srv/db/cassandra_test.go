@@ -23,9 +23,12 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"strings"
 	"testing"
 
+	"github.com/gocql/gocql"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
@@ -165,6 +168,33 @@ func TestAuditCassandra(t *testing.T) {
 		dbConn.Close()
 		waitForEvent(t, testCtx, libevents.DatabaseSessionEndCode)
 	})
+}
+
+func TestBatchCassandra(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"cassandra"}, []string{types.Wildcard})
+
+	dbConn, err := testCtx.cassandraClient(ctx, "alice", "cassandra", "cassandra")
+	require.NoError(t, err)
+	t.Cleanup(dbConn.Close)
+
+	batch := dbConn.NewBatch(gocql.LoggedBatch)
+	batch.Query("INSERT INTO batch_table (id) VALUES 1")
+	batch.Query("INSERT INTO batch_table (id) VALUES 2")
+
+	err = dbConn.ExecuteBatch(batch)
+	require.NoError(t, err)
+
+	for {
+		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		query := event.(*events.DatabaseSessionQuery).DatabaseQuery
+		if strings.Contains(query, "INSERT INTO batch_table (id) VALUES") {
+			break
+		}
+	}
 }
 
 func withCassandra(name string, opts ...cassandra.TestServerOption) withDatabaseOption {

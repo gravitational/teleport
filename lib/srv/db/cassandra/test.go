@@ -168,10 +168,13 @@ func (s *TestServer) processConnection(server *client.CqlServer) error {
 		}
 
 		if err := conn.AcceptHandshake(); err != nil {
+			conn.Close()
 			return trace.Wrap(err)
 		}
 
 		go func() {
+			defer conn.Close()
+
 			if err := s.processRequest(conn); err != nil {
 				s.log.WithError(err).Error("failed to process request")
 			}
@@ -278,6 +281,28 @@ func (s *TestServer) processRequest(conn *client.CqlServerConnection) error {
 					return trace.Wrap(err)
 				}
 			}
+		case primitive.OpCodeBatch:
+			_, ok := recvFrame.Body.Message.(*message.Batch)
+			if !ok {
+				return trace.BadParameter("failed to cast, expected *message.Execute, got %T", recvFrame.Body.Message)
+			}
+
+			rawFrame := &frame.RawFrame{
+				Header: &frame.Header{
+					IsResponse: true,
+					Version:    recvFrame.Header.Version,
+					StreamId:   recvFrame.Header.StreamId,
+					OpCode:     primitive.OpCodeResult,
+					BodyLength: 4,
+				},
+				Body: []byte{0, 0, 0, 1},
+			}
+
+			responseFrame, err = codec.ConvertFromRawFrame(rawFrame)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 		case primitive.OpCodeExecute:
 			execute, ok := recvFrame.Body.Message.(*message.Execute)
 			if !ok {

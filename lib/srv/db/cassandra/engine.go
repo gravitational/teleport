@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 
@@ -234,6 +235,27 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			if execute, ok := body.Body.Message.(*message.Execute); ok {
 				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
 					Query: execute.String(),
+				})
+			}
+		case primitive.OpCodeBatch:
+			body, err := codec.ConvertFromRawFrame(rawFrame)
+			if err != nil {
+				return trace.Wrap(err, "failed to decode batch")
+			}
+
+			if batch, ok := body.Body.Message.(*message.Batch); ok {
+				queries := make([]string, 0, len(batch.Children))
+				for _, child := range batch.Children {
+					queries = append(queries, fmt.Sprintf("%+v, values: %v", child.QueryOrId, child.Values))
+				}
+
+				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+					Query: fmt.Sprintf("begin batch %s batch apply", queries),
+					Parameters: []string{
+						"consistency", batch.Consistency.String(),
+						"keyspace", batch.Keyspace,
+						"batch", batch.Type.String(),
+					},
 				})
 			}
 		}
