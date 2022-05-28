@@ -134,6 +134,10 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 				return trace.Wrap(err, "failed to decode frame")
 			}
 
+			if !seg.Header.IsSelfContained {
+				return trace.NotImplemented("not self contained frames are not implemented")
+			}
+
 			payloadReader := bytes.NewReader(seg.Payload.UncompressedData)
 
 			rawFrame, err = codec.DecodeRawFrame(payloadReader)
@@ -176,6 +180,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 				compression := startup.GetCompression()
 				e.Log.Infof("compression: %v", compression)
 				codec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
+				segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
 			}
 		case primitive.OpCodeAuthResponse:
 			body, err := codec.ConvertFromRawFrame(rawFrame)

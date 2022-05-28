@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/stretchr/testify/require"
@@ -122,6 +123,48 @@ func TestAccessCassandra(t *testing.T) {
 			dbConn.Close()
 		})
 	}
+}
+
+func TestAuditCassandra(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"cassandra"}, []string{types.Wildcard})
+
+	t.Run("access denied", func(t *testing.T) {
+		// Access denied should trigger an unsuccessful session start event.
+		_, err := testCtx.cassandraClient(ctx, "alice", "cassandra", "nonexistent")
+		require.Error(t, err)
+		waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+	})
+
+	var dbConn *cassandra.Session
+	t.Run("session starts event", func(t *testing.T) {
+		// Connect should trigger successful session start event.
+		var err error
+
+		dbConn, err = testCtx.cassandraClient(ctx, "alice", "cassandra", "cassandra")
+		require.NoError(t, err)
+
+		waitForEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+	})
+
+	t.Run("command sends", func(t *testing.T) {
+		// Select should trigger Query event.
+		var clusterName string
+		err := dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
+		require.NoError(t, err)
+		require.Equal(t, "Test Cluster", clusterName)
+
+		waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+	})
+
+	t.Run("session ends event", func(t *testing.T) {
+		// Closing connection should trigger session end event.
+		dbConn.Close()
+		waitForEvent(t, testCtx, libevents.DatabaseSessionEndCode)
+	})
 }
 
 func withCassandra(name string, opts ...cassandra.TestServerOption) withDatabaseOption {
