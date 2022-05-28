@@ -72,6 +72,35 @@ resource "aws_security_group_rule" "proxy_ingress_allow_kube" {
   security_group_id = aws_security_group.proxy.id
 }
 
+// Permit inbound to Teleport mysql services
+resource "aws_security_group_rule" "proxy_ingress_allow_mysql" {
+  type              = "ingress"
+  from_port         = 3036
+  to_port           = 3036
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.proxy.id
+}
+// Permit inbound to Teleport postgres services
+resource "aws_security_group_rule" "proxy_ingress_allow_postgres" {
+  type              = "ingress"
+  from_port         = 5432
+  to_port           = 5432
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.proxy.id
+}
+
+// Permit inbound to Teleport mongodb services
+resource "aws_security_group_rule" "cluster_ingress_mongodb" {
+  type              = "ingress"
+  from_port         = 27017
+  to_port           = 27017
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.proxy.id
+}
+
 // Ingress traffic to web port 3080 is allowed from all directions
 resource "aws_security_group_rule" "proxy_ingress_allow_web" {
   type              = "ingress"
@@ -198,6 +227,63 @@ resource "aws_lb_listener" "proxy_kube" {
 
   default_action {
     target_group_arn = aws_lb_target_group.proxy_kube.arn
+    type             = "forward"
+  }
+}
+
+// MySQL port
+resource "aws_lb_target_group" "proxy_mysql" {
+  name     = "${var.cluster_name}-proxy-mysql"
+  port     = 3036
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
+}
+
+resource "aws_lb_listener" "proxy_mysql" {
+  load_balancer_arn = aws_lb.proxy.arn
+  port              = "3036"
+  protocol          = "TCP"
+
+  default_action {
+    target_group_arn = aws_lb_target_group.proxy_mysql.arn
+    type             = "forward"
+  }
+}
+
+// Postgres port
+resource "aws_lb_target_group" "proxy_postgres" {
+  name     = "${var.cluster_name}-proxy-postgres"
+  port     = 5432
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
+}
+
+resource "aws_lb_listener" "proxy_postgres" {
+  load_balancer_arn = aws_lb.proxy.arn
+  port              = "5432"
+  protocol          = "TCP"
+
+  default_action {
+    target_group_arn = aws_lb_target_group.proxy_postgres.arn
+    type             = "forward"
+  }
+}
+
+// MongoDB port
+resource "aws_lb_target_group" "proxy_mongodb" {
+  name     = "${var.cluster_name}-proxy-mongodb"
+  port     = 27017
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
+}
+
+resource "aws_lb_listener" "proxy_mongodb" {
+  load_balancer_arn = aws_lb.proxy.arn
+  port              = "27017"
+  protocol          = "TCP"
+
+  default_action {
+    target_group_arn = aws_lb_target_group.proxy_mongodb.arn
     type             = "forward"
   }
 }
