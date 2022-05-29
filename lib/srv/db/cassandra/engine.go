@@ -49,6 +49,8 @@ func init() {
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
+		codec:        frame.NewRawCodec(),
+		segmentCodec: segment.NewCodec(),
 	}
 }
 
@@ -60,6 +62,10 @@ type Engine struct {
 	clientConn net.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
+
+	codec frame.RawCodec
+
+	segmentCodec segment.Codec
 }
 
 func (e *Engine) SendError(err error) {
@@ -100,8 +106,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	codec := frame.NewRawCodec()
-	segmentCodec := segment.NewCodec()
 	isV5 := false
 
 	e.Log.Info("Accepted new connection")
@@ -124,10 +128,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	go io.Copy(e.clientConn, srvConn)
 
 	for {
-		var rawFrame *frame.RawFrame
-
+		var payloadReader io.Reader
 		if isV5 {
-			seg, err := segmentCodec.DecodeSegment(bconn)
+			seg, err := e.segmentCodec.DecodeSegment(bconn)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					return nil
@@ -139,23 +142,16 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 				return trace.NotImplemented("not self contained frames are not implemented")
 			}
 
-			payloadReader := bytes.NewReader(seg.Payload.UncompressedData)
-
-			rawFrame, err = codec.DecodeRawFrame(payloadReader)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					return nil
-				}
-				return trace.Wrap(err, "failed to decode frame")
-			}
+			payloadReader = bytes.NewReader(seg.Payload.UncompressedData)
 		} else {
-			rawFrame, err = codec.DecodeRawFrame(bconn)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					return nil
-				}
-				return trace.Wrap(err, "failed to decode frame")
+			payloadReader = bconn
+		}
+
+		if err = e.processFrame(payloadReader, &isV5); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
 			}
+			return trace.Wrap(err, "failed to decode frame")
 		}
 
 		//f, err := rawFrame.Dump()
@@ -166,111 +162,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		//e.Log.Infof("frame: %v", f)
 		//e.Log.Infof("OpCode: %+v", rawFrame.Header.OpCode)
 
-		switch rawFrame.Header.OpCode {
-		case primitive.OpCodeStartup:
-			body, err := codec.ConvertFromRawFrame(rawFrame)
-			if err != nil {
-				return trace.Wrap(err, "failed to decode auth response")
-			}
-
-			if startup, ok := body.Body.Message.(*message.Startup); ok {
-				if body.Header.Version == primitive.ProtocolVersion5 {
-					// TODO(jakule): we should also check the supported version returned by the DB, not only client.
-					isV5 = true
-				}
-				compression := startup.GetCompression()
-				e.Log.Infof("compression: %v", compression)
-				codec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
-				segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
-			}
-		case primitive.OpCodeAuthResponse:
-			body, err := codec.ConvertFromRawFrame(rawFrame)
-			if err != nil {
-				return trace.Wrap(err, "failed to decode auth response")
-			}
-
-			if authResp, ok := body.Body.Message.(*message.AuthResponse); ok {
-				// auth token contains username and password split by \0 character
-				// ex: \0username\0password
-				data := bytes.Split(authResp.Token, []byte{0})
-				if len(data) != 3 {
-					return trace.BadParameter("failed to extract username from the auth package.")
-				}
-				username := string(data[1])
-
-				e.Log.Infof("auth response: %s, %s", username, string(data[2]))
-
-				if e.sessionCtx.DatabaseUser != username {
-					return trace.AccessDenied("user %s is not authorized to access the database", username)
-				}
-			}
-		case primitive.OpCodeQuery:
-			body, err := codec.ConvertFromRawFrame(rawFrame)
-			if err != nil {
-				return trace.Wrap(err, "failed to decode query")
-			}
-
-			if query, ok := body.Body.Message.(*message.Query); ok {
-				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-					Query: query.String(),
-				})
-			}
-		case primitive.OpCodePrepare:
-			body, err := codec.ConvertFromRawFrame(rawFrame)
-			if err != nil {
-				return trace.Wrap(err, "failed to decode prepare")
-			}
-
-			if prepare, ok := body.Body.Message.(*message.Prepare); ok {
-				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-					Query: prepare.String(),
-				})
-			}
-		case primitive.OpCodeExecute:
-			body, err := codec.ConvertFromRawFrame(rawFrame)
-			if err != nil {
-				return trace.Wrap(err, "failed to decode prepare")
-			}
-
-			if execute, ok := body.Body.Message.(*message.Execute); ok {
-				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-					Query: execute.String(),
-				})
-			}
-		case primitive.OpCodeBatch:
-			body, err := codec.ConvertFromRawFrame(rawFrame)
-			if err != nil {
-				return trace.Wrap(err, "failed to decode batch")
-			}
-
-			if batch, ok := body.Body.Message.(*message.Batch); ok {
-				queries := make([]string, 0, len(batch.Children))
-				for _, child := range batch.Children {
-					queries = append(queries, fmt.Sprintf("%+v, values: %v", child.QueryOrId, child.Values))
-				}
-
-				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-					Query: fmt.Sprintf("begin batch %s batch apply", queries),
-					Parameters: []string{
-						"consistency", batch.Consistency.String(),
-						"keyspace", batch.Keyspace,
-						"batch", batch.Type.String(),
-					},
-				})
-			}
-		case primitive.OpCodeRegister:
-			body, err := codec.ConvertFromRawFrame(rawFrame)
-			if err != nil {
-				return trace.Wrap(err, "failed to decode register")
-			}
-
-			if register, ok := body.Body.Message.(*message.Register); ok {
-				e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-					Query: register.String(),
-				})
-			}
-		}
-
 		_, err = srvConn.Write(bconn.Bytes())
 		if err != nil {
 			return trace.Wrap(err, "failed to write frame to cassandra: %v", err)
@@ -278,6 +169,123 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 		bconn.Reset()
 	}
+}
+
+func (e *Engine) processFrame(conn io.Reader, isV5 *bool) error {
+	rawFrame, err := e.codec.DecodeRawFrame(conn)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return trace.Wrap(err, "failed to decode frame")
+	}
+
+	switch rawFrame.Header.OpCode {
+	case primitive.OpCodeStartup:
+		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		if err != nil {
+			return trace.Wrap(err, "failed to decode auth response")
+		}
+
+		if startup, ok := body.Body.Message.(*message.Startup); ok {
+			if body.Header.Version == primitive.ProtocolVersion5 {
+				// TODO(jakule): we should also check the supported version returned by the DB, not only client.
+				*isV5 = true
+			}
+			compression := startup.GetCompression()
+			e.Log.Infof("compression: %v", compression)
+			e.codec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
+			e.segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
+		}
+	case primitive.OpCodeAuthResponse:
+		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		if err != nil {
+			return trace.Wrap(err, "failed to decode auth response")
+		}
+
+		if authResp, ok := body.Body.Message.(*message.AuthResponse); ok {
+			// auth token contains username and password split by \0 character
+			// ex: \0username\0password
+			data := bytes.Split(authResp.Token, []byte{0})
+			if len(data) != 3 {
+				return trace.BadParameter("failed to extract username from the auth package.")
+			}
+			username := string(data[1])
+
+			e.Log.Infof("auth response: %s, %s", username, string(data[2]))
+
+			if e.sessionCtx.DatabaseUser != username {
+				return trace.AccessDenied("user %s is not authorized to access the database", username)
+			}
+		}
+	case primitive.OpCodeQuery:
+		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		if err != nil {
+			return trace.Wrap(err, "failed to decode query")
+		}
+
+		if query, ok := body.Body.Message.(*message.Query); ok {
+			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+				Query: query.String(),
+			})
+		}
+	case primitive.OpCodePrepare:
+		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		if err != nil {
+			return trace.Wrap(err, "failed to decode prepare")
+		}
+
+		if prepare, ok := body.Body.Message.(*message.Prepare); ok {
+			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+				Query: prepare.String(),
+			})
+		}
+	case primitive.OpCodeExecute:
+		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		if err != nil {
+			return trace.Wrap(err, "failed to decode prepare")
+		}
+
+		if execute, ok := body.Body.Message.(*message.Execute); ok {
+			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+				Query: execute.String(),
+			})
+		}
+	case primitive.OpCodeBatch:
+		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		if err != nil {
+			return trace.Wrap(err, "failed to decode batch")
+		}
+
+		if batch, ok := body.Body.Message.(*message.Batch); ok {
+			queries := make([]string, 0, len(batch.Children))
+			for _, child := range batch.Children {
+				queries = append(queries, fmt.Sprintf("%+v, values: %v", child.QueryOrId, child.Values))
+			}
+
+			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+				Query: fmt.Sprintf("begin batch %s batch apply", queries),
+				Parameters: []string{
+					"consistency", batch.Consistency.String(),
+					"keyspace", batch.Keyspace,
+					"batch", batch.Type.String(),
+				},
+			})
+		}
+	case primitive.OpCodeRegister:
+		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		if err != nil {
+			return trace.Wrap(err, "failed to decode register")
+		}
+
+		if register, ok := body.Body.Message.(*message.Register); ok {
+			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+				Query: register.String(),
+			})
+		}
+	}
+
+	return trace.Wrap(err)
 }
 
 // authorizeConnection does authorization check for Cassandra connection about
