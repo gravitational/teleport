@@ -110,6 +110,11 @@ func TestVariable(t *testing.T) {
 			out:   Expression{namespace: "internal", variable: "bar", transform: emailLocalTransformer{}},
 		},
 		{
+			title: "variable with array join",
+			in:    "{{array.join(internal.bar)}}",
+			out:   Expression{namespace: "internal", variable: "bar", arrayTransform: arrayJoinTransformer{}},
+		},
+		{
 			title: "regexp replace",
 			in:    `{{regexp.replace(internal.foo, "bar-(.*)", "$1")}}`,
 			out: Expression{
@@ -170,6 +175,12 @@ func TestInterpolate(t *testing.T) {
 			in:     Expression{variable: "foo", transform: emailLocalTransformer{}},
 			traits: map[string][]string{"foo": []string{"Alice <alice@example.com>", "bob@example.com"}, "bar": []string{"c"}},
 			res:    result{values: []string{"alice", "bob"}},
+		},
+		{
+			title:  "mapped traits with array.join",
+			in:     Expression{variable: "foo", arrayTransform: arrayJoinTransformer{}},
+			traits: map[string][]string{"foo": []string{"Team Space", "Team Galaxy"}, "bar": []string{"c"}},
+			res:    result{values: []string{"Team Space, Team Galaxy"}},
 		},
 		{
 			title:  "missed traits",
@@ -295,6 +306,11 @@ func TestMatch(t *testing.T) {
 		{
 			title: "unsupported namespace",
 			in:    `{{email.local(external.email)}}`,
+			err:   trace.BadParameter(""),
+		},
+		{
+			title: "unsupported namespace",
+			in:    `{{array.join(external.github_teams)}}`,
 			err:   trace.BadParameter(""),
 		},
 		{

@@ -377,6 +377,7 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 	var output []string
 	for _, value := range inputs {
 		outputs, err := ApplyValueTraits(value, traits)
+		fmt.Println(outputs)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				log.WithError(err).Debugf("Skipping %s %q.", fieldName, value)
@@ -385,6 +386,7 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 		}
 		output = append(output, outputs...)
 	}
+	fmt.Println(output)
 	return output
 }
 
