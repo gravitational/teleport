@@ -185,14 +185,7 @@ func NewExpression(variable string) (*Expression, error) {
 		}, nil
 	}
 
-	// r, _ := regexp.Compile("join\\(([^}]*)\\)")
-
 	prefix, variable, suffix := match[1], match[2], match[3]
-
-	// if r.MatchString(variable) {
-	// 	res := r.ReplaceAllString(variable, "${1}")
-	// 	variable = res
-	// }
 
 	// parse and get the ast of the expression
 	expr, err := parser.ParseExpr(variable)
