@@ -471,11 +471,14 @@ func (c *CLICommandBuilder) getCassandraCommand() (*exec.Cmd, error) {
 	}
 
 	args := []string{
-		"--protocol-version", "4",
-		"--ssl",
-		"-u", "cassandra",
+		"-u", c.db.Username,
 		"--cqlshrc", cfgPath,
 	}
+
+	if !c.options.noTLS {
+		args = append(args, "--ssl")
+	}
+
 	return c.exe.Command(cqlshBin, args...), nil
 }
 
