@@ -49,7 +49,7 @@ func init() {
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
-		codec:        frame.NewRawCodec(),
+		frameCodec:   frame.NewRawCodec(),
 		segmentCodec: segment.NewCodec(),
 	}
 }
@@ -63,7 +63,7 @@ type Engine struct {
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
 
-	codec frame.RawCodec
+	frameCodec frame.RawCodec
 
 	segmentCodec segment.Codec
 }
@@ -115,22 +115,30 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	bconn := newInMemoryReader(e.clientConn)
-
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
-	srvConn, err := tls.Dial("tcp", sessionCtx.Database.GetURI(), tlsConfig)
+	serverConn, err := tls.Dial("tcp", sessionCtx.Database.GetURI(), tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		if err := serverConn.Close(); err != nil {
+			e.Log.WithError(err).Error("failed to close server connection")
+		}
+	}()
 
-	go io.Copy(e.clientConn, srvConn)
+	go io.Copy(e.clientConn, serverConn)
+
+	memBuf := newMemoryBuffer(e.clientConn)
+	previousSegment := bytes.Buffer{}
+	expectedSegmentSize := 0
 
 	for {
 		var payloadReader io.Reader
 		if isV5 {
-			seg, err := e.segmentCodec.DecodeSegment(bconn)
+			e.Log.Infof("using modern layout")
+			seg, err := e.segmentCodec.DecodeSegment(memBuf)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					return nil
@@ -138,67 +146,76 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 				return trace.Wrap(err, "failed to decode frame")
 			}
 
+			e.Log.Infof("is self contained: %t, crc: %d", seg.Header.IsSelfContained, seg.Header.Crc24)
 			if !seg.Header.IsSelfContained {
-				return trace.NotImplemented("not self contained frames are not implemented")
-			}
+				e.Log.Infof("reading not self contained segment: prevSize %d, accSize %d", previousSegment.Len(), expectedSegmentSize)
+				if expectedSegmentSize == 0 {
+					frameHeader, err := e.frameCodec.DecodeHeader(bytes.NewReader(seg.Payload.UncompressedData))
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					expectedSegmentSize = int(frameHeader.BodyLength + 9)
+				}
+				previousSegment.Write(seg.Payload.UncompressedData)
 
-			payloadReader = bytes.NewReader(seg.Payload.UncompressedData)
+				e.Log.Infof("second log: prevSize %d, accSize %d, crc: %x", previousSegment.Len(), expectedSegmentSize, seg.Header.Crc24)
+				if expectedSegmentSize == previousSegment.Len() {
+					payloadReader = &previousSegment
+					expectedSegmentSize = 0
+				} else {
+					continue
+				}
+			} else {
+				payloadReader = bytes.NewReader(seg.Payload.UncompressedData)
+			}
 		} else {
-			payloadReader = bconn
+			e.Log.Infof("using old layout")
+			payloadReader = memBuf
 		}
 
 		if err = e.processFrame(payloadReader, &isV5); err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
-			return trace.Wrap(err, "failed to decode frame")
+			return trace.Wrap(err, "failed to process frame")
 		}
 
-		//f, err := rawFrame.Dump()
-		//if err != nil {
-		//	return trace.Wrap(err, "failed to dump frame")
-		//}
-		//
-		//e.Log.Infof("frame: %v", f)
-		//e.Log.Infof("OpCode: %+v", rawFrame.Header.OpCode)
-
-		_, err = srvConn.Write(bconn.Bytes())
+		_, err = serverConn.Write(memBuf.Bytes())
 		if err != nil {
 			return trace.Wrap(err, "failed to write frame to cassandra: %v", err)
 		}
 
-		bconn.Reset()
+		memBuf.Reset()
+		previousSegment.Reset()
 	}
 }
 
 func (e *Engine) processFrame(conn io.Reader, isV5 *bool) error {
-	rawFrame, err := e.codec.DecodeRawFrame(conn)
+	rawFrame, err := e.frameCodec.DecodeRawFrame(conn)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
 		return trace.Wrap(err, "failed to decode frame")
 	}
 
 	switch rawFrame.Header.OpCode {
 	case primitive.OpCodeStartup:
-		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
 		if err != nil {
 			return trace.Wrap(err, "failed to decode auth response")
 		}
 
 		if startup, ok := body.Body.Message.(*message.Startup); ok {
 			if body.Header.Version == primitive.ProtocolVersion5 {
+				e.Log.Infof("switching to new layout")
 				// TODO(jakule): we should also check the supported version returned by the DB, not only client.
 				*isV5 = true
 			}
 			compression := startup.GetCompression()
 			e.Log.Infof("compression: %v", compression)
-			e.codec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
+			e.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
 			e.segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
 		}
 	case primitive.OpCodeAuthResponse:
-		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
 		if err != nil {
 			return trace.Wrap(err, "failed to decode auth response")
 		}
@@ -219,18 +236,22 @@ func (e *Engine) processFrame(conn io.Reader, isV5 *bool) error {
 			}
 		}
 	case primitive.OpCodeQuery:
-		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
 		if err != nil {
 			return trace.Wrap(err, "failed to decode query")
 		}
 
 		if query, ok := body.Body.Message.(*message.Query); ok {
+			queryStr := query.String()
+			if len(queryStr) > 100 {
+				queryStr = queryStr[:100]
+			}
 			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-				Query: query.String(),
+				Query: queryStr,
 			})
 		}
 	case primitive.OpCodePrepare:
-		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
 		if err != nil {
 			return trace.Wrap(err, "failed to decode prepare")
 		}
@@ -241,7 +262,7 @@ func (e *Engine) processFrame(conn io.Reader, isV5 *bool) error {
 			})
 		}
 	case primitive.OpCodeExecute:
-		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
 		if err != nil {
 			return trace.Wrap(err, "failed to decode prepare")
 		}
@@ -252,7 +273,7 @@ func (e *Engine) processFrame(conn io.Reader, isV5 *bool) error {
 			})
 		}
 	case primitive.OpCodeBatch:
-		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
 		if err != nil {
 			return trace.Wrap(err, "failed to decode batch")
 		}
@@ -273,7 +294,7 @@ func (e *Engine) processFrame(conn io.Reader, isV5 *bool) error {
 			})
 		}
 	case primitive.OpCodeRegister:
-		body, err := e.codec.ConvertFromRawFrame(rawFrame)
+		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
 		if err != nil {
 			return trace.Wrap(err, "failed to decode register")
 		}
@@ -332,6 +353,8 @@ func (e *Engine) sendAuthError(accessErr error) {
 
 		switch rawFrame.Header.OpCode {
 		case primitive.OpCodeStartup:
+			// Downgrade client if needed to simplify communication.
+			//minSupportedProtocol := primitive.ProtocolVersion3
 			startupFrame := frame.NewFrame(rawFrame.Header.Version, rawFrame.Header.StreamId,
 				&message.Authenticate{Authenticator: "org.apache.cassandra.auth.PasswordAuthenticator"})
 
