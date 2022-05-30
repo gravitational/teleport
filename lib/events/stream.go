@@ -309,7 +309,17 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	go writer.receiveAndUpload()
+	// Start writer events receiver.
+	go func() {
+		err := writer.receiveAndUpload()
+		if err != nil {
+			log.WithError(err).Debug("slice writer ended with error")
+			stream.setCancelError(err)
+		}
+
+		stream.cancel()
+	}()
+
 	return stream, nil
 }
 
@@ -491,7 +501,7 @@ func (w *sliceWriter) trySendStreamStatusUpdate(lastEventIndex int64) {
 }
 
 // receiveAndUpload receives and uploads serialized events
-func (w *sliceWriter) receiveAndUpload() {
+func (w *sliceWriter) receiveAndUpload() error {
 	defer close(w.proto.uploadLoopDoneCh)
 	// on the start, send stream status with the upload ID and negative
 	// index so that remote party can get an upload ID
@@ -505,7 +515,7 @@ func (w *sliceWriter) receiveAndUpload() {
 		select {
 		case <-w.proto.cancelCtx.Done():
 			// cancel stops all operations without waiting
-			return
+			return nil
 		case <-w.proto.completeCtx.Done():
 			// if present, send remaining data for upload
 			if w.current != nil {
@@ -516,20 +526,18 @@ func (w *sliceWriter) receiveAndUpload() {
 					w.current.isLast = true
 				}
 				if err := w.startUploadCurrentSlice(); err != nil {
-					w.proto.cancel()
-					log.WithError(err).Debug("Could not start uploading current slice, aborting.")
-					return
+					return trace.Wrap(err)
 				}
 			}
+
 			w.completeStream()
-			return
+			return nil
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
-				log.WithError(err).Error("Could not upload part after retrying, aborting.")
-				w.proto.cancel()
-				return
+				return trace.Wrap(err)
 			}
+
 			delete(w.activeUploads, part.Number)
 			w.updateCompletedParts(*part, upload.lastEventIndex)
 		case <-flushCh:
@@ -546,9 +554,7 @@ func (w *sliceWriter) receiveAndUpload() {
 				if w.current != nil {
 					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold and have data. Flushing.", now, inactivityPeriod)
 					if err := w.startUploadCurrentSlice(); err != nil {
-						w.proto.cancel()
-						log.WithError(err).Debug("Could not start uploading current slice, aborting.")
-						return
+						return trace.Wrap(err)
 					}
 				} else {
 					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold but have no data. Nothing to do.", now, inactivityPeriod)
@@ -570,9 +576,7 @@ func (w *sliceWriter) receiveAndUpload() {
 				// able to process events. Close the streamer and set the
 				// returned error so that event emitters can proceed.
 				if isNewSliceError(err) {
-					w.proto.setCancelError(err)
-					w.proto.cancel()
-					return
+					return trace.Wrap(err)
 				}
 
 				continue
@@ -581,9 +585,7 @@ func (w *sliceWriter) receiveAndUpload() {
 				// this logic blocks the EmitAuditEvent in case if the
 				// upload has not completed and the current slice is out of capacity
 				if err := w.startUploadCurrentSlice(); err != nil {
-					w.proto.cancel()
-					log.WithError(err).Debug("Could not start uploading current slice, aborting.")
-					return
+					return trace.Wrap(err)
 				}
 			}
 		}
