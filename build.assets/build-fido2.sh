@@ -28,7 +28,7 @@ fetch_and_build() {
   echo "$name: fetch and build" >&2
 
   local tmp=''
-  tmp="$(mktemp -d)"
+  tmp="$(mktemp -d "$LIB_CACHE/build.XXXXXX")"
   # Early expansion on purpose.
   #shellcheck disable=SC2064
   trap "rm -fr '$tmp'" exit
