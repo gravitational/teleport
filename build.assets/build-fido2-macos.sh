@@ -3,10 +3,10 @@
 # Builds libfido2 and dependencies, caching the resulting binaries in the local
 # filesystem.
 #
-# Run `build-fido2.sh build` to build libfido2 and its dependencies, at the
-# versions specified in the script.
-# Run `build-fido2.sh pkg_config_path` to print the path to the prior-built
-# libfido2-static.pc file.
+# Run `build-fido2-macos.sh build` to build libfido2 and its dependencies, at
+# the versions specified in the script.
+# Run `build-fido2-macos.sh pkg_config_path` to print the path to the
+# prior-built libfido2-static.pc file.
 #
 # Written mainly for macOS builders.
 set -eu

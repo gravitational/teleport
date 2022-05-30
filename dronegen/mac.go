@@ -267,8 +267,8 @@ func darwinTagBuildCommands() []string {
 		`export RUST_HOME=$CARGO_HOME`,
 		`export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
-		`build.assets/build-fido2.sh build`,
-		`export PKG_CONFIG_PATH="$(build.assets/build-fido2.sh pkg_config_path)"`,
+		`build.assets/build-fido2-macos.sh build`,
+		`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
 		`rustup override set $RUST_VERSION`,
 		`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
 	}
