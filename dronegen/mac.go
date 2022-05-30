@@ -66,7 +66,7 @@ func darwinPushPipeline() pipeline {
 				"ARCH":          {raw: "amd64"},
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: darwinTagBuildCommands(b),
+			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: false}),
 		},
 		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),
@@ -115,11 +115,12 @@ func darwinTagPipeline() pipeline {
 		{
 			Name: "Build Mac release artifacts",
 			Environment: map[string]value{
-				"GOPATH":        {raw: path.Join(p.Workspace.Path, "/go")},
-				"GOCACHE":       {raw: path.Join(p.Workspace.Path, "/go/cache")},
-				"OS":            {raw: b.os},
-				"ARCH":          {raw: b.arch},
-				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				"GOPATH":            {raw: path.Join(p.Workspace.Path, "/go")},
+				"GOCACHE":           {raw: path.Join(p.Workspace.Path, "/go/cache")},
+				"OS":                {raw: b.os},
+				"ARCH":              {raw: b.arch},
+				"WORKSPACE_DIR":     {raw: p.Workspace.Path},
+				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
 
 				// These credentials are necessary for the signing and notarization of
 				// Teleport Connect, which is built in to the Electron tooling.
@@ -128,7 +129,7 @@ func darwinTagPipeline() pipeline {
 				"APPLE_USERNAME": {fromSecret: "APPLE_USERNAME"},
 				"APPLE_PASSWORD": {fromSecret: "APPLE_PASSWORD"},
 			},
-			Commands: darwinTagBuildCommands(b),
+			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: true}),
 		},
 		{
 			Name: "Copy Mac artifacts",
@@ -311,7 +312,11 @@ func darwinTagCheckoutCommands(b buildType) []string {
 	)
 }
 
-func darwinTagBuildCommands(b buildType) []string {
+type darwinBuildOptions struct {
+	unlockKeychain bool
+}
+
+func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 	commands := []string{
 		`set -u`,
 		`export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
@@ -323,10 +328,16 @@ func darwinTagBuildCommands(b buildType) []string {
 		`export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`rustup override set $RUST_VERSION`,
-		`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
-		`security find-identity -v`,
-		`make clean release OS=$OS ARCH=$ARCH`,
 	}
+
+	if opts.unlockKeychain {
+		commands = append(commands,
+			`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
+			`security find-identity -v`,
+		)
+	}
+
+	commands = append(commands, `make clean release OS=$OS ARCH=$ARCH`)
 
 	if b.hasTeleportConnect() {
 		commands = append(commands,

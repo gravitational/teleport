@@ -561,8 +561,6 @@ steps:
   - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override set $RUST_VERSION
-  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
-  - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install --frozen-lockfile && yarn build-term && yarn package-term
@@ -3021,6 +3019,8 @@ steps:
     APPLE_USERNAME:
       from_secret: APPLE_USERNAME
     ARCH: amd64
+    BUILDBOX_PASSWORD:
+      from_secret: BUILDBOX_PASSWORD
     GOCACHE: /tmp/build-darwin-amd64/go/cache
     GOPATH: /tmp/build-darwin-amd64/go
     OS: darwin
@@ -5466,6 +5466,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ce58fe81b0f5c8c5e465abbd19785af72560a699911e29bce04fb24bfc750a7d
+hmac: 58daeb27b6fc842b50ee4ce6f392142109c1db80619e0cf433d389d1f13af494
 
 ...
