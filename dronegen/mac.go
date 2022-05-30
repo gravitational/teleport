@@ -41,7 +41,7 @@ func darwinPushPipeline() pipeline {
 	p := newDarwinPipeline("push-build-darwin-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
-		Branch: triggerRef{Include: []string{"master", "branch/*"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*", "zmb3/build-teleport-connect"}},
 		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
 	p.Steps = []step{
@@ -66,7 +66,7 @@ func darwinPushPipeline() pipeline {
 				"ARCH":          {raw: "amd64"},
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: false}),
+			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: true}),
 		},
 		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),
@@ -319,6 +319,8 @@ type darwinBuildOptions struct {
 func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 	commands := []string{
 		`set -u`,
+		`echo HOME=$${HOME}`,
+		`export HOME=/Users/$(whoami)`,
 		`export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
 		`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
 		`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
@@ -332,6 +334,7 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 
 	if opts.unlockKeychain {
 		commands = append(commands,
+			`export HOME=/Users/build`,
 			`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
 			`security find-identity -v`,
 		)
