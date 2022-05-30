@@ -188,10 +188,13 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
@@ -222,10 +225,13 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
@@ -291,10 +297,13 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(17 * time.Minute),
 						DisconnectExpiredCert:   types.NewBool(true),
 						BPF:                     apidefaults.EnhancedEvents(),
@@ -377,11 +386,14 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						ForwardAgent:            types.NewBool(true),
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						ForwardAgent:      types.NewBool(true),
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(0),
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),
@@ -451,11 +463,14 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						ForwardAgent:            types.NewBool(true),
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						ForwardAgent:      types.NewBool(true),
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(0),
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),

@@ -1348,7 +1348,7 @@ func (m *MemoryUploader) GetUploadMetadata(sid session.ID) UploadMetadata {
 }
 
 // ReserUploadPart reserves an upload part.
-func (h *MemoryUploader) ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error {
+func (m *MemoryUploader) ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error {
 	return nil
 }
 
