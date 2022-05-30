@@ -120,7 +120,7 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		c.Assert(arr, check.HasLen, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
 		c.Assert(ok, check.Equals, true)
-		c.Assert(name, check.Equals, event.User)
+		c.Assert(event.User, check.Equals, name)
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
