@@ -374,7 +374,7 @@ func darwinTagCopyPackageArtifactCommands(b buildType) []string {
 	if b.hasTeleportConnect() {
 		commands = append(commands,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
-			`cp "Teleport Connect Preview*.dmg" $WORKSPACE_DIR/go/artifacts`,
+			`cp "Teleport Connect Preview"*.dmg $WORKSPACE_DIR/go/artifacts`,
 		)
 	}
 
@@ -384,7 +384,7 @@ func darwinTagCopyPackageArtifactCommands(b buildType) []string {
 	)
 	if b.hasTeleportConnect() {
 		commands = append(commands,
-			`cd $WORKSPACE_DIR/go/artifacts && for FILE in "Teleport Connect Preview*.dmg"; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l`,
+			`cd $WORKSPACE_DIR/go/artifacts && for FILE in "Teleport Connect Preview"*.dmg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l`,
 		)
 	}
 

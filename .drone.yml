@@ -3041,10 +3041,10 @@ steps:
   - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release
-  - cp "Teleport Connect Preview*.dmg" $WORKSPACE_DIR/go/artifacts
+  - cp "Teleport Connect Preview"*.dmg $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
     $FILE > $FILE.sha256; done && ls -l
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in "Teleport Connect Preview*.dmg";
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in "Teleport Connect Preview"*.dmg;
     do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
@@ -5476,6 +5476,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: e046ae4aadccab7b32cdd4a04a0680a865ba247cb4712a895186115ae56aa1ec
+hmac: cfbd2fc4f510b42e7d0ff60f6ef93696636d55f72ee1c22a1a726b3354165847
 
 ...
