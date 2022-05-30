@@ -323,6 +323,8 @@ func darwinTagBuildCommands(b buildType) []string {
 		`export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`rustup override set $RUST_VERSION`,
+		`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
+		`security find-identity -v`,
 		`make clean release OS=$OS ARCH=$ARCH`,
 	}
 

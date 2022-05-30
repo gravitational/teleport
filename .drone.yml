@@ -465,7 +465,6 @@ trigger:
     include:
     - master
     - branch/*
-    - zmb3/build-teleport-connect
 workspace:
   path: /tmp/push-build-darwin-amd64
 platform:
@@ -562,6 +561,8 @@ steps:
   - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override set $RUST_VERSION
+  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+  - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install --frozen-lockfile && yarn build-term && yarn package-term
@@ -3009,6 +3010,8 @@ steps:
   - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override set $RUST_VERSION
+  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+  - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install --frozen-lockfile && yarn build-term && yarn package-term
@@ -5463,6 +5466,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 417ee3689c77c049826be206687aea6a5e91c82a7960c7a2414500e4aa1bf429
+hmac: ce58fe81b0f5c8c5e465abbd19785af72560a699911e29bce04fb24bfc750a7d
 
 ...
