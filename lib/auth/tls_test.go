@@ -976,9 +976,6 @@ func (s *TLSSuite) TestUsersCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	err = clt.UpsertPassword("user1", []byte("some pass"))
-	c.Assert(err, check.IsNil)
-
 	users, err := clt.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(users), check.Equals, 1)
@@ -1016,7 +1013,7 @@ func (s *TLSSuite) TestPasswordCRUD(c *check.C) {
 	err = clt.CheckPassword("user1", pass, "123456")
 	c.Assert(err, check.NotNil)
 
-	err = clt.UpsertPassword("user1", pass)
+	err = s.server.Auth().UpsertPassword("user1", pass)
 	c.Assert(err, check.IsNil)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
@@ -1052,7 +1049,7 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	// upsert a password and totp secret
-	err = clt.UpsertPassword("user1", pass)
+	err = s.server.Auth().UpsertPassword("user1", pass)
 	c.Assert(err, check.IsNil)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
 	c.Assert(err, check.IsNil)
@@ -1114,7 +1111,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = proxy.AuthenticateWebUser(req)
 	fixtures.ExpectAccessDenied(c, err)
 
-	err = clt.UpsertPassword(user, pass)
+	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
 	// success with password set up
@@ -1175,7 +1172,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 		},
 	}
 
-	err = clt.UpsertPassword(user, pass)
+	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
 	ws, err := proxy.AuthenticateWebUser(req)
@@ -2247,7 +2244,7 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	err = clt.UpsertPassword(user, pass)
+	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
 	req := AuthenticateUserRequest{
@@ -2340,7 +2337,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	c.Assert(err, check.IsNil)
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
 	c.Assert(err, check.IsNil)
-	err = clt.UpsertPassword(user, pass)
+	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
 	// Set auth preference to disallow local auth.
