@@ -17,10 +17,10 @@ package firestoreevents
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -396,6 +396,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes}, "")
 }
 
+<<<<<<< HEAD
 func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
 	var eventsArr []apievents.AuditEvent
 	var estimatedSize int
@@ -425,22 +426,29 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "Filter": filter, "Limit": limit, "StartKey": startKey})
 
 	var lastKey int64
+=======
+func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, lastKey string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
+	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "Filter": filter, "Limit": limit, "StartKey": lastKey})
+
+>>>>>>> 47b902f81 (Correctly handle subsecond Firestore pagination with DocumentID cursors)
 	var values []events.EventFields
-	var parsedStartKey int64
 	var err error
-	reachedEnd := false
 	totalSize := 0
 
-	if startKey != "" {
-		parsedStartKey, err = strconv.ParseInt(startKey, 10, 64)
-		if err != nil {
-			return nil, 0, "", trace.WrapWithMessage(err, "failed to parse startKey, expected integer but found: %q", startKey)
-		}
-	}
-
 	modifyquery := func(query firestore.Query) firestore.Query {
-		if startKey != "" {
-			return query.StartAfter(parsedStartKey)
+		if len(filter.eventTypes) > 0 {
+			query = query.Where(eventTypeDocProperty, "in", filter.eventTypes)
+		}
+
+		if lastKey != "" {
+			parts := strings.Split(lastKey, ":")
+			time, err := strconv.Atoi(parts[0])
+			if err != nil {
+				panic("invalid start key")
+			}
+
+			query = query.OrderBy(firestore.DocumentID, firestore.Asc)
+			query = query.StartAfter(time, parts[1])
 		}
 
 		return query
@@ -453,7 +461,7 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 	case types.EventOrderDescending:
 		firestoreOrdering = firestore.Desc
 	default:
-		return nil, 0, "", trace.BadParameter("invalid event order: %v", order)
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
 	query := modifyquery(l.svc.Collection(l.CollectionName).
@@ -462,28 +470,22 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 		Where(createdAtDocProperty, "<=", toUTC.Unix()).
 		OrderBy(createdAtDocProperty, firestoreOrdering)).
 		Limit(limit)
+<<<<<<< HEAD
 	if len(filter.eventTypes) > 0 {
 		query = query.Where(eventTypeDocProperty, "in", filter.eventTypes)
 	}
 	if sessionID != "" {
 		query = query.Where(sessionIDDocProperty, "==", sessionID)
 	}
+=======
+>>>>>>> 47b902f81 (Correctly handle subsecond Firestore pagination with DocumentID cursors)
 
 	start := time.Now()
 	docSnaps, err := query.Documents(l.svcContext).GetAll()
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err != nil {
-		return nil, 0, "", firestorebk.ConvertGRPCError(err)
-	}
-
-	// Correctly detecting if you've reached the end of a query in firestore is
-	// tricky since it doesn't set any flag when it finds that there are no further events.
-	// This solution here seems to be the most common, but I haven't been able to find
-	// any documented hard guarantees on firestore not early returning for some reason like response
-	// size like DynamoDB does. In short, this should work in all cases for lack of a better solution.
-	if len(docSnaps) < limit {
-		reachedEnd = true
+		return nil, "", firestorebk.ConvertGRPCError(err)
 	}
 
 	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
@@ -491,30 +493,36 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 		var e event
 		err = docSnap.DataTo(&e)
 		if err != nil {
-			return nil, 0, "", firestorebk.ConvertGRPCError(err)
+			return nil, "", firestorebk.ConvertGRPCError(err)
 		}
 
 		data := []byte(e.Fields)
-		if totalSize+len(data) >= spaceRemaining {
+		if totalSize+len(data) >= events.MaxEventBytesInResponse {
 			break
 		}
 
 		var fields events.EventFields
 		if err := json.Unmarshal(data, &fields); err != nil {
-			return nil, 0, "", trace.Errorf("failed to unmarshal event %v", err)
+			return nil, "", trace.Errorf("failed to unmarshal event %v", err)
 		}
+
+		time := docSnap.Data()[createdAtDocProperty].(int64)
+		lastKey = strconv.Itoa(int(time)) + ":" + docSnap.Ref.ID
 
 		// Check that the filter condition is satisfied.
 		if filter.condition != nil && !filter.condition(utils.Fields(fields)) {
 			continue
 		}
 
-		lastKey = docSnap.Data()[createdAtDocProperty].(int64)
 		values = append(values, fields)
 		totalSize += len(data)
 		if limit > 0 && len(values) >= limit {
 			break
 		}
+	}
+
+	if len(docSnaps) < limit {
+		lastKey = ""
 	}
 
 	var toSort sort.Interface
@@ -524,25 +532,20 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 	case types.EventOrderDescending:
 		toSort = sort.Reverse(events.ByTimeAndIndex(values))
 	default:
-		return nil, 0, "", trace.BadParameter("invalid event order: %v", order)
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
-	sort.Sort(toSort)
 
+	sort.Sort(toSort)
 	eventArr := make([]apievents.AuditEvent, 0, len(values))
 	for _, fields := range values {
 		event, err := events.FromEventFields(fields)
 		if err != nil {
-			return nil, 0, "", trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 		eventArr = append(eventArr, event)
 	}
 
-	var lastKeyString string
-	if lastKey != 0 && !reachedEnd {
-		lastKeyString = fmt.Sprintf("%d", lastKey)
-	}
-
-	return eventArr, totalSize, lastKeyString, nil
+	return eventArr, lastKey, nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
