@@ -27,6 +27,8 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // Cluster describes user settings and access to various resources.
@@ -101,4 +103,21 @@ type LoggedInUser struct {
 	SSHLogins []string
 	// Roles is the user roles
 	Roles []string
+}
+
+// addMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
+// metadata to the error, we're letting the Electron app know that the given error was caused by
+// expired certs and letting the user log in again should resolve the error upon another attempt.
+func addMetadataToRetryableError(ctx context.Context, fn func() error) error {
+	err := fn()
+	if err == nil {
+		return nil
+	}
+
+	if client.CanErrorBeResolvedWithRelogin(err) {
+		trailer := metadata.Pairs("can-be-resolved-with-relogin", "1")
+		grpc.SetTrailer(ctx, trailer)
+	}
+
+	return trace.Wrap(err)
 }
