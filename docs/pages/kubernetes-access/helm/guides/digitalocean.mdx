@@ -3,11 +3,50 @@ title: Get started with Teleport on DigitalOcean Kubernetes
 description: How to get started with Teleport on DigitalOcean Kubernetes
 ---
 
-This guide will show you how to get started with Teleport on DigitalOcean Kubernetes. 
+<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
 
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
+This guide shows you how to deploy the Teleport Auth Service and Proxy Service
+on a DigitalOcean Kubernetes cluster. These services are fully managed in
+Teleport Cloud.
+
+Instead, Teleport Cloud users should consult the following guide, which shows
+you how to connect a Teleport Kubernetes Service agent to an existing Teleport
+cluster:
+
+<TileSet>
+<Tile
+title="Connect a Kubernetes Cluster to Teleport"
+href="./agent.mdx"
+icon="kubernetes"
+>
+</Tile>
+</TileSet>
+
+You can also view this guide as a user of another Teleport edition:
+
+<TileSet>
+<Tile
+href="./digitalocean.mdx/?scope=oss"
+title="Open Source"
+icon="stack"
+>
+</Tile>
+<Tile
+href="./digitalocean.mdx/?scope=enterprise"
+title="Enterprise"
+icon="building"
+>
+</Tile>
+</TileSet>
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+This guide will show you how to get started with Teleport on DigitalOcean
+Kubernetes.
 
 ## Prerequisites
+
 - DigitalOcean account.
 - Your workstation configured with [kubectl](https://kubernetes.io/docs/tasks/tools/), [Helm](https://helm.sh/docs/intro/install/), [doctl](https://docs.digitalocean.com/reference/doctl/how-to/install/), and the Teleport [tsh](https://goteleport.com/docs/installation/) client.
 
@@ -189,3 +228,5 @@ Teleport keeps an audit log of access to a Kubernetes cluster. In the screenshot
 - [Setup CI/CD Access with Teleport](../../guides/cicd.mdx)
 - [Federated Access using Trusted Clusters](../../guides/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../controls.mdx)
+
+</ScopedBlock>

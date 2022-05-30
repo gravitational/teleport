@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -228,16 +229,22 @@ func HasBuiltinRole(checker services.AccessChecker, name string) bool {
 	return true
 }
 
-// hasRemoteBuiltinRole checks the type of the role set returned and the name.
+// HasRemoteBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is remote builtin and the name matches.
-func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
-	if _, ok := a.context.Checker.(RemoteBuiltinRoleSet); !ok {
+func HasRemoteBuiltinRole(checker services.AccessChecker, name string) bool {
+	if _, ok := checker.(RemoteBuiltinRoleSet); !ok {
 		return false
 	}
-	if !a.context.Checker.HasRole(name) {
+	if !checker.HasRole(name) {
 		return false
 	}
 	return true
+}
+
+// hasRemoteBuiltinRole checks the type of the role set returned and the name.
+// Returns true if role set is remote builtin and the name matches.
+func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
+	return HasRemoteBuiltinRole(a.context.Checker, name)
 }
 
 // hasRemoteUserRole checks if the type of the role set is a remote user or
@@ -264,16 +271,73 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 		return nil, trace.Wrap(err)
 	}
 	return tracker, nil
+}
 
+func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker) bool {
+	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind())
+	modes := evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles})
+
+	if len(modes) == 0 {
+		return false
+	}
+
+	// Apply RFD 45 RBAC rules to the session if it's SSH.
+	// This is a bit of a hack. It converts to the old legacy format
+	// which we don't have all data for, luckily the fields we don't have aren't made available
+	// to the RBAC filter anyway.
+	if tracker.GetKind() == types.KindSSHSession {
+		ruleCtx := &services.Context{User: a.context.User}
+		ruleCtx.SSHSession = &session.Session{
+			ID:             session.ID(tracker.GetSessionID()),
+			Namespace:      apidefaults.Namespace,
+			Login:          tracker.GetLogin(),
+			Created:        tracker.GetCreated(),
+			LastActive:     a.authServer.GetClock().Now(),
+			ServerID:       tracker.GetAddress(),
+			ServerAddr:     tracker.GetAddress(),
+			ServerHostname: tracker.GetHostname(),
+			ClusterName:    tracker.GetClusterName(),
+		}
+
+		for _, participant := range tracker.GetParticipants() {
+			// We only need to fill in User here since other fields get discarded anyway.
+			ruleCtx.SSHSession.Parties = append(ruleCtx.SSHSession.Parties, session.Party{
+				User: participant.User,
+			})
+		}
+
+		// Skip past it if there's a deny rule in place blocking access.
+		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
 func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	if err := a.serverAction(); err != nil {
+	tracker, err := a.authServer.GetSessionTracker(ctx, sessionID)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetSessionTracker(ctx, sessionID)
+	if err := a.serverAction(); err == nil {
+		return tracker, nil
+	}
+
+	user := a.context.User
+	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ok := a.filterSessionTracker(ctx, joinerRoles, tracker)
+	if !ok {
+		return nil, trace.NotFound("session %v not found", sessionID)
+	}
+
+	return tracker, nil
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.
@@ -283,53 +347,24 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.serverAction(); err == nil {
+		return sessions, nil
+	}
+
 	var filteredSessions []types.SessionTracker
+	user := a.context.User
+	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	for _, sess := range sessions {
-		evaluator := NewSessionAccessEvaluator(sess.GetHostPolicySets(), sess.GetSessionKind())
-		joinerRoles, err := a.authServer.GetRoles(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		modes, err := evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles})
-		if err == nil || len(modes) > 0 {
-			// Apply RFD 45 RBAC rules to the session if it's SSH.
-			// This is a bit of a hack. It converts to the old legacy format
-			// which we don't have all data for, luckily the fields we don't have aren't made available
-			// to the RBAC filter anyway.
-			if sess.GetKind() == types.KindSSHSession {
-				ruleCtx := &services.Context{User: a.context.User}
-				ruleCtx.SSHSession = &session.Session{
-					ID:             session.ID(sess.GetSessionID()),
-					Namespace:      apidefaults.Namespace,
-					Login:          sess.GetLogin(),
-					Created:        sess.GetCreated(),
-					LastActive:     a.authServer.GetClock().Now(),
-					ServerID:       sess.GetAddress(),
-					ServerAddr:     sess.GetAddress(),
-					ServerHostname: sess.GetHostname(),
-					ClusterName:    sess.GetClusterName(),
-				}
-
-				for _, participant := range sess.GetParticipants() {
-					// We only need to fill in User here since other fields get discarded anyway.
-					ruleCtx.SSHSession.Parties = append(ruleCtx.SSHSession.Parties, session.Party{
-						User: participant.User,
-					})
-				}
-
-				// Skip past it if there's a deny rule in place blocking access.
-				if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
-					continue
-				}
-			}
-
+		ok := a.filterSessionTracker(ctx, joinerRoles, sess)
+		if ok {
 			filteredSessions = append(filteredSessions, sess)
-		} else {
-			log.Warnf("Session %v is not allowed to join: %v", sess.GetSessionID(), err)
 		}
 	}
+
 	return filteredSessions, nil
 }
 
@@ -791,11 +826,11 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 }
 
 // filterNodes filters nodes based off the role of the logged in user.
-func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, error) {
+func (a *ServerWithRoles) filterNodes(checker *nodeChecker, nodes []types.Server) ([]types.Server, error) {
 	// Loop over all nodes and check if the caller has access.
 	var filteredNodes []types.Server
 	for _, node := range nodes {
-		err := a.checkAccessToNode(node)
+		err := checker.CanAccess(node)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
 				continue
@@ -808,39 +843,6 @@ func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, err
 	}
 
 	return filteredNodes, nil
-}
-
-func (a *ServerWithRoles) checkAccessToNode(server types.Server) error {
-	// For certain built-in roles, continue to allow full access and return
-	// the full set of nodes to not break existing clusters during migration.
-	//
-	// In addition, allow proxy (and remote proxy) to access all nodes for its
-	// smart resolution address resolution. Once the smart resolution logic is
-	// moved to the auth server, this logic can be removed.
-	if a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy) ||
-		a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) {
-		return nil
-	}
-
-	roleset, err := services.FetchRoles(a.context.User.GetRoles(), a.authServer, a.context.User.GetTraits())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// MFA is not required to list the nodes, but will be required to connect
-	// to them.
-	mfaParams := services.AccessMFAParams{Verified: true}
-
-	for _, role := range roleset {
-		for _, login := range role.GetLogins(types.Allow) {
-			err := roleset.CheckAccess(server, mfaParams, services.NewLoginMatcher(login))
-			if err == nil {
-				return nil
-			}
-		}
-	}
-
-	return trace.AccessDenied("access to node %q denied", server.GetHostname())
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
@@ -869,8 +871,13 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 		return nil, trace.Wrap(err)
 	}
 
+	checker, err := newNodeChecker(a.context.Checker, a.context.User, a.authServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Run node through filter to check if it's for the connected identity.
-	if filteredNodes, err := a.filterNodes([]types.Server{node}); err != nil {
+	if filteredNodes, err := a.filterNodes(checker, []types.Server{node}); err != nil {
 		return nil, trace.Wrap(err)
 	} else if len(filteredNodes) == 0 {
 		return nil, trace.NotFound("not found")
@@ -892,9 +899,14 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 	}
 	elapsedFetch := time.Since(startFetch)
 
+	checker, err := newNodeChecker(a.context.Checker, a.context.User, a.authServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Filter nodes to return the ones for the connected identity.
 	startFilter := time.Now()
-	filteredNodes, err := a.filterNodes(nodes)
+	filteredNodes, err := a.filterNodes(checker, nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -993,13 +1005,19 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.PredicateExpression = ""
 
 	var resources []types.ResourceWithLabels
+
+	resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	resp, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.ResourceWithLabels) (bool, error) {
 		for _, resource := range nextPage {
 			if len(resources) == limit {
 				break
 			}
 
-			if err := a.checkAccessToResource(resource); err != nil {
+			if err := resourceChecker.CanAccess(resource); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -1027,29 +1045,167 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}, nil
 }
 
-func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
-	switch r := resource.(type) {
+// resourceAccessChecker allows access to be checked differently per resource type.
+type resourceAccessChecker interface {
+	CanAccess(resource types.Resource) error
+}
+
+// resourceChecker is a pass through checker that utilizes the provided
+// services.AccessChecker to check access
+type resourceChecker struct {
+	services.AccessChecker
+}
+
+// CanAccess handles providing the proper services.AccessCheckable resource
+// to the services.AccessChecker
+func (r resourceChecker) CanAccess(resource types.Resource) error {
+	// MFA is not required for operations on app resources but
+	// will be enforced at the connection time.
+	mfaParams := services.AccessMFAParams{Verified: true}
+	switch rr := resource.(type) {
 	case types.AppServer:
-		return a.checkAccessToApp(r.GetApp())
+		return r.CheckAccess(rr.GetApp(), mfaParams)
 	case types.DatabaseServer:
-		return a.checkAccessToDatabase(r.GetDatabase())
-	case types.Server:
-		switch resource.GetKind() {
-		case types.KindKubeService:
-			// KubeServices are present inside the type Server. We need to
-			// filter out the ones that the user doesn't have access to. This
-			// function won't return an AccessDenied because we're not checking
-			// access to the Server itself.
-			return a.filterKubeServices(r)
-		case types.KindNode:
-			return a.checkAccessToNode(r)
-		default:
-			return trace.BadParameter("could not check access to server type %q", resource.GetKind())
-		}
+		return r.CheckAccess(rr.GetDatabase(), mfaParams)
+	case types.Database:
+		return r.CheckAccess(rr, mfaParams)
 	case types.WindowsDesktop:
-		return a.checkAccessToWindowsDesktop(r)
+		return r.CheckAccess(rr, mfaParams)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
+	}
+}
+
+// nodeChecker is a resourceAccessChecker that checks for access to nodes
+type nodeChecker struct {
+	accessChecker services.AccessChecker
+	roleSet       services.RoleSet
+	builtinRole   bool
+}
+
+// newNodeChecker returns a new nodeChecker with the services.RoleSet already loaded for
+// the provided user if necessary. This prevents the need to load the role set each time
+// a node is checked.
+func newNodeChecker(checker services.AccessChecker, user types.User, authServer *Server) (*nodeChecker, error) {
+	// For certain built-in roles, continue to allow full access and return
+	// the full set of nodes to not break existing clusters during migration.
+	//
+	// In addition, allow proxy (and remote proxy) to access all nodes for its
+	// smart resolution address resolution. Once the smart resolution logic is
+	// moved to the auth server, this logic can be removed.
+	if HasBuiltinRole(checker, string(types.RoleAdmin)) ||
+		HasBuiltinRole(checker, string(types.RoleProxy)) ||
+		HasRemoteBuiltinRole(checker, string(types.RoleRemoteProxy)) {
+		return &nodeChecker{
+			accessChecker: checker,
+			builtinRole:   true,
+		}, nil
+	}
+
+	roleSet, err := services.FetchRoles(user.GetRoles(), authServer, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &nodeChecker{
+		accessChecker: checker,
+		roleSet:       roleSet,
+	}, nil
+}
+
+// CanAccess checks if the user has access to the node
+func (n *nodeChecker) CanAccess(resource types.Resource) error {
+	server, ok := resource.(types.Server)
+	if !ok {
+		return trace.BadParameter("unexpected resource type %T", resource)
+	}
+
+	if n.builtinRole {
+		return nil
+	}
+
+	for _, role := range n.roleSet {
+		for _, login := range role.GetLogins(types.Allow) {
+			err := n.roleSet.CheckAccess(server, services.AccessMFAParams{Verified: true}, services.NewLoginMatcher(login))
+			if err == nil {
+				return nil
+			}
+		}
+	}
+
+	return trace.AccessDenied("access to node %q denied", server.GetHostname())
+}
+
+// kubeChecker is a resourceAccessChecker that checks for access to kubernetes services
+type kubeChecker struct {
+	services.AccessChecker
+}
+
+// CanAccess checks if a user has access to kubernetes clusters defined
+// in the server. Any clusters which aren't allowed will be removed from the
+// resource instead of an error being returned.
+func (k *kubeChecker) CanAccess(resource types.Resource) error {
+	server, ok := resource.(types.Server)
+	if !ok {
+		return trace.BadParameter("unexpected resource type %T", resource)
+	}
+
+	// Filter out agents that don't have support for moderated sessions access
+	// checking if the user has any roles that require it.
+	if hasLocalUserRole(k.AccessChecker) {
+		roles := k.AccessChecker.(LocalUserRoleSet)
+		agentVersion, versionErr := semver.NewVersion(server.GetTeleportVersion())
+
+		hasK8SRequirePolicy := func() bool {
+			for _, role := range roles.RoleSet {
+				for _, policy := range role.GetSessionRequirePolicies() {
+					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
+						return true
+					}
+				}
+			}
+
+			return false
+		}
+
+		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
+			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
+		}
+	}
+
+	filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
+	for _, kube := range server.GetKubernetesClusters() {
+		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := k.CheckAccess(k8sV3, services.AccessMFAParams{Verified: true}); err != nil {
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
+		filtered = append(filtered, kube)
+	}
+
+	server.SetKubernetesClusters(filtered)
+	return nil
+}
+
+// newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
+func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
+	switch resource {
+	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop:
+		return &resourceChecker{AccessChecker: a.context.Checker}, nil
+	case types.KindNode:
+		return newNodeChecker(a.context.Checker, a.context.User, a.authServer)
+	case types.KindKubeService:
+		return &kubeChecker{AccessChecker: a.context.Checker}, nil
+	default:
+		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
 }
 
@@ -1174,10 +1330,15 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 	realLabels := req.Labels
 	req.Labels = nil
 
+	checker, err := newNodeChecker(a.context.Checker, a.context.User, a.authServer)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
 	page = make([]types.Server, 0, limit)
 	nextKey, err = a.authServer.IterateNodePages(ctx, req, func(nextPage []types.Server) (bool, error) {
 		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
-		filteredPage, err := a.filterNodes(nextPage)
+		filteredPage, err := a.filterNodes(checker, nextPage)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -1302,11 +1463,11 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 	return a.authServer.DeleteToken(ctx, token)
 }
 
-func (a *ServerWithRoles) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
+func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetTokens(ctx, opts...)
+	return a.authServer.GetTokens(ctx)
 }
 
 func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
@@ -1792,6 +1953,24 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 	return a.authServer.Identity.GetUser(name, withSecrets)
 }
 
+// GetCurrentUser returns current user as seen by the server.
+// Useful especially in the context of remote clusters which perform role and trait mapping.
+func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error) {
+	// check access to roles
+	for _, role := range a.context.User.GetRoles() {
+		_, err := a.GetRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	usrRes := a.context.User.WithoutSecrets()
+	if usr, ok := usrRes.(types.User); ok {
+		return usr, nil
+	}
+	return nil, trace.BadParameter("expected types.User when fetching current user information, got %T", usrRes)
+}
+
 // DeleteUser deletes an existng user in a backend by username.
 func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbDelete); err != nil {
@@ -1964,19 +2143,25 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
+	var requestedResourceIDs []types.ResourceID
 	if len(req.AccessRequests) > 0 {
 		// add any applicable access request values.
 		req.AccessRequests = apiutils.Deduplicate(req.AccessRequests)
 		for _, reqID := range req.AccessRequests {
-			newRoles, accessRequestExpiry, err := a.authServer.getRolesAndExpiryFromAccessRequest(ctx, req.Username, reqID)
+			accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, req.Username, reqID)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if accessRequestExpiry.Before(req.Expires) {
+			if accessRequest.GetAccessExpiry().Before(req.Expires) {
 				// cannot generate a cert that would outlive the access request
-				req.Expires = accessRequestExpiry
+				req.Expires = accessRequest.GetAccessExpiry()
 			}
-			roles = append(roles, newRoles...)
+			roles = append(roles, accessRequest.GetRoles()...)
+
+			if len(accessRequest.GetRequestedResourceIDs()) > 0 && len(requestedResourceIDs) > 0 {
+				return nil, trace.BadParameter("cannot generate certificate with multiple search-based access requests")
+			}
+			requestedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
 		// nothing prevents an access-request from including roles already possessed by the
 		// user, so we must make sure to trim duplicate roles.
@@ -2078,6 +2263,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
+		requestedResourceIDs: requestedResourceIDs,
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -2296,19 +2482,34 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*
 		return nil, trace.Wrap(err)
 	}
 
+	// require additional permissions for executing SSO test flow.
+	if req.SSOTestFlow {
+		if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(req)
 	if err != nil {
-		// TODO(Tener): Update `testFlow` flag once OIDC SSO starts supporting test flows.
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err, false)
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
 		return nil, trace.Wrap(err)
 	}
 
 	return oidcReq, nil
 }
 
-func (a *ServerWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+// GetOIDCAuthRequest returns OIDC auth request if found.
+func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error) {
+	if err := a.action(apidefaults.Namespace, types.KindOIDCRequest, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetOIDCAuthRequest(ctx, id)
+}
+
+func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
-	return a.authServer.ValidateOIDCAuthCallback(q)
+	return a.authServer.ValidateOIDCAuthCallback(ctx, q)
 }
 
 func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
@@ -2316,16 +2517,6 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteOIDCConnector(ctx, connectorID)
-}
-
-func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if modules.GetModules().Features().SAML == false {
-		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
-	}
-	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
@@ -2435,16 +2626,6 @@ func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID s
 	return a.authServer.DeleteSAMLConnector(ctx, connectorID)
 }
 
-func (a *ServerWithRoles) CreateGithubConnector(connector types.GithubConnector) error {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.checkGithubConnector(connector); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.CreateGithubConnector(connector)
-}
-
 func (a *ServerWithRoles) checkGithubConnector(connector types.GithubConnector) error {
 	mapping := connector.GetTeamsToLogins()
 	for _, team := range mapping {
@@ -2518,18 +2699,33 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest
 		return nil, trace.Wrap(err)
 	}
 
+	// require additional permissions for executing SSO test flow.
+	if req.SSOTestFlow {
+		if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	githubReq, err := a.authServer.CreateGithubAuthRequest(req)
 	if err != nil {
-		// TODO(Tener): Update `testFlow` flag once GitHub SSO starts supporting test flows.
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, false)
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
 		return nil, trace.Wrap(err)
 	}
 
 	return githubReq, nil
 }
 
-func (a *ServerWithRoles) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
-	return a.authServer.ValidateGithubAuthCallback(q)
+// GetGithubAuthRequest returns Github auth request if found.
+func (a *ServerWithRoles) GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error) {
+	if err := a.action(apidefaults.Namespace, types.KindGithubRequest, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetGithubAuthRequest(ctx, id)
+}
+
+func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+	return a.authServer.ValidateGithubAuthCallback(ctx, q)
 }
 
 // EmitAuditEvent emits a single audit event
@@ -3650,66 +3846,16 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 		return nil, trace.Wrap(err)
 	}
 
+	checker := kubeChecker{a.context.Checker}
+
 	for _, server := range servers {
-		err = a.filterKubeServices(server)
+		err = checker.CanAccess(server)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	return servers, nil
-}
-
-// filterKubeServices filters out kube clusters on server and only
-// return the kube clusters the caller has access to.
-func (a *ServerWithRoles) filterKubeServices(server types.Server) error {
-	// MFA is not required to list the clusters, but will be required to
-	// connect to them.
-	mfaParams := services.AccessMFAParams{Verified: true}
-
-	// Filter out agents that don't have support for moderated sessions access
-	// checking if the user has any roles that require it.
-	if hasLocalUserRole(a.context.Checker) {
-		roles := a.context.Checker.(LocalUserRoleSet)
-		agentVersion, versionErr := semver.NewVersion(server.GetTeleportVersion())
-
-		hasK8SRequirePolicy := func() bool {
-			for _, role := range roles.RoleSet {
-				for _, policy := range role.GetSessionRequirePolicies() {
-					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
-						return true
-					}
-				}
-			}
-
-			return false
-		}
-
-		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
-			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
-		}
-	}
-
-	filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
-	for _, kube := range server.GetKubernetesClusters() {
-		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
-			if trace.IsAccessDenied(err) {
-				continue
-			}
-
-			return trace.Wrap(err)
-		}
-
-		filtered = append(filtered, kube)
-	}
-
-	server.SetKubernetesClusters(filtered)
-	return nil
 }
 
 // DeleteKubeService deletes a named kubernetes service.

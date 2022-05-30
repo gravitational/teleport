@@ -41,6 +41,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/google/uuid"
@@ -200,7 +201,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			WindowsDesktops:       cfg.WindowsDesktops,
 			SessionTrackerService: cfg.SessionTrackerService,
 		},
-		keyStore: keyStore,
+		keyStore:     keyStore,
+		getClaimsFun: getClaims,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -360,6 +362,9 @@ type Server struct {
 
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
+
+	// getClaimsFun is used in tests for overriding the implementation of getClaims method used in OIDC.
+	getClaimsFun func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
 }
 
 // SetCache sets cache used by auth server
@@ -740,6 +745,9 @@ type certRequest struct {
 	// activeRequests tracks privilege escalation requests applied
 	// during the construction of the certificate.
 	activeRequests services.RequestIDs
+	// requestedResourceIDs lists the resources to which access has been
+	// requested.
+	requestedResourceIDs []types.ResourceID
 	// appSessionID is the session ID of the application session.
 	appSessionID string
 	// appPublicAddr is the public address of the application.
@@ -1048,6 +1056,11 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, "-teleport-internal-join")
 
+	requestedResourcesStr, err := services.ResourceIDsToString(req.requestedResourceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	params := services.UserCertParams{
 		CASigner:              caSigner,
 		CASigningAlg:          sshutils.GetSigningAlgName(userCA),
@@ -1070,6 +1083,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Renewable:             req.renewable,
 		Generation:            req.generation,
 		CertificateExtensions: req.checker.CertificateExtensions(),
+		AllowedResourceIDs:    requestedResourcesStr,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1141,15 +1155,16 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			Username:    req.dbUser,
 			Database:    req.dbName,
 		},
-		DatabaseNames:   dbNames,
-		DatabaseUsers:   dbUsers,
-		MFAVerified:     req.mfaVerified,
-		ClientIP:        req.clientIP,
-		AWSRoleARNs:     roleARNs,
-		ActiveRequests:  req.activeRequests.AccessRequests,
-		DisallowReissue: req.disallowReissue,
-		Renewable:       req.renewable,
-		Generation:      req.generation,
+		DatabaseNames:      dbNames,
+		DatabaseUsers:      dbUsers,
+		MFAVerified:        req.mfaVerified,
+		ClientIP:           req.clientIP,
+		AWSRoleARNs:        roleARNs,
+		ActiveRequests:     req.activeRequests.AccessRequests,
+		DisallowReissue:    req.disallowReissue,
+		Renewable:          req.renewable,
+		Generation:         req.generation,
+		AllowedResourceIDs: requestedResourcesStr,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1814,19 +1829,21 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	accessRequests := identity.ActiveRequests
+	requestedResourceIDs := []types.ResourceID{}
 	if req.AccessRequestID != "" {
-		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(ctx, req.User, req.AccessRequestID)
+		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		roles = append(roles, newRoles...)
+		roles = append(roles, accessRequest.GetRoles()...)
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
+		requestedResourceIDs = accessRequest.GetRequestedResourceIDs()
 
 		// Let session expire with the shortest expiry time.
-		if expiresAt.After(requestExpiry) {
-			expiresAt = requestExpiry
+		if expiresAt.After(accessRequest.GetAccessExpiry()) {
+			expiresAt = accessRequest.GetAccessExpiry()
 		}
 	}
 
@@ -1857,11 +1874,12 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:           req.User,
-		Roles:          roles,
-		Traits:         traits,
-		SessionTTL:     sessionTTL,
-		AccessRequests: accessRequests,
+		User:                 req.User,
+		Roles:                roles,
+		Traits:               traits,
+		SessionTTL:           sessionTTL,
+		AccessRequests:       accessRequests,
+		RequestedResourceIDs: requestedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1877,7 +1895,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	return sess, nil
 }
 
-func (a *Server) getRolesAndExpiryFromAccessRequest(ctx context.Context, user, accessRequestID string) ([]string, time.Time, error) {
+func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequestID string) (types.AccessRequest, error) {
 	reqFilter := types.AccessRequestFilter{
 		User: user,
 		ID:   accessRequestID,
@@ -1885,37 +1903,32 @@ func (a *Server) getRolesAndExpiryFromAccessRequest(ctx context.Context, user, a
 
 	reqs, err := a.GetAccessRequests(ctx, reqFilter)
 	if err != nil {
-		return nil, time.Time{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if len(reqs) < 1 {
-		return nil, time.Time{}, trace.NotFound("access request %q not found", accessRequestID)
+		return nil, trace.NotFound("access request %q not found", accessRequestID)
 	}
 
 	req := reqs[0]
 
-	if len(req.GetRequestedResourceIDs()) > 0 {
-		// TODO(nic): handle search-based access requests #10887
-		return nil, time.Time{}, trace.BadParameter("search-based access requests are not yet supported")
-	}
-
 	if !req.GetState().IsApproved() {
 		if req.GetState().IsDenied() {
-			return nil, time.Time{}, trace.AccessDenied("access request %q has been denied", accessRequestID)
+			return nil, trace.AccessDenied("access request %q has been denied", accessRequestID)
 		}
-		return nil, time.Time{}, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
+		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
 	if err := services.ValidateAccessRequestForUser(a, req); err != nil {
-		return nil, time.Time{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	accessExpiry := req.GetAccessExpiry()
 	if accessExpiry.Before(a.GetClock().Now()) {
-		return nil, time.Time{}, trace.BadParameter("access request %q has expired", accessRequestID)
+		return nil, trace.BadParameter("access request %q has expired", accessRequestID)
 	}
 
-	return req.GetRoles(), accessExpiry, nil
+	return req, nil
 }
 
 // CreateWebSession creates a new web session for user without any
@@ -2324,12 +2337,13 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:           user,
-		ttl:            sessionTTL,
-		publicKey:      pub,
-		checker:        checker,
-		traits:         req.Traits,
-		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+		user:                 user,
+		ttl:                  sessionTTL,
+		publicKey:            pub,
+		checker:              checker,
+		traits:               req.Traits,
+		activeRequests:       services.RequestIDs{AccessRequests: req.AccessRequests},
+		requestedResourceIDs: req.RequestedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3361,7 +3375,8 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 // username.
 func (a *Server) validateMFAAuthResponse(
 	ctx context.Context,
-	resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	resp *proto.MFAAuthenticateResponse, user string, passwordless bool,
+) (*types.MFADevice, string, error) {
 	// Sanity check user/passwordless.
 	if user == "" && !passwordless {
 		return nil, "", trace.BadParameter("user required")
@@ -3469,7 +3484,8 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 	ctx context.Context,
 	currentCA types.CertAuthority,
 	newKeys types.CAKeySet,
-	needsUpdate func(types.CertAuthority) bool) error {
+	needsUpdate func(types.CertAuthority) bool,
+) error {
 	for {
 		select {
 		case <-a.closeCtx.Done():
