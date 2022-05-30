@@ -231,10 +231,6 @@ const (
 type SessionRecordingMode string
 
 const (
-	// SessionRecordingModeEmpty is used to identify the absence of recording
-	// mode.
-	SessionRecordingModeEmpty = SessionRecordingMode("")
-
 	// SessionRecordingModeStrict causes any failure session recording to
 	// terminate the session or prevent a new session from starting.
 	SessionRecordingModeStrict = SessionRecordingMode("strict")
