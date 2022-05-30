@@ -48,7 +48,7 @@ func darwinPushPipeline() pipeline {
 	p := newDarwinPipeline("push-build-darwin-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
-		Branch: triggerRef{Include: []string{"master", "branch/*", "zmb3/build-teleport-connect"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*"}},
 		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
 	p.Steps = []step{
@@ -72,18 +72,8 @@ func darwinPushPipeline() pipeline {
 				"OS":            {raw: "darwin"},
 				"ARCH":          {raw: "amd64"},
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
-
-				// TODO(tcsc): remnove before merge
-				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
-
-				// These credentials are necessary for the signing and notarization of
-				// Teleport Connect, which is built in to the Electron tooling.
-				// The rest of the mac artifacts are signed and notarized with gon
-				// in the darwin pkg pipeline.
-				"APPLE_USERNAME": {fromSecret: "APPLE_USERNAME"},
-				"APPLE_PASSWORD": {fromSecret: "APPLE_PASSWORD"},
 			},
-			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: true}),
+			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: false}),
 		},
 		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),

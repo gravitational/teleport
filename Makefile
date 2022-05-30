@@ -170,6 +170,15 @@ LIBFIDO2_MESSAGE := with libfido2
 LIBFIDO2_BUILD_TAG := libfido2 libfido2static
 endif
 
+# Enable Touch ID builds?
+# Only build if TOUCHID=yes to avoid issues when cross-compiling to 'darwin'
+# from other systems.
+TOUCHID_MESSAGE := without Touch ID
+ifeq ("$(TOUCHID)", "yes")
+TOUCHID_MESSAGE := with Touch ID
+TOUCHID_TAG := touchid
+endif
+
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
@@ -179,7 +188,7 @@ endif
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE) and $(RDPCLIENT_MESSAGE) and $(LIBFIDO2_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE) and $(RDPCLIENT_MESSAGE) and $(LIBFIDO2_MESSAGE) and $(TOUCHID_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
@@ -225,7 +234,7 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
@@ -514,7 +523,7 @@ test-go: FLAGS ?= -race -shuffle on
 test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh)
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 # rdpclient and libfido2 don't play well together, so we run libfido2 tests
@@ -526,7 +535,13 @@ ifneq ("$(LIBFIDO2_TEST_TAG)", "")
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 endif
-	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
+# Make sure untagged touchid code build/tests.
+ifneq ("$(TOUCHID_TAG)", "")
+	$(CGOFLAG) go test -cover -json ./lib/auth/touchid/... $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| ${RENDER_TESTS}
+endif
+	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
@@ -650,7 +665,7 @@ endif
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG)' $(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG)' $(GO_LINT_FLAGS)
 
 .PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=

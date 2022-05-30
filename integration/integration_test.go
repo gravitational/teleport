@@ -45,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -4329,12 +4330,12 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 
 	t.Log("change signature algorithm with custom config value and manual rotation")
 	// Change the signing algorithm in config file.
-	signingAlg := ssh.SigAlgoRSA
+	signingAlg := ssh.KeyAlgoRSA
 	config.CASignatureAlgorithm = &signingAlg
 	svc, cancel = restart(svc, cancel)
 	// Do a manual rotation - this should change the signing algorithm.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	t.Log("preserve signature algorithm with empty config value and manual rotation")
 	// Unset the config value.
@@ -4344,7 +4345,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 	// Do a manual rotation - this should leave the signing algorithm
 	// unaffected because config value is not set.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	// shut down the service
 	cancel()
@@ -4516,7 +4517,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
-		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
+		cl.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
 			err = s.WindowChange(48, 160)
 			if err != nil {
 				return true, trace.Wrap(err)

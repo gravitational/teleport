@@ -647,12 +647,14 @@ type kubeLSCommand struct {
 	predicateExpr  string
 	searchKeywords string
 	format         string
+	siteName       string
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of kubernetes clusters"),
 	}
+	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
@@ -664,6 +666,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.UserHost = c.labels
 	cf.PredicateExpression = c.predicateExpr
+	cf.SiteName = c.siteName
 
 	tc, err := makeClient(cf, true)
 	if err != nil {
@@ -736,12 +739,14 @@ func selectedKubeCluster(currentTeleportCluster string) string {
 type kubeLoginCommand struct {
 	*kingpin.CmdClause
 	kubeCluster string
+	siteName    string
 }
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
 		CmdClause: parent.Command("login", "Login to a kubernetes cluster"),
 	}
+	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
 	return c
 }
@@ -749,7 +754,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
 	cf.KubernetesCluster = c.kubeCluster
-
+	cf.SiteName = c.siteName
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
