@@ -1736,9 +1736,9 @@ func (s *session) emitAuditEvent(ctx context.Context, event apievents.AuditEvent
 		}
 		s.setRecorder(newRecorder)
 
-		return newRecorder.EmitAuditEvent(ctx, event)
+		return trace.Wrap(newRecorder.EmitAuditEvent(ctx, event))
 	default:
-		return rec.EmitAuditEvent(ctx, event)
+		return trace.Wrap(rec.EmitAuditEvent(ctx, event))
 	}
 }
 
