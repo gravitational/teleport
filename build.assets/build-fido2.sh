@@ -16,7 +16,7 @@ readonly CBOR_VERSION=v0.9.0
 readonly CRYPTO_VERSION=OpenSSL_1_1_1o
 readonly FIDO2_VERSION=1.11.0
 
-readonly LIB_CACHE="$HOME/.teleport-fido2-cache"
+readonly LIB_CACHE="/tmp/teleport-fido2-cache"
 
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"
 
