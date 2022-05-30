@@ -19,6 +19,11 @@ import (
 	"path"
 )
 
+const (
+	perBuildDir           = "/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED"
+	perBuildToolchainsDir = perBuildDir + "/toolchains"
+)
+
 // escapedPreformatted returns expr wrapped in escaped backticks,
 // resulting in Slack "preformatted" string, but safe to use in bash
 // without triggering the command expansion.
@@ -65,6 +70,16 @@ func darwinPushPipeline() pipeline {
 				"OS":            {raw: "darwin"},
 				"ARCH":          {raw: "amd64"},
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+
+				// TODO(tcsc): remnove before merge
+				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
+
+				// These credentials are necessary for the signing and notarization of
+				// Teleport Connect, which is built in to the Electron tooling.
+				// The rest of the mac artifacts are signed and notarized with gon
+				// in the darwin pkg pipeline.
+				"APPLE_USERNAME": {fromSecret: "APPLE_USERNAME"},
+				"APPLE_PASSWORD": {fromSecret: "APPLE_PASSWORD"},
 			},
 			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: true}),
 		},
@@ -223,9 +238,9 @@ func installGoToolchainStep() step {
 		},
 		Commands: []string{
 			`set -u`,
-			`mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`mkdir -p ` + perBuildToolchainsDir,
 			`curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz`,
-			`tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz`,
+			`tar -C  ` + perBuildToolchainsDir + ` -xzf $RUNTIME.darwin-amd64.tar.gz`,
 			`rm -rf $RUNTIME.darwin-amd64.tar.gz`,
 		},
 	}
@@ -237,10 +252,10 @@ func installRustToolchainStep(path string) step {
 		Environment: map[string]value{"WORKSPACE_DIR": {raw: path}},
 		Commands: []string{
 			`set -u`,
-			`export PATH=/Users/build/.cargo/bin:$PATH`,
-			`mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export PATH=/Users/$(whoami)/.cargo/bin:$PATH`, // use the system-installed rustup
+			`mkdir -p ` + perBuildToolchainsDir,
 			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
-			`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export CARGO_HOME=` + perBuildToolchainsDir,
 			`export RUST_HOME=$CARGO_HOME`,
 			`rustup toolchain install $RUST_VERSION`,
 		},
@@ -254,7 +269,7 @@ func installNodeToolchainStep(workspacePath string) step {
 		Commands: []string{
 			`set -u`,
 			`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
-			`export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
 			`export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
 			`mkdir -p $TOOLCHAIN_DIR`,
 			`curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz`,
@@ -277,8 +292,8 @@ func cleanUpToolchainsStep(path string) step {
 		},
 		Commands: []string{
 			`set -u`,
-			`export PATH=/Users/build/.cargo/bin:$PATH`,
-			`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export PATH=/Users/$(whoami)/.cargo/bin:$PATH`,
+			`export CARGO_HOME=` + perBuildToolchainsDir,
 			`export RUST_HOME=$CARGO_HOME`,
 			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
@@ -286,7 +301,7 @@ func cleanUpToolchainsStep(path string) step {
 			// this ensures we don't leave behind a broken link
 			`rustup override unset`,
 			`rustup toolchain uninstall $RUST_VERSION`,
-			`rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`rm -rf ` + perBuildToolchainsDir,
 		},
 	}
 }
@@ -321,7 +336,7 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		`set -u`,
 		`echo HOME=$${HOME}`,
 		`export HOME=/Users/$(whoami)`,
-		`export TOOLCHAIN_DIR=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
 		`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
 		`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 		`export CARGO_HOME=$TOOLCHAIN_DIR`,
@@ -334,7 +349,6 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 
 	if opts.unlockKeychain {
 		commands = append(commands,
-			`export HOME=/Users/build`,
 			`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
 			`security find-identity -v`,
 		)
