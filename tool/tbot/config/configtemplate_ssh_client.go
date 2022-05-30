@@ -42,8 +42,9 @@ import (
 // TemplateSSHClient contains parameters for the ssh_config config
 // template
 type TemplateSSHClient struct {
-	ProxyPort     uint16 `yaml:"proxy_port"`
-	getSSHVersion func() (*semver.Version, error)
+	ProxyPort         uint16 `yaml:"proxy_port"`
+	getSSHVersion     func() (*semver.Version, error)
+	getExecutablePath func() (string, error)
 }
 
 // openSSHVersionRegex is a regex used to parse OpenSSH version strings.
@@ -121,6 +122,9 @@ func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 	}
 	if c.getSSHVersion == nil {
 		c.getSSHVersion = getSystemSSHVersion
+	}
+	if c.getExecutablePath == nil {
+		c.getExecutablePath = os.Executable
 	}
 	return nil
 }
@@ -222,7 +226,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 		log.Debugf("OpenSSH version %s will use workaround for RSA deprecation", version)
 	}
 
-	executablePath, err := os.Executable()
+	executablePath, err := c.getExecutablePath()
 	if err != nil {
 		return trace.Wrap(err)
 	}

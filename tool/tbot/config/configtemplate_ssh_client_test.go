@@ -92,6 +92,9 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 		getSSHVersion: func() (*semver.Version, error) {
 			return openSSHMinVersionForRSAWorkaround, nil
 		},
+		getExecutablePath: func() (string, error) {
+			return "/path/to/tbot", nil
+		},
 	}
 	// ident is passed in, but not used.
 	var ident *identity.Identity
