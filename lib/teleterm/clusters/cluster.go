@@ -57,19 +57,26 @@ func (c *Cluster) Connected() bool {
 
 // GetRoles returns currently logged-in user roles
 func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
-	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+	var roles []*types.Role
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		for _, name := range c.status.Roles {
+			role, err := proxyClient.GetRole(ctx, name)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			roles = append(roles, &role)
+		}
+
+		return nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	roles := []*types.Role{}
-	for _, name := range c.status.Roles {
-		role, err := proxyClient.GetRole(ctx, name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles = append(roles, &role)
 	}
 
 	return roles, nil
