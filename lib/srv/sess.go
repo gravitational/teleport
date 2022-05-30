@@ -651,8 +651,8 @@ func (s *session) Close() error {
 	}
 
 	// Complete the session recording
-	if s.Recorder() != nil {
-		if err := s.Recorder().Complete(s.serverCtx); err != nil {
+	if recorder := s.Recorder(); recorder != nil {
+		if err := recorder.Complete(s.serverCtx); err != nil {
 			s.log.WithError(err).Warn("Failed to close recorder.")
 		}
 	}
