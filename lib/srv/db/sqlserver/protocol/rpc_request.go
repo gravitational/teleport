@@ -114,8 +114,16 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 	return &RPCRequest{
 		Packet:     p,
 		ProcName:   procName,
-		Parameters: []string{fmt.Sprintf("%v", val)},
+		Parameters: getParameters(val),
 	}, nil
+}
+
+func getParameters(val interface{}) []string {
+	if val == nil {
+		return nil
+	}
+	return []string{fmt.Sprintf("%v", val)}
+
 }
 
 func getProcName(procID uint16) (string, error) {

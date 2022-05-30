@@ -119,22 +119,28 @@ func ReadPacket(r io.Reader) (*BasicPacket, error) {
 }
 
 // ToSQLPacket tries to convert basicPacket to MSServer SQL packet.
-func ToSQLPacket(p *BasicPacket) (Packet, error) {
+func ToSQLPacket(p *BasicPacket) (out Packet, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = trace.BadParameter("failed to convert packet to SQL packet: %v", r)
+		}
+	}()
+
 	switch p.Type() {
 	case PacketTypeRPCRequest:
 		sqlBatch, err := toRPCRequest(p)
 		if err != nil {
 			return p, trace.Wrap(err)
 		}
-		return sqlBatch, nil
+		return sqlBatch, trace.Wrap(err)
 	case PacketTypeSQLBatch:
 		rpcRequest, err := toSQLBatch(p)
 		if err != nil {
 			return p, trace.Wrap(err)
 		}
-		return rpcRequest, nil
+		return rpcRequest, trace.Wrap(err)
 	}
-	return p, nil
+	return p, trace.Wrap(err)
 }
 
 // makePacket prepends header to the provided packet data.
