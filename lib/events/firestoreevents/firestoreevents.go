@@ -406,6 +406,16 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 	var values []events.EventFields
 	var err error
 	totalSize := 0
+	var checkpointParts []string
+	var checkpointTime int
+
+	if lastKey != "" {
+		checkpointParts = strings.Split(lastKey, ":")
+		checkpointTime, err = strconv.Atoi(checkpointParts[0])
+		if err != nil {
+			return nil, "", trace.BadParameter("invalid checkpoint key: %q", lastKey)
+		}
+	}
 
 	modifyquery := func(query firestore.Query) firestore.Query {
 		if len(filter.eventTypes) > 0 {
@@ -413,14 +423,8 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 		}
 
 		if lastKey != "" {
-			parts := strings.Split(lastKey, ":")
-			time, err := strconv.Atoi(parts[0])
-			if err != nil {
-				panic("invalid start key")
-			}
-
 			query = query.OrderBy(firestore.DocumentID, firestore.Asc)
-			query = query.StartAfter(time, parts[1])
+			query = query.StartAfter(checkpointTime, checkpointParts[1])
 		}
 
 		return query
