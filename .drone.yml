@@ -3045,7 +3045,7 @@ steps:
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
     $FILE > $FILE.sha256; done && ls -l
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in "Teleport Connect Preview"*.dmg;
-    do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+    do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Upload to S3
@@ -5476,6 +5476,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: cfbd2fc4f510b42e7d0ff60f6ef93696636d55f72ee1c22a1a726b3354165847
+hmac: 1ba640deb5d2bf6242227ec6b149b9d92ab5cf1ccb6845865cc49dad056a9d3a
 
 ...
