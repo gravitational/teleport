@@ -1,5 +1,33 @@
 # Changelog
 
+## 9.3.0
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tctl` not taking `TELEPORT_HOME` environment variable into account. [#12738](https://github.com/gravitational/teleport/pull/12738)
+* Fixed issue with Redis `AUTH` command not always authenticating the user in database access. [#12754](https://github.com/gravitational/teleport/pull/12754)
+* Fixed issue with Teleport not starting with deprecated U2F configuration. [#12826](https://github.com/gravitational/teleport/pull/12826)
+* Fixed issue with `tsh db ls` not showing allowed users for leaf clusters. [#12853](https://github.com/gravitational/teleport/pull/12853)
+* Fixed issue with `teleport configure` failing when given non-existent data directory. [#12806](https://github.com/gravitational/teleport/pull/12806)
+* Fixed issue with `tctl` not outputting debug logs. [#12920](https://github.com/gravitational/teleport/pull/12920)
+* Fixed issue with Kubernetes access not working when using default CA pool. [#12874](https://github.com/gravitational/teleport/pull/12874)
+* Fixed issue with Machine ID not working in TLS routing mode. [#12990](https://github.com/gravitational/teleport/pull/12990)
+* Improved connection performance in large clusters. [#12832](https://github.com/gravitational/teleport/pull/12832)
+* Improved memory usage in large clusters. [#12724](https://github.com/gravitational/teleport/pull/12724)
+
+### Breaking Changes
+
+Teleport 9.3.0 reduces the minimum GLIBC requirement to 2.18 and enforces more
+secure cipher suites for desktop access.
+
+As a result of these changes, desktop access users with desktops running Windows
+Server 2012R2 will need to perform
+[additional configuration](https://goteleport.com/docs/desktop-access/getting-started/#step-47-configure-a-certificate-for-rdp-connections)
+to force Windows to use commpatible cipher suites.
+
+Windows desktops running Windows Server 2016 and newer will continue to operate
+normally - no additional configuration is required.
+
 ## 9.2.4
 
 This release of Teleport contains multiple improvements and bug fixes.
