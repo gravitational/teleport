@@ -22,6 +22,8 @@ import (
 const (
 	perBuildDir           = "/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED"
 	perBuildToolchainsDir = perBuildDir + "/toolchains"
+	perBuildCargoDir      = perBuildToolchainsDir + "/cargo"
+	perBuildRustupDir     = perBuildToolchainsDir + "/rustup"
 )
 
 // escapedPreformatted returns expr wrapped in escaped backticks,
@@ -252,11 +254,12 @@ func installRustToolchainStep(path string) step {
 		Environment: map[string]value{"WORKSPACE_DIR": {raw: path}},
 		Commands: []string{
 			`set -u`,
-			`export PATH=/Users/$(whoami)/.cargo/bin:$PATH`, // use the system-installed rustup
+			`export PATH=/Users/$(whoami)/.cargo/bin:$PATH`, // use the system-installed rustup to install our custom Rust version
 			`mkdir -p ` + perBuildToolchainsDir,
 			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
-			`export CARGO_HOME=` + perBuildToolchainsDir,
+			`export CARGO_HOME=` + perBuildCargoDir,
 			`export RUST_HOME=$CARGO_HOME`,
+			`export RUSTUP_HOME=` + perBuildRustupDir,
 			`rustup toolchain install $RUST_VERSION`,
 		},
 	}
@@ -295,6 +298,7 @@ func cleanUpToolchainsStep(path string) step {
 			`export PATH=/Users/$(whoami)/.cargo/bin:$PATH`,
 			`export CARGO_HOME=` + perBuildToolchainsDir,
 			`export RUST_HOME=$CARGO_HOME`,
+			`export RUSTUP_HOME=` + perBuildRustupDir,
 			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			// clean up the rust toolchain even though we're about to delete the directory
@@ -339,8 +343,9 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
 		`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
 		`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
-		`export CARGO_HOME=$TOOLCHAIN_DIR`,
+		`export CARGO_HOME=` + perBuildCargoDir,
 		`export RUST_HOME=$CARGO_HOME`,
+		`export RUSTUP_HOME=` + perBuildRustupDir,
 		`export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
 		`export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
