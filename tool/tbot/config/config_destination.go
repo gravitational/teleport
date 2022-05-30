@@ -51,6 +51,11 @@ type DestinationConfig struct {
 	Roles   []string         `yaml:"roles,omitempty"`
 	Configs []TemplateConfig `yaml:"configs,omitempty"`
 
+	// Kinds is a deprecated and unused field that remains for compatibility
+	// reasons.
+	// DELETE IN 11.0.0: Kinds should be removed after a grace period.
+	Kinds []string `yaml:"kinds,omitempty"`
+
 	Database *DatabaseConfig `yaml:"database,omitempty"`
 }
 
@@ -107,6 +112,12 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	if len(dc.Kinds) > 0 {
+		log.Warnf("The `kinds` configuration field has been deprecated and " +
+			"will be removed in a future release. It is now a no-op and can " +
+			"safely be removed from the configuration file.")
+	}
+
 	return nil
 }
 
@@ -118,13 +129,18 @@ func (dc *DestinationConfig) ListSubdirectories() ([]string, error) {
 	// properly on the fly.
 	var subdirs []string
 
+	dest, err := dc.GetDestination()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	for _, config := range dc.Configs {
 		template, err := config.GetConfigTemplate()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, file := range template.Describe() {
+		for _, file := range template.Describe(dest) {
 			if file.IsDir {
 				subdirs = append(subdirs, file.Name)
 			}

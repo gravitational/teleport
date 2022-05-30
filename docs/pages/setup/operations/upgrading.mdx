@@ -1,7 +1,10 @@
 ---
-title: Upgrading
+title: Upgrading a Teleport Cluster
 description: How to upgrade Teleport components
 ---
+
+In this guide, we will show you how to upgrade all of the components in your
+Teleport cluster.
 
 ## Production releases
 
@@ -47,6 +50,10 @@ When running multiple binaries of Teleport within a cluster, the following rules
   9.x.x Node will work with an 8.x.x Proxy Service. This also means you must not
   attempt to upgrade from 6.x.x straight to 8.x.x. You must upgrade to 7.x.x
   first.
+- Proxy Services and Nodes do not support Auth Services that are on an older major
+  version, and will fail to connect to older Auth Services by default. This behavior
+  can be overridden by passing `--skip-version-check` when starting Proxy Services and
+  Nodes.
 
 ## Backup
 
@@ -96,3 +103,8 @@ When upgrading multiple clusters:
 
 </TabItem>
 </Tabs>
+
+## Further reading
+
+If you would like to learn how to upgrade a single `teleport` binary, read
+[Upgrade the Teleport Binary](../admin/graceful-restarts.mdx).

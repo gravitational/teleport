@@ -209,6 +209,13 @@ func generateIdentity(
 		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
 	}
 
+	// Do not trust SSH CA certs as returned by GenerateUserCerts() with an
+	// impersonated identity. It only returns the SSH UserCA in this context,
+	// but we also need the HostCA and can't directly set `includeHostCA` as
+	// part of the UserCertsRequest.
+	// Instead, copy the SSHCACerts from the primary identity.
+	certs.SSHCACerts = currentIdentity.SSHCACertBytes
+
 	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
 		PrivateKeyBytes: privateKey,
 		PublicKeyBytes:  publicKey,
@@ -371,8 +378,6 @@ func renewIdentityViaAuth(
 	currentIdentity *identity.Identity,
 	cfg *config.BotConfig,
 ) (*identity.Identity, error) {
-	// TODO: enforce expiration > renewal period (by what mwargin?)
-
 	// If using the IAM join method we always go through the initial join flow
 	// and fetch new nonrenewable certs
 	var joinMethod types.JoinMethod
