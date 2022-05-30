@@ -84,7 +84,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) 
 
 func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
 	ctx := context.TODO()
-	connector, provider, err := a.getConnectorAndProvider(ctx, req)
+	connector, provider, err := a.getSAMLConnectorAndProvider(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,7 +123,7 @@ func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 	return &req, nil
 }
 
-func (a *Server) getConnectorAndProvider(ctx context.Context, req services.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
+func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req services.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
 	if req.SSOTestFlow {
 		if req.ConnectorSpec == nil {
 			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
@@ -202,17 +202,18 @@ func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAML
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		if len(warnings) != 0 {
-			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
+			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
 			diagCtx.info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message:  "No roles mapped for the user",
 				Warnings: warnings,
 			}
 		} else {
+			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
 			diagCtx.info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
-		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
+		return nil, trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
@@ -229,7 +230,7 @@ func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAML
 func (a *Server) createSAMLUser(p *createUserParams, dryRun bool) (types.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
-	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
+	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v. Dry run: %v.", p.connectorName, p.username, p.roles, dryRun)
 
 	user := &types.UserV2{
 		Kind:    types.KindUser,
@@ -371,9 +372,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	diagCtx := a.newSSODiagContext(types.KindSAML)
 
 	auth, err := a.validateSAMLResponse(ctx, diagCtx, samlResponse)
-	if err != nil {
-		diagCtx.info.Error = trace.UserMessage(err)
-	}
+	diagCtx.info.Error = trace.UserMessage(err)
 
 	diagCtx.writeToBackend(ctx)
 
@@ -413,9 +412,6 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 		log.WithError(err).Warn("Failed to emit SAML login event.")
 	}
 
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return auth, nil
 }
 
@@ -432,7 +428,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	}
 	diagCtx.info.TestFlow = request.SSOTestFlow
 
-	connector, provider, err := a.getConnectorAndProvider(ctx, *request)
+	connector, provider, err := a.getSAMLConnectorAndProvider(ctx, *request)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
 	}

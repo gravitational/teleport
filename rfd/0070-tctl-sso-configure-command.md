@@ -1,6 +1,6 @@
 ---
 authors: Krzysztof Skrzętnicki <krzysztof.skrzetnicki@goteleport.com>
-state: draft
+state: implemented
 ---
 
 # RFD 70 - `tctl sso configure` command
@@ -55,8 +55,8 @@ For `SAML` the commonly used flags will be:
 -p, --preset                   Preset. One of: [okta onelogin ad adfs]
 -n, --name                     Connector name. Required, unless implied from preset.
 -e, --entity-descriptor        Set the Entity Descriptor. Valid values: file, URL, XML content. Supplies configuration parameters as single XML instead of individual elements.
--a, --attributes-to-roles      Sets attribute-to-role mapping in the form 'attr_name,attr_value,role1,role2,...'. Repeatable.
-    --display                  Display controls how this connector is displayed.
+-r, --attributes-to-roles      Sets attribute-to-role mapping using format 'attr_name,attr_value,role1,role2,...'. Repeatable.
+    --display                  Sets the connector display name.
 ```
 
 The `--attributes-to-roles/-a` flag is particularly important as it is used to provide a mapping between the
@@ -96,7 +96,7 @@ Advanced features:
 Flags for ignoring warnings:
 
 ```
---ignore-missing-roles     Ignore non-existing roles referenced in --attributes-to-roles.
+--ignore-missing-roles     Ignore missing roles referenced in --attributes-to-roles.
 --ignore-missing-certs     Ignore the lack of valid certificates from -e and --cert.
 ```
 
@@ -118,7 +118,7 @@ Examples:
 - the IdP metadata will be read from `entity-desc.xml` file.
 
 ```
-$ tctl sso configure saml -n myauth -a groups,admin,access,editor,audit -a group,developer,access -e entity-desc.xml
+$ tctl sso configure saml -n myauth -r groups,admin,access,editor,audit -r group,developer,access -e entity-desc.xml
 ```
 
 2) Generate SAML auth connector configuration using `okta` preset.
@@ -127,13 +127,13 @@ $ tctl sso configure saml -n myauth -a groups,admin,access,editor,audit -a group
 - Instead of XML file, a URL was provided to `-e` flag, which will be fetched by Teleport during runtime.
 
 ```
-$ tctl sso configure saml -p okta -a group,dev,access -e https://dev-123456.oktapreview.com/app/ex30h8/sso/saml/metadata
+$ tctl sso configure saml -p okta -r group,dev,access -e https://dev-123456.oktapreview.com/app/ex30h8/sso/saml/metadata
 ```
 
 3) Generate the configuration and immediately test it using `tctl sso test` command.
 
 ```
-$ tctl sso configure saml -p okta -a group,developer,access -e entity-desc.xml | tctl sso test
+$ tctl sso configure saml -p okta -r group,developer,access -e entity-desc.xml | tctl sso test
 ```
 
 Full flag reference: `tctl sso configure saml --help`.

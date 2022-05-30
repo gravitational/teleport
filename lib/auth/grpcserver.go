@@ -473,6 +473,23 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*t
 	return v2, nil
 }
 
+func (g *GRPCServer) GetCurrentUser(ctx context.Context, req *empty.Empty) (*types.UserV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := auth.ServerWithRoles.GetCurrentUser(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v2, ok := user.(*types.UserV2)
+	if !ok {
+		log.Warnf("expected type services.UserV2, got %T for user %q", user, user.GetName())
+		return nil, trace.Errorf("encountered unexpected user type")
+	}
+	return v2, nil
+}
+
 func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthService_GetUsersServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
@@ -1902,11 +1919,13 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	}
 
 	// Validate MFARegisterResponse and upsert the new device on success.
-	dev, err := auth.verifyMFARespAndAddDevice(ctx, regResp, &newMFADeviceFields{
+	dev, err := auth.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:            user,
 		newDeviceName:       initReq.DeviceName,
 		totpSecret:          regChallenge.GetTOTP().GetSecret(),
 		webIdentityOverride: webIdentity,
+		deviceResp:          regResp,
+		deviceUsage:         initReq.DeviceUsage,
 	})
 
 	return dev, trace.Wrap(err)
@@ -3622,17 +3641,43 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.Create
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req)
+
+	var createTracker types.SessionTracker = req.SessionTracker
+	// DELETE IN 11.0.0
+	// Early v9 versions use a flattened out types.SessionTrackerV1
+	if req.SessionTracker == nil {
+		spec := types.SessionTrackerSpecV1{
+			SessionID:         req.ID,
+			Kind:              req.Type,
+			State:             types.SessionState_SessionStatePending,
+			Reason:            req.Reason,
+			Invited:           req.Invited,
+			Hostname:          req.Hostname,
+			Address:           req.Address,
+			ClusterName:       req.ClusterName,
+			Login:             req.Login,
+			Participants:      []types.Participant{*req.Initiator},
+			Expires:           req.Expires,
+			KubernetesCluster: req.KubernetesCluster,
+			HostUser:          req.HostUser,
+		}
+		createTracker, err = types.NewSessionTracker(spec)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, createTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	defined, ok := session.(*types.SessionTrackerV1)
+	v1, ok := tracker.(*types.SessionTrackerV1)
 	if !ok {
-		return nil, trace.BadParameter("unexpected session type %T", session)
+		return nil, trace.BadParameter("unexpected session type %T", tracker)
 	}
 
-	return defined, nil
+	return v1, nil
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.

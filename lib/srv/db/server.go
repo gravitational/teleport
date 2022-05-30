@@ -680,15 +680,24 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	if err := s.trackSession(cancelCtx, sessionCtx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		// Closing the stream writer is needed to flush all recorded data
-		// and trigger upload. Do it in a goroutine since depending on
-		// session size it can take a while, and we don't want to block
-		// the client.
+		// Close session stream in a goroutine since depending on session size
+		// it can take a while, and we don't want to block the client.
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
@@ -863,6 +872,57 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 	}
 
 	database.SetMySQLServerVersion(version)
+
+	return nil
+}
+
+// trackSession creates a new session tracker for the database session.
+// While ctx is open, the session tracker's expiration will be extended
+// on an interval. Once the ctx is closed, the session tracker's state
+// will be updated to terminated.
+func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) error {
+	trackerSpec := types.SessionTrackerSpecV1{
+		SessionID:    sessionCtx.ID,
+		Kind:         string(types.DatabaseSessionKind),
+		State:        types.SessionState_SessionStateRunning,
+		Hostname:     sessionCtx.HostID,
+		DatabaseName: sessionCtx.DatabaseName,
+		ClusterName:  sessionCtx.ClusterName,
+		Login:        sessionCtx.Identity.GetUserMetadata().Login,
+		Participants: []types.Participant{{
+			User: sessionCtx.Identity.Username,
+		}},
+		HostUser: sessionCtx.Identity.Username,
+		Created:  s.cfg.Clock.Now(),
+	}
+
+	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
+	switch {
+	case err == nil:
+	case trace.IsAccessDenied(err):
+		// Ignore access denied errors, which we may get if the auth
+		// server is v9.2.3 or earlier, since only node, proxy, and
+		// kube roles had permission to create session trackers.
+		// DELETE IN 11.0.0
+		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
+		return nil
+	default: // aka err != nil
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
+			s.log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		if err := tracker.Close(s.closeContext); err != nil {
+			s.log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionCtx.ID)
+		}
+	}()
 
 	return nil
 }

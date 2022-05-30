@@ -1,5 +1,5 @@
-// go:build touchid
-//  +build touchid
+//go:build touchid
+// +build touchid
 
 // Copyright 2022 Gravitational, Inc
 //

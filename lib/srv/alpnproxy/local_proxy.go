@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -117,7 +118,7 @@ func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 
 // SSHProxy is equivalent of `ssh -o 'ForwardAgent yes' -p port  %r@host -s proxy:%h:%p` but established SSH
 // connection to RemoteProxyAddr is wrapped with TLS protocol.
-func (l *LocalProxy) SSHProxy(localAgent *client.LocalKeyAgent) error {
+func (l *LocalProxy) SSHProxy(ctx context.Context, localAgent *client.LocalKeyAgent) error {
 	if l.cfg.ClientTLSConfig == nil {
 		return trace.BadParameter("client TLS config is missing")
 	}
@@ -133,7 +134,7 @@ func (l *LocalProxy) SSHProxy(localAgent *client.LocalKeyAgent) error {
 	}
 	defer upstreamConn.Close()
 
-	client, err := makeSSHClient(upstreamConn, l.cfg.RemoteProxyAddr, &ssh.ClientConfig{
+	client, err := makeSSHClient(ctx, upstreamConn, l.cfg.RemoteProxyAddr, &ssh.ClientConfig{
 		User: l.cfg.SSHUser,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(localAgent.Signers),
@@ -145,13 +146,13 @@ func (l *LocalProxy) SSHProxy(localAgent *client.LocalKeyAgent) error {
 	}
 	defer client.Close()
 
-	sess, err := client.NewSession()
+	sess, err := client.NewSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer sess.Close()
 
-	err = agent.ForwardToAgent(client, localAgent)
+	err = agent.ForwardToAgent(client.Client, localAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -177,12 +178,12 @@ func proxySubsystemName(userHost, cluster string) string {
 	return subsystem
 }
 
-func makeSSHClient(conn *tls.Conn, addr string, cfg *ssh.ClientConfig) (*ssh.Client, error) {
-	cc, chs, reqs, err := ssh.NewClientConn(conn, addr, cfg)
+func makeSSHClient(ctx context.Context, conn *tls.Conn, addr string, cfg *ssh.ClientConfig) (*tracessh.Client, error) {
+	cc, chs, reqs, err := tracessh.NewClientConn(ctx, conn, addr, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ssh.NewClient(cc, chs, reqs), nil
+	return tracessh.NewClient(cc, chs, reqs), nil
 }
 
 func proxySession(ctx context.Context, sess *ssh.Session) error {

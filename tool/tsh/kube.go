@@ -105,18 +105,17 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 }
 
 func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.TeleportClient) (types.SessionTracker, error) {
-	sessions, err := tc.GetActiveSessions(ctx)
+	proxy, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, session := range sessions {
-		if session.GetSessionID() == c.session {
-			return session, nil
-		}
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return nil, trace.NotFound("session %q not found", c.session)
+	return site.GetSessionTracker(ctx, c.session)
 }
 
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
@@ -489,7 +488,17 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	sessions, err := tc.GetActiveSessions(cf.Context)
+	proxy, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	site, err := proxy.ConnectToCurrentCluster(cf.Context, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessions, err := site.GetActiveSessionTrackers(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -638,12 +647,14 @@ type kubeLSCommand struct {
 	predicateExpr  string
 	searchKeywords string
 	format         string
+	siteName       string
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of kubernetes clusters"),
 	}
+	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
@@ -655,6 +666,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.UserHost = c.labels
 	cf.PredicateExpression = c.predicateExpr
+	cf.SiteName = c.siteName
 
 	tc, err := makeClient(cf, true)
 	if err != nil {
@@ -727,12 +739,14 @@ func selectedKubeCluster(currentTeleportCluster string) string {
 type kubeLoginCommand struct {
 	*kingpin.CmdClause
 	kubeCluster string
+	siteName    string
 }
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
 		CmdClause: parent.Command("login", "Login to a kubernetes cluster"),
 	}
+	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
 	return c
 }
@@ -740,7 +754,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
 	cf.KubernetesCluster = c.kubeCluster
-
+	cf.SiteName = c.siteName
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)

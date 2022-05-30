@@ -42,12 +42,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/acme"
-	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -78,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -97,9 +92,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -179,6 +180,10 @@ const (
 	// WindowsDesktopReady is generated when the Teleport windows desktop
 	// service is ready to start accepting connections.
 	WindowsDesktopReady = "WindowsDesktopReady"
+
+	// TracingReady is generated when the Teleport tracing service is ready to
+	// start exporting spans.
+	TracingReady = "TracingReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -294,6 +299,10 @@ type TeleportProcess struct {
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
 	importedDescriptors []FileDescriptor
+	// listenersClosed is a flag that indicates that the process should not open
+	// new listeners (for instance, because we're shutting down and we've already
+	// closed all the listeners)
+	listenersClosed bool
 
 	// forkedPIDs is a collection of a teleport processes forked
 	// during restart used to collect their status in case if the
@@ -325,6 +334,10 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// TracingProvider is the provider to be used for exporting traces. In the event
+	// that tracing is disabled this will be a no-op provider that drops all spans.
+	TracingProvider *tracing.Provider
 }
 
 type keyPairKey struct {
@@ -744,6 +757,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
+		TracingProvider:     tracing.NoopProvider(),
 	}
 
 	process.registerAppDepend()
@@ -760,6 +774,12 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic), process.log)
+	}
+
+	if cfg.Tracing.Enabled {
+		if err := process.initTracingService(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -796,6 +816,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 	if cfg.WindowsDesktop.Enabled {
 		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
+	}
+	if cfg.Tracing.Enabled {
+		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
 	process.RegisterEventMapping(eventMapping)
 
@@ -857,9 +880,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	if cfg.WindowsDesktop.Enabled {
 		// FedRAMP/FIPS is not supported for Desktop Access. Desktop Access uses
-		// Rust for the underlying RDP protocol implementation which in turn uses
-		// OpenSSL. Return an error if the user attempts to start Desktop Access in
-		// FedRAMP/FIPS mode for now until we can swap out OpenSSL for BoringCrypto.
+		// Rust for the underlying RDP protocol implementation and smart card
+		// authentication. Returns an error if the user attempts to start Desktop
+		// Access in FedRAMP/RIPS mode for now until we can ensure that the crypto
+		// used by this feature is compliant.
 		if cfg.FIPS {
 			return nil, trace.BadParameter("FedRAMP/FIPS 140-2 compliant configuration for Desktop Access not supported in Teleport %v", teleport.Version)
 		}
@@ -1281,6 +1305,10 @@ func (process *TeleportProcess) initAuthService() error {
 			Component:      teleport.ComponentAuth,
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
+			// DELETE IN 11.0.0
+			// Provide a grace period so that Auth does not prematurely upload
+			// sessions which don't have a session tracker (v9.2 and earlier)
+			GracePeriod: defaults.UploadGracePeriod,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1949,7 +1977,15 @@ func (process *TeleportProcess) initSSH() error {
 		// init uploader service for recording SSH node, if proxy is not
 		// enabled on this node, because proxy stars uploader service as well
 		if !cfg.Proxy.Enabled {
-			if err := process.initUploaderService(authClient, conn.Client, conn.Client); err != nil {
+			uploaderCfg := filesessions.UploaderConfig{
+				Streamer: authClient,
+				AuditLog: conn.Client,
+			}
+			completerCfg := events.UploadCompleterConfig{
+				SessionTracker: conn.Client,
+				GracePeriod:    defaults.UploadGracePeriod,
+			}
+			if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2070,7 +2106,7 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 
 // initUploadService starts a file-based uploader that scans the local streaming logs directory
 // (data/log/upload/streaming/default/)
-func (process *TeleportProcess) initUploaderService(streamer events.Streamer, auditLog events.IAuditLog, sessionTracker services.SessionTrackerService) error {
+func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.UploaderConfig, completerCfg events.UploadCompleterConfig) error {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
 	})
@@ -2101,20 +2137,19 @@ func (process *TeleportProcess) initUploaderService(streamer events.Streamer, au
 		}
 	}
 
-	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		ScanDir:  filepath.Join(path...),
-		Streamer: streamer,
-		AuditLog: auditLog,
-		EventsC:  process.Config.UploadEventsC,
-	}, sessionTracker)
+	uploaderCfg.ScanDir = filepath.Join(path...)
+	uploaderCfg.EventsC = process.Config.UploadEventsC
+	fileUploader, err := filesessions.NewUploader(uploaderCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	process.RegisterFunc("fileuploader.service", func() error {
-		err := fileUploader.Serve()
+		err := fileUploader.Serve(process.ExitContext())
 		if err != nil {
 			log.WithError(err).Errorf("File uploader server exited with error.")
 		}
+
 		return nil
 	})
 
@@ -2122,6 +2157,36 @@ func (process *TeleportProcess) initUploaderService(streamer events.Streamer, au
 		log.Infof("File uploader is shutting down.")
 		fileUploader.Close()
 		log.Infof("File uploader has shut down.")
+	})
+
+	// upload completer scans for uploads that have been initiated, but not completed
+	// by the client (aborted or crashed) and completes them. It will be closed once
+	// the uploader context is closed.
+	handler, err := filesessions.NewHandler(filesessions.Config{
+		Directory: filepath.Join(path...),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	completerCfg.Uploader = handler
+	completerCfg.AuditLog = uploaderCfg.AuditLog
+	uploadCompleter, err := events.NewUploadCompleter(completerCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	process.RegisterFunc("fileuploadcompleter.service", func() error {
+		if err := uploadCompleter.Serve(process.ExitContext()); err != nil {
+			log.WithError(err).Errorf("File uploader server exited with error.")
+		}
+		return nil
+	})
+
+	process.OnExit("fileuploadcompleter.shutdown", func(payload interface{}) {
+		log.Infof("File upload completer is shutting down.")
+		uploadCompleter.Close()
+		log.Infof("File upload completer has shut down.")
 	})
 
 	return nil
@@ -2328,6 +2393,79 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		log.Infof("Exited.")
 	})
 
+	return nil
+}
+
+func (process *TeleportProcess) initTracingService() error {
+	log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentTracing, process.id))
+	log.Info("Initializing tracing provider and exporter.")
+
+	attrs := []attribute.KeyValue{
+		attribute.String(tracing.ProcessIDKey, process.id),
+		attribute.String(tracing.HostnameKey, process.Config.Hostname),
+		attribute.String(tracing.HostIDKey, process.Config.HostUUID),
+	}
+
+	traceConf := tracing.Config{
+		Service:      teleport.ComponentTeleport,
+		Attributes:   attrs,
+		ExporterURL:  process.Config.Tracing.ExporterURL,
+		SamplingRate: process.Config.Tracing.SamplingRate,
+		Logger:       log,
+	}
+
+	tlsConfig := &tls.Config{}
+	// if a custom CA is specified, use a custom cert pool
+	if len(process.Config.Tracing.CACerts) > 0 {
+		pool := x509.NewCertPool()
+		for _, caCertPath := range process.Config.Tracing.CACerts {
+			caCert, err := os.ReadFile(caCertPath)
+			if err != nil {
+				return trace.Wrap(err, "failed to read tracing CA certificate %+v", caCertPath)
+			}
+
+			if !pool.AppendCertsFromPEM(caCert) {
+				return trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
+			}
+		}
+		tlsConfig.ClientCAs = pool
+		tlsConfig.RootCAs = pool
+	}
+
+	// add any custom certificates for mTLS
+	if len(process.Config.Tracing.KeyPairs) > 0 {
+		for _, pair := range process.Config.Tracing.KeyPairs {
+			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+			if err != nil {
+				return trace.Wrap(err, "failed to read keypair: %+v", err)
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+		}
+	}
+
+	if len(process.Config.Tracing.CACerts) > 0 || len(process.Config.Tracing.KeyPairs) > 0 {
+		traceConf.TLSConfig = tlsConfig
+	}
+
+	provider, err := tracing.NewTraceProvider(process.ExitContext(), traceConf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.TracingProvider = provider
+
+	process.OnExit("tracing.shutdown", func(payload interface{}) {
+		if payload == nil {
+			log.Info("Shutting down immediately.")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			warnOnErr(provider.Shutdown(ctx), log)
+		} else {
+			log.Infof("Shutting down gracefully.")
+			ctx := payloadContext(payload, log)
+			warnOnErr(provider.Shutdown(ctx), log)
+		}
+		process.log.Info("Exited.")
+	})
 	return nil
 }
 
@@ -2808,6 +2946,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	caWatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
+			Client:    conn.Client,
+		},
+		AuthorityGetter: accessPoint,
+		Types:           []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	serverTLSConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2837,17 +2988,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 						Client: conn.Client,
 					},
 				},
-				KeyGen:        cfg.Keygen,
-				Ciphers:       cfg.Ciphers,
-				KEXAlgorithms: cfg.KEXAlgorithms,
-				MACAlgorithms: cfg.MACAlgorithms,
-				DataDir:       process.Config.DataDir,
-				PollingPeriod: process.Config.PollingPeriod,
-				FIPS:          cfg.FIPS,
-				Emitter:       streamEmitter,
-				Log:           process.log,
-				LockWatcher:   lockWatcher,
-				NodeWatcher:   nodeWatcher,
+				KeyGen:               cfg.Keygen,
+				Ciphers:              cfg.Ciphers,
+				KEXAlgorithms:        cfg.KEXAlgorithms,
+				MACAlgorithms:        cfg.MACAlgorithms,
+				DataDir:              process.Config.DataDir,
+				PollingPeriod:        process.Config.PollingPeriod,
+				FIPS:                 cfg.FIPS,
+				Emitter:              streamEmitter,
+				Log:                  process.log,
+				LockWatcher:          lockWatcher,
+				NodeWatcher:          nodeWatcher,
+				CertAuthorityWatcher: caWatcher,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3293,7 +3445,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log.Infof("Exited.")
 	})
 
-	if err := process.initUploaderService(accessPoint, conn.Client, conn.Client); err != nil {
+	uploaderCfg := filesessions.UploaderConfig{
+		Streamer: accessPoint,
+		AuditLog: conn.Client,
+	}
+	completerCfg := events.UploadCompleterConfig{
+		SessionTracker: conn.Client,
+	}
+	if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -3344,12 +3503,12 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		tlsConfig = m.TLSConfig()
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
 
-		// If ACME protocol was enabled add all known TLS Routing protocols.
-		// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
-		// the TLS handshake will fail.
-		supportedProtocols := alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)
-		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, supportedProtocols...))
+		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, acme.ALPNProto))
 	}
+
+	// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
+	// the TLS handshake will fail.
+	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
 
 	for _, pair := range process.Config.Proxy.KeyPairs {
 		process.Config.Log.Infof("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
@@ -3547,7 +3706,14 @@ func (process *TeleportProcess) initApps() {
 
 		// Start uploader that will scan a path on disk and upload completed
 		// sessions to the Auth Server.
-		if err := process.initUploaderService(accessPoint, conn.Client, conn.Client); err != nil {
+		uploaderCfg := filesessions.UploaderConfig{
+			Streamer: accessPoint,
+			AuditLog: conn.Client,
+		}
+		completerCfg := events.UploadCompleterConfig{
+			SessionTracker: conn.Client,
+		}
+		if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -3782,6 +3948,13 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // StartShutdown launches non-blocking graceful shutdown process that signals
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
+	// by the time we get here we've already extracted the parent pipe, which is
+	// the only potential imported file descriptor that's not a listening
+	// socket, so closing every imported FD with a prefix of "" will close all
+	// imported listeners that haven't been used so far
+	warnOnErr(process.closeImportedDescriptors(""), process.log)
+	warnOnErr(process.stopListeners(), process.log)
+
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
 	go func() {

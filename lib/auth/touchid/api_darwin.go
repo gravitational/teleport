@@ -29,7 +29,6 @@ import "C"
 import (
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"strings"
 	"unsafe"
 
@@ -38,6 +37,42 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
+
+const (
+	// rpIDUserMarker is the marker for labels containing RPID and username.
+	// The marker is useful to tell apart labels written by tsh from other entries
+	// (for example, a mysterious "iMessage Signing Key" shows up in some macs).
+	rpIDUserMarker = "t01/"
+
+	// rpID are domain names, so it's safe to assume they won't have spaces in them.
+	// https://www.w3.org/TR/webauthn-2/#relying-party-identifier
+	labelSeparator = " "
+)
+
+type parsedLabel struct {
+	rpID, user string
+}
+
+func makeLabel(rpID, user string) string {
+	return rpIDUserMarker + rpID + labelSeparator + user
+}
+
+func parseLabel(label string) (*parsedLabel, error) {
+	if !strings.HasPrefix(label, rpIDUserMarker) {
+		return nil, trace.BadParameter("label has unexpected prefix: %q", label)
+	}
+	l := label[len(rpIDUserMarker):]
+
+	idx := strings.Index(l, labelSeparator)
+	if idx == -1 {
+		return nil, trace.BadParameter("label separator not found: %q", label)
+	}
+
+	return &parsedLabel{
+		rpID: l[0:idx],
+		user: l[idx+1:],
+	}, nil
+}
 
 var native nativeTID = &touchIDImpl{}
 
@@ -86,24 +121,6 @@ func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialIn
 	}, nil
 }
 
-// rpID are domain names, so it's safe to assume they won't have spaces in them.
-// https://www.w3.org/TR/webauthn-2/#relying-party-identifier
-const labelSeparator = " "
-
-func makeLabel(rpID, user string) string {
-	return rpID + labelSeparator + user
-}
-
-func splitLabel(label string) (string, string) {
-	idx := strings.Index(label, labelSeparator)
-	if idx == -1 {
-		return "", ""
-	}
-	rpID := label[0:idx]
-	user := label[idx+1:]
-	return rpID, user
-}
-
 func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, error) {
 	var req C.AuthenticateRequest
 	req.app_label = C.CString(credentialID)
@@ -130,16 +147,6 @@ func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, err
 }
 
 func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) {
-	infos, res := findCredentialsImpl(rpID, user, func(filter C.LabelFilter, infosC **C.CredentialInfo) C.int {
-		return C.FindCredentials(filter, infosC)
-	})
-	if res < 0 {
-		return nil, fmt.Errorf("failed to find credentials: status %d", res)
-	}
-	return infos, nil
-}
-
-func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.CredentialInfo) C.int) ([]CredentialInfo, int) {
 	var filterC C.LabelFilter
 	if user == "" {
 		filterC.kind = C.LABEL_PREFIX
@@ -147,10 +154,44 @@ func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.Credent
 	filterC.value = C.CString(makeLabel(rpID, user))
 	defer C.free(unsafe.Pointer(filterC.value))
 
+	infos, res := readCredentialInfos(func(infosC **C.CredentialInfo) C.int {
+		return C.FindCredentials(filterC, infosC)
+	})
+	if res < 0 {
+		return nil, trace.BadParameter("failed to find credentials: status %d", res)
+	}
+	return infos, nil
+}
+
+func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
+	// User prompt becomes: ""$binary" is trying to list credentials".
+	reasonC := C.CString("list credentials")
+	defer C.free(unsafe.Pointer(reasonC))
+
+	var errMsgC *C.char
+	defer C.free(unsafe.Pointer(errMsgC))
+
+	infos, res := readCredentialInfos(func(infosOut **C.CredentialInfo) C.int {
+		// ListCredentials lists all Keychain entries we have access to, without
+		// prefix-filtering labels, for example.
+		// Unexpected entries are removed via readCredentialInfos. This behavior is
+		// intentional, as it lets us glimpse into otherwise inaccessible Keychain
+		// contents.
+		return C.ListCredentials(reasonC, infosOut, &errMsgC)
+	})
+	if res < 0 {
+		errMsg := C.GoString(errMsgC)
+		return nil, errors.New(errMsg)
+	}
+
+	return infos, nil
+}
+
+func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo, int) {
 	var infosC *C.CredentialInfo
 	defer C.free(unsafe.Pointer(infosC))
 
-	res := find(filterC, &infosC)
+	res := find(&infosC)
 	if res < 0 {
 		return nil, int(res)
 	}
@@ -180,9 +221,9 @@ func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.Credent
 		credentialID := appLabel
 
 		// user@rpid
-		rpID, user := splitLabel(label)
-		if rpID == "" || user == "" {
-			log.Debugf("Skipping credential %q: unexpected label: %q", credentialID, label)
+		parsedLabel, err := parseLabel(label)
+		if err != nil {
+			log.Debugf("Skipping credential %q: %v", credentialID, err)
 			continue
 		}
 
@@ -204,10 +245,35 @@ func findCredentialsImpl(rpID, user string, find func(C.LabelFilter, **C.Credent
 		infos = append(infos, CredentialInfo{
 			UserHandle:   userHandle,
 			CredentialID: credentialID,
-			RPID:         rpID,
-			User:         user,
+			RPID:         parsedLabel.rpID,
+			User:         parsedLabel.user,
 			publicKeyRaw: pubKeyRaw,
 		})
 	}
 	return infos, int(res)
+}
+
+// https://osstatus.com/search/results?framework=Security&search=-25300
+const errSecItemNotFound = -25300
+
+func (touchIDImpl) DeleteCredential(credentialID string) error {
+	// User prompt becomes: ""$binary" is trying to delete credential".
+	reasonC := C.CString("delete credential")
+	defer C.free(unsafe.Pointer(reasonC))
+
+	idC := C.CString(credentialID)
+	defer C.free(unsafe.Pointer(idC))
+
+	var errC *C.char
+	defer C.free(unsafe.Pointer(errC))
+
+	switch C.DeleteCredential(reasonC, idC, &errC) {
+	case 0: // aka success
+		return nil
+	case errSecItemNotFound:
+		return ErrCredentialNotFound
+	default:
+		errMsg := C.GoString(errC)
+		return errors.New(errMsg)
+	}
 }

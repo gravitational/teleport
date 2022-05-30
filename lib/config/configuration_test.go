@@ -442,6 +442,18 @@ func TestConfigReading(t *testing.T) {
 			PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
 			Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 		},
+		Tracing: TracingService{
+			EnabledFlag: "yes",
+			ExporterURL: "https://localhost:4318",
+			KeyPairs: []KeyPair{
+				{
+					PrivateKey:  "/etc/teleport/exporter.key",
+					Certificate: "/etc/teleport/exporter.crt",
+				},
+			},
+			CACerts:                []string{"/etc/teleport/exporter.crt"},
+			SamplingRatePerMillion: 10,
+		},
 	}, cmp.AllowUnexported(Service{})))
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -459,6 +471,7 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Metrics.Enabled())
 	require.True(t, conf.WindowsDesktop.Configured())
 	require.True(t, conf.WindowsDesktop.Enabled())
+	require.True(t, conf.Tracing.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -1191,6 +1204,18 @@ func makeConfigFixture() string {
 		},
 		PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
 		Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+	}
+
+	// Tracing service.
+	conf.Tracing.EnabledFlag = "yes"
+	conf.Tracing.ExporterURL = "https://localhost:4318"
+	conf.Tracing.SamplingRatePerMillion = 10
+	conf.Tracing.CACerts = []string{"/etc/teleport/exporter.crt"}
+	conf.Tracing.KeyPairs = []KeyPair{
+		{
+			PrivateKey:  "/etc/teleport/exporter.key",
+			Certificate: "/etc/teleport/exporter.crt",
+		},
 	}
 
 	return conf.DebugDumpToYAML()
