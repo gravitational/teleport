@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/datastax/go-cassandra-native-protocol/client"
@@ -252,12 +253,8 @@ func (e *Engine) processFrame(conn io.Reader) error {
 		}
 
 		if startup, ok := body.Body.Message.(*message.Startup); ok {
-			//if body.Header.Version == primitive.ProtocolVersion5 {
-			//	e.Log.Infof("switching to new layout")
-			//	// TODO(jakule): we should also check the supported version returned by the DB, not only client.
-			//	e.v5Layout = true
-			//}
-			compression := startup.GetCompression()
+			// TODO(jakule): compression for some reason it returned lowercase :(
+			compression := primitive.Compression(strings.ToUpper(string(startup.GetCompression())))
 			e.Log.Infof("compression: %v", compression)
 			e.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
 			e.segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
@@ -291,6 +288,7 @@ func (e *Engine) processFrame(conn io.Reader) error {
 
 		if query, ok := body.Body.Message.(*message.Query); ok {
 			queryStr := query.String()
+			// TODO(jakule): what to do if query exceeds 65k?
 			if len(queryStr) > 100 {
 				queryStr = queryStr[:100]
 			}
