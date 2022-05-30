@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/datastax/go-cassandra-native-protocol/client"
 	"github.com/datastax/go-cassandra-native-protocol/frame"
@@ -49,6 +50,7 @@ func init() {
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
+		mtx:          &sync.Mutex{},
 		frameCodec:   frame.NewRawCodec(),
 		segmentCodec: segment.NewCodec(),
 	}
@@ -63,9 +65,13 @@ type Engine struct {
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
 
+	mtx *sync.Mutex
+
 	frameCodec frame.RawCodec
 
 	segmentCodec segment.Codec
+
+	v5Layout bool
 }
 
 func (e *Engine) SendError(err error) {
@@ -73,6 +79,7 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
+	// TODO implement
 	e.Log.Errorf("cassandra connection error: %v", err)
 }
 
@@ -106,8 +113,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	isV5 := false
-
 	e.Log.Info("Accepted new connection")
 
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
@@ -128,19 +133,28 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 	}()
 
-	go io.Copy(e.clientConn, serverConn)
+	go func() {
+		err := e.handleServerConnection(serverConn)
+		if err != nil {
+			e.Log.WithError(err).Error("failed to proxy server data")
+		}
+	}()
 
+	return e.handleClientConnection(serverConn)
+}
+
+func (e *Engine) handleClientConnection(serverConn *tls.Conn) error {
 	memBuf := newMemoryBuffer(e.clientConn)
 	previousSegment := bytes.Buffer{}
 	expectedSegmentSize := 0
 
 	for {
 		var payloadReader io.Reader
-		if isV5 {
+		if e.v5Layout {
 			e.Log.Infof("using modern layout")
 			seg, err := e.segmentCodec.DecodeSegment(memBuf)
 			if err != nil {
-				if errors.Is(err, io.EOF) {
+				if errors.Is(err, io.EOF) || utils.IsOKNetworkError(err) {
 					return nil
 				}
 				return trace.Wrap(err, "failed to decode frame")
@@ -173,15 +187,14 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			payloadReader = memBuf
 		}
 
-		if err = e.processFrame(payloadReader, &isV5); err != nil {
+		if err := e.processFrame(payloadReader); err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return trace.Wrap(err, "failed to process frame")
 		}
 
-		_, err = serverConn.Write(memBuf.Bytes())
-		if err != nil {
+		if _, err := serverConn.Write(memBuf.Bytes()); err != nil {
 			return trace.Wrap(err, "failed to write frame to cassandra: %v", err)
 		}
 
@@ -190,7 +203,42 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 }
 
-func (e *Engine) processFrame(conn io.Reader, isV5 *bool) error {
+func (e *Engine) handleServerConnection(serverConn *tls.Conn) error {
+	r := io.TeeReader(serverConn, e.clientConn)
+
+	for {
+		rawFrame, err := e.frameCodec.DecodeRawFrame(r)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+
+		e.Log.Infof("server opcode: %v", rawFrame.Header.OpCode)
+		if rawFrame.Header.OpCode == primitive.OpCodeSupported {
+			body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
+			if err != nil {
+				e.Log.Errorf("failed to convert a frame: %v", err)
+				return trace.Wrap(err)
+			}
+
+			if startup, ok := body.Body.Message.(*message.Supported); ok {
+				e.Log.Infof("supported response: %v", startup)
+				e.v5Layout = rawFrame.Header.Version == primitive.ProtocolVersion5
+				break
+			}
+		}
+	}
+
+	if _, err := io.Copy(e.clientConn, serverConn); err != nil && !utils.IsOKNetworkError(err) {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (e *Engine) processFrame(conn io.Reader) error {
 	rawFrame, err := e.frameCodec.DecodeRawFrame(conn)
 	if err != nil {
 		return trace.Wrap(err, "failed to decode frame")
@@ -204,11 +252,11 @@ func (e *Engine) processFrame(conn io.Reader, isV5 *bool) error {
 		}
 
 		if startup, ok := body.Body.Message.(*message.Startup); ok {
-			if body.Header.Version == primitive.ProtocolVersion5 {
-				e.Log.Infof("switching to new layout")
-				// TODO(jakule): we should also check the supported version returned by the DB, not only client.
-				*isV5 = true
-			}
+			//if body.Header.Version == primitive.ProtocolVersion5 {
+			//	e.Log.Infof("switching to new layout")
+			//	// TODO(jakule): we should also check the supported version returned by the DB, not only client.
+			//	e.v5Layout = true
+			//}
 			compression := startup.GetCompression()
 			e.Log.Infof("compression: %v", compression)
 			e.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
@@ -373,30 +421,4 @@ func (e *Engine) sendAuthError(accessErr error) {
 			}
 		}
 	}
-}
-
-type inMemoryReader struct {
-	buff []byte
-	r    io.Reader
-}
-
-func newInMemoryReader(reader io.Reader) *inMemoryReader {
-	return &inMemoryReader{
-		buff: make([]byte, 0),
-		r:    reader,
-	}
-}
-
-func (b *inMemoryReader) Read(p []byte) (int, error) {
-	n, err := b.r.Read(p)
-	b.buff = append(b.buff, p...)
-	return n, err
-}
-
-func (b *inMemoryReader) Bytes() []byte {
-	return b.buff
-}
-
-func (b *inMemoryReader) Reset() {
-	b.buff = b.buff[:0]
 }
