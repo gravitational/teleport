@@ -267,8 +267,11 @@ func TestInteractiveSession(t *testing.T) {
 
 	t.Run("BrokenRecorder", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		sess := testOpenSession(t, reg)
-		stateUpdate := sess.tracker.SubscribeToStateUpdate(context.Background())
+		stateUpdate := sess.tracker.SubscribeToStateUpdate(ctx)
 
 	Outer:
 		for {
@@ -287,11 +290,9 @@ func TestInteractiveSession(t *testing.T) {
 		err := sess.recorder.Close(context.Background())
 		require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
-			_, err = sess.inWriter.Write([]byte("foo"))
-			require.NoError(t, err)
-			return sess.isStopped()
-		}, time.Second*5, time.Millisecond*500)
+		_, err = sess.inWriter.Write([]byte("foo"))
+		require.NoError(t, err)
+		require.Eventually(t, sess.isStopped, time.Second*15, time.Millisecond*500)
 	})
 }
 
