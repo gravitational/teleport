@@ -582,7 +582,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 	t.Run("Default roles", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			Roles: "",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "yes", fc.SSH.EnabledFlag)
 		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
@@ -592,7 +592,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 	t.Run("Node role", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			Roles: "node",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "yes", fc.SSH.EnabledFlag)
 		require.Equal(t, "no", fc.Proxy.EnabledFlag)
@@ -604,7 +604,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 			Roles:   "app",
 			AppName: "app name",
 			AppURI:  "localhost:8080",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "no", fc.SSH.EnabledFlag)
 		require.Equal(t, "no", fc.Proxy.EnabledFlag)
@@ -616,20 +616,20 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		_, err := MakeSampleFileConfig(SampleFlags{
 			Roles:  "app",
 			AppURI: "localhost:8080",
-		})
+		}, []string{})
 		require.Error(t, err)
 
 		_, err = MakeSampleFileConfig(SampleFlags{
 			Roles:   "app",
 			AppName: "nginx",
-		})
+		}, []string{})
 		require.Error(t, err)
 
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			Roles:   "app",
 			AppURI:  "localhost:8080",
 			AppName: "nginx",
-		})
+		}, []string{})
 		require.NoError(t, err)
 
 		require.Equal(t, "no", fc.SSH.EnabledFlag)
@@ -641,7 +641,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 	t.Run("Proxy role", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			Roles: "proxy",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "no", fc.SSH.EnabledFlag)
 		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
@@ -653,7 +653,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 			Roles:   "proxy",
 			AppName: "my-app",
 			AppURI:  "localhost:8080",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "no", fc.SSH.EnabledFlag)
 		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
@@ -667,7 +667,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 			Roles:   "proxy,app,db",
 			AppName: "app name",
 			AppURI:  "localhost:8080",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "no", fc.SSH.EnabledFlag)
 		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
@@ -679,7 +679,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 	t.Run("Auth server", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			AuthServer: "auth-server",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "auth-server", fc.AuthServers[0])
 	})
@@ -687,13 +687,13 @@ func TestMakeSampleFileConfig(t *testing.T) {
 	t.Run("Data dir", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			DataDir: "/path/to/data/dir",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "/path/to/data/dir", fc.DataDir)
 
 		fc, err = MakeSampleFileConfig(SampleFlags{
 			DataDir: "",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, defaults.DataDir, fc.DataDir)
 	})
@@ -701,7 +701,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 	t.Run("Token", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			AuthToken: "auth-token",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "auth-token", fc.AuthToken)
 	})
@@ -710,7 +710,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			AppName: "app-name",
 			AppURI:  "https://localhost:8080",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, "app-name", fc.Apps.Apps[0].Name)
 		require.Equal(t, "https://localhost:8080", fc.Apps.Apps[0].URI)
@@ -719,7 +719,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 	t.Run("Node labels", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			NodeLabels: "foo=bar,baz=bax",
-		})
+		}, []string{})
 		require.NoError(t, err)
 		require.Equal(t, map[string]string{
 			"foo": "bar",
@@ -730,7 +730,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 	t.Run("Node labels - invalid", func(t *testing.T) {
 		_, err := MakeSampleFileConfig(SampleFlags{
 			NodeLabels: "foo=bar,baz",
-		})
+		}, []string{})
 		require.Error(t, err)
 	})
 }

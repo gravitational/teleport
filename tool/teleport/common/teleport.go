@@ -322,7 +322,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
 	dumpNodeConfigure.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).StringVar(&dumpFlags.DataDir)
 	dumpNodeConfigure.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
-	dumpNodeConfigure.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
 	dumpNodeConfigure.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
 	dumpNodeConfigure.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes ex) env:staging,cloud:aws.").StringVar(&dumpFlags.NodeLabels)
 
