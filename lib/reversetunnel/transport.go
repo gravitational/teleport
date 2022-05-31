@@ -74,7 +74,7 @@ type TunnelAuthDialer struct {
 
 // DialContext dials auth server via SSH tunnel
 func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
-	addr, err := t.Resolver()
+	addr, err := t.Resolver(ctx)
 	if err != nil {
 		t.Log.Errorf("Failed to resolve tunnel address %v", err)
 		return nil, trace.Wrap(err)

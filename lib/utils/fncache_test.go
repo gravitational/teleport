@@ -110,7 +110,7 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration, msg
 				case <-done:
 					return
 				}
-				vi, err := cache.Get(ctx, "key", func() (interface{}, error) {
+				vi, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
 					if delay > 0 {
 						<-time.After(delay)
 					}
@@ -159,7 +159,7 @@ func TestFnCacheCancellation(t *testing.T) {
 
 	blocker := make(chan struct{})
 
-	v, err := cache.Get(ctx, "key", func() (interface{}, error) {
+	v, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
 		<-blocker
 		return "val", nil
 	})
@@ -173,11 +173,32 @@ func TestFnCacheCancellation(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	v, err = cache.Get(ctx, "key", func() (interface{}, error) {
+	v, err = cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
 		t.Fatal("this should never run!")
 		return nil, nil
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, "val", v.(string))
+}
+
+func TestFnCacheContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:     time.Minute,
+		Context: ctx,
+	})
+	require.NoError(t, err)
+
+	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
+		return "val", nil
+	})
+	require.NoError(t, err)
+
+	cancel()
+
+	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
+		return "val", nil
+	})
+	require.ErrorIs(t, err, ErrFnCacheClosed)
 }
