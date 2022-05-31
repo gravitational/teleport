@@ -60,8 +60,6 @@ type Config struct {
 	// ExtraHeaders is a map of extra HTTP headers to be included in
 	// requests.
 	ExtraHeaders map[string]string
-	// IgnoreHTTPProxy disables support for HTTP proxying when true.
-	IgnoreHTTPProxy bool
 	// Timeout is a timeout for requests.
 	Timeout time.Duration
 }
@@ -91,11 +89,9 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,
 		},
-	}
-	if !cfg.IgnoreHTTPProxy {
-		transport.Proxy = func(req *http.Request) (*url.URL, error) {
+		Proxy: func(req *http.Request) (*url.URL, error) {
 			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-		}
+		},
 	}
 	return &http.Client{
 		Transport: otelhttp.NewTransport(proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure)),

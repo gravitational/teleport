@@ -266,7 +266,7 @@ func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
 func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
 	pd := reverseTunnelDetails{TLSRoutingEnabled: false}
 	resp, err := webclient.Find(
-		&webclient.Config{Context: a.ctx, ProxyAddr: a.Addr.Addr, Insecure: lib.IsInsecureDevMode(), IgnoreHTTPProxy: true})
+		&webclient.Config{Context: a.ctx, ProxyAddr: a.Addr.Addr, Insecure: lib.IsInsecureDevMode()})
 
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel
