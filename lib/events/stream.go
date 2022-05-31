@@ -601,6 +601,7 @@ func (w *sliceWriter) shouldUploadCurrentSlice() bool {
 // startUploadCurrentSlice starts uploading current slice
 // and adds it to the waiting list
 func (w *sliceWriter) startUploadCurrentSlice() error {
+	w.lastPartNumber++
 	activeUpload, err := w.startUpload(w.lastPartNumber, w.current)
 	if err != nil {
 		return trace.Wrap(err)
@@ -619,7 +620,6 @@ func (b *bufferCloser) Close() error {
 }
 
 func (w *sliceWriter) newSlice() (*slice, error) {
-	w.lastPartNumber++
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
 	// reserve bytes for version header
