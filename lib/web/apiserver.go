@@ -1068,6 +1068,7 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 			CreateWebSession:  true,
 			ClientRedirectURL: req.clientRedirectURL,
 			CheckUser:         true,
+			ProxyAddress:      r.Host,
 		})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -1229,6 +1230,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			Compatibility:     req.Compatibility,
 			RouteToCluster:    req.RouteToCluster,
 			KubernetesCluster: req.KubernetesCluster,
+			ProxyAddress:      r.Host,
 		})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
