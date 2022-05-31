@@ -24,7 +24,15 @@ export default function useMain(features: Feature[]) {
   const { attempt, run } = useAttempt('processing');
 
   useState(() =>
-    run(() => ctx.init().then(() => features.forEach(f => f.register(ctx))))
+    run(() =>
+      ctx.init().then(() =>
+        features.forEach(f => {
+          if (f.isAvailable(ctx)) {
+            f.register(ctx);
+          }
+        })
+      )
+    )
   );
 
   return {

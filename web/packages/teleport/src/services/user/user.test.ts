@@ -79,7 +79,7 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
-      sessions: {
+      recordedSessions: {
         list: false,
         read: false,
         edit: false,
@@ -105,6 +105,13 @@ test('undefined values in context response gives proper default values', async (
         read: false,
         edit: false,
         create: false,
+        remove: false,
+      },
+      activeSessions: {
+        create: false,
+        edit: false,
+        list: false,
+        read: false,
         remove: false,
       },
       appServers: {

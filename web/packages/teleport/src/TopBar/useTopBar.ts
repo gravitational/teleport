@@ -35,7 +35,7 @@ export default function useTopBar(ctx: Ctx, stickyCluster: StickyCluster) {
     })
   );
 
-  const title = feature?.getTopNavTitle() || '';
+  const title = feature?.topNavTitle || '';
 
   function loadClusters() {
     return ctx.clusterService.fetchClusters();

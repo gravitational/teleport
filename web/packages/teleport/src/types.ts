@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import Ctx from 'teleport/teleportContext';
 
 export type NavGroup = 'team' | 'activity' | 'clusters';
 
@@ -32,10 +33,11 @@ export interface Context {
   getFeatureFlags(): FeatureFlags;
 }
 
-export interface Feature {
-  route: FeatureRoute;
-  getTopNavTitle(): string;
-  register(ctx: Context): void;
+export abstract class Feature {
+  abstract topNavTitle: string;
+  abstract route: FeatureRoute;
+  abstract isAvailable(ctx: Ctx): boolean;
+  abstract register(ctx: Ctx): void;
 }
 
 export type StickyCluster = {
