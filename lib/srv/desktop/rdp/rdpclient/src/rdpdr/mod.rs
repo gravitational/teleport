@@ -631,6 +631,9 @@ impl ClientDeviceListAnnounceRequest {
         }
     }
 
+    /// Creates a ClientDeviceListAnnounceRequest for announcing a new shared drive (directory).
+    /// A new drive can be announced at any time during RDP's operation. It is up to the caller
+    /// to ensure that the passed device_id is unique from that of any previously shared devices.
     pub fn new_drive(device_id: u32, drive_name: String) -> Self {
         // According to the spec:
         //
