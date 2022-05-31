@@ -16,7 +16,10 @@ mod consts;
 mod flags;
 mod scard;
 
-use crate::errors::{invalid_data_error, not_implemented_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::errors::{
+    invalid_data_error, not_implemented_error, rejected_by_server_error, NTSTATUS_OK,
+    SPECIAL_NO_RESPONSE,
+};
 use crate::util;
 use crate::vchan;
 use crate::{Payload, SharedDirectoryAcknowledge};
@@ -171,34 +174,40 @@ impl Client {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
         debug!("got ServerDeviceAnnounceResponse: {:?}", req);
 
-        if !self.active_device_ids.contains(&req.device_id) {
-            (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                err: 1,
-                directory_id: req.device_id,
-            })?;
-            Err(invalid_data_error(&format!(
-                "got ServerDeviceAnnounceResponse for unknown device_id {}",
-                &req.device_id
-            )))
-        } else if req.result_code != NTSTATUS_OK {
-            (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                err: 1,
-                directory_id: req.device_id,
-            })?;
-            Err(invalid_data_error(&format!(
-                "got unsuccessful ServerDeviceAnnounceResponse result code NTSTATUS({})",
-                &req.result_code
-            )))
-        } else {
-            debug!("ServerDeviceAnnounceResponse was valid");
+        if self.active_device_ids.contains(&req.device_id) {
             if req.device_id != self.get_scard_device_id()? {
+                // This was for a directory we're sharing over TDP
+                let mut err: u32 = 0;
+                if req.result_code != NTSTATUS_OK {
+                    err = 1;
+                    debug!("ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})", &req.result_code);
+                } else {
+                    debug!("ServerDeviceAnnounceResponse for shared directory succeeded")
+                }
+
                 (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                    err: 0,
+                    err,
                     directory_id: req.device_id,
                 })?;
+            } else {
+                // This was for the smart card
+                if req.result_code != NTSTATUS_OK {
+                    // End the session, we cannot continue without
+                    // the smart card being redirected.
+                    return Err(rejected_by_server_error(&format!(
+                        "ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})",
+                        &req.result_code
+                    )));
+                }
+                debug!("ServerDeviceAnnounceResponse for smartcard redirection succeeded");
             }
-            Ok(vec![])
+        } else {
+            return Err(invalid_data_error(&format!(
+                "got ServerDeviceAnnounceResponse for unknown device_id {}",
+                &req.device_id
+            )));
         }
+        Ok(vec![])
     }
 
     fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
