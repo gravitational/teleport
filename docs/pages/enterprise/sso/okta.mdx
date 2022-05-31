@@ -5,7 +5,7 @@ h1: Single Sign-On with Okta
 videoBanner: SM4Am-i8cj4
 ---
 
-## How to use Okta as a single sign-on (SSO) provider for SSH
+## How to use Okta as a single sign-on (SSO) provider
 
 This guide will cover how to configure [Okta](https://www.okta.com/) to issue
 SSH credentials to specific groups of users. When used in combination with role
@@ -14,6 +14,7 @@ like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
+- ... and many others.
 
 <ScopedBlock
   scope={["oss"]}
@@ -47,7 +48,7 @@ like:
 
 ## Configure Okta
 
-First, create a SAML 2.0 Web App in Okta configuration section
+First, create a SAML 2.0 Web App in Okta configuration section:
 
 - Select "Create New App"
 - Select "Web Platform" and "SAML 2.0 Sign On Method".
@@ -178,7 +179,8 @@ You can also run both commands as a pipeline:
 
 ```code
 $ tctl sso configure saml -p okta -e entity_desc.xml -r groups,okta-admin,editor -r groups,okta-dev,dev \
-  | tee okta-connector.yaml | tctl sso test
+  | tee okta-connector.yaml                                                                             \
+  | tctl sso test
 # INFO [CLIENT]    ACS empty, resolving automatically.
 # INFO [CLIENT]    ACS set to "https://teleport-proxy.example.com:443/v1/webapi/saml/acs"
 # INFO [CLIENT]    Cannot parse entity descriptor as URL, missing scheme: "entity_desc.xml".
