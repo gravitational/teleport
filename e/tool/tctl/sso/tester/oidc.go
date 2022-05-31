@@ -52,10 +52,10 @@ func oidcTest(c auth.ClientI, connector types.OIDCConnector) (*tester.AuthReques
 		}
 
 		request, err := c.CreateOIDCAuthRequest(oidcRequest)
-
-		requestInfo.RequestID = request.StateToken
+		if request != nil {
+			requestInfo.RequestID = request.StateToken
+		}
 		requestInfo.RequestCreateErr = err
-
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

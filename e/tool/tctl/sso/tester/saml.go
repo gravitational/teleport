@@ -52,10 +52,10 @@ func samlTest(c auth.ClientI, samlConnector types.SAMLConnector) (*tester.AuthRe
 		}
 
 		request, err := c.CreateSAMLAuthRequest(samlRequest)
-
-		requestInfo.RequestID = request.ID
+		if request != nil {
+			requestInfo.RequestID = request.ID
+		}
 		requestInfo.RequestCreateErr = err
-
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
