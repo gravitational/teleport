@@ -219,7 +219,7 @@ func onStart(botConfig *config.BotConfig) error {
 	go handleSignals(log, reloadChan, cancel)
 
 	b := tbot.New(botConfig, log, reloadChan)
-	return b.Run(ctx)
+	return trace.Wrap(b.Run(ctx))
 }
 
 // handleSignals handles incoming Unix signals.
