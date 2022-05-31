@@ -345,7 +345,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
 	if fc.CASignatureAlgorithm != nil {
-		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
+		log.Warn("ca_signing_algo config option is deprecated and will be ignored, we'll always default to rsa-sha2-512.")
 	}
 
 	// Read in how nodes will validate the CA. A single empty string in the file

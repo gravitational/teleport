@@ -54,12 +54,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var validCASigAlgos = []string{
-	ssh.KeyAlgoRSA,
-	ssh.KeyAlgoRSASHA256,
-	ssh.KeyAlgoRSASHA512,
-}
-
 // FileConfig structre represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
 //
@@ -425,9 +419,6 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		if !apiutils.SliceContainsStr(sc.MACs, m) {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
-	}
-	if conf.CASignatureAlgorithm != nil && !apiutils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
-		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", *conf.CASignatureAlgorithm, validCASigAlgos)
 	}
 
 	return nil
