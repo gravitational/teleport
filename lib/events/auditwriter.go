@@ -415,6 +415,8 @@ func (a *AuditWriter) Complete(ctx context.Context) error {
 }
 
 func (a *AuditWriter) processEvents() {
+	defer a.cancel()
+
 	for {
 		// From the spec:
 		//
@@ -443,7 +445,6 @@ func (a *AuditWriter) processEvents() {
 			if err != nil {
 				if isUnrecoverableError(err) {
 					a.log.WithError(err).Debug("Failed to emit audit event.")
-					a.cancel()
 					return
 				}
 
@@ -451,7 +452,6 @@ func (a *AuditWriter) processEvents() {
 				start := time.Now()
 				if err := a.recoverStream(); err != nil {
 					a.log.WithError(err).Warningf("Failed to recover stream.")
-					a.cancel()
 					return
 				}
 				a.log.Debugf("Recovered stream in %v.", time.Since(start))
@@ -460,7 +460,6 @@ func (a *AuditWriter) processEvents() {
 			a.log.Debugf("Stream was closed by the server, attempting to recover.")
 			if err := a.recoverStream(); err != nil {
 				a.log.WithError(err).Warningf("Failed to recover stream.")
-				a.cancel()
 				return
 			}
 		case <-a.closeCtx.Done():
