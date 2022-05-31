@@ -46,7 +46,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
@@ -698,10 +697,7 @@ func Run(args []string, opts ...cliOption) error {
 	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
 
 	// touchid subcommands.
-	var tid *touchIDCommand
-	if touchid.IsAvailable() {
-		tid = newTouchIDCommand(app)
-	}
+	tid := newTouchIDCommand(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -876,12 +872,14 @@ func Run(args []string, opts ...cliOption) error {
 		err = onDaemonStart(&cf)
 	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
+	case tid.diag.FullCommand():
+		err = tid.diag.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
-		case tid != nil && command == tid.ls.FullCommand():
+		case tid.ls != nil && command == tid.ls.FullCommand():
 			err = tid.ls.run(&cf)
-		case tid != nil && command == tid.rm.FullCommand():
+		case tid.rm != nil && command == tid.rm.FullCommand():
 			err = tid.rm.run(&cf)
 		default:
 			// This should only happen when there's a missing switch case above.
