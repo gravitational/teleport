@@ -1,46 +1,21 @@
 import * as Icons from 'design/Icon';
 import * as OSS from 'teleport/features';
+import { Feature } from 'teleport/types';
 import Ctx from 'teleport/teleportContext';
 import cfg from 'e-teleport/config';
 import Workflow from 'e-teleport/Workflow';
 import AuthConnectors from 'e-teleport/AuthConnectors';
 import Billing from 'e-teleport/Billing';
 import AccountE from 'e-teleport/Account';
-class FeatureAuthConnectors {
-  getTopNavTitle() {
-    return 'Team';
-  }
-
+class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   route = {
-    title: 'Auth Connectors',
-    path: cfg.oss.routes.sso,
-    exact: false,
+    ...super.route,
     component: AuthConnectors,
   };
-
-  register(ctx: Ctx) {
-    if (!ctx.getFeatureFlags().authConnector) {
-      return;
-    }
-
-    ctx.storeNav.addSideItem({
-      group: 'team',
-      title: 'Auth Connectors',
-      Icon: Icons.Lock,
-      exact: false,
-      getLink() {
-        return cfg.oss.routes.sso;
-      },
-    });
-
-    ctx.features.push(this);
-  }
 }
 
-class FeatureWorkflow {
-  getTopNavTitle() {
-    return 'Activity';
-  }
+class FeatureWorkflow extends Feature {
+  topNavTitle = 'Activity';
 
   route = {
     group: 'activity',
@@ -48,6 +23,11 @@ class FeatureWorkflow {
     path: cfg.getAccessRequestRoute(),
     component: Workflow,
   };
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  isAvailable(ctx: Ctx): boolean {
+    return true; // TODO(isaiah)
+  }
 
   register(ctx: Ctx) {
     ctx.storeNav.addSideItem({
@@ -63,10 +43,8 @@ class FeatureWorkflow {
   }
 }
 
-class FeatureBilling {
-  getTopNavTitle() {
-    return 'Billing & Usage';
-  }
+class FeatureBilling extends Feature {
+  topNavTitle = 'Billing & Usage';
 
   route = {
     title: 'Billing & Usage',
@@ -74,11 +52,11 @@ class FeatureBilling {
     component: Billing,
   };
 
-  register(ctx: Ctx) {
-    if (!ctx.getFeatureFlags().billing) {
-      return;
-    }
+  isAvailable(ctx: Ctx): boolean {
+    return ctx.getFeatureFlags().billing;
+  }
 
+  register(ctx: Ctx) {
     ctx.storeNav.addTopMenuItem({
       title: 'Billing & Usage',
       Icon: Icons.CreditCard,
