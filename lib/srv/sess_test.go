@@ -273,7 +273,15 @@ func TestInteractiveSession(t *testing.T) {
 		// Closing the session recorder should result in the session ending.
 		err := sess.recorder.Close(context.Background())
 		require.NoError(t, err)
-		require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+
+		r, w := io.Pipe()
+		sess.io.AddReader("foo", r)
+
+		require.Eventually(t, func() bool {
+			_, err = w.Write([]byte("foo"))
+			require.NoError(t, err)
+			return sess.isStopped()
+		}, time.Second*10, time.Millisecond*500)
 	})
 }
 
