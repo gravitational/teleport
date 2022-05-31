@@ -85,6 +85,9 @@ type Config struct {
 	AWSMatchers []services.AWSMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
+	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
+	// between all databases.
+	CloudLabels labels.Importer
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 	// OnReconcile is called after each database resource reconciliation.
@@ -528,6 +531,9 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	labels := s.getDynamicLabels(copy.GetName())
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
+	}
+	if s.cfg.CloudLabels != nil {
+		s.cfg.CloudLabels.Apply(copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewDatabaseServerV3(types.Metadata{

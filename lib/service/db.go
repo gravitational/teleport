@@ -204,6 +204,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Hostname:         process.Config.Hostname,
 		HostID:           process.Config.HostUUID,
 		Databases:        databases,
+		CloudLabels:      process.cloudLabels,
 		ResourceMatchers: process.Config.Databases.ResourceMatchers,
 		AWSMatchers:      process.Config.Databases.AWSMatchers,
 		OnHeartbeat:      process.onHeartbeat(teleport.ComponentDatabase),
