@@ -3217,7 +3217,8 @@ type U2F struct {
 	// AppID returns the application ID for universal second factor.
 	AppID string `protobuf:"bytes,1,opt,name=AppID,proto3" json:"app_id,omitempty"`
 	// Facets returns the facets for universal second factor.
-	// DELETE IN 11.0, time to sunset U2F (codingllama).
+	// Deprecated: Kept for backwards compatibility reasons, but Facets have no
+	// effect since Teleport v10, when Webauthn replaced the U2F implementation.
 	Facets []string `protobuf:"bytes,2,rep,name=Facets,proto3" json:"facets,omitempty"`
 	// DeviceAttestationCAs contains the trusted attestation CAs for U2F
 	// devices.
