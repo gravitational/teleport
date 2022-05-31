@@ -42,6 +42,8 @@ type Server interface {
 	GetHostname() string
 	// GetNamespace returns server namespace
 	GetNamespace() string
+	// GetLabels returns server's static label key pairs
+	GetLabels() map[string]string
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]CommandLabel
 	// SetCmdLabels sets command labels.
@@ -217,6 +219,15 @@ func (s *ServerV2) SetUseTunnel(useTunnel bool) {
 // GetHostname returns server hostname
 func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
+}
+
+// GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
+// exists to preserve backwards compatibility, while GetStaticLabels exists to
+// implement ResourcesWithLabels.
+
+// GetLabels returns server's static label key pairs
+func (s *ServerV2) GetLabels() map[string]string {
+	return s.Metadata.Labels
 }
 
 // GetStaticLabels returns the server static labels.
