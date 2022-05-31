@@ -286,7 +286,7 @@ func cleanUpToolchainsStep(path string) step {
 		Commands: []string{
 			`set -u`,
 			`export PATH=/Users/$(whoami)/.cargo/bin:$PATH`,
-			`export CARGO_HOME=` + perBuildToolchainsDir,
+			`export CARGO_HOME=` + perBuildCargoDir,
 			`export RUST_HOME=$CARGO_HOME`,
 			`export RUSTUP_HOME=` + perBuildRustupDir,
 			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
@@ -295,7 +295,7 @@ func cleanUpToolchainsStep(path string) step {
 			// this ensures we don't leave behind a broken link
 			`rustup override unset`,
 			`rustup toolchain uninstall $RUST_VERSION`,
-			`rm -rf ` + perBuildToolchainsDir,
+			`rm -rf ` + perBuildDir,
 		},
 	}
 }
@@ -374,7 +374,7 @@ func darwinTagCopyPackageArtifactCommands(b buildType) []string {
 	if b.hasTeleportConnect() {
 		commands = append(commands,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
-			`cp "Teleport Connect Preview"*.dmg $WORKSPACE_DIR/go/artifacts`,
+			`cp *.dmg $WORKSPACE_DIR/go/artifacts`,
 		)
 	}
 
@@ -384,7 +384,7 @@ func darwinTagCopyPackageArtifactCommands(b buildType) []string {
 	)
 	if b.hasTeleportConnect() {
 		commands = append(commands,
-			`cd $WORKSPACE_DIR/go/artifacts && for FILE in "Teleport Connect Preview"*.dmg; do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l`,
+			`cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l`,
 		)
 	}
 

@@ -578,7 +578,7 @@ steps:
   commands:
   - set -u
   - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
-  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
   - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
@@ -586,7 +586,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override unset
   - rustup toolchain uninstall $RUST_VERSION
-  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
   environment:
     WORKSPACE_DIR: /tmp/push-build-darwin-amd64
   when:
@@ -3041,11 +3041,11 @@ steps:
   - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release
-  - cp "Teleport Connect Preview"*.dmg $WORKSPACE_DIR/go/artifacts
+  - cp *.dmg $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
     $FILE > $FILE.sha256; done && ls -l
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in "Teleport Connect Preview"*.dmg;
-    do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE"
+    > "$FILE.sha256"; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Upload to S3
@@ -3110,7 +3110,7 @@ steps:
   commands:
   - set -u
   - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
-  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
   - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
@@ -3118,7 +3118,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override unset
   - rustup toolchain uninstall $RUST_VERSION
-  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
   when:
@@ -5476,6 +5476,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 1ba640deb5d2bf6242227ec6b149b9d92ab5cf1ccb6845865cc49dad056a9d3a
+hmac: c110123c809d02b90982c99034d1de62dc3ed2a1ee9964d260595bf2048f74e1
 
 ...
