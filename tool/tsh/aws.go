@@ -61,7 +61,12 @@ func onAWS(cf *CLIConf) error {
 		}
 	}()
 
-	cmd := exec.Command(awsCLIBinaryName, cf.AWSCommandArgs...)
+	args := cf.AWSCommandArgs
+	if cf.AWSEndpointURLMode {
+		args = append(args, "--endpoint-url", awsApp.GetEndpointURL())
+	}
+
+	cmd := exec.Command(awsCLIBinaryName, args...)
 	return awsApp.RunCommand(cmd)
 }
 
@@ -101,10 +106,20 @@ func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, appName string) (*aws
 // The first method is always preferred as the original hostname is preserved
 // through forward proxy.
 func (a *awsApp) StartLocalProxies() error {
-	if err := a.startLocalALPNProxy(); err != nil {
+	// AWS endpoint URL mode
+	if a.cf.AWSEndpointURLMode {
+		if err := a.startLocalALPNProxy(a.cf.LocalProxyPort); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	// HTTPS proxy mode
+	if err := a.startLocalALPNProxy(""); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.startLocalForwardProxy(); err != nil {
+	if err := a.startLocalForwardProxy(a.cf.LocalProxyPort); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -159,8 +174,8 @@ func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *awsApp) GetEnvVars() (map[string]string, error) {
-	if a.localALPNProxy == nil || a.localForwardProxy == nil {
-		return nil, trace.NotFound("local proxies are not running")
+	if a.localALPNProxy == nil {
+		return nil, trace.NotFound("ALPN proxy is not running")
 	}
 
 	cred, err := a.GetAWSCredentials()
@@ -173,19 +188,21 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	caPath := a.profile.AppLocalCAPath(a.appName)
-	return map[string]string{
+	envVars := map[string]string{
 		// AWS CLI and SDKs can load credentials through environment variables.
 		//
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
-		"AWS_CA_BUNDLE":         caPath,
+		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.appName),
+	}
 
-		// Set proxy settings.
-		"HTTPS_PROXY": "http://" + a.localForwardProxy.GetAddr(),
-		"https_proxy": "http://" + a.localForwardProxy.GetAddr(),
-	}, nil
+	// Set proxy settings.
+	if a.localForwardProxy != nil {
+		envVars["HTTPS_PROXY"] = "http://" + a.localForwardProxy.GetAddr()
+		envVars["https_proxy"] = "http://" + a.localForwardProxy.GetAddr()
+	}
+	return envVars, nil
 }
 
 // GetForwardProxyAddr returns local forward proxy address.
@@ -211,6 +228,8 @@ func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("Running command: %q", cmd)
+
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
 	cmd.Stdin = os.Stdin
@@ -226,7 +245,7 @@ func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 }
 
 // startLocalALPNProxy starts the local ALPN proxy.
-func (a *awsApp) startLocalALPNProxy() error {
+func (a *awsApp) startLocalALPNProxy(port string) error {
 	tc, err := makeClient(a.cf, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -253,8 +272,8 @@ func (a *awsApp) startLocalALPNProxy() error {
 	}
 
 	listenAddr := "localhost:0"
-	if a.cf.AWSEndpointURLPort != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", a.cf.AWSEndpointURLPort)
+	if port != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", port)
 	}
 
 	// Create a listener that is able to sign certificates when receiving AWS
@@ -293,10 +312,10 @@ func (a *awsApp) startLocalALPNProxy() error {
 }
 
 // startLocalForwardProxy starts the local forward proxy.
-func (a *awsApp) startLocalForwardProxy() error {
+func (a *awsApp) startLocalForwardProxy(port string) error {
 	listenAddr := "localhost:0"
-	if a.cf.LocalProxyPort != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", a.cf.LocalProxyPort)
+	if port != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", port)
 	}
 
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to

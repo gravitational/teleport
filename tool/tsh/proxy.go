@@ -382,7 +382,12 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		"endpointURL": awsApp.GetEndpointURL(),
 	}
 
-	if err = awsProxyTemplate.Execute(os.Stdout, templateData); err != nil {
+	template := awsHTTPSProxyTemplate
+	if cf.AWSEndpointURLMode {
+		template = awsEndpointURLProxyTemplate
+	}
+
+	if err = template.Execute(os.Stdout, templateData); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -464,9 +469,9 @@ Use the following command to connect to the database:
   $ {{.command}}
 `))
 
-// awsProxyTemplate is the message that gets printed to a user when an AWS
-// proxy is started.
-var awsProxyTemplate = template.Must(template.New("").Parse(
+// awsHTTPSProxyTemplate is the message that gets printed to a user when an
+// HTTPS proxy is started.
+var awsHTTPSProxyTemplate = template.Must(template.New("").Parse(
 	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
 
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
@@ -474,7 +479,15 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   AWS_SECRET_ACCESS_KEY={{.envVars.AWS_SECRET_ACCESS_KEY}}
   AWS_CA_BUNDLE={{.envVars.AWS_CA_BUNDLE}}
   HTTPS_PROXY={{.envVars.HTTPS_PROXY}}
+`))
 
-If HTTPS proxy setting cannot be configured for the application, try using
-"{{.endpointURL}}" as the AWS endpoint URL.
+// awsEndpointURLProxyTemplate is the message that gets printed to a user when an
+// AWS endpoint URL proxy is started.
+var awsEndpointURLProxyTemplate = template.Must(template.New("").Parse(
+	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}
+
+In addition to the endpoint URL, use the following credentials to connect to the proxy:
+  AWS_ACCESS_KEY_ID={{.envVars.AWS_ACCESS_KEY_ID}}
+  AWS_SECRET_ACCESS_KEY={{.envVars.AWS_SECRET_ACCESS_KEY}}
+  AWS_CA_BUNDLE={{.envVars.AWS_CA_BUNDLE}}
 `))

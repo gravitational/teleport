@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // ListenerMuxWrapper wraps the net.Listener and multiplex incoming connection from serviceListener and connection
@@ -204,19 +203,9 @@ func (r *CertGenListener) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls
 		return &r.cfg.CA, nil
 	}
 
-	r.mu.RLock()
-	if cert, found := r.certificatesByHost[clientHello.ServerName]; found {
-		r.mu.RUnlock()
-		return cert, nil
-	}
-	r.mu.RUnlock()
-
 	cert, err := r.generateCertFor(clientHello.ServerName)
 	if err != nil {
-		log.WithError(err).Errorf("Failed to generate certificate for %q.", clientHello.ServerName)
-
-		// Default to CA.
-		return &r.cfg.CA, nil
+		return nil, trace.WrapWithMessage(err, "Failed to generate certificate for %q: %v", clientHello.ServerName, err)
 	}
 
 	return cert, nil
@@ -224,6 +213,13 @@ func (r *CertGenListener) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls
 
 // generateCertFor generates a new certificate for the specified host.
 func (r *CertGenListener) generateCertFor(host string) (*tls.Certificate, error) {
+	r.mu.RLock()
+	if cert, found := r.certificatesByHost[host]; found {
+		r.mu.RUnlock()
+		return cert, nil
+	}
+	r.mu.RUnlock()
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if cert, found := r.certificatesByHost[host]; found {
