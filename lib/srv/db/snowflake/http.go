@@ -86,6 +86,9 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 	return maybeReadGzip(&resp.Header, body)
 }
 
+// maybeReadGzip checks if the body is gzip encoded and returns decoded version.
+// To determine gzip encoding the beginning of body message is being checked
+// instead of HTTP header and the second one was less reliable during testing.
 func maybeReadGzip(headers *http.Header, body []byte) ([]byte, error) {
 	gzipMagic := []byte{0x1f, 0x8b, 0x08}
 
