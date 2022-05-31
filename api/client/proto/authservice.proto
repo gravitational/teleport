@@ -1688,7 +1688,7 @@ message GetDomainNameResponse {
 // GetClusterCACertResponse is a response from GetClusterCACert
 message GetClusterCACertResponse {
     // TLSCA is a PEM-encoded TLS certificate authority.
-    bytes TLSCA = 1 [ (gogoproto.jsontag) = "tlc_ca" ];
+    bytes TLSCA = 1 [ (gogoproto.jsontag) = "tls_ca" ];
 }
 
 // AuthService is authentication/authorization service implementation
