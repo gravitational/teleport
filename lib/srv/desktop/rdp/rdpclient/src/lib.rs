@@ -256,7 +256,7 @@ fn connect_rdp_inner(
                 != CGOErrCode::ErrCodeSuccess
             {
                 return Err(RdpError::TryError(String::from(
-                    "call to sd_info_request failed",
+                    "call to tdp_sd_acknowledge failed",
                 )));
             }
         }
@@ -518,7 +518,7 @@ pub unsafe extern "C" fn update_clipboard(
 ///
 /// # Safety
 ///
-/// The caller must ensure that drive_name points to a valid buffer.
+/// The caller must ensure that sd_announce.name points to a valid buffer.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_announce(
     client_ptr: *mut Client,

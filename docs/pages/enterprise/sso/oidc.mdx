@@ -4,7 +4,7 @@ description: How to configure SSH access with OAuth2 or OIDC (OpenID connect) us
 h1: OAuth2 / OIDC Authentication for SSH
 ---
 
-This guide will cover how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/)
+This guide will explain how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/)
 (also known as OIDC) to issue SSH credentials to a specific groups of users.
 When used in combination with role based access control (RBAC) it allows SSH
 administrators to define policies like:
@@ -13,12 +13,24 @@ administrators to define policies like:
 - Developers must never SSH into production servers.
 - ... and many others.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
+<ScopedBlock
+  scope={["oss"]}
 >
-  This guide requires an Enterprise edition of Teleport.
-</Admonition>
+
+  This guide requires Teleport Cloud or Teleport Enterprise.
+
+  View this guide as the user of another Teleport edition:
+
+  <TileSet>
+  <Tile icon="cloud" title="Teleport Cloud" href="./oidc.mdx/?scope=cloud">
+  </Tile>
+  <Tile icon="building" title="Teleport Enterprise" href="./oidc.mdx/?scope=enterprise">
+  </Tile>
+  </TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud", "enterprise"]}>
 
 ## Enable default OIDC authentication
 
@@ -221,3 +233,5 @@ identity provider if you are not automatically redirected.
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+</ScopedBlock>
