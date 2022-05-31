@@ -90,7 +90,7 @@ func (b *Bot) markStarted() error {
 	defer b.mu.Unlock()
 
 	if b.started {
-		return trace.Errorf("bot has already been started")
+		return trace.BadParameter("bot has already been started")
 	}
 	b.started = true
 
@@ -119,7 +119,7 @@ func (b *Bot) Run(ctx context.Context) error {
 
 	defer watcher.Close()
 
-	return b.renewLoop(ctx)
+	return trace.Wrap(b.renewLoop(ctx))
 }
 
 func (b *Bot) initialize(ctx context.Context) error {
