@@ -484,7 +484,7 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
 // awsEndpointURLProxyTemplate is the message that gets printed to a user when an
 // AWS endpoint URL proxy is started.
 var awsEndpointURLProxyTemplate = template.Must(template.New("").Parse(
-	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}
+	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
 
 In addition to the endpoint URL, use the following credentials to connect to the proxy:
   AWS_ACCESS_KEY_ID={{.envVars.AWS_ACCESS_KEY_ID}}
