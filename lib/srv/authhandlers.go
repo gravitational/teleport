@@ -160,6 +160,13 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		}
 		identity.Generation = generation
 	}
+	if allowedResourcesStr, ok := certificate.Extensions[teleport.CertExtensionAllowedResources]; ok {
+		allowedResourceIDs, err := services.ResourceIDsFromString(allowedResourcesStr)
+		if err != nil {
+			return IdentityContext{}, trace.Wrap(err)
+		}
+		identity.AllowedResourceIDs = allowedResourceIDs
+	}
 	return identity, nil
 }
 

@@ -42,12 +42,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/acme"
-	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -81,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -100,9 +95,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -182,6 +183,10 @@ const (
 	// WindowsDesktopReady is generated when the Teleport windows desktop
 	// service is ready to start accepting connections.
 	WindowsDesktopReady = "WindowsDesktopReady"
+
+	// TracingReady is generated when the Teleport tracing service is ready to
+	// start exporting spans.
+	TracingReady = "TracingReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -336,6 +341,9 @@ type TeleportProcess struct {
 	// cloudLabels is a set of labels imported from a cloud provider and shared between
 	// services.
 	cloudLabels labels.Importer
+	// TracingProvider is the provider to be used for exporting traces. In the event
+	// that tracing is disabled this will be a no-op provider that drops all spans.
+	TracingProvider *tracing.Provider
 }
 
 type keyPairKey struct {
@@ -810,6 +818,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
 		cloudLabels:         cloudLabels,
+		TracingProvider:     tracing.NoopProvider(),
 	}
 
 	process.registerAppDepend()
@@ -826,6 +835,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic), process.log)
+	}
+
+	if cfg.Tracing.Enabled {
+		if err := process.initTracingService(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -862,6 +877,9 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 	if cfg.WindowsDesktop.Enabled {
 		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
+	}
+	if cfg.Tracing.Enabled {
+		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
 	process.RegisterEventMapping(eventMapping)
 
@@ -1044,7 +1062,7 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 		}
 		return handler, nil
 	}
-	uri, err := utils.ParseSessionsURI(auditConfig.AuditSessionsURI())
+	uri, err := apiutils.ParseSessionsURI(auditConfig.AuditSessionsURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1094,7 +1112,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 	var hasNonFileLog bool
 	var loggers []events.IAuditLog
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
-		uri, err := utils.ParseSessionsURI(eventsURI)
+		uri, err := apiutils.ParseSessionsURI(eventsURI)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2436,6 +2454,79 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		log.Infof("Exited.")
 	})
 
+	return nil
+}
+
+func (process *TeleportProcess) initTracingService() error {
+	log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentTracing, process.id))
+	log.Info("Initializing tracing provider and exporter.")
+
+	attrs := []attribute.KeyValue{
+		attribute.String(tracing.ProcessIDKey, process.id),
+		attribute.String(tracing.HostnameKey, process.Config.Hostname),
+		attribute.String(tracing.HostIDKey, process.Config.HostUUID),
+	}
+
+	traceConf := tracing.Config{
+		Service:      teleport.ComponentTeleport,
+		Attributes:   attrs,
+		ExporterURL:  process.Config.Tracing.ExporterURL,
+		SamplingRate: process.Config.Tracing.SamplingRate,
+		Logger:       log,
+	}
+
+	tlsConfig := &tls.Config{}
+	// if a custom CA is specified, use a custom cert pool
+	if len(process.Config.Tracing.CACerts) > 0 {
+		pool := x509.NewCertPool()
+		for _, caCertPath := range process.Config.Tracing.CACerts {
+			caCert, err := os.ReadFile(caCertPath)
+			if err != nil {
+				return trace.Wrap(err, "failed to read tracing CA certificate %+v", caCertPath)
+			}
+
+			if !pool.AppendCertsFromPEM(caCert) {
+				return trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
+			}
+		}
+		tlsConfig.ClientCAs = pool
+		tlsConfig.RootCAs = pool
+	}
+
+	// add any custom certificates for mTLS
+	if len(process.Config.Tracing.KeyPairs) > 0 {
+		for _, pair := range process.Config.Tracing.KeyPairs {
+			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+			if err != nil {
+				return trace.Wrap(err, "failed to read keypair: %+v", err)
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+		}
+	}
+
+	if len(process.Config.Tracing.CACerts) > 0 || len(process.Config.Tracing.KeyPairs) > 0 {
+		traceConf.TLSConfig = tlsConfig
+	}
+
+	provider, err := tracing.NewTraceProvider(process.ExitContext(), traceConf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.TracingProvider = provider
+
+	process.OnExit("tracing.shutdown", func(payload interface{}) {
+		if payload == nil {
+			log.Info("Shutting down immediately.")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			warnOnErr(provider.Shutdown(ctx), log)
+		} else {
+			log.Infof("Shutting down gracefully.")
+			ctx := payloadContext(payload, log)
+			warnOnErr(provider.Shutdown(ctx), log)
+		}
+		process.log.Info("Exited.")
+	})
 	return nil
 }
 
