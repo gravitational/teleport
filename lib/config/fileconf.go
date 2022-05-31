@@ -861,7 +861,9 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 }
 
 type UniversalSecondFactor struct {
-	AppID                string   `yaml:"app_id"`
+	AppID string `yaml:"app_id"`
+	// Facets kept only to avoid breakages during Teleport updates.
+	// Webauthn is now used instead of U2F.
 	Facets               []string `yaml:"facets"`
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
@@ -873,7 +875,6 @@ func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
 	}
 	return &types.U2F{
 		AppID:                u.AppID,
-		Facets:               u.Facets,
 		DeviceAttestationCAs: attestationCAs,
 	}, nil
 }

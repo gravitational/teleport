@@ -123,8 +123,6 @@ auth_service:
   authentication:
     u2f:
       app_id: "app-id"
-      facets:
-      - https://localhost:3080
       device_attestation_cas:
       - "testdata/u2f_attestation_ca.pem"
       - |
