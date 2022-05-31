@@ -59,7 +59,7 @@ First, create a SAML 2.0 Web App in Okta configuration section
 We are going to map the Okta groups we've created above to the SAML Attribute
 statements (special signed metadata exposed via a SAML XML response).
 
-### Section: _"General"_
+### Section: *"General"*
 
 Configure general settings section. Make sure there are no typos in the callback URL.
 
@@ -70,7 +70,7 @@ Configure general settings section. Make sure there are no typos in the callback
 | Name ID format              | `EmailAddress`                                              |
 | Application username        | `Okta username`                                             |
 
-### Section: _"Single Attribute Statements"_
+### Section: *"Single Attribute Statements"*
 
 Configure single-value attributes to be passed to Teleport on login.
 
@@ -79,7 +79,7 @@ Configure single-value attributes to be passed to Teleport on login.
 | `username` | `Unspecified` | `user.login` |
 | `email`    | `Basic`       | `user.email` |
 
-### Section: _"Group Attribute Statements"_
+### Section: *"Group Attribute Statements"*
 
 Configure which group information to be passed to Teleport on login. To pass all groups via the claim named `groups`:
 
