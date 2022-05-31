@@ -446,7 +446,7 @@ print-rust-version:
 	@echo $(RUST_VERSION)
 
 #
-# Print the Node version used to build TeleportConnect.
+# Print the Node version used to build Teleport Connect.
 #
 .PHONY:print-node-version
 print-node-version:
