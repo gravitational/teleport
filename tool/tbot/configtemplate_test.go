@@ -39,7 +39,7 @@ func validateTemplate(t *testing.T, tplI config.Template, dest destination.Desti
 	t.Helper()
 
 	// First, make sure all advertised files exist.
-	for _, file := range tplI.Describe() {
+	for _, file := range tplI.Describe(dest) {
 		// Don't bother checking directories, they're meant to be black
 		// boxes. We could implement type-specific checks if we really
 		// wanted.
