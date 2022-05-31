@@ -1352,6 +1352,19 @@ The pipeline may also utilise `tee` to capture the connector generated with `tct
 $ tctl sso configure ... | tee connector.yaml | tctl sso test
 ```
 
+You can test existing auth connector by combining the command with `tctl get`:
+
+```bsh
+$ tctl get saml/your-connector-name --with-secrets | tctl sso test
+````
+
+<Admonition
+  type="note"
+  title="Important"
+>
+  Make sure to include `--with-secrets` flag, or the exported auth connector will not be testeable.
+</Admonition>
+
 ### tctl sso configure github
 
 Configure Github auth connector.
