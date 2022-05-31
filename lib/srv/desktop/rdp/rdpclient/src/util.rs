@@ -21,7 +21,8 @@
 /// to handle some data in the code as a &str (or String), and later
 /// convert it to RDP's preferred format and send it over the wire.
 pub fn to_unicode(s: &str) -> Vec<u8> {
-    let mut buf: Vec<u8> = s.encode_utf16().flat_map(|v| v.to_le_bytes()).collect();
-    buf.extend_from_slice(&[0, 0]);
-    buf
+    s.encode_utf16()
+        .chain([0])
+        .flat_map(|v| v.to_le_bytes())
+        .collect()
 }

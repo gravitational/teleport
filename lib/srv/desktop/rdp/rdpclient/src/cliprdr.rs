@@ -103,10 +103,9 @@ impl Client {
     /// update_clipboard is invoked from Go.
     /// It updates the local clipboard cache and returns the encoded message
     /// that should be sent to the RDP server.
-    ///
-    /// The data passed to this function should be valid UTF-8 text.
-    pub fn update_clipboard(&mut self, data: Vec<u8>) -> RdpResult<Vec<Vec<u8>>> {
+    pub fn update_clipboard(&mut self, data: String) -> RdpResult<Vec<Vec<u8>>> {
         // convert LF to CRLF, as required by CF_TEXT and CF_UNICODETEXT
+        let data = data.into_bytes();
         let len_orig = data.len();
         let mut converted = Vec::with_capacity(len_orig);
         for i in 0..len_orig {
@@ -123,7 +122,7 @@ impl Client {
             }
         }
 
-        let (data, format) = encode_clipboard(converted)?;
+        let (data, format) = encode_clipboard(converted);
         self.clipboard.insert(format as u32, data);
         self.add_headers_and_chunkify(
             ClipboardPDUType::CB_FORMAT_LIST,
@@ -545,19 +544,21 @@ impl<T: FormatName> FormatListPDU<T> {
     }
 }
 
-fn encode_clipboard(mut data: Vec<u8>) -> RdpResult<(Vec<u8>, ClipboardFormat)> {
+// encode_clipboard encodes data suitably for clipboard storage.
+// This means determining the appropriate format and making sure the data has a nul terminator.
+//
+// This data must be valid UTF-8.
+fn encode_clipboard(mut data: Vec<u8>) -> (Vec<u8>, ClipboardFormat) {
     if data.is_ascii() {
         if matches!(data.last(), Some(x) if *x != 0) {
             data.push(0);
         }
 
-        Ok((data, ClipboardFormat::CF_TEXT))
+        (data, ClipboardFormat::CF_TEXT)
     } else {
-        let str = std::str::from_utf8(&data)
-            .map_err(|_| invalid_data_error("invalid UTF-8 clipboard data"))?;
-
+        let str = std::str::from_utf8(&data).unwrap();
         data = util::to_unicode(str);
-        Ok((data, ClipboardFormat::CF_UNICODETEXT))
+        (data, ClipboardFormat::CF_UNICODETEXT)
     }
 }
 
@@ -1050,9 +1051,7 @@ mod tests {
     #[test]
     fn update_clipboard_returns_format_list_pdu() {
         let mut c: Client = Default::default();
-        let messages = c
-            .update_clipboard(String::from("abc").into_bytes())
-            .unwrap();
+        let messages = c.update_clipboard("abc".to_owned()).unwrap();
         let bytes = messages[0].clone();
 
         // verify that it returns a properly encoded format list PDU
@@ -1078,26 +1077,26 @@ mod tests {
 
     #[test]
     fn update_clipboard_conversion() {
-        struct Item(&'static [u8], &'static [u8], ClipboardFormat);
+        struct Item(&'static str, &'static [u8], ClipboardFormat);
         for Item(input, expected, format) in [
-            Item(b"abc\0", b"abc\0", ClipboardFormat::CF_TEXT), // already null-terminated, no conversion necessary
-            Item(b"\n123", b"\r\n123\0", ClipboardFormat::CF_TEXT), // starts with LF
-            Item(b"def\r\n", b"def\r\n\0", ClipboardFormat::CF_TEXT), // already CRLF, no conversion necessary
-            Item(b"gh\r\nij\nk", b"gh\r\nij\r\nk\0", ClipboardFormat::CF_TEXT), // mixture of both
+            Item("abc\0", b"abc\0", ClipboardFormat::CF_TEXT), // already null-terminated, no conversion necessary
+            Item("\n123", b"\r\n123\0", ClipboardFormat::CF_TEXT), // starts with LF
+            Item("def\r\n", b"def\r\n\0", ClipboardFormat::CF_TEXT), // already CRLF, no conversion necessary
+            Item("gh\r\nij\nk", b"gh\r\nij\r\nk\0", ClipboardFormat::CF_TEXT), // mixture of both
             Item(
-                "🤑".as_bytes(),
-                &[62, 216, 17, 221, 0, 0],
+                "🤑\n",
+                &[62, 216, 17, 221, b'\r', 0, b'\n', 0, 0, 0],
                 ClipboardFormat::CF_UNICODETEXT,
             ), // detection and utf8 -> utf16 conversion
         ] {
             let mut c: Client = Default::default();
-            c.update_clipboard(input.to_vec()).unwrap();
+            c.update_clipboard(input.to_owned()).unwrap();
 
             assert_eq!(
                 expected,
                 *c.clipboard.get(&(format as u32)).unwrap(),
                 "testing {}",
-                String::from_utf8_lossy(input),
+                input,
             );
         }
     }
