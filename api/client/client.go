@@ -1636,7 +1636,7 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 }
 
 // GenerateToken generates a new auth token for the given service roles.
-// This token can be used by corresponding servcies to authenticate with
+// This token can be used by corresponding services to authenticate with
 // the Auth server and get a signed certificate and private key.
 func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	resp, err := c.grpc.GenerateToken(ctx, req, c.callOpts...)

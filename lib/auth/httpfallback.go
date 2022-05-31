@@ -228,7 +228,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 // DELETE IN 11.0.0, to remove fallback and grpc call is already defined in api/client/client.go
 //
 // GenerateToken generates a new auth token for the given service roles.
-// This token can be used by corresponding servcies to authenticate with
+// This token can be used by corresponding services to authenticate with
 // the Auth server and get a signed certificate and private key.
 func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	switch resp, err := c.APIClient.GenerateToken(ctx, req); {
