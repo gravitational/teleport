@@ -185,9 +185,6 @@ type Identity interface {
 	// GetOIDCAuthRequest returns OIDC auth request if found
 	GetOIDCAuthRequest(ctx context.Context, stateToken string) (*OIDCAuthRequest, error)
 
-	// CreateSAMLConnector creates SAML Connector
-	CreateSAMLConnector(connector types.SAMLConnector) error
-
 	// UpsertSAMLConnector upserts SAML Connector
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
 
@@ -211,9 +208,6 @@ type Identity interface {
 
 	// GetSSODiagnosticInfo returns SSO diagnostic info records.
 	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
-
-	// CreateGithubConnector creates a new Github connector
-	CreateGithubConnector(connector types.GithubConnector) error
 
 	// UpsertGithubConnector creates or updates a new Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
