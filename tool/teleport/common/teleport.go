@@ -366,9 +366,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
-		err = onConfigDump(dumpFlags, []string{})
+		err = onConfigDump(dumpFlags)
 	case dumpNodeConfigure.FullCommand():
-		err = onConfigDump(dumpFlags, []string{"ssh"})
+		dumpFlags.Roles = defaults.RoleNode
+		err = onConfigDump(dumpFlags)
 	case exec.FullCommand():
 		err = onExec()
 	case forward.FullCommand():
@@ -466,7 +467,7 @@ func checkConfigurationFileVersion(version string) error {
 }
 
 // onConfigDump is the handler for "configure" CLI command
-func onConfigDump(flags dumpFlags, enabledSections []string) error {
+func onConfigDump(flags dumpFlags) error {
 	var err error
 	if err := flags.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -501,7 +502,7 @@ func onConfigDump(flags dumpFlags, enabledSections []string) error {
 		}
 	}
 
-	sfc, err := config.MakeSampleFileConfig(flags.SampleFlags, enabledSections)
+	sfc, err := config.MakeSampleFileConfig(flags.SampleFlags)
 	if err != nil {
 		return trace.Wrap(err)
 	}

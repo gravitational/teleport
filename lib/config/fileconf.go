@@ -180,7 +180,7 @@ func sliceContains(slice []string, element string) bool {
 
 // MakeSampleFileConfig returns a sample config to start
 // a standalone server
-func MakeSampleFileConfig(flags SampleFlags, enabledSections []string) (fc *FileConfig, err error) {
+func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if (flags.KeyFile == "") != (flags.CertFile == "") { // xor
 		return nil, trace.BadParameter("please provide both --key-file and --cert-file")
 	}
@@ -215,26 +215,22 @@ func MakeSampleFileConfig(flags SampleFlags, enabledSections []string) (fc *File
 	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	sshEnabled := (sliceContains(enabledSections, "ssh") || len(enabledSections) == 0) && roles[defaults.RoleNode]
-	s, err := makeSampleSSHConfig(conf, flags, sshEnabled)
+	s, err := makeSampleSSHConfig(conf, flags, roles[defaults.RoleNode])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Auth config:
-	authEnabled := (sliceContains(enabledSections, "auth") || len(enabledSections) == 0) && roles[defaults.RoleAuthService]
-	a := makeSampleAuthConfig(conf, flags, authEnabled)
+	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
 
 	// sample proxy config:
-	proxyEnabled := (sliceContains(enabledSections, "proxy") || len(enabledSections) == 0) && roles[defaults.RoleProxy]
-	p, err := makeSampleProxyConfig(conf, flags, proxyEnabled)
+	p, err := makeSampleProxyConfig(conf, flags, roles[defaults.RoleProxy])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Apps config:
-	appsEnabled := (sliceContains(enabledSections, "apps") || len(enabledSections) == 0) && roles[defaults.RoleApp]
-	apps, err := makeSampleAppsConfig(conf, flags, appsEnabled)
+	apps, err := makeSampleAppsConfig(conf, flags, roles[defaults.RoleApp])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
