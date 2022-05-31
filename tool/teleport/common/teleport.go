@@ -305,6 +305,27 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
+	dumpNode := app.Command("node", "SSH Node configuration commands")
+	dumpNodeConfigure := dumpNode.Command("configure", "Generate a configuration file for an ssh node.")
+	dumpNodeConfigure.Flag("cluster-name",
+		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
+	dumpNodeConfigure.Flag("output",
+		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
+		teleport.SchemeStdout).StringVar(&dumpFlags.output)
+	dumpNodeConfigure.Flag("acme",
+		"Get automatic certificate from Letsencrypt.org using ACME.").BoolVar(&dumpFlags.ACMEEnabled)
+	dumpNodeConfigure.Flag("acme-email",
+		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
+	dumpNodeConfigure.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
+	dumpNodeConfigure.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
+	dumpNodeConfigure.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
+	dumpNodeConfigure.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
+	dumpNodeConfigure.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).StringVar(&dumpFlags.DataDir)
+	dumpNodeConfigure.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
+	dumpNodeConfigure.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
+	dumpNodeConfigure.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
+	dumpNodeConfigure.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes ex) env:staging,cloud:aws.").StringVar(&dumpFlags.NodeLabels)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -346,7 +367,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
-		err = onConfigDump(dumpFlags)
+		err = onConfigDump(dumpFlags, []string{})
+	case dumpNodeConfigure.FullCommand():
+		err = onConfigDump(dumpFlags, []string{"ssh"})
 	case exec.FullCommand():
 		err = onExec()
 	case forward.FullCommand():
@@ -444,7 +467,7 @@ func checkConfigurationFileVersion(version string) error {
 }
 
 // onConfigDump is the handler for "configure" CLI command
-func onConfigDump(flags dumpFlags) error {
+func onConfigDump(flags dumpFlags, enabledSections []string) error {
 	var err error
 	if err := flags.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -479,7 +502,7 @@ func onConfigDump(flags dumpFlags) error {
 		}
 	}
 
-	sfc, err := config.MakeSampleFileConfig(flags.SampleFlags)
+	sfc, err := config.MakeSampleFileConfig(flags.SampleFlags, enabledSections)
 	if err != nil {
 		return trace.Wrap(err)
 	}
