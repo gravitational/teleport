@@ -222,7 +222,7 @@ func (e *Engine) createOnClientConnectFunc(sessionCtx *common.Session, username,
 	// ensures the correct password is used for each shard connection when
 	// Redis is in cluster mode.
 	case apiutils.SliceContainsStr(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
-		return fetchUserPasswordOnConnect(sessionCtx, e.Users)
+		return fetchUserPasswordOnConnect(sessionCtx, e.Users, e.Audit)
 
 	default:
 		return nil

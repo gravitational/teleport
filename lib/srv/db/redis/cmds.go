@@ -187,16 +187,16 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 			return trace.BadParameter("username has a wrong type, expected string got %T", cmd.Args()[1])
 		}
 
-		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ****", dbUser)})
-
 		// For Teleport managed users, bypass the passwords sent here.
 		if apiutils.SliceContainsStr(e.sessionCtx.Database.GetManagedUsers(), e.sessionCtx.DatabaseUser) {
 			return trace.Wrap(e.sendToClient([]string{
 				"OK",
 				fmt.Sprintf("Please note that AUTH commands are ignored for Teleport managed user '%s'.", e.sessionCtx.DatabaseUser),
-				"Teleport service automatically authorizes managed users with Redis server.",
+				"Teleport service automatically authenticates managed users with the Redis server.",
 			}))
 		}
+
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ****", dbUser)})
 
 		if dbUser != e.sessionCtx.DatabaseUser {
 			return trace.AccessDenied("failed to authenticate as %s user. "+

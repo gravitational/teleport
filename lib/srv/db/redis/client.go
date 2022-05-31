@@ -22,6 +22,7 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -140,7 +141,8 @@ func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
 
 // fetchUserPasswordOnConnect returns an onClientConnectFunc that fetches user
 // password on the fly then uses it for "auth".
-func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users) onClientConnectFunc {
+func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users, audit common.Audit) onClientConnectFunc {
+	var auditOnce sync.Once
 	return func(ctx context.Context, conn *redis.Conn) error {
 		err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 			services.AccessMFAParams{Verified: true},
@@ -158,6 +160,10 @@ func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users) 
 		if err != nil {
 			return trace.AccessDenied("failed to get password for %v: %v.", username, err)
 		}
+
+		auditOnce.Do(func() {
+			audit.OnQuery(ctx, sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ******", username)})
+		})
 		return authConnection(ctx, conn, username, password)
 	}
 }
