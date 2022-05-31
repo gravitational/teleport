@@ -19,8 +19,6 @@ package utils
 import (
 	"net/url"
 
-	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/trace"
 )
 
@@ -35,7 +33,7 @@ func ParseSessionsURI(in string) (*url.URL, error) {
 		return nil, trace.BadParameter("failed to parse URI %q: %v", in, err)
 	}
 	if u.Scheme == "" {
-		u.Scheme = teleport.SchemeFile
+		u.Scheme = "file"
 	}
 	return u, nil
 }

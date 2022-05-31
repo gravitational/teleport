@@ -993,7 +993,7 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 		}
 		return wrapper, nil
 	}
-	uri, err := utils.ParseSessionsURI(auditConfig.AuditSessionsURI())
+	uri, err := apiutils.ParseSessionsURI(auditConfig.AuditSessionsURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1043,7 +1043,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 	var hasNonFileLog bool
 	var loggers []events.IAuditLog
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
-		uri, err := utils.ParseSessionsURI(eventsURI)
+		uri, err := apiutils.ParseSessionsURI(eventsURI)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
