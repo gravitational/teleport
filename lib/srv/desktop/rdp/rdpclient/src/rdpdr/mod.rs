@@ -269,6 +269,8 @@ impl Client {
         }
     }
 
+    /// This is called from Go (in effect) to announce a new directory
+    /// for sharing.
     pub fn write_client_device_list_announce<S: Read + Write>(
         &mut self,
         req: ClientDeviceListAnnounce,
@@ -692,6 +694,8 @@ impl DeviceAnnounceHeader {
         w.write_u32::<LittleEndian>(self.device_type.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_id)?;
         let mut name: &str = &self.preferred_dos_name;
+        // See "PreferredDosName" at
+        // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
         if name.len() > 7 {
             name = &name[..7];
         }
