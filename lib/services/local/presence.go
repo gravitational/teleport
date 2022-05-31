@@ -57,28 +57,6 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 	}
 }
 
-const (
-	valPrefix = "val"
-)
-
-// UpsertLocalClusterName upserts local cluster name
-func (s *PresenceService) UpsertLocalClusterName(name string) error {
-	_, err := s.Put(context.TODO(), backend.Item{
-		Key:   backend.Key(localClusterPrefix, valPrefix),
-		Value: []byte(name),
-	})
-	return trace.Wrap(err)
-}
-
-// GetLocalClusterName upserts local domain
-func (s *PresenceService) GetLocalClusterName() (string, error) {
-	item, err := s.Get(context.TODO(), backend.Key(localClusterPrefix, valPrefix))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(item.Value), nil
-}
-
 // DeleteAllNamespaces deletes all namespaces
 func (s *PresenceService) DeleteAllNamespaces() error {
 	return s.DeleteRange(context.TODO(), backend.Key(namespacesPrefix), backend.RangeEnd(backend.Key(namespacesPrefix)))
