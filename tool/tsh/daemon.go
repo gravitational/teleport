@@ -18,6 +18,8 @@ package main
 
 import (
 	"context"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/sirupsen/logrus"
 	"os"
 	"syscall"
 
@@ -32,6 +34,11 @@ func onDaemonStart(cf *CLIConf) error {
 	homeDir := profile.FullProfilePath(cf.HomePath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Logging is already handled by tsh in debug mode
+	if cf.Debug == false {
+		utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
+	}
 
 	err := teleterm.Start(ctx, teleterm.Config{
 		HomeDir:            homeDir,
