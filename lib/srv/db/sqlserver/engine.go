@@ -126,7 +126,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, clientErrCh chan<- error, sessionCtx *common.Session) {
 	defer func() {
 		if r := recover(); r != nil {
-			e.Log.Warnf("Recovered while handling DB connection %v.", r)
+			e.Log.Warnf("Recovered while handling DB connection %v", r)
 			err := trace.BadParameter("failed to handle client connection")
 			e.SendError(err)
 		}
@@ -146,13 +146,13 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			return
 		}
 
-		packet, err := protocol.ToSQLPacket(p)
+		sqlPacket, err := protocol.ToSQLPacket(p)
 		switch {
 		case err != nil:
 			e.Log.WithError(err).Errorf("Failed to parse SQLServer packet.")
-			e.emitMalformedPacket(e.Context, sessionCtx, packet)
+			e.emitMalformedPacket(e.Context, sessionCtx, p)
 		default:
-			e.auditPacket(e.Context, sessionCtx, packet)
+			e.auditPacket(e.Context, sessionCtx, sqlPacket)
 		}
 
 		_, err = serverConn.Write(p.Bytes())
