@@ -35,8 +35,9 @@ func onDaemonStart(cf *CLIConf) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Logging is already handled by tsh in debug mode
-	if cf.Debug == false {
+	// Use info-level daemon-grade logging for the daemon running in non-debug mode.
+	// tsh already sets debug-level CLI-grade logging when running in debug mode.
+	if !cf.Debug {
 		utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 	}
 
