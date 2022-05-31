@@ -446,7 +446,7 @@ impl ServerCoreCapabilityRequest {
 
         Self {
             padding: 0,
-            num_capabilities: u16::try_from(capabilities.len()).unwrap(),
+            num_capabilities: capabilities.len() as u16,
             capabilities,
         }
     }
