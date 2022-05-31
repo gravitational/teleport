@@ -185,34 +185,18 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/configuration/static_tokens", srv.withAuth(srv.getStaticTokens))
 	srv.DELETE("/:version/configuration/static_tokens", srv.withAuth(srv.deleteStaticTokens))
 	srv.POST("/:version/configuration/static_tokens", srv.withAuth(srv.setStaticTokens))
-	srv.GET("/:version/authentication/preference", srv.withAuth(srv.getClusterAuthPreference))
-	srv.POST("/:version/authentication/preference", srv.withAuth(srv.setClusterAuthPreference))
 
 	// OIDC
-	srv.POST("/:version/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
-	srv.GET("/:version/oidc/connectors", srv.withAuth(srv.getOIDCConnectors))
-	srv.GET("/:version/oidc/connectors/:id", srv.withAuth(srv.getOIDCConnector))
-	srv.DELETE("/:version/oidc/connectors/:id", srv.withAuth(srv.deleteOIDCConnector))
 	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest))
 	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
 	srv.GET("/:version/oidc/requests/get/:id", srv.withAuth(srv.getOIDCAuthRequest))
 
 	// SAML handlers
-	srv.POST("/:version/saml/connectors", srv.withAuth(srv.createSAMLConnector))
-	srv.PUT("/:version/saml/connectors", srv.withAuth(srv.upsertSAMLConnector))
-	srv.GET("/:version/saml/connectors", srv.withAuth(srv.getSAMLConnectors))
-	srv.GET("/:version/saml/connectors/:id", srv.withAuth(srv.getSAMLConnector))
-	srv.DELETE("/:version/saml/connectors/:id", srv.withAuth(srv.deleteSAMLConnector))
 	srv.POST("/:version/saml/requests/create", srv.withAuth(srv.createSAMLAuthRequest))
 	srv.POST("/:version/saml/requests/validate", srv.withAuth(srv.validateSAMLResponse))
 	srv.GET("/:version/saml/requests/get/:id", srv.withAuth(srv.getSAMLAuthRequest))
 
 	// Github connector
-	srv.POST("/:version/github/connectors", srv.withAuth(srv.createGithubConnector))
-	srv.PUT("/:version/github/connectors", srv.withAuth(srv.upsertGithubConnector))
-	srv.GET("/:version/github/connectors", srv.withAuth(srv.getGithubConnectors))
-	srv.GET("/:version/github/connectors/:id", srv.withAuth(srv.getGithubConnector))
-	srv.DELETE("/:version/github/connectors/:id", srv.withAuth(srv.deleteGithubConnector))
 	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest))
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
 	srv.GET("/:version/github/requests/get/:id", srv.withAuth(srv.getGithubAuthRequest))
@@ -1129,73 +1113,6 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return se, nil
 }
 
-type upsertOIDCConnectorRawReq struct {
-	Connector json.RawMessage `json:"connector"`
-	TTL       time.Duration   `json:"ttl"`
-}
-
-func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertOIDCConnectorRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := services.UnmarshalOIDCConnector(req.Connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if req.TTL != 0 {
-		connector.SetExpiry(s.Now().UTC().Add(req.TTL))
-	}
-	if err = services.ValidateOIDCConnector(connector); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.UpsertOIDCConnector(r.Context(), connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := auth.GetOIDCConnector(r.Context(), p.ByName("id"), withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalOIDCConnector(connector, services.WithVersion(version)))
-}
-
-func (s *APIServer) deleteOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteOIDCConnector(r.Context(), p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getOIDCConnectors(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connectors, err := auth.GetOIDCConnectors(r.Context(), withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]json.RawMessage, len(connectors))
-	for i, connector := range connectors {
-		data, err := services.MarshalOIDCConnector(connector, services.WithVersion(version))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		items[i] = data
-	}
-	return items, nil
-}
-
 type createOIDCAuthRequestReq struct {
 	Req services.OIDCAuthRequest `json:"req"`
 }
@@ -1276,92 +1193,6 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 		raw.HostSigners[i] = data
 	}
 	return &raw, nil
-}
-
-type createSAMLConnectorRawReq struct {
-	Connector json.RawMessage `json:"connector"`
-}
-
-func (s *APIServer) createSAMLConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createSAMLConnectorRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := services.UnmarshalSAMLConnector(req.Connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := services.ValidateSAMLConnector(connector); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.CreateSAMLConnector(r.Context(), connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type upsertSAMLConnectorRawReq struct {
-	Connector json.RawMessage `json:"connector"`
-}
-
-func (s *APIServer) upsertSAMLConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertSAMLConnectorRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := services.UnmarshalSAMLConnector(req.Connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := services.ValidateSAMLConnector(connector); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.UpsertSAMLConnector(r.Context(), connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getSAMLConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := auth.GetSAMLConnector(r.Context(), p.ByName("id"), withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalSAMLConnector(connector, services.WithVersion(version)))
-}
-
-func (s *APIServer) deleteSAMLConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteSAMLConnector(r.Context(), p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getSAMLConnectors(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connectors, err := auth.GetSAMLConnectors(r.Context(), withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]json.RawMessage, len(connectors))
-	for i, connector := range connectors {
-		data, err := services.MarshalSAMLConnector(connector, services.WithVersion(version))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		items[i] = data
-	}
-	return items, nil
 }
 
 type createSAMLAuthRequestReq struct {
@@ -1453,117 +1284,6 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 		raw.HostSigners[i] = data
 	}
 	return &raw, nil
-}
-
-// createGithubConnectorRawReq is a request to create a new Github connector
-type createGithubConnectorRawReq struct {
-	// Connector is the connector data
-	Connector json.RawMessage `json:"connector"`
-}
-
-/* createGithubConnector creates a new Github connector
-
-   POST /:version/github/connectors
-
-   Success response: {"message": "ok"}
-*/
-func (s *APIServer) createGithubConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req createGithubConnectorRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := services.UnmarshalGithubConnector(req.Connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.CreateGithubConnector(connector); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// upsertGithubConnectorRawReq is a request to upsert a Github connector
-type upsertGithubConnectorRawReq struct {
-	// Connector is the connector data
-	Connector json.RawMessage `json:"connector"`
-}
-
-/* upsertGithubConnector creates or updates a Github connector
-
-   PUT /:version/github/connectors
-
-   Success response: {"message": "ok"}
-*/
-func (s *APIServer) upsertGithubConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req upsertGithubConnectorRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := services.UnmarshalGithubConnector(req.Connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpsertGithubConnector(r.Context(), connector); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-/* getGithubConnectors returns a list of all configured Github connectors
-
-   GET /:version/github/connectors
-
-   Success response: []services.GithubConnector
-*/
-func (s *APIServer) getGithubConnectors(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connectors, err := auth.GetGithubConnectors(r.Context(), withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]json.RawMessage, len(connectors))
-	for i, connector := range connectors {
-		cbytes, err := services.MarshalGithubConnector(connector, services.PreserveResourceID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		items[i] = cbytes
-	}
-	return items, nil
-}
-
-/* getGithubConnector returns the specified Github connector
-
-   GET /:version/github/connectors/:id
-
-   Success response: services.GithubConnector
-*/
-func (s *APIServer) getGithubConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := auth.GetGithubConnector(r.Context(), p.ByName("id"), withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalGithubConnector(connector, services.PreserveResourceID()))
-}
-
-/* deleteGithubConnector deletes the specified Github connector
-
-   DELETE /:version/github/connectors/:id
-
-   Success response: {"message": "ok"}
-*/
-func (s *APIServer) deleteGithubConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	if err := auth.DeleteGithubConnector(r.Context(), p.ByName("id")); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
 }
 
 // createGithubAuthRequestReq is a request to start Github OAuth2 flow
@@ -1861,10 +1581,6 @@ func (s *APIServer) deleteNamespace(auth ClientI, w http.ResponseWriter, r *http
 	return message("ok"), nil
 }
 
-type upsertRoleRawReq struct {
-	Role json.RawMessage `json:"role"`
-}
-
 func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	cn, err := auth.GetClusterName()
 	if err != nil {
@@ -1939,41 +1655,6 @@ func (s *APIServer) setStaticTokens(auth ClientI, w http.ResponseWriter, r *http
 	}
 
 	return message(fmt.Sprintf("static tokens set: %+v", st)), nil
-}
-
-func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalAuthPreference(cap, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-type setClusterAuthPreferenceReq struct {
-	ClusterAuthPreference json.RawMessage `json:"cluster_auth_prerference"`
-}
-
-func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *setClusterAuthPreferenceReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cap, err := services.UnmarshalAuthPreference(req.ClusterAuthPreference)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cap.SetOrigin(types.OriginDynamic)
-
-	err = auth.SetAuthPreference(r.Context(), cap)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("cluster authentication preference set: %+v", cap)), nil
 }
 
 type upsertTunnelConnectionRawReq struct {
