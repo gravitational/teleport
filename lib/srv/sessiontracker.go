@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -179,6 +180,33 @@ func (s *SessionTracker) WaitForStateUpdate(initialState types.SessionState) typ
 		}
 		s.trackerCond.Wait()
 	}
+}
+
+// SubscribeToStateUpdate waits for the tracker's state to be updated and sends the new states over a channel
+func (s *SessionTracker) SubscribeToStateUpdate(ctx context.Context) <-chan types.SessionState {
+	ch := make(chan types.SessionState, 1)
+
+	go func() {
+		s.trackerCond.L.Lock()
+		defer s.trackerCond.L.Unlock()
+		var prev types.SessionState = math.MaxInt32
+
+		for {
+			if new := s.tracker.GetState(); new != prev {
+				prev = new
+
+				select {
+				case ch <- new:
+				case <-ctx.Done():
+					return
+				}
+			}
+
+			s.trackerCond.Wait()
+		}
+	}()
+
+	return ch
 }
 
 func (s *SessionTracker) GetState() types.SessionState {

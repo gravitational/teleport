@@ -268,6 +268,19 @@ func TestInteractiveSession(t *testing.T) {
 	t.Run("BrokenRecorder", func(t *testing.T) {
 		t.Parallel()
 		sess := testOpenSession(t, reg)
+		stateUpdate := sess.tracker.SubscribeToStateUpdate(context.Background())
+
+	Outer:
+		for {
+			select {
+			case state := <-stateUpdate:
+				if state == types.SessionState_SessionStateRunning {
+					break Outer
+				}
+			case <-time.After(time.Second * 5):
+				t.Fatal("timeout waiting for session to start")
+			}
+		}
 
 		// The recorder might be closed in the case of an error downstream.
 		// Closing the session recorder should result in the session ending.
@@ -278,7 +291,7 @@ func TestInteractiveSession(t *testing.T) {
 			_, err = sess.inWriter.Write([]byte("foo"))
 			require.NoError(t, err)
 			return sess.isStopped()
-		}, time.Second*10, time.Millisecond*500)
+		}, time.Second*5, time.Millisecond*500)
 	})
 }
 
