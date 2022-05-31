@@ -150,6 +150,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 		switch {
 		case err != nil:
 			e.Log.WithError(err).Errorf("Failed to parse SQLServer packet.")
+			e.emitMalformedPacket(e.Context, sessionCtx, packet)
 		default:
 			e.auditPacket(e.Context, sessionCtx, packet)
 		}
@@ -212,6 +213,18 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	}
 
 	return nil
+}
+func (e *Engine) emitMalformedPacket(ctx context.Context, sessCtx *common.Session, packet protocol.Packet) {
+	e.Audit.EmitEvent(ctx, &events.DatabaseSessionMalformedPacket{
+		Metadata: common.MakeEventMetadata(sessCtx,
+			libevents.DatabaseSessionMalformedPacketEvent,
+			libevents.DatabaseSessionMalformedPacketCode,
+		),
+		UserMetadata:     common.MakeUserMetadata(sessCtx),
+		SessionMetadata:  common.MakeSessionMetadata(sessCtx),
+		DatabaseMetadata: common.MakeDatabaseMetadata(sessCtx),
+		Payload:          packet.Bytes(),
+	})
 }
 
 func (e *Engine) auditPacket(ctx context.Context, sessCtx *common.Session, packet protocol.Packet) {

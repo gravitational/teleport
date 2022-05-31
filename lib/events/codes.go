@@ -124,6 +124,8 @@ const (
 	DatabaseSessionQueryCode = "TDB02I"
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
+	// DatabaseSessionMalformedPacketCode is the db.session.malformed_packet event code.
+	DatabaseSessionMalformedPacketCode = "TDB06I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
