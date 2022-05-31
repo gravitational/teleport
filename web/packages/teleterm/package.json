@@ -63,6 +63,7 @@
       "build/app/dist"
     ],
     "mac": {
+      "target": "dmg",
       "type": "distribution",
       "hardenedRuntime": true,
       "entitlements": "assets/entitlements.mac.plist",
