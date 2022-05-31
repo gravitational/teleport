@@ -18,7 +18,6 @@ package filesessions
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
@@ -271,10 +270,6 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
 	// Create a buffer with the max size that a part file can have.
 	buf := make([]byte, minUploadBytes+events.MaxProtoMessageSizeBytes)
-	_, err := rand.Read(buf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	file, partPath, err := h.openUploadPart(upload, partNumber)
 	if err != nil {
