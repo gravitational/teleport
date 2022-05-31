@@ -545,22 +545,26 @@ func (d *DatabaseV3) GetIAMAction() string {
 // GetIAMResources returns AWS IAM resources that provide access to the database.
 func (d *DatabaseV3) GetIAMResources() []string {
 	aws := d.GetAWS()
+	partition := "aws"
+	if aws.Region != "" && (aws.Region == "cn-northwest-1" || aws.Region == "cn-north-1") {
+		partition = "aws-cn"
+	}
 	if d.IsRDS() {
 		if aws.Region != "" && aws.AccountID != "" && aws.RDS.ResourceID != "" {
 			return []string{
-				fmt.Sprintf("arn:aws:rds-db:%v:%v:dbuser:%v/*",
-					aws.Region, aws.AccountID, aws.RDS.ResourceID),
+				fmt.Sprintf("arn:%v:rds-db:%v:%v:dbuser:%v/*",
+					partition, aws.Region, aws.AccountID, aws.RDS.ResourceID),
 			}
 		}
 	} else if d.IsRedshift() {
 		if aws.Region != "" && aws.AccountID != "" && aws.Redshift.ClusterID != "" {
 			return []string{
-				fmt.Sprintf("arn:aws:redshift:%v:%v:dbuser:%v/*",
-					aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-				fmt.Sprintf("arn:aws:redshift:%v:%v:dbname:%v/*",
-					aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-				fmt.Sprintf("arn:aws:redshift:%v:%v:dbgroup:%v/*",
-					aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+				fmt.Sprintf("arn:%v:redshift:%v:%v:dbuser:%v/*",
+					partition, aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+				fmt.Sprintf("arn:%v:redshift:%v:%v:dbname:%v/*",
+					partition, aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+				fmt.Sprintf("arn:%v:redshift:%v:%v:dbgroup:%v/*",
+					partition, aws.Region, aws.AccountID, aws.Redshift.ClusterID),
 			}
 		}
 	}
@@ -588,6 +592,10 @@ func (d *DatabaseV3) getRDSPolicy() string {
 	if region == "" {
 		region = "<region>"
 	}
+	partition := "aws"
+	if region == "cn-northwest-1" || region == "cn-north-1" {
+		partition = "aws-cn"
+	}
 	accountID := d.GetAWS().AccountID
 	if accountID == "" {
 		accountID = "<account_id>"
@@ -597,7 +605,7 @@ func (d *DatabaseV3) getRDSPolicy() string {
 		resourceID = "<resource_id>"
 	}
 	return fmt.Sprintf(rdsPolicyTemplate,
-		region, accountID, resourceID)
+		partition, region, accountID, resourceID)
 }
 
 // getRedshiftPolicy returns IAM policy document for this Redshift database.
@@ -605,6 +613,10 @@ func (d *DatabaseV3) getRedshiftPolicy() string {
 	region := d.GetAWS().Region
 	if region == "" {
 		region = "<region>"
+	}
+	partition := "aws"
+	if region == "cn-northwest-1" || region == "cn-north-1" {
+		partition = "aws-cn"
 	}
 	accountID := d.GetAWS().AccountID
 	if accountID == "" {
@@ -615,7 +627,7 @@ func (d *DatabaseV3) getRedshiftPolicy() string {
 		clusterID = "<cluster_id>"
 	}
 	return fmt.Sprintf(redshiftPolicyTemplate,
-		region, accountID, clusterID)
+		partition, region, accountID, clusterID)
 }
 
 const (
@@ -690,7 +702,7 @@ var (
     {
       "Effect": "Allow",
       "Action": "rds-db:connect",
-      "Resource": "arn:aws:rds-db:%v:%v:dbuser:%v/*"
+      "Resource": "arn:%v:rds-db:%v:%v:dbuser:%v/*"
     }
   ]
 }`
@@ -702,9 +714,9 @@ var (
       "Effect": "Allow",
       "Action": "redshift:GetClusterCredentials",
       "Resource": [
-        "arn:aws:redshift:%[1]v:%[2]v:dbuser:%[3]v/*",
-        "arn:aws:redshift:%[1]v:%[2]v:dbname:%[3]v/*",
-        "arn:aws:redshift:%[1]v:%[2]v:dbgroup:%[3]v/*"
+        "arn:%[1]v:redshift:%[2]v:%[3]v:dbuser:%[4]v/*",
+        "arn:%[1]v:redshift:%[2]v:%[3]v:dbname:%[4]v/*",
+        "arn:%[1]v:redshift:%[2]v:%[3]v:dbgroup:%[4]v/*"
       ]
     }
   ]
