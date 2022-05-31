@@ -274,11 +274,8 @@ func TestInteractiveSession(t *testing.T) {
 		err := sess.recorder.Close(context.Background())
 		require.NoError(t, err)
 
-		r, w := io.Pipe()
-		sess.io.AddReader("foo", r)
-
 		require.Eventually(t, func() bool {
-			_, err = w.Write([]byte("foo"))
+			_, err = sess.inWriter.Write([]byte("foo"))
 			require.NoError(t, err)
 			return sess.isStopped()
 		}, time.Second*10, time.Millisecond*500)
