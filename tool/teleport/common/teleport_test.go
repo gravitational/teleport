@@ -148,7 +148,7 @@ func TestConfigure(t *testing.T) {
 		err := onConfigDump(dumpFlags{
 			// typo
 			output: "sddout",
-		})
+		}, []string{})
 		require.IsType(t, trace.BadParameter(""), err)
 
 		err = onConfigDump(dumpFlags{
@@ -156,13 +156,13 @@ func TestConfigure(t *testing.T) {
 			SampleFlags: config.SampleFlags{
 				ClusterName: "example.com",
 			},
-		})
+		}, []string{})
 		require.NoError(t, err)
 
 		// stdout
 		err = onConfigDump(dumpFlags{
 			output: "stdout",
-		})
+		}, []string{})
 		require.NoError(t, err)
 	})
 
