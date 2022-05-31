@@ -1087,7 +1087,12 @@ mod tests {
                 "🤑\n",
                 &[62, 216, 17, 221, b'\r', 0, b'\n', 0, 0, 0],
                 ClipboardFormat::CF_UNICODETEXT,
-            ), // detection and utf8 -> utf16 conversion
+            ), // detection and utf8 -> utf16 conversion & CRLF conversion
+            Item(
+                "🤑\r\n",
+                &[62, 216, 17, 221, b'\r', 0, b'\n', 0, 0, 0],
+                ClipboardFormat::CF_UNICODETEXT,
+            ), // detection and utf8 -> utf16 conversion & no CRLF conversion
         ] {
             let mut c: Client = Default::default();
             c.update_clipboard(input.to_owned()).unwrap();
