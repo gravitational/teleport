@@ -45,8 +45,7 @@ func ConvertRequestFailureError(err error) error {
 	return err // Return unmodified.
 }
 
-// ParseMetadataClientError attempts to convert a failed imds call to a trace error.
-// If it can't, it returns the original error instead.
+// ParseMetadataClientError converts a failed instance metadata service call to a trace error.
 func ParseMetadataClientError(err error) error {
 	var httpError interface{ HTTPStatusCode() int }
 	if errors.As(err, &httpError) {
