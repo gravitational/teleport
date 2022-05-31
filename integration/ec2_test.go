@@ -359,6 +359,7 @@ func TestEC2Labels(t *testing.T) {
 	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
+	t.Cleanup(func() { require.NoError(t, proc.Close()) })
 
 	ctx := context.Background()
 	authServer := proc.GetAuthServer()
@@ -444,6 +445,7 @@ func TestEC2Hostname(t *testing.T) {
 	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
+	t.Cleanup(func() { require.NoError(t, proc.Close()) })
 
 	ctx := context.Background()
 	authServer := proc.GetAuthServer()
