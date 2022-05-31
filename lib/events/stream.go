@@ -601,13 +601,13 @@ func (w *sliceWriter) shouldUploadCurrentSlice() bool {
 // startUploadCurrentSlice starts uploading current slice
 // and adds it to the waiting list
 func (w *sliceWriter) startUploadCurrentSlice() error {
-	w.lastPartNumber++
 	activeUpload, err := w.startUpload(w.lastPartNumber, w.current)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	w.activeUploads[w.lastPartNumber] = activeUpload
 	w.current = nil
+	w.lastPartNumber++
 	return nil
 }
 
