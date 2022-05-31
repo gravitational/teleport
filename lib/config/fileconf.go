@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -54,9 +55,9 @@ import (
 )
 
 var validCASigAlgos = []string{
-	ssh.SigAlgoRSA,
-	ssh.SigAlgoRSASHA2256,
-	ssh.SigAlgoRSASHA2512,
+	ssh.KeyAlgoRSA,
+	ssh.KeyAlgoRSASHA256,
+	ssh.KeyAlgoRSASHA512,
 }
 
 // FileConfig structre represents the teleport configuration stored in a config file
@@ -86,6 +87,9 @@ type FileConfig struct {
 	// WindowsDesktop is the "windows_desktop_service" that defines the
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
+
+	// Tracing is the "tracing_service" section in Teleport configuration file
+	Tracing TracingService `yaml:"tracing_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -161,6 +165,8 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
+	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
+	NodeLabels string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -200,7 +206,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	s := makeSampleSSHConfig(conf, roles[defaults.RoleNode])
+	s, err := makeSampleSSHConfig(conf, flags, roles[defaults.RoleNode])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Auth config:
 	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
@@ -246,7 +255,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
+func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) (SSH, error) {
 	var s SSH
 	if enabled {
 		s.EnabledFlag = "yes"
@@ -258,14 +267,16 @@ func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
 				Period:  time.Minute,
 			},
 		}
-		s.Labels = map[string]string{
-			"env": "example",
+		labels, err := client.ParseLabelSpec(flags.NodeLabels)
+		if err != nil {
+			return s, trace.Wrap(err)
 		}
+		s.Labels = labels
 	} else {
 		s.EnabledFlag = "no"
 	}
 
-	return s
+	return s, nil
 }
 
 func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
@@ -1630,4 +1641,34 @@ type LDAPConfig struct {
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+}
+
+// TracingService contains configuration for the tracing_service.
+type TracingService struct {
+	// Enabled turns the tracing service role on or off for this process
+	EnabledFlag string `yaml:"enabled,omitempty"`
+
+	// ExporterURL is the OTLP exporter URL to send spans to
+	ExporterURL string `yaml:"exporter_url"`
+
+	// KeyPairs is a list of x509 serving key pairs used for mTLS.
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts are the exporter ca certs to use
+	CACerts []string `yaml:"ca_certs,omitempty"`
+
+	// SamplingRatePerMillion is the sampling rate for the exporter.
+	// 1_000_000 means all spans will be sampled and 0 means none are sampled.
+	SamplingRatePerMillion int `yaml:"sampling_rate_per_million"`
+}
+
+func (s *TracingService) Enabled() bool {
+	if s.EnabledFlag == "" {
+		return false
+	}
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	if err != nil {
+		return false
+	}
+	return v
 }
