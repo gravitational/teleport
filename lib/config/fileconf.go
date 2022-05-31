@@ -169,15 +169,6 @@ type SampleFlags struct {
 	NodeLabels string
 }
 
-func sliceContains(slice []string, element string) bool {
-	for _, value := range slice {
-		if value == element {
-			return true
-		}
-	}
-	return false
-}
-
 // MakeSampleFileConfig returns a sample config to start
 // a standalone server
 func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
