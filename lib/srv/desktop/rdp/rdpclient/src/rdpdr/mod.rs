@@ -142,7 +142,7 @@ impl Client {
 
         let resp = self.add_headers_and_chunkify(
             PacketId::PAKID_CORE_CLIENT_CAPABILITY,
-            ClientCoreCapabilityResponse::new_response().encode()?,
+            ClientCoreCapabilityResponse::new_response(self.allow_directory_sharing).encode()?,
         )?;
         debug!("sending client core capability response");
         Ok(resp)
@@ -404,11 +404,11 @@ struct ServerCoreCapabilityRequest {
 }
 
 impl ServerCoreCapabilityRequest {
-    fn new_response() -> Self {
+    fn new_response(allow_directory_sharing: bool) -> Self {
         // Clients are always required to send the "general" capability set.
         // In addition, we also send the optional smartcard capability (CAP_SMARTCARD_TYPE)
         // and drive capability (CAP_DRIVE_TYPE).
-        let capabilities = vec![
+        let mut capabilities = vec![
             CapabilitySet {
                 header: CapabilityHeader {
                     cap_type: CapabilityType::CAP_GENERAL_TYPE,
@@ -436,15 +436,18 @@ impl ServerCoreCapabilityRequest {
                 },
                 data: Capability::Smartcard,
             },
-            CapabilitySet {
+        ];
+
+        if allow_directory_sharing {
+            capabilities.push(CapabilitySet {
                 header: CapabilityHeader {
                     cap_type: CapabilityType::CAP_DRIVE_TYPE,
                     length: 8, // 8 byte header + empty capability descriptor
                     version: DRIVE_CAPABILITY_VERSION_02,
                 },
                 data: Capability::Drive,
-            },
-        ];
+            });
+        }
 
         Self {
             padding: 0,
