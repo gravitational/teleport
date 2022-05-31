@@ -33,7 +33,7 @@ The following steps configure an example SAML authentication connector matching 
 
 ## Prerequisites
 
-Before you get started you’ll need:
+Before you get started you'll need:
 
 - An Azure AD admin account with access to creating non-gallery applications (P2 License)
 - To register one or more users in the directory
@@ -107,54 +107,7 @@ Before you get started you’ll need:
   type="warning"
   title="Important"
 >
-  This is a important document.  Treat the Federation Metadata XML file as you would a password.
-</Admonition>
-
-## Create a SAML Connector
-
-Now, create a SAML connector resource. Write the following to `azure-connector.yaml`:
-
-```yaml
-kind: saml
-version: v2
-metadata:
-  # the name of the connector
-  name: azure-saml
-spec:
-  display: "Microsoft"
-  # acs is the Assertion Consumer Service URL. This should be the address of
-  # the Teleport proxy that your identity provider will communicate with.
-  acs: https://teleport.example.com:3080/v1/webapi/saml/acs
-  attributes_to_roles:
-    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 930210...>", roles: ["editor"]}
-    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 93b110...>", roles: ["dev"]}
-  entity_descriptor: |
-    <federationmedata.xml contents>
-```
-
-Replace the `acs` field with your Teleport address, update the group IDs in the `attributes_to_roles` field with the actual Azure AD group ID values, and insert the downloaded Federation Metadata XML into the `entity_descriptor` field.
-
-
-Create the connector using `tctl`:
-
-```code
-$ tctl create azure-connector.yaml
-```
-
-<Admonition
-  type="tip"
-  title="Automatic signing key pair"
->
-  Teleport will generate a signing key pair and update the SAML connector with the `signing_key_pair`
-  property.
-
-  ![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
-
-  Alternatively, you can generate your own keypair when creating a connector using `openssl`:
-
-  ```code
-  $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
-  ```
+  This is an important document.  Treat the Federation Metadata XML file as you would a password.
 </Admonition>
 
 ## Create a new Teleport role
@@ -178,19 +131,110 @@ spec:
       access: relaxed
 ```
 
-Replace `ubuntu` with the Linux login available on your servers.
+Replace `ubuntu` with the Linux login available on your servers. Create the role:
+
 
 ```code
 $ tctl create dev.yaml
 ```
 
-## Testing
+## Create & Test SAML Connector
+
+Use the [`tctl sso configure saml`](../../setup/reference/cli.mdx#tctl-sso-configure-saml) command to create SAML connector [resource](../../setup/reference/resources.mdx):
+
+```code
+$ tctl sso configure saml -p azuread -e federationmedata.xml                                     \
+  -r http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<group-id-930210...>,editor  \
+  -r http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<group-id-93b110...>,dev     \
+  | tee azure-connector.yaml
+```
+
+The resulting file should be similar to this:
+
+```yaml
+kind: saml
+version: v2
+metadata:
+  # the name of the connector
+  name: azure
+spec:
+  display: "Microsoft"
+  # acs is the Assertion Consumer Service URL. This should be the address of
+  # the Teleport proxy that your identity provider will communicate with.
+  acs: https://teleport.example.com:3080/v1/webapi/saml/acs
+  audience: https://teleport.example.com:3080/v1/webapi/saml/acs
+  service_provider_issuer: https://teleport.example.com:3080/v1/webapi/saml/acs
+  attributes_to_roles:
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    value: "<group-id-930210>"
+    roles:
+    - access
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    value: "<group-id-930321>"
+    roles:
+    - dev
+  entity_descriptor: |
+    <federationmedata.xml contents>
+```
+
+Note:
+- The `acs` field will be automatically populated by `tctl sso configure saml` command by querying your Teleport cluster settings. If you have multiple Teleport proxies available, you can modify that field to point to a different one. 
+- Remember to update the group IDs in the `attributes_to_roles` field with the actual Azure AD group ID values. This can be done either by editing the file, or by modifying the command line and regenerating the file. 
+- The downloaded Federation Metadata XML will be automatically inserted into the `entity_descriptor` field.
+
+Before creating the connector, you should test it using [`tctl sso test`](../../setup/reference/cli.mdx#tctl-sso-test) command. This will run the SSO flow end-to-end:
+
+```code
+$ tctl sso test azure-connector.yaml
+```
+
+Once the test is finished, a wealth of diagnostic information will be printed, including:
+- SAML attributes;
+- role mappings;
+- effective roles of logged in user;
+- encountered errors.
+
+You can also combine the commands into a pipeline:
+
+```code
+$ tctl sso configure saml -p azuread -e federationmedata.xml                                     \
+  -r http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<group-id-930210...>,editor  \
+  -r http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<group-id-93b110...>,dev     \
+  | tee azure-connector.yaml                                                                     \
+  | tctl sso test
+```
+
+Once happy with the test results, create the connector using `tctl` tool:
+
+```code
+$ tctl create azure-connector.yaml
+```
+
+<Admonition
+  type="tip"
+  title="Automatic signing key pair"
+>
+  Teleport will generate a signing key pair and update the SAML connector with the `signing_key_pair`
+  property.
+
+  ![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
+
+  Alternatively, you can generate your own keypair when creating a connector using `openssl`:
+
+  ```code
+  $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
+  ```
+</Admonition>
+
+
+## Validation
+
+The Web UI will now contain a new button:
 
 ![Login with Microsoft](../../../img/azuread/azure-11-loginwithmsft.png)
 
 
-
-The CLI is the same as before:
+The CLI is the same as before, because we have [changed the defaults](#enable-default-saml-authentication):
 ```code
 $ tsh --proxy=proxy.example.com login
 ```
@@ -233,30 +277,30 @@ If you are modifying the existing connector, write the YAML to a file first:
 $ tctl get saml --with-secrets > azure-out.yaml
 ```
 
-You will notice that Teleport has generated a `signing_key_pair`. This key pair
+Upon creation of SAML auth connector, Teleport will automatically fill in `signing_key_pair` if it is missing. This key pair
 is used to sign responses.
 
 ```yaml
 kind: saml
+version: v2
 metadata:
   name: azure-saml
 spec:
+  display: Microsoft
   acs: https://teleport.example.com/v1/webapi/saml/acs
+  audience: https://teleport.example.com/v1/webapi/saml/acs
+  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    value: "<group-id-930210>"
     roles:
-    - editor
     - access
-    - auditor
-    value: '*'
-  audience: https://teleport.example.com/v1/webapi/saml/acs
-  cert: ""
-  display: Microsoft
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    value: "<group-id-930321>"
+    roles:
+    - dev
   entity_descriptor: |
     <?xml ...
-  entity_descriptor_url: ""
-  issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -266,34 +310,14 @@ spec:
       -----BEGIN RSA PRIVATE KEY-----
       ...
       -----END RSA PRIVATE KEY-----
-  sso: https://login.microsoftonline.com/your-id-here/saml2
-version: v2
 ```
 
-Add `assertion_key_pair` using the data from `server.key` and `server.cer`.
+If you are editing existing YAML connector file, add `assertion_key_pair` using the data from `server.key` and `server.cer`.
+
+If you are configuring new connector using `tctl sso configure saml` command, simply use `--assertion-key-file` and `--assertion-cert-file` flags.
 
 ```yaml
-kind: saml
-metadata:
-  name: azure-saml
-spec:
-  acs: https://teleport.example.com/v1/webapi/saml/acs
-  attributes_to_roles:
-  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
-    roles:
-    - editor
-    - access
-    - auditor
-    value: '*'
-  audience: https://teleport.example.com/v1/webapi/saml/acs
-  cert: ""
-  display: Microsoft
-  entity_descriptor: |
-    <?xml ...
-  entity_descriptor_url: ""
-  issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
-  signing_key_pair:
+  assertion_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
       ...
@@ -302,8 +326,6 @@ spec:
       -----BEGIN RSA PRIVATE KEY-----
       ...
       -----END RSA PRIVATE KEY-----
-  sso: https://login.microsoftonline.com/your-id-here/saml2
-version: v2
 ```
 
 <Admonition
@@ -311,41 +333,32 @@ version: v2
   title="Warning"
 >
   Make sure to have the same indentation for all lines of the certificate and key, otherwise
-  Teleport will not parse the YAML file.
+  Teleport will not parse the YAML file. Alternatively, consider using `tctl sso configure saml` which handles this automatically.
 </Admonition>
 
 After your edits, the file will look like this:
 
 ```yaml
 kind: saml
+version: v2
 metadata:
   name: azure-saml
 spec:
+  display: Microsoft
   acs: https://teleport.example.com/v1/webapi/saml/acs
+  audience: https://teleport.example.com/v1/webapi/saml/acs
+  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    value: "<group-id-930210>"
     roles:
-    - editor
     - access
-    - auditor
-    value: '*'
-  audience: https://teleport.example.com/v1/webapi/saml/acs
-  cert: ""
-  display: Microsoft
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    value: "<group-id-930321>"
+    roles:
+    - dev
   entity_descriptor: |
     <?xml ...
-  entity_descriptor_url: ""
-  issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
-  assertion_key_pair:
-    cert: |
-      -----BEGIN CERTIFICATE-----
-      New CERT
-      -----END CERTIFICATE-----
-    private_key: |
-      -----BEGIN RSA PRIVATE KEY-----
-      New private key
-      -----END RSA PRIVATE KEY-----
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -355,14 +368,15 @@ spec:
       -----BEGIN RSA PRIVATE KEY-----
       ...
       -----END RSA PRIVATE KEY-----
-  sso: https://login.microsoftonline.com/your-id-here/saml2
-version: v2
-```
-
-Update the connector:
-
-```code
-$ tctl create -f azure-out.yaml
+  assertion_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
 ```
 
 ### Activate token encryption
@@ -379,7 +393,20 @@ $ tctl create -f azure-out.yaml
 
 ![Activate certificate](../../../img/azuread/azuread-token-encryption-2-activate.png)
 
-If the SSO login with this connector is successful, the encryption works.
+### Testing encryption
+
+Test the connector:
+```code
+$ tctl sso test azure-out.yaml
+```
+
+Fix the connector definition as needed. Once satisfied, update the connector:
+
+```code
+$ tctl create -f azure-out.yaml
+```
+
+Validate the SSO login using Web UI.
 
 ## Troubleshooting
 
@@ -387,9 +414,9 @@ If the SSO login with this connector is successful, the encryption works.
 
 ### Failed to process SAML callback
 
-If you encounter a "Failed to process SAML callback" error, take a look at the audit log.
+If you encounter a "Failed to process SAML callback" error, take a look at underlying error. It will be visible in the audit log, as well as printed to command line if you are running the test using `tctl sso test`.
 
-```
+```text
 Special characters are not allowed in resource names, please use name composed only from characters,
 hyphens and dots: /web/users/ops_example.com#EXT#@opsexample.onmicrosoft.com/params
 ```
@@ -400,8 +427,9 @@ Change the Name ID format to use email instead:
 
 ![Change NameID format to use email](../../../img/azuread/azuread-nameid.png)
 
-
 ## Further reading
 - [Teleport Configuration Resources Reference](../../setup/reference/resources.mdx)
+- [`tctl sso configure saml`](../../setup/reference/cli.mdx#tctl-sso-configure-saml) command.
+- [`tctl sso test`](../../setup/reference/cli.mdx#tctl-sso-test) command.
 
 </ScopedBlock>

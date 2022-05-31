@@ -6,10 +6,9 @@ h1: Single Sign-On with Active Directory Federation Services
 
 This guide will explain how to configure Active Directory Federation Services
 ([ADFS](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services)) to be
-a single sign-on (SSO) provider to issue
-SSH credentials to specific groups of users. When used in combination with role
-based access control (RBAC), it allows SSH administrators to define policies
-like:
+a single sign-on (SSO) provider to issue SSH credentials to specific groups of users. 
+When used in combination with role based access control (RBAC), it allows SSH administrators to 
+define policies like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
@@ -60,7 +59,7 @@ separate normal users and admins).
 ![Name ID Configuration](../../../img/adfs-1.png)
 ![Group Configuration](../../../img/adfs-2.png)
 
-In addition, if you are using dynamic roles (see below), it may be useful to map
+In addition, if you are using templated roles (see below), it may be useful to map
 the LDAP Attribute `SAM-Account-Name` to `Windows account name` and create
 another mapping of `E-Mail-Addresses` to `UPN`.
 
@@ -68,22 +67,21 @@ another mapping of `E-Mail-Addresses` to `UPN`.
 ![UPN Configuration](../../../img/adfs-4.png)
 
 You'll also need to create a Relying Party Trust. Use the below information to
-help guide you through the Wizard. Note that for development purposes we recommend
-using `https://localhost:3080/v1/webapi/saml/acs` as the Assertion Consumer
-Service (ACS) URL, but for production you'll want to change this to a domain
-that can be accessed by other users as well.
+help guide you through the Wizard.
 
 - Create a claims aware trust.
 - Enter data about the relying party manually.
 - Set the display name to something along the lines of `Teleport`.
 - Skip the token encryption certificate.
-- Select *"Enable support for SAML 2.0 Web SSO protocol"* and set the URL to `https://localhost:3080/v1/webapi/saml/acs`.
-- Set the relying party trust identifier to `https://localhost:3080/v1/webapi/saml/acs` as well.
+- The value for Assertion Consumer Service (ACS) URL should be `https://teleport.example.com:3080/v1/webapi/saml/acs`, 
+where `teleport.example.com:3080` is a public facing Teleport proxy URL.
+- Select *"Enable support for SAML 2.0 Web SSO protocol"* and set the URL to `https://teleport.example.com:3080/v1/webapi/saml/acs`.
+- Set the relying party trust identifier to `https://teleport.example.com:3080/v1/webapi/saml/acs` as well.
 - For access control policy select *"Permit everyone"*.
 
 Once the Relying Party Trust has been created, update the Claim Issuance Policy
 for it. Like before, make sure you send at least `Name ID` and `Group` claims to the
-relying party (Teleport). If you are using dynamic roles, it may be useful to
+relying party (Teleport). If you are using templated roles, it may be useful to
 map the LDAP Attribute `SAM-Account-Name` to *"Windows account name"* and create
 another mapping of `E-Mail-Addresses` to *"UPN"*.
 
@@ -130,7 +128,7 @@ spec:
     # only allow login as either ubuntu or the 'windowsaccountname' claim
     logins: [ '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}', ubuntu ]
     node_labels:
-      "access": "relaxed"
+      access: relaxed
 ```
 
 This role declares:
@@ -145,17 +143,75 @@ The login
 configures Teleport to look at the
 `http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname`
 ADFS claim and use that field as an allowed login for each user. Note the
-double quotes (`"`) and square brackets (`[]`) around the claim name—these are
-important.
+double quotes (`"`) and square brackets (`[]`) around the claim name; these need to be present 
+for correct processing of the claim.
 
-Next, create a SAML connector [resource](../../setup/reference/resources.mdx):
+## Create & Test SAML Connector
 
-```yaml
-(!examples/resources/adfs-connector.yaml!)
+Next, create a SAML connector [resource](../../setup/reference/resources.mdx).
+
+### Entity descriptor
+
+In ADFS, copy the URL from under *"ADFS -> Service -> Endpoints -> Metadata"*. You can either:
+- download the XML file pointed to by the URL (for example as `entity_desc.xml`), which will populate `entity_descriptor` field in SAML connector definition.
+- use the URL itself to make Teleport download the file at runtime, which in turn will go to the `entity_descriptor_url` field.
+
+### `tctl sso configure saml`
+
+Use the [`tctl sso configure saml`](../../setup/reference/cli.mdx#tctl-sso-configure-saml) command like so:
+
+```bsh
+$ tctl sso configure saml -p adfs -e entity_desc.xml  -r http://schemas.xmlsoap.org/claims/Group,Administrators,editor  \ 
+                                                      -r http://schemas.xmlsoap.org/claims/Group,Users,access           \
+  | tee adfs-connector.yaml
 ```
 
-The `acs` field should match the value you set in ADFS earlier and you can
-obtain the `entity_descriptor_url` from ADFS under *"ADFS -> Service -> Endpoints -> Metadata"*.
+If you want use `entity_descriptor_url` field instead, simply use the URL instead of the file path:
+
+```bsh
+$ tctl sso configure saml -p adfs -e <METADATA URL>  -r http://schemas.xmlsoap.org/claims/Group,Administrators,editor   \ 
+                                                       -r http://schemas.xmlsoap.org/claims/Group,Users,access          \
+  | tee adfs-connector.yaml
+```
+
+
+The resulting file should be similar to this:
+
+```yaml
+kind: saml
+version: v2
+metadata:
+  name: adfs
+spec:
+  # display allows to set the caption of the "login" button in the Web interface.
+  # Using the work 'Microsoft' will show the Windows symbol in the UI.
+  display: Microsoft
+
+  # "adfs" provider setting tells Teleport that this SAML connector
+  # uses ADFS as a provider
+  provider: adfs
+
+  # entity_descriptor XML can either be copied into connector or fetched from a URL
+  entity_descriptor: |
+    <EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
+    ...
+    </md:EntityDescriptor>
+
+  acs: "https://teleport.example.com:3080/v1/webapi/saml/acs"
+  audience: "https://teleport.example.com:3080/v1/webapi/saml/acs"
+  service_provider_issuer: "https://teleport.example.com:3080/v1/webapi/saml/acs"
+
+  # map AD groups to Teleport roles
+  attributes_to_roles:
+    - name: "http://schemas.xmlsoap.org/claims/Group"
+      value: "Administrators"
+      roles: ["editor"]
+    - name: "http://schemas.xmlsoap.org/claims/Group"
+      value: "Users"
+      roles: ["access"]
+```
+
+The `acs` field should match the value you set in ADFS earlier.
 
 The `attributes_to_roles` is used to map attributes to the Teleport roles you
 just created. In our situation, we are mapping the *"Group"* attribute whose full
@@ -181,7 +237,7 @@ The Web UI will now contain a new button: "Login with MS Active Directory". The 
 the same as before:
 
 ```bsh
-$ tsh --proxy=proxy.example.com login
+$ tsh --proxy=teleport.example.com login
 ```
 
 This command will print the SSO login URL and try to open it
