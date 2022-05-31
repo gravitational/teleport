@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 )
@@ -47,7 +48,7 @@ func (t *TemplateMongo) Name() string {
 	return TemplateMongoName
 }
 
-func (t *TemplateMongo) Describe() []FileDescription {
+func (t *TemplateMongo) Describe(destination destination.Destination) []FileDescription {
 	return []FileDescription{
 		{
 			Name: t.Prefix + ".crt",

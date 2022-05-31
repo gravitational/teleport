@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +27,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/stretchr/testify/require"
@@ -194,27 +192,6 @@ func TestClickableURL(t *testing.T) {
 		t.Run(testCase.info, func(t *testing.T) {
 			out := ClickableURL(testCase.in)
 			require.Equal(t, testCase.out, out)
-		})
-	}
-}
-
-// TestParseSessionsURI parses sessions URI
-func TestParseSessionsURI(t *testing.T) {
-	t.Parallel()
-	testCases := []struct {
-		info string
-		in   string
-		url  *url.URL
-	}{
-		{info: "local default file system URI", in: "/home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
-		{info: "explicit filesystem URI", in: "file:///home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
-		{info: "S3 URI", in: "s3://my-bucket", url: &url.URL{Scheme: teleport.SchemeS3, Host: "my-bucket"}},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.info, func(t *testing.T) {
-			out, err := ParseSessionsURI(testCase.in)
-			require.NoError(t, err)
-			require.Equal(t, testCase.url, out)
 		})
 	}
 }

@@ -128,6 +128,9 @@ type Config struct {
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
+	// Tracing defines the tracing service configuration.
+	Tracing TracingConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
@@ -222,8 +225,15 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
+	// TeleportVersion is used to control the Teleport version in tests.
+	TeleportVersion string
+
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+
+	// SkipVersionCheck means the version checking between server and client
+	// will be skipped.
+	SkipVersionCheck bool
 
 	// BPFConfig holds configuration for the BPF service.
 	BPFConfig *bpf.Config
@@ -980,6 +990,26 @@ type MetricsConfig struct {
 
 	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
 	GRPCClientLatency bool
+}
+
+// TracingConfig specifies the configuration for the tracing service
+type TracingConfig struct {
+	// Enabled turns the tracing service role on or off for this process.
+	Enabled bool
+
+	// ExporterURL is the OTLP exporter URL to send spans to.
+	ExporterURL string
+
+	// KeyPairs are the paths for key and certificate pairs that the tracing
+	// service will use for outbound TLS connections.
+	KeyPairs []KeyPairPath
+
+	// CACerts are the paths to the CA certs used to validate the collector.
+	CACerts []string
+
+	// SamplingRate is the sampling rate for the exporter.
+	// 1.0 will record and export all spans and 0.0 won't record any spans.
+	SamplingRate float64
 }
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop

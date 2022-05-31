@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,28 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package protocol
 
 import (
-	"net/url"
+	"io"
 
-	"github.com/gravitational/teleport"
-
-	"github.com/gravitational/trace"
+	mssql "github.com/denisenkom/go-mssqldb"
 )
 
-// ParseSessionsURI parses uri per convention of session upload URIs
-// file is a default scheme
-func ParseSessionsURI(in string) (*url.URL, error) {
-	if in == "" {
-		return nil, trace.BadParameter("uri is empty")
-	}
-	u, err := url.Parse(in)
+func readUcs2(r io.Reader, numchars int) (string, error) {
+	buf := make([]byte, numchars)
+	_, err := io.ReadFull(r, buf)
 	if err != nil {
-		return nil, trace.BadParameter("failed to parse URI %q: %v", in, err)
+		return "", err
 	}
-	if u.Scheme == "" {
-		u.Scheme = teleport.SchemeFile
-	}
-	return u, nil
+	return mssql.ParseUCS2String(buf)
 }

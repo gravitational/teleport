@@ -154,10 +154,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	// sendError is used to send errors to errChan with context.
 	errChan := make(chan error)
 	sendError := func(err error) {
-		select {
-		case <-ctx.Done():
-		case errChan <- trace.Wrap(err):
-		}
+		errChan <- trace.Wrap(err)
 	}
 
 	// syncConnect is used to concurrently create multiple clients
@@ -249,7 +246,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}()
 
 	var errs []error
-	for {
+	for errChan != nil {
 		select {
 		// Use the first client to successfully connect in syncConnect.
 		case clt := <-cltChan:
@@ -260,20 +257,23 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				errs = append(errs, trace.Wrap(err, ""))
 				continue
 			}
-			// errChan is closed, return errors.
-			if len(errs) == 0 {
-				if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
-					// Some credentials don't require these fields. If no errors propagate, then they need to provide these fields.
-					return nil, trace.BadParameter("no connection methods found, try providing Dialer or Addrs in config")
-				}
-				// This case should never be reached with config validation and above case.
-				return nil, trace.Errorf("no connection methods found")
-			}
-			return nil, trace.Wrap(trace.NewAggregate(errs...), "all connection methods failed")
-		case <-ctx.Done():
-			return nil, trace.Wrap(ctx.Err())
+			errChan = nil
 		}
 	}
+
+	// errChan is closed, return errors.
+	if len(errs) == 0 {
+		if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
+			// Some credentials don't require these fields. If no errors propagate, then they need to provide these fields.
+			return nil, trace.BadParameter("no connection methods found, try providing Dialer or Addrs in config")
+		}
+		// This case should never be reached with config validation and above case.
+		return nil, trace.Errorf("no connection methods found")
+	}
+	if ctx.Err() != nil {
+		errs = append(errs, trace.Wrap(ctx.Err()))
+	}
+	return nil, trace.Wrap(trace.NewAggregate(errs...), "all connection methods failed")
 }
 
 type (
@@ -605,6 +605,16 @@ func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
 		return nil, trail.FromGRPC(err)
 	}
 	return user, nil
+}
+
+// GetCurrentUser returns current user as seen by the server.
+// Useful especially in the context of remote clusters which perform role and trait mapping.
+func (c *Client) GetCurrentUser(ctx context.Context) (types.User, error) {
+	currentUser, err := c.grpc.GetCurrentUser(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return currentUser, nil
 }
 
 // GetUsers returns a list of users.
@@ -1413,6 +1423,9 @@ func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets 
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+	// An old server would send RedirectURL instead of RedirectURLs
+	// DELETE IN 11.0.0
+	resp.CheckSetRedirectURL()
 	return resp, nil
 }
 
@@ -1425,6 +1438,9 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	}
 	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
 	for i, oidcConnector := range resp.OIDCConnectors {
+		// An old server would send RedirectURL instead of RedirectURLs
+		// DELETE IN 11.0.0
+		oidcConnector.CheckSetRedirectURL()
 		oidcConnectors[i] = oidcConnector
 	}
 	return oidcConnectors, nil
@@ -1436,6 +1452,9 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
+	// An old server would expect RedirectURL instead of RedirectURLs
+	// DELETE IN 11.0.0
+	connector.CheckSetRedirectURL()
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
