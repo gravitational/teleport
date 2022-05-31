@@ -110,7 +110,8 @@ func TestMain(m *testing.M) {
 func TestSampleConfig(t *testing.T) {
 	testCases := []struct {
 		name                   string
-		input                  SampleFlags
+		flags                  SampleFlags
+		enabledSections        []string
 		expectError            bool
 		expectClusterName      ClusterName
 		expectLicenseFile      string
@@ -120,12 +121,13 @@ func TestSampleConfig(t *testing.T) {
 	}{
 		{
 			name: "ACMEEnabled",
-			input: SampleFlags{
+			flags: SampleFlags{
 				ClusterName: "cookie.localhost",
 				ACMEEnabled: true,
 				ACMEEmail:   "alice@example.com",
 				LicensePath: "/tmp/license.pem",
 			},
+			enabledSections:        []string{},
 			expectClusterName:      ClusterName("cookie.localhost"),
 			expectLicenseFile:      "/tmp/license.pem",
 			expectProxyPublicAddrs: apiutils.Strings{"cookie.localhost:443"},
@@ -133,57 +135,63 @@ func TestSampleConfig(t *testing.T) {
 		},
 		{
 			name: "public and web addr",
-			input: SampleFlags{
+			flags: SampleFlags{
 				PublicAddr: "tele.example.com:4422",
 			},
+			enabledSections:        []string{},
 			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com:4422"},
 			expectProxyWebAddr:     "0.0.0.0:4422",
 		},
 		{
 			name: "public and web addr with default port",
-			input: SampleFlags{
+			flags: SampleFlags{
 				PublicAddr: "tele.example.com",
 			},
+			enabledSections:        []string{},
 			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com:443"},
 			expectProxyWebAddr:     "0.0.0.0:443",
 		},
 		{
 			name: "key file missing",
-			input: SampleFlags{
+			flags: SampleFlags{
 				CertFile: "/var/lib/teleport/fullchain.pem",
 			},
-			expectError: true,
+			enabledSections: []string{},
+			expectError:     true,
 		},
 		{
 			name: "load x509 key pair failed",
-			input: SampleFlags{
+			flags: SampleFlags{
 				KeyFile:  "/var/lib/teleport/key.pem",
 				CertFile: "/var/lib/teleport/fullchain.pem",
 			},
-			expectError: true,
+			enabledSections: []string{},
+			expectError:     true,
 		},
 		{
 			name: "cluster name missing",
-			input: SampleFlags{
+			flags: SampleFlags{
 				ACMEEnabled: true,
 			},
-			expectError: true,
+			enabledSections: []string{},
+			expectError:     true,
 		},
 		{
 			name: "ACMEEnabled conflict with key file",
-			input: SampleFlags{
+			flags: SampleFlags{
 				ClusterName: "cookie.localhost",
 				ACMEEnabled: true,
 				KeyFile:     "/var/lib/teleport/privkey.pem",
 				CertFile:    "/var/lib/teleport/fullchain.pem",
 			},
-			expectError: true,
+			enabledSections: []string{},
+			expectError:     true,
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			sfc, err := MakeSampleFileConfig(testCase.input)
+			sfc, err := MakeSampleFileConfig(testCase.flags, testCase.enabledSections)
 
 			if testCase.expectError {
 				require.Error(t, err)
