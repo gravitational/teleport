@@ -18,13 +18,13 @@ package main
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
 	"os"
 	"syscall"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/teleterm"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 )
