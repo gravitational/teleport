@@ -2257,9 +2257,6 @@ func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *typ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = services.ValidateOIDCConnector(oidcConnector); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err = auth.ServerWithRoles.UpsertOIDCConnector(ctx, oidcConnector); err != nil {
 		return nil, trace.Wrap(err)
 	}
