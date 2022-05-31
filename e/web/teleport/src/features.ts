@@ -9,7 +9,9 @@ import Billing from 'e-teleport/Billing';
 import AccountE from 'e-teleport/Account';
 class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   route = {
-    ...super.route,
+    title: 'Auth Connectors',
+    path: cfg.oss.routes.sso,
+    exact: false,
     component: AuthConnectors,
   };
 }
