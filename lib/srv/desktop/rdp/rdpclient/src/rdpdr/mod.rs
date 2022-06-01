@@ -2059,7 +2059,7 @@ impl FileBothDirectoryInformation {
             flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
         };
 
-        let last_modified = i64::try_from(fso.last_modified)?;
+        let last_modified = to_windows_time(fso.last_modified);
 
         Ok(FileBothDirectoryInformation::new(
             last_modified,
