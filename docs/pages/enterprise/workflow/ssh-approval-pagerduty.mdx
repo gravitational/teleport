@@ -50,7 +50,7 @@ In your PagerDuty dashboard, go to **Configuration → API Access → Create New
 
 We recommend installing Teleport plugins alongside the Teleport Proxy. This is an ideal
 location as plugins have a low memory footprint, and will require both public internet access
-and Teleport Auth Service access. 
+and Teleport Auth Service access.
 
 <Tabs>
 <TabItem label="Download">
@@ -77,6 +77,14 @@ Run `./install` from `teleport-pagerduty` or place the executable in the appropr
   $ docker pull quay.io/gravitational/teleport-plugin-pagerduty:(=teleport.plugin.version=)
   ```
 </TabItem>
+<TabItem label="Helm">
+  ```code
+  $ helm repo add teleport https://charts.releases.teleport.dev/
+  $ helm install teleport-plugin-pagerduty teleport/teleport-plugin-pagerduty --values teleport-pagerduty-helm.yaml
+  ```
+
+  See an example for `teleport-pagerduty-helm.yaml` under Helm in the next section!
+</TabItem>
 </Tabs>
 
 ### Config file
@@ -101,6 +109,18 @@ After generating the config, edit it as follows:
 <TabItem scopes={["cloud"]} label="Cloud">
 ```yaml
 (!examples/resources/plugins/teleport-pagerduty-cloud.toml!)
+```
+</TabItem>
+<TabItem scopes={["oss", "enterprise", "cloud"]} label="Helm values">
+```yaml
+(!examples/resources/plugins/teleport-pagerduty-helm.yaml!)
+```
+
+Use the following command to create a Kubernetes secret from the identity file
+generated above:
+
+```code
+kubectl create secret generic teleport-slack-identity --from-file=auth_id=identity
 ```
 </TabItem>
 </Tabs>

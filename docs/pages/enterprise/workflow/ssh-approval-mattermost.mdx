@@ -74,7 +74,7 @@ We'll reference these files later when [configuring the plugins](#configuring-ma
 
 We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal
 location as plugins have a low memory footprint, and will require both public internet access
-and Teleport Auth Service access. 
+and Teleport Auth Service access.
 
 <Tabs>
 <TabItem label="Download">
@@ -101,6 +101,14 @@ Run `./install` from `teleport-mattermost` or place the executable in the approp
   $ docker pull quay.io/gravitational/teleport-plugin-mattermost:(=teleport.plugin.version=)
   ```
 </TabItem>
+<TabItem label="Helm">
+  ```code
+  $ helm repo add teleport https://charts.releases.teleport.dev/
+  $ helm install teleport-plugin-mattermost teleport/teleport-plugin-mattermost --values teleport-mattermost-helm.yaml
+  ```
+
+  See an example for `teleport-mattermost-helm.yaml` under Helm in the next section!
+</TabItem>
 </Tabs>
 
 ### Configuring Mattermost bot
@@ -124,6 +132,18 @@ Then, edit the config as needed.
 <TabItem scopes={["cloud"]} label="Cloud">
 ```yaml
 (!examples/resources/plugins/teleport-mattermost-cloud.toml!)
+```
+</TabItem>
+<TabItem scopes={["oss", "enterprise", "cloud"]} label="Helm values">
+```yaml
+(!examples/resources/plugins/teleport-mattermost-helm.yaml!)
+```
+
+Use the following command to create a Kubernetes secret from the identity file
+generated above:
+
+```code
+kubectl create secret generic teleport-slack-identity --from-file=auth_id=identity
 ```
 </TabItem>
 </Tabs>

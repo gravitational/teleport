@@ -44,10 +44,21 @@ from Teleport's events API, and forwards them to Fluentd.
   $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   ```
   </TabItem>
+
   <TabItem label="Docker">
   ```code
   $ docker pull quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=)
   ```
+  </TabItem>
+
+  <TabItem label="Helm">
+  ```code
+  $ helm repo add teleport https://charts.releases.teleport.dev/
+  $ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler --values teleport-plugin-event-handler-values.yaml
+  ```
+
+  See the Helm chart example under [Step 6/6. Start the event handler plugin](#step-66-start-the-event-handler-plugin) to see how to create `teleport-plugin-event-handler-values.yaml`!
+
   </TabItem>
 </Tabs>
 
@@ -227,6 +238,27 @@ $ tctl auth sign --user=teleport-event-handler --out=identity
 The above sequence should result in one PEM-encoded file: `terraform-identity`.
 
 </TabItem>
+<TabItem label="Helm chart" scope={["cloud"]}>
+
+If you are planning to use the Helm chart, you'll need to generate the keys
+with the `file` format, then create a secret in Kubernetes:
+
+Create the identity using the following command:
+
+```code
+$ tctl auth sign --format=file --user=teleport-event-handler --out=identity
+```
+
+Then create the Kubernetes secret:
+
+```code
+$ kubectl create secret generic teleport-event-handler-identity --from-file=auth_id=identity
+```
+
+These commands should result in a PEM-encoded file: `identity`, and a secret
+in Kubernetes with the name `teleport-event-handler-identity`.
+
+</TabItem>
 </Tabs>
 
 ## Step 5/6. Start the Fluentd forwarder
@@ -263,7 +295,7 @@ accept events using TLS and print them:
 </source>
 
 # Events sent to test.log will be dumped to STDOUT.
-<match test.log> 
+<match test.log>
   @type stdout
 </match>
 ```
@@ -319,6 +351,29 @@ addr = "example.teleport.com:443"
 client_key = "auth.key"
 client_crt = "auth.crt"
 root_cas = "auth.cas"
+```
+
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Helm chart">
+
+Use the following template to create values file:
+
+```yaml
+eventHandler:
+  storagePath: "./storage"
+  timeout: "10s"
+  batch: 20
+  namespace: "default"
+
+fluentd:
+  url: "https://localhost:8888/test.log"
+  caPath: "/home/sasha/scripts/event-handler/ca.crt"
+  certPath: "/home/sasha/scripts/event-handler/client.crt"
+  keyPath: "/home/sasha/scripts/event-handler/client.key"
+
+teleport:
+  address: "example.teleport.com:443"
+  identitySecretName: teleport-event-handler-identity
 ```
 
 </TabItem>

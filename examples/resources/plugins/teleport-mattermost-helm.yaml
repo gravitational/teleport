@@ -1,0 +1,13 @@
+# example mattermost configuration TOML file
+teleport:
+  address: "myinstance.teleport.sh:443"                                # Teleport Cloud proxy HTTPS address
+  identitySecretName: "/var/lib/teleport/plugins/mattermost/auth.pem"  # Identity file path
+
+mattermost:
+  url: https://mattermost.example.com/
+  token: mattermosttoken
+  recipients: [access-requests@example.com, "team/example-channel"]
+
+log:
+  output: "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
+  severity: "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
