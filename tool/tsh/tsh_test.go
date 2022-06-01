@@ -2238,17 +2238,22 @@ func TestExportingTraces(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	spansIncludeTsh := func(t require.TestingT, i interface{}, i2 ...interface{}) {
-		require.NotEmpty(t, i, i2...)
-		spans, ok := i.([]*otlp.ScopeSpans)
-		require.True(t, ok)
+	spanAssertion := func(containsTSH bool) func(t require.TestingT, i interface{}, i2 ...interface{}) {
+		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			spans, ok := i.([]*otlp.ScopeSpans)
+			require.True(t, ok)
 
-		var scopes []string
-		for _, span := range spans {
-			scopes = append(scopes, span.Scope.Name)
+			var scopes []string
+			for _, span := range spans {
+				scopes = append(scopes, span.Scope.Name)
+			}
+
+			if containsTSH {
+				require.Contains(t, scopes, teleport.ComponentTSH)
+			} else {
+				require.NotContains(t, scopes, teleport.ComponentTSH)
+			}
 		}
-
-		require.Contains(t, scopes, "tsh")
 	}
 
 	cases := []struct {
@@ -2265,7 +2270,7 @@ func TestExportingTraces(t *testing.T) {
 					SamplingRate: 1.0,
 				}
 			},
-			spanAssertion: spansIncludeTsh,
+			spanAssertion: spanAssertion(true),
 		},
 		{
 			name: "spans exported with auth sampling none",
@@ -2276,7 +2281,7 @@ func TestExportingTraces(t *testing.T) {
 					SamplingRate: 0.0,
 				}
 			},
-			spanAssertion: spansIncludeTsh,
+			spanAssertion: spanAssertion(true),
 		},
 		{
 			name: "spans not exported when tracing disabled",
@@ -2330,7 +2335,11 @@ func TestExportingTraces(t *testing.T) {
 				return nil
 			})
 			require.NoError(t, err)
-			require.Empty(t, collector.Spans)
+			// ensure login doesn't generate any spans from tsh. we can't
+			// check for an empty span list here because other spans may be
+			// generated from background components running within the auth/proxy
+			loginAssertion := spanAssertion(false)
+			loginAssertion(t, collector.Spans)
 
 			err = Run(context.Background(), []string{
 				"ls",
