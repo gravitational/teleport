@@ -355,7 +355,7 @@ Congratulations! You have just connected to your Redis instance.
 ![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)
 
 
-## Snowflake - JetBrains (IntelliJ, Goland, DataGrip, PyCharm etc.)
+## Snowflake: JetBrains (IntelliJ, Goland, DataGrip, PyCharm, etc.)
 
 <Admonition type="note">
   Snowflake integration works only in the authenticated proxy mode. Remember to add `--tunnel` flag when starting the proxy, example:
@@ -364,11 +364,11 @@ Congratulations! You have just connected to your Redis instance.
   ```
 </Admonition>
 
-In "Database Explorer" click and the add button and then pick "Data Source" and pick "Snowflake":
+In "Database Explorer" click the "add" button, pick "Data Source", and then pick "Snowflake":
 
 ![JetBrains Add Database](../../../img/database-access/guides/snowflake/jetbrains-add-database.png)
 
-Next set "Host" to `localhost` and "Port" as the one returned by the proxy command (`2000` in the example above).
+Next, set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
 Set the "Username" to match the one that you are connecting to using Teleport and enter any value in the "Password" field:
 
 ![JetBrains General](../../../img/database-access/guides/snowflake/jetbrains-general.png)
@@ -379,16 +379,16 @@ Switch to "Advanced" tab and set any value as `account` and add new record named
 
 <Admonition type="note">
   Password and account name are being ignored as Teleport uses the values provided in the Database Agent configuration.
-  SSL set to `off` disables only encryption on local machine. Connection to Snowflake is encrypted by Teleport.
+Setting "SSL" to `off` only disables encryption on your local machine. The connection to Snowflake is encrypted by Teleport.
 </Admonition>
 
 Now you can click "Test Connection" to check your configuration.
 
 ![JetBrains Success](../../../img/database-access/guides/snowflake/jetbrains-success.png)
 
-Congratulations! 🎉 You have just connected to your Snowflake instance.
+Congratulations! You have just connected to your Snowflake instance.
 
-## Snowflake - DBeaver
+## Snowflake: DBeaver
 
 <Admonition type="note">
   Snowflake integration works only in the authenticated proxy mode. Remember to add `--tunnel` flag when starting the proxy, example:
@@ -397,7 +397,7 @@ Congratulations! 🎉 You have just connected to your Snowflake instance.
   ```
 </Admonition>
 
-Add new database by clicking the add icon in the left top corner:
+Add a new database by clicking the "add" icon in the top-left corner:
 
 ![DBeaver Main Screen](../../../img/database-access/guides/snowflake/dbeaver-main-screen.png)
 
@@ -405,7 +405,7 @@ In the search bar of the "Connect to a database" window that opens up, type "sno
 
 ![DBeaver Select Database](../../../img/database-access/guides/snowflake/dbeaver-select-database.png)
 
-Set "Host" to `localhost` and "Port" as the one returned by the proxy command (`2000` in the example above).
+Set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
 In the "Authentication" section set the "Username" to match the one that you are connecting to using Teleport
 and enter any value in the "Password" field:
 
@@ -420,8 +420,8 @@ Next click on "Driver properties" tab and set `account` to any value and in "Use
   SSL set to `off` disables only encryption on local machine. Connection to Snowflake is encrypted by Teleport.
 </Admonition>
 
-Now you can click on "Test Connection..." in the left bottom corner:
+Now you can click on "Test Connection..." in the bottom-left corner:
 
 ![DBeaver Success](../../../img/database-access/guides/snowflake/dbeaver-success.png)
 
-Congratulations! 🎉 You have just connected to your Snowflake instance.
+Congratulations! You have just connected to your Snowflake instance.

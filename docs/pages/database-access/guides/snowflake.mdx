@@ -33,7 +33,7 @@ This guide will help you to:
 - `snowsql` installed and added to your system's `PATH` environment variable.
 - A host where you will run the Teleport Database Service. Teleport version 10.0 or newer must be installed.
 
-See [Installation](../../installation.mdx) for details.
+  See [Installation](../../installation.mdx) for details.
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
@@ -85,7 +85,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
   ```code
   $ teleport db start \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh \
+  --auth-server=mytenant.teleport.sh:443 \
   --name=example-Snowflake \
   --protocol=Snowflake \
   --uri=Snowflakes://Snowflake.example.com:6379 \
@@ -103,9 +103,9 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/5. Export public key
+## Step 3/5. Export a public key
 
-Use the `tctl auth sign` command below to export the public key.
+Use the `tctl auth sign` command below to export a public key for your Snowflake user:
 
 ```code
 $ tctl auth sign --format=snowflake --out=server
@@ -115,11 +115,11 @@ The command will create `server.pub` file with Teleport's public key.
 
 (!docs/pages/includes/database-access/rotation-note.mdx!)
 
-## Step 4/5. Add generated key to Snowflake's user
+## Step 4/5. Add the public key to your Snowflake user
 
-Use the generated public key to enable Key Pair Authentication.
+Use the public key you generated earlier to enable key pair authentication.
 
-Login to your Snowflake instance and execute the below SQL statement:
+Log in to your Snowflake instance and execute the SQL statement below:
 
 ```sql
 alter user alice set rsa_public_key='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv3dHYw4LJCcZzdbhb3hV
@@ -127,21 +127,21 @@ alter user alice set rsa_public_key='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQE
 LwIDAQAB';
 ```
 
-where `alice` is the name of the Snowflake user and the `rsa_public_key` is the key generated earlier without
+In this statement, `alice` is the name of the Snowflake user and the `rsa_public_key` is the key generated earlier without
 the PEM header/footer (first and the last line).
 
-You can use `describe user` command to verify the user's public key.
+You can use the `describe user` command to verify the user's public key:
 
 ```sql
 desc user alice;
 ```
 
-See [Snowflake documentation](https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user)
+See the [Snowflake documentation](https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user)
 for more details.
 
 ## Step 5/5. Connect
 
-Log into your Teleport cluster and see available databases:
+Log in to your Teleport cluster and see the available databases:
 
 <Tabs>
   <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
