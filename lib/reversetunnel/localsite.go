@@ -368,7 +368,7 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 
 	// This node can only be reached over a tunnel, don't attempt to dial
 	// remotely.
-	if params.To == nil || params.To.String() == "" {
+	if params.To == nil || params.To.String() == "" || params.To.String() == LocalNode {
 		return true, nil
 	}
 
@@ -428,10 +428,6 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 
 	err = trace.NewAggregate(tunnelErr, peerErr)
 	tunnelMsg := getTunnelErrorMessage(params, "reverse tunnel", err)
-
-	if params.To.String() == LocalNode {
-		return nil, false, trace.Wrap(err)
-	}
 
 	// Skip direct dial when the tunnel error is not a not found error. This
 	// means the agent is tunneling but the connection failed for some reason.

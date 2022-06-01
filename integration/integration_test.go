@@ -3032,15 +3032,13 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 
 // waitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
 func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
-	require.Eventually(
-		t,
-		func() bool {
-			cluster, err := tunnel.GetSite(clusterName)
-			if err != nil {
-				return false
-			}
-			return cluster.GetTunnelsCount() >= expectedCount
-		},
+	require.Eventually(t, func() bool {
+		cluster, err := tunnel.GetSite(clusterName)
+		if err != nil {
+			return false
+		}
+		return cluster.GetTunnelsCount() >= expectedCount
+	},
 		30*time.Second,
 		time.Second,
 		"Active tunnel connections did not reach %v in the expected time frame", expectedCount,
@@ -3049,11 +3047,9 @@ func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
 func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
-	require.Eventually(
-		t,
-		func() bool {
-			return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
-		},
+	require.Eventually(t, func() bool {
+		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
+	},
 		30*time.Second,
 		time.Second,
 		"Peer proxy connections did not reach %v in the expected time frame", expectedCount,

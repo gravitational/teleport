@@ -150,7 +150,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 func (s *Server) Serve() error {
 	if err := s.server.Serve(s.config.Listener); err != nil {
 		if errors.Is(err, grpc.ErrServerStopped) ||
-			errors.Is(err, net.ErrClosed) {
+			utils.IsUseOfClosedNetworkError(err) {
 			return nil
 		}
 		return trace.Wrap(err)

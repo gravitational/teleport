@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -35,10 +34,13 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,18 +57,16 @@ type proxyTunnelStrategy struct {
 	db           *TeleInstance
 	dbAuthClient *auth.Client
 	postgresDB   *postgres.TestServer
+
+	log *logrus.Logger
 }
 
-// TestProxyTunnelStrategyAgentMesh tests the agent-mesh tunnel strategy
-func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
+func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.TunnelStrategyV1) *proxyTunnelStrategy {
 	p := &proxyTunnelStrategy{
-		cluster:  "proxy-tunnel-agent-mesh",
+		cluster:  cluster,
 		username: mustGetCurrentUser(t).Username,
-		strategy: &types.TunnelStrategyV1{
-			Strategy: &types.TunnelStrategyV1_AgentMesh{
-				AgentMesh: types.DefaultAgentMeshTunnelStrategy(),
-			},
-		},
+		strategy: strategy,
+		log:      utils.NewLoggerForTests(),
 	}
 
 	lib.SetInsecureDevMode(true)
@@ -74,6 +74,19 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 		lib.SetInsecureDevMode(false)
 		p.cleanup(t)
 	})
+
+	return p
+}
+
+// TestProxyTunnelStrategyAgentMesh tests the agent-mesh tunnel strategy
+func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
+	p := newProxyTunnelStrategy(t, "proxy-tunnel-agent-mesh",
+		&types.TunnelStrategyV1{
+			Strategy: &types.TunnelStrategyV1_AgentMesh{
+				AgentMesh: types.DefaultAgentMeshTunnelStrategy(),
+			},
+		},
+	)
 
 	// bootstrap a load balancer for proxies.
 	p.makeLoadBalancer(t)
@@ -107,21 +120,13 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 
 // TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy
 func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
-	p := &proxyTunnelStrategy{
-		cluster:  "proxy-tunnel-proxy-peer",
-		username: mustGetCurrentUser(t).Username,
-		strategy: &types.TunnelStrategyV1{
+	p := newProxyTunnelStrategy(t, "proxy-tunnel-proxy-peer",
+		&types.TunnelStrategyV1{
 			Strategy: &types.TunnelStrategyV1_ProxyPeering{
 				ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
 			},
 		},
-	}
-
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(false)
-		p.cleanup(t)
-	})
+	)
 
 	// bootstrap a load balancer for proxies.
 	p.makeLoadBalancer(t)
@@ -285,12 +290,18 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.SSH.Enabled = false
 
 	conf.Proxy.Enabled = true
-	conf.Proxy.WebAddr.Addr = net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt()))
+	conf.Proxy.ReverseTunnelListenAddr.Addr = net.JoinHostPort(Loopback, proxy.GetPortReverseTunnel())
+	conf.Proxy.SSHAddr.Addr = net.JoinHostPort(Loopback, proxy.GetPortProxy())
+	conf.Proxy.WebAddr.Addr = net.JoinHostPort(Loopback, proxy.GetPortWeb())
 	conf.Proxy.PeerAddr.Addr = net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt()))
 	conf.Proxy.PublicAddrs = append(conf.Proxy.PublicAddrs, utils.FromAddr(p.lb.Addr()))
 	conf.Proxy.DisableWebInterface = true
 
-	require.NoError(t, proxy.CreateEx(t, nil, conf))
+	process, err := service.NewTeleport(conf)
+	require.NoError(t, err)
+	proxy.Config = conf
+	proxy.Process = process
+
 	p.lb.AddBackend(conf.Proxy.WebAddr)
 	require.NoError(t, proxy.Start())
 
@@ -320,7 +331,11 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = true
 
-	require.NoError(t, node.CreateEx(t, nil, conf))
+	process, err := service.NewTeleport(conf)
+	require.NoError(t, err)
+	node.Config = conf
+	node.Process = process
+
 	require.NoError(t, node.Start())
 
 	p.node = node
@@ -369,7 +384,10 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	// start the process and block until specified events are received.
-	require.NoError(t, db.CreateEx(t, nil, conf))
+	process, err := service.NewTeleport(conf)
+	require.NoError(t, err)
+	db.Config = conf
+	db.Process = process
 
 	receivedEvents, err := startAndWait(db.Process, []string{
 		service.DatabasesIdentityEvent,
@@ -422,8 +440,8 @@ func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
 				return false, trace.BadParameter("invalid type: wanted ServerV2 got '%T'", nodeT)
 			}
 
-			if node.Metadata.Name == p.node.Process.Config.HostUUID &&
-				len(node.Spec.ProxyIDs) == availability {
+			if node.GetName() == p.node.Process.Config.HostUUID &&
+				len(node.GetProxyIDs()) == availability {
 				return true, nil
 			}
 		}
@@ -452,7 +470,7 @@ func (p *proxyTunnelStrategy) waitForDatabaseToBeReachable(t *testing.T) {
 			}
 
 			if db.GetHostID() == p.db.Process.Config.HostUUID &&
-				len(db.Spec.ProxyIDs) == availability {
+				len(db.GetProxyIDs()) == availability {
 				return true, nil
 			}
 		}
@@ -465,34 +483,35 @@ func (p *proxyTunnelStrategy) waitForDatabaseToBeReachable(t *testing.T) {
 // waitForResource waits for each proxy to satisfy the check function defined as a parameter
 // in a certain defined timeframe.
 func (p *proxyTunnelStrategy) waitForResource(t *testing.T, role string, check func(*TeleInstance, int) (bool, error)) {
-	const (
-		deadline     = time.Second * 30
-		iterWaitTime = time.Second
-	)
-
 	availability := 0
 	if proxyPeeringStrategy := p.strategy.GetProxyPeering(); proxyPeeringStrategy != nil {
 		availability = int(proxyPeeringStrategy.AgentConnectionCount)
 	}
 
-	err := utils.RetryStaticFor(deadline, iterWaitTime, func() error {
+	require.Eventually(t, func() bool {
 		propagated := 0
 		for _, proxy := range p.proxies {
 			ok, err := check(proxy, availability)
 			if err != nil {
-				return trace.Wrap(err)
+				p.log.Debugf("check for %s availability error: %+v", role, trace.Wrap(err))
+				return false
 			}
 			if !ok {
-				return trace.NotFound("resource %s not found", role)
+				p.log.Debugf("%s not found", role)
+				return false
 			}
 			propagated++
 		}
 		if len(p.proxies) != propagated {
-			return trace.NotFound("resource %s not available", role)
+			p.log.Debugf("%s not available", role)
+			return false
 		}
-		return nil
-	})
-	require.NoError(t, err)
+		return true
+	},
+		30*time.Second,
+		time.Second,
+		"Resource %s was not available %v in the expected time frame", role,
+	)
 }
 
 // cleanup stops all resources started during tests
