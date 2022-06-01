@@ -88,9 +88,7 @@ func (c *Collector) ClientTLSConfig() *tls.Config {
 		return nil
 	}
 
-	return &tls.Config{
-		InsecureSkipVerify: true,
-	}
+	return c.tlsConfing.Clone()
 }
 
 // GRPCAddr is the ExporterURL that the gRPC server is listening on.
