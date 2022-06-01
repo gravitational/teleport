@@ -85,10 +85,11 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 		clientConfig.TLS.RootCAs = options.CertPool
 	}
 
-	client, err := connectToAuthService(context.Background(), cfg, clientConfig)
+	ctx := context.Background()
+	client, err := connectToAuthService(ctx, cfg, clientConfig)
 	require.NoError(t, err)
 
-	_, err = command.TryRun(selectedCmd, client)
+	_, err = command.TryRun(ctx, selectedCmd, client)
 	if err != nil {
 		return nil, err
 	}
