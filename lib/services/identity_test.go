@@ -120,86 +120,86 @@ func TestOIDCAuthRequest_Check(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		req     OIDCAuthRequest
+		req     types.OIDCAuthRequest
 		wantErr bool
 	}{
 		{
 			name: "normal request",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
-				CertTTL:     60 * time.Minute,
+				CertTTL:     types.Duration(60 * time.Minute),
 			},
 			wantErr: false,
 		},
 		{
 			name: "missing state token",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
-				CertTTL:     60 * time.Minute,
+				CertTTL:     types.Duration(60 * time.Minute),
 			},
 			wantErr: true,
 		},
 		{
 			name: "below min CertTTL",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
-				CertTTL:     1 * time.Second,
+				CertTTL:     types.Duration(1 * time.Second),
 			},
 			wantErr: true,
 		},
 		{
 			name: "above max CertTTL",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
-				CertTTL:     1000 * time.Hour,
+				CertTTL:     types.Duration(1000 * time.Hour),
 			},
 			wantErr: true,
 		},
 		{
 			name: "TTL ignored without cert",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
-				CertTTL:     60 * time.Minute,
+				CertTTL:     types.Duration(60 * time.Minute),
 			},
 			wantErr: false,
 		},
 		{
 			name: "SSOTestFlow requires ConnectorSpec",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
-				CertTTL:     60 * time.Minute,
+				CertTTL:     types.Duration(60 * time.Minute),
 				SSOTestFlow: true,
 			},
 			wantErr: true,
 		},
 		{
 			name: "ConnectorSpec requires SSOTestFlow",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID:   "foo",
 				StateToken:    "bar",
 				PublicKey:     []byte(exampleSSHCert),
-				CertTTL:       60 * time.Minute,
+				CertTTL:       types.Duration(60 * time.Minute),
 				ConnectorSpec: &types.OIDCConnectorSpecV3{Display: "dummy"},
 			},
 			wantErr: true,
 		},
 		{
 			name: "ConnectorSpec with SSOTestFlow works",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID:   "foo",
 				StateToken:    "bar",
 				PublicKey:     []byte(exampleSSHCert),
-				CertTTL:       60 * time.Minute,
+				CertTTL:       types.Duration(60 * time.Minute),
 				SSOTestFlow:   true,
 				ConnectorSpec: &types.OIDCConnectorSpecV3{Display: "dummy"},
 			},

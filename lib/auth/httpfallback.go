@@ -169,16 +169,39 @@ func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 	} else {
 		return resp, nil
 	}
-
 	out, err := c.Get(context.TODO(), c.Endpoint("cacert"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var localCA deprecatedLocalCAResponse
-	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
+	if err := json.Unmarshal(out.Bytes(), &localCAgs); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &proto.GetClusterCACertResponse{
 		TLSCA: localCA.TLSCA,
 	}, nil
+}
+
+// CreateOIDCAuthRequest creates OIDCAuthRequest
+// DELETE IN 11.0.0
+func (c *Client) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	if resp, err := c.APIClient.CreateOIDCAuthRequest(ctx, req); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
+		Req: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *types.OIDCAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
 }

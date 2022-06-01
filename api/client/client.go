@@ -1503,6 +1503,25 @@ func (c *Client) DeleteOIDCConnector(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
+// CreateOIDCAuthRequest creates OIDCAuthRequest.
+func (c *Client) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	resp, err := c.grpc.CreateOIDCAuthRequest(ctx, &req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetOIDCAuthRequest gets the OIDCAuthRequest associated with the given token.
+func (c *Client) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error) {
+	req := &proto.GetOIDCAuthRequestRequest{StateToken: stateToken}
+	resp, err := c.grpc.GetOIDCAuthRequest(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // GetSAMLConnector returns a SAML connector by name.
 func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
 	if name == "" {

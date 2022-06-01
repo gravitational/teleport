@@ -1037,7 +1037,7 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 // CreateOIDCAuthRequest creates new auth request
-func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, ttl time.Duration) error {
+func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1050,7 +1050,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1058,7 +1058,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 }
 
 // GetOIDCAuthRequest returns OIDC auth request
-func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*services.OIDCAuthRequest, error) {
+func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
@@ -1066,7 +1066,7 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req services.OIDCAuthRequest
+	var req types.OIDCAuthRequest
 	if err := json.Unmarshal(item.Value, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

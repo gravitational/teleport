@@ -534,8 +534,8 @@ func TestOIDCAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertOIDCConnector(context.Background(), conn)
 	require.NoError(t, err)
 
-	reqNormal := services.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
-	reqTest := services.OIDCAuthRequest{
+	reqNormal := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
+	reqTest := types.OIDCAuthRequest{
 		ConnectorID: conn.GetName(),
 		Type:        constants.OIDC,
 		SSOTestFlow: true,
@@ -558,7 +558,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.OIDCAuthRequest
+		request            types.OIDCAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -623,7 +623,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateOIDCAuthRequest(tt.request)
+			request, err := client.CreateOIDCAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)

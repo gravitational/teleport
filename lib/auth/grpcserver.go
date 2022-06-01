@@ -2299,6 +2299,32 @@ func (g *GRPCServer) DeleteOIDCConnector(ctx context.Context, req *types.Resourc
 	return &empty.Empty{}, nil
 }
 
+// CreateOIDCAuthRequest creates OIDCAuthRequest
+func (g *GRPCServer) CreateOIDCAuthRequest(ctx context.Context, req *types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.CreateOIDCAuthRequest(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+// GetOIDCAuthRequest gets OIDC AuthnRequest
+func (g *GRPCServer) GetOIDCAuthRequest(ctx context.Context, req *proto.GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	request, err := auth.ServerWithRoles.GetOIDCAuthRequest(ctx, req.StateToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return request, nil
+}
+
 // GetSAMLConnector retrieves a SAML connector by name.
 func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error) {
 	auth, err := g.authenticate(ctx)

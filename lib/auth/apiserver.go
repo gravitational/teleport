@@ -183,9 +183,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/configuration/static_tokens", srv.withAuth(srv.setStaticTokens))
 
 	// OIDC
-	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest))
+	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest)) // DELETE in 11.0.0
 	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
-	srv.GET("/:version/oidc/requests/get/:id", srv.withAuth(srv.getOIDCAuthRequest))
 
 	// SAML handlers
 	srv.POST("/:version/saml/requests/create", srv.withAuth(srv.createSAMLAuthRequest))
@@ -1080,27 +1079,20 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 }
 
 type createOIDCAuthRequestReq struct {
-	Req services.OIDCAuthRequest `json:"req"`
+	Req types.OIDCAuthRequest `json:"req"`
 }
 
+// DELETE IN 11.0.0
 func (s *APIServer) createOIDCAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *createOIDCAuthRequestReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.CreateOIDCAuthRequest(req.Req)
+	response, err := auth.CreateOIDCAuthRequest(r.Context(), req.Req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return response, nil
-}
-
-func (s *APIServer) getOIDCAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	request, err := auth.GetOIDCAuthRequest(r.Context(), p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return request, nil
 }
 
 type validateOIDCAuthCallbackReq struct {
@@ -1121,7 +1113,7 @@ type oidcAuthRawResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req services.OIDCAuthRequest `json:"req"`
+	Req types.OIDCAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
