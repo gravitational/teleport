@@ -2212,6 +2212,10 @@ impl FileSystemInformationClass {
     }
 }
 
+/// Base size of the FileFsVolumeInformation, not accounting for variably sized volume_label.
+/// 1 i64, 2 u32, 1 Boolean
+const FILE_FS_VOLUME_INFORMATION_BASE_SIZE: u32 = (1 * 8) + (2 * 4) + 1; // 17
+
 /// 2.5.9 FileFsVolumeInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/bf691378-c34e-4a13-976e-404ea1a87738
 #[derive(Debug)]
@@ -2254,6 +2258,89 @@ impl FileFsVolumeInformation {
         w.write_u32::<LittleEndian>(self.volume_label_length)?;
         w.write_u8(Boolean::to_u8(&self.supports_objects).unwrap())?;
         w.extend_from_slice(&util::to_unicode(&self.volume_label, true));
+        Ok(w)
+    }
+}
+
+/// Size of the FileFsSizeInformation.
+/// 2 i64, 2 u32
+const FILE_FS_SIZE_INFORMATION_SIZE: u32 = (2 * 8) + (2 * 4); // 24
+
+/// 2.5.8 FileFsSizeInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e13e068c-e3a7-4dd4-94fd-3892b492e6e7
+#[derive(Debug)]
+struct FileFsSizeInformation {
+    total_allocation_units: i64,
+    available_allocation_units: i64,
+    sectors_per_allocation_unit: u32,
+    bytes_per_sector: u32,
+}
+
+impl FileFsSizeInformation {
+    fn new() -> Self {
+        // Fill these out with the default fallback values FreeRDP uses
+        // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L510-L513
+        // With default fallback values ultimately found here:
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
+        Self {
+            total_allocation_units: u32::MAX as i64,
+            available_allocation_units: u32::MAX as i64,
+            sectors_per_allocation_unit: u32::MAX,
+            bytes_per_sector: 1,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_i64::<LittleEndian>(self.total_allocation_units)?;
+        w.write_i64::<LittleEndian>(self.available_allocation_units)?;
+        w.write_u32::<LittleEndian>(self.sectors_per_allocation_unit)?;
+        w.write_u32::<LittleEndian>(self.bytes_per_sector)?;
+        Ok(w)
+    }
+}
+
+/// Base size of the FileFsAttributeInformation, not accounting for variably sized file_system_name.
+/// 3 u32
+const FILE_FS_ATTRIBUTE_INFORMATION_BASE_SIZE: u32 = 3 * 4; // 12
+
+/// 2.5.1 FileFsAttributeInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ebc7e6e5-4650-4e54-b17c-cf60f6fbeeaa
+#[derive(Debug)]
+struct FileFsAttributeInformation {
+    file_system_attributes: flags::FileSystemAttributes,
+    max_component_name_len: u32,
+    file_system_name_len: u32,
+    file_system_name: String,
+}
+
+impl FileFsAttributeInformation {
+    fn new() -> Self {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L447
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L519
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L538
+        let file_system_name = "FAT32".to_string();
+
+        Self {
+            file_system_attributes: flags::FileSystemAttributes::FILE_CASE_SENSITIVE_SEARCH
+                | flags::FileSystemAttributes::FILE_CASE_PRESERVED_NAMES
+                | flags::FileSystemAttributes::FILE_UNICODE_ON_DISK,
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L536
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/include/winpr/file.h#L36
+            max_component_name_len: 260,
+            // The FreeRDP function they use to convert the file_system_name to unicode is null-terminated
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L519
+            file_system_name_len: util::unicode_size(&file_system_name, true),
+            file_system_name,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.file_system_attributes.bits())?;
+        w.write_u32::<LittleEndian>(self.max_component_name_len)?;
+        w.write_u32::<LittleEndian>(self.file_system_name_len)?;
+        w.extend_from_slice(&util::to_unicode(&self.file_system_name, true));
         Ok(w)
     }
 }
