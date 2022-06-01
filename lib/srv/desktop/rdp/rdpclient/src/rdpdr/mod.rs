@@ -2058,11 +2058,14 @@ impl FileBothDirectoryInformation {
         } else {
             flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
         };
+
+        let last_modified = i64::try_from(fso.last_modified)?;
+
         Ok(FileBothDirectoryInformation::new(
-            i64::try_from(fso.last_modified)?,
-            i64::try_from(fso.last_modified)?,
-            i64::try_from(fso.last_modified)?,
-            i64::try_from(fso.last_modified)?,
+            last_modified,
+            last_modified,
+            last_modified,
+            last_modified,
             i64::try_from(fso.size)?,
             file_attributes,
             fso.name()?,
