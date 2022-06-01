@@ -500,6 +500,7 @@ func (c *CLICommandBuilder) createCassandraCfgFile() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
+	// TODO(jakule): Should we remove the file somehow?
 	cfg, err := os.CreateTemp("", "cqlshrc")
 	if err != nil {
 		return "", trace.Wrap(err)
