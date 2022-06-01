@@ -522,9 +522,8 @@ port = {{.Port}}
 factory = cqlshlib.ssl.ssl_transport_factory
 
 [ssl]
-certfile = {{.Certfile}}
-; Optional, true by default.
 validate = true
+certfile = {{.Certfile}}
 userkey = {{.Userkey}}
 usercert = {{.Usercertkey}}
 `))

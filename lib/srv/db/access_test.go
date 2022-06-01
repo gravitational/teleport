@@ -1280,7 +1280,7 @@ type testContext struct {
 	redis map[string]testRedis
 	// sqlServer is a collection of SQL Server databases the test uses.
 	sqlServer map[string]testSQLServer
-	// sqlServer is a collection of SQL Server databases the test uses.
+	// cassandra is a collection of Cassandra databases the test uses.
 	cassandra map[string]testCassandra
 	// clock to override clock in tests.
 	clock clockwork.FakeClock

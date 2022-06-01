@@ -40,9 +40,9 @@ func Test_memoryBuffer_Read(t *testing.T) {
 	})
 
 	readAndAssert := func(currentPos, bufSize int) int {
-		read1 := make([]byte, bufSize)
+		buffer := make([]byte, bufSize)
 
-		readBytes, err := mb.Read(read1)
+		readBytes, err := mb.Read(buffer)
 		require.NoError(t, err)
 		require.Equal(t, bufSize, readBytes)
 

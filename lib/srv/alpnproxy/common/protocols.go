@@ -41,6 +41,7 @@ const (
 	// ProtocolSQLServer is the TLS ALPN protocol value used to indicate SQL Server protocol.
 	ProtocolSQLServer Protocol = "teleport-sqlserver"
 
+	// ProtocolCassandra is the TLS ALPN protocol value used to indicate Cassandra protocol.
 	ProtocolCassandra Protocol = "teleport-cassandra"
 
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
