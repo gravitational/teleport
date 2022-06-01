@@ -213,7 +213,8 @@ func NewPolicies(accountID string, iamClient iamiface.IAMAPI) Policies {
 // * `iam:DeletePolicyVersion`: wildcard ("*") or policy that will be created;
 // * `iam:CreatePolicyVersion`: wildcard ("*") or policy that will be created;
 func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
-	policyARN := fmt.Sprintf("arn:aws:iam::%s:policy/%s", p.accountID, policy.Name)
+	partitionId := p.iamClient.(*iam.IAM).PartitionID
+	policyARN := fmt.Sprintf("arn:%s:iam::%s:policy/%s", partitionId, p.accountID, policy.Name)
 	encodedPolicyDocument, err := json.Marshal(policy.Document)
 	if err != nil {
 		return "", trace.Wrap(err)

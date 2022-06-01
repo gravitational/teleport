@@ -230,7 +230,6 @@ func (a *awsPolicyCreator) Execute(ctx context.Context, actionCtx *ConfiguratorA
 	if a.policies == nil {
 		return trace.BadParameter("policy helper not initialized")
 	}
-
 	arn, err := a.policies.Upsert(ctx, a.policy)
 	if err != nil {
 		return trace.Wrap(err)
@@ -361,7 +360,7 @@ func policiesTarget(flags BootstrapFlags, accountID string, identity awslib.Iden
 	if flags.AttachToUser != "" {
 		userArn := flags.AttachToUser
 		if !arn.IsARN(flags.AttachToUser) {
-			userArn = fmt.Sprintf("arn:aws:iam::%s:user/%s", accountID, flags.AttachToUser)
+			userArn = fmt.Sprintf("arn:%s:iam::%s:user/%s", identity.GetPartition(), accountID, flags.AttachToUser)
 		}
 
 		return awslib.IdentityFromArn(userArn)
@@ -370,14 +369,14 @@ func policiesTarget(flags BootstrapFlags, accountID string, identity awslib.Iden
 	if flags.AttachToRole != "" {
 		roleArn := flags.AttachToRole
 		if !arn.IsARN(flags.AttachToRole) {
-			roleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, flags.AttachToRole)
+			roleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", identity.GetPartition(), accountID, flags.AttachToRole)
 		}
 
 		return awslib.IdentityFromArn(roleArn)
 	}
 
 	if identity == nil {
-		return awslib.IdentityFromArn(fmt.Sprintf("arn:aws:iam::%s:user/%s", accountID, defaultAttachUser))
+		return awslib.IdentityFromArn(fmt.Sprintf("arn:%s:iam::%s:user/%s", identity.GetPartition(), accountID, defaultAttachUser))
 	}
 
 	return identity, nil
