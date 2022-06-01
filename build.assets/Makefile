@@ -214,6 +214,7 @@ buildbox-teleterm: buildbox
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_TELETERM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_TELETERM) || true; fi;
 	docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
 		--cache-from $(BUILDBOX) \
