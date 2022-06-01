@@ -1855,8 +1855,11 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
+		// There's not a consistent way to merge multiple search-based access
+		// requests, a user may be able to request access to different resources
+		// with different roles which should not overlap.
 		if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
-			return nil, trace.BadParameter("cannot generate certificate with multiple search-based access requests")
+			return nil, trace.BadParameter("user is already logged in with a search-based access request, cannot issue another")
 		}
 		allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 
