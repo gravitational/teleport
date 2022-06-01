@@ -1423,6 +1423,9 @@ func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets 
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+	// An old server would send RedirectURL instead of RedirectURLs
+	// DELETE IN 11.0.0
+	resp.CheckSetRedirectURL()
 	return resp, nil
 }
 
@@ -1435,6 +1438,9 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	}
 	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
 	for i, oidcConnector := range resp.OIDCConnectors {
+		// An old server would send RedirectURL instead of RedirectURLs
+		// DELETE IN 11.0.0
+		oidcConnector.CheckSetRedirectURL()
 		oidcConnectors[i] = oidcConnector
 	}
 	return oidcConnectors, nil
@@ -1446,6 +1452,9 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
+	// An old server would expect RedirectURL instead of RedirectURLs
+	// DELETE IN 11.0.0
+	connector.CheckSetRedirectURL()
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }

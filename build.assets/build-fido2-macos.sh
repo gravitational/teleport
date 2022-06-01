@@ -27,6 +27,7 @@ fetch_and_build() {
   local buildcmd="$4"  # eg, cbor_build, a bash function name
   echo "$name: fetch and build" >&2
 
+  mkdir -p "$LIB_CACHE"
   local tmp=''
   tmp="$(mktemp -d "$LIB_CACHE/build.XXXXXX")"
   # Early expansion on purpose.
@@ -49,7 +50,6 @@ fetch_and_build() {
     -exec sed -i '' "s@$install_path@$dest@g" {} +
 
   # Check if another builder beat us. Builds _should_ be equivalent.
-  mkdir -p "$LIB_CACHE"
   if [[ ! -d "$dest" ]]; then
     echo "$name: moving $fullname to $dest" >&2
     mv "$install_path" "$dest"
