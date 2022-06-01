@@ -111,6 +111,23 @@ Ensure that your firewalls allow inbound DNS traffic on port `53` from the
 instance(s) running Teleport's Windows Desktop Service to the LDAP server
 (Active Directory Domain Controller).
 
+### RDP Connection Failed
+
+You click `CONNECT` on a Windows host from the Teleport UI, a new tab opens but
+nothing is displayed other than the top bar and an error is displayed about a
+failed RDP connection. You may also see errors similar to:
+
+```text
+Rdp(Io(Os { code: 54, kind: ConnectionReset, message: "Connection reset by peer" }))
+```
+
+**Solution:** Configure Certificate for RDP Connection
+
+This means that your Domain Controller do not support secure cipher suites for TLS
+connections.
+
+Make sure that you [Configure a certificate for RDP connections](./getting-started.mdx#step-47-configure-a-certificate-for-rdp-connections).
+
 ## Teleport fails to start
 
 ### Incorrect Domain
