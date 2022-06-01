@@ -1198,8 +1198,6 @@ type Node interface {
 	GetHostname() string
 	// GetNamespace returns server namespace
 	GetNamespace() string
-	// GetLabels returns server's static label key pairs
-	GetLabels() map[string]string
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]types.CommandLabel
 	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
