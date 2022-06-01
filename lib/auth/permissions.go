@@ -149,12 +149,12 @@ Loop:
 // the set of roles the user is allowed to search as.
 func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName string) error {
 	if len(c.Checker.GetAllowedResourceIDs()) > 0 {
-		return trace.AccessDenied("cannot search with elevated roles while already logged in with a search-based access request")
+		return trace.AccessDenied("user is currently logged in with a search-based access request, cannot further extend roles for search")
 	}
 	var newRoleNames []string
 	// include existing roles
 	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
-	// extend will allowed search_as_roles
+	// extend with allowed search_as_roles
 	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
 	newRoleNames = utils.Deduplicate(newRoleNames)
 
