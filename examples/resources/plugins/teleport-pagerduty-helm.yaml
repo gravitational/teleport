@@ -1,7 +1,7 @@
 # example teleport-pagerduty configuration TOML file
 teleport:
-  address: "myinstance.teleport.sh:443"                               # Teleport Cloud proxy HTTPS address
-  identitySecretName: "/var/lib/teleport/plugins/pagerduty/auth.pem"  # Identity file path
+  address: "myinstance.teleport.sh:443"               # Teleport Cloud proxy HTTPS address
+  identitySecretName: teleport-plugin-slack-identity  # Identity file path
 
 pagerduty:
   apiKey: "key"               # PagerDuty API Key

@@ -1,9 +1,9 @@
 teleport:
-  address: "teleport.example.com:443"           # Teleport Auth Server GRPC API address
-  identitySecretName: teleport-plugin-slack-identity
+  address: "myinstance.teleport.sh:443"               # Teleport Cloud proxy HTTPS address
+  identitySecretName: teleport-plugin-slack-identity  # Identity file path
 
 slack:
-  token: "xoxb-11xx"             # Slack Bot OAuth token
+  token: "xoxb-11xx"  # Slack Bot OAuth token
 
 role_to_recipients:
   '*': access-requests@example.com
