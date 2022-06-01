@@ -256,114 +256,79 @@ func (e *Engine) processFrame(conn io.Reader) error {
 		return trace.Wrap(err, "failed to decode frame")
 	}
 
-	switch rawFrame.Header.OpCode {
-	case primitive.OpCodeStartup:
-		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
-		if err != nil {
-			return trace.Wrap(err, "failed to decode auth response")
-		}
-
-		if startup, ok := body.Body.Message.(*message.Startup); ok {
-			// TODO(jakule): compression for some reason it returned lowercase :(
-			compression := primitive.Compression(strings.ToUpper(string(startup.GetCompression())))
-			e.Log.Infof("compression: %v", compression)
-			e.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
-			e.segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
-		}
-	case primitive.OpCodeAuthResponse:
-		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
-		if err != nil {
-			return trace.Wrap(err, "failed to decode auth response")
-		}
-
-		if authResp, ok := body.Body.Message.(*message.AuthResponse); ok {
-			// auth token contains username and password split by \0 character
-			// ex: \0username\0password
-			data := bytes.Split(authResp.Token, []byte{0})
-			if len(data) != 3 {
-				return trace.BadParameter("failed to extract username from the auth package.")
-			}
-			username := string(data[1])
-
-			e.Log.Infof("auth response: %s, %s", username, string(data[2]))
-
-			if e.sessionCtx.DatabaseUser != username {
-				return trace.AccessDenied("user %s is not authorized to access the database", username)
-			}
-		}
-	case primitive.OpCodeQuery:
-		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
-		if err != nil {
-			return trace.Wrap(err, "failed to decode query")
-		}
-
-		if query, ok := body.Body.Message.(*message.Query); ok {
-			queryStr := query.String()
-			// TODO(jakule): what to do if query exceeds 65k?
-			if len(queryStr) > 100 {
-				queryStr = queryStr[:100]
-			}
-			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-				Query: queryStr,
-			})
-		}
-	case primitive.OpCodePrepare:
-		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
-		if err != nil {
-			return trace.Wrap(err, "failed to decode prepare")
-		}
-
-		if prepare, ok := body.Body.Message.(*message.Prepare); ok {
-			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-				Query: prepare.String(),
-			})
-		}
-	case primitive.OpCodeExecute:
-		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
-		if err != nil {
-			return trace.Wrap(err, "failed to decode prepare")
-		}
-
-		if execute, ok := body.Body.Message.(*message.Execute); ok {
-			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-				Query: execute.String(),
-			})
-		}
-	case primitive.OpCodeBatch:
-		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
-		if err != nil {
-			return trace.Wrap(err, "failed to decode batch")
-		}
-
-		if batch, ok := body.Body.Message.(*message.Batch); ok {
-			queries := make([]string, 0, len(batch.Children))
-			for _, child := range batch.Children {
-				queries = append(queries, fmt.Sprintf("%+v, values: %v", child.QueryOrId, child.Values))
-			}
-
-			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-				Query: fmt.Sprintf("begin batch %s batch apply", queries),
-				Parameters: []string{
-					"consistency", batch.Consistency.String(),
-					"keyspace", batch.Keyspace,
-					"batch", batch.Type.String(),
-				},
-			})
-		}
-	case primitive.OpCodeRegister:
-		body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
-		if err != nil {
-			return trace.Wrap(err, "failed to decode register")
-		}
-
-		if register, ok := body.Body.Message.(*message.Register); ok {
-			e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-				Query: register.String(),
-			})
-		}
+	body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
+	if err != nil {
+		return trace.Wrap(err, "failed to decode auth response")
 	}
 
-	return trace.Wrap(err)
+	switch msg := body.Body.Message.(type) {
+	case *message.Options:
+		// NOOP - this message is used as a ping/heartbeat.
+	case *message.Startup:
+		// TODO(jakule): compression for some reason it returned lowercase :(
+		compression := primitive.Compression(strings.ToUpper(string(msg.GetCompression())))
+		e.Log.Infof("compression: %v", compression)
+		e.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
+		e.segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
+	case *message.AuthResponse:
+		// auth token contains username and password split by \0 character
+		// ex: \0username\0password
+		data := bytes.Split(msg.Token, []byte{0})
+		if len(data) != 3 {
+			return trace.BadParameter("failed to extract username from the auth package.")
+		}
+		username := string(data[1])
+
+		e.Log.Infof("auth response: %s, %s", username, string(data[2]))
+
+		if e.sessionCtx.DatabaseUser != username {
+			return trace.AccessDenied("user %s is not authorized to access the database", username)
+		}
+	case *message.Query:
+		queryStr := msg.String()
+		// TODO(jakule): what to do if query exceeds 65k?
+		if len(queryStr) > 100 {
+			queryStr = queryStr[:100]
+		}
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+			Query: queryStr,
+		})
+	case *message.Prepare:
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+			Query: msg.String(),
+		})
+	case *message.Execute:
+		// TODO(jakule): Execute log is not probably very useful as it contains only
+		// query ID returned by PREPARE command.
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+			Query: msg.String(),
+		})
+	case *message.Batch:
+		queries := make([]string, 0, len(msg.Children))
+		for _, child := range msg.Children {
+			queries = append(queries, fmt.Sprintf("%+v, values: %v", child.QueryOrId, child.Values))
+		}
+
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+			Query: fmt.Sprintf("begin batch %s batch apply", queries),
+			Parameters: []string{
+				"consistency", msg.Consistency.String(),
+				"keyspace", msg.Keyspace,
+				"batch", msg.Type.String(),
+			},
+		})
+	case *message.Register:
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
+			Query: msg.String(),
+		})
+	case *message.Revise:
+		// TODO(jakule): investigate this package. Looks like something only available in the enterprise edition.
+		return trace.NotImplemented("revise package is not supported")
+	default:
+		return trace.BadParameter("received a message with unexpected type %T", body.Body.Message)
+	}
+
+	return nil
 }
 
 // authorizeConnection does authorization check for Cassandra connection about
@@ -410,8 +375,7 @@ func (e *Engine) sendAuthError(accessErr error) {
 
 		switch rawFrame.Header.OpCode {
 		case primitive.OpCodeStartup:
-			// Downgrade client if needed to simplify communication.
-			//minSupportedProtocol := primitive.ProtocolVersion3
+			// TODO(jakule): If protocol v5 then the message needs to be wrapped in a segment.
 			startupFrame := frame.NewFrame(rawFrame.Header.Version, rawFrame.Header.StreamId,
 				&message.Authenticate{Authenticator: "org.apache.cassandra.auth.PasswordAuthenticator"})
 
