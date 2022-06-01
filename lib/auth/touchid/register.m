@@ -27,9 +27,10 @@
 
 int Register(CredentialInfo req, char **pubKeyB64Out, char **errOut) {
   CFErrorRef error = NULL;
+  // kSecAccessControlTouchIDAny is used for compatibility with macOS 10.12.
   SecAccessControlRef access = SecAccessControlCreateWithFlags(
       kCFAllocatorDefault, kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-      kSecAccessControlPrivateKeyUsage | kSecAccessControlBiometryAny, &error);
+      kSecAccessControlPrivateKeyUsage | kSecAccessControlTouchIDAny, &error);
   if (error) {
     NSError *nsError = CFBridgingRelease(error);
     *errOut = CopyNSString([nsError localizedDescription]);

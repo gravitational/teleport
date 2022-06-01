@@ -4,131 +4,81 @@ description: How to set up Teleport Node labels based on EC2 tags
 h1: Sync EC2 Tags and Teleport Node Labels
 ---
 
-This guide will explain how to set up Teleport Node labels based on Amazon EC2 tags.
+When running on an AWS EC2 instance, Teleport will automatically detect and import EC2 tags as
+Teleport labels for SSH nodes, Applications, Databases, and Kubernetes clusters. Labels created
+this way will have the `aws/` prefix.
+
+If the tag `TeleportHostname` (case-sensitive) is present, its value will override the node's hostname.
+
+```bash
+$ tsh ls
+Node Name            Address        Labels                                                                                                                  
+-------------------- -------------- ----------------------------------------------------------------------------------------------------------------------- 
+fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Name=atburke-dev,aws/TagKey=TagValue,aws/TeleportHostname=fakehost.example.com
+```
+
+<Notice type="note">
+  For services that manage multiple resources (such as the database service), each resource will receive the
+  same labels from EC2.
+</Notice>
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
 - One Teleport Node running on an Amazon EC2 instance. See
   [Adding Nodes](../admin/adding-nodes.mdx) for how to set up a Teleport Node.
-- The following software installed on your Teleport Node: `curl`, `python`, and
-  the `aws` CLI, which comes from the `awscli` Python package.
 
-## Step 1/3. Deploy the script
+## Enable tags in instance metadata
 
-You’ll need a script on your EC2 instance that can query the AWS API and get the
-values of your instance's tags for you. The Teleport Node will then use these
-values to execute RBAC rules.
+To allow Teleport to import EC2 tags, tags must be enabled in the instance metadata. This can be done
+via the AWS console or the AWS CLI. See the [AWS documentation](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#allow-access-to-tags-in-IMDS)
+for more details.
 
-Here’s one script you can use:
+<Admonition type="note" title="Note">
+  Only instances that are running on the [Nitro system](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html#ec2-nitro-instances)
+  will update their tags while running. All other instance types [must be restarted](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS)
+  to update tags.
+</Admonition>
 
-```code
-#!/bin/bash
-if [[ "$1" == "" ]]; then
-	echo "Usage: $(basename $0) <tag>"
-	exit 1
-fi
-TAG_NAME=$1
+### AWS EC2 Console
 
-IMDS_TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-IMDS_TOKEN_HEADER="-H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\""
-INSTANCE_ID=$(curl -sS "${IMDS_TOKEN_HEADER}" http://169.254.169.254/latest/meta-data/instance-id)
-REGION=$(curl -sS "${IMDS_TOKEN_HEADER}" http://169.254.169.254/latest/meta-data/placement/availability-zone | sed -e "s:\([0-9][0-9]*\)[a-z]*\$:\\1:")
-TAG_VALUE="$(aws ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" "Name=key,Values=$TAG_NAME" --region $REGION --output=text | cut -f5)"
+To launch a new instance with instance metadata tags enabled:
+1. Open `Advanced Options` at the bottom of the page.
+2. Ensure that `Metadata accessible` is not disabled.
+3. Enable `Allow tags in metadata`.
 
-if [[ "${TAG_VALUE}" == "" ]]; then
-	echo "<null>"
-else
-	echo $TAG_VALUE
-fi
-```
+<Figure align="left" bordered caption="Advanced Options">
+  ![Advanced Options](../../../img/aws/launch-instance-advanced-options.png)
+</Figure>
 
-Save this script to `/usr/local/bin/get-tag.sh` on your EC2 instance.
-Run the command below to make it executable:
+To modify an existing instance to enable instance metadata tags:
+1. From the instance summary, go to `Actions > Instance Settings > Allow tags in instance metadata`.
+2. Enable `Allow`.
 
-```code
-$ chmod +x /usr/local/bin/get-tag.sh
-```
+<Figure align="left" bordered caption="Instance Settings">
+  ![Instance Settings](../../../img/aws/instance-settings.png)
+</Figure>
 
-## Step 2/3. Set up an IAM role
+<Figure align="left" bordered caption="Allow Tags">
+  ![Allow Tags](../../../img/aws/allow-tags.png)
+</Figure>
 
-Grant your EC2 instance an IAM role that will allow it to query tag values for EC2 instances.
+### AWS CLI
 
-Here’s an example policy which you can add to an IAM role:
-
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "ec2:DescribeTags",
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-Once this is done, query the value of the test tag on your EC2 instance by running the following command:
+To modify the instance at launch:
 
 ```code
-$ /usr/local/bin/get-tag.sh test
-tagValue
+$ aws ec2 run-instances \
+    --image-id <image-id> \
+    --instance-type <instance-type> \
+    --metadata-options "InstanceMetadataTags=enabled"
+    ...
 ```
 
-## Step 3/3. Modify the Teleport Node config file
+To modify a running instance:
 
-Modify the Teleport config file on your node (`/etc/teleport.yaml`) as follows:
-
-```yaml
-teleport:
-  ssh_service:
-    enabled: yes
-    listen_addr: 0.0.0.0:3022
-    commands:
-      - name: aws_tag_test
-        command: ['/usr/local/bin/get-tag.sh', 'test']
-        period: 1h
+```code
+$ aws ec2 modify-instance-metadata-options \
+    --instance-id i-123456789example \
+    --instance-metadata-tags enabled
 ```
-
-This config will add a label with the key `aws_tag_test` to your instance. Its value will be set to whatever the `test` tag is set to and it will be updated once every hour.
-
-Restart Teleport on the node and you should see the new label appear:
-
-```txt
-Node Name                     Address                                                                 Labels                                                                                      
------------------------------ ----------------------------------------------------------------------- ------------------------------------------------------------------------------------------- 
-example                       172.31.26.55:3022                                                       aws_tag_test=tagValue
-```
-
-Now you have a label on the instance which you can use inside a Teleport role. Here’s an example role:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: test-tag-role
-spec:
-  allow:
-    logins:
-    - ec2-user
-    node_labels:
-      'aws_tag_test': 'tagValue'
-  deny: {}
-  options:
-    cert_format: standard
-    forward_agent: true
-    max_session_ttl: 2h0m0s
-    port_forwarding: true
-```
-
-When assigned to Teleport users, this role will only allow them to log in to
-Teleport Nodes which have the `aws_tag_test` label with the value of `tagValue`,
-effectively gating access to infrastructure based on the value of the EC2 `test`
-tag.
-
-By adding multiple commands to a Teleport Node, setting the values of different
-tags, then adding Teleport roles that reference these tags, you can build
-fine-grained RBAC systems based on your EC2 tagging structure.
