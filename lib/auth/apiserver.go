@@ -1338,9 +1338,6 @@ func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *
 	if req.TTL != 0 {
 		connector.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
-	if err = services.ValidateOIDCConnector(connector); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	err = auth.UpsertOIDCConnector(r.Context(), connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
