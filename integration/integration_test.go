@@ -788,7 +788,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			return "", trace.Wrap(err)
 		}
 
-		return ident.ID.HostID()
+		return ident.ID.HostID(), nil
 	}
 
 	// add two nodes with the same hostname.
