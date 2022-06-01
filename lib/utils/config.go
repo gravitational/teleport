@@ -18,23 +18,31 @@ package utils
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
-// ReadToken is a utility function to read the token
-// from the disk if it looks like a path,
-// otherwise, treat it as a value
-func ReadToken(token string) (string, error) {
-	if !strings.HasPrefix(token, "/") {
-		return token, nil
+// TryReadValueAsFile is a utility function to read a value
+// from the disk if it looks like an absolute path,
+// otherwise, treat it as a value.
+// It only support absolute paths to avoid ambiguity in interpretation of the value
+func TryReadValueAsFile(value string) (string, error) {
+	if !filepath.IsAbs(value) {
+		return value, nil
 	}
-	// treat it as a file
-	out, err := os.ReadFile(token)
+	// treat it as an absolute filepath
+	contents, err := os.ReadFile(value)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
 	// trim newlines as tokens in files tend to have newlines
-	return strings.TrimSpace(string(out)), nil
+	out := strings.TrimSpace(string(contents))
+
+	if out == "" {
+		log.Warnf("Empty config value file: %v", value)
+	}
+	return out, nil
 }

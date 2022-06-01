@@ -323,6 +323,9 @@ const (
 	OriginCloud = "cloud"
 )
 
+// EC2HostnameTag is the name of the EC2 tag used to override a node's hostname.
+const EC2HostnameTag = "TeleportHostname"
+
 // OriginValues lists all possible origin values.
 var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}
 
