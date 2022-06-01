@@ -17,16 +17,21 @@ package databases
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/gravitational/teleport/api/utils/aws"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go/aws/arn"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 )
@@ -67,6 +72,23 @@ var (
 		"elasticache:DescribeReplicationGroups",
 		"elasticache:DescribeCacheClusters",
 		"elasticache:DescribeCacheSubnetGroups",
+		"elasticache:DescribeUsers",
+		"elasticache:ModifyUser",
+	}
+	// secretsManagerActions is a list of actions used for SecretsManager.
+	secretsManagerActions = []string{
+		"secretsmanager:DescribeSecret",
+		"secretsmanager:CreateSecret",
+		"secretsmanager:UpdateSecret",
+		"secretsmanager:DeleteSecret",
+		"secretsmanager:GetSecretValue",
+		"secretsmanager:PutSecretValue",
+		"secretsmanager:TagResource",
+	}
+	// kmsActions is a list of actions used for custom KMS keys.
+	kmsActions = []string{
+		"kms:GenerateDataKey",
+		"kms:Decrypt",
 	}
 	// boundaryRDSAuroraActions additional actions added to the policy boundary
 	// when policy has RDS auto-discovery.
@@ -358,6 +380,8 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 	var statements []*awslib.Statement
 	rdsAutoDiscovery := isRDSAutoDiscoveryEnabled(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
+	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
+	requireSecretsManager := elastiCacheDatabases
 
 	if rdsAutoDiscovery {
 		statements = append(statements, buildRDSAutoDiscoveryStatements()...)
@@ -368,8 +392,12 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 	}
 
 	// ElastiCache does not require permissions to edit user/role IAM policy.
-	if hasElastiCacheDatabases(flags, fileConfig) {
+	if elastiCacheDatabases {
 		statements = append(statements, buildElastiCacheStatements()...)
+	}
+
+	if requireSecretsManager {
+		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
 	}
 
 	// If RDS the auto discovery is enabled or there are Redshift databases, we
@@ -398,6 +426,8 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 	var statements []*awslib.Statement
 	rdsAutoDiscovery := isRDSAutoDiscoveryEnabled(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
+	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
+	requireSecretsManager := elastiCacheDatabases
 
 	if rdsAutoDiscovery {
 		statements = append(statements, buildRDSAutoDiscoveryBoundaryStatements()...)
@@ -408,8 +438,12 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 	}
 
 	// ElastiCache does not require permissions to edit user/role IAM policy.
-	if hasElastiCacheDatabases(flags, fileConfig) {
+	if elastiCacheDatabases {
 		statements = append(statements, buildElastiCacheBoundaryStatements()...)
+	}
+
+	if requireSecretsManager {
+		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
 	}
 
 	// If RDS the auto discovery is enabled or there are Redshift databases, we
@@ -573,4 +607,78 @@ func buildElastiCacheStatements() []*awslib.Statement {
 // for ElastiCache databases.
 func buildElastiCacheBoundaryStatements() []*awslib.Statement {
 	return buildElastiCacheStatements()
+}
+
+// buildSecretsManagerStatements returns IAM statements necessary for using AWS
+// Secrets Manager.
+func buildSecretsManagerStatements(fileConfig *config.FileConfig, target awslib.Identity) []*awslib.Statement {
+	// Populate resources with the default secrets prefix.
+	secretsManagerStatement := &awslib.Statement{
+		Effect:    awslib.EffectAllow,
+		Actions:   secretsManagerActions,
+		Resources: []string{buildSecretsManagerARN(target, secrets.DefaultKeyPrefix)},
+	}
+	// KMS statement is only required when using custom KMS keys.
+	kmsStatement := &awslib.Statement{
+		Effect:  awslib.EffectAllow,
+		Actions: kmsActions,
+	}
+
+	addedSecretPrefixes := map[string]bool{}
+	addedKMSKeyIDs := map[string]bool{}
+	for _, database := range fileConfig.Databases.Databases {
+		if !aws.IsElastiCacheEndpoint(database.URI) {
+			continue
+		}
+
+		// Build Secrets Manager resources.
+		prefix := database.AWS.SecretStore.KeyPrefix
+		if prefix != "" && !addedSecretPrefixes[prefix] {
+			addedSecretPrefixes[prefix] = true
+			secretsManagerStatement.Resources = append(
+				secretsManagerStatement.Resources,
+				buildSecretsManagerARN(target, prefix),
+			)
+		}
+
+		// Build KMS resources.
+		kmsKeyID := database.AWS.SecretStore.KMSKeyID
+		if kmsKeyID != "" && !addedKMSKeyIDs[kmsKeyID] {
+			addedKMSKeyIDs[kmsKeyID] = true
+			kmsStatement.Resources = append(
+				kmsStatement.Resources,
+				buildARN(target, kms.ServiceName, "key/"+kmsKeyID),
+			)
+		}
+	}
+
+	statements := []*awslib.Statement{
+		secretsManagerStatement,
+	}
+	if len(kmsStatement.Resources) > 0 {
+		statements = append(statements, kmsStatement)
+	}
+	return statements
+}
+
+// buildSecretsManagerARN builds an ARN of a secret used for Secrets Manager
+// IAM policies.
+func buildSecretsManagerARN(target awslib.Identity, keyPrefix string) string {
+	return buildARN(
+		target,
+		secretsmanager.ServiceName,
+		fmt.Sprintf("secret:%s/*", strings.TrimSuffix(keyPrefix, "/")),
+	)
+}
+
+// buildARN builds an ARN string with provided identity, service and resource.
+func buildARN(target awslib.Identity, service, resource string) string {
+	arn := arn.ARN{
+		Partition: target.GetPartition(),
+		AccountID: target.GetAccountID(),
+		Region:    "*",
+		Service:   service,
+		Resource:  resource,
+	}
+	return arn.String()
 }

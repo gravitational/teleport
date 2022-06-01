@@ -1097,21 +1097,6 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 	return &response, nil
 }
 
-// CreateSAMLConnector creates SAML connector
-func (c *Client) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	data, err := services.MarshalSAMLConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(ctx, c.Endpoint("saml", "connectors"), &createSAMLConnectorRawReq{
-		Connector: data,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // CreateSAMLAuthRequest creates SAML AuthnRequest
 func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
 	out, err := c.PostJSON(context.TODO(), c.Endpoint("saml", "requests", "create"), createSAMLAuthRequestReq{
@@ -1188,21 +1173,6 @@ func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuth
 		response.HostSigners[i] = ca
 	}
 	return &response, nil
-}
-
-// CreateGithubConnector creates a new Github connector
-func (c *Client) CreateGithubConnector(connector types.GithubConnector) error {
-	bytes, err := services.MarshalGithubConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("github", "connectors"), &createGithubConnectorRawReq{
-		Connector: bytes,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
@@ -1658,57 +1628,36 @@ type WebService interface {
 type IdentityService interface {
 	// UpsertPassword updates web access password for the user
 	UpsertPassword(user string, password []byte) error
-
 	// UpsertOIDCConnector updates or creates OIDC connector
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
-
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
-
 	// GetOIDCConnector gets OIDC connectors list
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
-
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
-
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
-
 	// GetOIDCAuthRequest returns OIDC auth request if found
 	GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error)
-
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 
-	// CreateSAMLConnector creates SAML connector
-	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
-
 	// UpsertSAMLConnector updates or creates SAML connector
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
-
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
-
 	// GetSAMLConnectors gets SAML connectors list
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
-
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
-
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error)
-
 	// ValidateSAMLResponse validates SAML auth response
 	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
-
 	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*services.SAMLAuthRequest, error)
 
-	// GetSSODiagnosticInfo returns SSO diagnostic info records.
-	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
-
-	// CreateGithubConnector creates a new Github connector
-	CreateGithubConnector(connector types.GithubConnector) error
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
@@ -1723,6 +1672,9 @@ type IdentityService interface {
 	GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error)
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error)
+
+	// GetSSODiagnosticInfo returns SSO diagnostic info records.
+	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)

@@ -92,7 +92,7 @@ func (cmd *SSOTestCommand) getSupportedKinds() []string {
 	return kinds
 }
 
-func (cmd *SSOTestCommand) ssoTestCommand(c auth.ClientI) error {
+func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
 		f, err := utils.OpenFile(cmd.connectorFileName)
@@ -125,13 +125,13 @@ func (cmd *SSOTestCommand) ssoTestCommand(c auth.ClientI) error {
 		}
 
 		// note: loginErr is processed further down.
-		loginResponse, loginErr := cmd.runSSOLoginFlow(context.TODO(), raw.Kind, c, requestInfo.Config)
+		loginResponse, loginErr := cmd.runSSOLoginFlow(ctx, raw.Kind, c, requestInfo.Config)
 
 		if requestInfo.RequestCreateErr != nil {
 			return trace.BadParameter("Failed to create auth request. Check the auth connector definition for errors. Error: %v", requestInfo.RequestCreateErr)
 		}
 
-		info, infoErr := c.GetSSODiagnosticInfo(context.TODO(), raw.Kind, requestInfo.RequestID)
+		info, infoErr := c.GetSSODiagnosticInfo(ctx, raw.Kind, requestInfo.RequestID)
 
 		err = cmd.reportLoginResult(raw.Kind, info, infoErr, loginResponse, loginErr)
 		if err != nil {
@@ -142,9 +142,9 @@ func (cmd *SSOTestCommand) ssoTestCommand(c auth.ClientI) error {
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SSOTestCommand) TryRun(selectedCommand string, c auth.ClientI) (match bool, err error) {
+func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error) {
 	if selectedCommand == cmd.ssoTestCmd.FullCommand() {
-		return true, cmd.ssoTestCommand(c)
+		return true, cmd.ssoTestCommand(ctx, c)
 	}
 	return false, nil
 }
