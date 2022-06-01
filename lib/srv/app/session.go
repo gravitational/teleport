@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sync"
 	"time"
@@ -44,6 +45,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var errSessionChunkAlreadyClosed = errors.New("session chunk already closed")
+
 // sessionChunk holds an open request forwarder and audit log for an app session.
 //
 // An app session is only bounded by the lifetime of the certificate in
@@ -62,13 +65,22 @@ type sessionChunk struct {
 	fwd *forward.Forwarder
 	// streamWriter can emit events to the audit log.
 	streamWriter events.StreamWriter
+
+	// inflightCond protects and signals change of inflight
+	inflightCond *sync.Cond
+	// inflight is the amount of in-flight requests
+	// closing the chunk is only allowed when this is 0.
+	// On session expiration, this will first be atomically decremented to -1,
+	// preventing any new requests from using the closing/closed session.
+	inflight int64
 }
 
 // newSessionChunk creates a new chunk session.
 func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
 	sess := &sessionChunk{
-		id:     uuid.New().String(),
-		closeC: make(chan struct{}),
+		id:           uuid.New().String(),
+		closeC:       make(chan struct{}),
+		inflightCond: sync.NewCond(&sync.Mutex{}),
 	}
 
 	// Create a session tracker so that other services, such as the
@@ -140,7 +152,41 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	return sess, nil
 }
 
+// acquire() increments in-flight request count by 1.
+// It is supposed to be paired with a `release()` call,
+// after the chunk is done with for the individual request
+func (s *sessionChunk) acquire() error {
+	s.inflightCond.L.Lock()
+	defer s.inflightCond.L.Unlock()
+
+	if s.inflight == -1 {
+		return trace.Wrap(errSessionChunkAlreadyClosed)
+	}
+
+	s.inflight++
+	return nil
+}
+
+func (s *sessionChunk) release() {
+	s.inflightCond.L.Lock()
+	defer s.inflightCond.L.Unlock()
+	if s.inflight == -1 {
+		return
+	}
+	s.inflight--
+	s.inflightCond.Signal()
+}
+
 func (s *sessionChunk) close(ctx context.Context) error {
+	// Wait until there are no requests in-flight,
+	// then mark the session as not accepting new requests,
+	// and close it.
+	s.inflightCond.L.Lock()
+	for s.inflight != 0 {
+		s.inflightCond.Wait()
+	}
+	s.inflight = -1
+	s.inflightCond.L.Unlock()
 	close(s.closeC)
 	err := s.streamWriter.Close(ctx)
 	return trace.Wrap(err)
