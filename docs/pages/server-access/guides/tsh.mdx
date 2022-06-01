@@ -353,7 +353,7 @@ In this example, we're creating a certificate with a TTL of one hour for the
 
 ```code
 # To be executed on a Teleport Auth Server
-$ tctl auth sign --ttl=1h--user=jenkins --out=jenkins.pem
+$ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 ```
 
 </ScopedBlock>
@@ -362,7 +362,7 @@ $ tctl auth sign --ttl=1h--user=jenkins --out=jenkins.pem
 ```code
 # Log in to your Teleport Cloud cluster so you can use tctl locally.
 $ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
-$ tctl auth sign --ttl=1h--user=jenkins --out=jenkins.pem
+$ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 ```
 
 </ScopedBlock>
