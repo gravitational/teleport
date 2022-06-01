@@ -577,8 +577,7 @@ func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorU2F,
 		U2F: &types.U2F{
-			AppID:  "foo",
-			Facets: []string{"bar", "baz"},
+			AppID: "foo",
 		},
 	})
 	require.NoError(t, err)

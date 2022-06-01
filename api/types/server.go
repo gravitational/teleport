@@ -221,9 +221,23 @@ func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
 }
 
+// GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
+// exists to preserve backwards compatibility, while GetStaticLabels exists to
+// implement ResourcesWithLabels.
+
 // GetLabels returns server's static label key pairs
 func (s *ServerV2) GetLabels() map[string]string {
 	return s.Metadata.Labels
+}
+
+// GetStaticLabels returns the server static labels.
+func (s *ServerV2) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the server static labels.
+func (s *ServerV2) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
 }
 
 // GetCmdLabels returns command labels
