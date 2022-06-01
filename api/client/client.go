@@ -2631,3 +2631,22 @@ func (c *Client) MaintainSessionPresence(ctx context.Context) (proto.AuthService
 	stream, err := c.grpc.MaintainSessionPresence(ctx, c.callOpts...)
 	return stream, trail.FromGRPC(err)
 }
+
+// GetDomainName returns local auth domain of the current auth server
+func (c *Client) GetDomainName(ctx context.Context) (string, error) {
+	resp, err := c.grpc.GetDomainName(ctx, &empty.Empty{})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+	return resp.DomainName, nil
+}
+
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be concatenated.
+func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
+	resp, err := c.grpc.GetClusterCACert(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
