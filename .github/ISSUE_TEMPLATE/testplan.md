@@ -679,7 +679,7 @@ Using the same user as above:
 
 #### Passwordless
 
-- [ ] Pure passwordless registrations are possible
+- [ ] Pure passwordless registrations and resets are possible
 - [ ] Verify adding a passwordless device (WebAuthn)
 - [ ] Verify passwordless logins
 
