@@ -3,12 +3,12 @@ title: Machine ID Getting Started Guide
 description: Getting started with Teleport Machine ID
 ---
 
-In this getting started guide, you will use Machine ID to create a bot user for
-a machine, then use that identity to connect to the machine.
+In this getting started guide, you will configure Machine ID to issue
+certificates that enable a bot user to connect to a remote host.
 
 Here's an overview of what you will do:
 
-1. Download and install Teleport (=teleport.version=) on the host that will run
+1. Download and install `tbot` (=teleport.version=) on the host that will run
    Machine ID.
 2. Create a bot user.
 3. Start Machine ID.
@@ -161,9 +161,9 @@ the foreground to better understand how it works.
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
-     --token=00000000000000000000000000000000 \
+     --token=(=presets.tokens.first=) \
      --join-method=token \
-     --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+     --ca-pin=(=presets.ca_pin=) \
      --auth-server=auth.example.com:3025
   ```
 
@@ -174,9 +174,9 @@ the foreground to better understand how it works.
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
-     --token=00000000000000000000000000000000 \
+     --token=(=presets.tokens.first=) \
      --join-method=token \
-     --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+     --ca-pin=(=presets.ca_pin=) \
      --auth-server=example.teleport.sh:443
   ```
 
@@ -193,7 +193,7 @@ the foreground to better understand how it works.
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
-     --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+     --ca-pin=(=presets.ca_pin=) \
      --auth-server=auth.example.com:3025
   ```
 
@@ -206,7 +206,7 @@ the foreground to better understand how it works.
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
-     --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+     --ca-pin=(=presets.ca_pin=) \
      --auth-server=example.teleport.sh:443
   ```
 
