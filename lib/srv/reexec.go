@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -248,13 +249,12 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// If we're planning on changing credentials, we should first park an
 	// innocuous process with the same UID and then check the user database
 	// again, to avoid it getting deleted under our nose.
-	var uidParker io.Closer
+	parkerCtx, parkerCancel := context.WithCancel(context.Background())
+	defer parkerCancel()
 	if cmd.SysProcAttr.Credential != nil {
-		uidParker, err := newParker(*cmd.SysProcAttr.Credential)
-		if err != nil {
+		if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
-		defer uidParker.Close()
 
 		localUserCheck, err := user.Lookup(c.Login)
 		if err != nil {
@@ -331,9 +331,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	if uidParker != nil {
-		uidParker.Close()
-	}
+	parkerCancel()
 
 	// Wait for the command to exit. It doesn't make sense to print an error
 	// message here because the shell has successfully started. If an error
@@ -447,6 +445,13 @@ func runCheckHomeDir() (errw io.Writer, code int, err error) {
 	return io.Discard, teleport.RemoteCommandSuccess, nil
 }
 
+// runPark does nothing, forever.
+func runPark() (errw io.Writer, code int, err error) {
+	for {
+		time.Sleep(time.Hour)
+	}
+}
+
 // RunAndExit will run the requested command and then exit. This wrapper
 // allows Run{Command,Forward} to use defers and makes sure error messages
 // are consistent across both.
@@ -462,6 +467,8 @@ func RunAndExit(commandType string) {
 		w, code, err = RunForward()
 	case teleport.CheckHomeDirSubCommand:
 		w, code, err = runCheckHomeDir()
+	case teleport.ParkSubCommand:
+		w, code, err = runPark()
 	default:
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -477,7 +484,7 @@ func RunAndExit(commandType string) {
 func IsReexec() bool {
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
-		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand:
+		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand, teleport.ParkSubCommand:
 			return true
 		}
 	}
@@ -745,61 +752,30 @@ func checkHomeDir(localUser *user.User) (bool, error) {
 	return true, nil
 }
 
-type parker struct {
-	cmd  *exec.Cmd
-	pipe *os.File
-}
-
-func (p *parker) Close() error {
-	if p.cmd != nil {
-		p.cmd.Process.Kill()
-		p.cmd.Wait()
-		p.cmd = nil
-	}
-	if p.pipe != nil {
-		p.pipe.Close()
-		p.pipe = nil
-	}
-	return nil
-}
-
-// Spawns a process with the given credentials; uses `teleport forward`
-// internally, which will block reading from the pipe at FD 3. Returns a
-// io.Closer that should be closed when the parked process is no longer needed.
-func newParker(credential syscall.Credential) (io.Closer, error) {
+// Spawns a process with the given credentials, outliving the context.
+func newParker(ctx context.Context, credential syscall.Credential) error {
 	executable, err := os.Executable()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	rp, wp, err := os.Pipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rp.Close()
-
-	cmd := &exec.Cmd{
-		Path: executable,
-		Args: []string{executable, teleport.ForwardSubCommand},
-		SysProcAttr: &syscall.SysProcAttr{
-			Setsid:     true,
-			Credential: &credential,
-		},
-		ExtraFiles: []*os.File{rp},
+	cmd := exec.CommandContext(ctx, executable, teleport.ParkSubCommand)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &credential,
 	}
 
 	// Perform OS-specific tweaks to the command.
 	reexecCommandOSTweaks(cmd)
 
 	if err := cmd.Start(); err != nil {
-		wp.Close()
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	return &parker{
-		cmd:  cmd,
-		pipe: wp,
-	}, nil
+	// the process will get killed when the context ends but we still need to
+	// Wait on it
+	go cmd.Wait()
+
+	return nil
 }
 
 // getCmdCredentials parses the uid, gid, and groups of the
