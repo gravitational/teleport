@@ -38,16 +38,15 @@ func (cmd *ResourceCommandE) Initialize(app *kingpin.Application, cfg *service.C
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *ResourceCommandE) TryRun(selectedCommand string, c auth.ClientI) (match bool, err error) {
-	return cmd.base.TryRun(selectedCommand, c)
+func (cmd *ResourceCommandE) TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error) {
+	return cmd.base.TryRun(ctx, selectedCommand, c)
 }
 
 // createConnector implements 'tctl create connector.yaml' command
-func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.UnknownResource) error {
+func (cmd *ResourceCommandE) createConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	var (
 		connectorName string
 		exists        bool
-		ctx           = context.TODO()
 	)
 	switch raw.Kind {
 

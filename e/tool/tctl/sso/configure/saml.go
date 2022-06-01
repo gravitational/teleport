@@ -138,7 +138,7 @@ Examples:
 `, presets))
 
 	preset := &configure.AuthKindCommand{
-		Run: func(clt auth.ClientI) error { return samlRunFunc(cmd, &spec, saml, clt) },
+		Run: func(ctx context.Context, clt auth.ClientI) error { return samlRunFunc(ctx, cmd, &spec, saml, clt) },
 	}
 
 	sub.Action(func(ctx *kingpin.ParseContext) error {
@@ -149,7 +149,13 @@ Examples:
 	return preset
 }
 
-func samlRunFunc(cmd *configure.SSOConfigureCommand, spec *types.SAMLConnectorSpecV2, flags *samlExtraFlags, clt auth.ClientI) error {
+func samlRunFunc(
+	ctx context.Context,
+	cmd *configure.SSOConfigureCommand,
+	spec *types.SAMLConnectorSpecV2,
+	flags *samlExtraFlags,
+	clt auth.ClientI,
+) error {
 	// apply preset, if chosen
 	p := samlPresets.getPreset(flags.chosenPreset)
 	if p != nil {
@@ -172,7 +178,7 @@ func samlRunFunc(cmd *configure.SSOConfigureCommand, spec *types.SAMLConnectorSp
 		return trace.BadParameter("Connector name must be set, either by choosing --preset or explicitly via --name")
 	}
 
-	allRoles, err := clt.GetRoles(context.TODO())
+	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
 		cmd.Logger.WithError(err).Warn("unable to get roles list. Skipping attributes-to-roles sanity checks.")
 	} else {

@@ -74,7 +74,8 @@ var oidcPresets = oidcPresetList([]oidcPreset{
 			}
 
 			return nil
-		}},
+		},
+	},
 
 	{
 		name:        "gitlab",
@@ -92,7 +93,8 @@ var oidcPresets = oidcPresetList([]oidcPreset{
 			}
 
 			return nil
-		}},
+		},
+	},
 
 	{
 		name:        "okta",
@@ -191,7 +193,7 @@ Examples:
   Generate the configuration and immediately test it using "tctl sso test" command.`, presets))
 
 	preset := &configure.AuthKindCommand{
-		Run: func(clt auth.ClientI) error { return oidcRunFunc(cmd, &spec, extra, clt) },
+		Run: func(ctx context.Context, clt auth.ClientI) error { return oidcRunFunc(ctx, cmd, &spec, extra, clt) },
 	}
 
 	sub.Action(func(ctx *kingpin.ParseContext) error {
@@ -202,7 +204,7 @@ Examples:
 	return preset
 }
 
-func oidcRunFunc(cmd *configure.SSOConfigureCommand, spec *types.OIDCConnectorSpecV3, flags *oidcExtraFlags, clt auth.ClientI) error {
+func oidcRunFunc(ctx context.Context, cmd *configure.SSOConfigureCommand, spec *types.OIDCConnectorSpecV3, flags *oidcExtraFlags, clt auth.ClientI) error {
 	if flags.googleID != "" {
 		if spec.ClientID != "" {
 			return trace.BadParameter("Conflicting flags: --id and --google-id. Provide only one.")
@@ -285,7 +287,7 @@ func oidcRunFunc(cmd *configure.SSOConfigureCommand, spec *types.OIDCConnectorSp
 		return trace.BadParameter("Connector name must be set, either by choosing --preset or explicitly via --name")
 	}
 
-	allRoles, err := clt.GetRoles(context.TODO())
+	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
 		cmd.Logger.WithError(err).Warn("unable to get roles list. Skipping attributes_to_roles sanity checks.")
 	} else {

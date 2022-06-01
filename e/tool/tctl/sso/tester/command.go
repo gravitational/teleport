@@ -1,6 +1,8 @@
 package tester
 
 import (
+	"context"
+
 	"github.com/gravitational/kingpin"
 
 	"github.com/gravitational/teleport/api/types"
@@ -28,6 +30,6 @@ func (cmd *SSOTestCommandE) Initialize(app *kingpin.Application, cfg *service.Co
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SSOTestCommandE) TryRun(selectedCommand string, c auth.ClientI) (match bool, err error) {
-	return cmd.base.TryRun(selectedCommand, c)
+func (cmd *SSOTestCommandE) TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error) {
+	return cmd.base.TryRun(ctx, selectedCommand, c)
 }
