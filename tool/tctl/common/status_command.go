@@ -46,10 +46,10 @@ func (c *StatusCommand) Initialize(app *kingpin.Application, config *service.Con
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *StatusCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.status.FullCommand():
-		err = c.Status(context.Background(), client)
+		err = c.Status(ctx, client)
 	default:
 		return false, nil
 	}
@@ -117,12 +117,14 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 					"has been completed.")
 			}
 			if c.config.Debug {
-				table.AddRow([]string{info,
+				table.AddRow([]string{
+					info,
 					fmt.Sprintf("%v, update_servers: %v, complete: %v",
 						rotation.String(),
 						rotation.Schedule.UpdateServers.Format(constants.HumanDateFormatSeconds),
 						rotation.Schedule.Standby.Format(constants.HumanDateFormatSeconds),
-					)})
+					),
+				})
 			} else {
 				table.AddRow([]string{info, rotation.String()})
 			}

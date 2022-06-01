@@ -40,7 +40,7 @@ import (
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
-type ResourceCreateHandler func(auth.ClientI, services.UnknownResource) error
+type ResourceCreateHandler func(context.Context, auth.ClientI, services.UnknownResource) error
 
 // ResourceKind is the string form of a resource, i.e. "oidc"
 type ResourceKind string
@@ -134,20 +134,20 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (rc *ResourceCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	// tctl get
 	case rc.getCmd.FullCommand():
-		err = rc.Get(client)
+		err = rc.Get(ctx, client)
 		// tctl create
 	case rc.createCmd.FullCommand():
-		err = rc.Create(client)
+		err = rc.Create(ctx, client)
 		// tctl rm
 	case rc.deleteCmd.FullCommand():
-		err = rc.Delete(client)
+		err = rc.Delete(ctx, client)
 		// tctl update
 	case rc.updateCmd.FullCommand():
-		err = rc.Update(client)
+		err = rc.Update(ctx, client)
 	default:
 		return false, nil
 	}
@@ -166,15 +166,15 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 }
 
 // Get prints one or many resources of a certain type
-func (rc *ResourceCommand) Get(client auth.ClientI) error {
+func (rc *ResourceCommand) Get(ctx context.Context, client auth.ClientI) error {
 	if rc.refs.IsAll() {
-		return rc.GetAll(client)
+		return rc.GetAll(ctx, client)
 	}
 	if len(rc.refs) != 1 {
-		return rc.GetMany(client)
+		return rc.GetMany(ctx, client)
 	}
 	rc.ref = rc.refs[0]
-	collection, err := rc.getCollection(client)
+	collection, err := rc.getCollection(ctx, client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -192,14 +192,14 @@ func (rc *ResourceCommand) Get(client auth.ClientI) error {
 	return trace.BadParameter("unsupported format")
 }
 
-func (rc *ResourceCommand) GetMany(client auth.ClientI) error {
+func (rc *ResourceCommand) GetMany(ctx context.Context, client auth.ClientI) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
 	var resources []types.Resource
 	for _, ref := range rc.refs {
 		rc.ref = ref
-		collection, err := rc.getCollection(client)
+		collection, err := rc.getCollection(ctx, client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -211,7 +211,7 @@ func (rc *ResourceCommand) GetMany(client auth.ClientI) error {
 	return nil
 }
 
-func (rc *ResourceCommand) GetAll(client auth.ClientI) error {
+func (rc *ResourceCommand) GetAll(ctx context.Context, client auth.ClientI) error {
 	rc.withSecrets = true
 	allKinds := services.GetResourceMarshalerKinds()
 	allRefs := make([]services.Ref, 0, len(allKinds))
@@ -222,11 +222,11 @@ func (rc *ResourceCommand) GetAll(client auth.ClientI) error {
 		allRefs = append(allRefs, ref)
 	}
 	rc.refs = services.Refs(allRefs)
-	return rc.GetMany(client)
+	return rc.GetMany(ctx, client)
 }
 
 // Create updates or inserts one or many resources
-func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
+func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err error) {
 	var reader io.Reader
 	if rc.filename == "" {
 		reader = os.Stdin
@@ -265,7 +265,7 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 		}
 		// only return in case of error, to create multiple resources
 		// in case if yaml spec is a list
-		if err := creator(client, raw); err != nil {
+		if err := creator(ctx, client, raw); err != nil {
 			if trace.IsAlreadyExists(err) {
 				return trace.Wrap(err, "use -f or --force flag to overwrite")
 			}
@@ -275,8 +275,7 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 }
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
-func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw services.UnknownResource) error {
-	ctx := context.TODO()
+func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	tc, err := services.UnmarshalTrustedCluster(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -314,7 +313,7 @@ func (rc *ResourceCommand) createTrustedCluster(client auth.ClientI, raw service
 }
 
 // createCertAuthority creates certificate authority
-func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -327,8 +326,7 @@ func (rc *ResourceCommand) createCertAuthority(client auth.ClientI, raw services
 }
 
 // createGithubConnector creates a Github connector
-func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw services.UnknownResource) error {
-	ctx := context.TODO()
+func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	connector, err := services.UnmarshalGithubConnector(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -352,8 +350,7 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 }
 
 // createRole implements `tctl create role.yaml` command.
-func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownResource) error {
-	ctx := context.TODO()
+func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	role, err := services.UnmarshalRole(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -385,7 +382,7 @@ func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownR
 }
 
 // createUser implements `tctl create user.yaml` command.
-func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	user, err := services.UnmarshalUser(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -407,13 +404,13 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 		// This field should not be allowed to be overwritten.
 		user.SetCreatedBy(existingUser.GetCreatedBy())
 
-		if err := client.UpdateUser(context.TODO(), user); err != nil {
+		if err := client.UpdateUser(ctx, user); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %q has been updated\n", userName)
 
 	} else {
-		if err := client.CreateUser(context.TODO(), user); err != nil {
+		if err := client.CreateUser(ctx, user); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %q has been created\n", userName)
@@ -423,8 +420,7 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 }
 
 // createAuthPreference implements `tctl create cap.yaml` command.
-func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw services.UnknownResource) error {
-	ctx := context.TODO()
+func (rc *ResourceCommand) createAuthPreference(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -446,9 +442,7 @@ func (rc *ResourceCommand) createAuthPreference(client auth.ClientI, raw service
 }
 
 // createClusterNetworkingConfig implements `tctl create netconfig.yaml` command.
-func (rc *ResourceCommand) createClusterNetworkingConfig(client auth.ClientI, raw services.UnknownResource) error {
-	ctx := context.TODO()
-
+func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -470,9 +464,7 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(client auth.ClientI, ra
 }
 
 // createSessionRecordingConfig implements `tctl create recconfig.yaml` command.
-func (rc *ResourceCommand) createSessionRecordingConfig(client auth.ClientI, raw services.UnknownResource) error {
-	ctx := context.TODO()
-
+func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -494,8 +486,7 @@ func (rc *ResourceCommand) createSessionRecordingConfig(client auth.ClientI, raw
 }
 
 // createLock implements `tctl create lock.yaml` command.
-func (rc *ResourceCommand) createLock(client auth.ClientI, raw services.UnknownResource) error {
-	ctx := context.TODO()
+func (rc *ResourceCommand) createLock(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	lock, err := services.UnmarshalLock(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -521,9 +512,7 @@ func (rc *ResourceCommand) createLock(client auth.ClientI, raw services.UnknownR
 }
 
 // createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
-func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw services.UnknownResource) error {
-	ctx := context.TODO()
-
+func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -536,18 +525,18 @@ func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw se
 	return nil
 }
 
-func (rc *ResourceCommand) createToken(client auth.ClientI, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createToken(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	token, err := services.UnmarshalProvisionToken(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = client.UpsertToken(context.Background(), token)
+	err = client.UpsertToken(ctx, token)
 	return trace.Wrap(err)
 }
 
 // Delete deletes resource by name
-func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
+func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
 		types.KindClusterAuthPreference,
 		types.KindClusterNetworkingConfig,
@@ -557,7 +546,6 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
-	ctx := context.TODO()
 	switch rc.ref.Kind {
 	case types.KindNode:
 		if err = client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
@@ -721,7 +709,7 @@ func resetNetworkRestrictions(ctx context.Context, client auth.ClientI) error {
 }
 
 // Update updates select resource fields: expiry and labels
-func (rc *ResourceCommand) Update(clt auth.ClientI) error {
+func (rc *ResourceCommand) Update(ctx context.Context, clt auth.ClientI) error {
 	if rc.ref.Kind == "" || rc.ref.Name == "" {
 		return trace.BadParameter("provide a full resource name to update, for example:\n$ tctl update rc/remote --set-labels=env=prod\n")
 	}
@@ -748,8 +736,6 @@ func (rc *ResourceCommand) Update(clt auth.ClientI) error {
 		return trace.BadParameter("use at least one of --set-labels or --set-ttl")
 	}
 
-	// TODO: pass the context from CLI to terminate requests on Ctrl-C
-	ctx := context.TODO()
 	switch rc.ref.Kind {
 	case types.KindRemoteCluster:
 		cluster, err := clt.GetRemoteCluster(rc.ref.Name)
@@ -780,13 +766,11 @@ func (rc *ResourceCommand) IsForced() bool {
 }
 
 // getCollection lists all resources of a given type
-func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollection, error) {
+func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.ClientI) (ResourceCollection, error) {
 	if rc.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 
-	// TODO: pass the context from CLI to terminate requests on Ctrl-C
-	ctx := context.TODO()
 	switch rc.ref.Kind {
 	case types.KindUser:
 		if rc.ref.Name == "" {
@@ -843,7 +827,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		return &githubCollection{connectors}, nil
 	case types.KindReverseTunnel:
 		if rc.ref.Name == "" {
-			tunnels, err := client.GetReverseTunnels(context.Background())
+			tunnels, err := client.GetReverseTunnels(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

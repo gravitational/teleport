@@ -21,7 +21,9 @@ import (
 	"crypto/tls"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -71,7 +73,7 @@ type CLICommand interface {
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
-	TryRun(selectedCommand string, c auth.ClientI) (match bool, err error)
+	TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
 // Run is the same as 'make'. It helps to share the code between different
@@ -148,7 +150,10 @@ func Run(commands []CLICommand) {
 		utils.FatalError(err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(
+		context.Background(), syscall.SIGTERM, syscall.SIGINT,
+	)
+	defer cancel()
 
 	client, err := connectToAuthService(ctx, cfg, clientConfig)
 	if err != nil {
@@ -161,7 +166,7 @@ func Run(commands []CLICommand) {
 	// execute whatever is selected:
 	var match bool
 	for _, c := range commands {
-		match, err = c.TryRun(selectedCmd, client)
+		match, err = c.TryRun(ctx, selectedCmd, client)
 		if err != nil {
 			utils.FatalError(err)
 		}
