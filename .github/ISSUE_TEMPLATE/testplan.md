@@ -266,15 +266,46 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
 - [ ] G Suite install instructions work
     - [ ] G Suite Screenshots are up to date
-- [ ] ActiveDirectory install instructions work
-    - [ ] Active Directory Screenshots are up to date
+- [ ] Azure Active Directory (AD) install instructions work
+    - [ ] Azure Active Directory (AD) Screenshots are up to date
+- [ ] ActiveDirectory (ADFS) install instructions work
+    - [ ] Active Directory (ADFS) Screenshots are up to date
 - [ ] Okta install instructions work
     - [ ] Okta Screenshots are up to date
 - [ ] OneLogin install instructions work
     - [ ] OneLogin Screenshots are up to date
+- [ ] GitLab install instructions work
+    - [ ] GitLab Screenshots are up to date
 - [ ] OIDC install instructions work
     - [ ] OIDC Screenshots are up to date
+- [ ] All providers with guides in docs are covered in this test plan
 
+### `tctl sso` family of commands
+
+`tctl sso configure` helps to construct a valid connector definition:
+
+- [ ] `tctl sso configure github ...` creates valid connector definitions
+- [ ] `tctl sso configure oidc ...` creates valid connector definitions
+- [ ] `tctl sso configure saml ...` creates valid connector definitions
+
+`tctl sso test` test a provided connector definition, which can be loaded from
+file or piped in with `tctl sso configure` or `tctl get --with-secrets`. Valid
+connectors are accepted, invalid are rejected with sensible error messages.
+
+- [ ] Connectors can be tested with `tctl sso test`.
+    - [ ] GitHub
+        - [ ] Teleport Cloud
+        - [ ] On-prem Teleport
+    - [ ] SAML
+        - [ ] Teleport Cloud
+        - [ ] On-prem Teleport
+    - [ ] OIDC
+        - [ ] Google Workspace
+            - [ ] Teleport Cloud
+            - [ ] On-prem Teleport
+        - [ ] Non-Google IdP
+            - [ ] Teleport Cloud
+            - [ ] On-prem Teleport
 
 ### Teleport Plugins
 
