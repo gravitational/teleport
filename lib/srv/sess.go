@@ -1080,7 +1080,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 		ClusterName:  ctx.ClusterName,
 	})
 	if err != nil {
-		switch s.scx.Identity.RoleSet.SessionRecordingMode(constants.SessionRecordingServiceSSH) {
+		switch ctx.Identity.RoleSet.SessionRecordingMode(constants.SessionRecordingServiceSSH) {
 		case constants.SessionRecordingModeBestEffort:
 			s.log.WithError(err).Warning("Failed to initialize session recording, disabling it for this session.")
 			eventOnlyRec, err := newEventOnlyRecorder(s, ctx)

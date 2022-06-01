@@ -181,7 +181,7 @@ func TestSession_newRecorder(t *testing.T) {
 			recAssertion: require.Nil,
 		},
 		{
-			desc: "err-new-audit-writer-fails",
+			desc: "strict-err-new-audit-writer-fails",
 			sess: &session{
 				id:  "test",
 				log: logger,
@@ -198,9 +198,65 @@ func TestSession_newRecorder(t *testing.T) {
 				srv: &mockServer{
 					component: teleport.ComponentNode,
 				},
+				Identity: IdentityContext{
+					RoleSet: services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeStrict,
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 			errAssertion: require.Error,
 			recAssertion: require.Nil,
+		},
+		{
+			desc: "best-effort-err-new-audit-writer-succeeds",
+			sess: &session{
+				id:  "test",
+				log: logger,
+				registry: &SessionRegistry{
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
+					},
+				},
+			},
+			sctx: &ServerContext{
+				ClusterName:            "test",
+				SessionRecordingConfig: nodeRecordingSync,
+				srv: &mockServer{
+					component: teleport.ComponentNode,
+				},
+				Identity: IdentityContext{
+					RoleSet: services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeBestEffort,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			errAssertion: require.NoError,
+			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
+				require.NotNil(t, i)
+				aw, ok := i.(*events.AuditWriter)
+				require.True(t, ok)
+				require.NoError(t, aw.Close(context.Background()))
+			},
 		},
 		{
 			desc: "audit-writer",
@@ -416,7 +472,7 @@ func TestSessionRecordingModes(t *testing.T) {
 			expectClosedSession:  true,
 		},
 		{
-			desc:                 "BestEfforMode",
+			desc:                 "BestEffortMode",
 			sessionRecordingMode: constants.SessionRecordingModeBestEffort,
 			expectClosedSession:  false,
 		},
@@ -445,12 +501,16 @@ func TestSessionRecordingModes(t *testing.T) {
 				},
 			})
 
+			// Write stuff in the session
+			_, err = sessCh.Write([]byte("hello"))
+			require.NoError(t, err)
+
 			// Close the recorder, indicating there is some error.
 			err = sess.Recorder().Complete(context.Background())
 			require.NoError(t, err)
 
 			// Send more writes.
-			_, err = sessCh.Write([]byte("hello"))
+			_, err = sessCh.Write([]byte("world"))
 			require.NoError(t, err)
 
 			// Ensure the session is stopped.
