@@ -399,6 +399,7 @@ and host CAs, meaning that the new CAs will need to be exported to every OpenSSH
 ## Connect to leaf clusters using jump proxies
 
 Normally, you connect to leaf cluster SSH nodes through the root cluster proxy.
+
 In scenarios where leaf proxies are reachable by SSH clients, you might prefer
 to connect directly through the leaf proxies to avoid potential latency issues
 of the connection being routed through the root cluster.

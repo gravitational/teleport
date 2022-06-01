@@ -86,11 +86,11 @@ are supported:
 ```yaml
 proxy_templates:
 # Example template where nodes have short names like node-1, node-2, etc.
-- template: "^(\w+)\.(leaf1.us.acme.com)$"
+- template: '^(\w+)\.(leaf1.us.acme.com)$'
   host: "$1" # host is optional and will default to the full %h if not specified
   proxy: "$2:3080"
 # Example template where nodes have FQDN names like node-1.leaf2.eu.acme.com.
-- template: "^(\w+)\.(leaf2.eu.acme.com)$"
+- template: '^(\w+)\.(leaf2.eu.acme.com)$'
   proxy: "$2:443"
 ```
 
@@ -105,7 +105,7 @@ multiple leaf clusters, their template configuration can look like:
 
 ```yaml
 proxy_templates:
-- template: "^([^\.]+)\.(.+)$"
+- template: '^([^\.]+)\.(.+)$'
   host: "$1"
   proxy: "$2:3080"
 ```

@@ -2514,7 +2514,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			if !matched {
 				return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
 			}
-			proxyJump = strings.Replace(proxyJump, "{{proxy}}", proxy, -1)
+			proxyJump = strings.ReplaceAll(proxyJump, "{{proxy}}", proxy)
 			c.Host = host
 			log.Debugf("Will connect to proxy %q and host %q according to proxy templates.", proxyJump, host)
 		}

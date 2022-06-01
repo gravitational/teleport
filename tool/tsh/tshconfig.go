@@ -78,13 +78,12 @@ func (config *TshConfig) Merge(otherConfig *TshConfig) TshConfig {
 	}
 
 	newConfig := TshConfig{}
-	newConfig.ExtraHeaders = append(baseConfig.ExtraHeaders, otherConfig.ExtraHeaders...)
-	newConfig.ProxyTemplates = append(baseConfig.ProxyTemplates, otherConfig.ProxyTemplates...)
+	newConfig.ExtraHeaders = append(otherConfig.ExtraHeaders, baseConfig.ExtraHeaders...)
+	newConfig.ProxyTemplates = append(otherConfig.ProxyTemplates, baseConfig.ProxyTemplates...)
 
 	return newConfig
 }
 
-// loadConfig load a single config file from given path. If the path does not exist, an empty config is returned instead.
 // ProxyTemplates represents a list of individual proxy templates.
 type ProxyTemplates []*ProxyTemplate
 
@@ -116,15 +115,15 @@ type ProxyTemplate struct {
 
 // Check validates the proxy template.
 func (t *ProxyTemplate) Check() (err error) {
+	if strings.TrimSpace(t.Proxy) == "" {
+		return trace.BadParameter("empty proxy expression")
+	}
 	if strings.TrimSpace(t.Template) == "" {
 		return trace.BadParameter("empty proxy template")
 	}
 	t.re, err = regexp.Compile(t.Template)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if strings.TrimSpace(t.Proxy) == "" {
-		return trace.BadParameter("empty proxy expression")
 	}
 	return nil
 }
@@ -155,6 +154,7 @@ func (t ProxyTemplate) Apply(fullHostname string) (proxy, host string, matched b
 	return proxy, host, true
 }
 
+// loadConfig load a single config file from given path. If the path does not exist, an empty config is returned instead.
 func loadConfig(fullConfigPath string) (*TshConfig, error) {
 	bs, err := os.ReadFile(fullConfigPath)
 	if err != nil {
