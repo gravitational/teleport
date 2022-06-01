@@ -107,9 +107,9 @@ write_database_section() {
   mysql_listen_addr: "0.0.0.0:3036"
   postgres_listen_addr: "0.0.0.0:5432"
   mongo_listen_addr: "0.0.0.0:27017"
-  mysql_public_addr: [${MYSQL_PUBLIC_ADDR}]
-  postgres_public_addr: [${POSTGRES_PUBLIC_ADDR}]
-  mongo_public_addr: [${MONGO_PUBLIC_ADDR}]
+  mysql_public_addr: ${MYSQL_PUBLIC_ADDR}
+  postgres_public_addr: ${POSTGRES_PUBLIC_ADDR}
+  mongo_public_addr: ${MONGO_PUBLIC_ADDR}
 EOS
 }
 
