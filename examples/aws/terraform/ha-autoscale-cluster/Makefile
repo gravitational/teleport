@@ -29,7 +29,7 @@ TF_VAR_route53_domain ?=
 
 # Set to true to add a wildcard subdomain entry to point to the proxy, e.g. *.cluster.example.com
 # This is used to enable Teleport Application Access
-TF_VAR_add_wildcard_route53_record ?=true
+TF_VAR_add_wildcard_route53_record ?= true
 
 # Bucket name to store encrypted letsencrypt certificates.
 TF_VAR_s3_bucket_name ?=
