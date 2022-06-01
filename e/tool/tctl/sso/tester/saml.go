@@ -1,6 +1,8 @@
 package tester
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -26,6 +28,7 @@ func handleSAMLConnector(c auth.ClientI, connBytes []byte) (*tester.AuthRequestI
 }
 
 func samlTest(c auth.ClientI, samlConnector types.SAMLConnector) (*tester.AuthRequestInfo, error) {
+	ctx := context.Background()
 	// get connector spec
 	var spec types.SAMLConnectorSpecV2
 	switch samlConnector := samlConnector.(type) {
@@ -38,12 +41,12 @@ func samlTest(c auth.ClientI, samlConnector types.SAMLConnector) (*tester.AuthRe
 	requestInfo := &tester.AuthRequestInfo{}
 
 	makeRequest := func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error) {
-		samlRequest := services.SAMLAuthRequest{
+		samlRequest := types.SAMLAuthRequest{
 			ConnectorID:       req.ConnectorID + "-" + samlConnector.GetName(),
 			Type:              constants.SAML,
 			CheckUser:         false,
 			PublicKey:         req.PublicKey,
-			CertTTL:           defaults.SAMLAuthRequestTTL,
+			CertTTL:           types.Duration(defaults.SAMLAuthRequestTTL),
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,
 			RouteToCluster:    req.RouteToCluster,
@@ -51,7 +54,7 @@ func samlTest(c auth.ClientI, samlConnector types.SAMLConnector) (*tester.AuthRe
 			ConnectorSpec:     &spec,
 		}
 
-		request, err := c.CreateSAMLAuthRequest(samlRequest)
+		request, err := c.CreateSAMLAuthRequest(ctx, samlRequest)
 		if request != nil {
 			requestInfo.RequestID = request.ID
 		}

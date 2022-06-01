@@ -1,6 +1,8 @@
 package tester
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -26,6 +28,7 @@ func handleOIDCConnector(c auth.ClientI, connBytes []byte) (*tester.AuthRequestI
 }
 
 func oidcTest(c auth.ClientI, connector types.OIDCConnector) (*tester.AuthRequestInfo, error) {
+	ctx := context.Background()
 	// get connector spec
 	var spec types.OIDCConnectorSpecV3
 	switch oidcConnector := connector.(type) {
@@ -38,12 +41,12 @@ func oidcTest(c auth.ClientI, connector types.OIDCConnector) (*tester.AuthReques
 	requestInfo := &tester.AuthRequestInfo{}
 
 	makeRequest := func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error) {
-		oidcRequest := services.OIDCAuthRequest{
+		oidcRequest := types.OIDCAuthRequest{
 			ConnectorID:       req.ConnectorID + "-" + connector.GetName(),
 			Type:              constants.OIDC,
 			CheckUser:         false,
 			PublicKey:         req.PublicKey,
-			CertTTL:           defaults.OIDCAuthRequestTTL,
+			CertTTL:           types.Duration(defaults.OIDCAuthRequestTTL),
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,
 			RouteToCluster:    req.RouteToCluster,
@@ -51,7 +54,7 @@ func oidcTest(c auth.ClientI, connector types.OIDCConnector) (*tester.AuthReques
 			ConnectorSpec:     &spec,
 		}
 
-		request, err := c.CreateOIDCAuthRequest(oidcRequest)
+		request, err := c.CreateOIDCAuthRequest(ctx, oidcRequest)
 		if request != nil {
 			requestInfo.RequestID = request.StateToken
 		}
