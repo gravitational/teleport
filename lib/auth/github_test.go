@@ -29,8 +29,10 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
+
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
@@ -89,14 +91,29 @@ func (s *GithubSuite) TestPopulateClaims(c *check.C) {
 }
 
 func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
+	// Dry-run creation of Github user.
+	user, err := s.a.createGithubUser(context.Background(), &createUserParams{
+		connectorName: "github",
+		username:      "foo@example.com",
+		logins:        []string{"foo"},
+		roles:         []string{"admin"},
+		sessionTTL:    1 * time.Minute,
+	}, true)
+	c.Assert(err, check.IsNil)
+	c.Assert(user.GetName(), check.Equals, "foo@example.com")
+
+	// Dry-run must not create a user.
+	_, err = s.a.GetUser("foo@example.com", false)
+	c.Assert(err, check.NotNil)
+
 	// Create GitHub user with 1 minute expiry.
-	_, err := s.a.createGithubUser(&createUserParams{
+	_, err = s.a.createGithubUser(context.Background(), &createUserParams{
 		connectorName: "github",
 		username:      "foo",
 		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
-	})
+	}, false)
 	c.Assert(err, check.IsNil)
 
 	// Within that 1 minute period the user should still exist.
@@ -136,41 +153,94 @@ func (c *testGithubAPIClient) getTeams() ([]teamResponse, error) {
 }
 
 func (s *GithubSuite) TestValidateGithubAuthCallbackEventsEmitted(c *check.C) {
-	auth := &githubAuthResponse{
-		auth: GithubAuthResponse{
-			Username: "test-name",
-		},
-		claims: map[string][]string{
+	auth := &GithubAuthResponse{
+		Username: "test-name",
+	}
+
+	claims := &types.GithubClaims{
+		OrganizationToTeams: map[string][]string{
 			"test": {},
 		},
 	}
 
+	ssoDiagInfoCalls := 0
+
 	m := &mockedGithubManager{}
+	m.createSSODiagnosticInfo = func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error {
+		ssoDiagInfoCalls++
+		return nil
+	}
+
+	// TestFlow: false
+	m.testFlow = false
 
 	// Test success event.
-	m.mockValidateGithubAuthCallback = func(q url.Values) (*githubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.info.GithubClaims = claims
 		return auth, nil
 	}
 	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, s.a.emitter)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), check.Equals, events.UserLoginEvent)
 	c.Assert(s.mockEmitter.LastEvent().GetCode(), check.Equals, events.UserSSOLoginCode)
+	c.Assert(ssoDiagInfoCalls, check.Equals, 0)
 	s.mockEmitter.Reset()
 
 	// Test failure event.
-	m.mockValidateGithubAuthCallback = func(q url.Values) (*githubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
 	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, s.a.emitter)
 	c.Assert(s.mockEmitter.LastEvent().GetCode(), check.Equals, events.UserSSOLoginFailureCode)
+	c.Assert(ssoDiagInfoCalls, check.Equals, 0)
+
+	// TestFlow: true
+	m.testFlow = true
+
+	// Test success event.
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.info.GithubClaims = claims
+		return auth, nil
+	}
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, s.a.emitter)
+	c.Assert(s.mockEmitter.LastEvent().GetType(), check.Equals, events.UserLoginEvent)
+	c.Assert(s.mockEmitter.LastEvent().GetCode(), check.Equals, events.UserSSOTestFlowLoginCode)
+	c.Assert(ssoDiagInfoCalls, check.Equals, 1)
+	s.mockEmitter.Reset()
+
+	// Test failure event.
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.info.GithubClaims = claims
+		return auth, trace.BadParameter("")
+	}
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, s.a.emitter)
+	c.Assert(s.mockEmitter.LastEvent().GetCode(), check.Equals, events.UserSSOTestFlowLoginFailureCode)
+	c.Assert(ssoDiagInfoCalls, check.Equals, 2)
 }
 
 type mockedGithubManager struct {
-	mockValidateGithubAuthCallback func(q url.Values) (*githubAuthResponse, error)
+	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error)
+	createSSODiagnosticInfo        func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error
+
+	testFlow bool
 }
 
-func (m *mockedGithubManager) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error) {
+func (m *mockedGithubManager) newSSODiagContext(authKind string) *ssoDiagContext {
+	if m.createSSODiagnosticInfo == nil {
+		panic("mockedGithubManager.createSSODiagnosticInfo is nil, newSSODiagContext cannot succeed.")
+	}
+
+	return &ssoDiagContext{
+		authKind:                authKind,
+		createSSODiagnosticInfo: m.createSSODiagnosticInfo,
+		requestID:               uuid.New().String(),
+		info:                    types.SSODiagnosticInfo{TestFlow: m.testFlow},
+	}
+}
+
+func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
 	if m.mockValidateGithubAuthCallback != nil {
-		return m.mockValidateGithubAuthCallback(q)
+		return m.mockValidateGithubAuthCallback(ctx, diagCtx, q)
 	}
 
 	return nil, trace.NotImplemented("mockValidateGithubAuthCallback not implemented")

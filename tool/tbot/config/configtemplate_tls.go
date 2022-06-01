@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -94,7 +95,7 @@ func (t *TemplateTLS) Name() string {
 	return TemplateTLSName
 }
 
-func (t *TemplateTLS) Describe() []FileDescription {
+func (t *TemplateTLS) Describe(destination destination.Destination) []FileDescription {
 	return []FileDescription{
 		{
 			Name: t.Prefix + ".key",

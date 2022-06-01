@@ -67,10 +67,10 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun attempts to run subcommands like "apps ls".
-func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *AppsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.appsList.FullCommand():
-		err = c.ListApps(client)
+		err = c.ListApps(ctx, client)
 	default:
 		return false, nil
 	}
@@ -79,9 +79,7 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
-func (c *AppsCommand) ListApps(clt auth.ClientI) error {
-	ctx := context.TODO()
-
+func (c *AppsCommand) ListApps(ctx context.Context, clt auth.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
