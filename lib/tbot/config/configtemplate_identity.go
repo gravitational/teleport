@@ -22,60 +22,57 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/tool/tbot/destination"
-	"github.com/gravitational/teleport/tool/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 )
 
-const defaultCockroachDirName = "cockroach"
+const defaultIdentityFileName = "identity"
 
-// TemplateCockroach generates certificates for CockroachDB. These are standard
-// TLS certs but have specific naming requirements. We write them to a
-// subdirectory to ensure naming is clear.
-type TemplateCockroach struct {
-	DirName string `yaml:"dir_name,omitempty"`
+// TemplateIdentity is a config template that generates a Teleport identity
+// file that can be used by tsh and tctl.
+type TemplateIdentity struct {
+	FileName string `yaml:"file_name,omitempty"`
 }
 
-func (t *TemplateCockroach) CheckAndSetDefaults() error {
-	if t.DirName == "" {
-		t.DirName = defaultCockroachDirName
+func (t *TemplateIdentity) CheckAndSetDefaults() error {
+	if t.FileName == "" {
+		t.FileName = defaultIdentityFileName
 	}
 
 	return nil
 }
 
-func (t *TemplateCockroach) Name() string {
-	return TemplateCockroachName
+func (t *TemplateIdentity) Name() string {
+	return TemplateIdentityName
 }
 
-func (t *TemplateCockroach) Describe(destination destination.Destination) []FileDescription {
+func (t *TemplateIdentity) Describe(destination destination.Destination) []FileDescription {
 	return []FileDescription{
 		{
-			Name:  t.DirName,
-			IsDir: true,
+			Name: t.FileName,
 		},
 	}
 }
 
-func (t *TemplateCockroach) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateIdentity) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	dbCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	hostCAs, err := authClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: t.DirName,
+		OutputPath: t.FileName,
 		Writer: &BotConfigWriter{
-			dest:    dest,
-			subpath: t.DirName,
+			dest: dest,
 		},
-		Key:    newClientKey(currentIdentity, dbCAs),
-		Format: identityfile.FormatCockroach,
+		Key:    newClientKey(currentIdentity, hostCAs),
+		Format: identityfile.FormatFile,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
 		OverwriteDestination: true,
@@ -86,7 +83,7 @@ func (t *TemplateCockroach) Render(ctx context.Context, authClient auth.ClientI,
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote CockroachDB files: %+v", files)
+	log.Debugf("Wrote identity file: %+v", files)
 
 	return nil
 }

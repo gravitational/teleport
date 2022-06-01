@@ -14,16 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Note: this lives in main to avoid import cycles since this depends on the
+// Note: this lives in tbot to avoid import cycles since this depends on the
 // config/identity/destinations packages.
 
-package main
+package tbot
 
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )

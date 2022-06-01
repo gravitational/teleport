@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
+	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/utils"
@@ -104,6 +105,8 @@ type Config struct {
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
 	CloudIAM *cloud.IAM
+	// CloudUsers manage users for cloud hosted databases.
+	CloudUsers *users.Users
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -184,6 +187,15 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.Limiter == nil {
 		// Use default limiter if nothing is provided. Connection limiting will be disabled.
 		c.Limiter, err = limiter.NewLimiter(limiter.Config{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if c.CloudUsers == nil {
+		c.CloudUsers, err = users.NewUsers(users.Config{
+			Clients:    c.CloudClients,
+			UpdateMeta: c.CloudMeta.Update,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -329,6 +341,11 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	if err := s.startHeartbeat(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
+	// Setup managed users for database.
+	if err := s.cfg.CloudUsers.Setup(ctx, database); err != nil {
+		s.log.WithError(err).Warnf("Failed to setup users for %v.", database.GetName())
+	}
+
 	s.log.Debugf("Started %v.", database)
 	return nil
 }
@@ -567,6 +584,9 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// Start cloud users that will be monitoring cloud users.
+	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
+
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -801,6 +821,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Context:      s.closeContext,
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
+		Users:        s.cfg.CloudUsers,
 	})
 }
 

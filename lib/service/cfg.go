@@ -738,6 +738,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
+	// SecretStore contains settings for managing secrets.
+	SecretStore DatabaseAWSSecretStore
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -758,6 +760,14 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string
+}
+
+// DatabaseAWSSecretStore contains secret store configurations.
+type DatabaseAWSSecretStore struct {
+	// KeyPrefix specifies the secret key prefix.
+	KeyPrefix string
+	// KMSKeyID specifies the AWS KMS key for encryption.
+	KMSKeyID string
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
