@@ -1781,7 +1781,6 @@ func backendItemToServer(kind string) backendItemToResourceFunc {
 }
 
 const (
-	localClusterPrefix           = "localCluster"
 	reverseTunnelsPrefix         = "reverseTunnels"
 	tunnelConnectionsPrefix      = "tunnelConnections"
 	trustedClustersPrefix        = "trustedclusters"
