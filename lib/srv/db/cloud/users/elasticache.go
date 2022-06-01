@@ -137,7 +137,7 @@ func (f *elastiCacheFetcher) getManagedUsersForGroup(ctx context.Context, region
 
 // getUsersForRegion discovers all ElastiCache users for provided region.
 func (f *elastiCacheFetcher) getUsersForRegion(ctx context.Context, region string, client elasticacheiface.ElastiCacheAPI) ([]*elasticache.User, error) {
-	getFunc := func() (interface{}, error) {
+	getFunc := func(ctx context.Context) (interface{}, error) {
 		users := []*elasticache.User{}
 		err := client.DescribeUsersPagesWithContext(ctx, &elasticache.DescribeUsersInput{}, func(output *elasticache.DescribeUsersOutput, _ bool) bool {
 			users = append(users, output.Users...)
@@ -158,7 +158,7 @@ func (f *elastiCacheFetcher) getUsersForRegion(ctx context.Context, region strin
 
 // getUserTags discovers resource tags for provided user.
 func (f *elastiCacheFetcher) getUserTags(ctx context.Context, user *elasticache.User, client elasticacheiface.ElastiCacheAPI) ([]*elasticache.Tag, error) {
-	getFunc := func() (interface{}, error) {
+	getFunc := func(ctx context.Context) (interface{}, error) {
 		output, err := client.ListTagsForResourceWithContext(ctx, &elasticache.ListTagsForResourceInput{
 			ResourceName: user.ARN,
 		})
