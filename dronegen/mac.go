@@ -339,6 +339,8 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		`export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
 		`export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
+		`build.assets/build-fido2-macos.sh build`,
+		`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
 		`rustup override set $RUST_VERSION`,
 	}
 
@@ -349,7 +351,9 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		)
 	}
 
-	commands = append(commands, `make clean release OS=$OS ARCH=$ARCH`)
+	commands = append(commands, 
+		`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
+	)
 
 	if b.hasTeleportConnect() {
 		commands = append(commands,
