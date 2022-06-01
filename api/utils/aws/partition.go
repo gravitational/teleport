@@ -22,8 +22,6 @@ package aws
 func GetPartitionFromRegion(region string) string {
 	var partition string
 	switch {
-	case region == "":
-		partition = Partition
 	case IsCNRegion(region):
 		partition = CNPartition
 	default:
