@@ -79,8 +79,8 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		// TODO(nic): this logic should be implemented once and reused in IoT
 		// nodes.
 
-		resolver := reversetunnel.WebClientResolver(ctx, cfg.AuthServers, lib.IsInsecureDevMode())
-		resolver, err = reversetunnel.CachingResolver(resolver, nil /* clock */)
+		resolver := reversetunnel.WebClientResolver(cfg.AuthServers, lib.IsInsecureDevMode())
+		resolver, err = reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

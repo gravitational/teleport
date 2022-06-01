@@ -944,8 +944,15 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{"dev", "prod"},
-				credentials:         creds,
+				kubeClusters: []*types.KubernetesCluster{
+					{
+						Name: "dev",
+					},
+					{
+						Name: "prod",
+					},
+				},
+				credentials: creds,
 			},
 			errorAssertion: require.NoError,
 			expectedValues: &kubeconfig.Values{
@@ -969,8 +976,15 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{"dev", "prod"},
-				credentials:         creds,
+				kubeClusters: []*types.KubernetesCluster{
+					{
+						Name: "dev",
+					},
+					{
+						Name: "prod",
+					},
+				},
+				credentials: creds,
 			},
 			errorAssertion: require.NoError,
 			expectedValues: &kubeconfig.Values{
@@ -994,8 +1008,15 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{"dev", "prod"},
-				credentials:         creds,
+				kubeClusters: []*types.KubernetesCluster{
+					{
+						Name: "dev",
+					},
+					{
+						Name: "prod",
+					},
+				},
+				credentials: creds,
 			},
 			errorAssertion: func(t require.TestingT, err error, _ ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
@@ -1011,7 +1032,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{},
+				kubeClusters:        []*types.KubernetesCluster{},
 				credentials:         creds,
 			},
 			errorAssertion: require.NoError,
@@ -1031,8 +1052,15 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{"dev", "prod"},
-				credentials:         creds,
+				kubeClusters: []*types.KubernetesCluster{
+					{
+						Name: "dev",
+					},
+					{
+						Name: "prod",
+					},
+				},
+				credentials: creds,
 			},
 			errorAssertion: require.NoError,
 			expectedValues: &kubeconfig.Values{
@@ -1448,9 +1476,9 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
 	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV3{
-		IssuerURL:   "https://auth.example.com",
-		RedirectURL: "https://cluster.example.com",
-		ClientID:    "fake-client",
+		IssuerURL:    "https://auth.example.com",
+		RedirectURLs: []string{"https://cluster.example.com"},
+		ClientID:     "fake-client",
 		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "groups",
@@ -1621,7 +1649,8 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "elasticache": {}
+        "elasticache": {},
+        "secret_store": {}
       },
       "mysql": {},
       "gcp": {},
@@ -1642,7 +1671,8 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "elasticache": {}
+        "elasticache": {},
+        "secret_store": {}
       }
     }
   }]
@@ -2083,16 +2113,35 @@ func TestSerializeKubeClusters(t *testing.T) {
 	[
 		{
 			"kube_cluster_name": "cluster1",
+			"labels": {"cmd": "result", "foo": "bar"},
 			"selected": true
 		},
 		{
 			"kube_cluster_name": "cluster2",
+			"labels": null,
 			"selected": false
 		}
 	]
 	`
+
+	clusters := []*types.KubernetesCluster{
+		{
+			Name: "cluster1",
+			StaticLabels: map[string]string{
+				"foo": "bar",
+			},
+			DynamicLabels: map[string]types.CommandLabelV2{
+				"cmd": {
+					Result: "result",
+				},
+			},
+		},
+		{
+			Name: "cluster2",
+		},
+	}
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeKubeClusters([]string{"cluster1", "cluster2"}, "cluster1", f)
+		return serializeKubeClusters(clusters, "cluster1", f)
 	})
 }
 

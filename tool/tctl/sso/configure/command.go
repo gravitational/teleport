@@ -15,6 +15,7 @@
 package configure
 
 import (
+	"context"
 	"os"
 
 	"github.com/gravitational/teleport"
@@ -38,7 +39,7 @@ type SSOConfigureCommand struct {
 
 type AuthKindCommand struct {
 	Parsed bool
-	Run    func(clt auth.ClientI) error
+	Run    func(ctx context.Context, clt auth.ClientI) error
 }
 
 // Initialize allows a caller-defined command to plug itself into CLI
@@ -54,7 +55,7 @@ func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *servic
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SSOConfigureCommand) TryRun(selectedCommand string, clt auth.ClientI) (match bool, err error) {
+func (cmd *SSOConfigureCommand) TryRun(ctx context.Context, selectedCommand string, clt auth.ClientI) (match bool, err error) {
 	for _, subCommand := range cmd.AuthCommands {
 		if subCommand.Parsed {
 			// the default tctl logging behaviour is to ignore all logs, unless --debug is present.
@@ -66,7 +67,7 @@ func (cmd *SSOConfigureCommand) TryRun(selectedCommand string, clt auth.ClientI)
 				cmd.Logger.Logger.SetOutput(os.Stderr)
 			}
 
-			return true, trace.Wrap(subCommand.Run(clt))
+			return true, trace.Wrap(subCommand.Run(ctx, clt))
 		}
 	}
 

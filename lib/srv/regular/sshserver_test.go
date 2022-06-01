@@ -172,7 +172,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 					Period:  types.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"},
 				},
-			},
+			}, nil,
 		),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
