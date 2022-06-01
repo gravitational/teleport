@@ -25,7 +25,7 @@ resource "aws_route53_record" "proxy_wildcard" {
   zone_id = data.aws_route53_zone.proxy.zone_id
   name    = "*.${var.route53_domain}"
   type    = "A"
-  count   = var.add_wildcard_route53_record && !var.use_acm  ?  1 : 0
+  count   = var.add_wildcard_route53_record && !var.use_acm ? 1 : 0
 
   alias {
     name                   = aws_lb.proxy.dns_name
