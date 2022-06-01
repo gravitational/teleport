@@ -22,44 +22,42 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/tool/tbot/destination"
-	"github.com/gravitational/teleport/tool/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 )
 
-// defaultMongoPrefix is the default prefix in generated MongoDB certs.
-const defaultMongoPrefix = "mongo"
+const defaultCockroachDirName = "cockroach"
 
-// TemplateMongo is a config template that generates TLS certs formatted for
-// use with MongoDB.
-type TemplateMongo struct {
-	Prefix string `yaml:"prefix,omitempty"`
+// TemplateCockroach generates certificates for CockroachDB. These are standard
+// TLS certs but have specific naming requirements. We write them to a
+// subdirectory to ensure naming is clear.
+type TemplateCockroach struct {
+	DirName string `yaml:"dir_name,omitempty"`
 }
 
-func (t *TemplateMongo) CheckAndSetDefaults() error {
-	if t.Prefix == "" {
-		t.Prefix = defaultMongoPrefix
+func (t *TemplateCockroach) CheckAndSetDefaults() error {
+	if t.DirName == "" {
+		t.DirName = defaultCockroachDirName
 	}
 
 	return nil
 }
 
-func (t *TemplateMongo) Name() string {
-	return TemplateMongoName
+func (t *TemplateCockroach) Name() string {
+	return TemplateCockroachName
 }
 
-func (t *TemplateMongo) Describe(destination destination.Destination) []FileDescription {
+func (t *TemplateCockroach) Describe(destination destination.Destination) []FileDescription {
 	return []FileDescription{
 		{
-			Name: t.Prefix + ".crt",
-		},
-		{
-			Name: t.Prefix + ".cas",
+			Name:  t.DirName,
+			IsDir: true,
 		},
 	}
 }
 
-func (t *TemplateMongo) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateCockroach) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
@@ -71,12 +69,13 @@ func (t *TemplateMongo) Render(ctx context.Context, authClient auth.ClientI, cur
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: t.Prefix,
+		OutputPath: t.DirName,
 		Writer: &BotConfigWriter{
-			dest: dest,
+			dest:    dest,
+			subpath: t.DirName,
 		},
 		Key:    newClientKey(currentIdentity, dbCAs),
-		Format: identityfile.FormatMongo,
+		Format: identityfile.FormatCockroach,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
 		OverwriteDestination: true,
@@ -87,7 +86,7 @@ func (t *TemplateMongo) Render(ctx context.Context, authClient auth.ClientI, cur
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote MongoDB identity files: %+v", files)
+	log.Debugf("Wrote CockroachDB files: %+v", files)
 
 	return nil
 }
