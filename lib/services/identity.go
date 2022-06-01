@@ -387,7 +387,8 @@ type OIDCAuthRequest struct {
 	// CSRFToken is associated with user web session token
 	CSRFToken string `json:"csrf_token"`
 
-	// RedirectURL will be used by browser
+	// RedirectURL will be used to route the user back to a
+	// Teleport Proxy after the oidc login attempt in the brower.
 	RedirectURL string `json:"redirect_url"`
 
 	// PublicKey is an optional public key, users want these
@@ -414,6 +415,12 @@ type OIDCAuthRequest struct {
 
 	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
+
+	// ProxyAddress is an optional address which can be used to
+	// find a redirect url from the OIDC connector which matches
+	// the address. If there is no match, the default redirect
+	// url will be used.
+	ProxyAddress string `json:"proxy_address,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise
