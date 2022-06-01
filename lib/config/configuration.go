@@ -1145,6 +1145,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				ElastiCache: service.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
+				SecretStore: service.DatabaseAWSSecretStore{
+					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
+					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
