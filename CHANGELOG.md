@@ -1,5 +1,15 @@
 # Changelog
 
+## 8.3.12
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tctl` not respecting `TELEPORT_HOME` environment variable. [#12758](https://github.com/gravitational/teleport/pull/12758)
+* Fixed issue with `tsh db ls` not displaying allowed users for databases in leaf clusters. [#12854](https://github.com/gravitational/teleport/pull/12854)
+* Fixed issue with not being able to execute prepared statements through MySQL database access. [#12735](https://github.com/gravitational/teleport/pull/12735)
+* Fixed issue with `tctl` not outputting debug logs. [#12919](https://github.com/gravitational/teleport/pull/12919)
+* Improved memory usage in large clusters. [#12723](https://github.com/gravitational/teleport/pull/12723)
+
 ## 8.3.11
 
 This release of Teleport contains multiple improvements and bug fixes.
