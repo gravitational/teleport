@@ -20,7 +20,7 @@
 /// UTF-16LE encoded Vec<u8>, which is useful in cases where we want
 /// to handle some data in the code as a &str (or String), and later
 /// convert it to RDP's preferred format and send it over the wire.
-pub fn to_unicode(s: &str) -> Vec<u8> {
+pub fn to_nul_terminated_utf16le(s: &str) -> Vec<u8> {
     s.encode_utf16()
         .chain([0])
         .flat_map(|v| v.to_le_bytes())
