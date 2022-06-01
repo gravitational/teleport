@@ -275,7 +275,7 @@ type ReadProxyAccessPoint interface {
 type SnowflakeSessionWatcher interface {
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
-	// GetSnowflakeSession get a Snowflake web session for a given request.
+	// GetSnowflakeSession gets a Snowflake web session for a given request.
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 }
 

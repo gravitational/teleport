@@ -250,6 +250,10 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	tlsCert := ca.GetActiveKeys().TLS[0].Cert
 
 	block, _ := pem.Decode(tlsCert)
+	if block == nil {
+		return nil, trace.BadParameter("failed to parse TLS certificate")
+	}
+
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		return nil, trace.Wrap(err)

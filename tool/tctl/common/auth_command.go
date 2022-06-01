@@ -555,7 +555,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 			"files": strings.Join(filesWritten, ", "),
 		})
 	}
-	return err
+	return trace.Wrap(err)
 }
 
 var (

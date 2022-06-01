@@ -120,7 +120,7 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxy
 // or a timeout occurs.
 func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap SnowflakeSessionWatcher) error {
 	return waitForWebSession(ctx, sessionID, user, types.KindSnowflakeSession, ap.NewWatcher, func(ctx context.Context, sessionID string) (types.WebSession, error) {
-		return ap.GetSnowflakeSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+		return ap.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: sessionID})
 	})
 }
 

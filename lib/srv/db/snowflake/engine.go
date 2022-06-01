@@ -110,13 +110,23 @@ func (e *Engine) SendError(err error) {
 		statusCode = http.StatusUnauthorized
 	}
 
-	jsonBody := fmt.Sprintf(`{"success": false, "message:"%s"}`, err.Error())
+	jsonBody, err := json.Marshal(struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}{
+		Success: false,
+		Message: err.Error(),
+	})
+	if err != nil {
+		e.Log.WithError(err).Errorf("failed to marshal error response")
+		return
+	}
 
 	response := &http.Response{
 		ProtoMajor: 1,
 		ProtoMinor: 1,
 		StatusCode: statusCode,
-		Body:       io.NopCloser(bytes.NewBufferString(jsonBody)),
+		Body:       io.NopCloser(bytes.NewBuffer(jsonBody)),
 		Header: map[string][]string{
 			"Content-Type":   {"application/json"},
 			"Content-Length": {strconv.Itoa(len(jsonBody))},
