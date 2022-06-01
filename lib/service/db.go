@@ -122,6 +122,10 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					ElastiCache: types.ElastiCache{
 						ReplicationGroupID: db.AWS.ElastiCache.ReplicationGroupID,
 					},
+					SecretStore: types.SecretStore{
+						KeyPrefix: db.AWS.SecretStore.KeyPrefix,
+						KMSKeyID:  db.AWS.SecretStore.KMSKeyID,
+					},
 				},
 				GCP: types.GCPCloudSQL{
 					ProjectID:  db.GCP.ProjectID,
@@ -204,6 +208,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Hostname:         process.Config.Hostname,
 		HostID:           process.Config.HostUUID,
 		Databases:        databases,
+		CloudLabels:      process.cloudLabels,
 		ResourceMatchers: process.Config.Databases.ResourceMatchers,
 		AWSMatchers:      process.Config.Databases.AWSMatchers,
 		OnHeartbeat:      process.onHeartbeat(teleport.ComponentDatabase),

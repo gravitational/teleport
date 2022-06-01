@@ -250,6 +250,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			Component:                     teleport.ComponentKube,
 			StaticLabels:                  cfg.Kube.StaticLabels,
 			DynamicLabels:                 dynLabels,
+			CloudLabels:                   process.cloudLabels,
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,

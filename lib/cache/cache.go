@@ -645,15 +645,17 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancel(config.Context)
 	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   time.Second,
-		Clock: config.Clock,
+		TTL:     time.Second,
+		Clock:   config.Clock,
+		Context: ctx,
 	})
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
 		ctx:                  ctx,
 		cancel:               cancel,
@@ -1163,10 +1165,8 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			ca, err := rg.trust.GetCertAuthority(c.ctx, id, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func(ctx context.Context) (interface{}, error) {
+			ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
 			ta(ca)
 			return ca, err
 		})
@@ -1207,10 +1207,8 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	defer rg.Release()
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			cas, err := rg.trust.GetCertAuthorities(c.ctx, caType, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) (interface{}, error) {
+			cas, err := rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
 			ta(cas)
 			return cas, trace.Wrap(err)
 		})
@@ -1284,10 +1282,8 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterAuditConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			cfg, err := rg.clusterConfig.GetClusterAuditConfig(c.ctx, opts...)
+		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (interface{}, error) {
+			cfg, err := rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
 			ta(cfg)
 			return cfg, err
 		})
@@ -1310,10 +1306,8 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterNetworkingConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(c.ctx, opts...)
+		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (interface{}, error) {
+			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
 			ta(cfg)
 			return cfg, err
 		})
@@ -1336,7 +1330,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterName) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func() (interface{}, error) {
+		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func(ctx context.Context) (interface{}, error) {
 			cfg, err := rg.clusterConfig.GetClusterName(opts...)
 			ta(cfg)
 			return cfg, err
@@ -1444,7 +1438,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 // must be cloned to avoid concurrent modification.
 func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	ta := func(_ []types.Server) {} // compile-time type assertion
-	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
+	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func(ctx context.Context) (interface{}, error) {
 		// use cache's close context instead of request context in order to ensure
 		// that we don't cache a context cancellation error.
 		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
@@ -1575,7 +1569,7 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ []types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func() (interface{}, error) {
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func(ctx context.Context) (interface{}, error) {
 			remotes, err := rg.presence.GetRemoteClusters(opts...)
 			ta(remotes)
 			return remotes, err
@@ -1603,7 +1597,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{clusterName}, func() (interface{}, error) {
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{clusterName}, func(ctx context.Context) (interface{}, error) {
 			remote, err := rg.presence.GetRemoteCluster(clusterName)
 			ta(remote)
 			return remote, err
