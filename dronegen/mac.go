@@ -351,8 +351,8 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		)
 	}
 
-	commands = append(commands, 
-		`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
+	commands = append(commands,
+		`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`
 	)
 
 	if b.hasTeleportConnect() {

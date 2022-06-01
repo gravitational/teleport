@@ -564,8 +564,10 @@ steps:
   - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
   - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - build.assets/build-fido2-macos.sh build
+  - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
-  - make clean release OS=$OS ARCH=$ARCH
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install --frozen-lockfile && yarn build-term && yarn package-term
   environment:
@@ -3016,10 +3018,12 @@ steps:
   - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
   - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - build.assets/build-fido2-macos.sh build
+  - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
-  - make clean release OS=$OS ARCH=$ARCH
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install --frozen-lockfile && yarn build-term && yarn package-term
   environment:
@@ -5476,6 +5480,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: c110123c809d02b90982c99034d1de62dc3ed2a1ee9964d260595bf2048f74e1
+hmac: 258086f8b6f46d2a85e1a7d294c0b9de8c29aac32d4f2a283a42a1d56d2c61df
 
 ...
