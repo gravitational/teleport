@@ -67,10 +67,10 @@ func (c *DBCommand) Initialize(app *kingpin.Application, config *service.Config)
 }
 
 // TryRun attempts to run subcommands like "db ls".
-func (c *DBCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *DBCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.dbList.FullCommand():
-		err = c.ListDatabases(client)
+		err = c.ListDatabases(ctx, client)
 	default:
 		return false, nil
 	}
@@ -79,9 +79,7 @@ func (c *DBCommand) TryRun(cmd string, client auth.ClientI) (match bool, err err
 
 // ListDatabases prints the list of database proxies that have recently sent
 // heartbeats to the cluster.
-func (c *DBCommand) ListDatabases(clt auth.ClientI) error {
-	ctx := context.TODO()
-
+func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
