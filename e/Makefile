@@ -99,6 +99,24 @@ endif
 endif
 endif
 
+# Build tsh against libfido2?
+# Only build if FIDO2=yes, each platform we support must make this decision
+# explicitly.
+LIBFIDO2_MESSAGE := without libfido2
+ifeq ("$(FIDO2)", "yes")
+LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_BUILD_TAG := libfido2 libfido2static
+endif
+
+# Enable Touch ID builds?
+# Only build if TOUCHID=yes to avoid issues when cross-compiling to 'darwin'
+# from other systems.
+TOUCHID_MESSAGE := without Touch ID
+ifeq ("$(TOUCHID)", "yes")
+TOUCHID_MESSAGE := with Touch ID
+TOUCHID_TAG := touchid
+endif
+
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
@@ -111,7 +129,7 @@ ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
-RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE) and $(ROLETESTER_ENT_MESSAGE) and $(RDPCLIENT_ENT_MESSAGE)."
+RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE) and $(ROLETESTER_ENT_MESSAGE) and $(RDPCLIENT_ENT_MESSAGE) and $(LIBFIDO2_MESSAGE) and $(TOUCHID_MESSAGE)."
 
 # All build Enterprise version of "teleport" and "tctl" binaries and copy
 # over tsh from OSS.
@@ -135,7 +153,7 @@ $(BUILDDIR)/teleport: bpf-bytecode-e ensure-webassets-e teleport-fips-check rdpc
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
