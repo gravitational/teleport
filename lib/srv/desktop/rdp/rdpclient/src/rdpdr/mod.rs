@@ -2270,9 +2270,9 @@ const FILE_FS_SIZE_INFORMATION_SIZE: u32 = (2 * 8) + (2 * 4); // 24
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e13e068c-e3a7-4dd4-94fd-3892b492e6e7
 #[derive(Debug)]
 struct FileFsSizeInformation {
-    total_allocation_units: i64,
-    available_allocation_units: i64,
-    sectors_per_allocation_unit: u32,
+    total_alloc_units: i64,
+    available_alloc_units: i64,
+    sectors_per_alloc_unit: u32,
     bytes_per_sector: u32,
 }
 
@@ -2283,18 +2283,18 @@ impl FileFsSizeInformation {
         // With default fallback values ultimately found here:
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
         Self {
-            total_allocation_units: u32::MAX as i64,
-            available_allocation_units: u32::MAX as i64,
-            sectors_per_allocation_unit: u32::MAX,
+            total_alloc_units: u32::MAX as i64,
+            available_alloc_units: u32::MAX as i64,
+            sectors_per_alloc_unit: u32::MAX,
             bytes_per_sector: 1,
         }
     }
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.write_i64::<LittleEndian>(self.total_allocation_units)?;
-        w.write_i64::<LittleEndian>(self.available_allocation_units)?;
-        w.write_u32::<LittleEndian>(self.sectors_per_allocation_unit)?;
+        w.write_i64::<LittleEndian>(self.total_alloc_units)?;
+        w.write_i64::<LittleEndian>(self.available_alloc_units)?;
+        w.write_u32::<LittleEndian>(self.sectors_per_alloc_unit)?;
         w.write_u32::<LittleEndian>(self.bytes_per_sector)?;
         Ok(w)
     }
@@ -2345,11 +2345,85 @@ impl FileFsAttributeInformation {
     }
 }
 
+/// Size of the FileFsFullSizeInformation.
+/// 3 i64, 2 u32
+const FILE_FS_FULL_SIZE_INFORMATION_SIZE: u32 = (3 * 8) + (2 * 4); // 32
+
+/// 2.5.4 FileFsFullSizeInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/63768db7-9012-4209-8cca-00781e7322f5
+#[derive(Debug)]
+struct FileFsFullSizeInformation {
+    total_alloc_units: i64,
+    caller_available_alloc_units: i64,
+    actual_available_alloc_units: i64,
+    sectors_per_alloc_unit: u32,
+    bytes_per_sector: u32,
+}
+
+impl FileFsFullSizeInformation {
+    fn new() -> Self {
+        // Fill these out with the default fallback values FreeRDP uses
+        // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L552-L557
+        // With default fallback values ultimately found here:
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
+        Self {
+            total_alloc_units: u32::MAX as i64,
+            caller_available_alloc_units: u32::MAX as i64,
+            actual_available_alloc_units: u32::MAX as i64,
+            sectors_per_alloc_unit: u32::MAX,
+            bytes_per_sector: 1,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_i64::<LittleEndian>(self.total_alloc_units)?;
+        w.write_i64::<LittleEndian>(self.caller_available_alloc_units)?;
+        w.write_i64::<LittleEndian>(self.actual_available_alloc_units)?;
+        w.write_u32::<LittleEndian>(self.sectors_per_alloc_unit)?;
+        w.write_u32::<LittleEndian>(self.bytes_per_sector)?;
+        Ok(w)
+    }
+}
+
+/// Size of the FileFsDeviceInformation.
+/// 2 u32
+const FILE_FS_DEVICE_INFORMATION_SIZE: u32 = 2 * 4; // 8
+
+/// 2.5.10 FileFsDeviceInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/616b66d5-b335-4e1c-8f87-b4a55e8d3e4a
+// Taking a shortcut by ignoring the bitflag typing here, since we will only ever fill this out with single values:
+// https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L570-L571
+#[derive(Debug)]
+struct FileFsDeviceInformation {
+    device_type: u32,
+    characteristics: u32,
+}
+
+impl FileFsDeviceInformation {
+    fn new() -> Self {
+        // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/616b66d5-b335-4e1c-8f87-b4a55e8d3e4a
+        let FILE_DEVICE_DISK = 0x00000007;
+
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L570-L571
+        Self {
+            device_type: FILE_DEVICE_DISK,
+            characteristics: 0,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.device_type)?;
+        w.write_u32::<LittleEndian>(self.characteristics)?;
+        Ok(w)
+    }
+}
+
 /// 2.2.3.4.8 Client Drive Query Information Response (DR_DRIVE_QUERY_INFORMATION_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4
 #[derive(Debug)]
 #[allow(dead_code)]
-
 struct ClientDriveQueryInformationResponse {
     device_io_response: DeviceIoResponse,
     length: Option<u32>,
