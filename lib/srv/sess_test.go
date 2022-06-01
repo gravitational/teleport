@@ -271,12 +271,7 @@ func TestInteractiveSession(t *testing.T) {
 		timeout, cancel := context.WithTimeout(context.Background(), time.Second*15)
 		defer cancel()
 
-		go func() {
-			<-timeout.Done()
-			sess.tracker.trackerCond.Broadcast()
-		}()
-
-		err := sess.tracker.waitOnState(timeout, types.SessionState_SessionStateRunning)
+		err := sess.tracker.WaitOnState(timeout, types.SessionState_SessionStateRunning)
 		require.NoError(t, err)
 
 		// The recorder might be closed in the case of an error downstream.

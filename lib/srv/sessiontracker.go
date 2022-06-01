@@ -181,9 +181,13 @@ func (s *SessionTracker) WaitForStateUpdate(initialState types.SessionState) typ
 	}
 }
 
-// waitOnState waits until the desired state is reached. The context may be used for cancellation
-// but the condvar must be manually signaled for this to take effect.
-func (s *SessionTracker) waitOnState(ctx context.Context, wanted types.SessionState) error {
+// WaitOnState waits until the desired state is reached or the context is canceled.
+func (s *SessionTracker) WaitOnState(ctx context.Context, wanted types.SessionState) error {
+	go func() {
+		<-ctx.Done()
+		s.trackerCond.Broadcast()
+	}()
+
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
 
