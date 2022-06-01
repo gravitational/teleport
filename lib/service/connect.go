@@ -911,9 +911,9 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 }
 
 func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
-	resolver := reversetunnel.WebClientResolver(process.ExitContext(), authServers, lib.IsInsecureDevMode())
+	resolver := reversetunnel.WebClientResolver(authServers, lib.IsInsecureDevMode())
 
-	resolver, err := reversetunnel.CachingResolver(resolver, process.Clock)
+	resolver, err := reversetunnel.CachingResolver(process.ExitContext(), resolver, process.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
