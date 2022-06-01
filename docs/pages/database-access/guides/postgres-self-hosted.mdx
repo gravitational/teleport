@@ -125,7 +125,7 @@ cluster over a reverse tunnel.
 ```code
 $ teleport db start \
    --token=/tmp/token \
-   --auth-server=mytenant.teleport.sh \
+   --auth-server=mytenant.teleport.sh:443 \
    --name=test \
    --protocol=postgres \
    --uri=postgres.example.com:5432 \
@@ -162,7 +162,7 @@ $ teleport db configure create \
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=teleport.example.com:3080 \
+   --proxy=mytenant.teleport.sh:443 \
    --name=test \
    --protocol=postgres \
    --uri=postgres.example.com:5432 \
