@@ -70,7 +70,10 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 	}
 
 	lib.SetInsecureDevMode(true)
-	p.cleanup(t)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(false)
+		p.cleanup(t)
+	})
 
 	// bootstrap a load balancer for proxies.
 	p.makeLoadBalancer(t)
@@ -115,7 +118,10 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	}
 
 	lib.SetInsecureDevMode(true)
-	p.cleanup(t)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(false)
+		p.cleanup(t)
+	})
 
 	// bootstrap a load balancer for proxies.
 	p.makeLoadBalancer(t)
@@ -157,11 +163,6 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 // dialNode starts a client conn to a node reachable through a specific proxy.
 func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
 	for _, proxy := range p.proxies {
-		ident, err := p.node.Process.GetIdentity(types.RoleNode)
-		require.NoError(t, err)
-		nodeuuid, err := ident.ID.HostID()
-		require.NoError(t, err)
-
 		creds, err := GenerateUserCreds(UserCredsRequest{
 			Process:  p.auth.Process,
 			Username: p.username,
@@ -171,7 +172,7 @@ func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
 		client, err := proxy.NewClientWithCreds(
 			ClientConfig{
 				Cluster: p.cluster,
-				Host:    nodeuuid,
+				Host:    p.node.Process.Config.HostUUID,
 			},
 			*creds,
 		)
@@ -184,7 +185,6 @@ func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
 		err = client.SSH(context.Background(), cmd, false)
 		require.NoError(t, err)
 		require.Equal(t, "hello world\n", output.String())
-
 	}
 }
 
@@ -459,7 +459,6 @@ func (p *proxyTunnelStrategy) waitForDatabaseToBeReachable(t *testing.T) {
 
 		return false, nil
 	}
-
 	p.waitForResource(t, string(types.RoleDatabase), check)
 }
 
@@ -498,37 +497,33 @@ func (p *proxyTunnelStrategy) waitForResource(t *testing.T, role string, check f
 
 // cleanup stops all resources started during tests
 func (p *proxyTunnelStrategy) cleanup(t *testing.T) {
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(false)
+	var errs []error
 
-		var errs []error
+	if p.postgresDB != nil {
+		errs = append(errs, p.postgresDB.Close())
+	}
 
-		if p.postgresDB != nil {
-			errs = append(errs, p.postgresDB.Close())
+	if p.db != nil {
+		errs = append(errs, p.db.StopAll())
+	}
+
+	if p.node != nil {
+		errs = append(errs, p.node.StopAll())
+	}
+
+	for _, proxy := range p.proxies {
+		if proxy != nil {
+			errs = append(errs, proxy.StopAll())
 		}
+	}
 
-		if p.db != nil {
-			errs = append(errs, p.db.StopAll())
-		}
+	if p.auth != nil {
+		errs = append(errs, p.auth.StopAll())
+	}
 
-		if p.node != nil {
-			errs = append(errs, p.node.StopAll())
-		}
+	if p.lb != nil {
+		errs = append(errs, p.lb.Close())
+	}
 
-		for _, proxy := range p.proxies {
-			if proxy != nil {
-				errs = append(errs, proxy.StopAll())
-			}
-		}
-
-		if p.auth != nil {
-			errs = append(errs, p.auth.StopAll())
-		}
-
-		if p.lb != nil {
-			errs = append(errs, p.lb.Close())
-		}
-
-		require.NoError(t, trace.NewAggregate(errs...))
-	})
+	require.NoError(t, trace.NewAggregate(errs...))
 }
