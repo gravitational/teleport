@@ -121,8 +121,8 @@ func addMetadataToRetryableError(ctx context.Context, fn func() error) error {
 		return nil
 	}
 
-	if client.CanErrorBeResolvedWithRelogin(err) {
-		trailer := metadata.Pairs("can-be-resolved-with-relogin", "1")
+	if client.IsErrorResolvableWithRelogin(err) {
+		trailer := metadata.Pairs("is-resolvable-with-relogin", "1")
 		grpc.SetTrailer(ctx, trailer)
 	}
 

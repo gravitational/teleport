@@ -694,7 +694,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return nil
 	}
 
-	if !CanErrorBeResolvedWithRelogin(err) {
+	if !IsErrorResolvableWithRelogin(err) {
 		return trace.Wrap(err)
 	}
 
@@ -733,7 +733,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	return fn()
 }
 
-func CanErrorBeResolvedWithRelogin(err error) bool {
+func IsErrorResolvableWithRelogin(err error) bool {
 	// Assume that failed handshake is a result of expired credentials.
 	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) ||
 		trace.IsBadParameter(err) || trace.IsTrustError(err)
