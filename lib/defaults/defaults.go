@@ -494,7 +494,7 @@ const (
 	ProtocolCockroachDB = "cockroachdb"
 	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
 	ProtocolSQLServer = "sqlserver"
-
+	// ProtocolCassandra is the Cassandra database protocol.
 	ProtocolCassandra = "cassandra"
 )
 

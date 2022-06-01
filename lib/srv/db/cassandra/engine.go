@@ -51,7 +51,7 @@ func init() {
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
-		mtx:          &sync.Mutex{},
+		v5LayoutMtx:  &sync.Mutex{},
 		frameCodec:   frame.NewRawCodec(),
 		segmentCodec: segment.NewCodec(),
 	}
@@ -65,13 +65,13 @@ type Engine struct {
 	clientConn net.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-
-	mtx *sync.Mutex
-
-	frameCodec frame.RawCodec
-
+	// segmentCodec is the segment decoder used by v5 protocol to decode segments.
 	segmentCodec segment.Codec
-
+	// frameCodec is the frame decoder used to decode frames.
+	frameCodec frame.RawCodec
+	// v5LayoutMtx is a mutex used to protect v5Layout member.
+	v5LayoutMtx *sync.Mutex
+	// v5Layout is true when communication used v5 protocol (the latest supported), false otherwise.
 	v5Layout bool
 }
 
@@ -80,7 +80,7 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
-	// TODO implement
+	// TODO(jakule) implement if possible.
 	e.Log.Errorf("cassandra connection error: %v", err)
 }
 
@@ -173,9 +173,14 @@ func (e *Engine) handleClientConnection(serverConn *tls.Conn) error {
 }
 
 func (e *Engine) maybeReadFromClient(memBuf *memoryBuffer) (io.Reader, error) {
+	e.v5LayoutMtx.Lock()
+	// there is no point to keep the mutex until the end of this function as we only
+	// want to protect the v5Layout member.
 	if e.v5Layout {
+		e.v5LayoutMtx.Unlock()
 		return e.readV5Layout(memBuf)
 	}
+	e.v5LayoutMtx.Unlock()
 
 	// protocol v4 and earlier
 	return memBuf, nil
@@ -227,17 +232,16 @@ func (e *Engine) handleServerConnection(serverConn *tls.Conn) error {
 			return trace.Wrap(err)
 		}
 
-		e.Log.Infof("server opcode: %v", rawFrame.Header.OpCode)
 		if rawFrame.Header.OpCode == primitive.OpCodeSupported {
 			body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
 			if err != nil {
-				e.Log.Errorf("failed to convert a frame: %v", err)
 				return trace.Wrap(err)
 			}
 
-			if startup, ok := body.Body.Message.(*message.Supported); ok {
-				e.Log.Infof("supported response: %v", startup)
+			if _, ok := body.Body.Message.(*message.Supported); ok {
+				e.v5LayoutMtx.Lock()
 				e.v5Layout = rawFrame.Header.Version == primitive.ProtocolVersion5
+				e.v5LayoutMtx.Unlock()
 				break
 			}
 		}
@@ -265,11 +269,13 @@ func (e *Engine) processFrame(conn io.Reader) error {
 	case *message.Options:
 		// NOOP - this message is used as a ping/heartbeat.
 	case *message.Startup:
-		// TODO(jakule): compression for some reason it returned lowercase :(
+		// Compression for some reason it returned lowercase. Looks like a library bug :(
 		compression := primitive.Compression(strings.ToUpper(string(msg.GetCompression())))
-		e.Log.Infof("compression: %v", compression)
-		e.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
-		e.segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
+		// Update the connection codec if compression is enabled.
+		if compression != primitive.CompressionNone {
+			e.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
+			e.segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
+		}
 	case *message.AuthResponse:
 		// auth token contains username and password split by \0 character
 		// ex: \0username\0password
