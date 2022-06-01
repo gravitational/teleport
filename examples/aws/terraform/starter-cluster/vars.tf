@@ -31,7 +31,7 @@ variable "route53_domain" {
   type = string
 }
 
-//Whether to add a while a wildcard entry *.proxy.example.com for application access
+// Whether to add a while a wildcard entry *.proxy.example.com for application access
 variable "add_wildcard_route53_record" {
   type = string
 }
