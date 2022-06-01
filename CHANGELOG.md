@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.3.2
+
+This release of Teleport contains two bug fixes.
+
+* Fixed issue with Machine ID's `tsh` version check. [#13037](https://github.com/gravitational/teleport/pull/13037)
+* Fixed AWS related log spam in database agent when not running on AWS. [#12984](https://github.com/gravitational/teleport/pull/12984)
+
 ## 9.3.0
 
 This release of Teleport contains multiple improvements and bug fixes.
