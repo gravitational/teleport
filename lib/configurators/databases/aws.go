@@ -377,7 +377,7 @@ func policiesTarget(flags BootstrapFlags, accountID string, identity awslib.Iden
 	}
 
 	if identity == nil {
-		return awslib.IdentityFromArn(fmt.Sprintf("arn:%s:iam::%s:user/%s", identity.GetPartition(), accountID, defaultAttachUser))
+		return awslib.IdentityFromArn(fmt.Sprintf("arn:aws:iam::%s:user/%s", accountID, defaultAttachUser))
 	}
 
 	return identity, nil
