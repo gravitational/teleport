@@ -171,10 +171,14 @@ teleport:
     audit_events_uri: 'firestore://events?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds.json'
     audit_sessions_uri: 'gs://teleport-session-storage-2?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds.json'
 auth_service:
-  enabled: yes
+  enabled: true
   tokens:
     - "proxy:EXAMPLE-PROXY-JOIN-TOKEN"
     - "node:EXAMPLE-NODE-JOIN-TOKEN"
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
 ```
 
 **2. Setup Proxy**
@@ -182,6 +186,8 @@ auth_service:
 Save the following configuration file as `/etc/teleport.yaml` on the Proxy Server:
 
 ```yaml
+# enable multiplexing all traffic on TCP port 443
+version: v2
 teleport:
   auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
   # We recommend using a TCP load balancer pointed to the auth servers when
@@ -196,6 +202,10 @@ proxy_service:
   enabled: true
   web_listen_addr: 0.0.0.0:443
   public_addr: teleport.example.com:443
+  # automatically get an ACME certificate for teleport.example.com (works for a single proxy)
+  acme:
+    enabled: true
+    email: example@email.com
 ```
 
 **3. Setup Teleport Nodes**
