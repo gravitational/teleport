@@ -112,9 +112,15 @@ spec:
   webauthn:
     rp_id: example.com
     attestation_allowed_cas:
-    - "/path/to/allowed_ca.pem"
+    - |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
     attestation_denied_cas:
-    - "/path/to/denied_ca.pem"
+    - |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
 ```
 
 Update the configuration:
