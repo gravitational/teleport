@@ -51,6 +51,7 @@ resource "aws_security_group_rule" "cluster_ingress_mysql" {
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.cluster.id
 }
+
 // Permit inbound to Teleport postgres services
 resource "aws_security_group_rule" "cluster_ingress_postgres" {
   type              = "ingress"
