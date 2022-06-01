@@ -104,7 +104,13 @@ func TestNewClient(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, clt)
 
-	// NewStartedClient shouldn't fail if the Collector is up
+	// Starting the client should be successful when the Collector is up
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, clt.Start(ctx))
+
+	// NewStartedClient will dial the collector, if everything is OK
+	// then it should return a valid client
 	clt, err = NewStartedClient(context.Background(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, clt)
@@ -114,12 +120,18 @@ func TestNewClient(t *testing.T) {
 
 	// NewClient shouldn't fail - it won't attempt to connect to the Collector
 	clt, err = NewClient(cfg)
-	require.NoError(t, err)
+	require.NoError(t, err, "NewClient failed even though it doesn't dial the Collector")
 	require.NotNil(t, clt)
 
-	// NewStartedClient should fail if the Collector is down
+	// Starting the client should fail when the Collector is down
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel2()
+	require.Error(t, clt.Start(ctx2), "Start was successful when the Collector is down")
+
+	// NewStartedClient will dial the collector, if the Collector is offline
+	// then it should return an error
 	clt, err = NewStartedClient(context.Background(), cfg)
-	require.Error(t, err)
+	require.Error(t, err, "NewStartedClient was successful dialing an offline Collector")
 	require.Nil(t, clt)
 }
 
