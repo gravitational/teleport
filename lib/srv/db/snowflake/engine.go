@@ -14,7 +14,6 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 
-
 */
 
 package snowflake
@@ -566,9 +565,7 @@ func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (st
 		return "", trace.Wrap(err)
 	}
 
-	snowflakeSession, err := e.AuthClient.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{
-		SessionID: sessionToken,
-	})
+	snowflakeSession, err := e.AuthClient.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: sessionToken})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -46,7 +46,7 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req types.GetAppSes
 }
 
 // GetSnowflakeSession gets an application web session.
-func (s *IdentityService) GetSnowflakeSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+func (s *IdentityService) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}

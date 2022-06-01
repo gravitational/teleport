@@ -1227,15 +1227,13 @@ func (g *GRPCServer) GetSnowflakeSession(ctx context.Context, req *proto.GetSnow
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := auth.GetSnowflakeSession(ctx, types.GetAppSessionRequest{
-		SessionID: req.GetSessionID(),
-	})
+	snowflakeSession, err := auth.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: req.GetSessionID()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, ok := session.(*types.WebSessionV2)
+	sess, ok := snowflakeSession.(*types.WebSessionV2)
 	if !ok {
-		return nil, trace.BadParameter("unexpected session type %T", session)
+		return nil, trace.BadParameter("unexpected session type %T", snowflakeSession)
 	}
 
 	return &proto.GetSnowflakeSessionResponse{

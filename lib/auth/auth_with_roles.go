@@ -3705,7 +3705,7 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 }
 
 // GetSnowflakeSession gets a Snowflake web session.
-func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
 	session, err := a.authServer.GetSnowflakeSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3803,12 +3803,12 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 
 // DeleteSnowflakeSession removes a Snowflake web session.
 func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSnowflakeSessionRequest) error {
-	session, err := a.authServer.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest(req))
+	snowflakeSession, err := a.authServer.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: req.SessionID})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Check if user can delete this web session.
-	if err := a.canDeleteWebSession(session.GetUser()); err != nil {
+	if err := a.canDeleteWebSession(snowflakeSession.GetUser()); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.authServer.DeleteSnowflakeSession(ctx, req); err != nil {
