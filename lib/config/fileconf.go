@@ -1019,11 +1019,6 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 		}
 	}
 
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	if ssh.X11.MaxDisplays != nil && ssh.X11.MaxDisplay == nil {
-		ssh.X11.MaxDisplay = ssh.X11.MaxDisplays
-	}
-
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
 	if ssh.X11.MaxDisplay != nil {
 		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
@@ -1142,8 +1137,6 @@ type X11 struct {
 	// MaxDisplay tells the server what X11 display number to stop at when
 	// searching for an open X11 unix socket for XServer proxies.
 	MaxDisplay *uint `yaml:"max_display,omitempty"`
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	MaxDisplays *uint `yaml:"max_displays,omitempty"`
 }
 
 // Databases represents the database proxy service configuration.
@@ -1235,6 +1228,14 @@ type DatabaseMySQL struct {
 	ServerVersion string `yaml:"server_version,omitempty"`
 }
 
+// SecretStore contains settings for managing secrets.
+type SecretStore struct {
+	// KeyPrefix specifies the secret key prefix.
+	KeyPrefix string `yaml:"key_prefix,omitempty"`
+	// KMSKeyID specifies the KMS key used to encrypt and decrypt the secret.
+	KMSKeyID string `yaml:"kms_key_id,omitempty"`
+}
+
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is a cloud region for RDS/Aurora database endpoint.
@@ -1245,6 +1246,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS `yaml:"rds"`
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
+	// SecretStore contains settings for managing secrets.
+	SecretStore SecretStore `yaml:"secret_store"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.

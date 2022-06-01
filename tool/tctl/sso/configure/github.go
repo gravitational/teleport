@@ -75,7 +75,7 @@ Examples:
   Generate the configuration and immediately test it using "tctl sso test" command.`)
 
 	preset := &AuthKindCommand{
-		Run: func(clt auth.ClientI) error { return ghRunFunc(cmd, &spec, gh, clt) },
+		Run: func(ctx context.Context, clt auth.ClientI) error { return ghRunFunc(ctx, cmd, &spec, gh, clt) },
 	}
 
 	sub.Action(func(ctx *kingpin.ParseContext) error {
@@ -86,8 +86,8 @@ Examples:
 	return preset
 }
 
-func ghRunFunc(cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flags *ghExtraFlags, clt auth.ClientI) error {
-	if err := specCheckRoles(cmd.Logger, spec, flags.ignoreMissingRoles, clt); err != nil {
+func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flags *ghExtraFlags, clt auth.ClientI) error {
+	if err := specCheckRoles(ctx, cmd.Logger, spec, flags.ignoreMissingRoles, clt); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -130,8 +130,8 @@ func ResolveCallbackURL(logger *logrus.Entry, clt auth.ClientI, fieldName string
 	return callbackURL
 }
 
-func specCheckRoles(logger *logrus.Entry, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt auth.ClientI) error {
-	allRoles, err := clt.GetRoles(context.TODO())
+func specCheckRoles(ctx context.Context, logger *logrus.Entry, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt auth.ClientI) error {
+	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
 		logger.WithError(err).Warn("unable to get roles list. Skipping teams-to-logins sanity checks.")
 		return nil
