@@ -925,13 +925,13 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	if req.UseSearchAsRoles {
-		clusterName, err := a.authServer.GetDomainName()
+		clusterName, err := a.authServer.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// For search-based access requests, replace the current roles with all
 		// roles the user is allowed to search with.
-		if err := a.context.UseSearchAsRoles(services.RoleGetter(a.authServer), clusterName); err != nil {
+		if err := a.context.UseSearchAsRoles(services.RoleGetter(a.authServer), clusterName.GetClusterName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
@@ -2172,7 +2172,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	// add implicit roles to the set and build a checker
 	roleSet := services.NewRoleSet(parsedRoles...)
-	clusterName, err := a.GetDomainName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2181,7 +2181,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
 		RoleSet:            roleSet,
-	}, clusterName)
+	}, clusterName.GetClusterName())
 
 	switch {
 	case a.hasBuiltinRole(types.RoleAdmin):

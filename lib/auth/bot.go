@@ -476,11 +476,11 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetDomainName()
+	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName)
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 
 	// renewable cert request must include a generation
 	var generation uint64

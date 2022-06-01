@@ -826,11 +826,11 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetDomainName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName)
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
 		ttl:            ttl,
@@ -875,11 +875,11 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetDomainName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName)
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	sessionID := req.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -933,11 +933,11 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetDomainName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName)
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -2347,7 +2347,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetDomainName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2356,7 +2356,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		Traits:             req.Traits,
 		RoleSet:            roleSet,
 		AllowedResourceIDs: req.RequestedResourceIDs,
-	}, clusterName)
+	}, clusterName.GetClusterName())
 
 	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
 	if err != nil {

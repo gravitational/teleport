@@ -218,11 +218,11 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetDomainName()
+	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName)
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 
 	certs, err := s.generateUserCert(certRequest{
 		user:              user,

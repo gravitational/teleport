@@ -50,7 +50,7 @@ func TestAccessRequest(t *testing.T) {
 	server, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
 
-	clusterName, err := server.Auth().GetDomainName()
+	clusterName, err := server.Auth().GetClusterName()
 	require.NoError(t, err)
 
 	roleSpecs := map[string]types.RoleSpecV5{
@@ -256,7 +256,7 @@ func TestAccessRequest(t *testing.T) {
 			requestResourceIDs := []types.ResourceID{}
 			for _, nodeName := range tc.requestResources {
 				requestResourceIDs = append(requestResourceIDs, types.ResourceID{
-					ClusterName: clusterName,
+					ClusterName: clusterName.GetClusterName(),
 					Kind:        types.KindNode,
 					Name:        nodeName,
 				})
