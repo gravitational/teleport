@@ -279,7 +279,7 @@ func (m *AgentPool) getReverseTunnelDetails() *reverseTunnelDetails {
 // transfers into the AgentPool, and will be released when the AgentPool
 // is done with it.
 func (m *AgentPool) addAgent(lease track.Lease) error {
-	addr, err := m.cfg.Resolver()
+	addr, err := m.cfg.Resolver(m.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

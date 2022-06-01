@@ -275,6 +275,8 @@ message DatabaseStatusV3 {
     // MySQL is an additional section with MySQL runtime database information.
     MySQLOptions MySQL = 3
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "mysql,omitempty" ];
+    // ManagedUsers is a list of database users that are managed by Teleport.
+    repeated string ManagedUsers = 4 [ (gogoproto.jsontag) = "managed_users,omitempty" ];
 }
 
 // AWS contains AWS metadata about the database.
@@ -291,6 +293,17 @@ message AWS {
     // ElastiCache contains AWS ElastiCache Redis specific metadata.
     ElastiCache ElastiCache = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "elasticache,omitempty" ];
+    // SecretStore contains secret store configurations.
+    SecretStore SecretStore = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "secret_store,omitempty" ];
+}
+
+// SecretStore contains secret store configurations.
+message SecretStore {
+    // KeyPrefix specifies the secret key prefix.
+    string KeyPrefix = 1 [ (gogoproto.jsontag) = "key_prefix,omitempty" ];
+    // KMSKeyID specifies the AWS KMS key for encryption.
+    string KMSKeyID = 2 [ (gogoproto.jsontag) = "kms_key_id,omitempty" ];
 }
 
 // Redshift contains AWS Redshift specific database metadata.
@@ -1082,7 +1095,8 @@ message U2F {
     string AppID = 1 [ (gogoproto.jsontag) = "app_id,omitempty" ];
 
     // Facets returns the facets for universal second factor.
-    // DELETE IN 11.0, time to sunset U2F (codingllama).
+    // Deprecated: Kept for backwards compatibility reasons, but Facets have no
+    // effect since Teleport v10, when Webauthn replaced the U2F implementation.
     repeated string Facets = 2 [ (gogoproto.jsontag) = "facets,omitempty" ];
 
     // DeviceAttestationCAs contains the trusted attestation CAs for U2F
@@ -2556,7 +2570,9 @@ message OIDCConnectorSpecV3 {
     // RedirectURL is a URL that will redirect the client's browser
     // back to the identity provider after successful authentication.
     // This should match the URL on the Provider's side.
-    string RedirectURL = 4 [ (gogoproto.jsontag) = "redirect_url" ];
+    //
+    // DELETE IN 11.0.0 in favor of RedirectURLs
+    string RedirectURL = 4 [ (gogoproto.jsontag) = "-" ];
     // ACR is an Authentication Context Class Reference value. The meaning of the ACR
     // value is context-specific and varies for identity providers.
     string ACR = 5 [ (gogoproto.jsontag) = "acr_values,omitempty" ];
@@ -2579,6 +2595,16 @@ message OIDCConnectorSpecV3 {
     string GoogleServiceAccount = 12 [ (gogoproto.jsontag) = "google_service_account,omitempty" ];
     // GoogleAdminEmail is the email of a google admin to impersonate.
     string GoogleAdminEmail = 13 [ (gogoproto.jsontag) = "google_admin_email,omitempty" ];
+    // RedirectURLs is a list of callback URLs which the identity provider can use
+    // to redirect the client back to the Teleport Proxy to complete authentication.
+    // This list should match the URLs on the provider's side. The URL used for a
+    // given auth request will be chosen to match the requesting Proxy's public
+    // address. If there is no match, the first url in the list will be used.
+    wrappers.StringValues RedirectURLs = 14 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "redirect_url",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Strings"
+    ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -2812,6 +2838,40 @@ message SSODiagnosticInfo {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "oidc_connector_trait_mapping,omitempty"
     ];
+
+    // GithubClaims represents Github user information obtained during OAuth2 flow.
+    GithubClaims GithubClaims = 30 [ (gogoproto.jsontag) = "github_claims,omitempty" ];
+
+    // GithubTeamsToLogins is TeamsToLogins mapping from Github connector used in the SSO flow.
+    repeated TeamMapping GithubTeamsToLogins = 31
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "github_teams_to_logins,omitempty" ];
+
+    // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
+    GithubTokenInfo GithubTokenInfo = 32 [ (gogoproto.jsontag) = "github_token_info,omitempty" ];
+}
+
+// GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
+// The token itself is secret and therefore not included.
+message GithubTokenInfo {
+    string TokenType = 1 [ (gogoproto.jsontag) = "token_type" ];
+    int64 Expires = 2 [ (gogoproto.jsontag) = "expires" ];
+    string Scope = 3 [ (gogoproto.jsontag) = "scope" ];
+}
+
+// GithubClaims represents Github user information obtained during OAuth2 flow
+message GithubClaims {
+    // Username is the user's username
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+
+    // OrganizationToTeams is the user's organization and team membership
+    wrappers.LabelValues OrganizationToTeams = 2 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "organization_to_teams",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // Teams is the users team membership
+    repeated string Teams = 3 [ (gogoproto.jsontag) = "teams" ];
 }
 
 // TeamMapping represents a single team membership mapping.

@@ -442,6 +442,18 @@ func TestConfigReading(t *testing.T) {
 			PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
 			Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 		},
+		Tracing: TracingService{
+			EnabledFlag: "yes",
+			ExporterURL: "https://localhost:4318",
+			KeyPairs: []KeyPair{
+				{
+					PrivateKey:  "/etc/teleport/exporter.key",
+					Certificate: "/etc/teleport/exporter.crt",
+				},
+			},
+			CACerts:                []string{"/etc/teleport/exporter.crt"},
+			SamplingRatePerMillion: 10,
+		},
 	}, cmp.AllowUnexported(Service{})))
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -459,6 +471,7 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Metrics.Enabled())
 	require.True(t, conf.WindowsDesktop.Configured())
 	require.True(t, conf.WindowsDesktop.Enabled())
+	require.True(t, conf.Tracing.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -626,8 +639,16 @@ teleport:
 
 func TestApplyConfig(t *testing.T) {
 	tempDir := t.TempDir()
-	tokenPath := filepath.Join(tempDir, "small-config-token")
-	err := os.WriteFile(tokenPath, []byte("join-token"), 0o644)
+	authTokenPath := filepath.Join(tempDir, "small-config-token")
+	err := os.WriteFile(authTokenPath, []byte("join-token"), 0o644)
+	require.NoError(t, err)
+
+	caPinPath := filepath.Join(tempDir, "small-config-ca-pin")
+	err = os.WriteFile(caPinPath, []byte("ca-pin-from-file1\nca-pin-from-file2"), 0o644)
+	require.NoError(t, err)
+
+	staticTokenPath := filepath.Join(tempDir, "small-config-static-tokens")
+	err = os.WriteFile(staticTokenPath, []byte("token-from-file1\ntoken-from-file2"), 0o644)
 	require.NoError(t, err)
 
 	pkcs11LibPath := filepath.Join(tempDir, "fake-pkcs11-lib.so")
@@ -636,7 +657,9 @@ func TestApplyConfig(t *testing.T) {
 
 	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(
 		SmallConfigString,
-		tokenPath,
+		authTokenPath,
+		caPinPath,
+		staticTokenPath,
 		pkcs11LibPath,
 	)))
 	require.NoError(t, err)
@@ -652,6 +675,16 @@ func TestApplyConfig(t *testing.T) {
 		{
 			Token:   "xxx",
 			Roles:   types.SystemRoles([]types.SystemRole{"Proxy", "Node"}),
+			Expires: time.Unix(0, 0).UTC(),
+		},
+		{
+			Token:   "token-from-file1",
+			Roles:   types.SystemRoles([]types.SystemRole{"Node"}),
+			Expires: time.Unix(0, 0).UTC(),
+		},
+		{
+			Token:   "token-from-file2",
+			Roles:   types.SystemRoles([]types.SystemRole{"Node"}),
 			Expires: time.Unix(0, 0).UTC(),
 		},
 		{
@@ -692,8 +725,7 @@ func TestApplyConfig(t *testing.T) {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOTP,
 			U2F: &types.U2F{
-				AppID:  "app-id",
-				Facets: []string{"https://localhost:3080"},
+				AppID: "app-id",
 				DeviceAttestationCAs: []string{
 					string(u2fCAFromFile),
 					`-----BEGIN CERTIFICATE-----
@@ -729,7 +761,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
-	require.Empty(t, cfg.CAPins)
+	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1191,6 +1223,18 @@ func makeConfigFixture() string {
 		},
 		PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
 		Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+	}
+
+	// Tracing service.
+	conf.Tracing.EnabledFlag = "yes"
+	conf.Tracing.ExporterURL = "https://localhost:4318"
+	conf.Tracing.SamplingRatePerMillion = 10
+	conf.Tracing.CACerts = []string{"/etc/teleport/exporter.crt"}
+	conf.Tracing.KeyPairs = []KeyPair{
+		{
+			PrivateKey:  "/etc/teleport/exporter.key",
+			Certificate: "/etc/teleport/exporter.crt",
+		},
 	}
 
 	return conf.DebugDumpToYAML()

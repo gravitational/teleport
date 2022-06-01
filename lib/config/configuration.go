@@ -110,6 +110,10 @@ type CommandLineFlags struct {
 	// configuration.
 	FIPS bool
 
+	// SkipVersionCheck allows Teleport to connect to auth servers that
+	// have an earlier major version number.
+	SkipVersionCheck bool
+
 	// AppName is the name of the application to proxy.
 	AppName string
 
@@ -346,8 +350,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Read in how nodes will validate the CA. A single empty string in the file
 	// conf should indicate no pins.
-	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
-		cfg.CAPins = fc.CAPin
+	if err = cfg.ApplyCAPins(fc.CAPin); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Set diagnostic address
@@ -429,6 +433,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.WindowsDesktop.Enabled() {
 		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Tracing.Enabled() {
+		if err := applyTracingConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -840,7 +849,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1136,6 +1145,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				ElastiCache: service.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
+				SecretStore: service.DatabaseAWSSecretStore{
+					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
+					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
@@ -1400,6 +1413,47 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			Regexp: r,
 			Labels: rule.Labels,
 		})
+	}
+
+	return nil
+}
+
+// applyTracingConfig applies file configuration for the "tracing_service" section.
+func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
+	// Tracing is enabled.
+	cfg.Tracing.Enabled = true
+
+	if fc.Tracing.ExporterURL == "" {
+		return trace.BadParameter("tracing_service is enabled but no exporter_url is specified")
+	}
+
+	cfg.Tracing.ExporterURL = fc.Tracing.ExporterURL
+	cfg.Tracing.SamplingRate = float64(fc.Tracing.SamplingRatePerMillion) / 1_000_000.0
+
+	for _, p := range fc.Tracing.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(p.PrivateKey) {
+			return trace.NotFound("tracing_service private key does not exist: %s", p.PrivateKey)
+		}
+		if !utils.FileExists(p.Certificate) {
+			return trace.NotFound("tracing_service cert does not exist: %s", p.Certificate)
+		}
+
+		cfg.Tracing.KeyPairs = append(cfg.Tracing.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
+	}
+
+	for _, caCert := range fc.Tracing.CACerts {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(caCert) {
+			return trace.NotFound("tracing_service ca cert does not exist: %s", caCert)
+		}
+
+		cfg.Tracing.CACerts = append(cfg.Tracing.CACerts, caCert)
 	}
 
 	return nil
@@ -1787,6 +1841,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 	}
 
+	// apply --skip-version-check flag.
+	if clf.SkipVersionCheck {
+		cfg.SkipVersionCheck = clf.SkipVersionCheck
+	}
+
 	// Apply diagnostic address flag.
 	if clf.DiagnosticAddr != "" {
 		addr, err := utils.ParseAddr(clf.DiagnosticAddr)
@@ -1851,8 +1910,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if len(clf.CAPins) != 0 {
-		cfg.CAPins = clf.CAPins
+	if err = cfg.ApplyCAPins(clf.CAPins); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// apply --listen-ip flag:
