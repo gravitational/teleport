@@ -1,28 +1,28 @@
 { pkgs ? import <nixpkgs> { }
-, pkgsUnstable ? import
-    (builtins.fetchTarball
-      {
-        url = "https://github.com/NixOS/nixpkgs/archive/48d63e924a2666baf37f4f14a18f19347fbd54a2.tar.gz";
-        sha256 = "0dcxc4yc2y5z08pmkmjws4ir0r2cbc5mha2a48bn0bk7nxc6wx8g";
-      })
-    { }
 , buildGoModule ? pkgs.buildGoModule
 }:
-let tdr = buildGoModule rec {
-  pname = "tdr";
-  version = "0.0.0-${src.rev}";
-  # https://unix.stackexchange.com/questions/557977
-  src = builtins.fetchGit {
-    url = "git@github.com:gravitational/tdr.git";
-    rev = "5a17e035aec3f014553290fbd295dcdfeef8179c";
+let
+  tdr = buildGoModule rec {
+    pname = "tdr";
+    version = "0.0.0";
+    # https://unix.stackexchange.com/questions/557977
+    src = builtins.fetchGit {
+      url = "git@github.com:gravitational/tdr.git";
+      rev = "5a17e035aec3f014553290fbd295dcdfeef8179c";
+      ref = "main";
+    };
+    vendorSha256 = "sha256-KKUE+ZbdZ6x9NIjpWYpS3tG/GTZlI2oNoI6W/FntcuY=";
   };
-  vendorSha256 = "07cbhyisv510jyqp4srcc5256xzclcfnalfn3h9a34x9j8qa70ph";
-};
+  teleport-hot-reload = pkgs.writeShellScriptBin "teleport-hot-reload" ''
+    ${pkgs.reflex}/bin/reflex -r '\.go$' -s -- bash -c \
+      "go build -tags 'webassets_embed' -o build/teleport  -ldflags '-w -s' ./tool/teleport && cd sandbox && ./run.sh"
+  '';
+
 in
 pkgs.mkShell {
   buildInputs = with pkgs; [
     drone-cli
-    pkgsUnstable.teleport # drone app is not listed when using tsh v7
+    teleport
     tdr
     zip
 
@@ -30,6 +30,8 @@ pkgs.mkShell {
     rustc
     rust-cbindgen
     cargo
+
+    teleport-hot-reload
   ];
   shellHook = ''
     export PROTOBUF_LOCATION=${pkgs.protobuf}
