@@ -1926,6 +1926,8 @@ message OneOf {
         events.MySQLDebug MySQLDebug = 86;
         events.MySQLRefresh MySQLRefresh = 87;
         events.AccessRequestResourceSearch AccessRequestResourceSearch = 88;
+        events.SQLServerRPCRequest SQLServerRPCRequest = 89;
+        events.DatabaseSessionMalformedPacket DatabaseSessionMalformedPacket = 90;
     }
 }
 
@@ -2339,4 +2341,42 @@ message MySQLRefresh {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // Subcommand is the string representation of the subcommand.
     string Subcommand = 5 [ (gogoproto.jsontag) = "subcommand" ];
+}
+
+// SQLServerRPCRequest is emitted when a user executes a MSSQL Server RPC command.
+message SQLServerRPCRequest {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Procname is the RPC SQL Server procedure name.
+    string Procname = 5 [ (gogoproto.jsontag) = "procname,omitempty" ];
+    // Parameters are the RPC parameters used to execute RPC Procedure..
+    repeated string Parameters = 6 [ (gogoproto.jsontag) = "parameters,omitempty" ];
+}
+
+// DatabaseSessionMalformedPacket is emitted when a database sends a malformed packet.
+message DatabaseSessionMalformedPacket {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Payload is the malformed packet payload.
+    bytes Payload = 5 [ (gogoproto.jsontag) = "payload,omitempty" ];
 }

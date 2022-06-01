@@ -274,6 +274,9 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.Generation > 0 {
 		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = fmt.Sprint(c.Generation)
 	}
+	if c.AllowedResourceIDs != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
+	}
 
 	for _, extension := range c.CertificateExtensions {
 		// TODO(lxea): update behavior when non ssh, non extensions are supported.
