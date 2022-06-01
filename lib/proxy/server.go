@@ -16,6 +16,7 @@ package proxy
 
 import (
 	"crypto/tls"
+	"errors"
 	"net"
 	"time"
 
@@ -147,7 +148,11 @@ func NewServer(config ServerConfig) (*Server, error) {
 
 // Serve starts the proxy server.
 func (s *Server) Serve() error {
-	if err := s.server.Serve(s.config.Listener); err != nil && err != grpc.ErrServerStopped {
+	if err := s.server.Serve(s.config.Listener); err != nil {
+		if errors.Is(err, grpc.ErrServerStopped) ||
+			errors.Is(err, net.ErrClosed) {
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 	return nil
