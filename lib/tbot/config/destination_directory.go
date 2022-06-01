@@ -23,7 +23,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/tool/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
