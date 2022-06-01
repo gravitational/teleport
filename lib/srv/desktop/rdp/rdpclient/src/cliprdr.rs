@@ -550,8 +550,8 @@ impl<T: FormatName> FormatListPDU<T> {
 // This data must be valid UTF-8.
 fn encode_clipboard(mut data: Vec<u8>) -> (Vec<u8>, ClipboardFormat) {
     if data.is_ascii() {
-        if matches!(data.last(), Some(x) if *x != 0) {
-            data.push(0);
+        if matches!(data.last(), Some(x) if *x != b'\0') {
+            data.push(b'\0');
         }
 
         (data, ClipboardFormat::CF_TEXT)
