@@ -22,18 +22,18 @@ package aws
 func GetPartitionFromRegion(region string) string {
 	var partition string
 	switch {
-	case region == "":
-		partition = Partition
 	case IsCNRegion(region):
 		partition = CNPartition
 	default:
-		partition = Partition
+		partition = StandardPartition
 	}
 	return partition
 }
 
 const (
-	Partition = "aws"
+	// StandardPartition is the partition ID of the AWS Standard partition.
+	StandardPartition = "aws"
 
+	// CNPartition is the partition ID of the AWS China partition.
 	CNPartition = "aws-cn"
 )
