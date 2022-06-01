@@ -2339,7 +2339,7 @@ func TestExportingTraces(t *testing.T) {
 			// check for an empty span list here because other spans may be
 			// generated from background components running within the auth/proxy
 			loginAssertion := spanAssertion(false)
-			loginAssertion(t, collector.Spans)
+			loginAssertion(t, collector.Spans())
 
 			err = Run(context.Background(), []string{
 				"ls",
@@ -2349,7 +2349,7 @@ func TestExportingTraces(t *testing.T) {
 				"--trace",
 			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
-			tt.spanAssertion(t, collector.Spans)
+			tt.spanAssertion(t, collector.Spans())
 		})
 	}
 }

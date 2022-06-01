@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/gravitational/trace"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -41,7 +42,9 @@ type Collector struct {
 	httpServer *http.Server
 	coltracepb.TraceServiceServer
 	tlsConfing *tls.Config
-	Spans      []*otlp.ScopeSpans
+
+	spanLock sync.RWMutex
+	spans    []*otlp.ScopeSpans
 }
 
 // CollectorConfig configures how a Collector should be created.
@@ -92,22 +95,22 @@ func (c *Collector) ClientTLSConfig() *tls.Config {
 }
 
 // GRPCAddr is the ExporterURL that the gRPC server is listening on.
-func (c Collector) GRPCAddr() string {
+func (c *Collector) GRPCAddr() string {
 	return "grpc://" + c.grpcLn.Addr().String()
 }
 
 // HTTPAddr is the ExporterURL that the HTTP server is listening on.
-func (c Collector) HTTPAddr() string {
+func (c *Collector) HTTPAddr() string {
 	return "http://" + c.httpLn.Addr().String()
 }
 
 // HTTPSAddr is the ExporterURL that the HTTPS server is listening on.
-func (c Collector) HTTPSAddr() string {
+func (c *Collector) HTTPSAddr() string {
 	return "https://" + c.httpLn.Addr().String()
 }
 
 // Start starts the gRPC and HTTP servers.
-func (c Collector) Start() error {
+func (c *Collector) Start() error {
 	var g errgroup.Group
 
 	g.Go(func() error {
@@ -136,7 +139,7 @@ func (c Collector) Start() error {
 }
 
 // Shutdown stops the gRPC and HTTP servers.
-func (c Collector) Shutdown(ctx context.Context) error {
+func (c *Collector) Shutdown(ctx context.Context) error {
 	c.grpcServer.Stop()
 	return trace.Wrap(c.httpServer.Shutdown(ctx))
 }
@@ -175,9 +178,21 @@ func (c *Collector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Export is the grpc handler for the Collector.
 func (c *Collector) Export(ctx context.Context, req *coltracepb.ExportTraceServiceRequest) (*coltracepb.ExportTraceServiceResponse, error) {
+	c.spanLock.Lock()
+	defer c.spanLock.Unlock()
+
 	for _, span := range req.ResourceSpans {
-		c.Spans = append(c.Spans, span.ScopeSpans...)
+		c.spans = append(c.spans, span.ScopeSpans...)
 	}
 
 	return &coltracepb.ExportTraceServiceResponse{}, nil
+}
+
+func (c *Collector) Spans() []*otlp.ScopeSpans {
+	c.spanLock.RLock()
+	defer c.spanLock.RUnlock()
+	spans := make([]*otlp.ScopeSpans, len(c.spans))
+	copy(spans, c.spans)
+
+	return spans
 }

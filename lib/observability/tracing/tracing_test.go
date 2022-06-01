@@ -359,8 +359,9 @@ func TestTraceProvider(t *testing.T) {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			require.NoError(t, provider.Shutdown(shutdownCtx))
-			require.LessOrEqual(t, len(collector.Spans), tt.collectedLen)
-			require.GreaterOrEqual(t, len(collector.Spans), 0)
+			spans := collector.Spans()
+			require.LessOrEqual(t, len(spans), tt.collectedLen)
+			require.GreaterOrEqual(t, len(spans), 0)
 		})
 	}
 }
