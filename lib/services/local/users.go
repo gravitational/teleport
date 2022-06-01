@@ -381,7 +381,7 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	}
 	// each user has multiple related entries in the backend,
 	// so use DeleteRange to make sure we get them all
-	startKey := backend.Key(webPrefix, usersPrefix, user)
+	startKey := backend.ExactKey(webPrefix, usersPrefix, user)
 	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }

@@ -81,7 +81,7 @@
               "slug": "/setup/admin/graceful-restarts/"
             },
             {
-              "title": "Daemon",
+              "title": "Run Teleport as a Daemon",
               "slug": "/setup/admin/daemon/"
             }
           ]
@@ -888,7 +888,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
-      "version": "9.2.4",
+      "version": "9.3.3",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -920,14 +920,14 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "9.2.4",
+      "version": "9.3.2",
       "golang": "1.17",
       "plugin": {
-        "version": "9.2.4"
+        "version": "9.3.2"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:9.1.2",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:9.1.2"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:9.3.2",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:9.3.3"
     }
   },
   "redirects": [

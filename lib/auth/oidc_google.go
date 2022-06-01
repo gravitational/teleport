@@ -20,7 +20,7 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"

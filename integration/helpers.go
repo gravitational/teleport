@@ -42,6 +42,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1773,7 +1774,7 @@ func enableKubernetesService(t *testing.T, config *service.Config) {
 
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
 		TeleportClusterName: "teleport-cluster",
-		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
+		ClusterAddr:         "https://" + net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
 	})
 	require.NoError(t, err)
@@ -1781,6 +1782,23 @@ func enableKubernetesService(t *testing.T, config *service.Config) {
 	config.Kube.Enabled = true
 	config.Kube.KubeconfigPath = kubeConfigPath
 	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+}
+
+// getKubeClusters gets all kubernetes clusters accessible from a given auth server.
+func getKubeClusters(t *testing.T, as *auth.Server) []*types.KubernetesCluster {
+	ctx := context.Background()
+	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{
+		ResourceType: types.KindKubeService,
+	})
+	require.NoError(t, err)
+	kss, err := types.ResourcesWithLabels(resources).AsServers()
+	require.NoError(t, err)
+
+	clusters := make([]*types.KubernetesCluster, 0)
+	for _, ks := range kss {
+		clusters = append(clusters, ks.GetKubernetesClusters()...)
+	}
+	return clusters
 }
 
 func genUserKey() (*client.Key, error) {
