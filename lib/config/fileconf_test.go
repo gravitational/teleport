@@ -544,7 +544,7 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    100,
 			},
-		}, {}, {
+		}, {
 			desc: "max display value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
