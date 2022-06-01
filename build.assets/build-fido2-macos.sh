@@ -11,7 +11,7 @@
 # Written mainly for macOS builders.
 set -eu
 
-readonly MACOS_VERSION_MIN=10.12
+readonly MACOS_VERSION_MIN=10.13
 
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.9.0
