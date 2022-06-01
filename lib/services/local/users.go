@@ -1159,7 +1159,7 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 // CreateSAMLAuthRequest creates new auth request
-func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, ttl time.Duration) error {
+func (s *IdentityService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1172,7 +1172,7 @@ func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, tt
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1180,7 +1180,7 @@ func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, tt
 }
 
 // GetSAMLAuthRequest returns SAML auth request if found
-func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
+func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAMLAuthRequest, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing parameter id")
 	}
@@ -1188,7 +1188,7 @@ func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req services.SAMLAuthRequest
+	var req types.SAMLAuthRequest
 	if err := json.Unmarshal(item.Value, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

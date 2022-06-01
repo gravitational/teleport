@@ -174,7 +174,7 @@ func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 		return nil, trace.Wrap(err)
 	}
 	var localCA deprecatedLocalCAResponse
-	if err := json.Unmarshal(out.Bytes(), &localCAgs); err != nil {
+	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &proto.GetClusterCACertResponse{
@@ -200,6 +200,30 @@ func (c *Client) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRe
 		return nil, trace.Wrap(err)
 	}
 	var response *types.OIDCAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+// CreateSAMLAuthRequest creates SAML AuthnRequest
+// DELETE IN 11.0.0
+func (c *Client) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	if resp, err := c.APIClient.CreateSAMLAuthRequest(ctx, req); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "create"), createSAMLAuthRequestReq{
+		Req: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *types.SAMLAuthRequest
 	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
 		return nil, trace.Wrap(err)
 	}

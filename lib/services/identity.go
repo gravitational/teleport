@@ -198,10 +198,10 @@ type Identity interface {
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
 
 	// CreateSAMLAuthRequest creates new auth request
-	CreateSAMLAuthRequest(req SAMLAuthRequest, ttl time.Duration) error
+	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error
 
 	// GetSAMLAuthRequest returns SAML auth request if found
-	GetSAMLAuthRequest(ctx context.Context, id string) (*SAMLAuthRequest, error)
+	GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAMLAuthRequest, error)
 
 	// CreateSSODiagnosticInfo creates new SSO diagnostic info record.
 	CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error
@@ -370,86 +370,6 @@ func (r *GithubAuthRequest) Check() error {
 	}
 
 	if !r.SSOTestFlow && r.ConnectorSpec != nil {
-		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
-	}
-
-	return nil
-}
-
-// SAMLAuthRequest is a request to authenticate with OIDC
-// provider, the state about request is managed by auth server
-type SAMLAuthRequest struct {
-	// ID is a unique request ID
-	ID string `json:"id"`
-
-	// ConnectorID is ID of OIDC connector this request uses
-	ConnectorID string `json:"connector_id"`
-
-	// Type is opaque string that helps callbacks identify the request type
-	Type string `json:"type"`
-
-	// CheckUser tells validator if it should expect and check user
-	CheckUser bool `json:"check_user"`
-
-	// RedirectURL will be used by browser
-	RedirectURL string `json:"redirect_url"`
-
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successful auth
-	PublicKey []byte `json:"public_key"`
-
-	// CertTTL is the TTL of the certificate user wants to get
-	CertTTL time.Duration `json:"cert_ttl"`
-
-	// CSRFToken is associated with user web session token
-	CSRFToken string `json:"csrf_token"`
-
-	// CreateWebSession indicates if user wants to generate a web
-	// session after successful authentication
-	CreateWebSession bool `json:"create_web_session"`
-
-	// ClientRedirectURL is a URL client wants to be redirected
-	// after successful authentication
-	ClientRedirectURL string `json:"client_redirect_url"`
-
-	// Compatibility specifies OpenSSH compatibility flags.
-	Compatibility string `json:"compatibility,omitempty"`
-
-	// RouteToCluster is the name of Teleport cluster to issue credentials for.
-	RouteToCluster string `json:"route_to_cluster,omitempty"`
-
-	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
-	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
-
-	// SSOTestFlow indicates if the request is part of the test flow.
-	SSOTestFlow bool `json:"sso_test_flow"`
-
-	// ConnectorSpec is embedded connector spec for use in test flow.
-	ConnectorSpec *types.SAMLConnectorSpecV2 `json:"connector_spec,omitempty"`
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (i *SAMLAuthRequest) Check() error {
-	if i.ConnectorID == "" {
-		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > apidefaults.MaxCertDuration) || (i.CertTTL < apidefaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
-	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
-		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
 

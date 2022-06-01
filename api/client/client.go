@@ -1512,7 +1512,7 @@ func (c *Client) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRe
 	return resp, nil
 }
 
-// GetOIDCAuthRequest gets the OIDCAuthRequest associated with the given token.
+// GetOIDCAuthRequest gets an OIDCAuthRequest by state token.
 func (c *Client) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error) {
 	req := &proto.GetOIDCAuthRequestRequest{StateToken: stateToken}
 	resp, err := c.grpc.GetOIDCAuthRequest(ctx, req, c.callOpts...)
@@ -1566,6 +1566,25 @@ func (c *Client) DeleteSAMLConnector(ctx context.Context, name string) error {
 	}
 	_, err := c.grpc.DeleteSAMLConnector(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// CreateSAMLAuthRequest creates SAMLAuthRequest.
+func (c *Client) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	resp, err := c.grpc.CreateSAMLAuthRequest(ctx, &req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetSAMLAuthRequest gets a SAMLAuthRequest by id.
+func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAMLAuthRequest, error) {
+	req := &proto.GetSAMLAuthRequestRequest{ID: id}
+	resp, err := c.grpc.GetSAMLAuthRequest(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }
 
 // GetGithubConnector returns a Github connector by name.

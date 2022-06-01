@@ -1698,6 +1698,12 @@ message GetOIDCAuthRequestRequest {
     string StateToken = 1 [ (gogoproto.jsontag) = "state_token" ];
 }
 
+// GetSAMLAuthRequestRequest is a request for GetSAMLAuthRequest.
+message GetSAMLAuthRequestRequest {
+    // ID is a saml auth request unique id.
+    string ID = 1 [ (gogoproto.jsontag) = "id" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
@@ -1998,6 +2004,10 @@ service AuthService {
     rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty);
     // DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
     rpc DeleteSAMLConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+    // CreateSAMLAuthRequest creates SAMLAuthRequest.
+    rpc CreateSAMLAuthRequest(types.SAMLAuthRequest) returns (types.SAMLAuthRequest);
+    // GetSAMLAuthRequest returns SAML auth request if found.
+    rpc GetSAMLAuthRequest(GetSAMLAuthRequestRequest) returns (types.SAMLAuthRequest);
 
     // GetGithubConnector gets a Github connector resource by name.
     rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);

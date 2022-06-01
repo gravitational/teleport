@@ -358,8 +358,8 @@ func TestSAMLAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
-	reqNormal := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
-	reqTest := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
+	reqNormal := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
+	reqTest := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
 		Audience:                 "test",
 		ServiceProviderIssuer:    "test",
@@ -376,7 +376,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.SAMLAuthRequest
+		request            types.SAMLAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -441,7 +441,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateSAMLAuthRequest(tt.request)
+			request, err := client.CreateSAMLAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)

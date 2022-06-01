@@ -31,70 +31,70 @@ func TestSAMLAuthRequest_Check(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		req     SAMLAuthRequest
+		req     types.SAMLAuthRequest
 		wantErr bool
 	}{
 		{
 			name: "normal request",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
-				CertTTL:     60 * time.Minute,
+				CertTTL:     types.Duration(60 * time.Minute),
 			},
 			wantErr: false,
 		},
 		{
 			name: "below min CertTTL",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
-				CertTTL:     1 * time.Second,
+				CertTTL:     types.Duration(1 * time.Second),
 			},
 			wantErr: true,
 		},
 		{
 			name: "above max CertTTL",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
-				CertTTL:     1000 * time.Hour,
+				CertTTL:     types.Duration(1000 * time.Hour),
 			},
 			wantErr: true,
 		},
 		{
 			name: "TTL ignored without cert",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
-				CertTTL:     60 * time.Minute,
+				CertTTL:     types.Duration(60 * time.Minute),
 			},
 			wantErr: false,
 		},
 		{
 			name: "SSOTestFlow requires ConnectorSpec",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
-				CertTTL:     60 * time.Minute,
+				CertTTL:     types.Duration(60 * time.Minute),
 				SSOTestFlow: true,
 			},
 			wantErr: true,
 		},
 		{
 			name: "ConnectorSpec requires SSOTestFlow",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID:   "foo",
 				PublicKey:     []byte(exampleSSHCert),
-				CertTTL:       60 * time.Minute,
+				CertTTL:       types.Duration(60 * time.Minute),
 				ConnectorSpec: &types.SAMLConnectorSpecV2{Display: "dummy"},
 			},
 			wantErr: true,
 		},
 		{
 			name: "ConnectorSpec with SSOTestFlow works",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID:   "foo",
 				PublicKey:     []byte(exampleSSHCert),
-				CertTTL:       60 * time.Minute,
+				CertTTL:       types.Duration(60 * time.Minute),
 				SSOTestFlow:   true,
 				ConnectorSpec: &types.SAMLConnectorSpecV2{Display: "dummy"},
 			},
