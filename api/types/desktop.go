@@ -99,6 +99,16 @@ func (s *WindowsDesktopServiceV3) GetAllLabels() map[string]string {
 	return s.Metadata.Labels
 }
 
+// GetStaticLabels returns the windows desktop static labels.
+func (s *WindowsDesktopServiceV3) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the windows desktop static labels.
+func (s *WindowsDesktopServiceV3) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
+}
+
 // GetHostname returns the windows hostname of this service.
 func (s *WindowsDesktopServiceV3) GetHostname() string {
 	return s.Spec.Hostname
@@ -175,6 +185,16 @@ func (d *WindowsDesktopV3) GetHostID() string {
 func (d *WindowsDesktopV3) GetAllLabels() map[string]string {
 	// TODO(zmb3): add dynamic labels when running in agent mode
 	return CombineLabels(d.Metadata.Labels, nil)
+}
+
+// GetStaticLabels returns the windows desktop static labels.
+func (d *WindowsDesktopV3) GetStaticLabels() map[string]string {
+	return d.Metadata.Labels
+}
+
+// SetStaticLabels sets the windows desktop static labels.
+func (d *WindowsDesktopV3) SetStaticLabels(sl map[string]string) {
+	d.Metadata.Labels = sl
 }
 
 // LabelsString returns all desktop labels as a string.

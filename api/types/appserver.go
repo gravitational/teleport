@@ -285,6 +285,16 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 	return CombineLabels(staticLabels, dynamicLabels)
 }
 
+// GetStaticLabels returns the app server static labels.
+func (s *AppServerV3) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the app server static labels.
+func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
+}
+
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
 	return proto.Clone(s).(*AppServerV3)
