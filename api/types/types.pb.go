@@ -985,11 +985,12 @@ type AWS struct {
 	// ElastiCache contains AWS ElastiCache Redis specific metadata.
 	ElastiCache ElastiCache `protobuf:"bytes,5,opt,name=ElastiCache,proto3" json:"elasticache,omitempty"`
 	// SecretStore contains secret store configurations.
-	SecretStore          SecretStore `protobuf:"bytes,6,opt,name=SecretStore,proto3" json:"secret_store,omitempty"`
-	MemoryDB             MemoryDB    `protobuf:"bytes,7,opt,name=MemoryDB,proto3" json:"memorydb,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
+	SecretStore SecretStore `protobuf:"bytes,6,opt,name=SecretStore,proto3" json:"secret_store,omitempty"`
+	// MemoryDB contains AWS MemoryDB specific metadata.
+	MemoryDB             MemoryDB `protobuf:"bytes,7,opt,name=MemoryDB,proto3" json:"memorydb,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *AWS) Reset()         { *m = AWS{} }

@@ -124,7 +124,7 @@ func (f *memoryDBFetcher) getManagedUsersForACL(ctx context.Context, region, acl
 		}
 		for _, tag := range userTags {
 			if aws.StringValue(tag.Key) == libaws.TagKeyTeleportManaged &&
-				aws.StringValue(tag.Value) == libaws.TagValueTrue {
+				libaws.IsTagValueTrue(aws.StringValue(tag.Value)) {
 				managedUsers = append(managedUsers, user)
 				break
 			}

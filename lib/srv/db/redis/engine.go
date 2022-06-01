@@ -316,8 +316,18 @@ func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session
 		// Teleport errors should be returned to the client.
 		return err, nil
 	case errors.Is(err, context.DeadlineExceeded):
-		if sessionCtx.Database.IsElastiCache() && !sessionCtx.Database.GetAWS().ElastiCache.TransitEncryptionEnabled {
-			return nil, trace.ConnectionProblem(err, "Connection timeout on ElastiCache database. Please verify if in-transit encryption is enabled on the server.")
+		switch sessionCtx.Database.GetType() {
+		// Special message for ElastiCache servers withtout TLS enabled.
+		case types.DatabaseTypeElastiCache:
+			if !sessionCtx.Database.GetAWS().ElastiCache.TransitEncryptionEnabled {
+				return nil, trace.ConnectionProblem(err, "Connection timeout on ElastiCache database. Please verify if in-transit encryption is enabled on the server.")
+			}
+
+		// Special message for MemoryDB servers withtout TLS enabled.
+		case types.DatabaseTypeMemoryDB:
+			if !sessionCtx.Database.GetAWS().MemoryDB.TLSEnabled {
+				return nil, trace.ConnectionProblem(err, "Connection timeout on MemoryDB database. Please verify if in-transit encryption is enabled on the server.")
+			}
 		}
 
 		// Do not return Deadline Exceeded to the client as it's not very self-explanatory.

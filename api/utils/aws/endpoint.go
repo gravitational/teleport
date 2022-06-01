@@ -37,26 +37,26 @@ func IsAWSEndpoint(uri string) bool {
 //
 // https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html
 func IsRDSEndpoint(uri string) bool {
-	return isAWSEndpointOfService(uri, RDSServiceName)
+	return isAWSServiceEndpoint(uri, RDSServiceName)
 }
 
 // IsRedshiftEndpoint returns true if the input URI is an Redshift endpoint.
 //
 // https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-from-psql.html
 func IsRedshiftEndpoint(uri string) bool {
-	return isAWSEndpointOfService(uri, RedshiftServiceName)
+	return isAWSServiceEndpoint(uri, RedshiftServiceName)
 }
 
 // IsElastiCacheEndpoint returns true if the input URI is an ElastiCache
 // endpoint.
 func IsElastiCacheEndpoint(uri string) bool {
-	return isAWSEndpointOfService(uri, ElastiCacheServiceName)
+	return isAWSServiceEndpoint(uri, ElastiCacheServiceName)
 }
 
 // IsMemoryDBEndpoint returns true if the input URI is an MemoryDB
 // endpoint.
 func IsMemoryDBEndpoint(uri string) bool {
-	return isAWSEndpointOfService(uri, MemoryDBSServiceName)
+	return isAWSServiceEndpoint(uri, MemoryDBSServiceName)
 }
 
 // ParseRDSEndpoint extracts the identifier and region from the provided RDS
@@ -171,9 +171,10 @@ const (
 	// individual node.
 	ElastiCacheNodeEndpoint = "node"
 
-	// MemoryDBClusterEndpoint is the cluster configuration endpoint.
+	// MemoryDBClusterEndpoint is the cluster configuration endpoint for a
+	// MemoryDB cluster.
 	MemoryDBClusterEndpoint = "cluster"
-	// MemoryDBNodeEndpoint is the individual node endpoint.
+	// MemoryDBNodeEndpoint is the endpoint of an individual MemoryDB node.
 	MemoryDBNodeEndpoint = "node"
 )
 
@@ -232,6 +233,7 @@ func ParseElastiCacheEndpoint(endpoint string) (*RedisEndpointInfo, error) {
 			}, nil
 		}
 
+		// Node endpoint for Redis with TLS disabled looks like:
 		// my-redis-cluster-001.xxxxxx.0001.use0.cache.<suffix>:6379
 		// my-redis-shards-0001-001.xxxxxx.0001.use0.cache.<suffix>:6379
 		if isElasticCacheShardID(parts[2]) {
@@ -408,10 +410,11 @@ func ParseMemoryDBEndpoint(endpoint string) (*RedisEndpointInfo, error) {
 	}
 }
 
-// isAWSEndpointOfService returns true if uri is a valid AWS endpoint and uri
+// isAWSServiceEndpoint returns true if uri is a valid AWS endpoint and uri
 // contains the provided service name as a subdomain.
-func isAWSEndpointOfService(uri, serviceName string) bool {
-	return strings.Contains(uri, fmt.Sprintf(".%s.", serviceName)) && IsAWSEndpoint(uri)
+func isAWSServiceEndpoint(uri, serviceName string) bool {
+	return strings.Contains(uri, fmt.Sprintf(".%s.", serviceName)) &&
+		IsAWSEndpoint(uri)
 }
 
 func removeSchemaAndPort(endpoint string) (string, error) {

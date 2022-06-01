@@ -296,6 +296,7 @@ message AWS {
     // SecretStore contains secret store configurations.
     SecretStore SecretStore = 6
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "secret_store,omitempty" ];
+    // MemoryDB contains AWS MemoryDB specific metadata.
     MemoryDB MemoryDB = 7
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "memorydb,omitempty" ];
 }

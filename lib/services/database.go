@@ -298,7 +298,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	})
 }
 
-// NewDatabaseFromMemoryDBCluster creates a database resource from MemoryDB
+// NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
 // cluster.
 func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
 	endpointType := awsutils.MemoryDBClusterEndpoint
