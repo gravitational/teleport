@@ -146,46 +146,14 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 func (e *Engine) handleClientConnection(serverConn *tls.Conn) error {
 	memBuf := newMemoryBuffer(e.clientConn)
-	previousSegment := bytes.Buffer{}
-	expectedSegmentSize := 0
 
 	for {
-		var payloadReader io.Reader
-		if e.v5Layout {
-			e.Log.Infof("using modern layout")
-			seg, err := e.segmentCodec.DecodeSegment(memBuf)
-			if err != nil {
-				if errors.Is(err, io.EOF) || utils.IsOKNetworkError(err) {
-					return nil
-				}
-				return trace.Wrap(err, "failed to decode frame")
+		payloadReader, err := e.maybeReadFromClient(memBuf)
+		if err != nil {
+			if errors.Is(err, io.EOF) || utils.IsOKNetworkError(err) {
+				return nil
 			}
-
-			e.Log.Infof("is self contained: %t, crc: %d", seg.Header.IsSelfContained, seg.Header.Crc24)
-			if !seg.Header.IsSelfContained {
-				e.Log.Infof("reading not self contained segment: prevSize %d, accSize %d", previousSegment.Len(), expectedSegmentSize)
-				if expectedSegmentSize == 0 {
-					frameHeader, err := e.frameCodec.DecodeHeader(bytes.NewReader(seg.Payload.UncompressedData))
-					if err != nil {
-						return trace.Wrap(err)
-					}
-					expectedSegmentSize = int(frameHeader.BodyLength + 9)
-				}
-				previousSegment.Write(seg.Payload.UncompressedData)
-
-				e.Log.Infof("second log: prevSize %d, accSize %d, crc: %x", previousSegment.Len(), expectedSegmentSize, seg.Header.Crc24)
-				if expectedSegmentSize == previousSegment.Len() {
-					payloadReader = &previousSegment
-					expectedSegmentSize = 0
-				} else {
-					continue
-				}
-			} else {
-				payloadReader = bytes.NewReader(seg.Payload.UncompressedData)
-			}
-		} else {
-			e.Log.Infof("using old layout")
-			payloadReader = memBuf
+			return trace.Wrap(err, "failed to read frame")
 		}
 
 		if err := e.processFrame(payloadReader); err != nil {
@@ -199,8 +167,51 @@ func (e *Engine) handleClientConnection(serverConn *tls.Conn) error {
 			return trace.Wrap(err, "failed to write frame to cassandra: %v", err)
 		}
 
+		// Reset buffered frames.
 		memBuf.Reset()
-		previousSegment.Reset()
+	}
+}
+
+func (e *Engine) maybeReadFromClient(memBuf *memoryBuffer) (io.Reader, error) {
+	if e.v5Layout {
+		return e.readV5Layout(memBuf)
+	}
+
+	// protocol v4 and earlier
+	return memBuf, nil
+}
+
+func (e *Engine) readV5Layout(memBuf io.Reader) (io.Reader, error) {
+	previousSegment := bytes.Buffer{}
+	expectedSegmentSize := 0
+
+	for {
+		seg, err := e.segmentCodec.DecodeSegment(memBuf)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to decode frame")
+		}
+
+		// If the frame is self-contained return it.
+		if seg.Header.IsSelfContained {
+			return bytes.NewReader(seg.Payload.UncompressedData), nil
+		}
+
+		// Otherwise read the frame size and keep reading until we read all data.
+		// Segments are always delivered in order.
+		if expectedSegmentSize == 0 {
+			frameHeader, err := e.frameCodec.DecodeHeader(bytes.NewReader(seg.Payload.UncompressedData))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			expectedSegmentSize = int(primitive.FrameHeaderLengthV3AndHigher + frameHeader.BodyLength)
+		}
+		// Append another segment
+		previousSegment.Write(seg.Payload.UncompressedData)
+
+		// Return the frame after reading all segments.
+		if expectedSegmentSize == previousSegment.Len() {
+			return &previousSegment, nil
+		}
 	}
 }
 
