@@ -87,7 +87,11 @@ func New(ctx context.Context, c *Config) (*EC2, error) {
 func (l *EC2) Get() map[string]string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.labels
+	labels := make(map[string]string)
+	for k, v := range l.labels {
+		labels[k] = v
+	}
+	return labels
 }
 
 // Apply adds EC2 labels to the provided resource.
