@@ -268,7 +268,7 @@ func processEntityDescriptorFlag(spec *types.SAMLConnectorSpecV2, entityDescript
 	var parsedURL *url.URL
 	if parsedURL, err = url.Parse(entityDescriptorFlag); err == nil && parsedURL.Scheme != "" {
 		spec.EntityDescriptorURL = entityDescriptorFlag
-		log.Infof("Entity descriptor looks like URL, entity-descriptor-url set to %q.", spec.EntityDescriptorURL)
+		log.Infof("Entity descriptor looks like URL, entity_descriptor_url set to %q.", spec.EntityDescriptorURL)
 		return nil
 	}
 	if parsedURL.Scheme == "" {

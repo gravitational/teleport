@@ -280,7 +280,10 @@ func oidcRunFunc(ctx context.Context, cmd *configure.SSOConfigureCommand, spec *
 	// verify .well-known/openid-configuration is reachable
 	err = checkOpenidConfiguration(spec.IssuerURL)
 	if err != nil {
-		return trace.Wrap(err, "Failed to load .well-known/openid-configuration for issuer URL %q", spec.IssuerURL)
+		if cmd.Config.Debug {
+			cmd.Logger.WithError(err).Warnf("Failed to load .well-known/openid-configuration for issuer URL %q", spec.IssuerURL)
+		}
+		return trace.BadParameter("Failed to load .well-known/openid-configuration for issuer URL %q. Check expected --issuer-url against IdP configuration. Rerun with --debug to see the error.", spec.IssuerURL)
 	}
 
 	if flags.connectorName == "" {
