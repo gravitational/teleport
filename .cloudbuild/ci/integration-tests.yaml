@@ -1,4 +1,4 @@
-timeout: 25m
+timeout: 30m
 
 options:
   machineType: E2_HIGHCPU_32
@@ -25,4 +25,4 @@ steps:
           -build "$BUILD_ID"                    \
           -key-secret "$_GITHUB_DEPLOY_KEY_SRC" \
           -a "test-logs/*.json"
-    timeout: 25m
+    timeout: 30m
