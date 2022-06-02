@@ -434,12 +434,7 @@ func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
 			return false, trace.Wrap(err)
 		}
 
-		for _, nodeT := range nodes {
-			node, ok := nodeT.(*types.ServerV2)
-			if !ok {
-				return false, trace.BadParameter("invalid type: wanted ServerV2 got '%T'", nodeT)
-			}
-
+		for _, node := range nodes {
 			if node.GetName() == p.node.Process.Config.HostUUID &&
 				len(node.GetProxyIDs()) == availability {
 				return true, nil
@@ -463,12 +458,7 @@ func (p *proxyTunnelStrategy) waitForDatabaseToBeReachable(t *testing.T) {
 			return false, trace.Wrap(err)
 		}
 
-		for _, dbT := range databases {
-			db, ok := dbT.(*types.DatabaseServerV3)
-			if !ok {
-				return false, trace.BadParameter("invalid type: wanted DatabaseServerV3 got '%T'", dbT)
-			}
-
+		for _, db := range databases {
 			if db.GetHostID() == p.db.Process.Config.HostUUID &&
 				len(db.GetProxyIDs()) == availability {
 				return true, nil
