@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -200,6 +201,9 @@ type Config struct {
 	// and above.
 	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
 
+	// PeerClient is a client to peer proxy servers.
+	PeerClient *proxy.Client
+
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 
@@ -318,7 +322,7 @@ func NewServer(cfg Config) (Server, error) {
 	}
 
 	for _, clusterInfo := range cfg.DirectClusters {
-		cluster, err := newlocalSite(srv, clusterInfo.Name, clusterInfo.Client)
+		cluster, err := newlocalSite(srv, clusterInfo.Name, clusterInfo.Client, srv.PeerClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -577,10 +581,34 @@ func (s *server) Close() error {
 	return s.srv.Close()
 }
 
+// DrainConnections closes the listener and sends reconnects to connected agents without
+// closing open connections.
+func (s *server) DrainConnections(ctx context.Context) error {
+	// Ensure listener is closed before sending reconnects.
+	err := s.srv.Close()
+	s.srv.Wait(ctx)
+
+	s.RLock()
+	for _, site := range s.localSites {
+		s.log.Debugf("Advising reconnect to local site: %s", site.GetName())
+		go site.adviseReconnect(ctx)
+	}
+
+	for _, site := range s.remoteSites {
+		s.log.Debugf("Advising reconnect to remote site: %s", site.GetName())
+		go site.adviseReconnect(ctx)
+	}
+	s.RUnlock()
+
+	return trace.Wrap(err)
+}
+
 func (s *server) Shutdown(ctx context.Context) error {
 	err := s.srv.Shutdown(ctx)
+
 	s.proxyWatcher.Close()
 	s.cancel()
+
 	return trace.Wrap(err)
 }
 
@@ -965,6 +993,11 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 		}
 	}
 	return nil, trace.NotFound("cluster %q is not found", name)
+}
+
+// GetProxyPeerClient returns the proxy peer client
+func (s *server) GetProxyPeerClient() *proxy.Client {
+	return s.PeerClient
 }
 
 // alwaysClose forces onSiteTunnelClose to remove and close

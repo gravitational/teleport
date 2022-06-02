@@ -266,6 +266,33 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	return rconn, nil
 }
 
+func (s *remoteSite) adviseReconnect(ctx context.Context) {
+	wg := &sync.WaitGroup{}
+
+	s.RLock()
+	for _, conn := range s.connections {
+		s.Debugf("Sending reconnect: %s", conn.nodeID)
+
+		wg.Add(1)
+		go func(conn *remoteConn) {
+			conn.adviseReconnect()
+			wg.Done()
+		}(conn)
+	}
+	s.RUnlock()
+
+	wait := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(wait)
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-wait:
+	}
+}
+
 func (s *remoteSite) GetStatus() string {
 	connInfo, err := s.getLastConnInfo()
 	if err != nil {
