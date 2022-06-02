@@ -432,7 +432,6 @@ EOF
 # installs the provided teleport config (for node service)
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
-    AUTH_CONFIG=$(get_node_auth_config)
     teleport node configure \
       --token ${JOIN_TOKEN} \
       --join-method ${JOIN_METHOD} \
