@@ -17,8 +17,9 @@ limitations under the License.
 package aws
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetPartitionFromRegion(t *testing.T) {
