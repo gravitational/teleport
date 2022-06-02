@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -270,7 +271,6 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 		return nil, trace.Wrap(err)
 	}
 	return tracker, nil
-
 }
 
 func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker) bool {
@@ -539,29 +539,19 @@ func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAut
 	return a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
 }
 
-func (a *ServerWithRoles) GetDomainName() (string, error) {
+func (a *ServerWithRoles) GetDomainName(ctx context.Context) (string, error) {
 	// anyone can read it, no harm in that
 	return a.authServer.GetDomainName()
-}
-
-func (a *ServerWithRoles) GetLocalClusterName() (string, error) {
-	// anyone can read it, no harm in that
-	return a.authServer.GetLocalClusterName()
 }
 
 // getClusterCACert returns the PEM-encoded TLS certs for the local cluster
 // without signing keys. If the cluster has multiple TLS certs, they will all
 // be concatenated.
-func (a *ServerWithRoles) GetClusterCACert() (*LocalCAResponse, error) {
+func (a *ServerWithRoles) GetClusterCACert(
+	ctx context.Context,
+) (*proto.GetClusterCACertResponse, error) {
 	// Allow all roles to get the CA certs.
-	return a.authServer.GetClusterCACert()
-}
-
-func (a *ServerWithRoles) UpsertLocalClusterName(clusterName string) error {
-	if err := a.action(apidefaults.Namespace, types.KindAuthServer, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertLocalClusterName(clusterName)
+	return a.authServer.GetClusterCACert(ctx)
 }
 
 func (a *ServerWithRoles) DeleteCertAuthority(id types.CertAuthID) error {
@@ -656,7 +646,7 @@ func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle types.KeepAl
 	if !a.hasBuiltinRole(types.RoleNode) {
 		return trace.AccessDenied("[10] access denied")
 	}
-	clusterName, err := a.GetDomainName()
+	clusterName, err := a.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -675,7 +665,7 @@ func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle types.KeepAl
 
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
-	clusterName, err := a.GetDomainName()
+	clusterName, err := a.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1463,11 +1453,11 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 	return a.authServer.DeleteToken(ctx, token)
 }
 
-func (a *ServerWithRoles) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
+func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetTokens(ctx, opts...)
+	return a.authServer.GetTokens(ctx)
 }
 
 func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
@@ -1953,6 +1943,24 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 	return a.authServer.Identity.GetUser(name, withSecrets)
 }
 
+// GetCurrentUser returns current user as seen by the server.
+// Useful especially in the context of remote clusters which perform role and trait mapping.
+func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error) {
+	// check access to roles
+	for _, role := range a.context.User.GetRoles() {
+		_, err := a.GetRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	usrRes := a.context.User.WithoutSecrets()
+	if usr, ok := usrRes.(types.User); ok {
+		return usr, nil
+	}
+	return nil, trace.BadParameter("expected types.User when fetching current user information, got %T", usrRes)
+}
+
 // DeleteUser deletes an existng user in a backend by username.
 func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbDelete); err != nil {
@@ -2125,19 +2133,25 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
+	var requestedResourceIDs []types.ResourceID
 	if len(req.AccessRequests) > 0 {
 		// add any applicable access request values.
 		req.AccessRequests = apiutils.Deduplicate(req.AccessRequests)
 		for _, reqID := range req.AccessRequests {
-			newRoles, accessRequestExpiry, err := a.authServer.getRolesAndExpiryFromAccessRequest(ctx, req.Username, reqID)
+			accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, req.Username, reqID)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if accessRequestExpiry.Before(req.Expires) {
+			if accessRequest.GetAccessExpiry().Before(req.Expires) {
 				// cannot generate a cert that would outlive the access request
-				req.Expires = accessRequestExpiry
+				req.Expires = accessRequest.GetAccessExpiry()
 			}
-			roles = append(roles, newRoles...)
+			roles = append(roles, accessRequest.GetRoles()...)
+
+			if len(accessRequest.GetRequestedResourceIDs()) > 0 && len(requestedResourceIDs) > 0 {
+				return nil, trace.BadParameter("cannot generate certificate with multiple search-based access requests")
+			}
+			requestedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
 		// nothing prevents an access-request from including roles already possessed by the
 		// user, so we must make sure to trim duplicate roles.
@@ -2239,6 +2253,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
+		requestedResourceIDs: requestedResourceIDs,
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -2494,16 +2509,6 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 	return a.authServer.DeleteOIDCConnector(ctx, connectorID)
 }
 
-func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if modules.GetModules().Features().SAML == false {
-		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
-	}
-	return a.authServer.UpsertSAMLConnector(ctx, connector)
-}
-
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
@@ -2611,16 +2616,6 @@ func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID s
 	return a.authServer.DeleteSAMLConnector(ctx, connectorID)
 }
 
-func (a *ServerWithRoles) CreateGithubConnector(connector types.GithubConnector) error {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.checkGithubConnector(connector); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.CreateGithubConnector(connector)
-}
-
 func (a *ServerWithRoles) checkGithubConnector(connector types.GithubConnector) error {
 	mapping := connector.GetTeamsToLogins()
 	for _, team := range mapping {
@@ -2694,18 +2689,33 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest
 		return nil, trace.Wrap(err)
 	}
 
+	// require additional permissions for executing SSO test flow.
+	if req.SSOTestFlow {
+		if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	githubReq, err := a.authServer.CreateGithubAuthRequest(req)
 	if err != nil {
-		// TODO(Tener): Update `testFlow` flag once GitHub SSO starts supporting test flows.
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, false)
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
 		return nil, trace.Wrap(err)
 	}
 
 	return githubReq, nil
 }
 
-func (a *ServerWithRoles) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
-	return a.authServer.ValidateGithubAuthCallback(q)
+// GetGithubAuthRequest returns Github auth request if found.
+func (a *ServerWithRoles) GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error) {
+	if err := a.action(apidefaults.Namespace, types.KindGithubRequest, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetGithubAuthRequest(ctx, id)
+}
+
+func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+	return a.authServer.ValidateGithubAuthCallback(ctx, q)
 }
 
 // EmitAuditEvent emits a single audit event

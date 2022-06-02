@@ -17,11 +17,12 @@ limitations under the License.
 package events
 
 import (
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"encoding/json"
 )
@@ -204,6 +205,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MySQLDebug{}
 	case DatabaseSessionMySQLRefreshEvent:
 		e = &events.MySQLRefresh{}
+	case DatabaseSessionSQLServerRPCRequestEvent:
+		e = &events.SQLServerRPCRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:

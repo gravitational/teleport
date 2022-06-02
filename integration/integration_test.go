@@ -45,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -3030,22 +3031,30 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 }
 
-// waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
+// waitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
 func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
-	var lastCount int
-	var lastErr error
 	require.Eventually(t, func() bool {
 		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
-			lastErr = err
 			return false
 		}
-		lastCount = cluster.GetTunnelsCount()
-		return lastCount >= expectedCount
+		return cluster.GetTunnelsCount() >= expectedCount
 	},
 		30*time.Second,
 		time.Second,
-		"Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
+		"Active tunnel connections did not reach %v in the expected time frame", expectedCount,
+	)
+}
+
+// waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
+	require.Eventually(t, func() bool {
+		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
+	},
+		30*time.Second,
+		time.Second,
+		"Peer proxy connections did not reach %v in the expected time frame", expectedCount,
+	)
 }
 
 // waitForProxyCount waits a set time for the proxy count in clusterName to
@@ -3701,7 +3710,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err == nil {
 				serviceC <- svc
 			}
@@ -3865,7 +3874,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4009,7 +4018,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4249,7 +4258,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-				svc, err := service.NewTeleport(cfg)
+				svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 				if err == nil {
 					serviceC <- svc
 				}
@@ -4329,12 +4338,12 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 
 	t.Log("change signature algorithm with custom config value and manual rotation")
 	// Change the signing algorithm in config file.
-	signingAlg := ssh.SigAlgoRSA
+	signingAlg := ssh.KeyAlgoRSA
 	config.CASignatureAlgorithm = &signingAlg
 	svc, cancel = restart(svc, cancel)
 	// Do a manual rotation - this should change the signing algorithm.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	t.Log("preserve signature algorithm with empty config value and manual rotation")
 	// Unset the config value.
@@ -4344,7 +4353,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 	// Do a manual rotation - this should leave the signing algorithm
 	// unaffected because config value is not set.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	// shut down the service
 	cancel()
@@ -4516,7 +4525,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
-		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
+		cl.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
 			err = s.WindowChange(48, 160)
 			if err != nil {
 				return true, trace.Wrap(err)

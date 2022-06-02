@@ -20,6 +20,7 @@ package regular
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -30,10 +31,10 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -54,10 +55,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 var (
@@ -98,9 +99,13 @@ type Server struct {
 	// dynamicLabels are the result of command execution.
 	dynamicLabels *labels.Dynamic
 
+	// cloudLabels are the labels imported from a cloud provider.
+	cloudLabels labels.Importer
+
 	proxyMode        bool
 	proxyTun         reversetunnel.Tunnel
 	proxyAccessPoint auth.ReadProxyAccessPoint
+	peerAddr         string
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
@@ -187,6 +192,9 @@ type Server struct {
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
+
+	// connectedProxyGetter gets the proxies teleport is connected to.
+	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
 	// nodeWatcher is the server's node watcher.
 	nodeWatcher *services.NodeWatcher
@@ -332,6 +340,10 @@ func (s *Server) Serve(l net.Listener) error {
 		go s.dynamicLabels.Start()
 	}
 
+	if s.cloudLabels != nil {
+		s.cloudLabels.Start(s.Context())
+	}
+
 	go s.heartbeat.Run()
 	return s.srv.Serve(l)
 }
@@ -394,7 +406,7 @@ func SetSessionServer(sessionServer rsession.Service) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -402,13 +414,14 @@ func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) Serve
 		s.proxyMode = true
 		s.proxyTun = tsrv
 		s.proxyAccessPoint = ap
+		s.peerAddr = peerAddr
 		return nil
 	}
 }
 
 // SetLabels sets dynamic and static labels that server will report to the
 // auth servers.
-func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels) ServerOption {
+func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels, cloudLabels labels.Importer) ServerOption {
 	return func(s *Server) error {
 		var err error
 
@@ -432,7 +445,7 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
+		s.cloudLabels = cloudLabels
 		return nil
 	}
 }
@@ -573,6 +586,14 @@ func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	}
 }
 
+// SetConnectedProxyGetter sets the ConnectedProxyGetter.
+func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
+	return func(s *Server) error {
+		s.connectedProxyGetter = getter
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -636,6 +657,10 @@ func New(addr utils.NetAddr,
 
 	if s.lockWatcher == nil {
 		return nil, trace.BadParameter("setup valid LockWatcher parameter using SetLockWatcher")
+	}
+
+	if s.connectedProxyGetter == nil {
+		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	var component string
@@ -804,6 +829,20 @@ func (s *Server) getRole() types.SystemRole {
 	return types.RoleNode
 }
 
+// getStaticLabels gets the labels that the server should present as static,
+// which includes EC2 labels if available.
+func (s *Server) getStaticLabels() map[string]string {
+	if s.cloudLabels == nil {
+		return s.labels
+	}
+	labels := s.cloudLabels.Get()
+	// Let static labels override ec2 labels if they conflict.
+	for k, v := range s.labels {
+		labels[k] = v
+	}
+	return labels
+}
+
 // getDynamicLabels returns all dynamic labels. If no dynamic labels are
 // defined, return an empty set.
 func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
@@ -827,7 +866,7 @@ func (s *Server) GetInfo() types.Server {
 		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),
-			Labels:    s.labels,
+			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
 			CmdLabels: s.getDynamicLabels(),
@@ -835,6 +874,7 @@ func (s *Server) GetInfo() types.Server {
 			Hostname:  s.hostname,
 			UseTunnel: s.useTunnel,
 			Version:   teleport.Version,
+			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
 		},
 	}
 }
@@ -851,8 +891,10 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 			server.SetRotation(*rotation)
 		}
 	}
+
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
+	server.SetPeerAddr(s.peerAddr)
 	return server, nil
 }
 
@@ -916,7 +958,7 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 // req.Reply(false, nil).
 //
 // For more details: https://tools.ietf.org/html/rfc4254.html#page-4
-func (s *Server) HandleRequest(r *ssh.Request) {
+func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	switch r.Type {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
@@ -1380,7 +1422,21 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 				scx.Debugf("Client %v disconnected.", scx.ServerConn.RemoteAddr())
 				return
 			}
-			if err := s.dispatch(ch, req, scx); err != nil {
+
+			// handle the tracing request inline here to update the context for this session.
+			// this should only be requested once, right after the session has been created.
+			if req.Type == tracessh.TracingRequest {
+				var traceCtx tracing.PropagationContext
+				if err := json.Unmarshal(req.Payload, &traceCtx); err != nil {
+					scx.WithError(err).Error("Failed to unmarshal tracing request.")
+					continue
+				}
+
+				ctx = tracing.WithPropagationContext(ctx, traceCtx)
+				continue
+			}
+
+			if err := s.dispatch(ctx, ch, req, scx); err != nil {
 				s.replyError(ch, req, err)
 				return
 			}
@@ -1407,24 +1463,24 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	}
 }
 
-// dispatch receives an SSH request for a subsystem and disptaches the request to the
+// dispatch receives an SSH request for a subsystem and dispatches the request to the
 // appropriate subsystem implementation
-func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	ctx.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
+func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+	serverContext.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
 
 	// If this SSH server is configured to only proxy, we do not support anything
 	// other than our own custom "subsystems" and environment manipulation.
 	if s.proxyMode {
 		switch req.Type {
 		case sshutils.SubsystemRequest:
-			return s.handleSubsystem(ch, req, ctx)
+			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
 			// we currently ignore setting any environment variables via SSH for security purposes
-			return s.handleEnv(ch, req, ctx)
+			return s.handleEnv(ch, req, serverContext)
 		case sshutils.AgentForwardRequest:
 			// process agent forwarding, but we will only forward agent to proxy in
 			// recording proxy mode.
-			err := s.handleAgentForwardProxy(req, ctx)
+			err := s.handleAgentForwardProxy(req, serverContext)
 			if err != nil {
 				log.Warn(err)
 			}
@@ -1444,21 +1500,21 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 
 	// Certs with a join-only principal can only use a
 	// subset of all the possible request types.
-	if ctx.JoinOnly {
+	if serverContext.JoinOnly {
 		switch req.Type {
 		case sshutils.PTYRequest:
-			return s.termHandlers.HandlePTYReq(ch, req, ctx)
+			return s.termHandlers.HandlePTYReq(ch, req, serverContext)
 		case sshutils.ShellRequest:
-			return s.termHandlers.HandleShell(ch, req, ctx)
+			return s.termHandlers.HandleShell(ch, req, serverContext)
 		case sshutils.WindowChangeRequest:
-			return s.termHandlers.HandleWinChange(ch, req, ctx)
+			return s.termHandlers.HandleWinChange(ch, req, serverContext)
 		case teleport.ForceTerminateRequest:
-			return s.termHandlers.HandleForceTerminate(ch, req, ctx)
+			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 		case sshutils.EnvRequest:
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
-			return s.handleSubsystem(ch, req, ctx)
+			return s.handleSubsystem(ctx, ch, req, serverContext)
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
@@ -1466,23 +1522,23 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 
 	switch req.Type {
 	case sshutils.ExecRequest:
-		return s.termHandlers.HandleExec(ch, req, ctx)
+		return s.termHandlers.HandleExec(ch, req, serverContext)
 	case sshutils.PTYRequest:
-		return s.termHandlers.HandlePTYReq(ch, req, ctx)
+		return s.termHandlers.HandlePTYReq(ch, req, serverContext)
 	case sshutils.ShellRequest:
-		return s.termHandlers.HandleShell(ch, req, ctx)
+		return s.termHandlers.HandleShell(ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
-		return s.termHandlers.HandleWinChange(ch, req, ctx)
+		return s.termHandlers.HandleWinChange(ch, req, serverContext)
 	case teleport.ForceTerminateRequest:
-		return s.termHandlers.HandleForceTerminate(ch, req, ctx)
+		return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 	case sshutils.EnvRequest:
-		return s.handleEnv(ch, req, ctx)
+		return s.handleEnv(ch, req, serverContext)
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
-		return s.handleSubsystem(ch, req, ctx)
+		return s.handleSubsystem(ctx, ch, req, serverContext)
 	case sshutils.X11ForwardRequest:
-		return s.handleX11Forward(ch, req, ctx)
+		return s.handleX11Forward(ch, req, serverContext)
 	case sshutils.AgentForwardRequest:
 		// This happens when SSH client has agent forwarding enabled, in this case
 		// client sends a special request, in return SSH server opens new channel
@@ -1494,7 +1550,7 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
 		// processing requests.
-		err := s.handleAgentForwardNode(req, ctx)
+		err := s.handleAgentForwardNode(req, serverContext)
 		if err != nil {
 			log.Warn(err)
 		}
@@ -1615,24 +1671,24 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 	return nil
 }
 
-func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	sb, err := s.parseSubsystemRequest(req, ctx)
+func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+	sb, err := s.parseSubsystemRequest(req, serverContext)
 	if err != nil {
-		ctx.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
+		serverContext.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
 		return trace.Wrap(err)
 	}
-	ctx.Debugf("Subsystem request: %v.", sb)
+	serverContext.Debugf("Subsystem request: %v.", sb)
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
-	if err := sb.Start(ctx.ServerConn, ch, req, ctx); err != nil {
-		ctx.Warnf("Subsystem request %v failed: %v.", sb, err)
-		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
+	if err := sb.Start(ctx, serverContext.ServerConn, ch, req, serverContext); err != nil {
+		serverContext.Warnf("Subsystem request %v failed: %v.", sb, err)
+		serverContext.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 		return trace.Wrap(err)
 	}
 	go func() {
 		err := sb.Wait()
 		log.Debugf("Subsystem %v finished with result: %v.", sb, err)
-		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
+		serverContext.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 	}()
 	return nil
 }
@@ -1794,7 +1850,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 		return
 	}
 
-	if err := subsys.Start(scx.ServerConn, ch, &ssh.Request{}, scx); err != nil {
+	if err := subsys.Start(ctx, scx.ServerConn, ch, &ssh.Request{}, scx); err != nil {
 		log.Errorf("Unable to start proxy subsystem: %v.", err)
 		writeStderr(ch, "Unable to start proxy subsystem.")
 		return
