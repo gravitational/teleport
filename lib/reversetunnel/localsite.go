@@ -368,7 +368,7 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 
 	// This node can only be reached over a tunnel, don't attempt to dial
 	// remotely.
-	if params.To == nil || params.To.String() == "" {
+	if params.To == nil || params.To.String() == "" || params.To.String() == LocalNode {
 		return true, nil
 	}
 

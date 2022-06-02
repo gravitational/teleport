@@ -1749,7 +1749,7 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	})
 
 	// start the SSH agent
-	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
+	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0o600)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
