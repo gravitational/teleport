@@ -45,7 +45,7 @@ variable "enable_mysql_listener" {
   type = string
 }
 
-variable "enable_mysql_listener" {
+variable "enable_postgres_listener" {
   type = string
 }
 
