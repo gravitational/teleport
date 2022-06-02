@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -1674,6 +1675,28 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 	defer clt.Close()
 
 	return trace.Wrap(do(clt))
+}
+
+// NewTracingClient provides a tracing client that will forward spans on to
+// the current clusters auth server. The auth server will then forward along to the configured
+// telemetry backend.
+func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*tracing.Client, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	site, err := proxyClient.currentCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := proxyClient.NewTracingClient(ctx, site.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clt, nil
 }
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
