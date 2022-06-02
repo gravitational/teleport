@@ -186,7 +186,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 		}
 		typesToExport = []types.CertAuthType{authType}
 	}
-	localAuthName, err := client.GetDomainName()
+	localAuthName, err := client.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -265,7 +265,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 }
 
 func (a *AuthCommand) exportTLSAuthority(ctx context.Context, client auth.ClientI, typ types.CertAuthType, unpackPEM bool) error {
-	clusterName, err := client.GetDomainName()
+	clusterName, err := client.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
