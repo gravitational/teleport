@@ -298,12 +298,14 @@ func buildActions(config AWSConfiguratorConfig) ([]ConfiguratorAction, error) {
 	// Identity is going to be empty (`nil`) when running the command on
 	// `Manual` mode, place a wildcard to keep the generated policies valid.
 	accountID := "*"
+	partitionID := "*"
 	if config.Identity != nil {
 		accountID = config.Identity.GetAccountID()
+		partitionID = config.Identity.GetPartition()
 	}
 
 	// Define the target and target type.
-	target, err := policiesTarget(config.Flags, accountID, config.Identity)
+	target, err := policiesTarget(config.Flags, accountID, partitionID, config.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -357,11 +359,11 @@ func buildActions(config AWSConfiguratorConfig) ([]ConfiguratorAction, error) {
 
 // policiesTarget defines which target and its type the policies will be
 // attached to.
-func policiesTarget(flags BootstrapFlags, accountID string, identity awslib.Identity) (awslib.Identity, error) {
+func policiesTarget(flags BootstrapFlags, accountID string, partitionID string, identity awslib.Identity) (awslib.Identity, error) {
 	if flags.AttachToUser != "" {
 		userArn := flags.AttachToUser
 		if !arn.IsARN(flags.AttachToUser) {
-			userArn = fmt.Sprintf("arn:%s:iam::%s:user/%s", identity.GetPartition(), accountID, flags.AttachToUser)
+			userArn = fmt.Sprintf("arn:%s:iam::%s:user/%s", partitionID, accountID, flags.AttachToUser)
 		}
 
 		return awslib.IdentityFromArn(userArn)
@@ -370,14 +372,14 @@ func policiesTarget(flags BootstrapFlags, accountID string, identity awslib.Iden
 	if flags.AttachToRole != "" {
 		roleArn := flags.AttachToRole
 		if !arn.IsARN(flags.AttachToRole) {
-			roleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", identity.GetPartition(), accountID, flags.AttachToRole)
+			roleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partitionID, accountID, flags.AttachToRole)
 		}
 
 		return awslib.IdentityFromArn(roleArn)
 	}
 
 	if identity == nil {
-		return awslib.IdentityFromArn(fmt.Sprintf("arn:aws:iam::%s:user/%s", accountID, defaultAttachUser))
+		return awslib.IdentityFromArn(fmt.Sprintf("arn:%s:iam::%s:user/%s", partitionID, accountID, defaultAttachUser))
 	}
 
 	return identity, nil
