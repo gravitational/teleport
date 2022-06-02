@@ -417,12 +417,8 @@ const (
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
 var RequestableResourceKinds = []string{
 	KindNode,
-	KindKubeService,
 	KindKubernetesCluster,
-	KindDatabaseServer,
 	KindDatabase,
-	KindAppServer,
 	KindApp,
-	KindWindowsDesktopService,
 	KindWindowsDesktop,
 }
