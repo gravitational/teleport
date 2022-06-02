@@ -205,7 +205,7 @@ func (r *CertGenListener) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls
 
 	cert, err := r.generateCertFor(clientHello.ServerName)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "Failed to generate certificate for %q: %v", clientHello.ServerName, err)
+		return nil, trace.WrapWithMessage(err, "failed to generate certificate for %q: %v", clientHello.ServerName, err)
 	}
 
 	return cert, nil

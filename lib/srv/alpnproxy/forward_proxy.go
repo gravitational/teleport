@@ -112,7 +112,8 @@ func (p *ForwardProxy) GetAddr() string {
 
 // ServeHTTP serves HTTP requests. Implements http.Handler.
 func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// Only allow CONNECT tunnel requests. Reject if clients send plain HTTP.
+	// Only allow CONNECT tunnel requests. Reject if clients send original HTTP
+	// requests without CONNECT tunnel.
 	if !IsConnectRequest(req) {
 		rw.WriteHeader(http.StatusBadRequest)
 		return
@@ -200,7 +201,7 @@ func (h *ForwardToHostHandler) Handle(ctx context.Context, clientConn net.Conn, 
 	serverConn, err := net.Dial("tcp", host)
 	if err != nil {
 		log.WithError(err).Errorf("Failed to connect to host %q.", host)
-		writeHeaderToHijackedConnection(clientConn, req, http.StatusInternalServerError)
+		writeHeaderToHijackedConnection(clientConn, req, http.StatusServiceUnavailable)
 		return
 	}
 	defer serverConn.Close()
@@ -301,6 +302,11 @@ func (h *ForwardToSystemProxyHandler) getSystemProxyURL(req *http.Request) *url.
 	})
 	if err == nil && systemProxyURL != nil {
 		return systemProxyURL
+	}
+
+	// If error exists, make a log for debugging purpose.
+	if err != nil {
+		log.WithError(err).Debugf("Failed to get system proxy.")
 	}
 	return nil
 }
