@@ -17,7 +17,7 @@ limitations under the License.
 package main
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
 	"fmt"
@@ -160,9 +160,13 @@ func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 			[]byte(a.profile.Name+a.profile.Username+a.appName)...,
 		)
 
-		md5sum := md5.Sum(hashData)
-		md5Encoded := hex.EncodeToString(md5sum[:])
-		a.credentials = credentials.NewStaticCredentials(md5Encoded[:16], md5Encoded[16:], "")
+		// AWS access key and secret typically have size of 20 and 40
+		// respectively.
+		sum := sha256.Sum256(hashData)
+		sumEncoded := hex.EncodeToString(sum[:])
+		if len(sumEncoded) > 60 {
+			a.credentials = credentials.NewStaticCredentials(sumEncoded[:20], sumEncoded[20:60], "")
+		}
 	})
 
 	if a.credentials == nil {
