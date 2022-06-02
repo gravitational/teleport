@@ -1,0 +1,102 @@
+---
+title: Kubernetes Teleport Operator
+description: Easily manage Teleport from Kubernetes
+---
+
+This guide will explain how to:
+
+- Install Teleport Operator on Kubernetes.
+- Configure Teleport users and roles using Kubernetes.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- Kubernetes cluster: we'll use [minikube](https://minikube.sigs.k8s.io/docs/start/)
+- [Helm](https://helm.sh/docs/intro/quickstart/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+
+## Step 1/3. Ensure Kubernetes cluster is running
+
+We'll use Minikube to setup a Kubernetes cluster.
+
+To start the cluster, run:
+```shell
+$ minikube start
+```
+
+## Step 2/3. Install teleport-cluster helm chart
+
+Add the Teleport Helm Chart [repo](https://charts.releases.teleport.dev/):
+```shell
+$ helm repo add teleport https://charts.releases.teleport.dev
+```
+
+Install the helm chart for the Teleport Cluster with `operator=true` which adds the Teleport Operator to your deployment.
+
+```shell
+$ helm install teleport-cluster teleport/teleport-cluster \
+        --create-namespace \
+        --namespace teleport-cluster \
+        --set clusterName=teleport-cluster.teleport-cluster.svc.cluster.local \
+        --set operator=true \
+        --set teleportVersionOverride=(=teleport.version=)
+```
+
+We created a new namespace, let's set it as the default:
+```shell
+$ kubectl config set-context --current --namespace teleport-cluster
+```
+
+## Step 3/3. Manage users and roles using `kubectl`
+
+Create the following file `teleport-resources.yaml`
+
+```yaml
+kind: role
+metadata:
+  name: myrole
+spec:
+  allow:
+    rules:
+      - resources: ['user', 'role']
+        verbs: ['list','create','read','update','delete']
+version: v5
+---
+kind: user
+metadata:
+  name: myuser
+spec:
+  roles: ['myrole']
+version: v2
+```
+
+Apply to your cluster
+
+```shell
+$ kubectl apply -f teleport-resources.yaml
+```
+
+You should now see the role and user in both: Teleport and Kubernetes.
+
+Open the Kubernetes dashboard by:
+```shell
+$ minikube dashboard
+```
+Now, navigate to Custom Resources Definitions and change the namespace to `teleport-cluster`.
+You should see the role and user created previously.
+
+You can also visit Teleport Web app.
+To do so, we first need to expose Teleport locally using a tunnel: `minikube tunnel`.
+
+We then need to create a new user:
+```shell
+$ PROXY_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+$ kubectl exec $PROXY_POD teleport -- tctl users add --roles=access,editor teleoperator
+$ TP_CLUSTER_IP=$(kubectl get service teleport-cluster -o jsonpath='{ .status.loadBalancer.ingress[0].ip }')
+$ echo "https://${TP_CLUSTER_IP}/web/invite/<id>"
+```
+
+This will return a link for user registration, however we must replace the host with the IP provided in the last line.
+
+You should now be able to complete the user registration and access Teleport Web.
