@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -35,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -413,6 +414,8 @@ func TestEC2Labels(t *testing.T) {
 // TestEC2Hostname is an integration test which asserts that Teleport sets its
 // hostname if the EC2 tag `TeleportHostname` is available.
 func TestEC2Hostname(t *testing.T) {
+	t.Skipf("Skip TestEC2Hostname for now.")
+
 	teleportHostname := "fakehost.example.com"
 
 	storageConfig := backend.Config{

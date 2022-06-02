@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/labels/ec2"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -770,26 +769,26 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	if imClient.IsAvailable(supervisor.ExitContext()) {
-		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
-		if err == nil {
-			if ec2Hostname != "" {
-				cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
-				cfg.Hostname = ec2Hostname
-			}
-		} else if !trace.IsNotFound(err) {
-			cfg.Log.Errorf("Unexpected error while looking for EC2 hostname: %v", err)
-		}
-
-		ec2Labels, err := ec2.New(supervisor.ExitContext(), &ec2.Config{
-			Client: imClient,
-			Clock:  cfg.Clock,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cloudLabels = ec2Labels
-	}
+	// if imClient.IsAvailable(supervisor.ExitContext()) {
+	// 	ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
+	// 	if err == nil {
+	// 		if ec2Hostname != "" {
+	// 			cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
+	// 			cfg.Hostname = ec2Hostname
+	// 		}
+	// 	} else if !trace.IsNotFound(err) {
+	// 		cfg.Log.Errorf("Unexpected error while looking for EC2 hostname: %v", err)
+	// 	}
+	//
+	// 	ec2Labels, err := ec2.New(supervisor.ExitContext(), &ec2.Config{
+	// 		Client: imClient,
+	// 		Clock:  cfg.Clock,
+	// 	})
+	// 	if err != nil {
+	// 		return nil, trace.Wrap(err)
+	// 	}
+	// 	cloudLabels = ec2Labels
+	// }
 
 	if cloudLabels != nil {
 		cloudLabels.Start(supervisor.ExitContext())
