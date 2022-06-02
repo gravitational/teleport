@@ -1319,6 +1319,43 @@ The test process will modify the list of configured auth connectors or result in
 $ tctl [<global-flags>] sso test [<filename>]
 ```
 
+<Admonition
+  type="note"
+  title="Important"
+>
+  To use this command, you must have access to `github_request`, `oidc_request`, `saml_request` resources (depending on the type of connector being tested).
+
+  If you receive "permission denied" error, modify one of your roles to allow access to:
+
+```yaml
+   - resources:
+      - github_request
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+    - resources:
+      - oidc_request
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+    - resources:
+      - saml_request
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+```
+</Admonition>
+
+
 #### Arguments
 
 - `[<filename>]` Connector resource definition file. Optional. Empty for stdin.
