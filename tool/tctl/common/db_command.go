@@ -145,7 +145,7 @@ Or, generate the configuration and start a Teleport agent using it:
 > teleport db configure create \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   --auth-server={{.auth_server}} \
+   --proxy={{.auth_server}} \
    --name={{.db_name}} \
    --protocol={{.db_protocol}} \
    --uri={{.db_uri}} \
