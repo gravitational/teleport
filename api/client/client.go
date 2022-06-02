@@ -1254,7 +1254,7 @@ func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSno
 	resp, err := c.grpc.GenerateSnowflakeJWT(ctx, &proto.SnowflakeJWTRequest{
 		UserName:    req.Username,
 		AccountName: req.Account,
-	})
+	}, c.callOpts...)
 	if err != nil {
 		return "", trail.FromGRPC(err)
 	}
