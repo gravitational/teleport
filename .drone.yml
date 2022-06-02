@@ -26,7 +26,7 @@ steps:
     settings:
       urls:
         from_secret: DOCS_DEPLOY_HOOK
-                
+
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
@@ -39,7 +39,7 @@ type: kubernetes
 name: push-build-linux-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
   UID: "1000"
 trigger:
   event:
@@ -141,7 +141,7 @@ type: kubernetes
 name: push-build-linux-386
 environment:
   GID: "1000"
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
   UID: "1000"
 trigger:
   event:
@@ -243,7 +243,7 @@ type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
   GID: "1000"
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
   UID: "1000"
 trigger:
   event:
@@ -349,7 +349,7 @@ type: kubernetes
 name: push-build-windows-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
   UID: "1000"
 trigger:
   event:
@@ -509,7 +509,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.10
+    RUNTIME: go1.17.11
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -593,7 +593,7 @@ type: kubernetes
 name: push-build-linux-arm
 environment:
   GID: "1000"
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
   UID: "1000"
 trigger:
   event:
@@ -695,7 +695,7 @@ type: kubernetes
 name: push-build-linux-arm64
 environment:
   GID: "1000"
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
   UID: "1000"
 trigger:
   event:
@@ -1054,7 +1054,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 trigger:
   event:
     include:
@@ -1210,7 +1210,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 trigger:
   event:
     include:
@@ -1365,7 +1365,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 trigger:
   event:
     include:
@@ -1518,7 +1518,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 trigger:
   event:
     include:
@@ -1671,7 +1671,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 trigger:
   event:
     include:
@@ -2524,7 +2524,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 trigger:
   event:
     include:
@@ -3084,7 +3084,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.10
+    RUNTIME: go1.17.11
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3581,7 +3581,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 trigger:
   event:
     include:
@@ -3734,7 +3734,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 trigger:
   event:
     include:
@@ -4583,7 +4583,7 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 trigger:
   event:
     include:
@@ -4734,7 +4734,7 @@ type: kubernetes
 name: build-docker-images
 
 environment:
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
 
 trigger:
   event:
@@ -5059,7 +5059,7 @@ type: kubernetes
 name: build-buildboxes
 environment:
   GID: "1000"
-  RUNTIME: go1.17.10
+  RUNTIME: go1.17.11
   BUILDBOX_VERSION: teleport8
   UID: "1000"
 trigger:
@@ -5467,6 +5467,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 00f8534c5274a86787c271dcaa9912dddb070b5425b746142786ed5fe37b7ee3
+hmac: 35db7c003ae221bc82cd452010de327b57bc94f32cc4fbd3626cf795aa54ace2
 
 ...
