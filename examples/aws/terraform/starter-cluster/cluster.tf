@@ -12,6 +12,9 @@ data "template_file" "node_user_data" {
     locks_table_name         = aws_dynamodb_table.teleport_locks.name
     license_path             = var.license_path
     s3_bucket                = var.s3_bucket_name
+    enable_mongodb_listener  = var.enable_mongodb_listener
+    enable_mysql_listener    = var.enable_mysql_listener
+    enable_postgres_listener = var.enable_postgres_listener
     use_acm                  = var.use_acm
     use_letsencrypt          = var.use_letsencrypt
   }
