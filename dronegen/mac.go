@@ -342,6 +342,7 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		`build.assets/build-fido2-macos.sh build`,
 		`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
 		`rustup override set $RUST_VERSION`,
+		`export TELEPORT_CONNECT_DIR="$(yarn --cwd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps -s get-teleport-connect-dir)"`,
 	}
 
 	if opts.unlockKeychain {
@@ -377,7 +378,7 @@ func darwinTagCopyPackageArtifactCommands(b buildType) []string {
 	// copy Teleport Connect artifacts
 	if b.hasTeleportConnect() {
 		commands = append(commands,
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/$TELEPORT_CONNECT_DIR/build/release`,
 			`cp *.dmg $WORKSPACE_DIR/go/artifacts`,
 		)
 	}
