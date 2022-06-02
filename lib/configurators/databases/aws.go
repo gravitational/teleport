@@ -165,7 +165,7 @@ func (c *AWSConfiguratorConfig) CheckAndSetDefaults() error {
 		}
 
 		if c.Policies == nil {
-			c.Policies = awslib.NewPolicies(c.Identity.GetAccountID(), iam.New(c.AWSSession))
+			c.Policies = awslib.NewPolicies(c.Identity.GetPartition(), c.Identity.GetAccountID(), iam.New(c.AWSSession))
 		}
 	}
 
