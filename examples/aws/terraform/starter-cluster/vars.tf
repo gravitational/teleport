@@ -36,6 +36,19 @@ variable "add_wildcard_route53_record" {
   type = string
 }
 
+variable "enable_mongodb_listener" {
+  type = string
+}
+
+
+variable "enable_mysql_listener" {
+  type = string
+}
+
+variable "enable_mysql_listener" {
+  type = string
+}
+
 // S3 Bucket to create for encrypted letsencrypt certificates
 variable "s3_bucket_name" {
   type = string

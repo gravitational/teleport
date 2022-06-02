@@ -102,13 +102,23 @@ write_database_section() {
         POSTGRES_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:5432'"
         MONGO_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:27017'"
     fi
-    # set up the database listeners and public addresses
+   # set up the database listeners and public addresses
+    if [[ "${TELEPORT_ENABLE_MYSQL}" == "true" ]]; then
     cat << EOS >> ${USE_CONFIG_PATH}
   mysql_listen_addr: "0.0.0.0:3036"
-  postgres_listen_addr: "0.0.0.0:5432"
-  mongo_listen_addr: "0.0.0.0:27017"
   mysql_public_addr: ${MYSQL_PUBLIC_ADDR}
+EOS
+   fi
+   # Add the postgres listener only if the POSTGRES_HOST is blank
+   if [[ "${TELEPORT_ENABLE_POSTGRES}" == "true" && "${POSTGRES_HOSTNAME}" == "" ]; then
+    cat << EOS >> ${USE_CONFIG_PATH}
+  postgres_listen_addr: "0.0.0.0:5432"
   postgres_public_addr: ${POSTGRES_PUBLIC_ADDR}
+EOS
+   fi
+   if [[ "${TELEPORT_ENABLE_MONGODB}" == "true" ]]; then
+    cat << EOS >> ${USE_CONFIG_PATH}
+  mongo_listen_addr: "0.0.0.0:27017"
   mongo_public_addr: ${MONGO_PUBLIC_ADDR}
 EOS
 }

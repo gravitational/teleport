@@ -50,6 +50,7 @@ resource "aws_security_group_rule" "cluster_ingress_mysql" {
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.cluster.id
+  count  = var.enable_mysql_listener ? 1 : 0
 }
 
 // Permit inbound to Teleport postgres services
@@ -60,6 +61,7 @@ resource "aws_security_group_rule" "cluster_ingress_postgres" {
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.cluster.id
+  count  = var.enable_postgres_listener ? 1 : 0
 }
 
 // Permit inbound to Teleport mongodb services
@@ -70,6 +72,7 @@ resource "aws_security_group_rule" "cluster_ingress_mongodb" {
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.cluster.id
+  count  = var.enable_mongodb_listener ? 1 : 0
 }
 
 // Permit all outbound traffic
