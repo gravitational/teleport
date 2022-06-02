@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1914,11 +1915,14 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
 		CloudClients: &common.TestCloudClients{
-			STS:      &cloud.STSMock{},
-			RDS:      &cloud.RDSMock{},
-			Redshift: &cloud.RedshiftMock{},
-			IAM:      &cloud.IAMMock{},
-			GCPSQL:   p.GCPSQL,
+			STS:            &cloud.STSMock{},
+			RDS:            &cloud.RDSMock{},
+			Redshift:       &cloud.RedshiftMock{},
+			ElastiCache:    &cloud.ElastiCacheMock{},
+			MemoryDB:       &cloud.MemoryDBMock{},
+			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:            &cloud.IAMMock{},
+			GCPSQL:         p.GCPSQL,
 		},
 	})
 	require.NoError(t, err)

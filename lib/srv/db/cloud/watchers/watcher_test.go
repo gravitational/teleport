@@ -475,8 +475,6 @@ func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*m
 }
 
 // withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.
-
-// withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.
 func withRDSInstanceStatus(status string) func(*rds.DBInstance) {
 	return func(instance *rds.DBInstance) {
 		instance.DBInstanceStatus = aws.String(status)
