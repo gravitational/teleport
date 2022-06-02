@@ -19,7 +19,10 @@
             {
               "title": "Linux Server",
               "slug": "/getting-started/linux-server/",
-              "hideInScopes": ["enterprise", "cloud"]
+              "hideInScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Docker Compose",
@@ -28,7 +31,10 @@
             {
               "title": "DigitalOcean",
               "slug": "/getting-started/digitalocean/",
-              "hideInScopes": ["enterprise", "cloud"]
+              "hideInScopes": [
+                "enterprise",
+                "cloud"
+              ]
             }
           ]
         },
@@ -248,16 +254,12 @@
           "slug": "/application-access/getting-started/"
         },
         {
-          "title": "Guides",
+          "title": "Access Guides",
           "slug": "/application-access/guides/",
           "entries": [
             {
               "title": "Connecting Apps",
               "slug": "/application-access/guides/connecting-apps/"
-            },
-            {
-              "title": "Integrating with JWT",
-              "slug": "/application-access/guides/jwt/"
             },
             {
               "title": "API Access",
@@ -270,6 +272,20 @@
             {
               "title": "Dynamic Registration",
               "slug": "/application-access/guides/dynamic-registration/"
+            }
+          ]
+        },
+        {
+          "title": "JWT Guides",
+          "slug": "/application-access/jwt/",
+          "entries": [
+            {
+              "title": "Introduction",
+              "slug": "/application-access/jwt/introduction/"
+            },
+            {
+              "title": "ElasticSearch",
+              "slug": "/application-access/jwt/elasticsearch/"
             }
           ]
         },
@@ -348,8 +364,8 @@
               "title": "Local Demo Cluster",
               "slug": "/kubernetes-access/getting-started/local/"
             },
-            { 
-              "title": "Cluster", 
+            {
+              "title": "Cluster",
               "slug": "/kubernetes-access/getting-started/cluster/",
               "hideInScopes": "cloud"
             },
@@ -738,74 +754,106 @@
         {
           "title": "Getting Started",
           "slug": "/enterprise/getting-started/",
-          "hideInScopes": ["oss", "cloud"]
+          "hideInScopes": [
+            "oss",
+            "cloud"
+          ]
         },
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/enterprise/sso/",
-          "hideInScopes": ["oss"],
+          "hideInScopes": [
+            "oss"
+          ],
           "entries": [
             {
               "title": "Azure Active Directory (AD)",
               "slug": "/enterprise/sso/azuread/",
-              "hideInScopes": ["oss"]
+              "hideInScopes": [
+                "oss"
+              ]
             },
             {
               "title": "Active Directory (ADFS)",
               "slug": "/enterprise/sso/adfs/",
-              "hideInScopes": ["oss"]
+              "hideInScopes": [
+                "oss"
+              ]
             },
             {
               "title": "Google Workspace",
               "slug": "/enterprise/sso/google-workspace/",
-              "hideInScopes": ["oss"]
+              "hideInScopes": [
+                "oss"
+              ]
             },
             {
               "title": "GitLab",
               "slug": "/enterprise/sso/gitlab/",
-              "hideInScopes": ["oss"]
+              "hideInScopes": [
+                "oss"
+              ]
             },
             {
               "title": "OneLogin",
               "slug": "/enterprise/sso/one-login/",
-              "hideInScopes": ["oss"]
+              "hideInScopes": [
+                "oss"
+              ]
             },
             {
               "title": "OIDC",
               "slug": "/enterprise/sso/oidc/",
-              "hideInScopes": ["oss"]
+              "hideInScopes": [
+                "oss"
+              ]
             },
             {
               "title": "Okta",
               "slug": "/enterprise/sso/okta/",
-              "hideInScopes": ["oss"]
+              "hideInScopes": [
+                "oss"
+              ]
             }
           ]
         },
         {
           "title": "Access Requests",
           "slug": "/enterprise/workflow/",
-          "hideInScopes": ["oss"]
+          "hideInScopes": [
+            "oss"
+          ]
         },
         {
           "title": "FedRAMP",
           "slug": "/enterprise/fedramp/",
-          "hideInScopes": ["cloud", "oss"]
+          "hideInScopes": [
+            "cloud",
+            "oss"
+          ]
         },
         {
           "title": "SOC2",
           "slug": "/enterprise/soc2/",
-          "hideInScopes": ["oss"]
+          "hideInScopes": [
+            "oss"
+          ]
         },
         {
           "title": "HSM",
           "slug": "/enterprise/hsm/",
-          "hideInScopes": ["cloud", "oss"]
+          "hideInScopes": [
+            "cloud",
+            "oss"
+          ]
         },
         {
           "title": "Enterprise License File",
           "slug": "/enterprise/license/",
-          "hideInScopes": ["cloud", "oss"]
+          "hideInScopes": [
+            "cloud",
+            "oss"
+          ]
         }
       ]
     },
@@ -820,7 +868,10 @@
         {
           "title": "Getting Started",
           "slug": "/cloud/getting-started/",
-          "hideInScopes": ["oss", "enterprise"]
+          "hideInScopes": [
+            "oss",
+            "enterprise"
+          ]
         },
         {
           "title": "Architecture",
@@ -829,7 +880,10 @@
         {
           "title": "Downloads",
           "slug": "/cloud/downloads/",
-          "hideInScopes": ["oss", "enterprise"]
+          "hideInScopes": [
+            "oss",
+            "enterprise"
+          ]
         },
         {
           "title": "FAQ",
@@ -1206,6 +1260,11 @@
     {
       "source": "/cluster/",
       "destination": "/kubernetes-access/guides/multiple-clusters/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/jwt/",
+      "destination": "/application-access/jwt/",
       "permanent": true
     }
   ]
