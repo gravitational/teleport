@@ -384,15 +384,6 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	subject.OrganizationalUnit = append([]string{}, id.Usage...)
 	subject.Locality = append([]string{}, id.Principals...)
 
-	// DELETE IN (5.0.0)
-	// Groups are marshaled to both ASN1 extension
-	// and old Province section, for backwards-compatibility,
-	// however begin migration to ASN1 extensions in the future
-	// for this and other properties
-	subject.Province = append([]string{}, id.KubernetesGroups...)
-	subject.StreetAddress = []string{id.RouteToCluster}
-	subject.PostalCode = []string{string(rawTraits)}
-
 	for i := range id.KubernetesUsers {
 		kubeUser := id.KubernetesUsers[i]
 		subject.ExtraNames = append(subject.ExtraNames,
@@ -593,6 +584,7 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		Principals: subject.Locality,
 		Expires:    expires,
 	}
+	// DELETE IN 11.0 (Teleport 10 stopped issuing certs using the StreetAddress and PostalCode fields)
 	if len(subject.StreetAddress) > 0 {
 		id.RouteToCluster = subject.StreetAddress[0]
 	}
@@ -734,9 +726,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		}
 	}
 
-	// DELETE IN(5.0.0): This logic is using Province field
+	// DELETE IN 11.0.0: This logic is using Province field
 	// from subject in case if Kubernetes groups were not populated
-	// from ASN1 extension, after 5.0 Province field will be ignored
+	// from ASN1 extension, after 5.0 Province field will be ignored,
+	// and after 10.0.0 Province field is never populated
 	if len(id.KubernetesGroups) == 0 {
 		id.KubernetesGroups = subject.Province
 	}
