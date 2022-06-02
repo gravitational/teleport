@@ -390,7 +390,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 
 	// Fetch the root CA from the Auth Server. The NOP role has access to the
 	// GetClusterCACert endpoint.
-	localCA, err := authClient.GetClusterCACert()
+	localCA, err := authClient.GetClusterCACert(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
