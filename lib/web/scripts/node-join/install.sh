@@ -49,6 +49,7 @@ ARG_CA_PIN_HASHES=""
 APP_INSTALL_MODE="{{.appInstallMode}}"
 APP_NAME="{{.appName}}"
 APP_URI="{{.appURI}}"
+NODE_LABELS="{{.nodeLabels}}"
 
 # usage message
 # shellcheck disable=SC2086
@@ -437,6 +438,7 @@ install_teleport_node_config() {
       --join-method ${JOIN_METHOD} \
       --ca-pins ${CA_PINS} \
       --auth-server ${TARGET_HOSTNAME}:${TARGET_PORT} \
+      --labels ${NODE_LABELS} \
       --output ${TELEPORT_CONFIG_PATH}
 }
 # checks whether the given host is running MacOS

@@ -61,6 +61,7 @@ type scriptSettings struct {
 	appName        string
 	appURI         string
 	joinMethod     string
+	nodeLabels     string
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -147,11 +148,20 @@ func (h *Handler) createNodeTokenHandle(w http.ResponseWriter, r *http.Request, 
 
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
+	queryValues := r.URL.Query()
+
+	nodeLabels, err := url.QueryUnescape(queryValues.Get("node-labels"))
+	if err != nil {
+		log.WithField("query-param", "node-labels").WithError(err).Debug("Failed to return the app install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
 
 	settings := scriptSettings{
 		token:          params.ByName("token"),
 		appInstallMode: false,
 		joinMethod:     r.URL.Query().Get("method"),
+		nodeLabels:     nodeLabels,
 	}
 
 	script, err := getJoinScript(settings, h.GetProxyClient())
@@ -300,6 +310,7 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 		"appName":        settings.appName,
 		"appURI":         settings.appURI,
 		"joinMethod":     settings.joinMethod,
+		"nodeLabels":     settings.nodeLabels,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
