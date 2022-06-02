@@ -23,16 +23,35 @@ To do so, make the following changes depending on your environment:
 
 <Tabs>
 <TabItem label="Self-hosted" scope={["oss","enterprise"]}>
-Add the following to your Teleport configuration file:
+
+Ensure that the value of `auth_service.authentication.second_factor` is `otp`,
+`u2f`, `webauthn`, or `on`:
 
 ```yaml
 auth_service:
   authentication:
-    second_factor: otp|u2f|webauthn|on
+    second_factor: otp
 ```
+
+<Notice type="tip">
+
+`u2f` is an alias for `webauthn`.
+
+</Notice>
+
 </TabItem>
 <TabItem label="Teleport Cloud" scope={["cloud"]}>
-Create the following `cluster_auth_preference` dynamic resource:
+
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+In `cap.yaml`, ensure that the value of `spec.second_factor` is `otp`, `u2f`,
+`webauthn`, or `on`:
 
 ```yaml
 kind: cluster_auth_preference
@@ -40,10 +59,21 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factor: otp|u2f|webauthn|on
+  second_factor: otp
 ```
 
-Create your dynamic resource using `tctl create -f <path to your YAML file>`.
+<Notice type="tip">
+
+`u2f` is an alias for `webauthn`.
+
+</Notice>
+
+Apply your change: 
+
+```code
+$ tctl create -f cap.yaml
+```
+
 </TabItem>
 </Tabs> 
 
@@ -54,7 +84,7 @@ To make MFA mandatory for all users, `second_factor` must be set to one of the f
 - `webauthn`
 - `on`
 
-Choose `on` if you would like to require MFA for all users while letting them choose an OTP, U2F, or WebAuthn device. The other options restrict users to a single type of MFA device, which is useful for enforcing a particular standard of security. Once you start the Teleport Proxy Service with the `second_factor` configuration option set to one of these values, Teleport will mandate MFA by:
+Choose `on` if you would like to require MFA for all users while letting them choose an OTP or WebAuthn device. The other options restrict users to a single type of MFA device, which is useful for enforcing a particular standard of security. Once you start the Teleport Proxy Service with the `second_factor` configuration option set to one of these values, Teleport will mandate MFA by:
 
 - Adjusting the Teleport signup page so a user must enroll an MFA device of the kind you have selected. If the value of `second_factor` is `on`, users will have the option to select from multiple device types.
 - Presenting the user with an MFA challenge when they run `tsh login`.
