@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -273,12 +273,9 @@ func GetEnvForTSH(destination *config.DestinationConfig) (map[string]string, err
 
 	// We don't want to provide a fallback for CAs since it would be ambiguous,
 	// so we'll specify them exactly.
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] =
-		filepath.Join(destPath, tlsCAs.UserCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] =
-		filepath.Join(destPath, tlsCAs.HostCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] =
-		filepath.Join(destPath, tlsCAs.DatabaseCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, tlsCAs.UserCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, tlsCAs.HostCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, tlsCAs.DatabaseCAPath)
 
 	// TODO(timothyb89): Kubernetes support. We don't generate kubeconfigs yet, so we have
 	// nothing to give tsh for now.

@@ -86,10 +86,11 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 		clientConfig.TLS.RootCAs = options.CertPool
 	}
 
-	client, err := authclient.Connect(context.Background(), clientConfig)
+	ctx := context.Background()
+	client, err := authclient.Connect(ctx, clientConfig)
 	require.NoError(t, err)
 
-	_, err = command.TryRun(selectedCmd, client)
+	_, err = command.TryRun(ctx, selectedCmd, client)
 	if err != nil {
 		return nil, err
 	}
@@ -126,10 +127,11 @@ func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts .
 		clientConfig.TLS.RootCAs = options.CertPool
 	}
 
-	client, err := authclient.Connect(context.Background(), clientConfig)
+	ctx := context.Background()
+	client, err := authclient.Connect(ctx, clientConfig)
 	require.NoError(t, err)
 
-	_, err = command.TryRun(selectedCmd, client)
+	_, err = command.TryRun(ctx, selectedCmd, client)
 	if err != nil {
 		return nil, err
 	}
