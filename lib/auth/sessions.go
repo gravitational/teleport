@@ -111,25 +111,38 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
 func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
-	return waitForWebSession(ctx, sessionID, user, types.KindAppSession, ap.NewWatcher, func(ctx context.Context, sessionID string) (types.WebSession, error) {
-		return ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
-	})
+	req := waitForWebSessionReq{
+		newWatcherFn: ap.NewWatcher,
+		getSessionFn: func(ctx context.Context, sessionID string) (types.WebSession, error) {
+			return ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+		},
+	}
+	return trace.Wrap(waitForWebSession(ctx, sessionID, user, types.KindAppSession, req))
 }
 
 // WaitForSnowflakeSession waits until the requested Snowflake session shows up int the cache
 // or a timeout occurs.
 func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap SnowflakeSessionWatcher) error {
-	return waitForWebSession(ctx, sessionID, user, types.KindSnowflakeSession, ap.NewWatcher, func(ctx context.Context, sessionID string) (types.WebSession, error) {
-		return ap.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: sessionID})
-	})
+	req := waitForWebSessionReq{
+		newWatcherFn: ap.NewWatcher,
+		getSessionFn: func(ctx context.Context, sessionID string) (types.WebSession, error) {
+			return ap.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: sessionID})
+		},
+	}
+	return trace.Wrap(waitForWebSession(ctx, sessionID, user, types.KindSnowflakeSession, req))
+}
+
+// waitForWebSessionReq is a request to wait for web session to be populated in the application cache.
+type waitForWebSessionReq struct {
+	// newWatcherFn is a function that returns new event watcher.
+	newWatcherFn func(ctx context.Context, watch types.Watch) (types.Watcher, error)
+	// getSessionFn is a function that returns web session by given ID.
+	getSessionFn func(ctx context.Context, sessionID string) (types.WebSession, error)
 }
 
 // waitForWebSession is an implementation for web session wait functions.
-func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind string,
-	newWatcherFn func(ctx context.Context, watch types.Watch) (types.Watcher, error),
-	getSessionFn func(ctx context.Context, sessionID string) (types.WebSession, error),
-) error {
-	_, err := getSessionFn(ctx, sessionID)
+func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind string, req waitForWebSessionReq) error {
+	_, err := req.getSessionFn(ctx, sessionID)
 	if err == nil {
 		return nil
 	}
@@ -138,7 +151,7 @@ func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind 
 		logger.WithError(err).Debug("Failed to query web session.")
 	}
 	// Establish a watch on application session.
-	watcher, err := newWatcherFn(ctx, types.Watch{
+	watcher, err := req.newWatcherFn(ctx, types.Watch{
 		Name: teleport.ComponentAppProxy,
 		Kinds: []types.WatchKind{
 			{
@@ -166,7 +179,7 @@ func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind 
 	if err != nil {
 		logger.WithError(err).Warn("Failed to wait for web session.")
 		// See again if we maybe missed the event but the session was actually created.
-		if _, err := getSessionFn(ctx, sessionID); err == nil {
+		if _, err := req.getSessionFn(ctx, sessionID); err == nil {
 			return nil
 		}
 	}
