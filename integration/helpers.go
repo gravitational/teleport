@@ -657,7 +657,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		return trace.Wrap(err)
 	}
 	i.Config = tconf
-	i.Process, err = service.NewTeleport(tconf)
+	i.Process, err = service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -752,7 +752,7 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -796,7 +796,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf)
+	process, err := service.NewTeleport(conf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -848,7 +848,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
-			process, err := service.NewTeleport(cfg)
+			process, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err != nil {
 				results <- result{err: err, tmpDir: dataDir}
 			}
@@ -914,7 +914,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf)
+	process, err := service.NewTeleport(conf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1000,7 +1000,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1087,7 +1087,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1136,7 +1136,7 @@ func (i *TeleInstance) Reset() (err error) {
 			return trace.Wrap(err)
 		}
 	}
-	i.Process, err = service.NewTeleport(i.Config)
+	i.Process, err = service.NewTeleport(i.Config, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1867,4 +1867,20 @@ func getLocalIP() (string, error) {
 		}
 	}
 	return "", trace.NotFound("No non-loopback local IP address found")
+}
+
+// disabledIMDSClient is an EC2 instance metadata client that is always disabled. This is faster
+// than the default client when not testing instance metadata behavior.
+type disabledIMDSClient struct{}
+
+func (d *disabledIMDSClient) IsAvailable(ctx context.Context) bool {
+	return false
+}
+
+func (d *disabledIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (d *disabledIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
+	return "", nil
 }
