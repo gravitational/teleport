@@ -1180,7 +1180,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	resolver := func() (*utils.NetAddr, error) {
+	resolver := func(context.Context) (*utils.NetAddr, error) {
 		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, nil
 	}
 
