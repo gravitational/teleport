@@ -75,6 +75,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/moby/term v0.0.0-20210610120745-9d4ed1856297
 	github.com/pkg/errors v0.9.1
+	github.com/pkg/sftp v1.13.4
 	github.com/pquerna/otp v1.3.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
@@ -222,6 +223,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/joshlf/testutil v0.0.0-20170608050642-b5d8aa79d93d // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
