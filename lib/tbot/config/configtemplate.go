@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/tool/tbot/destination"
-	"github.com/gravitational/teleport/tool/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -88,7 +88,7 @@ type Template interface {
 	// statically as this must be callable without any auth clients (or any
 	// secrets) for use with `tbot init`. If an arbitrary number of files must
 	// be generated, they should be placed in a subdirectory.
-	Describe() []FileDescription
+	Describe(destination destination.Destination) []FileDescription
 
 	// Render writes the config template to the destination.
 	Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error
