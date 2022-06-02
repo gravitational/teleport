@@ -294,18 +294,10 @@ connectors are accepted, invalid are rejected with sensible error messages.
 
 - [ ] Connectors can be tested with `tctl sso test`.
     - [ ] GitHub
-        - [ ] Teleport Cloud
-        - [ ] On-prem Teleport
     - [ ] SAML
-        - [ ] Teleport Cloud
-        - [ ] On-prem Teleport
     - [ ] OIDC
         - [ ] Google Workspace
-            - [ ] Teleport Cloud
-            - [ ] On-prem Teleport
         - [ ] Non-Google IdP
-            - [ ] Teleport Cloud
-            - [ ] On-prem Teleport
 
 ### Teleport Plugins
 
