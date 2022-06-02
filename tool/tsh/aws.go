@@ -144,7 +144,7 @@ func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 	// There is no specific format or value required for access key and secret,
 	// as long as the AWS clients and the local proxy are using the same
 	// credentials. The only constraint is the access key must have a length
-	// between 16 and 128. Here access key and secert are generated based on
+	// between 16 and 128. Here access key and secret are generated based on
 	// current profile and app name so the same values can be recreated.
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
