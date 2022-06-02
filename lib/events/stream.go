@@ -620,6 +620,7 @@ func (b *bufferCloser) Close() error {
 }
 
 func (w *sliceWriter) newSlice() (*slice, error) {
+	w.lastPartNumber++
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
 	// reserve bytes for version header
