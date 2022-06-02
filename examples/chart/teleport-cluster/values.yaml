@@ -168,6 +168,10 @@ highAvailability:
     # Group of Issuer that cert-manager should look for.
     # This defaults to 'cert-manager.io' which is the default Issuer group.
     issuerGroup: cert-manager.io
+    # The custom key usages and extended key usages that cert-manager should use.
+    # This defaults to '[]' which is the default usages.
+    # If the default is used, cert-manager will default to ["digital signature", "key encipherment", "server auth"]
+    usages: []
 
 # Settings for mounting your own TLS keypair to secure Teleport's web UI.
 # These settings are mutually exclusive with the "highAvailability.certManager" and "acme" values above.

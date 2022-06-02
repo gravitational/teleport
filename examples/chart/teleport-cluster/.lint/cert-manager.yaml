@@ -8,3 +8,6 @@ highAvailability:
     issuerGroup: custom.cert-manager.io
     issuerName: custom
     issuerKind: CustomClusterIssuer
+    usages:
+      - server auth
+      - client auth

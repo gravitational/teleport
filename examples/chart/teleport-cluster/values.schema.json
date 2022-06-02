@@ -307,6 +307,11 @@
                             "$id": "#/properties/highAvailability/properties/certManager/properties/issuerGroup",
                             "type": "string",
                             "default": "cert-manager.io"
+                        },
+                        "usages": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/usages",
+                            "type": "array",
+                            "default": []
                         }
                     }
                 },

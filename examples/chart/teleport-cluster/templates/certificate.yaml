@@ -22,4 +22,7 @@ spec:
   secretTemplate:
     annotations: {{- toYaml . | nindent 6 }}
   {{- end }}
+  {{- if .Values.highAvailability.certManager.usages }}
+  usages: {{ .Values.highAvailability.certManager.usages }}
+  {{- end }}
 {{- end }}
