@@ -199,7 +199,7 @@ func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = clt.GetDomainName()
+	_, err = clt.GetDomainName(context.TODO())
 	if err != nil {
 		return clt, trace.Wrap(err)
 	}

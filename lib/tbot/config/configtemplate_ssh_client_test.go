@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils/golden"
-	"github.com/gravitational/teleport/tool/tbot/botfs"
-	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/stretchr/testify/require"
 )
 

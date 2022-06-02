@@ -17,7 +17,7 @@ limitations under the License.
 package config
 
 import (
-	"github.com/gravitational/teleport/tool/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/destination"
 	"github.com/gravitational/trace"
 )
 
