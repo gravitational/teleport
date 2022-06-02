@@ -306,6 +306,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	// Unauthenticated access to the message of the day
 	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
 
+	// Unauthenticated access to retrieving the script used to install
+	// Teleport
+	h.GET("/webapi/scripts/installer", httplib.MakeHandler(h.installer))
+
 	// DELETE IN: 5.1.0
 	//
 	// Migrated this endpoint to /webapi/sessions/web below.
@@ -1377,6 +1381,19 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	return redirectURL.String()
+}
+
+func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+	installer, err := h.auth.proxyClient.GetInstaller(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, err = w.Write([]byte(installer.GetScript()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, nil
 }
 
 // AuthParams are used to construct redirect URL containing auth

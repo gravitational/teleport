@@ -626,6 +626,11 @@ func (a *Server) SetEnforcer(enforcer services.Enforcer) {
 	a.Services.Enforcer = enforcer
 }
 
+// GetInstaller gets the installer resource for this cluster
+func (a *Server) GetInstaller(ctx context.Context) (types.Installer, error) {
+	return a.GetCache().GetInstaller(ctx)
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {

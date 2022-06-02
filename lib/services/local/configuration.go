@@ -361,6 +361,39 @@ func (s *ClusterConfigurationService) DeleteSessionRecordingConfig(ctx context.C
 	return nil
 }
 
+// GetInstaller gets the script of the cluster from the backend.
+func (s *ClusterConfigurationService) GetInstaller(ctx context.Context) (types.Installer, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, installerScriptPrefix))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalInstaller(item.Value)
+}
+
+// SetInstaller sets the script of the cluster in the backend
+func (s *ClusterConfigurationService) SetInstaller(ctx context.Context, ins types.Installer) error {
+	value, err := services.MarshalInstaller(ins)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.Put(ctx, backend.Item{
+		Key:     backend.Key(clusterConfigPrefix, installerScriptPrefix),
+		Value:   value,
+		Expires: ins.Expiry(),
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteInstaller deletes the installer script from the backend.
+func (s *ClusterConfigurationService) DeleteInstaller(ctx context.Context) error {
+	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, installerScriptPrefix))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 const (
 	clusterConfigPrefix    = "cluster_configuration"
 	namePrefix             = "name"
@@ -371,4 +404,5 @@ const (
 	auditPrefix            = "audit"
 	networkingPrefix       = "networking"
 	sessionRecordingPrefix = "session_recording"
+	installerScriptPrefix  = "installer_script"
 )
