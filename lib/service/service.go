@@ -1483,6 +1483,23 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
+
+	traceClt := tracing.NewNoopClient()
+	if cfg.Tracing.Enabled {
+		traceConf, err := process.Config.Tracing.Config()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		traceClt = clt
+	}
+
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1492,6 +1509,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ID:            process.id,
 		Listener:      mux.TLS(),
 		Metrics:       authMetrics,
+		TraceClient:   traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2491,48 +2509,13 @@ func (process *TeleportProcess) initTracingService() error {
 		attribute.String(tracing.HostIDKey, process.Config.HostUUID),
 	}
 
-	traceConf := tracing.Config{
-		Service:      teleport.ComponentTeleport,
-		Attributes:   attrs,
-		ExporterURL:  process.Config.Tracing.ExporterURL,
-		SamplingRate: process.Config.Tracing.SamplingRate,
-		Logger:       log,
+	traceConf, err := process.Config.Tracing.Config(attrs...)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	traceConf.Logger = log
 
-	tlsConfig := &tls.Config{}
-	// if a custom CA is specified, use a custom cert pool
-	if len(process.Config.Tracing.CACerts) > 0 {
-		pool := x509.NewCertPool()
-		for _, caCertPath := range process.Config.Tracing.CACerts {
-			caCert, err := os.ReadFile(caCertPath)
-			if err != nil {
-				return trace.Wrap(err, "failed to read tracing CA certificate %+v", caCertPath)
-			}
-
-			if !pool.AppendCertsFromPEM(caCert) {
-				return trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
-			}
-		}
-		tlsConfig.ClientCAs = pool
-		tlsConfig.RootCAs = pool
-	}
-
-	// add any custom certificates for mTLS
-	if len(process.Config.Tracing.KeyPairs) > 0 {
-		for _, pair := range process.Config.Tracing.KeyPairs {
-			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
-			if err != nil {
-				return trace.Wrap(err, "failed to read keypair: %+v", err)
-			}
-			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
-		}
-	}
-
-	if len(process.Config.Tracing.CACerts) > 0 || len(process.Config.Tracing.KeyPairs) > 0 {
-		traceConf.TLSConfig = tlsConfig
-	}
-
-	provider, err := tracing.NewTraceProvider(process.ExitContext(), traceConf)
+	provider, err := tracing.NewTraceProvider(process.ExitContext(), *traceConf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

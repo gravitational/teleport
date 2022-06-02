@@ -26,6 +26,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -43,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -915,6 +916,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	scx.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
 
 	switch req.Type {
+	case tracessh.TracingRequest:
+		return s.handleTracingRequest(req, scx)
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ctx, ch, req, scx)
 	case sshutils.PTYRequest:
@@ -1090,6 +1093,14 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 			Err:  trace.Wrap(err),
 		})
 	}()
+
+	return nil
+}
+
+func (s *Server) handleTracingRequest(req *ssh.Request, ctx *srv.ServerContext) error {
+	if _, err := ctx.RemoteSession.SendRequest(req.Type, false, req.Payload); err != nil {
+		s.log.WithError(err).Debugf("Unable to set forward tracing context")
+	}
 
 	return nil
 }
