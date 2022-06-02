@@ -63,11 +63,6 @@ machine</ScopedBlock>:
 
 ```code
 $ export CA_PIN=$(tctl status | awk '/CA pin/{print $3}')
-
-# Cluster  staging.example.com
-# User CA  never updated
-# Host CA  never updated
-# CA pin   (=presets.ca_pin=)
 ```
 
 ### Generate a token
@@ -100,7 +95,7 @@ $ tctl tokens ls
 # (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
 ```
 
-<Details title="Tokens with known values">
+<Details title="Provide your own token value">
 
 Rather than automatically generating a token, you can create one with a known
 value by using the `--token` flag:
@@ -108,6 +103,14 @@ value by using the `--token` flag:
 ```code
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=secret-value
 # The invite token: secret-value
+```
+
+The value of `--token` should be cryptographically secure. For example, you can
+create an SHA256 hash to reduce the risk that a malicious actor will produce
+a token with the same value as yours:
+
+```code
+$ head -n 1 /dev/random | sha256sum
 ```
 
 </Details>
@@ -136,15 +139,13 @@ auth_service:
 
 ### Start your Node with the invite token and CA pin
 
-Execute the following commands on your local machine, then copy the output.
+Execute the following commands on the host where you will run your Node so you
+can use the `CA_PIN` and `INVITE_TOKEN` variables to start Teleport.
 
 ```code
-$ echo "export CA_PIN=${CA_PIN?}"
-$ echo "export INVITE_TOKEN=${INVITE_TOKEN?}"
+$ export CA_PIN=$<CA pin>
+$ export INVITE_TOKEN=<invite token>
 ```
-
-Paste the output into a terminal on the host where you will run your Node so you
-can use the `CA_PIN` and `INVITE_TOKEN` variables to start Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -253,7 +254,7 @@ dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro
 Tokens used for joining Nodes to a cluster can be revoked before they are used.
 
 Run the following command on your local machine to create a token for a new
-Proxy Service.
+Proxy Service:
 
 ```code
 $ tctl nodes add --ttl=5m --roles=proxy 
