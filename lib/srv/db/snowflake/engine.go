@@ -448,8 +448,8 @@ func (e *Engine) handleLoginRequest(ctx context.Context, req *http.Request) (io.
 // web session. Session ID replaces the session/master token returned to the Snowflake client, so only Teleport
 // has access to the Snowflake access tokens.
 func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tokens sessionTokens) (string, string, error)) ([]byte, error) {
-	loginResp, err := decodeLoginResponse(bodyBytes)
-	if err != nil {
+	loginResp := &loginResponse{}
+	if err := json.Unmarshal(bodyBytes, loginResp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -460,7 +460,7 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tok
 		return bodyBytes, nil
 	}
 
-	tokens, err := loginResp.getTokens()
+	tokens, err := loginResp.checkAndGetTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -475,8 +475,8 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tok
 	e.tokens.setToken(sessionToken, tokens.session.token)
 	e.tokens.setToken(masterToken, tokens.master.token)
 
-	loginResp.Data["token"] = teleportAuthHeaderPrefix + sessionToken
-	loginResp.Data["masterToken"] = teleportAuthHeaderPrefix + masterToken
+	loginResp.Data.Token = teleportAuthHeaderPrefix + sessionToken
+	loginResp.Data.MasterToken = teleportAuthHeaderPrefix + masterToken
 
 	newResp, err := json.Marshal(loginResp)
 	if err != nil {

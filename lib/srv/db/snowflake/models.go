@@ -19,9 +19,9 @@
 package snowflake
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -48,86 +48,81 @@ type loginRequest struct {
 	} `json:"data"`
 }
 
+type loginResponseData struct {
+	Token                   string `json:"token"`
+	MasterToken             string `json:"masterToken"`
+	ValidityInSeconds       int64  `json:"validityInSeconds"`
+	MasterValidityInSeconds int64  `json:"masterValidityInSeconds"`
+
+	// allFields contains all fields from the JSON. Those fields will
+	// be added when marshaling JSON.
+	allFields map[string]interface{}
+}
+
+func (l *loginResponseData) MarshalJSON() ([]byte, error) {
+	elems := reflect.TypeOf(l).Elem()
+
+	for i := 0; i < elems.NumField(); i++ {
+		jsonTag, ok := elems.Field(i).Tag.Lookup("json")
+		if !ok {
+			continue
+		}
+		l.allFields[jsonTag] = reflect.ValueOf(l).Elem().Field(i).Interface()
+	}
+
+	return json.Marshal(l.allFields)
+}
+
+func (l *loginResponseData) UnmarshalJSON(data []byte) error {
+	type _loginResponseData loginResponseData
+	var respData _loginResponseData
+
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return trace.Wrap(err)
+	}
+
+	*l = loginResponseData(respData)
+
+	if err := json.Unmarshal(data, &l.allFields); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // loginResponse is the payload returned by the /queries/v1/query-request endpoint.
 type loginResponse struct {
-	// use map here to not remove any fields when marshaling back.
-	Data map[string]interface{} `json:"data"`
-
-	Code    interface{} `json:"code"`
-	Message interface{} `json:"message"`
-	Success bool        `json:"success"`
+	Data    loginResponseData `json:"data"`
+	Code    interface{}       `json:"code"`
+	Message interface{}       `json:"message"`
+	Success bool              `json:"success"`
 }
 
-// decodeLoginResponse decodes the bodyBytes as loginResponse struct. It uses json.Number to decode number.
-func decodeLoginResponse(bodyBytes []byte) (*loginResponse, error) {
-	loginResp := &loginResponse{}
-	decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
-	// Use numbers to not modify the numbers values when processing payload.
-	decoder.UseNumber()
-	if err := decoder.Decode(loginResp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return loginResp, nil
-}
-
-func (l *loginResponse) getTokens() (sessionTokens, error) {
-	getField := func(name string) (string, error) {
-		dataToken, found := l.Data[name]
-		if !found {
-			return "", trace.Errorf("Snowflake login response doesn't contain expected %s field", name)
-		}
-
-		token, ok := dataToken.(string)
-		if !ok {
-			return "", trace.Errorf("%s field returned by Snowflake API expected to be a string, got %T", name, dataToken)
-		}
-
-		return token, nil
+func (l *loginResponse) checkAndGetTokens() (sessionTokens, error) {
+	if l.Data.Token == "" {
+		return sessionTokens{}, trace.Errorf("token field in login response is not set")
 	}
 
-	getFieldInt := func(name string) (int64, error) {
-		dataToken, found := l.Data[name]
-		if !found {
-			return 0, trace.Errorf("Snowflake login response doesn't contain expected %s field", name)
-		}
-
-		validFor, ok := dataToken.(json.Number)
-		if !ok {
-			return 0, trace.Errorf("%s field returned by Snowflake API expected to be a number, got %T", name, dataToken)
-		}
-
-		return validFor.Int64()
+	if l.Data.MasterToken == "" {
+		return sessionTokens{}, trace.Errorf("masterToken field in login response is not set")
 	}
 
-	// Use dynamic get function as we modify the request on the fly.
-	snowflakeSessionToken, err := getField("token")
-	if err != nil {
-		return sessionTokens{}, trace.Wrap(err)
+	if l.Data.ValidityInSeconds == 0 {
+		return sessionTokens{}, trace.Errorf("validityInSeconds field in login response is not set")
 	}
 
-	validInSec, err := getFieldInt("validityInSeconds")
-	if err != nil {
-		return sessionTokens{}, trace.Wrap(err)
-	}
-
-	snowflakeMasterToken, err := getField("masterToken")
-	if err != nil {
-		return sessionTokens{}, trace.Wrap(err)
-	}
-
-	masterValidInSec, err := getFieldInt("masterValidityInSeconds")
-	if err != nil {
-		return sessionTokens{}, trace.Wrap(err)
+	if l.Data.MasterValidityInSeconds == 0 {
+		return sessionTokens{}, trace.Errorf("masterValidityInSeconds field in login response is not set")
 	}
 
 	return sessionTokens{
 		tokenTTL{
-			token: snowflakeSessionToken,
-			ttl:   time.Duration(validInSec),
+			token: l.Data.Token,
+			ttl:   time.Duration(l.Data.ValidityInSeconds),
 		},
 		tokenTTL{
-			token: snowflakeMasterToken,
-			ttl:   time.Duration(masterValidInSec),
+			token: l.Data.MasterToken,
+			ttl:   time.Duration(l.Data.MasterValidityInSeconds),
 		}}, nil
 }
 
