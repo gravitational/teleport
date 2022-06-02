@@ -104,6 +104,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindApp:                     rc.createApp,
 		types.KindDatabase:                rc.createDatabase,
 		types.KindToken:                   rc.createToken,
+		types.KindInstaller:               rc.createInstaller,
 	}
 	rc.config = config
 
@@ -592,12 +593,23 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client auth.ClientI,
 	return trace.Wrap(err)
 }
 
+func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	inst, err := services.UnmarshalInstaller(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.SetInstaller(ctx, inst)
+	return trace.Wrap(err)
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
 		types.KindClusterAuthPreference,
 		types.KindClusterNetworkingConfig,
 		types.KindSessionRecordingConfig,
+		types.KindInstaller,
 	}
 	if !apiutils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -782,6 +794,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
+	case types.KindInstaller:
+		err := client.DeleteInstaller(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s has been deleted\n", types.KindInstaller)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1249,6 +1267,15 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
+	case types.KindInstaller:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindInstaller)
+		}
+		inst, err := client.GetInstaller(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &installerCollection{inst}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

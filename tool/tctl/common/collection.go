@@ -908,3 +908,20 @@ func (c *kubeServerCollection) writeJSON(w io.Writer) error {
 	_, err = w.Write(data)
 	return trace.Wrap(err)
 }
+
+type installerCollection struct {
+	installer types.Installer
+}
+
+func (c *installerCollection) resources() (r []types.Resource) {
+	return []types.Resource{c.installer}
+}
+
+func (c *installerCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Script"})
+	t.AddRow([]string{
+		c.installer.GetScript(),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}

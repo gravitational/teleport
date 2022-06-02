@@ -3538,6 +3538,25 @@ message Participant {
     ];
 }
 
+message InstallerV1 {
+    // Kind is the resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind. Currently unused for this resource.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    InstallerSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// InstallerSpecV1 is the specification for an Installer
+message InstallerSpecV1 {
+    // Script represents the contents of a installer shell script
+    string Script = 1 [ (gogoproto.jsontag) = "script" ];
+}
+
 // SessionState represents the state of a session.
 enum SessionState {
     // Pending variant represents a session that is waiting on participants to fulfill the criteria

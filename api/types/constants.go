@@ -182,6 +182,10 @@ const (
 	// cluster networking configuration.
 	MetaNameClusterNetworkingConfig = "cluster-networking-config"
 
+	// MetaNameClusterInstallerScript is the exxact name of the
+	// singleton resource holing cluster audit configuration
+	MetaNameClusterInstallerScript = "cluster-install-script"
+
 	// KindSemaphore is the resource that provides distributed semaphore functionality
 	KindSemaphore = "semaphore"
 
@@ -255,6 +259,9 @@ const (
 
 	// KindSessionTracker is a resource that tracks a live session.
 	KindSessionTracker = "session_tracker"
+
+	// KindInstaller is a resource that holds a node installer script
+	KindInstaller = "installer"
 
 	// V5 is the fifth version of resources.
 	V5 = "v5"

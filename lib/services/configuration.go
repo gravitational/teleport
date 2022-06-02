@@ -70,4 +70,11 @@ type ClusterConfiguration interface {
 	SetClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) error
 	// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 	DeleteClusterNetworkingConfig(ctx context.Context) error
+
+	// GetInstaller gets the installer script from the backend
+	GetInstaller(context.Context) (types.Installer, error)
+	// SetInstaller sets the installer script in the backend
+	SetInstaller(context.Context, types.Installer) error
+	// DeleteInstaller removes the installer script from the backend
+	DeleteInstaller(context.Context) error
 }
