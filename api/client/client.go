@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -82,7 +83,7 @@ type Client struct {
 	callOpts []grpc.CallOption
 }
 
-// New creates a new API client with an open connection to a Teleport server.
+// New creates a new Client with an open connection to a Teleport server.
 //
 // New will try to open a connection with all combinations of addresses and credentials.
 // The first successful connection to a server will be used, or an aggregated error will
@@ -104,6 +105,18 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 		return connectInBackground(ctx, cfg)
 	}
 	return connect(ctx, cfg)
+}
+
+// NewTracingClient creates a new tracing.Client that will forward spans to the
+// connected Teleport server. See New for details on how the connection it
+// established.
+func NewTracingClient(ctx context.Context, cfg Config) (*tracing.Client, error) {
+	clt, err := New(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tracing.NewClient(clt.GetConnection()), nil
 }
 
 // newClient constructs a new client.
@@ -2630,4 +2643,23 @@ func (c *Client) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSess
 func (c *Client) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
 	stream, err := c.grpc.MaintainSessionPresence(ctx, c.callOpts...)
 	return stream, trail.FromGRPC(err)
+}
+
+// GetDomainName returns local auth domain of the current auth server
+func (c *Client) GetDomainName(ctx context.Context) (string, error) {
+	resp, err := c.grpc.GetDomainName(ctx, &empty.Empty{})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+	return resp.DomainName, nil
+}
+
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be concatenated.
+func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
+	resp, err := c.grpc.GetClusterCACert(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }

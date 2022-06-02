@@ -1012,7 +1012,7 @@ type JWKSResponse struct {
 
 // jwks returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	clusterName, err := h.cfg.ProxyClient.GetDomainName()
+	clusterName, err := h.cfg.ProxyClient.GetDomainName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

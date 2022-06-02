@@ -105,6 +105,7 @@ type Server struct {
 	proxyMode        bool
 	proxyTun         reversetunnel.Tunnel
 	proxyAccessPoint auth.ReadProxyAccessPoint
+	peerAddr         string
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
@@ -191,6 +192,9 @@ type Server struct {
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
+
+	// connectedProxyGetter gets the proxies teleport is connected to.
+	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
 	// nodeWatcher is the server's node watcher.
 	nodeWatcher *services.NodeWatcher
@@ -402,7 +406,7 @@ func SetSessionServer(sessionServer rsession.Service) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -410,6 +414,7 @@ func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) Serve
 		s.proxyMode = true
 		s.proxyTun = tsrv
 		s.proxyAccessPoint = ap
+		s.peerAddr = peerAddr
 		return nil
 	}
 }
@@ -581,6 +586,14 @@ func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	}
 }
 
+// SetConnectedProxyGetter sets the ConnectedProxyGetter.
+func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
+	return func(s *Server) error {
+		s.connectedProxyGetter = getter
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -644,6 +657,10 @@ func New(addr utils.NetAddr,
 
 	if s.lockWatcher == nil {
 		return nil, trace.BadParameter("setup valid LockWatcher parameter using SetLockWatcher")
+	}
+
+	if s.connectedProxyGetter == nil {
+		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	var component string
@@ -857,6 +874,7 @@ func (s *Server) GetInfo() types.Server {
 			Hostname:  s.hostname,
 			UseTunnel: s.useTunnel,
 			Version:   teleport.Version,
+			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
 		},
 	}
 }
@@ -873,8 +891,10 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 			server.SetRotation(*rotation)
 		}
 	}
+
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
+	server.SetPeerAddr(s.peerAddr)
 	return server, nil
 }
 

@@ -210,6 +210,8 @@ message DatabaseServerSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty", deprecated = true ];
     // Database is the database proxied by this database server.
     DatabaseV3 Database = 12 [ (gogoproto.jsontag) = "database,omitempty" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 13 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
 }
 
 // DatabaseV3List represents a list of databases.
@@ -450,6 +452,10 @@ message ServerSpecV2 {
     // https://github.com/gravitational/teleport/issues/4862
     repeated KubernetesCluster KubernetesClusters = 10
         [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
+    // PeerAddr is the address a proxy server is reachable at by its peer proxies.
+    string PeerAddr = 11 [ (gogoproto.jsontag) = "peer_addr,omitempty" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 12 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -482,6 +488,8 @@ message AppServerSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
     // App is the app proxied by this app server.
     AppV3 App = 5 [ (gogoproto.jsontag) = "app" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 6 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
 }
 
 // AppV3List represents a list of app resources.
@@ -962,6 +970,26 @@ message ClusterNetworkingConfigSpecV2 {
 
     // RoutingStrategy determines the strategy used to route to nodes.
     RoutingStrategy RoutingStrategy = 8 [ (gogoproto.jsontag) = "routing_strategy,omitempty" ];
+
+    // TunnelStrategyV1 determines the tunnel strategy used in the cluster.
+    TunnelStrategyV1 TunnelStrategy = 9 [ (gogoproto.jsontag) = "tunnel_strategy,omitempty" ];
+}
+
+// TunnelStrategyV1 defines possible tunnel strategy types.
+message TunnelStrategyV1 {
+    oneof Strategy {
+        AgentMeshTunnelStrategy AgentMesh = 1 [ (gogoproto.jsontag) = "agent_mesh,omitempty" ];
+        ProxyPeeringTunnelStrategy ProxyPeering = 2
+            [ (gogoproto.jsontag) = "proxy_peering,omitempty" ];
+    }
+}
+
+// AgentMeshTunnelStrategy requires reverse tunnels to dial every proxy.
+message AgentMeshTunnelStrategy {}
+
+// ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
+message ProxyPeeringTunnelStrategy {
+    int64 AgentConnectionCount = 1 [ (gogoproto.jsontag) = "agent_connection_count,omitempty" ];
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.
@@ -3043,6 +3071,8 @@ message WindowsDesktopServiceSpecV3 {
     string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
     // Hostname is the desktop service hostname.
     string Hostname = 3 [ (gogoproto.jsontag) = "hostname" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 4 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
 }
 
 // WindowsDesktopFilter are filters to apply when searching for windows desktops.

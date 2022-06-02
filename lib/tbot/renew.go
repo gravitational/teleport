@@ -190,7 +190,7 @@ func (b *Bot) generateIdentity(
 
 	// The root CA included with the returned user certs will only contain the
 	// Teleport User CA. We'll also need the host CA for future API calls.
-	localCA, err := client.GetClusterCACert()
+	localCA, err := client.GetClusterCACert(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
