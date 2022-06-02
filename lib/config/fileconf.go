@@ -167,6 +167,9 @@ type SampleFlags struct {
 	AppURI string
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
+	// a single value or a list.
+	CAPin string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -202,6 +205,8 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
 	}
+
+	g.CAPin = strings.Split(flags.CAPin, ",")
 
 	roles := roleMapFromFlags(flags)
 

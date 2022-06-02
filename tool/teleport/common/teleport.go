@@ -318,6 +318,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dumpNodeConfigure.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
+	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
