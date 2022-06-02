@@ -545,20 +545,6 @@ func TestX11Config(t *testing.T) {
 				MaxDisplay:    100,
 			},
 		}, {
-			// DELETE IN 10.0.0 (Joerger): yaml typo, use max_display.
-			desc: "max displays set",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":      "yes",
-					"max_displays": 100,
-				}
-			},
-			expectX11Config: &x11.ServerConfig{
-				Enabled:       true,
-				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    100,
-			},
-		}, {
 			desc: "max display value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{

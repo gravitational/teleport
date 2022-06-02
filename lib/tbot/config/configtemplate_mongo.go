@@ -22,57 +22,61 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/tool/tbot/destination"
-	"github.com/gravitational/teleport/tool/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 )
 
-const defaultIdentityFileName = "identity"
+// defaultMongoPrefix is the default prefix in generated MongoDB certs.
+const defaultMongoPrefix = "mongo"
 
-// TemplateIdentity is a config template that generates a Teleport identity
-// file that can be used by tsh and tctl.
-type TemplateIdentity struct {
-	FileName string `yaml:"file_name,omitempty"`
+// TemplateMongo is a config template that generates TLS certs formatted for
+// use with MongoDB.
+type TemplateMongo struct {
+	Prefix string `yaml:"prefix,omitempty"`
 }
 
-func (t *TemplateIdentity) CheckAndSetDefaults() error {
-	if t.FileName == "" {
-		t.FileName = defaultIdentityFileName
+func (t *TemplateMongo) CheckAndSetDefaults() error {
+	if t.Prefix == "" {
+		t.Prefix = defaultMongoPrefix
 	}
 
 	return nil
 }
 
-func (t *TemplateIdentity) Name() string {
-	return TemplateIdentityName
+func (t *TemplateMongo) Name() string {
+	return TemplateMongoName
 }
 
-func (t *TemplateIdentity) Describe(destination destination.Destination) []FileDescription {
+func (t *TemplateMongo) Describe(destination destination.Destination) []FileDescription {
 	return []FileDescription{
 		{
-			Name: t.FileName,
+			Name: t.Prefix + ".crt",
+		},
+		{
+			Name: t.Prefix + ".cas",
 		},
 	}
 }
 
-func (t *TemplateIdentity) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateMongo) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	hostCAs, err := authClient.GetCertAuthorities(ctx, types.HostCA, false)
+	dbCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: t.FileName,
+		OutputPath: t.Prefix,
 		Writer: &BotConfigWriter{
 			dest: dest,
 		},
-		Key:    newClientKey(currentIdentity, hostCAs),
-		Format: identityfile.FormatFile,
+		Key:    newClientKey(currentIdentity, dbCAs),
+		Format: identityfile.FormatMongo,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
 		OverwriteDestination: true,
@@ -83,7 +87,7 @@ func (t *TemplateIdentity) Render(ctx context.Context, authClient auth.ClientI, 
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote identity file: %+v", files)
+	log.Debugf("Wrote MongoDB identity files: %+v", files)
 
 	return nil
 }

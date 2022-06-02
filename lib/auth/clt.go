@@ -343,33 +343,6 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	return trace.Wrap(err)
 }
 
-// GetDomainName returns local auth domain of the current auth server
-func (c *Client) GetDomainName() (string, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("domain"), url.Values{})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var domain string
-	if err := json.Unmarshal(out.Bytes(), &domain); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return domain, nil
-}
-
-// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
-// the cluster has multiple TLS certs, they will all be concatenated.
-func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("cacert"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var localCA LocalCAResponse
-	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &localCA, nil
-}
-
 func (c *Client) Close() error {
 	c.HTTPClient.Close()
 	return c.APIClient.Close()
@@ -1428,18 +1401,8 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return nil
 }
 
-// GetLocalClusterName returns local cluster name
-func (c *Client) GetLocalClusterName() (string, error) {
-	return c.GetDomainName()
-}
-
 // DeleteClusterName not implemented: can only be called locally.
 func (c *Client) DeleteClusterName() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertLocalClusterName not implemented: can only be called locally.
-func (c *Client) UpsertLocalClusterName(string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1870,11 +1833,11 @@ type ClientI interface {
 	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 
 	// GetDomainName returns auth server cluster name
-	GetDomainName() (string, error)
+	GetDomainName(ctx context.Context) (string, error)
 
 	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster.
 	// If the cluster has multiple TLS certs, they will all be concatenated.
-	GetClusterCACert() (*LocalCAResponse, error)
+	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 
 	// GenerateHostCerts generates new host certificates (signed
 	// by the host certificate authority) for a node
