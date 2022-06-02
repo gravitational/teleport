@@ -259,12 +259,10 @@ func TestInteractiveSession(t *testing.T) {
 		sess.Stop()
 
 		sessionClosed := func() bool {
-			reg.sessionsMux.Lock()
-			defer reg.sessionsMux.Unlock()
-			_, found := reg.findSessionLocked(sess.id)
+			_, found := reg.findSession(sess.id)
 			return !found
 		}
-		require.Eventually(t, sessionClosed, time.Second*5, time.Millisecond*500)
+		require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
 	})
 
 	t.Run("BrokenRecorder", func(t *testing.T) {

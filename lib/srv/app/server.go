@@ -88,6 +88,10 @@ type Config struct {
 	// Apps is a list of statically registered apps this agent proxies.
 	Apps types.Apps
 
+	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
+	// between all apps.
+	CloudLabels labels.Importer
+
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 
@@ -407,6 +411,9 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
+	if s.c.CloudLabels != nil {
+		s.c.CloudLabels.Apply(copy)
+	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -506,7 +513,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 

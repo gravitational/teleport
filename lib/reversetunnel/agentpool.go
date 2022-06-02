@@ -451,7 +451,7 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 
 // newAgent creates a new agent instance.
 func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease track.Lease) (Agent, error) {
-	addr, err := p.Resolver()
+	addr, err := p.Resolver(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

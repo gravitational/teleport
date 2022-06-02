@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
-	alpnproxy "github.com/gravitational/teleport/lib/utils/proxy"
+	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -443,8 +443,8 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	}
 
 	// If no tunnel connection was found, dial to the target host.
-	dialer := alpnproxy.DialerFromEnvironment(params.To.String())
-	conn, directErr = dialer.DialTimeout(params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
+	dialer := proxyutils.DialerFromEnvironment(params.To.String())
+	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")

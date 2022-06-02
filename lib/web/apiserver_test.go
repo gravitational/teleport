@@ -543,6 +543,7 @@ func Test_clientMetaFromReq(t *testing.T) {
 
 func TestSAMLSuccess(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	s := newWebSuite(t)
 	input := fixtures.SAMLOktaConnectorV2
 
@@ -573,7 +574,7 @@ func TestSAMLSuccess(t *testing.T) {
 	err = s.server.Auth().UpsertRole(s.ctx, role)
 	require.NoError(t, err)
 
-	err = s.server.Auth().CreateSAMLConnector(connector)
+	err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
@@ -1787,7 +1788,7 @@ func TestMultipleConnectors(t *testing.T) {
 
 	// create two oidc connectors, one named "foo" and another named "bar"
 	oidcConnectorSpec := types.OIDCConnectorSpecV3{
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
 		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
 		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
 		IssuerURL:    "https://oidc.example.com",
@@ -2468,9 +2469,17 @@ func TestGetWebConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a test connector.
-	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{})
+	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
-	err = env.server.Auth().CreateGithubConnector(github)
+	err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 
 	expectedCfg := webclient.WebConfig{

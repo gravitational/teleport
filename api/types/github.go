@@ -69,16 +69,6 @@ func NewGithubConnector(name string, spec GithubConnectorSpecV3) (GithubConnecto
 	return c, nil
 }
 
-// GithubClaims represents Github user information obtained during OAuth2 flow
-type GithubClaims struct {
-	// Username is the user's username
-	Username string
-	// OrganizationToTeams is the user's organization and team membership
-	OrganizationToTeams map[string][]string
-	// Teams is the users team membership
-	Teams []string
-}
-
 // GetVersion returns resource version
 func (c *GithubConnectorV3) GetVersion() string {
 	return c.Version
@@ -161,6 +151,18 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// make sure claim mappings have either roles or a role template
+	for i, v := range c.Spec.TeamsToLogins {
+		if v.Team == "" {
+			return trace.BadParameter("team_to_logins mapping #%v is invalid, team is empty.", i+1)
+		}
+	}
+
+	if len(c.Spec.TeamsToLogins) == 0 {
+		return trace.BadParameter("team_to_logins mapping is invalid, no mappings defined.")
+	}
+
 	return nil
 }
 

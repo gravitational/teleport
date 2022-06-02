@@ -20,6 +20,7 @@ import (
 	"context"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -48,7 +49,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 	for _, authMethod := range d.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
 		dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
-		pconn, err := dialer.DialTimeout(addr.AddrNetwork, addr.Addr, apidefaults.DefaultDialTimeout)
+		pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultDialTimeout)
 		if err != nil {
 			d.log.WithError(err).Debugf("Failed to dial %s.", addr.Addr)
 			continue
@@ -70,7 +71,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 
 		// Build a new client connection. This is done to get access to incoming
 		// global requests which dialer.Dial would not provide.
-		conn, chans, reqs, err := ssh.NewClientConn(pconn, addr.Addr, &ssh.ClientConfig{
+		conn, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr.Addr, &ssh.ClientConfig{
 			User:            d.username,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: callback,
@@ -84,7 +85,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 		emptyRequests := make(chan *ssh.Request)
 		close(emptyRequests)
 
-		client := ssh.NewClient(conn, chans, emptyRequests)
+		client := tracessh.NewClient(conn, chans, emptyRequests)
 
 		return &sshClient{
 			Client:      client,
@@ -118,7 +119,7 @@ func (d *agentDialer) hostCheckerFunc(ctx context.Context) apisshutils.CheckersG
 
 // sshClient implements the SSHClient interface.
 type sshClient struct {
-	*ssh.Client
+	*tracessh.Client
 	requests    <-chan *ssh.Request
 	newChannels <-chan ssh.NewChannel
 	principals  []string
