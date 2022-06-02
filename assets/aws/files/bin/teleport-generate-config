@@ -110,7 +110,7 @@ write_database_section() {
 EOS
    fi
    # Add the postgres listener only if the POSTGRES_HOST is blank
-   if [[ "${TELEPORT_ENABLE_POSTGRES}" == "true" && "${POSTGRES_HOSTNAME}" == "" ]; then
+   if [[ "${TELEPORT_ENABLE_POSTGRES}" == "true" && "${POSTGRES_HOSTNAME}" == "" ]]; then
     cat << EOS >> ${USE_CONFIG_PATH}
   postgres_listen_addr: "0.0.0.0:5432"
   postgres_public_addr: ${POSTGRES_PUBLIC_ADDR}
@@ -121,6 +121,7 @@ EOS
   mongo_listen_addr: "0.0.0.0:27017"
   mongo_public_addr: ${MONGO_PUBLIC_ADDR}
 EOS
+   fi
 }
 
 write_kubernetes_section() {
