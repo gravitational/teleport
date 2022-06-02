@@ -534,9 +534,7 @@ type Global struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
 
-	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
-	// algorithm that the server uses for signing user and host certificates.
-	// If omitted, the default will be used.
+	// CASignatureAlgorithm is ignored but ketp for config backwards compat
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be

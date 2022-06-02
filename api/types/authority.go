@@ -71,10 +71,6 @@ type CertAuthority interface {
 	GetRotation() Rotation
 	// SetRotation sets rotation state.
 	SetRotation(Rotation)
-	// GetSigningAlg returns the signing algorithm used by signing keys.
-	GetSigningAlg() CertAuthoritySpecV2_SigningAlgType
-	// SetSigningAlg sets the signing algorithm used by signing keys.
-	SetSigningAlg(CertAuthoritySpecV2_SigningAlgType)
 	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
 	AllKeyTypesMatch() bool
 	// Clone returns a copy of the cert authority object.
