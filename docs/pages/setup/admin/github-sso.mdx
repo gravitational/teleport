@@ -34,11 +34,9 @@ Instructions for creating a GitHub OAuth app are available here:
 
 [Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
 
-## Step 2/5. Define the GitHub authentication connector
+## Step 2/5. Define a GitHub authentication connector
 
-Define a GitHub authentication connector by creating a file called `github.yaml`. 
-
-You can do it with the following command:
+Define a GitHub authentication connector by running the following command:
 
 ```code
 $ tctl sso configure github --id <client-id> --secret <client-secret> -r octocats,admins,access | tee github.yaml
@@ -70,15 +68,15 @@ spec:
         - access
 ```
 
-The values of `client_id`, `client_secret` come from the GitHub OAuth App you created earlier. `redirect_url` is automatically configured by [`tctl sso configure github`](../reference/cli.mdx#tctl-sso-configure-github) based on the settings of Teleport cluster. 
+The values of `client_id` and `client_secret` come from the GitHub OAuth App you created earlier. `redirect_url` was automatically configured based on the settings of your Teleport cluster when you ran [`tctl sso configure github`](../reference/cli.mdx#tctl-sso-configure-github).
 
 <Admonition
   type="tip"
   title="Teams to logins mapping"
 >
-  The flag `--teams-to-logins` (`-r` for short) can be repeated multiple times with each repetition creating additional mapping entry.
+  The `--teams-to-logins` flag (`-r` for short) can be repeated multiple times. Each repetition will create an additional entry in the `teams_to_logins` mapping of your GitHub authentication connector.
   
-  If multiple roles are desired, they can be listed separated by commas: `-r org,team,role1,role2,role3,...`.
+  To map a GitHub team to multiple Teleport roles, list these roles after the name of the GitHub team, separated by commas: `-r org,team,role1,role2,role3,...`.
 </Admonition>
 
 Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in [GitHub's documentation](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
