@@ -17,7 +17,6 @@
 // so we just disable it for the entire file
 #![allow(clippy::collapsible_if)]
 
-use bytes::BytesMut;
 use crepe::crepe;
 use libc::{c_uchar, size_t};
 use prost::Message;
@@ -107,8 +106,7 @@ fn create_error_ptr(e: String) -> Output {
 #[no_mangle]
 pub unsafe extern "C" fn process_access(input: *mut c_uchar, input_len: size_t) -> *mut Output {
     let mut runtime = Crepe::new();
-    let b = slice::from_raw_parts_mut(input, input_len);
-    let r = match types::Facts::decode(BytesMut::from(&b[..])) {
+    let r = match types::Facts::decode(slice::from_raw_parts(input, input_len)) {
         Ok(b) => b,
         Err(e) => return Box::into_raw(Box::new(create_error_ptr(e.to_string()))),
     };
