@@ -420,12 +420,12 @@ func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	if a.GRPCMetrics != nil {
 		return utils.ChainUnaryServerInterceptors(
 			om.UnaryServerInterceptor(a.GRPCMetrics),
-			utils.ErrorConvertUnaryInterceptor,
+			utils.GRPCServerUnaryErrorInterceptor,
 			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 			a.withAuthenticatedUserUnaryInterceptor)
 	}
 	return utils.ChainUnaryServerInterceptors(
-		utils.ErrorConvertUnaryInterceptor,
+		utils.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor)
 }
@@ -437,12 +437,12 @@ func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
 	if a.GRPCMetrics != nil {
 		return utils.ChainStreamServerInterceptors(
 			om.StreamServerInterceptor(a.GRPCMetrics),
-			utils.ErrorConvertStreamInterceptor,
+			utils.GRPCServerStreamErrorInterceptor,
 			a.Limiter.StreamServerInterceptor,
 			a.withAuthenticatedUserStreamInterceptor)
 	}
 	return utils.ChainStreamServerInterceptors(
-		utils.ErrorConvertStreamInterceptor,
+		utils.GRPCServerStreamErrorInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor)
 }
