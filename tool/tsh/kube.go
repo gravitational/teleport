@@ -668,6 +668,26 @@ type kubeListing struct {
 	KubeCluster string `json:"kube_cluster"`
 }
 
+type kubeListings []kubeListing
+
+func (l kubeListings) Len() int {
+	return len(l)
+}
+
+func (l kubeListings) Less(i, j int) bool {
+	if l[i].Proxy != l[j].Proxy {
+		return l[i].Proxy < l[j].Proxy
+	}
+	if l[i].Cluster != l[j].Cluster {
+		return l[i].Cluster < l[j].Cluster
+	}
+	return l[i].KubeCluster < l[j].KubeCluster
+}
+
+func (l kubeListings) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
 func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.UserHost = c.labels
@@ -737,62 +757,35 @@ func serializeKubeClusters(kubeClusters []string, selectedCluster, format string
 }
 
 func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
-	profile, profiles, err := client.Status(cf.HomePath, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if profile != nil {
-		profiles = append(profiles, profile)
-	}
+	var listings kubeListings
 
-	kubeListings := make([]kubeListing, 0)
-	for _, p := range profiles {
-		cf.Proxy = p.ProxyURL.Host
-		tc, err := makeClient(cf, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		req := proto.ListResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,
 		}
 
-		pc, err := tc.ConnectToProxy(cf.Context)
-		// Don't make the user re-login to every proxy.
-		if client.IsExpiredCredentialError(err) {
-			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
-			continue
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		kubeClusters, err := client.ListKubeClusterNamesWithFiltersAllClusters(cf.Context, pc, req)
+		kubeClusters, err := tc.ListKubeClusterNamesWithFiltersAllClusters(cf.Context, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		for clusterName, kubeClusters := range kubeClusters {
 			for _, kc := range kubeClusters {
-				kubeListings = append(kubeListings, kubeListing{
-					Proxy:       cf.Proxy,
+				listings = append(listings, kubeListing{
+					Proxy:       profile.ProxyURL.Host,
 					Cluster:     clusterName,
 					KubeCluster: kc,
 				})
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	sort.Slice(kubeListings, func(i, j int) bool {
-		if kubeListings[i].Proxy != kubeListings[j].Proxy {
-			return kubeListings[i].Proxy < kubeListings[j].Proxy
-		}
-		if kubeListings[i].Cluster != kubeListings[j].Cluster {
-			return kubeListings[i].Cluster < kubeListings[j].Cluster
-		}
-		return kubeListings[i].KubeCluster < kubeListings[j].KubeCluster
-	})
+	sort.Sort(listings)
 
 	format := strings.ToLower(c.format)
 	switch format {
@@ -803,12 +796,12 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		} else {
 			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name"})
 		}
-		for _, listing := range kubeListings {
+		for _, listing := range listings {
 			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster})
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeKubeListings(kubeListings, format)
+		out, err := serializeKubeListings(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}

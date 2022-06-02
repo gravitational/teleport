@@ -120,29 +120,30 @@ type databaseListing struct {
 	Database types.Database   `json:"database"`
 }
 
+type databaseListings []databaseListing
+
+func (l databaseListings) Len() int {
+	return len(l)
+}
+
+func (l databaseListings) Less(i, j int) bool {
+	if l[i].Proxy != l[j].Proxy {
+		return l[i].Proxy < l[j].Proxy
+	}
+	if l[i].Cluster != l[j].Cluster {
+		return l[i].Cluster < l[j].Cluster
+	}
+	return l[i].Database.GetName() < l[j].Database.GetName()
+}
+
+func (l databaseListings) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
 func listDatabasesAllClusters(cf *CLIConf) error {
-	profile, profiles, err := client.Status(cf.HomePath, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if profile != nil {
-		profiles = append(profiles, profile)
-	}
-
-	dbListings := make([]databaseListing, 0)
-	for _, p := range profiles {
-		cf.Proxy = p.ProxyURL.Host
-		tc, err := makeClient(cf, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+	var dbListings databaseListings
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
-		// Don't make the user re-login to every proxy.
-		if client.IsExpiredCredentialError(err) {
-			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
-			continue
-		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -151,36 +152,39 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		var errors []error
 		for clusterName, databases := range result {
 			cluster, err := proxy.ConnectToCluster(cf.Context, clusterName, false)
 			if err != nil {
-				return trace.Wrap(err)
+				errors = append(errors, err)
+				continue
 			}
-			roleSet, err := services.FetchRoles(p.Roles, cluster, p.Traits)
+			roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
 			if err != nil {
-				return trace.Wrap(err)
+				errors = append(errors, err)
+				continue
 			}
 			for _, database := range databases {
 				dbListings = append(dbListings, databaseListing{
-					Proxy:    cf.Proxy,
+					Proxy:    profile.ProxyURL.Host,
 					Cluster:  clusterName,
 					roleSet:  roleSet,
 					Database: database,
 				})
 			}
 		}
+		return trace.NewAggregate(errors...)
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	sort.Slice(dbListings, func(i, j int) bool {
-		if dbListings[i].Proxy != dbListings[j].Proxy {
-			return dbListings[i].Proxy < dbListings[j].Proxy
-		}
-		if dbListings[i].Cluster != dbListings[j].Cluster {
-			return dbListings[i].Cluster < dbListings[j].Cluster
-		}
-		return dbListings[i].Database.GetName() < dbListings[j].Database.GetName()
-	})
+	sort.Sort(dbListings)
 
+	profile, _, err := client.Status(cf.HomePath, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	var active []tlsca.RouteToDatabase
 	if profile != nil {
 		active = profile.Databases

@@ -685,11 +685,6 @@ func (p *ProfileStatus) AppNames() (result []string) {
 	return result
 }
 
-// IsExpiredCredentialError checks if an error corresponds to expired credentials.
-func IsExpiredCredentialError(err error) bool {
-	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) || trace.IsBadParameter(err) || trace.IsTrustError(err)
-}
-
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
 // RetryWithRelogin automatically enables tc.UseStrongestAuth for Login attempts
@@ -701,7 +696,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 	// Assume that failed handshake is a result of expired credentials,
 	// retry the login procedure
-	if !IsExpiredCredentialError(err) {
+	if !utils.IsExpiredCredentialError(err) {
 		return trace.Wrap(err)
 	}
 	// Don't try to login when using an identity file.
@@ -2416,7 +2411,11 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 }
 
 // ListKubeClusterNamesWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
-func ListKubeClusterNamesWithFiltersAllClusters(ctx context.Context, pc *ProxyClient, req proto.ListResourcesRequest) (map[string][]string, error) {
+func (tc *TeleportClient) ListKubeClusterNamesWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]string, error) {
+	pc, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	clusters, err := pc.GetSites(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

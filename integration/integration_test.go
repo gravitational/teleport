@@ -6366,8 +6366,6 @@ func testListKubeClustersAcrossClusters(t *testing.T, suite *integrationTestSuit
 
 	})
 	ctx := context.Background()
-	pc, err := tc.ConnectToProxy(ctx)
-	require.NoError(t, err)
 
 	tests := []struct {
 		name     string
@@ -6397,7 +6395,7 @@ func testListKubeClustersAcrossClusters(t *testing.T, suite *integrationTestSuit
 			if test.search != "" {
 				req.SearchKeywords = strings.Split(test.search, " ")
 			}
-			clusterMap, err := client.ListKubeClusterNamesWithFiltersAllClusters(ctx, pc, req)
+			clusterMap, err := tc.ListKubeClusterNamesWithFiltersAllClusters(ctx, req)
 			require.NoError(t, err)
 			clusters := make([]string, 0)
 			for _, cl := range clusterMap {

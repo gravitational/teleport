@@ -1518,60 +1518,57 @@ type nodeListing struct {
 	Node    types.Server `json:"node"`
 }
 
+type nodeListings []nodeListing
+
+func (l nodeListings) Len() int {
+	return len(l)
+}
+
+func (l nodeListings) Less(i, j int) bool {
+	if l[i].Proxy != l[j].Proxy {
+		return l[i].Proxy < l[j].Proxy
+	}
+	if l[i].Cluster != l[j].Cluster {
+		return l[i].Cluster < l[j].Cluster
+	}
+	return l[i].Node.GetHostname() < l[j].Node.GetHostname()
+}
+
+func (l nodeListings) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
 func listNodesAllClusters(cf *CLIConf) error {
-	profile, profiles, err := client.Status(cf.HomePath, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if profile != nil {
-		profiles = append(profiles, profile)
-	}
+	var listings nodeListings
 
-	nodeListings := make([]nodeListing, 0)
-
-	for _, p := range profiles {
-		cf.Proxy = p.ProxyURL.Host
-		tc, err := makeClient(cf, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		result, err := tc.ListNodesWithFiltersAllClusters(cf.Context)
-		// Don't make the user re-login to every proxy.
-		if client.IsExpiredCredentialError(err) {
-			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
-			continue
-		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		for clusterName, nodes := range result {
 			for _, node := range nodes {
-				nodeListings = append(nodeListings, nodeListing{
-					Proxy:   cf.Proxy,
+				listings = append(listings, nodeListing{
+					Proxy:   profile.ProxyURL.Host,
 					Cluster: clusterName,
 					Node:    node,
 				})
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	sort.Slice(nodeListings, func(i, j int) bool {
-		if nodeListings[i].Proxy != nodeListings[j].Proxy {
-			return nodeListings[i].Proxy < nodeListings[j].Proxy
-		}
-		if nodeListings[i].Cluster != nodeListings[j].Cluster {
-			return nodeListings[i].Cluster < nodeListings[j].Cluster
-		}
-		return nodeListings[i].Node.GetHostname() < nodeListings[j].Node.GetHostname()
-	})
+	sort.Sort(listings)
 
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		printNodesWithClusters(nodeListings, cf.Verbose)
+		printNodesWithClusters(listings, cf.Verbose)
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeNodesWithClusters(nodeListings, format)
+		out, err := serializeNodesWithClusters(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2325,6 +2322,13 @@ func onSCP(cf *CLIConf) error {
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, error) {
+	tc, err := makeClientForProxy(cf, cf.Proxy, useProfileLogin)
+	return tc, trace.Wrap(err)
+}
+
+// makeClient takes the command-line configuration and a proxy address and constructs & returns
+// a fully configured TeleportClient object
+func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*client.TeleportClient, error) {
 	// Parse OpenSSH style options.
 	options, err := parseOptions(cf.Options)
 	if err != nil {
@@ -2434,7 +2438,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		c.Username = certUsername
 
 		// Also configure missing KeyIndex fields.
-		key.ProxyHost, err = utils.Host(cf.Proxy)
+		key.ProxyHost, err = utils.Host(proxy)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2478,9 +2482,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	} else {
 		// load profile. if no --proxy is given the currently active profile is used, otherwise
 		// fetch profile for exact proxy we are trying to connect to.
-		err = c.LoadProfile(cf.HomePath, cf.Proxy)
+		err = c.LoadProfile(cf.HomePath, proxy)
 		if err != nil {
-			fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", cf.Proxy, err)
+			fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, err)
 		}
 	}
 	// 3: override with the CLI flags
@@ -3133,53 +3137,54 @@ type appListing struct {
 	App     types.Application `json:"app"`
 }
 
+type appListings []appListing
+
+func (l appListings) Len() int {
+	return len(l)
+}
+
+func (l appListings) Less(i, j int) bool {
+	if l[i].Proxy != l[j].Proxy {
+		return l[i].Proxy < l[j].Proxy
+	}
+	if l[i].Cluster != l[j].Cluster {
+		return l[i].Cluster < l[j].Cluster
+	}
+	return l[i].App.GetName() < l[j].App.GetName()
+}
+
+func (l appListings) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
 func listAppsAllClusters(cf *CLIConf) error {
-	profile, profiles, err := client.Status(cf.HomePath, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if profile != nil {
-		profiles = append(profiles, profile)
-	}
-
-	appListings := make([]appListing, 0)
-	for _, p := range profiles {
-		cf.Proxy = p.ProxyURL.Host
-		tc, err := makeClient(cf, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+	var listings appListings
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		result, err := tc.ListAppsAllClusters(cf.Context, nil /* custom filter */)
-		// Don't make the user re-login to every proxy.
-		if client.IsExpiredCredentialError(err) {
-			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", cf.Proxy)
-			continue
-		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		for clusterName, apps := range result {
 			for _, app := range apps {
-				appListings = append(appListings, appListing{
-					Proxy:   cf.Proxy,
+				listings = append(listings, appListing{
+					Proxy:   profile.ProxyURL.Host,
 					Cluster: clusterName,
 					App:     app,
 				})
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	sort.Slice(appListings, func(i, j int) bool {
-		if appListings[i].Proxy != appListings[j].Proxy {
-			return appListings[i].Proxy < appListings[j].Proxy
-		}
-		if appListings[i].Cluster != appListings[j].Cluster {
-			return appListings[i].Cluster < appListings[j].Cluster
-		}
-		return appListings[i].App.GetName() < appListings[j].App.GetName()
-	})
+	sort.Sort(listings)
 
+	profile, _, err := client.Status(cf.HomePath, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	var active []tlsca.RouteToApp
 	if profile != nil {
 		active = profile.Apps
@@ -3188,9 +3193,9 @@ func listAppsAllClusters(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		printAppsWithClusters(appListings, active, cf.Verbose)
+		printAppsWithClusters(listings, active, cf.Verbose)
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeAppsWithClusters(appListings, format)
+		out, err := serializeAppsWithClusters(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3365,4 +3370,35 @@ func validateParticipantMode(mode types.SessionParticipantMode) error {
 	default:
 		return trace.BadParameter("invalid participant mode %v", mode)
 	}
+}
+
+// forEachProfile performs an action for each profile a user is currently logged in to.
+func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
+	profile, profiles, err := client.Status(cf.HomePath, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if profile != nil {
+		profiles = append(profiles, profile)
+	}
+
+	clock := clockwork.NewRealClock()
+	errors := make([]error, 0)
+	for _, p := range profiles {
+		proxyAddr := p.ProxyURL.Host
+		if p.IsExpired(clock) {
+			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
+			continue
+		}
+		tc, err := makeClientForProxy(cf, proxyAddr, true)
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
+		if err := fn(tc, p); err != nil {
+			errors = append(errors, err)
+		}
+	}
+
+	return trace.NewAggregate(errors...)
 }
