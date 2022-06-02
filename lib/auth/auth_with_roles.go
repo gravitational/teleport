@@ -539,29 +539,19 @@ func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAut
 	return a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
 }
 
-func (a *ServerWithRoles) GetDomainName() (string, error) {
+func (a *ServerWithRoles) GetDomainName(ctx context.Context) (string, error) {
 	// anyone can read it, no harm in that
 	return a.authServer.GetDomainName()
-}
-
-func (a *ServerWithRoles) GetLocalClusterName() (string, error) {
-	// anyone can read it, no harm in that
-	return a.authServer.GetLocalClusterName()
 }
 
 // getClusterCACert returns the PEM-encoded TLS certs for the local cluster
 // without signing keys. If the cluster has multiple TLS certs, they will all
 // be concatenated.
-func (a *ServerWithRoles) GetClusterCACert() (*LocalCAResponse, error) {
+func (a *ServerWithRoles) GetClusterCACert(
+	ctx context.Context,
+) (*proto.GetClusterCACertResponse, error) {
 	// Allow all roles to get the CA certs.
-	return a.authServer.GetClusterCACert()
-}
-
-func (a *ServerWithRoles) UpsertLocalClusterName(clusterName string) error {
-	if err := a.action(apidefaults.Namespace, types.KindAuthServer, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertLocalClusterName(clusterName)
+	return a.authServer.GetClusterCACert(ctx)
 }
 
 func (a *ServerWithRoles) DeleteCertAuthority(id types.CertAuthID) error {
@@ -656,7 +646,7 @@ func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle types.KeepAl
 	if !a.hasBuiltinRole(types.RoleNode) {
 		return trace.AccessDenied("[10] access denied")
 	}
-	clusterName, err := a.GetDomainName()
+	clusterName, err := a.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -675,7 +665,7 @@ func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle types.KeepAl
 
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
-	clusterName, err := a.GetDomainName()
+	clusterName, err := a.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

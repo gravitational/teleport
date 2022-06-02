@@ -411,8 +411,7 @@ func TestEC2Labels(t *testing.T) {
 }
 
 // TestEC2Hostname is an integration test which asserts that Teleport sets its
-// hostname if the EC2 tag `TeleportHostname` is available. This test must be
-// run on an instance with tag `TeleportHostname=fakehost.example.com`.
+// hostname if the EC2 tag `TeleportHostname` is available.
 func TestEC2Hostname(t *testing.T) {
 	teleportHostname := "fakehost.example.com"
 
