@@ -45,6 +45,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const sessionChunkCloseTimeout = 2 * time.Minute
+
 var errSessionChunkAlreadyClosed = errors.New("session chunk already closed")
 
 // sessionChunk holds an open request forwarder and audit log for an app session.
@@ -73,6 +75,13 @@ type sessionChunk struct {
 	// On session expiration, this will first be atomically decremented to -1,
 	// preventing any new requests from using the closing/closed session.
 	inflight int64
+	// closeTimeout is the timeout after which close() will forcibly close the chunk,
+	// even if there are still ongoing requests.
+	// E.g. with 5 minute chunk TTL and 2 minute closeTimeout, the chunk will live
+	// for ~7 minutes at most.
+	closeTimeout time.Duration
+
+	log *logrus.Entry
 }
 
 // newSessionChunk creates a new chunk session.
@@ -81,7 +90,11 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 		id:           uuid.New().String(),
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
+		closeTimeout: sessionChunkCloseTimeout,
+		log:          s.log,
 	}
+
+	sess.log.Debugf("Created app session chunk %s", sess.id)
 
 	// Create a session tracker so that other services, such as the
 	// session upload completer, can track the session chunk's lifetime.
@@ -178,16 +191,28 @@ func (s *sessionChunk) release() {
 }
 
 func (s *sessionChunk) close(ctx context.Context) error {
+	deadline := time.Now().Add(s.closeTimeout)
+	t := time.AfterFunc(s.closeTimeout, func() { s.inflightCond.Signal() })
+	defer t.Stop()
+
 	// Wait until there are no requests in-flight,
 	// then mark the session as not accepting new requests,
 	// and close it.
 	s.inflightCond.L.Lock()
-	for s.inflight != 0 {
+	for {
+		if s.inflight == 0 {
+			break
+		} else if time.Now().After(deadline) {
+			s.log.Debugf("timeout expired, forcibly closing session chunk %s, inflight requests: %d", s.id, s.inflight)
+			break
+		}
+		s.log.Debugf("inflight requests: %d, waiting to close session chunk %s", s.inflight, s.id)
 		s.inflightCond.Wait()
 	}
 	s.inflight = -1
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
+	s.log.Debugf("closed session chunk %s", s.id)
 	err := s.streamWriter.Close(ctx)
 	return trace.Wrap(err)
 }
