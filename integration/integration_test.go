@@ -3703,7 +3703,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err == nil {
 				serviceC <- svc
 			}
@@ -3867,7 +3867,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4011,7 +4011,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4240,7 +4240,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-				svc, err := service.NewTeleport(cfg)
+				svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 				if err == nil {
 					serviceC <- svc
 				}

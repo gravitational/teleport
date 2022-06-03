@@ -85,7 +85,7 @@ $ sudo teleport app start \
   --auth-server=https://teleport.example.com:3080
 ```
 
-Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud cluster, use your tenant's subdomain, e.g., `mytenant.teleport.sh`. 
+Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud customer, use port 443 of your tenant's subdomain, e.g., `mytenant.teleport.sh:443`.
 
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
 
@@ -122,7 +122,7 @@ Alternatively, log in to the Teleport Web Interface at `https://teleport.example
 Dive deeper into the topics relevant to your Application Access use-case:
 
 - Learn in more detail about [connecting applications](./guides/connecting-apps.mdx) with Application Access.
-- Learn about integrating with [JWT tokens](./guides/jwt.mdx) for auth.
+- Learn about integrating with [JWT tokens](./jwt/introduction.mdx) for auth.
 - Learn how to use Application Access with [RESTful APIs](./guides/api-access.mdx).
 - See full configuration and CLI [reference](./reference.mdx).
 - Read about how Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/).

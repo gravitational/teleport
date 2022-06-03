@@ -1435,9 +1435,16 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
 	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV3{
-		IssuerURL:   "https://auth.example.com",
-		RedirectURL: "https://cluster.example.com",
-		ClientID:    "fake-client",
+		IssuerURL:    "https://auth.example.com",
+		RedirectURLs: []string{"https://cluster.example.com"},
+		ClientID:     "fake-client",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
 	})
 	require.NoError(t, err)
 	return connector
