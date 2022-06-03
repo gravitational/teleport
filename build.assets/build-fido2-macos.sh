@@ -11,13 +11,14 @@
 # Written mainly for macOS builders.
 set -eu
 
+readonly MACOS_VERSION_MIN=10.13
+
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.9.0
 readonly CRYPTO_VERSION=OpenSSL_1_1_1o
 readonly FIDO2_VERSION=1.11.0
 
 readonly LIB_CACHE="/tmp/teleport-fido2-cache"
-
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"
 
 fetch_and_build() {
@@ -32,7 +33,7 @@ fetch_and_build() {
   tmp="$(mktemp -d "$LIB_CACHE/build.XXXXXX")"
   # Early expansion on purpose.
   #shellcheck disable=SC2064
-  trap "rm -fr '$tmp'" exit
+  trap "rm -fr '$tmp'" EXIT
 
   local fullname="$name-$version"
   local install_path="$tmp/$fullname"
@@ -66,6 +67,7 @@ cbor_build() {
     -DCBOR_CUSTOM_ALLOC=ON \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$dest" \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_VERSION_MIN" \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DWITH_EXAMPLES=OFF \
     -G "Unix Makefiles" \
@@ -86,7 +88,7 @@ crypto_build() {
   cd "$src"
 
   ./config \
-    -mmacosx-version-min=10.12 \
+    -mmacosx-version-min="$MACOS_VERSION_MIN" \
     --prefix="$dest" \
     --openssldir="$dest/openssl@1.1" \
     no-shared \
@@ -119,6 +121,7 @@ fido2_build() {
     -DBUILD_TOOLS=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$dest" \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_VERSION_MIN" \
     -G "Unix Makefiles" \
     .
   make
@@ -174,7 +177,7 @@ Description: A FIDO2 library
 URL: https://github.com/yubico/libfido2
 Version: $FIDO2_VERSION
 Libs: -framework CoreFoundation -framework IOKit \${libdir}/libfido2.a $cbor/lib/libcbor.a $crypto/lib/libcrypto.a
-Cflags: -I\${includedir} -I$cbor/include -I$crypto/include
+Cflags: -I\${includedir} -I$cbor/include -I$crypto/include -mmacosx-version-min="$MACOS_VERSION_MIN"
 EOF
 
     # Move .pc file to expected path.

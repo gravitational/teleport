@@ -32,11 +32,11 @@ type ClusterGetter interface {
 }
 
 // NewTunnelWithRoles returns new authorizing tunnel
-func NewTunnelWithRoles(tunnel Tunnel, roles services.RoleSet, access ClusterGetter) *TunnelWithRoles {
+func NewTunnelWithRoles(tunnel Tunnel, accessChecker services.AccessChecker, access ClusterGetter) *TunnelWithRoles {
 	return &TunnelWithRoles{
-		tunnel: tunnel,
-		roles:  roles,
-		access: access,
+		tunnel:        tunnel,
+		accessChecker: accessChecker,
+		access:        access,
 	}
 }
 
@@ -44,8 +44,8 @@ func NewTunnelWithRoles(tunnel Tunnel, roles services.RoleSet, access ClusterGet
 type TunnelWithRoles struct {
 	tunnel Tunnel
 
-	// roles is a set of roles used to check RBAC permissions.
-	roles services.RoleSet
+	// accessChecker is used to check RBAC permissions.
+	accessChecker services.AccessChecker
 
 	access ClusterGetter
 }
@@ -70,7 +70,7 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 			logrus.Warningf("Skipping dangling cluster %q, no remote cluster resource found.", cluster.GetName())
 			continue
 		}
-		if err := t.roles.CheckAccessToRemoteCluster(rc); err != nil {
+		if err := t.accessChecker.CheckAccessToRemoteCluster(rc); err != nil {
 			if !trace.IsAccessDenied(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -94,7 +94,7 @@ func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := t.roles.CheckAccessToRemoteCluster(rc); err != nil {
+	if err := t.accessChecker.CheckAccessToRemoteCluster(rc); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 	return cluster, nil
