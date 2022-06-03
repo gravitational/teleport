@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
@@ -158,15 +159,24 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if c.Spec.TeamsToLogins != nil {
+		log.Warn("Github connector field teams_to_logins is deprecated and will be removed in the next version. Please use teams_to_roles instead.")
+	}
+
 	// make sure claim mappings have either roles or a role template
 	for i, v := range c.Spec.TeamsToLogins {
 		if v.Team == "" {
 			return trace.BadParameter("team_to_logins mapping #%v is invalid, team is empty.", i+1)
 		}
 	}
+	for i, v := range c.Spec.TeamsToRoles {
+		if v.Team == "" {
+			return trace.BadParameter("team_to_logins mapping #%v is invalid, team is empty.", i+1)
+		}
+	}
 
-	if len(c.Spec.TeamsToLogins) == 0 {
-		return trace.BadParameter("team_to_logins mapping is invalid, no mappings defined.")
+	if len(c.Spec.TeamsToLogins)+len(c.Spec.TeamsToRoles) == 0 {
+		return trace.BadParameter("team_to_logins or team_to_roles mapping is invalid, no mappings defined.")
 	}
 
 	return nil
