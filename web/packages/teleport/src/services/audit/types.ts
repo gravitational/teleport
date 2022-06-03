@@ -57,6 +57,7 @@ export const eventCodes = {
   DATABASE_SESSION_QUERY_FAILURE: 'TDB02W',
   DATABASE_SESSION_STARTED_FAILURE: 'TDB00W',
   DATABASE_SESSION_STARTED: 'TDB00I',
+  DATABASE_SESSION_MALFORMED_PACKET: 'TDB06I',
   DATABASE_CREATED: 'TDB03I',
   DATABASE_UPDATED: 'TDB04I',
   DATABASE_DELETED: 'TDB05I',
@@ -79,6 +80,7 @@ export const eventCodes = {
   MYSQL_PROCESS_KILL: 'TMY11I',
   MYSQL_DEBUG: 'TMY12I',
   MYSQL_REFRESH: 'TMY13I',
+  SQLSERVER_RPC_REQUEST:  "TMS00I",
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
   DESKTOP_SESSION_ENDED: 'TDP01I',
@@ -435,6 +437,14 @@ export type RawEvents = {
       db_query: string;
     }
   >;
+  [eventCodes.DATABASE_SESSION_MALFORMED_PACKET]: RawEvent<
+    typeof eventCodes.DATABASE_SESSION_MALFORMED_PACKET,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+    }
+  >;
   [eventCodes.DATABASE_CREATED]: RawEvent<
     typeof eventCodes.DATABASE_CREATED,
     {
@@ -600,6 +610,15 @@ export type RawEvents = {
     {
       db_service: string;
       subcommand: string;
+    }
+  >;
+  [eventCodes.SQLSERVER_RPC_REQUEST]: RawEvent<
+    typeof eventCodes.SQLSERVER_RPC_REQUEST,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      proc_name: string;
     }
   >;
   [eventCodes.MFA_DEVICE_ADD]: RawEvent<

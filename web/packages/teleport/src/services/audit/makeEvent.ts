@@ -389,6 +389,12 @@ export const formatters: Formatters = {
         80
       )}] in database [${db_name}] on [${db_service}] failed`,
   },
+  [eventCodes.DATABASE_SESSION_MALFORMED_PACKET]: {
+    type: 'db.session.malformed_packet"',
+    desc: 'Database Malformed Packet',
+    format: ({ user, db_service, db_name }) =>
+      `Recived Malfored packed from [${user}] in [${db_name}] on database [${db_service}]`,
+  },
   [eventCodes.DATABASE_CREATED]: {
     type: 'db.create',
     desc: 'Database Created',
@@ -534,6 +540,12 @@ export const formatters: Formatters = {
     desc: 'MySQL Refresh',
     format: ({ user, db_service, subcommand }) =>
       `User [${user}] has sent command [${subcommand}] to [${db_service}]`,
+  },
+  [eventCodes.SQLSERVER_RPC_REQUEST]: {
+    type: 'db.session.sqlserver.rpc_request""',
+    desc: 'SQLServer RPC Request',
+    format: ({ user, db_service, db_name, proc_name}) =>
+      `User [${user}] has send RPC Request [${proc_name}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MFA_DEVICE_ADD]: {
     type: 'mfa.add',
