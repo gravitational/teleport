@@ -19,6 +19,7 @@ package tlsca
 import (
 	"crypto"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -73,6 +74,27 @@ func FromKeys(certPEM, keyPEM []byte) (*CertAuthority, error) {
 		}
 	}
 	return ca, nil
+}
+
+// FromTLSCertificate returns a CertAuthority with the given TLS certificate.
+func FromTLSCertificate(ca tls.Certificate) (*CertAuthority, error) {
+	if len(ca.Certificate) == 0 {
+		return nil, trace.BadParameter("invalid certificate length")
+	}
+	cert, err := x509.ParseCertificate(ca.Certificate[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer, ok := ca.PrivateKey.(crypto.Signer)
+	if !ok {
+		return nil, trace.BadParameter("failed to convert private key to signer")
+	}
+
+	return &CertAuthority{
+		Cert:   cert,
+		Signer: signer,
+	}, nil
 }
 
 // CertAuthority is X.509 certificate authority
