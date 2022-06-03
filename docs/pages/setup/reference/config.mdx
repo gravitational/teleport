@@ -89,6 +89,25 @@ teleport:
     # auth_token: /var/lib/teleport/tokenjoin
     auth_token: xxxx-token-xxxx
 
+    # join_params are parameters to set when joining a cluster via
+    # EC2, IAM or a token.
+    #
+    # EC2 join method documentation:
+    # https://goteleport.com/docs/setup/guides/joining-nodes-aws-ec2/
+    # IAM join method documentation:
+    # https://goteleport.com/docs/setup/guides/joining-nodes-aws-iam/
+    join_params:
+        # join_method when set to "token", is equivalent to using auth_token.
+        join_method: "token"|"ec2"|"iam"
+        # When join_method is "token", token_name is either the
+        # token or the path to a file containing the token.
+        #
+        # If join_method is "iam" or "ec2", token_name will be will be
+        # the name of the joining token resource, e.g., "ec2-token" or
+        # "iam-token" as created in the Joining Nodes via EC2 or IAM
+        # guides.
+        token_name:  "token-name"
+
     # Optional CA pin of the auth server. This enables a more secure way of
     # adding new nodes to a cluster. See "Adding Nodes to the Cluster"
     # (https://goteleport.com/docs/admin-guide/#adding-nodes-to-the-cluster).
