@@ -249,6 +249,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 }
 
 func TestServer_getConnectorAndProvider(t *testing.T) {
+	ctx := context.Background()
 	// Create a Server instance for testing.
 	c := clockwork.NewFakeClockAt(time.Now())
 	b, err := lite.NewWithConfig(context.Background(), lite.Config{
@@ -318,7 +319,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		},
 	}
 
-	connector, provider, err := a.getConnectorAndProvider(context.Background(), request)
+	connector, provider, err := a.getSAMLConnectorAndProvider(context.Background(), request)
 	require.NoError(t, err)
 	require.NotNil(t, connector)
 	require.NotNil(t, provider)
@@ -344,7 +345,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = a.CreateSAMLConnector(conn)
+	err = a.UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
 	request2 := services.SAMLAuthRequest{
@@ -353,7 +354,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		SSOTestFlow: false,
 	}
 
-	connector, provider, err = a.getConnectorAndProvider(context.Background(), request2)
+	connector, provider, err = a.getSAMLConnectorAndProvider(context.Background(), request2)
 	require.NoError(t, err)
 	require.NotNil(t, connector)
 	require.NotNil(t, provider)
@@ -361,6 +362,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 }
 
 func TestServer_ValidateSAMLResponse(t *testing.T) {
+	ctx := context.Background()
 	// Create a Server instance for testing.
 	c := clockwork.NewFakeClockAt(time.Date(2022, 04, 25, 9, 0, 0, 0, time.UTC))
 	b, err := lite.NewWithConfig(context.Background(), lite.Config{
@@ -472,7 +474,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	})
 	require.NoError(t, err)
 
-	err = a.CreateSAMLConnector(conn)
+	err = a.UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
 	err = a.Identity.CreateSAMLAuthRequest(services.SAMLAuthRequest{

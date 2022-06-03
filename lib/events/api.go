@@ -408,7 +408,6 @@ const (
 	// DatabaseSessionQueryFailedEvent is emitted when database client's request
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
-
 	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
 	// creates a prepared statement using extended query protocol.
 	DatabaseSessionPostgresParseEvent = "db.session.postgres.statements.parse"
@@ -471,6 +470,13 @@ const (
 	// DatabaseSessionMySQLRefreshEvent is emitted when a MySQL client sends
 	// refresh commands.
 	DatabaseSessionMySQLRefreshEvent = "db.session.mysql.refresh"
+
+	// DatabaseSessionSQLServerRPCRequestEvent is emitted when MSServer client sends
+	// RPC request command.
+	DatabaseSessionSQLServerRPCRequestEvent = "db.session.sqlserver.rpc_request"
+
+	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
+	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.

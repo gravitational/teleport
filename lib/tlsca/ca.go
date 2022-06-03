@@ -141,6 +141,9 @@ type Identity struct {
 	Renewable bool
 	// Generation counts the number of times this certificate has been renewed.
 	Generation uint64
+	// AllowedResourceIDs lists the resources the identity should be allowed to
+	// access.
+	AllowedResourceIDs []types.ResourceID
 }
 
 // RouteToApp holds routing information for applications.
@@ -226,27 +229,28 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	}
 
 	return events.Identity{
-		User:              id.Username,
-		Impersonator:      id.Impersonator,
-		Roles:             id.Groups,
-		Usage:             id.Usage,
-		Logins:            id.Principals,
-		KubernetesGroups:  id.KubernetesGroups,
-		KubernetesUsers:   id.KubernetesUsers,
-		Expires:           id.Expires,
-		RouteToCluster:    id.RouteToCluster,
-		KubernetesCluster: id.KubernetesCluster,
-		Traits:            id.Traits,
-		RouteToApp:        routeToApp,
-		TeleportCluster:   id.TeleportCluster,
-		RouteToDatabase:   routeToDatabase,
-		DatabaseNames:     id.DatabaseNames,
-		DatabaseUsers:     id.DatabaseUsers,
-		MFADeviceUUID:     id.MFAVerified,
-		ClientIP:          id.ClientIP,
-		AWSRoleARNs:       id.AWSRoleARNs,
-		AccessRequests:    id.ActiveRequests,
-		DisallowReissue:   id.DisallowReissue,
+		User:               id.Username,
+		Impersonator:       id.Impersonator,
+		Roles:              id.Groups,
+		Usage:              id.Usage,
+		Logins:             id.Principals,
+		KubernetesGroups:   id.KubernetesGroups,
+		KubernetesUsers:    id.KubernetesUsers,
+		Expires:            id.Expires,
+		RouteToCluster:     id.RouteToCluster,
+		KubernetesCluster:  id.KubernetesCluster,
+		Traits:             id.Traits,
+		RouteToApp:         routeToApp,
+		TeleportCluster:    id.TeleportCluster,
+		RouteToDatabase:    routeToDatabase,
+		DatabaseNames:      id.DatabaseNames,
+		DatabaseUsers:      id.DatabaseUsers,
+		MFADeviceUUID:      id.MFAVerified,
+		ClientIP:           id.ClientIP,
+		AWSRoleARNs:        id.AWSRoleARNs,
+		AccessRequests:     id.ActiveRequests,
+		DisallowReissue:    id.DisallowReissue,
+		AllowedResourceIDs: types.EventResourceIDs(id.AllowedResourceIDs),
 	}
 }
 
@@ -361,6 +365,10 @@ var (
 	// requests to generate new certificates using this certificate should be
 	// denied.
 	DisallowReissueASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 9}
+
+	// AllowedResourcesASN1ExtensionOID is an extension OID used to list the
+	// resources which the certificate should be able to grant access to
+	AllowedResourcesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 10}
 )
 
 // Subject converts identity to X.509 subject name
@@ -565,6 +573,19 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	if len(id.AllowedResourceIDs) > 0 {
+		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AllowedResourcesASN1ExtensionOID,
+				Value: allowedResourcesStr,
+			},
+		)
+	}
+
 	return subject, nil
 }
 
@@ -709,6 +730,15 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 					return nil, trace.Wrap(err)
 				}
 				id.Generation = generation
+			}
+		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
+			allowedResourcesStr, ok := attr.Value.(string)
+			if ok {
+				allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				id.AllowedResourceIDs = allowedResourceIDs
 			}
 		}
 	}

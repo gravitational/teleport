@@ -199,18 +199,20 @@ func TestSession_newRecorder(t *testing.T) {
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
-					RoleSet: services.RoleSet{
-						&types.RoleV5{
-							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-							Spec: types.RoleSpecV5{
-								Options: types.RoleOptions{
-									RecordSession: &types.RecordSession{
-										SSH: constants.SessionRecordingModeStrict,
+					AccessChecker: services.NewAccessChecker(&services.AccessInfo{
+						RoleSet: services.RoleSet{
+							&types.RoleV5{
+								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+								Spec: types.RoleSpecV5{
+									Options: types.RoleOptions{
+										RecordSession: &types.RecordSession{
+											SSH: constants.SessionRecordingModeStrict,
+										},
 									},
 								},
 							},
 						},
-					},
+					}, "test"),
 				},
 			},
 			errAssertion: require.Error,
@@ -236,18 +238,20 @@ func TestSession_newRecorder(t *testing.T) {
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
-					RoleSet: services.RoleSet{
-						&types.RoleV5{
-							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-							Spec: types.RoleSpecV5{
-								Options: types.RoleOptions{
-									RecordSession: &types.RecordSession{
-										SSH: constants.SessionRecordingModeBestEffort,
+					AccessChecker: services.NewAccessChecker(&services.AccessInfo{
+						RoleSet: services.RoleSet{
+							&types.RoleV5{
+								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+								Spec: types.RoleSpecV5{
+									Options: types.RoleOptions{
+										RecordSession: &types.RecordSession{
+											SSH: constants.SessionRecordingModeBestEffort,
+										},
 									},
 								},
 							},
 						},
-					},
+					}, "test"),
 				},
 			},
 			errAssertion: require.NoError,
@@ -362,12 +366,10 @@ func TestInteractiveSession(t *testing.T) {
 		sess.Stop()
 
 		sessionClosed := func() bool {
-			reg.sessionsMux.Lock()
-			defer reg.sessionsMux.Unlock()
-			_, found := reg.findSessionLocked(sess.id)
+			_, found := reg.findSession(sess.id)
 			return !found
 		}
-		require.Eventually(t, sessionClosed, time.Second*5, time.Millisecond*500)
+		require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
 	})
 }
 
