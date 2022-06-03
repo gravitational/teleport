@@ -342,6 +342,10 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		`build.assets/build-fido2-macos.sh build`,
 		`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
 		`rustup override set $RUST_VERSION`,
+		// BUILD_NUMBER is used by electron-builder to add an extra fourth integer to CFBundleVersion on macOS.
+		// This makes the full app version look like this: 9.3.5.12489
+		// https://www.electron.build/configuration/configuration.html#Configuration-buildVersion
+		`export BUILD_NUMBER=$DRONE_BUILD_NUMBER`,
 	}
 
 	if opts.unlockKeychain {
