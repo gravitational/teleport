@@ -2968,7 +2968,7 @@ message SSODiagnosticInfo {
     ];
 
     // SAMLAssertionInfo represents raw SAML assertion info as returned by IdP during SAML flow.
-    bytes SAMLAssertionInfo = 13 [
+    wrappers.CustomType SAMLAssertionInfo = 13 [
         (gogoproto.jsontag) = "saml_assertion_info,omitempty",
         (gogoproto.customtype) = "AssertionInfo"
     ];
@@ -2996,14 +2996,14 @@ message SSODiagnosticInfo {
         [ (gogoproto.jsontag) = "oidc_claims_to_roles_warnings,omitempty" ];
 
     // OIDCClaims represents OIDC claims.
-    bytes OIDCClaims = 22 [
+    wrappers.CustomType OIDCClaims = 22 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "oidc_claims,omitempty",
         (gogoproto.customtype) = "OIDCClaims"
     ];
 
     // OIDCIdentity represents mapped OIDC Identity.
-    bytes OIDCIdentity = 23 [
+    wrappers.CustomType OIDCIdentity = 23 [
         (gogoproto.jsontag) = "oidc_identity,omitempty",
         (gogoproto.customtype) = "OIDCIdentity"
     ];
