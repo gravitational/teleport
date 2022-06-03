@@ -16,19 +16,20 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
+import { AgentResponse } from 'teleport/services/agents';
+import { Kube } from './types';
 import makeKube from './makeKube';
-import { KubesResponse } from './types';
 
 class KubeService {
   fetchKubernetes(
     clusterId,
     params: UrlResourcesParams
-  ): Promise<KubesResponse> {
+  ): Promise<AgentResponse<Kube>> {
     return api.get(cfg.getKubernetesUrl(clusterId, params)).then(json => {
       const items = json?.items || [];
 
       return {
-        kubes: items.map(makeKube),
+        agents: items.map(makeKube),
         startKey: json?.startKey,
         totalCount: json?.totalCount,
       };

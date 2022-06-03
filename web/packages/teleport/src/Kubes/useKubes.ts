@@ -26,7 +26,7 @@ import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
 import labelClick from 'teleport/labelClick';
-import { AgentLabel } from 'teleport/services/resources';
+import { AgentLabel } from 'teleport/services/agents';
 
 export default function useKubes(ctx: TeleportContext) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
@@ -72,7 +72,11 @@ export default function useKubes(ctx: TeleportContext) {
     ctx.kubeService
       .fetchKubernetes(clusterId, { ...params, limit: pageSize })
       .then(res => {
-        setResults(res);
+        setResults({
+          kubes: res.agents,
+          startKey: res.startKey,
+          totalCount: res.totalCount,
+        });
         setFetchStatus(res.startKey ? '' : 'disabled');
         setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
@@ -95,7 +99,7 @@ export default function useKubes(ctx: TeleportContext) {
       .then(res => {
         setResults({
           ...results,
-          kubes: res.kubes,
+          kubes: res.agents,
           startKey: res.startKey,
         });
         setFetchStatus(res.startKey ? '' : 'disabled');
@@ -120,7 +124,7 @@ export default function useKubes(ctx: TeleportContext) {
         setStartKeys(tempStartKeys);
         setResults({
           ...results,
-          kubes: res.kubes,
+          kubes: res.agents,
           startKey: res.startKey,
         });
         setFetchStatus('');

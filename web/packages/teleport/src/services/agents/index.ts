@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2022 Gravitational, Inc.
+ * Copyright 2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,29 +14,4 @@
  * limitations under the License.
  */
 
-import { AgentLabel } from 'teleport/services/agents';
-
-export interface App {
-  id: string;
-  name: string;
-  description: string;
-  uri: string;
-  publicAddr: string;
-  labels: AgentLabel[];
-  clusterId: string;
-  launchUrl: string;
-  fqdn: string;
-  awsRoles: AwsRole[];
-  awsConsole: boolean;
-}
-
-export type AppsResponse = {
-  apps: App[];
-  startKey?: string;
-  totalCount?: number;
-};
-
-export type AwsRole = {
-  arn: string;
-  display: string;
-};
+export * from './types';

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ limitations under the License.
 
 import DatabaseService from './databases';
 import api from 'teleport/services/api';
+import { Database } from './types';
 
 test('correct formatting of database fetch response', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(mockResponse);
@@ -26,7 +27,7 @@ test('correct formatting of database fetch response', async () => {
   });
 
   expect(response).toEqual({
-    databases: [
+    agents: [
       {
         name: 'aurora',
         description: 'PostgreSQL 11.6: AWS Aurora',
@@ -52,7 +53,7 @@ test('null response from database fetch', async () => {
   });
 
   expect(response).toEqual({
-    databases: [],
+    agents: [],
     startKey: undefined,
     totalCount: undefined,
   });
@@ -80,7 +81,8 @@ describe('correct formatting of all type and protocol combos', () => {
         search: 'does-not-matter',
       });
 
-      expect(response.databases[0].type).toBe(combined);
+      const dbs = response.agents as Database[];
+      expect(dbs[0].type).toBe(combined);
     }
   );
 });
@@ -93,7 +95,7 @@ test('null labels field in database fetch response', async () => {
     search: 'does-not-matter',
   });
 
-  expect(response.databases[0].labels).toEqual([]);
+  expect(response.agents[0].labels).toEqual([]);
 });
 
 const mockResponse = {

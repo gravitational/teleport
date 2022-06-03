@@ -24,7 +24,7 @@ test('correct formatting of desktops fetch response', async () => {
   });
 
   expect(response).toEqual({
-    desktops: [
+    agents: [
       {
         os: 'windows',
         name: 'DC1-teleport-demo',
@@ -45,7 +45,7 @@ test('null response from desktops fetch', async () => {
   });
 
   expect(response).toEqual({
-    desktops: [],
+    agents: [],
     startKey: undefined,
     totalCount: undefined,
   });
@@ -57,7 +57,7 @@ test('null labels field in desktops fetch response', async () => {
     search: 'does-not-matter',
   });
 
-  expect(response.desktops[0].labels).toEqual([]);
+  expect(response.agents[0].labels).toEqual([]);
 });
 
 const mockResponse = {

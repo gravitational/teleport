@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,19 +16,20 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
+import { AgentResponse } from 'teleport/services/agents';
+import { Database } from './types';
 import makeDatabase from './makeDatabase';
-import { DatabasesResponse } from './types';
 
 class DatabaseService {
   fetchDatabases(
     clusterId: string,
     params: UrlResourcesParams
-  ): Promise<DatabasesResponse> {
+  ): Promise<AgentResponse<Database>> {
     return api.get(cfg.getDatabasesUrl(clusterId, params)).then(json => {
       const items = json?.items || [];
 
       return {
-        databases: items.map(makeDatabase),
+        agents: items.map(makeDatabase),
         startKey: json?.startKey,
         totalCount: json?.totalCount,
       };

@@ -71,3 +71,8 @@ export type SortDir = 'ASC' | 'DESC';
 export type FetchStatus = 'loading' | 'disabled' | '';
 
 export type TableColumn<T> = TableColumnWithKey<T> | TableColumnWithAltKey<T>;
+
+export type LabelDescription = {
+  name: string;
+  value: string;
+};

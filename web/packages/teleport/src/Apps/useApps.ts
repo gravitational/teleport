@@ -26,7 +26,7 @@ import getResourceUrlQueryParams, {
 } from 'teleport/getUrlQueryParams';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import labelClick from 'teleport/labelClick';
-import { AgentLabel } from 'teleport/services/resources';
+import { AgentLabel } from 'teleport/services/agents';
 
 export default function useApps(ctx: Ctx) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
@@ -82,7 +82,11 @@ export default function useApps(ctx: Ctx) {
     ctx.appService
       .fetchApps(clusterId, { ...params, limit: pageSize })
       .then(res => {
-        setResults(res);
+        setResults({
+          apps: res.agents,
+          startKey: res.startKey,
+          totalCount: res.totalCount,
+        });
         setFetchStatus(res.startKey ? '' : 'disabled');
         setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
@@ -105,7 +109,7 @@ export default function useApps(ctx: Ctx) {
       .then(res => {
         setResults({
           ...results,
-          apps: res.apps,
+          apps: res.agents,
           startKey: res.startKey,
         });
         setFetchStatus(res.startKey ? '' : 'disabled');
@@ -130,7 +134,7 @@ export default function useApps(ctx: Ctx) {
         setStartKeys(tempStartKeys);
         setResults({
           ...results,
-          apps: res.apps,
+          apps: res.agents,
           startKey: res.startKey,
         });
         setFetchStatus('');

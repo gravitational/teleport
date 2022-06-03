@@ -18,7 +18,7 @@ import React from 'react';
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
 import { Desktop } from 'teleport/services/desktops';
-import { AgentLabel } from 'teleport/services/resources';
+import { AgentLabel } from 'teleport/services/agents';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';

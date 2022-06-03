@@ -22,11 +22,6 @@ export type Resource<T extends Kind> = {
   content: string;
 };
 
-export type AgentLabel = {
-  name: string;
-  value: string;
-};
-
 export type KindRole = 'role';
 export type KindTrustedCluster = 'trusted_cluster';
 export type KindAuthConnectors = 'github' | 'saml' | 'oidc';

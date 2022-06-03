@@ -28,7 +28,7 @@ import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
 import labelClick from 'teleport/labelClick';
-import { AgentLabel } from 'teleport/services/resources';
+import { AgentLabel } from 'teleport/services/agents';
 
 export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const { isLeafCluster, clusterId } = stickyCluster;
@@ -89,7 +89,11 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     ctx.nodeService
       .fetchNodes(clusterId, { ...params, limit: pageSize })
       .then(res => {
-        setResults(res);
+        setResults({
+          nodes: res.agents,
+          startKey: res.startKey,
+          totalCount: res.totalCount,
+        });
         setFetchStatus(res.startKey ? '' : 'disabled');
         setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
@@ -112,7 +116,7 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
       .then(res => {
         setResults({
           ...results,
-          nodes: res.nodes,
+          nodes: res.agents,
           startKey: res.startKey,
         });
         setFetchStatus(res.startKey ? '' : 'disabled');
@@ -137,7 +141,7 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
         setStartKeys(tempStartKeys);
         setResults({
           ...results,
-          nodes: res.nodes,
+          nodes: res.agents,
           startKey: res.startKey,
         });
         setFetchStatus('');

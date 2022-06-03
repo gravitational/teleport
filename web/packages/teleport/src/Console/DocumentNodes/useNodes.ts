@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import getResourceUrlQueryParams, {
 import { useConsoleContext } from './../consoleContextProvider';
 import * as stores from './../stores';
 import labelClick from 'teleport/labelClick';
-import { AgentLabel } from 'teleport/services/resources';
+import { AgentLabel } from 'teleport/services/agents';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();
@@ -69,7 +69,12 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
     consoleCtx
       .fetchNodes(clusterId, { ...params, limit: pageSize })
       .then(({ logins, nodesRes }) => {
-        setResults({ logins, ...nodesRes });
+        setResults({
+          logins,
+          nodes: nodesRes.agents,
+          startKey: nodesRes.startKey,
+          totalCount: nodesRes.totalCount,
+        });
         setFetchStatus(nodesRes.startKey ? '' : 'disabled');
         setStartKeys(['', nodesRes.startKey]);
         setAttempt({ status: 'success' });
@@ -93,7 +98,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
         setResults({
           logins,
           ...results,
-          nodes: nodesRes.nodes,
+          nodes: nodesRes.agents,
           startKey: nodesRes.startKey,
         });
         setFetchStatus(nodesRes.startKey ? '' : 'disabled');
@@ -116,7 +121,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
         setResults({
           logins,
           ...results,
-          nodes: nodesRes.nodes,
+          nodes: nodesRes.agents,
           startKey: nodesRes.startKey,
         });
         const tempStartKeys = startKeys;

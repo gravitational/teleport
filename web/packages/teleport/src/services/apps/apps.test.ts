@@ -24,7 +24,7 @@ test('correct formatting of apps fetch response', async () => {
   });
 
   expect(response).toEqual({
-    apps: [
+    agents: [
       {
         id: 'cluster-id-app-name-app-name.example.com',
         name: 'app-name',
@@ -53,7 +53,7 @@ test('null response from apps fetch', async () => {
   });
 
   expect(response).toEqual({
-    apps: [],
+    agents: [],
     startKey: undefined,
     totalCount: undefined,
   });
@@ -65,7 +65,7 @@ test('null labels field in apps fetch response', async () => {
     search: 'does-not-matter',
   });
 
-  expect(response.apps[0].labels).toEqual([]);
+  expect(response.agents[0].labels).toEqual([]);
 });
 
 const mockResponse = {

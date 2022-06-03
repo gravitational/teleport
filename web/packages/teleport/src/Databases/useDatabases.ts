@@ -26,7 +26,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import history from 'teleport/services/history';
 import { DatabasesResponse } from 'teleport/services/databases';
 import labelClick from 'teleport/labelClick';
-import { AgentLabel } from 'teleport/services/resources';
+import { AgentLabel } from 'teleport/services/agents';
 
 export default function useDatabases(ctx: Ctx) {
   const { search, pathname } = useLocation();
@@ -76,7 +76,11 @@ export default function useDatabases(ctx: Ctx) {
     ctx.databaseService
       .fetchDatabases(clusterId, { ...params, limit: pageSize })
       .then(res => {
-        setResults(res);
+        setResults({
+          databases: res.agents,
+          startKey: res.startKey,
+          totalCount: res.totalCount,
+        });
         setFetchStatus(res.startKey ? '' : 'disabled');
         setStartKeys(['', res.startKey]);
         setAttempt({ status: 'success' });
@@ -99,7 +103,7 @@ export default function useDatabases(ctx: Ctx) {
       .then(res => {
         setResults({
           ...results,
-          databases: res.databases,
+          databases: res.agents,
           startKey: res.startKey,
         });
         setFetchStatus(res.startKey ? '' : 'disabled');
@@ -124,7 +128,7 @@ export default function useDatabases(ctx: Ctx) {
         setStartKeys(tempStartKeys);
         setResults({
           ...results,
-          databases: res.databases,
+          databases: res.agents,
           startKey: res.startKey,
         });
         setFetchStatus('');

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2020-2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,20 @@
 
 import api from 'teleport/services/api';
 import cfg, { UrlAppParams, UrlResourcesParams } from 'teleport/config';
+import { AgentResponse } from 'teleport/services/agents';
 import makeApp from './makeApps';
-import { AppsResponse } from './types';
+import { App } from './types';
 
 const service = {
   fetchApps(
     clusterId: string,
     params: UrlResourcesParams
-  ): Promise<AppsResponse> {
+  ): Promise<AgentResponse<App>> {
     return api.get(cfg.getApplicationsUrl(clusterId, params)).then(json => {
       const items = json?.items || [];
 
       return {
-        apps: items.map(makeApp),
+        agents: items.map(makeApp),
         startKey: json?.startKey,
         totalCount: json?.totalCount,
       };

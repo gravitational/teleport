@@ -20,7 +20,7 @@ import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
 import { AuthType } from 'teleport/services/user';
 import { Database, DbProtocol } from 'teleport/services/databases';
-import { AgentLabel } from 'teleport/services/resources';
+import { AgentLabel } from 'teleport/services/agents';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';

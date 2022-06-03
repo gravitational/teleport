@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ test('correct processed fetch response formatting', async () => {
   });
 
   expect(response).toEqual({
-    kubes: [
+    agents: [
       {
         name: 'tele.logicoma.dev-prod',
         labels: [
@@ -49,7 +49,7 @@ test('handling of null fetch response', async () => {
   });
 
   expect(response).toEqual({
-    kubes: [],
+    agents: [],
     startKey: undefined,
     totalCount: undefined,
   });
@@ -65,7 +65,7 @@ test('handling of null labels', async () => {
     search: 'does-not-matter',
   });
 
-  expect(response.kubes).toEqual([{ name: 'test', labels: [] }]);
+  expect(response.agents).toEqual([{ name: 'test', labels: [] }]);
 });
 
 const mockApiResponse = {

@@ -23,7 +23,7 @@ test('correct formatting of nodes fetch response', async () => {
   const response = await nodesService.fetchNodes('does-not-matter');
 
   expect(response).toEqual({
-    nodes: [
+    agents: [
       {
         id: '00a53f99-993b-40bc-af51-5ba259af4e43',
         clusterId: 'im-a-cluster-name',
@@ -45,7 +45,7 @@ test('null response from nodes fetch', async () => {
   const response = await nodesService.fetchNodes('does-not-matter');
 
   expect(response).toEqual({
-    nodes: [],
+    agents: [],
     startKey: undefined,
     totalCount: undefined,
   });
@@ -56,7 +56,7 @@ test('null labels field in nodes fetch response', async () => {
   jest.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
   const response = await nodesService.fetchNodes('does-not-matter');
 
-  expect(response.nodes[0].labels).toEqual([]);
+  expect(response.agents[0].labels).toEqual([]);
 });
 
 const mockResponse = {
