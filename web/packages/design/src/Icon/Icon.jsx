@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { space, fontSize, width, color } from 'styled-system';
-import './../assets/icomoon/style.css';
+import '../assets/icomoon/style.css';
 
 const Icon = styled.span`
   display: inline-block;
@@ -142,6 +142,7 @@ export const EqualizerVertical = makeFontIcon(
   'EqualizerVertical',
   'icon-equalizer1'
 );
+export const ExitRight = makeFontIcon('ExitRight', 'icon-exit-right');
 export const Expand = makeFontIcon('Expand', 'icon-frame-expand');
 export const Facebook = makeFontIcon('Facebook', 'icon-facebook');
 export const FacebookSquare = makeFontIcon('FacebookSquare', 'icon-facebook2');

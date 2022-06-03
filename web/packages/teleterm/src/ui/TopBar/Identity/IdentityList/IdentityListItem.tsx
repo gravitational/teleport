@@ -3,7 +3,7 @@ import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ButtonIcon, Flex, Label, Text } from 'design';
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
-import { CircleCross } from 'design/Icon';
+import { ExitRight } from 'design/Icon';
 
 interface IdentityListItemProps {
   index: number;
@@ -61,14 +61,14 @@ export function IdentityListItem(props: IdentityListItemProps) {
               transition: 'none',
             }}
             ml={2}
-            color="text.placeholder"
             title={`Log out from ${props.clusterName}`}
             onClick={e => {
               e.stopPropagation();
               props.onLogout();
             }}
           >
-            <CircleCross fontSize={12} />
+            {/* Due to the icon shape it appears to be not centered, so a small margin is added */}
+            <ExitRight ml="2px" fontSize={14} />
           </ButtonIcon>
         </Flex>
       </Flex>
