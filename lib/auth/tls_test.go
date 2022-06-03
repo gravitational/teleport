@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"encoding/base32"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -124,7 +125,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 		TestBuiltin(types.RoleAuth), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
-	_, err = remoteAuth.GetDomainName()
+	_, err = remoteAuth.GetDomainName(ctx)
 	fixtures.ExpectAccessDenied(c, err)
 }
 
@@ -837,14 +838,19 @@ func (s *TLSSuite) TestRemoteUser(c *check.C) {
 
 	// User is not authorized to perform any actions
 	// as local cluster does not trust the remote cluster yet
-	_, err = remoteClient.GetDomainName()
-	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
+	_, err = remoteClient.GetDomainName(ctx)
+	fixtures.ExpectConnectionProblem(c, err)
 
 	// Establish trust, the request will still fail, there is
 	// no role mapping set up
 	err = s.server.AuthServer.Trust(ctx, remoteServer, nil)
 	c.Assert(err, check.IsNil)
-	_, err = remoteClient.GetDomainName()
+
+	// Create fresh client now trust is established
+	remoteClient, err = remoteServer.NewRemoteClient(
+		TestUser(remoteUser.GetName()), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
+	_, err = remoteClient.GetDomainName(ctx)
 	fixtures.ExpectAccessDenied(c, err)
 
 	// Establish trust and map remote role to local admin role
@@ -854,7 +860,7 @@ func (s *TLSSuite) TestRemoteUser(c *check.C) {
 	err = s.server.AuthServer.Trust(ctx, remoteServer, types.RoleMap{{Remote: remoteRole.GetName(), Local: []string{localRole.GetName()}}})
 	c.Assert(err, check.IsNil)
 
-	_, err = remoteClient.GetDomainName()
+	_, err = remoteClient.GetDomainName(ctx)
 	c.Assert(err, check.IsNil)
 }
 
@@ -866,7 +872,7 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Nop User can get cluster name
-	_, err = client.GetDomainName()
+	_, err = client.GetDomainName(ctx)
 	c.Assert(err, check.IsNil)
 
 	// But can not get users or nodes
@@ -1242,7 +1248,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(err, check.IsNil)
 
 	// Roles extracted from cert should contain the initial role and the role assigned with access request.
-	roles, _, err := services.ExtractFromCertificate(sshcert)
+	roles, err := services.ExtractRolesFromCert(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.HasLen, 2)
 
@@ -1283,7 +1289,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
 	c.Assert(err, check.IsNil)
 
-	roles, _, err = services.ExtractFromCertificate(sshcert)
+	roles, err = services.ExtractRolesFromCert(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.DeepEquals, []string{initialRole})
 
@@ -2248,11 +2254,12 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-// TestTLSFailover tests client failover between two tls servers
+// TestTLSFailover tests HTTP client failover between two tls servers
 func (s *TLSSuite) TestTLSFailover(c *check.C) {
 	otherServer, err := s.server.AuthServer.NewTestTLSServer()
 	c.Assert(err, check.IsNil)
 	defer otherServer.Close()
+	ctx := context.Background()
 
 	tlsConfig, err := s.server.ClientTLSConfig(TestNop())
 	c.Assert(err, check.IsNil)
@@ -2271,8 +2278,8 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 
 	// couple of runs to get enough connections
 	for i := 0; i < 4; i++ {
-		_, err = client.GetDomainName()
-		c.Assert(err, check.IsNil)
+		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
+		fixtures.ExpectNotFound(c, err)
 	}
 
 	// stop the server to get response
@@ -2281,8 +2288,8 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 
 	// client detects closed sockets and reconnect to the backup server
 	for i := 0; i < 4; i++ {
-		_, err = client.GetDomainName()
-		c.Assert(err, check.IsNil)
+		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
+		fixtures.ExpectNotFound(c, err)
 	}
 }
 
@@ -2308,7 +2315,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Calculate what CA pin should be.
-	localCAResponse, err := s.server.AuthServer.AuthServer.GetClusterCACert()
+	localCAResponse, err := s.server.AuthServer.AuthServer.GetClusterCACert(ctx)
 	c.Assert(err, check.IsNil)
 	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	c.Assert(err, check.IsNil)
@@ -2397,7 +2404,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Calculate what CA pins should be.
-	localCAResponse, err = s.server.AuthServer.AuthServer.GetClusterCACert()
+	localCAResponse, err = s.server.AuthServer.AuthServer.GetClusterCACert(ctx)
 	c.Assert(err, check.IsNil)
 	caPins, err = tlsca.CalculatePins(localCAResponse.TLSCA)
 	c.Assert(err, check.IsNil)

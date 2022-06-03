@@ -90,8 +90,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/kube/csr", srv.withAuth(srv.processKubeCSR))
 
 	// Operations on certificate authorities
-	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))
-	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert))
+	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))    // DELETE IN 11.0.0 REST method replaced by gRPC
+	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert)) // DELETE IN 11.0.0 REST method replaced by gRPC
 
 	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.withAuth(srv.rotateCertAuthority))
@@ -153,11 +153,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/reversetunnels/:domain", srv.withAuth(srv.deleteReverseTunnel))
 
 	// trusted clusters
-	srv.POST("/:version/trustedclusters", srv.withAuth(srv.upsertTrustedCluster))
 	srv.POST("/:version/trustedclusters/validate", srv.withAuth(srv.validateTrustedCluster))
-	srv.GET("/:version/trustedclusters", srv.withAuth(srv.getTrustedClusters))
-	srv.GET("/:version/trustedclusters/:name", srv.withAuth(srv.getTrustedCluster))
-	srv.DELETE("/:version/trustedclusters/:name", srv.withAuth(srv.deleteTrustedCluster))
 
 	// Tokens
 	srv.POST("/:version/tokens", srv.withAuth(srv.generateToken))
@@ -548,31 +544,6 @@ func (s *APIServer) deleteReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 	return message(fmt.Sprintf("reverse tunnel %v deleted", domainName)), nil
 }
 
-type upsertTrustedClusterReq struct {
-	TrustedCluster json.RawMessage `json:"trusted_cluster"`
-}
-
-// upsertTrustedCluster creates or updates a trusted cluster.
-func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertTrustedClusterReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	trustedCluster, err := services.UnmarshalTrustedCluster(req.TrustedCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := services.ValidateTrustedCluster(trustedCluster); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := auth.UpsertTrustedCluster(r.Context(), trustedCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalTrustedCluster(out, services.WithVersion(version), services.PreserveResourceID()))
-}
-
 func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var validateRequestRaw ValidateTrustedClusterRequestRaw
 	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
@@ -595,24 +566,6 @@ func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, 
 	}
 
 	return validateResponseRaw, nil
-}
-
-func (s *APIServer) getTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return auth.GetTrustedCluster(r.Context(), p.ByName("name"))
-}
-
-func (s *APIServer) getTrustedClusters(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return auth.GetTrustedClusters(r.Context())
-}
-
-// deleteTrustedCluster deletes a trusted cluster by name.
-func (s *APIServer) deleteTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteTrustedCluster(r.Context(), p.ByName("name"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message("ok"), nil
 }
 
 func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1006,24 +959,37 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
 }
 
+// Replaced with gRPC endpoint
+// DELETE IN 11.0.0
 func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	domain, err := auth.GetDomainName()
+	domain, err := auth.GetDomainName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return domain, nil
 }
 
+// deprecatedLocalCAResponse contains the concatenated PEM-encoded TLS certs for
+// the local cluster's Host CA
+// DELETE IN 11.0.0
+type deprecatedLocalCAResponse struct {
+	// TLSCA is a PEM-encoded TLS certificate authority.
+	TLSCA []byte `json:"tls_ca"`
+}
+
 // getClusterCACert returns the PEM-encoded TLS certs for the local cluster
 // without signing keys. If the cluster has multiple TLS certs, they will all
 // be appended.
+// DELETE IN 11.0.0
 func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	localCA, err := auth.GetClusterCACert()
+	localCA, err := auth.GetClusterCACert(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return localCA, nil
+	return deprecatedLocalCAResponse{
+		TLSCA: localCA.TLSCA,
+	}, nil
 }
 
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

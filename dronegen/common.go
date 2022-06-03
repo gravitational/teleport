@@ -162,6 +162,10 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 	return result
 }
 
+func (b *buildType) hasTeleportConnect() bool {
+	return b.os == "darwin" && b.arch == "amd64"
+}
+
 // dockerService generates a docker:dind service
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerService(v ...volumeRef) service {

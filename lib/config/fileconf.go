@@ -710,6 +710,9 @@ type Auth struct {
 
 	// RoutingStrategy configures the routing strategy to nodes.
 	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
+
+	// TunnelStrategy configures the tunnel strategy used by the cluster.
+	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1019,11 +1022,6 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 		}
 	}
 
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	if ssh.X11.MaxDisplays != nil && ssh.X11.MaxDisplay == nil {
-		ssh.X11.MaxDisplay = ssh.X11.MaxDisplays
-	}
-
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
 	if ssh.X11.MaxDisplay != nil {
 		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
@@ -1142,8 +1140,6 @@ type X11 struct {
 	// MaxDisplay tells the server what X11 display number to stop at when
 	// searching for an open X11 unix socket for XServer proxies.
 	MaxDisplay *uint `yaml:"max_display,omitempty"`
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	MaxDisplays *uint `yaml:"max_displays,omitempty"`
 }
 
 // Databases represents the database proxy service configuration.
@@ -1349,6 +1345,8 @@ type Proxy struct {
 	WebAddr string `yaml:"web_listen_addr,omitempty"`
 	// TunAddr is a reverse tunnel address
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
+	// PeerAddr is the address this proxy will be dialed at by its peers.
+	PeerAddr string `yaml:"peer_listen_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file

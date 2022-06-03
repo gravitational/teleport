@@ -499,11 +499,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		r.log.Errorf("Failed to create new session: %v.", err)
 	}
 
-	var policySets []*types.SessionTrackerPolicySet
-	for _, role := range ctx.Identity.RoleSet {
-		policySet := role.GetSessionPolicySet()
-		policySets = append(policySets, &policySet)
-	}
+	policySets := ctx.Identity.AccessChecker.SessionPolicySets()
 
 	sess := &session{
 		log: log.WithFields(log.Fields{
@@ -996,7 +992,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		ServerID:  ctx.srv.HostUUID(),
 		Login:     ctx.Identity.Login,
 		User:      ctx.Identity.TeleportUser,
-		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
+		Events:    ctx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
 	if cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext); err != nil {
@@ -1112,7 +1108,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		ServerID:  ctx.srv.HostUUID(),
 		Login:     ctx.Identity.Login,
 		User:      ctx.Identity.TeleportUser,
-		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
+		Events:    ctx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 	cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
@@ -1403,7 +1399,7 @@ func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
 
 		participants = append(participants, auth.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.RoleSet,
+			Roles:    party.ctx.Identity.AccessChecker.Roles(),
 			Mode:     party.mode,
 		})
 	}
@@ -1513,9 +1509,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
 	if ctx.Identity.TeleportUser != s.initiator {
-		roles := []types.Role(ctx.Identity.RoleSet)
 		accessContext := auth.SessionAccessContext{
-			Roles: roles,
+			Roles: ctx.Identity.AccessChecker.Roles(),
 		}
 
 		modes := s.access.CanJoin(accessContext)
