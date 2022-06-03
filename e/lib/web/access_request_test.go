@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateAccessRequest(t *testing.T) {
+func TestCreateAccessRequest_RoleBased(t *testing.T) {
 	m := &mockedAccessRequestAPIGetter{}
 	var createdReq types.AccessRequest
 	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
@@ -46,6 +47,33 @@ func TestCreateAccessRequest(t *testing.T) {
 	require.Nil(t, err)
 }
 
+func TestCreateAccessRequest_SearchBased(t *testing.T) {
+	m := &mockedAccessRequestAPIGetter{}
+	var createdReq types.AccessRequest
+	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+		return []types.AccessRequest{createdReq}, nil
+	}
+
+	m.mockCreateAccessRequest = func(ctx context.Context, req types.AccessRequest) error {
+		createdReq = req
+		require.Equal(t, req.GetUser(), "userFoo")
+		require.Empty(t, req.GetRoles())
+		require.Equal(t, req.GetRequestReason(), "some reason")
+		require.Equal(t, req.GetRequestedResourceIDs(), []types.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}})
+		return nil
+	}
+
+	request := accessRequestParameters{
+		Reason:      "some reason",
+		ResourceIDs: []ui.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}},
+	}
+
+	req, err := createAccessRequest(context.Background(), m, request, "userFoo")
+	require.Nil(t, err)
+	require.NotEmpty(t, req.ID)
+	require.Equal(t, req.State, types.RequestState_PENDING.String())
+}
+
 func TestGetAccessRequest(t *testing.T) {
 	m := &mockedAccessRequestAPIGetter{}
 
@@ -78,14 +106,18 @@ func TestGetAccessRequests(t *testing.T) {
 	m := &mockedAccessRequestAPIGetter{}
 
 	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-		req, err := services.NewAccessRequest("baz", []string{"bar"}...)
+		roleBasedReq1, err := services.NewAccessRequest("baz", []string{"bar"}...)
 		require.Nil(t, err)
-		req.SetState(types.RequestState_NONE)
+		roleBasedReq1.SetState(types.RequestState_NONE)
 
-		req2, err := services.NewAccessRequest("foz", []string{"foo"}...)
+		roleBasedReq2, err := services.NewAccessRequest("foz", []string{"foo"}...)
+		require.Nil(t, err)
+		roleBasedReq2.SetState(types.RequestState_APPROVED)
+
+		searchBasedReq, err := services.NewAccessRequestWithResources("bar", nil, []types.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}})
 		require.Nil(t, err)
 
-		return []types.AccessRequest{req, req2}, nil
+		return []types.AccessRequest{roleBasedReq1, roleBasedReq2, searchBasedReq}, nil
 	}
 
 	plugin, err := NewPlugin(Config{})
@@ -94,8 +126,10 @@ func TestGetAccessRequests(t *testing.T) {
 	// Test request state set to NONE, is not returned.
 	reqs, err := plugin.getAccessRequests(context.Background(), m, types.AccessRequestFilter{})
 	require.Nil(t, err)
-	require.Len(t, reqs, 1)
-	require.Equal(t, reqs[0].State, types.RequestState_PENDING.String())
+	require.Len(t, reqs, 2)
+	require.Equal(t, reqs[0].State, types.RequestState_APPROVED.String())
+	require.Equal(t, reqs[1].State, types.RequestState_PENDING.String())
+	require.Equal(t, reqs[1].ResourceIDs, []ui.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}})
 }
 
 func TestReviewAccessRequest(t *testing.T) {

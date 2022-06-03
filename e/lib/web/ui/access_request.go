@@ -32,6 +32,8 @@ type AccessRequest struct {
 	SuggestedReviewers []string `json:"suggestedReviewers"`
 	// ThresholdNames is a list of threshold names.
 	ThresholdNames []string `json:"thresholdNames"`
+	// ResourceID is a unique identifier for a teleport resource.
+	ResourceIDs []ResourceID `json:"resourceIds"`
 }
 
 // AccessRequestReview defines fields of a review applied to a request.
@@ -46,6 +48,12 @@ type AccessRequestReview struct {
 	Reason string `json:"reason"`
 	// Created is the time review was submitted.
 	Created time.Time `json:"created"`
+}
+
+type ResourceID struct {
+	Kind        string `json:"kind"`
+	Name        string `json:"name"`
+	ClusterName string `json:"clusterName"`
 }
 
 // NewAccessRequest creates a UI access request object.
@@ -72,6 +80,15 @@ func NewAccessRequest(request types.AccessRequest) (*AccessRequest, error) {
 		}
 	}
 
+	requestedResourceIDs := make([]ResourceID, 0, len(request.GetRequestedResourceIDs()))
+	for _, r := range request.GetRequestedResourceIDs() {
+		requestedResourceIDs = append(requestedResourceIDs, ResourceID{
+			ClusterName: r.ClusterName,
+			Kind:        r.Kind,
+			Name:        r.Name,
+		})
+	}
+
 	return &AccessRequest{
 		ID:                 request.GetMetadata().Name,
 		State:              request.GetState().String(),
@@ -84,6 +101,7 @@ func NewAccessRequest(request types.AccessRequest) (*AccessRequest, error) {
 		Reviews:            reviews,
 		SuggestedReviewers: request.GetSuggestedReviewers(),
 		ThresholdNames:     thresholdNames,
+		ResourceIDs:        requestedResourceIDs,
 	}, nil
 }
 

@@ -29,17 +29,37 @@ func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 }
 
 func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, request accessRequestParameters, user string) (*ui.AccessRequest, error) {
-	// If no specific roles were requested, then by default wild card is used which
-	// the auth server automatically fills in with all roles the user is allowed to request.
-	rolesRequested := []string{types.Wildcard}
-	if len(request.Roles) != 0 {
-		rolesRequested = request.Roles
+	var err error
+	var req types.AccessRequest
+
+	resourceIDs := make([]types.ResourceID, 0, len(request.ResourceIDs))
+	for _, resource := range request.ResourceIDs {
+		resourceIDs = append(resourceIDs, types.ResourceID{
+			ClusterName: resource.ClusterName,
+			Name:        resource.Name,
+			Kind:        resource.Kind,
+		})
 	}
 
-	req, err := services.NewAccessRequest(user, rolesRequested...)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(resourceIDs) != 0 { // search based request
+		req, err = services.NewAccessRequestWithResources(user, nil, resourceIDs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else { // role based request
+		// If no specific roles were requested, then by default wild card is used which
+		// the auth server automatically fills in with all roles the user is allowed to request.
+		rolesRequested := []string{types.Wildcard}
+		if len(request.Roles) != 0 {
+			rolesRequested = request.Roles
+		}
+
+		req, err = services.NewAccessRequest(user, rolesRequested...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	req.SetRequestReason(request.Reason)
 	req.SetSuggestedReviewers(request.SuggestedReviewers)
 
@@ -199,4 +219,6 @@ type accessRequestParameters struct {
 	Roles []string `json:"roles"`
 	// SuggestedReviewers is a suggested list of reviewers to review a request.
 	SuggestedReviewers []string `json:"suggestedReviewers"`
+	// ResourceID is a unique identifier for a teleport resource.
+	ResourceIDs []ui.ResourceID `json:"resourceIds"`
 }
