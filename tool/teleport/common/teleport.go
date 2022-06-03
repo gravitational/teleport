@@ -18,7 +18,9 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/user"
@@ -38,6 +40,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -81,6 +84,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version of your teleport binary.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
+	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
@@ -371,6 +375,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
+	case sftp.FullCommand():
+		err = onSFTP()
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
@@ -646,6 +652,49 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	}
 
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
+}
+
+type compositeCh struct {
+	r io.ReadCloser
+	w io.WriteCloser
+}
+
+func (c compositeCh) Read(p []byte) (int, error) {
+	return c.r.Read(p)
+}
+
+func (c compositeCh) Write(p []byte) (int, error) {
+	return c.w.Write(p)
+}
+
+func (c compositeCh) Close() error {
+	return trace.NewAggregate(c.r.Close(), c.w.Close())
+}
+
+func onSFTP() error {
+	chr := os.NewFile(3, "chr")
+	if chr == nil {
+		return trace.NotFound("channel read file not found")
+	}
+	chw := os.NewFile(4, "chw")
+	if chw == nil {
+		return trace.NotFound("channel write file not found")
+	}
+	ch := compositeCh{chr, chw}
+
+	sftpSrv, err := sftp.NewServer(ch)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = sftpSrv.Serve()
+	if errors.Is(err, io.EOF) {
+		err = nil
+	} else {
+		err = trace.Wrap(err)
+	}
+
+	return trace.NewAggregate(err, sftpSrv.Close())
 }
 
 type StdReadWriter struct {

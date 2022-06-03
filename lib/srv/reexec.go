@@ -94,6 +94,11 @@ type ExecCommand struct {
 
 	// X11Config contains an xauth entry to be added to the command user's xauthority.
 	X11Config X11Config `json:"x11_config"`
+
+	// ExtraFilesLen is the number of extra files that are inherited from
+	// the parent process. These files start at file descriptor 3 and are
+	// only valid if Terminal is false.
+	ExtraFilesLen int `json:"extra_files_len"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -332,6 +337,12 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	parkerCancel()
+
+	for _, f := range cmd.ExtraFiles {
+		if err := f.Close(); err != nil {
+			log.Debugf("error closing extra file: %v", err)
+		}
+	}
 
 	// Wait for the command to exit. It doesn't make sense to print an error
 	// message here because the shell has successfully started. If an error
@@ -574,6 +585,18 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid: true,
 		}
+
+		if c.ExtraFilesLen > 0 {
+			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
+			for i := 0; i < c.ExtraFilesLen; i++ {
+				fd := 6 + i
+				f := os.NewFile(uintptr(fd), strconv.Itoa(fd))
+				if f == nil {
+					return nil, trace.NotFound("extra file %d not found", i)
+				}
+				cmd.ExtraFiles[i] = f
+			}
+		}
 	}
 
 	// Set the command's cwd to the user's $HOME, or "/" if
@@ -627,7 +650,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 // ConfigureCommand creates a command fully configured to execute. This
 // function is used by Teleport to re-execute itself and pass whatever data
 // is need to the child to actually execute the shell.
-func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
+func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, error) {
 	// Create a os.Pipe and start copying over the payload to execute. While the
 	// pipe buffer is quite large (64k) some users have run into the pipe
 	// blocking writes on much smaller buffers (7k) leading to Teleport being
@@ -645,6 +668,10 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !cmdmsg.Terminal {
+		cmdmsg.ExtraFilesLen = len(extraFiles)
+	}
+
 	cmdbytes, err := json.Marshal(cmdmsg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -679,6 +706,10 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 			ctx.contr,
 			ctx.x11rdyw,
 		},
+	}
+	// Add extra files if applicable.
+	if len(extraFiles) > 0 {
+		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
 	}
 
 	// Perform OS-specific tweaks to the command.
