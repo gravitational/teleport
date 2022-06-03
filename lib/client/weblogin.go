@@ -215,13 +215,14 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// User is the login username.
 	User string
-	// User is the login password.
+	// Password is the login password.
 	Password string
-	// UseStrongestAuth instructs the MFA prompt to use the strongest
-	// authentication method supported by the cluster.
-	// Apart from the obvious benefits, UseStrongestAuth also avoids stdin
-	// hijacking issues from MFA prompts, as a single auth method is used.
-	UseStrongestAuth bool
+
+	// AllowStdinHijack allows stdin hijack during MFA prompts.
+	// Do not set this options unless you deeply understand what you are doing.
+	AllowStdinHijack bool
+	// PreferOTP prefers OTP in favor of other MFA methods.
+	PreferOTP bool
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -416,7 +417,8 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
-		UseStrongestAuth: login.UseStrongestAuth,
+		AllowStdinHijack:        login.AllowStdinHijack,
+		PreferOTP:               login.PreferOTP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
