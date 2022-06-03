@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::errors::try_error;
 use crate::errors::invalid_data_error;
 use crate::util;
 use crate::{vchan, Payload};
@@ -20,7 +21,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::FromPrimitive;
 use rdp::core::{mcs, tpkt};
 use rdp::model::error::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 
 pub const CHANNEL_NAME: &str = "cliprdr";
@@ -32,6 +33,7 @@ pub struct Client {
     clipboard: HashMap<u32, Vec<u8>>,
     on_remote_copy: Box<dyn Fn(Vec<u8>) -> RdpResult<()>>,
     vchan: vchan::Client,
+    incoming_paste_formats: VecDeque<ClipboardFormat>,
 }
 
 impl Default for Client {
@@ -46,6 +48,7 @@ impl Client {
             clipboard: HashMap::new(),
             on_remote_copy,
             vchan: vchan::Client::new(),
+            incoming_paste_formats: VecDeque::new(),
         }
     }
     /// Reads raw RDP messages sent on the cliprdr virtual channel and replies as necessary.
@@ -183,45 +186,47 @@ impl Client {
 
     /// Handles the format list PDU, which is a notification from the server
     /// that some data was copied and can be requested at a later date.
-    fn handle_format_list(&self, payload: &mut Payload, length: u32) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_format_list(
+        &mut self,
+        payload: &mut Payload,
+        length: u32,
+    ) -> RdpResult<Vec<Vec<u8>>> {
         let list = FormatListPDU::<LongFormatName>::decode(payload, length)?;
-        debug!(
-            "{:?} data was copied on the RDP server",
-            list.format_names
-                .iter()
-                .map(|n| n.format_id)
-                .collect::<Vec<u32>>()
-        );
+        let formats = list
+            .format_names
+            .iter()
+            .map(|n| n.format_id)
+            .collect::<Vec<u32>>();
 
-        // if we want to support a variety of formats, we should clear
-        // and re-initialize some local state (Clipboard Format ID Map)
-        //
-        // we're only supporting standard (text) formats right now, so
-        // we don't need to maintain a local/remote mapping
-        //
-        // see section 3.1.1.1 for details
-
+        debug!("{:?} data was copied on the RDP server", formats);
         let mut result =
             self.add_headers_and_chunkify(ClipboardPDUType::CB_FORMAT_LIST_RESPONSE, vec![])?;
 
-        for name in list.format_names {
-            match FromPrimitive::from_u32(name.format_id) {
-                Some(
-                    ClipboardFormat::CF_OEMTEXT
-                    | ClipboardFormat::CF_TEXT
-                    | ClipboardFormat::CF_UNICODETEXT,
-                ) => {
-                    // request the data by imitating a paste event
-                    result.extend(self.add_headers_and_chunkify(
-                        ClipboardPDUType::CB_FORMAT_DATA_REQUEST,
-                        FormatDataRequestPDU::for_id(name.format_id).encode()?,
-                    )?);
-                }
-                _ => {
-                    info!("{:?} data was copied on the remote desktop, but this format is unsupported", name.format_id);
-                }
-            }
+        let request_format;
+        if formats.contains(&(ClipboardFormat::CF_UNICODETEXT as u32)) {
+            request_format = ClipboardFormat::CF_UNICODETEXT;
+        } else if formats.contains(&(ClipboardFormat::CF_TEXT as u32)) {
+            request_format = ClipboardFormat::CF_TEXT;
+        } else if formats.contains(&(ClipboardFormat::CF_OEMTEXT as u32)) {
+            request_format = ClipboardFormat::CF_OEMTEXT;
+        } else {
+            info!(
+                "{:?} data was copied on the remote desktop, but no supported formats were found",
+                formats
+            );
+
+            return Ok(result);
         }
+
+        // Record the format of the data we're requesting so we can correcly decode the response.
+        // Response events a globally ordered so we use a FIFO queue for format tracking.
+        self.incoming_paste_formats.push_back(request_format);
+
+        // request the data by imitating a paste event.
+        result.extend(self.add_headers_and_chunkify(
+            ClipboardPDUType::CB_FORMAT_DATA_REQUEST,
+            FormatDataRequestPDU::for_id(request_format as u32).encode()?,
+        )?);
 
         Ok(result)
     }
@@ -267,21 +272,19 @@ impl Client {
         payload: &mut Payload,
         length: u32,
     ) -> RdpResult<Vec<Vec<u8>>> {
-        let mut resp = FormatDataResponsePDU::decode(payload, length)?;
+        let resp = FormatDataResponsePDU::decode(payload, length)?;
         let data_len = resp.data.len();
+        let format = self.incoming_paste_formats.pop_front().ok_or_else(|| {
+            try_error("no expected format found, possibly received too many format data responses")
+        })?;
+
         debug!(
-            "recieved {} bytes of copied data from Windows Desktop",
-            data_len,
+            "recieved {} bytes of copied data from Windows Desktop with format {:?}",
+            data_len, format,
         );
 
-        // trim the null-terminator, if it exists
-        // (but don't worry about CRLF conversion, most non-Windows systems can handle CRLF well enough)
-        if let Some(0x00) = resp.data.last() {
-            resp.data.truncate(resp.data.len() - 1);
-        }
-
-        (self.on_remote_copy)(resp.data)?;
-
+        let decoded = decode_clipboard(resp.data, format)?;
+        (self.on_remote_copy)(decoded)?;
         Ok(vec![])
     }
 
@@ -560,6 +563,11 @@ fn encode_clipboard(mut data: Vec<u8>) -> (Vec<u8>, ClipboardFormat) {
         data = util::to_nul_terminated_utf16le(str);
         (data, ClipboardFormat::CF_UNICODETEXT)
     }
+}
+
+// decode_clipboard decodes data from a given clipboard format into UTF-8.
+fn decode_clipboard(mut data: Vec<u8>, format: ClipboardFormat) -> RdpResult<Vec<u8>> {
+    todo!()
 }
 
 /// Represents the CLIPRDR_SHORT_FORMAT_NAME structure.
