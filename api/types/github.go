@@ -270,7 +270,7 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 		for _, team := range teams {
 			// see if the user belongs to this team
 			if team == mapping.Team {
-				roles = append(logins, mapping.Roles...)
+				roles = append(roles, mapping.Roles...)
 			}
 		}
 	}

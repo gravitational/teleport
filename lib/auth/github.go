@@ -467,7 +467,7 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 			"user %q does not belong to any teams configured in %q connector; the configuration may have typos.",
 			claims.Username, connector.GetName())
 	}
-	p.roles = p.logins
+	p.roles = append(p.roles, p.logins...)
 	p.traits = map[string][]string{
 		teleport.TraitLogins:     {p.username},
 		teleport.TraitKubeGroups: p.kubeGroups,
