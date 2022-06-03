@@ -52,7 +52,6 @@ func TestServerKeyAuth(t *testing.T) {
 				PublicKey:      pub,
 			}},
 		},
-		Roles: nil,
 	})
 	require.NoError(t, err)
 

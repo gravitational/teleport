@@ -297,7 +297,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles: []string{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -334,7 +333,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles: []string{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

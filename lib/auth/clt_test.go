@@ -165,7 +165,6 @@ func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) type
 				Key:  key,
 			}},
 		},
-		Roles: nil,
 	})
 	require.NoError(t, err)
 	return ca
