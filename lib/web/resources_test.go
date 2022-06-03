@@ -377,7 +377,7 @@ func TestListResources(t *testing.T) {
 		},
 		{
 			name: "all param defined and set",
-			url:  `https://dev:3080/login?query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
+			url:  `https://dev:3080/login?searchAsRoles=yes&query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
 			expected: proto.ListResourcesRequest{
 				ResourceType:        types.KindNode,
 				Limit:               50,
@@ -385,6 +385,7 @@ func TestListResources(t *testing.T) {
 				SearchKeywords:      []string{"foo+bar", "baz", "foo,bar", "some phrase"},
 				PredicateExpression: `labels.env == "prod"`,
 				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
+				UseSearchAsRoles:    true,
 			},
 		},
 		{
