@@ -3349,7 +3349,7 @@ type authProviderMock struct {
 	server types.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (mock authProviderMock) GetNodes(ctx context.Context, n string) ([]types.Server, error) {
 	return []types.Server{&mock.server}, nil
 }
 
