@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -69,7 +70,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
@@ -82,7 +83,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into test Postgres database.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"db", "login", "--debug", "postgres",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -94,7 +95,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.Len(t, keys, 0)
 
 	// Log into test Mongo database.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"db", "login", "--debug", "--db-user", "admin", "mongo",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -247,6 +248,7 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	cfg := service.MakeDefaultConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	proxyAddr, err := proxy.ProxyWebAddr()
 	require.NoError(t, err)

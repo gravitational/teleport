@@ -17,13 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"testing"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/tool/tctl/common"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestLoadConfigFromProfile(t *testing.T) {
@@ -42,7 +44,7 @@ func TestLoadConfigFromProfile(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",

@@ -263,7 +263,7 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 	}
 
 	// Get the CA pin hashes of the cluster to join.
-	localCAResponse, err := m.GetClusterCACert()
+	localCAResponse, err := m.GetClusterCACert(context.TODO())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -358,7 +358,7 @@ type nodeAPIGetter interface {
 	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GetClusterCACert returns the CAs for the local cluster without signing keys.
-	GetClusterCACert() (*auth.LocalCAResponse, error)
+	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)
