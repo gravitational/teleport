@@ -21,7 +21,7 @@
     "build": "yarn lint && yarn type-check && yarn build-oss && yarn build-e",
     "lint": "eslint --ext .js,.jsx,.ts,.tsx packages/",
     "get-teleport-connect-dir": "node -p \"require('./package.json').teleportConnectDir\"",
-    "type-check": "yarn tsc"
+    "type-check": "tsc --noEmit"
   },
   "private": true,
   "resolutions": {
