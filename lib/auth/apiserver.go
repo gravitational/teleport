@@ -191,9 +191,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/saml/requests/validate", srv.withAuth(srv.validateSAMLResponse))
 
 	// Github connector
-	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest))
+	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest)) // DELETE in 11.0.0
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
-	srv.GET("/:version/github/requests/get/:id", srv.withAuth(srv.getGithubAuthRequest))
 
 	// SSO diag info
 	srv.GET("/:version/sso/diag/:auth/:id", srv.withAuth(srv.getSSODiagnosticInfo))
@@ -1239,33 +1238,26 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 // createGithubAuthRequestReq is a request to start Github OAuth2 flow
 type createGithubAuthRequestReq struct {
 	// Req is the request parameters
-	Req services.GithubAuthRequest `json:"req"`
+	Req types.GithubAuthRequest `json:"req"`
 }
 
 /* createGithubAuthRequest creates a new request for Github OAuth2 flow
 
    POST /:version/github/requests/create
 
-   Success response: services.GithubAuthRequest
+   Success response: types.GithubAuthRequest
 */
+// DELETE IN 11.0.0
 func (s *APIServer) createGithubAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req createGithubAuthRequestReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.CreateGithubAuthRequest(req.Req)
+	response, err := auth.CreateGithubAuthRequest(r.Context(), req.Req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return response, nil
-}
-
-func (s *APIServer) getGithubAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	request, err := auth.GetGithubAuthRequest(r.Context(), p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return request, nil
 }
 
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
@@ -1288,7 +1280,7 @@ type githubAuthRawResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req services.GithubAuthRequest `json:"req"`
+	Req types.GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`

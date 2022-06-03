@@ -19,7 +19,9 @@ package types
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 )
@@ -236,4 +238,47 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 		}
 	}
 	return utils.Deduplicate(logins), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
+}
+
+// SetExpiry sets expiry time for the object
+func (r *GithubAuthRequest) SetExpiry(expires time.Time) {
+	r.Expires = &expires
+}
+
+// Expiry returns object expiry setting.
+func (r *GithubAuthRequest) Expiry() time.Time {
+	if r.Expires == nil {
+		return time.Time{}
+	}
+	return *r.Expires
+}
+
+// Check makes sure the request is valid
+func (r *GithubAuthRequest) Check() error {
+	if r.ConnectorID == "" {
+		return trace.BadParameter("missing ConnectorID")
+	}
+	if r.StateToken == "" {
+		return trace.BadParameter("missing StateToken")
+	}
+	if len(r.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(r.PublicKey)
+		if err != nil {
+			return trace.BadParameter("bad PublicKey: %v", err)
+		}
+		if (r.CertTTL.Duration() > defaults.MaxCertDuration) || (r.CertTTL.Duration() < defaults.MinCertDuration) {
+			return trace.BadParameter("wrong CertTTL")
+		}
+	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if r.SSOTestFlow && r.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !r.SSOTestFlow && r.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	}
+
+	return nil
 }

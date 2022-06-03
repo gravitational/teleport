@@ -15,6 +15,8 @@
 package tester
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -26,6 +28,7 @@ import (
 )
 
 func githubTest(c auth.ClientI, connector types.GithubConnector) (*AuthRequestInfo, error) {
+	ctx := context.Background()
 	// get connector spec
 	var spec types.GithubConnectorSpecV3
 	switch ghConnector := connector.(type) {
@@ -38,11 +41,11 @@ func githubTest(c auth.ClientI, connector types.GithubConnector) (*AuthRequestIn
 	requestInfo := &AuthRequestInfo{}
 
 	makeRequest := func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error) {
-		ghRequest := services.GithubAuthRequest{
+		ghRequest := types.GithubAuthRequest{
 			ConnectorID:       req.ConnectorID + "-" + connector.GetName(),
 			Type:              constants.Github,
 			PublicKey:         req.PublicKey,
-			CertTTL:           defaults.GithubAuthRequestTTL,
+			CertTTL:           types.Duration(defaults.GithubAuthRequestTTL),
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,
 			RouteToCluster:    req.RouteToCluster,
@@ -50,7 +53,7 @@ func githubTest(c auth.ClientI, connector types.GithubConnector) (*AuthRequestIn
 			ConnectorSpec:     &spec,
 		}
 
-		request, err := c.CreateGithubAuthRequest(ghRequest)
+		request, err := c.CreateGithubAuthRequest(ctx, ghRequest)
 
 		if request != nil {
 			requestInfo.RequestID = request.StateToken

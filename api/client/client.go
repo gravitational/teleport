@@ -1633,6 +1633,25 @@ func (c *Client) DeleteGithubConnector(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
+// CreateGithubAuthRequest creates GithubAuthRequest.
+func (c *Client) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
+	resp, err := c.grpc.CreateGithubAuthRequest(ctx, &req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetGithubAuthRequest gets a GithubAuthRequest by state token.
+func (c *Client) GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error) {
+	req := &proto.GetGithubAuthRequestRequest{StateToken: stateToken}
+	resp, err := c.grpc.GetGithubAuthRequest(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // GetTrustedCluster returns a Trusted Cluster by name.
 func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
 	if name == "" {

@@ -182,7 +182,7 @@ func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 	}, nil
 }
 
-// CreateOIDCAuthRequest creates OIDCAuthRequest
+// CreateOIDCAuthRequest creates OIDCAuthRequest.
 // DELETE IN 11.0.0
 func (c *Client) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	if resp, err := c.APIClient.CreateOIDCAuthRequest(ctx, req); err != nil {
@@ -206,7 +206,7 @@ func (c *Client) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRe
 	return response, nil
 }
 
-// CreateSAMLAuthRequest creates SAML AuthnRequest
+// CreateSAMLAuthRequest creates SAMLAuthRequest.
 // DELETE IN 11.0.0
 func (c *Client) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	if resp, err := c.APIClient.CreateSAMLAuthRequest(ctx, req); err != nil {
@@ -228,4 +228,27 @@ func (c *Client) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 		return nil, trace.Wrap(err)
 	}
 	return response, nil
+}
+
+// CreateGithubAuthRequest creates GithubAuthRequest.
+// DELETE IN 11.0.0
+func (c *Client) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
+	if resp, err := c.APIClient.CreateGithubAuthRequest(ctx, req); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return resp, nil
+	}
+
+	out, err := c.PostJSON(ctx, c.Endpoint("github", "requests", "create"),
+		createGithubAuthRequestReq{Req: req})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response types.GithubAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &response, nil
 }

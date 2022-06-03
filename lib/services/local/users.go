@@ -1325,7 +1325,7 @@ func (s *IdentityService) DeleteGithubConnector(ctx context.Context, name string
 }
 
 // CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
-func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest) error {
+func (s *IdentityService) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) error {
 	err := req.Check()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1339,7 +1339,7 @@ func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest
 		Value:   value,
 		Expires: req.Expiry(),
 	}
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1347,7 +1347,7 @@ func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest
 }
 
 // GetGithubAuthRequest retrieves Github auth request by the token
-func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken string) (*services.GithubAuthRequest, error) {
+func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
@@ -1355,7 +1355,7 @@ func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req services.GithubAuthRequest
+	var req types.GithubAuthRequest
 	err = json.Unmarshal(item.Value, &req)
 	if err != nil {
 		return nil, trace.Wrap(err)

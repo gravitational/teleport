@@ -714,8 +714,8 @@ func TestGithubAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertGithubConnector(context.Background(), conn)
 	require.NoError(t, err)
 
-	reqNormal := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
-	reqTest := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
+	reqNormal := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
+	reqTest := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
 		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
@@ -732,7 +732,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.GithubAuthRequest
+		request            types.GithubAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -797,7 +797,7 @@ func TestGithubAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateGithubAuthRequest(tt.request)
+			request, err := client.CreateGithubAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)

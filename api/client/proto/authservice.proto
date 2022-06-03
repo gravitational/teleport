@@ -1704,6 +1704,12 @@ message GetSAMLAuthRequestRequest {
     string ID = 1 [ (gogoproto.jsontag) = "id" ];
 }
 
+// GetGithubAuthRequestRequest is a request for GetGithubAuthRequest.
+message GetGithubAuthRequestRequest {
+    // StateToken is a github auth request state token.
+    string StateToken = 1 [ (gogoproto.jsontag) = "state_token" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
@@ -2018,6 +2024,10 @@ service AuthService {
     rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
     // DeleteGithubConnector deletes an existing Github connector in a backend by name.
     rpc DeleteGithubConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+    // CreateGithubAuthRequest creates GithubAuthRequest.
+    rpc CreateGithubAuthRequest(types.GithubAuthRequest) returns (types.GithubAuthRequest);
+    // GetGithubAuthRequest returns Github auth request if found.
+    rpc GetGithubAuthRequest(GetGithubAuthRequestRequest) returns (types.GithubAuthRequest);
 
     // GetTrustedCluster gets a Trusted Cluster resource by name.
     rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);

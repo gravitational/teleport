@@ -40,8 +40,7 @@ import (
 )
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
-func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
-	ctx := context.TODO()
+func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
 	_, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -54,7 +53,7 @@ func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
-	err = a.Identity.CreateGithubAuthRequest(req)
+	err = a.Identity.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -117,7 +116,7 @@ type GithubAuthResponse struct {
 	// TLSCert is PEM encoded TLS client certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is the original auth request
-	Req services.GithubAuthRequest `json:"req"`
+	Req types.GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
@@ -188,7 +187,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 	return auth, nil
 }
 
-func (a *Server) getGithubConnectorAndClient(ctx context.Context, request services.GithubAuthRequest) (types.GithubConnector, *oauth2.Client, error) {
+func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.GithubAuthRequest) (types.GithubConnector, *oauth2.Client, error) {
 	if request.SSOTestFlow {
 		if request.ConnectorSpec == nil {
 			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
@@ -455,7 +454,7 @@ type createUserParams struct {
 	sessionTTL time.Duration
 }
 
-func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      claims.Username,
@@ -482,7 +481,7 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL.Duration())
 
 	return &p, nil
 }

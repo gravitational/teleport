@@ -25,14 +25,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // UserGetter is responsible for getting users
@@ -222,10 +220,10 @@ type Identity interface {
 	DeleteGithubConnector(ctx context.Context, name string) error
 
 	// CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
-	CreateGithubAuthRequest(req GithubAuthRequest) error
+	CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) error
 
 	// GetGithubAuthRequest retrieves Github auth request by the token
-	GetGithubAuthRequest(ctx context.Context, stateToken string) (*GithubAuthRequest, error)
+	GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error)
 
 	// CreateUserToken creates a new user token.
 	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)
@@ -294,85 +292,6 @@ func VerifyPassword(password []byte) error {
 		return trace.BadParameter(
 			"password is too long, max length is %v", defaults.MaxPasswordLength)
 	}
-	return nil
-}
-
-// GithubAuthRequest is the request to start Github OAuth2 flow
-type GithubAuthRequest struct {
-	// ConnectorID is the name of the connector to use
-	ConnectorID string `json:"connector_id"`
-	// Type is opaque string that helps callbacks identify the request type
-	Type string `json:"type"`
-	// StateToken is used to validate the request
-	StateToken string `json:"state_token"`
-	// CSRFToken is used to protect against CSRF attacks
-	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key to sign in case of successful auth
-	PublicKey []byte `json:"public_key"`
-	// CertTTL is TTL of the cert that's generated in case of successful auth
-	CertTTL time.Duration `json:"cert_ttl"`
-	// CreateWebSession indicates that a user wants to generate a web session
-	// after successul authentication
-	CreateWebSession bool `json:"create_web_session"`
-	// RedirectURL will be used by browser
-	RedirectURL string `json:"redirect_url"`
-	// ClientRedirectURL is the URL where client will be redirected after
-	// successful auth
-	ClientRedirectURL string `json:"client_redirect_url"`
-	// Compatibility specifies OpenSSH compatibility flags
-	Compatibility string `json:"compatibility,omitempty"`
-	// Expires is a global expiry time header can be set on any resource in the system.
-	Expires *time.Time `json:"expires,omitempty"`
-	// RouteToCluster is the name of Teleport cluster to issue credentials for.
-	RouteToCluster string `json:"route_to_cluster,omitempty"`
-	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
-	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
-	// SSOTestFlow indicates if the request is part of the test flow.
-	SSOTestFlow bool `json:"sso_test_flow"`
-	// ConnectorSpec is embedded connector spec for use in test flow.
-	ConnectorSpec *types.GithubConnectorSpecV3 `json:"connector_spec,omitempty"`
-}
-
-// SetExpiry sets expiry time for the object
-func (r *GithubAuthRequest) SetExpiry(expires time.Time) {
-	r.Expires = &expires
-}
-
-// Expiry returns object expiry setting.
-func (r *GithubAuthRequest) Expiry() time.Time {
-	if r.Expires == nil {
-		return time.Time{}
-	}
-	return *r.Expires
-}
-
-// Check makes sure the request is valid
-func (r *GithubAuthRequest) Check() error {
-	if r.ConnectorID == "" {
-		return trace.BadParameter("missing ConnectorID")
-	}
-	if r.StateToken == "" {
-		return trace.BadParameter("missing StateToken")
-	}
-	if len(r.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(r.PublicKey)
-		if err != nil {
-			return trace.BadParameter("bad PublicKey: %v", err)
-		}
-		if (r.CertTTL > apidefaults.MaxCertDuration) || (r.CertTTL < apidefaults.MinCertDuration) {
-			return trace.BadParameter("wrong CertTTL")
-		}
-	}
-
-	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if r.SSOTestFlow && r.ConnectorSpec == nil {
-		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !r.SSOTestFlow && r.ConnectorSpec != nil {
-		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
-	}
-
 	return nil
 }
 
