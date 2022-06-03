@@ -3181,7 +3181,7 @@ func listAppsAllClusters(cf *CLIConf) error {
 
 	sort.Sort(listings)
 
-	profile, _, err := client.Status(cf.HomePath, "")
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

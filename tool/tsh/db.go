@@ -181,7 +181,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 
 	sort.Sort(dbListings)
 
-	profile, _, err := client.Status(cf.HomePath, "")
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
