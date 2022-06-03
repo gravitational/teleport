@@ -210,3 +210,7 @@ int DeleteCredential(const char *reason, const char *appLabel, char **errOut) {
 
   return res;
 }
+
+int DeleteNonInteractive(const char *appLabel) {
+  return deleteCredential(appLabel);
+}
