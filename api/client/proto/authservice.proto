@@ -1710,6 +1710,14 @@ message GetGithubAuthRequestRequest {
     string StateToken = 1 [ (gogoproto.jsontag) = "state_token" ];
 }
 
+// GetSSODiagnosticInfoRequest is a request for GetSSODiagnosticInfo.
+message GetSSODiagnosticInfoRequest {
+    // AuthRequestKind is the SSO Auth Request kind (oidc, saml, or github).
+    string AuthRequestKind = 1 [ (gogoproto.jsontag) = "auth_request_kind" ];
+    // AuthRequestID is the SSO Auth Request id or state token.
+    string AuthRequestID = 2 [ (gogoproto.jsontag) = "auth_request_id" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
@@ -2028,6 +2036,9 @@ service AuthService {
     rpc CreateGithubAuthRequest(types.GithubAuthRequest) returns (types.GithubAuthRequest);
     // GetGithubAuthRequest returns Github auth request if found.
     rpc GetGithubAuthRequest(GetGithubAuthRequestRequest) returns (types.GithubAuthRequest);
+
+    // GetSSODiagnosticInfo returns SSO diagnostic info records.
+    rpc GetSSODiagnosticInfo(GetSSODiagnosticInfoRequest) returns (types.SSODiagnosticInfo);
 
     // GetTrustedCluster gets a Trusted Cluster resource by name.
     rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);

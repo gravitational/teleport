@@ -2506,6 +2506,19 @@ func (g *GRPCServer) GetGithubAuthRequest(ctx context.Context, req *proto.GetGit
 	return request, nil
 }
 
+// GetSSODiagnosticInfo gets a SSO diagnostic info for a specific SSO auth request.
+func (g *GRPCServer) GetSSODiagnosticInfo(ctx context.Context, req *proto.GetSSODiagnosticInfoRequest) (*types.SSODiagnosticInfo, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	info, err := auth.GetSSODiagnosticInfo(ctx, req.AuthRequestKind, req.AuthRequestID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return info, nil
+}
+
 // GetTrustedCluster retrieves a Trusted Cluster by name.
 func (g *GRPCServer) GetTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*types.TrustedClusterV2, error) {
 	auth, err := g.authenticate(ctx)

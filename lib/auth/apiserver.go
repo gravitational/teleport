@@ -194,9 +194,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest)) // DELETE in 11.0.0
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
 
-	// SSO diag info
-	srv.GET("/:version/sso/diag/:auth/:id", srv.withAuth(srv.getSSODiagnosticInfo))
-
 	// Audit logs AKA events
 	srv.GET("/:version/events", srv.withAuth(srv.searchEvents))
 	srv.GET("/:version/events/session", srv.withAuth(srv.searchSessionEvents))
@@ -1166,15 +1163,6 @@ func (s *APIServer) createSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r
 		return nil, trace.Wrap(err)
 	}
 	return response, nil
-}
-
-func (s *APIServer) getSSODiagnosticInfo(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	info, err := auth.GetSSODiagnosticInfo(r.Context(), p.ByName("auth"), p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return info, nil
 }
 
 type validateSAMLResponseReq struct {

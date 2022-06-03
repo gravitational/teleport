@@ -1652,6 +1652,16 @@ func (c *Client) GetGithubAuthRequest(ctx context.Context, stateToken string) (*
 	return resp, nil
 }
 
+// GetSSODiagnosticInfo returns SSO diagnostic info records for a specific SSO Auth request.
+func (c *Client) GetSSODiagnosticInfo(ctx context.Context, authRequestKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
+	req := &proto.GetSSODiagnosticInfoRequest{AuthRequestKind: authRequestKind, AuthRequestID: authRequestID}
+	resp, err := c.grpc.GetSSODiagnosticInfo(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // GetTrustedCluster returns a Trusted Cluster by name.
 func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
 	if name == "" {

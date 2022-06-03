@@ -1048,19 +1048,6 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 	return &response, nil
 }
 
-// GetSSODiagnosticInfo returns SSO diagnostic info records.
-func (c *Client) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
-	out, err := c.Get(ctx, c.Endpoint("sso", "diag", authKind, authRequestID), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response types.SSODiagnosticInfo
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &response, nil
-}
-
 // ValidateSAMLResponse validates response returned by SAML identity provider
 func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
