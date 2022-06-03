@@ -567,7 +567,32 @@ fn encode_clipboard(mut data: Vec<u8>) -> (Vec<u8>, ClipboardFormat) {
 
 // decode_clipboard decodes data from a given clipboard format into UTF-8.
 fn decode_clipboard(mut data: Vec<u8>, format: ClipboardFormat) -> RdpResult<Vec<u8>> {
-    todo!()
+    match format {
+        ClipboardFormat::CF_TEXT | ClipboardFormat::CF_OEMTEXT => {
+            if data.last().copied() == Some(b'\0') {
+                data.pop();
+            }
+
+            Ok(data)
+        }
+        ClipboardFormat::CF_UNICODETEXT => {
+            let mut data = data.as_slice();
+            let clip = data.len() - 2;
+            if data.len() >= 2 && data[clip..] == [0, 0] {
+                data = &data[..clip];
+            }
+
+            let units: Vec<u16> = data
+                .chunks_exact(2)
+                .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+                .collect();
+
+            Ok(String::from_utf16_lossy(&units).into_bytes())
+        }
+        _ => Err(try_error(
+            "attempted to decode unsupported clipboard format",
+        )),
+    }
 }
 
 /// Represents the CLIPRDR_SHORT_FORMAT_NAME structure.
