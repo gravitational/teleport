@@ -355,7 +355,7 @@ func (e *SessionAccessEvaluator) supportsSessionAccessControls() (bool, error) {
 		for _, policySet := range e.policySets {
 			switch policySet.Version {
 			case types.V1, types.V2, types.V3, types.V4:
-				return false, nil
+				continue
 			case types.V5:
 				return true, nil
 			default:
@@ -364,7 +364,7 @@ func (e *SessionAccessEvaluator) supportsSessionAccessControls() (bool, error) {
 		}
 	}
 
-	return true, nil
+	return false, nil
 }
 
 func preAccessControlsModes(kind types.SessionKind) []types.SessionParticipantMode {

@@ -25,7 +25,7 @@ import (
 
 type startTestCase struct {
 	name         string
-	host         types.Role
+	host         []types.Role
 	sessionKind  types.SessionKind
 	participants []SessionAccessContext
 	expected     bool
@@ -53,7 +53,7 @@ func successStartTestCase(t *testing.T) startTestCase {
 
 	return startTestCase{
 		name:        "success",
-		host:        hostRole,
+		host:        []types.Role{hostRole},
 		sessionKind: types.SSHSessionKind,
 		participants: []SessionAccessContext{
 			{
@@ -92,7 +92,7 @@ func failCountStartTestCase(t *testing.T) startTestCase {
 
 	return startTestCase{
 		name:        "failCount",
-		host:        hostRole,
+		host:        []types.Role{hostRole},
 		sessionKind: types.SSHSessionKind,
 		participants: []SessionAccessContext{
 			{
@@ -123,7 +123,7 @@ func succeedDiscardPolicySetStartTestCase(t *testing.T) startTestCase {
 
 	return startTestCase{
 		name:        "succeedDiscardPolicySet",
-		host:        hostRole,
+		host:        []types.Role{hostRole},
 		sessionKind: types.SSHSessionKind,
 		expected:    true,
 	}
@@ -150,7 +150,48 @@ func failFilterStartTestCase(t *testing.T) startTestCase {
 
 	return startTestCase{
 		name:        "failFilter",
-		host:        hostRole,
+		host:        []types.Role{hostRole},
+		sessionKind: types.SSHSessionKind,
+		participants: []SessionAccessContext{
+			{
+				Username: "participant",
+				Roles:    []types.Role{participantRole},
+				Mode:     "peer",
+			},
+			{
+				Username: "participant2",
+				Roles:    []types.Role{participantRole},
+				Mode:     "peer",
+			},
+		},
+		expected: false,
+	}
+}
+
+func failVersionCheckStartTestCase(t *testing.T) startTestCase {
+	hostRole, err := types.NewRoleV5("host", types.RoleSpecV5{})
+	require.NoError(t, err)
+	hostRoleV3, err := types.NewRole("host", types.RoleSpecV5{})
+	require.NoError(t, err)
+	participantRole, err := types.NewRoleV5("participant", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{{
+		Filter: "contains(user.roles, \"host\")",
+		Kinds:  []string{string(types.SSHSessionKind)},
+		Count:  2,
+		Modes:  []string{"peer"},
+	}})
+
+	participantRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
+		Roles: []string{hostRole.GetName()},
+		Kinds: []string{string(types.SSHSessionKind)},
+		Modes: []string{string("*")},
+	}})
+
+	return startTestCase{
+		name:        "failFilter",
+		host:        []types.Role{hostRoleV3, hostRole},
 		sessionKind: types.SSHSessionKind,
 		participants: []SessionAccessContext{
 			{
@@ -174,12 +215,18 @@ func TestSessionAccessStart(t *testing.T) {
 		failCountStartTestCase(t),
 		failFilterStartTestCase(t),
 		succeedDiscardPolicySetStartTestCase(t),
+		failVersionCheckStartTestCase(t),
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			policy := testCase.host.GetSessionPolicySet()
-			evaluator := NewSessionAccessEvaluator([]*types.SessionTrackerPolicySet{&policy}, testCase.sessionKind)
+			var policies []*types.SessionTrackerPolicySet
+			for _, role := range testCase.host {
+				policySet := role.GetSessionPolicySet()
+				policies = append(policies, &policySet)
+			}
+
+			evaluator := NewSessionAccessEvaluator(policies, testCase.sessionKind)
 			result, _, err := evaluator.FulfilledFor(testCase.participants)
 			require.NoError(t, err)
 			require.Equal(t, testCase.expected, result)
