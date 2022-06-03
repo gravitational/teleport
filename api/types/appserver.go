@@ -51,6 +51,8 @@ type AppServer interface {
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
 	SetApp(Application) error
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
 }
 
 // NewAppServerV3 creates a new app server instance.
@@ -264,6 +266,16 @@ func (s *AppServerV3) SetOrigin(origin string) {
 	s.Metadata.SetOrigin(origin)
 }
 
+// GetProxyID returns a list of proxy ids this server is connected to.
+func (s *AppServerV3) GetProxyIDs() []string {
+	return s.Spec.ProxyIDs
+}
+
+// SetProxyID sets the proxy ids this server is connected to.
+func (s *AppServerV3) SetProxyIDs(proxyIDs []string) {
+	s.Spec.ProxyIDs = proxyIDs
+}
+
 // GetAllLabels returns all resource's labels. Considering:
 // * Static labels from `Metadata.Labels` and `Spec.App`.
 // * Dynamic labels from `Spec.App.Spec`.
@@ -283,6 +295,16 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 	}
 
 	return CombineLabels(staticLabels, dynamicLabels)
+}
+
+// GetStaticLabels returns the app server static labels.
+func (s *AppServerV3) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the app server static labels.
+func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
 }
 
 // Copy returns a copy of this app server object.

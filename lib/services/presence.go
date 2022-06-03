@@ -41,12 +41,6 @@ type Presence interface {
 	// Semaphores is responsible for semaphore handling
 	types.Semaphores
 
-	// UpsertLocalClusterName upserts local domain
-	UpsertLocalClusterName(name string) error
-
-	// GetLocalClusterName upserts local domain
-	GetLocalClusterName() (string, error)
-
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 	// ListNodes returns a paginated list of registered servers.

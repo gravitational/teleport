@@ -315,7 +315,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		utils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer, s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.proxyClient),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -1788,7 +1788,7 @@ func TestMultipleConnectors(t *testing.T) {
 
 	// create two oidc connectors, one named "foo" and another named "bar"
 	oidcConnectorSpec := types.OIDCConnectorSpecV3{
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
 		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
 		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
 		IssuerURL:    "https://oidc.example.com",
@@ -3854,7 +3854,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		utils.NetAddr{},
 		client,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer, client),
+		regular.SetProxyMode("", revTunServer, client),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),

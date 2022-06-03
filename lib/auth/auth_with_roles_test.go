@@ -518,7 +518,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 		IssuerURL:    "https://gitlab.com",
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
 		Display:      "sign in with example.com",
 		Scope:        []string{"foo", "bar"},
 		ClaimsToRoles: []types.ClaimMapping{
@@ -535,14 +535,25 @@ func TestOIDCAuthRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	reqNormal := services.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
-	reqTest := services.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC, SSOTestFlow: true, ConnectorSpec: &types.OIDCConnectorSpecV3{
-		IssuerURL:    "https://gitlab.com",
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
-		Display:      "sign in with example.com",
-		Scope:        []string{"foo", "bar"},
-	}}
+	reqTest := services.OIDCAuthRequest{
+		ConnectorID: conn.GetName(),
+		Type:        constants.OIDC,
+		SSOTestFlow: true,
+		ConnectorSpec: &types.OIDCConnectorSpecV3{
+			IssuerURL:    "https://gitlab.com",
+			ClientID:     "example-client-id",
+			ClientSecret: "example-client-secret",
+			RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+			Display:      "sign in with example.com",
+			Scope:        []string{"foo", "bar"},
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "groups",
+					Value: "idp-admin",
+					Roles: []string{"access"},
+				},
+			},
+		}}
 
 	tests := []struct {
 		desc               string
@@ -1597,7 +1608,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	require.NoError(t, err)
 
 	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := contextForLocalUser(localUser, srv.AuthServer)
+	authContext, err := contextForLocalUser(localUser, srv.AuthServer, srv.ClusterName)
 	require.NoError(t, err)
 
 	return &ServerWithRoles{
