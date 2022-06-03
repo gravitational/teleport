@@ -298,6 +298,8 @@ type UserCertParams struct {
 	Renewable bool
 	// Generation counts the number of times a certificate has been renewed.
 	Generation uint64
+	// AllowedResourceIDs lists the resources the user should be able to access.
+	AllowedResourceIDs string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

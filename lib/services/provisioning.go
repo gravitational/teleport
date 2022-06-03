@@ -41,7 +41,7 @@ type Provisioner interface {
 	DeleteAllTokens() error
 
 	// GetTokens returns all non-expired tokens
-	GetTokens(ctx context.Context, opts ...MarshalOption) ([]types.ProvisionToken, error)
+	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token
