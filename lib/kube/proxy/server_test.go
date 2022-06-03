@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -192,8 +193,9 @@ func TestGetServerInfo(t *testing.T) {
 				Clock:       clockwork.NewFakeClock(),
 				ClusterName: "kube-cluster",
 			},
-			AccessPoint: ap,
-			TLS:         &tls.Config{},
+			AccessPoint:          ap,
+			TLS:                  &tls.Config{},
+			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},

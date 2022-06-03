@@ -15,7 +15,7 @@ RUN BIN="/usr/local/bin" && \
     chmod +x "${BIN}/${BINARY_NAME}"
 
 # Install node
-ARG NODE_VERSION=v15.14.0
+ARG NODE_VERSION
 ENV NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
 ENV NODE_PATH="/usr/local/lib/node-${NODE_VERSION}-linux-${BUILDARCH}"
 ENV PATH="$PATH:${NODE_PATH}/bin"

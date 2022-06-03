@@ -350,8 +350,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Read in how nodes will validate the CA. A single empty string in the file
 	// conf should indicate no pins.
-	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
-		cfg.CAPins = fc.CAPin
+	if err = cfg.ApplyCAPins(fc.CAPin); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Set diagnostic address
@@ -611,6 +611,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
+		TunnelStrategy:           fc.Auth.TunnelStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -745,6 +746,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MongoAddr = *addr
+	}
+	if fc.Proxy.PeerAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerAddr, int(defaults.ProxyPeeringListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PeerAddr = *addr
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -1144,6 +1152,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				},
 				ElastiCache: service.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
+				},
+				SecretStore: service.DatabaseAWSSecretStore{
+					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
+					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
 				},
 			},
 			GCP: service.DatabaseGCP{
@@ -1906,8 +1918,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if len(clf.CAPins) != 0 {
-		cfg.CAPins = clf.CAPins
+	if err = cfg.ApplyCAPins(clf.CAPins); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// apply --listen-ip flag:

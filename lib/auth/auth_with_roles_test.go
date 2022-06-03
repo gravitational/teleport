@@ -1395,67 +1395,6 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 	})
 }
 
-// TestListNodes users can retrieve nodes with the appropriate permissions.
-func TestListNodes(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	// Create test nodes.
-	for i := 0; i < 10; i++ {
-		name := uuid.New().String()
-		node, err := types.NewServerWithLabels(
-			name,
-			types.KindNode,
-			types.ServerSpecV2{},
-			map[string]string{"name": name},
-		)
-		require.NoError(t, err)
-
-		_, err = srv.Auth().UpsertNode(ctx, node)
-		require.NoError(t, err)
-	}
-
-	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
-	require.NoError(t, err)
-
-	// create user, role, and client
-	username := "user"
-	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
-	require.NoError(t, err)
-	identity := TestUser(user.GetName())
-	clt, err := srv.NewClient(identity)
-	require.NoError(t, err)
-
-	// permit user to list all nodes
-	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-
-	// listing nodes 0-4 should list first 5 nodes
-	nodes, _, err := clt.ListNodes(ctx, proto.ListNodesRequest{
-		Namespace: defaults.Namespace,
-		Limit:     5,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 5, len(nodes))
-	expectedNodes := testNodes[:5]
-	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-
-	// remove permission for third node
-	role.SetNodeLabels(types.Deny, types.Labels{"name": {testNodes[3].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-
-	// listing nodes 0-4 should skip the third node and add the fifth to the end.
-	nodes, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-		Namespace: defaults.Namespace,
-		Limit:     5,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 5, len(nodes))
-	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
-	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-}
-
 // TestGetAndList_Nodes users can retrieve nodes with various filters
 // and with the appropriate permissions.
 func TestGetAndList_Nodes(t *testing.T) {
@@ -1608,7 +1547,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	require.NoError(t, err)
 
 	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := contextForLocalUser(localUser, srv.AuthServer)
+	authContext, err := contextForLocalUser(localUser, srv.AuthServer, srv.ClusterName)
 	require.NoError(t, err)
 
 	return &ServerWithRoles{

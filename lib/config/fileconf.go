@@ -167,6 +167,8 @@ type SampleFlags struct {
 	AppURI string
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
+	// JoinMethod is the method that will be used to join the cluster, either "token", "iam" or "ec2"
+	JoinMethod string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -198,7 +200,11 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		g.DataDir = defaults.DataDir
 	}
 
-	g.AuthToken = flags.AuthToken
+	g.JoinParams = JoinParams{
+		TokenName: flags.AuthToken,
+		Method:    types.JoinMethod(flags.JoinMethod),
+	}
+
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
 	}
@@ -710,6 +716,9 @@ type Auth struct {
 
 	// RoutingStrategy configures the routing strategy to nodes.
 	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
+
+	// TunnelStrategy configures the tunnel strategy used by the cluster.
+	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -764,28 +773,32 @@ func (c ClusterName) Parse() (types.ClusterName, error) {
 type StaticTokens []StaticToken
 
 func (t StaticTokens) Parse() (types.StaticTokens, error) {
-	staticTokens := []types.ProvisionTokenV1{}
+	var provisionTokens []types.ProvisionTokenV1
 
-	for _, token := range t {
-		st, err := token.Parse()
+	for _, st := range t {
+		tokens, err := st.Parse()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		staticTokens = append(staticTokens, *st)
+		provisionTokens = append(provisionTokens, tokens...)
 	}
 
 	return types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: staticTokens,
+		StaticTokens: provisionTokens,
 	})
 }
 
 type StaticToken string
 
 // Parse is applied to a string in "role,role,role:token" format. It breaks it
-// apart and constructs a services.ProvisionToken which contains the token,
+// apart and constructs a list of services.ProvisionToken which contains the token,
 // role, and expiry (infinite).
-func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
-	parts := strings.Split(string(t), ":")
+// If the token string is a file path, the file may contain multiple newline delimited
+// tokens, in which case each token is used to construct a services.ProvisionToken
+// with the same roles.
+func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
+	// Split only on the first ':', for future cross platform compat with windows paths
+	parts := strings.SplitN(string(t), ":", 2)
 	if len(parts) != 2 {
 		return nil, trace.BadParameter("invalid static token spec: %q", t)
 	}
@@ -795,16 +808,21 @@ func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := utils.ReadToken(parts[1])
+	tokenPart, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tokens := strings.Split(tokenPart, "\n")
+	provisionTokens := make([]types.ProvisionTokenV1, 0, len(tokens))
 
-	return &types.ProvisionTokenV1{
-		Token:   token,
-		Roles:   roles,
-		Expires: time.Unix(0, 0).UTC(),
-	}, nil
+	for _, token := range tokens {
+		provisionTokens = append(provisionTokens, types.ProvisionTokenV1{
+			Token:   token,
+			Roles:   roles,
+			Expires: time.Unix(0, 0).UTC(),
+		})
+	}
+	return provisionTokens, nil
 }
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
@@ -861,7 +879,9 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 }
 
 type UniversalSecondFactor struct {
-	AppID                string   `yaml:"app_id"`
+	AppID string `yaml:"app_id"`
+	// Facets kept only to avoid breakages during Teleport updates.
+	// Webauthn is now used instead of U2F.
 	Facets               []string `yaml:"facets"`
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
@@ -873,7 +893,6 @@ func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
 	}
 	return &types.U2F{
 		AppID:                u.AppID,
-		Facets:               u.Facets,
 		DeviceAttestationCAs: attestationCAs,
 	}, nil
 }
@@ -1009,11 +1028,6 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 		}
 	}
 
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	if ssh.X11.MaxDisplays != nil && ssh.X11.MaxDisplay == nil {
-		ssh.X11.MaxDisplay = ssh.X11.MaxDisplays
-	}
-
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
 	if ssh.X11.MaxDisplay != nil {
 		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
@@ -1132,8 +1146,6 @@ type X11 struct {
 	// MaxDisplay tells the server what X11 display number to stop at when
 	// searching for an open X11 unix socket for XServer proxies.
 	MaxDisplay *uint `yaml:"max_display,omitempty"`
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	MaxDisplays *uint `yaml:"max_displays,omitempty"`
 }
 
 // Databases represents the database proxy service configuration.
@@ -1225,6 +1237,14 @@ type DatabaseMySQL struct {
 	ServerVersion string `yaml:"server_version,omitempty"`
 }
 
+// SecretStore contains settings for managing secrets.
+type SecretStore struct {
+	// KeyPrefix specifies the secret key prefix.
+	KeyPrefix string `yaml:"key_prefix,omitempty"`
+	// KMSKeyID specifies the KMS key used to encrypt and decrypt the secret.
+	KMSKeyID string `yaml:"kms_key_id,omitempty"`
+}
+
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is a cloud region for RDS/Aurora database endpoint.
@@ -1235,6 +1255,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS `yaml:"rds"`
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
+	// SecretStore contains settings for managing secrets.
+	SecretStore SecretStore `yaml:"secret_store"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1329,6 +1351,8 @@ type Proxy struct {
 	WebAddr string `yaml:"web_listen_addr,omitempty"`
 	// TunAddr is a reverse tunnel address
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
+	// PeerAddr is the address this proxy will be dialed at by its peers.
+	PeerAddr string `yaml:"peer_listen_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file

@@ -622,22 +622,15 @@ func (a *Server) GetDomainName() (string, error) {
 	return clusterName.GetClusterName(), nil
 }
 
-// LocalCAResponse contains the concatenated PEM-encoded TLS certs for the local
-// cluster's Host CA
-type LocalCAResponse struct {
-	// TLSCA is a PEM-encoded TLS certificate authority.
-	TLSCA []byte `json:"tls_ca"`
-}
-
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
 // the cluster has multiple TLS certs, they will all be concatenated.
-func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
+func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Extract the TLS CA for this cluster.
-	hostCA, err := a.GetCache().GetCertAuthority(context.TODO(), types.CertAuthID{
+	hostCA, err := a.GetCache().GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
@@ -650,7 +643,7 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	}
 	allCerts := bytes.Join(certs, []byte("\n"))
 
-	return &LocalCAResponse{
+	return &proto.GetClusterCACertResponse{
 		TLSCA: allCerts,
 	}, nil
 }
@@ -746,9 +739,6 @@ type certRequest struct {
 	// activeRequests tracks privilege escalation requests applied
 	// during the construction of the certificate.
 	activeRequests services.RequestIDs
-	// requestedResourceIDs lists the resources to which access has been
-	// requested.
-	requestedResourceIDs []types.ResourceID
 	// appSessionID is the session ID of the application session.
 	appSessionID string
 	// appPublicAddr is the public address of the application.
@@ -826,10 +816,15 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
 		ttl:            ttl,
@@ -870,10 +865,15 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	sessionID := req.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -923,10 +923,15 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -1057,7 +1062,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, "-teleport-internal-join")
 
-	requestedResourcesStr, err := services.ResourceIDsToString(req.requestedResourceIDs)
+	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1165,7 +1170,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		DisallowReissue:    req.disallowReissue,
 		Renewable:          req.renewable,
 		Generation:         req.generation,
-		AllowedResourceIDs: requestedResourcesStr,
+		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1309,15 +1314,16 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 // PreAuthenticatedSignIn is for MFA authentication methods where the password
 // is already checked before issuing the second factor challenge
 func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (types.WebSession, error) {
-	roles, traits, err := services.ExtractFromIdentity(a, identity)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:           user,
-		Roles:          roles,
-		Traits:         traits,
-		AccessRequests: identity.ActiveRequests,
+		User:                 user,
+		Roles:                accessInfo.Roles,
+		Traits:               accessInfo.Traits,
+		AccessRequests:       identity.ActiveRequests,
+		RequestedResourceIDs: accessInfo.AllowedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1824,13 +1830,15 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	roles, traits, err := services.ExtractFromIdentity(a, identity)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	roles := accessInfo.Roles
+	traits := accessInfo.Traits
+	allowedResourceIDs := accessInfo.AllowedResourceIDs
 	accessRequests := identity.ActiveRequests
-	requestedResourceIDs := []types.ResourceID{}
+
 	if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
@@ -1840,7 +1848,14 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		roles = append(roles, accessRequest.GetRoles()...)
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
-		requestedResourceIDs = accessRequest.GetRequestedResourceIDs()
+
+		// There's not a consistent way to merge multiple search-based access
+		// requests, a user may be able to request access to different resources
+		// with different roles which should not overlap.
+		if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
+			return nil, trace.BadParameter("user is already logged in with a search-based access request, cannot issue another")
+		}
+		allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
@@ -1858,6 +1873,9 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
+
+		// Reset any search-based access requests
+		allowedResourceIDs = nil
 
 		// Calculate expiry time.
 		roleSet, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
@@ -1880,7 +1898,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		Traits:               traits,
 		SessionTTL:           sessionTTL,
 		AccessRequests:       accessRequests,
-		RequestedResourceIDs: requestedResourceIDs,
+		RequestedResourceIDs: allowedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2319,10 +2337,20 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
+	roleSet, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(&services.AccessInfo{
+		Roles:              req.Roles,
+		Traits:             req.Traits,
+		RoleSet:            roleSet,
+		AllowedResourceIDs: req.RequestedResourceIDs,
+	}, clusterName.GetClusterName())
 
 	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
 	if err != nil {
@@ -2338,13 +2366,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:                 user,
-		ttl:                  sessionTTL,
-		publicKey:            pub,
-		checker:              checker,
-		traits:               req.Traits,
-		activeRequests:       services.RequestIDs{AccessRequests: req.AccessRequests},
-		requestedResourceIDs: req.RequestedResourceIDs,
+		user:           user,
+		ttl:            sessionTTL,
+		publicKey:      pub,
+		checker:        checker,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2459,7 +2486,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Expires: req.GetAccessExpiry(),
 		},
 		Roles:                req.GetRoles(),
-		RequestedResourceIDs: services.EventResourceIDs(req.GetRequestedResourceIDs()),
+		RequestedResourceIDs: types.EventResourceIDs(req.GetRequestedResourceIDs()),
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
@@ -2712,39 +2739,8 @@ func (a *Server) GetNamespaces() ([]types.Namespace, error) {
 }
 
 // GetNodes returns nodes from the cache
-func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	return a.GetCache().GetNodes(ctx, namespace, opts...)
-}
-
-// ListNodes lists nodes from the cache
-func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	return a.GetCache().ListNodes(ctx, req)
-}
-
-// NodePageFunc is a function to run on each page iterated over.
-type NodePageFunc func(next []types.Server) (stop bool, err error)
-
-// IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
-	for {
-		nextPage, nextKey, err := a.ListNodes(ctx, req)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		stop, err := f(nextPage)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
-		}
-
-		req.StartKey = nextKey
-	}
+func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	return a.GetCache().GetNodes(ctx, namespace)
 }
 
 // ResourcePageFunc is a function to run on each page iterated over.
