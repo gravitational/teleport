@@ -1659,7 +1659,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
 		requestedResourceIDs := []types.ResourceID{}
 		if cf.RequestedResourceIDs != "" {
-			requestedResourceIDs, err = services.ResourceIDsFromString(cf.RequestedResourceIDs)
+			requestedResourceIDs, err = types.ResourceIDsFromString(cf.RequestedResourceIDs)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2813,6 +2813,14 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	if len(p.Databases) != 0 {
 		fmt.Printf("  Databases:          %v\n", strings.Join(p.DatabaseServices(), ", "))
 	}
+	if len(p.AllowedResourceIDs) > 0 {
+		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
+		if err != nil {
+			log.Warnf("failed to marshal allowed resource IDs to string: %v", err)
+		} else {
+			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
+		}
+	}
 	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
@@ -2856,20 +2864,21 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProxyURL          string          `json:"profile_url"`
-	Username          string          `json:"username"`
-	ActiveRequests    []string        `json:"active_requests,omitempty"`
-	Cluster           string          `json:"cluster"`
-	Roles             []string        `json:"roles,omitempty"`
-	Traits            wrappers.Traits `json:"traits,omitempty"`
-	Logins            []string        `json:"logins,omitempty"`
-	KubernetesEnabled bool            `json:"kubernetes_enabled"`
-	KubernetesCluster string          `json:"kubernetes_cluster,omitempty"`
-	KubernetesUsers   []string        `json:"kubernetes_users,omitempty"`
-	KubernetesGroups  []string        `json:"kubernetes_groups,omitempty"`
-	Databases         []string        `json:"databases,omitempty"`
-	ValidUntil        time.Time       `json:"valid_until"`
-	Extensions        []string        `json:"extensions,omitempty"`
+	ProxyURL           string             `json:"profile_url"`
+	Username           string             `json:"username"`
+	ActiveRequests     []string           `json:"active_requests,omitempty"`
+	Cluster            string             `json:"cluster"`
+	Roles              []string           `json:"roles,omitempty"`
+	Traits             wrappers.Traits    `json:"traits,omitempty"`
+	Logins             []string           `json:"logins,omitempty"`
+	KubernetesEnabled  bool               `json:"kubernetes_enabled"`
+	KubernetesCluster  string             `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers    []string           `json:"kubernetes_users,omitempty"`
+	KubernetesGroups   []string           `json:"kubernetes_groups,omitempty"`
+	Databases          []string           `json:"databases,omitempty"`
+	ValidUntil         time.Time          `json:"valid_until"`
+	Extensions         []string           `json:"extensions,omitempty"`
+	AllowedResourceIDs []types.ResourceID `json:"allowed_resources,omitempty"`
 }
 
 func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
@@ -2877,20 +2886,21 @@ func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
 		return nil
 	}
 	return &profileInfo{
-		ProxyURL:          p.ProxyURL.String(),
-		Username:          p.Username,
-		ActiveRequests:    p.ActiveRequests.AccessRequests,
-		Cluster:           p.Cluster,
-		Roles:             p.Roles,
-		Traits:            p.Traits,
-		Logins:            p.Logins,
-		KubernetesEnabled: p.KubeEnabled,
-		KubernetesCluster: selectedKubeCluster(p.Cluster),
-		KubernetesUsers:   p.KubeUsers,
-		KubernetesGroups:  p.KubeGroups,
-		Databases:         p.DatabaseServices(),
-		ValidUntil:        p.ValidUntil,
-		Extensions:        p.Extensions,
+		ProxyURL:           p.ProxyURL.String(),
+		Username:           p.Username,
+		ActiveRequests:     p.ActiveRequests.AccessRequests,
+		Cluster:            p.Cluster,
+		Roles:              p.Roles,
+		Traits:             p.Traits,
+		Logins:             p.Logins,
+		KubernetesEnabled:  p.KubeEnabled,
+		KubernetesCluster:  selectedKubeCluster(p.Cluster),
+		KubernetesUsers:    p.KubeUsers,
+		KubernetesGroups:   p.KubeGroups,
+		Databases:          p.DatabaseServices(),
+		ValidUntil:         p.ValidUntil,
+		Extensions:         p.Extensions,
+		AllowedResourceIDs: p.AllowedResourceIDs,
 	}
 }
 

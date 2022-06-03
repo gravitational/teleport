@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -148,23 +147,24 @@ Loop:
 
 // UseSearchAsRoles extends the roles of the Checker on the current Context with
 // the set of roles the user is allowed to search as.
-func (c *Context) UseSearchAsRoles(access services.RoleGetter) error {
+func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName string) error {
+	if len(c.Checker.GetAllowedResourceIDs()) > 0 {
+		return trace.AccessDenied("user is currently logged in with a search-based access request, cannot further extend roles for search")
+	}
 	var newRoleNames []string
+	// include existing roles
 	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
+	// extend with allowed search_as_roles
 	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
-	newRoleSet, err := services.FetchRoles(newRoleNames, access, c.User.GetTraits())
+	newRoleNames = utils.Deduplicate(newRoleNames)
+
+	// set new roles on the context user and create a new access checker
+	c.User.SetRoles(newRoleNames)
+	accessInfo, err := services.AccessInfoFromUser(c.User, access)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, ok := c.Checker.(LocalUserRoleSet); ok {
-		c.Checker = LocalUserRoleSet{newRoleSet}
-	} else if _, ok := c.Checker.(RemoteUserRoleSet); ok {
-		c.Checker = RemoteUserRoleSet{newRoleSet}
-	} else {
-		// builtin roles should not be searching
-		return trace.AccessDenied("unexpected checker of type %T attempting UseSearchAsRoles", c.Checker)
-	}
-	c.User.SetRoles(newRoleNames)
+	c.Checker = services.NewAccessChecker(accessInfo, clusterName)
 	return nil
 }
 
@@ -208,7 +208,7 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // authorizeLocalUser returns authz context based on the username
 func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
-	return contextForLocalUser(u, a.accessPoint)
+	return contextForLocalUser(u, a.accessPoint, a.clusterName)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
@@ -220,53 +220,21 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleNames, err := services.MapRoles(ca.CombinedMapping(), u.RemoteRoles)
-	if err != nil {
-		return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q with remote roles %v", u.Username, u.ClusterName, u.RemoteRoles)
-	}
-	if len(roleNames) == 0 {
-		return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q with remote roles %v", u.Username, u.ClusterName, u.RemoteRoles)
-	}
-	// Set internal traits for the remote user. This allows Teleport to work by
-	// passing exact logins, Kubernetes users/groups and database users/names
-	// to the remote cluster.
-	traits := map[string][]string{
-		teleport.TraitLogins:     u.Principals,
-		teleport.TraitKubeGroups: u.KubernetesGroups,
-		teleport.TraitKubeUsers:  u.KubernetesUsers,
-		teleport.TraitDBNames:    u.DatabaseNames,
-		teleport.TraitDBUsers:    u.DatabaseUsers,
-	}
-	// Prior to Teleport 6.2 no user traits were passed to remote clusters
-	// except for the internal ones specified above.
-	//
-	// To preserve backwards compatible behavior, when applying traits from user
-	// identity, make sure to filter out those already present in the map above.
-	//
-	// This ensures that if e.g. there's a "logins" trait in the root user's
-	// identity, it won't overwrite the internal "logins" trait set above
-	// causing behavior change.
-	for k, v := range u.Identity.Traits {
-		if _, ok := traits[k]; !ok {
-			traits[k] = v
-		}
-	}
-	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
-		u.RemoteRoles, u.Username, roleNames, traits)
-	checker, err := services.FetchRoles(roleNames, a.accessPoint, traits)
+
+	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, a.accessPoint, ca.CombinedMapping())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	checker := services.NewAccessChecker(accessInfo, a.clusterName)
+
 	// The user is prefixed with "remote-" and suffixed with cluster name with
 	// the hope that it does not match a real local user.
 	user, err := types.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user.SetTraits(traits)
-
-	// Set the list of roles this user has in the remote cluster.
-	user.SetRoles(roleNames)
+	user.SetTraits(accessInfo.Traits)
+	user.SetRoles(accessInfo.Roles)
 
 	// Adjust expiry based on locally mapped roles.
 	ttl := time.Until(u.Identity.Expires)
@@ -290,7 +258,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	identity := tlsca.Identity{
 		Username:         user.GetName(),
 		Groups:           user.GetRoles(),
-		Traits:           wrappers.Traits(traits),
+		Traits:           accessInfo.Traits,
 		Principals:       principals,
 		KubernetesGroups: kubeGroups,
 		KubernetesUsers:  kubeUsers,
@@ -310,7 +278,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 
 	return &Context{
 		User:             user,
-		Checker:          RemoteUserRoleSet{checker},
+		Checker:          checker,
 		Identity:         WrapIdentity(identity),
 		UnmappedIdentity: u,
 	}, nil
@@ -329,7 +297,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	if r.Role != types.RoleProxy {
 		return nil, trace.AccessDenied("access denied for remote %v connecting to cluster", r.Role)
 	}
-	roles, err := services.FromSpec(
+	roleSet, err := services.FromSpec(
 		string(types.RoleRemoteProxy),
 		types.RoleSpecV5{
 			Allow: types.RoleConditions{
@@ -371,17 +339,24 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user.SetRoles([]string{string(types.RoleRemoteProxy)})
+	roles := []string{string(types.RoleRemoteProxy)}
+	user.SetRoles(roles)
+	checker := services.NewAccessChecker(&services.AccessInfo{
+		Roles:              roles,
+		Traits:             nil,
+		AllowedResourceIDs: nil,
+		RoleSet:            roleSet,
+	}, a.clusterName)
 	return &Context{
 		User:             user,
-		Checker:          RemoteBuiltinRoleSet{roles},
+		Checker:          checker,
 		Identity:         r,
 		UnmappedIdentity: r,
 	}, nil
 }
 
-// GetCheckerForBuiltinRole returns checkers for embedded builtin role
-func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordingConfig, role types.SystemRole) (services.RoleSet, error) {
+// RoleSetForBuiltinRole returns RoleSet for embedded builtin role
+func RoleSetForBuiltinRole(clusterName string, recConfig types.SessionRecordingConfig, role types.SystemRole) (services.RoleSet, error) {
 	switch role {
 	case types.RoleAuth:
 		return services.FromSpec(
@@ -703,7 +678,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 }
 
 func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig) (*Context, error) {
-	checker, err := GetCheckerForBuiltinRole(r.ClusterName, recConfig, r.Role)
+	roleSet, err := RoleSetForBuiltinRole(r.ClusterName, recConfig, r.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -711,29 +686,33 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user.SetRoles([]string{string(r.Role)})
+	roles := []string{string(r.Role)}
+	user.SetRoles(roles)
+	checker := services.NewAccessChecker(&services.AccessInfo{
+		Roles:              roles,
+		Traits:             nil,
+		AllowedResourceIDs: nil,
+		RoleSet:            roleSet,
+	}, r.ClusterName)
 	return &Context{
 		User:             user,
-		Checker:          BuiltinRoleSet{checker},
+		Checker:          checker,
 		Identity:         r,
 		UnmappedIdentity: r,
 	}, nil
 }
 
-func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint) (*Context, error) {
+func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
 	user, err := accessPoint.GetUser(u.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromIdentity(accessPoint, u.Identity)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(u.Identity, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(roles, accessPoint, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	accessChecker := services.NewAccessChecker(accessInfo, clusterName)
 	// Override roles and traits from the local user based on the identity roles
 	// and traits, this is done to prevent potential conflict. Imagine a scenario
 	// when SSO user has left the company, but local user entry remained with old
@@ -741,12 +720,12 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint) (*Conte
 	// have derived the roles from the stale user entry. This code prevents
 	// that by extracting up to date identity traits and roles from the user's
 	// certificate metadata.
-	user.SetRoles(roles)
-	user.SetTraits(traits)
+	user.SetRoles(accessInfo.Roles)
+	user.SetTraits(accessInfo.Traits)
 
 	return &Context{
 		User:             user,
-		Checker:          LocalUserRoleSet{checker},
+		Checker:          accessChecker,
 		Identity:         u,
 		UnmappedIdentity: u,
 	}, nil
@@ -916,30 +895,6 @@ func (r BuiltinRole) GetServerID() string {
 // GetIdentity returns client identity
 func (r BuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
-}
-
-// BuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
-// the role is builtin or not.
-type BuiltinRoleSet struct {
-	services.RoleSet
-}
-
-// RemoteBuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
-// the role is a remote builtin or not.
-type RemoteBuiltinRoleSet struct {
-	services.RoleSet
-}
-
-// LocalUserRoleSet wraps a services.RoleSet. This type is used to determine
-// if the role is a local user or not.
-type LocalUserRoleSet struct {
-	services.RoleSet
-}
-
-// RemoteUserRoleSet wraps a services.RoleSet. This type is used to determine
-// if the role is a remote user or not.
-type RemoteUserRoleSet struct {
-	services.RoleSet
 }
 
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)

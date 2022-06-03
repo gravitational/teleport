@@ -143,7 +143,7 @@ type Identity struct {
 	Generation uint64
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
-	AllowedResourceIDs string
+	AllowedResourceIDs []types.ResourceID
 }
 
 // RouteToApp holds routing information for applications.
@@ -229,27 +229,28 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	}
 
 	return events.Identity{
-		User:              id.Username,
-		Impersonator:      id.Impersonator,
-		Roles:             id.Groups,
-		Usage:             id.Usage,
-		Logins:            id.Principals,
-		KubernetesGroups:  id.KubernetesGroups,
-		KubernetesUsers:   id.KubernetesUsers,
-		Expires:           id.Expires,
-		RouteToCluster:    id.RouteToCluster,
-		KubernetesCluster: id.KubernetesCluster,
-		Traits:            id.Traits,
-		RouteToApp:        routeToApp,
-		TeleportCluster:   id.TeleportCluster,
-		RouteToDatabase:   routeToDatabase,
-		DatabaseNames:     id.DatabaseNames,
-		DatabaseUsers:     id.DatabaseUsers,
-		MFADeviceUUID:     id.MFAVerified,
-		ClientIP:          id.ClientIP,
-		AWSRoleARNs:       id.AWSRoleARNs,
-		AccessRequests:    id.ActiveRequests,
-		DisallowReissue:   id.DisallowReissue,
+		User:               id.Username,
+		Impersonator:       id.Impersonator,
+		Roles:              id.Groups,
+		Usage:              id.Usage,
+		Logins:             id.Principals,
+		KubernetesGroups:   id.KubernetesGroups,
+		KubernetesUsers:    id.KubernetesUsers,
+		Expires:            id.Expires,
+		RouteToCluster:     id.RouteToCluster,
+		KubernetesCluster:  id.KubernetesCluster,
+		Traits:             id.Traits,
+		RouteToApp:         routeToApp,
+		TeleportCluster:    id.TeleportCluster,
+		RouteToDatabase:    routeToDatabase,
+		DatabaseNames:      id.DatabaseNames,
+		DatabaseUsers:      id.DatabaseUsers,
+		MFADeviceUUID:      id.MFAVerified,
+		ClientIP:           id.ClientIP,
+		AWSRoleARNs:        id.AWSRoleARNs,
+		AccessRequests:     id.ActiveRequests,
+		DisallowReissue:    id.DisallowReissue,
+		AllowedResourceIDs: types.EventResourceIDs(id.AllowedResourceIDs),
 	}
 }
 
@@ -572,11 +573,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
-	if id.AllowedResourceIDs != "" {
+	if len(id.AllowedResourceIDs) > 0 {
+		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  AllowedResourcesASN1ExtensionOID,
-				Value: id.AllowedResourceIDs,
+				Value: allowedResourcesStr,
 			},
 		)
 	}
@@ -727,9 +732,13 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				id.Generation = generation
 			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
-			val, ok := attr.Value.(string)
+			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
-				id.AllowedResourceIDs = val
+				allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				id.AllowedResourceIDs = allowedResourceIDs
 			}
 		}
 	}
