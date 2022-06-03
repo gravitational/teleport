@@ -7,6 +7,9 @@ export interface Logger {
 }
 
 export interface LoggerService {
-  pipeProcessOutputIntoLogger(stream: Stream): void;
   createLogger(context: string): Logger;
+}
+
+export interface NodeLoggerService extends LoggerService {
+  pipeProcessOutputIntoLogger(stream: Stream): void;
 }

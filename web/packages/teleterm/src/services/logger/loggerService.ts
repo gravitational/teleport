@@ -1,9 +1,9 @@
 import { createLogger as createWinston, format, transports } from 'winston';
 import { isObject } from 'lodash';
-import { Logger, LoggerService } from './types';
+import { Logger, NodeLoggerService } from './types';
 import split2 from 'split2';
 
-export default function createLoggerService(opts: Options): LoggerService {
+export default function createLoggerService(opts: Options): NodeLoggerService {
   const instance = createWinston({
     level: 'info',
     exitOnError: false,

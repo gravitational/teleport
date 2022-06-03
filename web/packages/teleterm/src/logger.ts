@@ -1,4 +1,5 @@
 import * as types from 'teleterm/types';
+import { LoggerService } from 'teleterm/services/logger/types';
 
 export default class Logger {
   private static service: types.LoggerService;
@@ -39,7 +40,7 @@ export default class Logger {
 }
 
 // NullService is a logger service implementation which swallows logs. For use in tests.
-export class NullService {
+export class NullService implements LoggerService {
   /* eslint-disable @typescript-eslint/no-unused-vars */
   createLogger(loggerName: string): types.Logger {
     return {
