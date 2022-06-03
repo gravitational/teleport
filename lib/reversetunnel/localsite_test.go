@@ -43,7 +43,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 		},
 	}
 
-	site, err := newlocalSite(srv, "clustername", &mockLocalSiteClient{})
+	site, err := newlocalSite(srv, "clustername", &mockLocalSiteClient{}, nil)
 	require.NoError(t, err)
 
 	nodeID := uuid.NewString()

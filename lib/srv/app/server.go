@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
@@ -102,6 +103,9 @@ type Config struct {
 
 	// OnReconcile is called after each database resource reconciliation.
 	OnReconcile func(types.Apps)
+
+	// ConnectedProxyGetter gets the proxies teleport is connected to.
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -147,6 +151,9 @@ func (c *Config) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		c.Cloud = cloud
+	}
+	if c.ConnectedProxyGetter == nil {
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	return nil
@@ -408,7 +415,7 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 		s.c.CloudLabels.Apply(copy)
 	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
-	return types.NewAppServerV3(types.Metadata{
+	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
 		Expires: &expires,
 	}, types.AppServerSpecV3{
@@ -417,7 +424,13 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 		HostID:   s.c.HostID,
 		Rotation: s.getRotationState(),
 		App:      copy,
+		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
