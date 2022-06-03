@@ -157,6 +157,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
 
 	nodeDir := t.TempDir()
 	serverOptions := []ServerOption{
@@ -197,7 +198,10 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	require.NoError(t, auth.CreateUploaderDir(nodeDir))
 	require.NoError(t, sshSrv.Start())
-	t.Cleanup(func() { require.NoError(t, sshSrv.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, sshSrv.Close())
+		sshSrv.Wait()
+	})
 
 	require.NoError(t, sshSrv.heartbeat.ForceSend(time.Second))
 
@@ -246,7 +250,6 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 	t.Cleanup(func() { f.ssh.assertCltClose(t, client.Close()) })
 	require.NoError(t, agent.ForwardToAgent(client, keyring))
-
 	return f
 }
 
@@ -607,7 +610,7 @@ func TestAgentForward(t *testing.T) {
 
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
-	defer se.Close()
+	t.Cleanup(func() { se.Close() })
 
 	err = agent.RequestAgentForwarding(se)
 	require.NoError(t, err)
@@ -615,19 +618,19 @@ func TestAgentForward(t *testing.T) {
 	// prepare to send virtual "keyboard input" into the shell:
 	keyboard, err := se.StdinPipe()
 	require.NoError(t, err)
+	t.Cleanup(func() { keyboard.Close() })
 
 	// start interactive SSH session (new shell):
 	err = se.Shell()
 	require.NoError(t, err)
 
 	// create a temp file to collect the shell output into:
-	tmpFile, err := os.CreateTemp(os.TempDir(), "teleport-agent-forward-test")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "teleport-agent-forward-test")
 	require.NoError(t, err)
 	tmpFile.Close()
-	defer os.Remove(tmpFile.Name())
 
 	// type 'printenv SSH_AUTH_SOCK > /path/to/tmp/file' into the session (dumping the value of SSH_AUTH_STOCK into the temp file)
-	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", teleport.SSHAuthSock, tmpFile.Name())))
+	_, err = fmt.Fprintf(keyboard, "printenv %v >> %s\n\r", teleport.SSHAuthSock, tmpFile.Name())
 	require.NoError(t, err)
 
 	// wait for the output
@@ -644,8 +647,8 @@ func TestAgentForward(t *testing.T) {
 	// try dialing the ssh agent socket:
 	file, err := net.Dial("unix", socketPath)
 	require.NoError(t, err)
-	clientAgent := agent.NewClient(file)
 
+	clientAgent := agent.NewClient(file)
 	signers, err := clientAgent.Signers()
 	require.NoError(t, err)
 
@@ -665,6 +668,7 @@ func TestAgentForward(t *testing.T) {
 	// sessions on the connection).
 	err = se.Close()
 	require.NoError(t, err)
+
 	// Pause to allow closure to propagate.
 	time.Sleep(150 * time.Millisecond)
 	_, err = net.Dial("unix", socketPath)
@@ -678,14 +682,12 @@ func TestAgentForward(t *testing.T) {
 
 	// clt must be nullified to prevent double-close during test cleanup
 	f.ssh.clt = nil
-	for i := 0; i < 4; i++ {
-		_, err = net.Dial("unix", socketPath)
-		if err != nil {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	require.FailNow(t, "expected socket to be closed, still could dial after 150 ms")
+	require.Eventually(t, func() bool {
+		_, err := net.Dial("unix", socketPath)
+		return err != nil
+	},
+		150*time.Millisecond, 50*time.Millisecond,
+		"expected socket to be closed, still could dial")
 }
 
 // TestX11Forward tests x11 forwarding via unix sockets
