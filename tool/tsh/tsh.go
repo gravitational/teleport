@@ -80,11 +80,19 @@ var log = logrus.WithFields(logrus.Fields{
 })
 
 const (
-	// mfaModeAuto, mfaModeCrossPlatform and mfaModePlatform correspond to
-	// wancli.AuthenticatorAttachment values.
-	mfaModeAuto          = "auto"
+	// mfaModeAuto automatically chooses the best MFA device(s), without any
+	// restrictions.
+	// Allows both Webauthn and OTP.
+	mfaModeAuto = "auto"
+	// mfaModeCrossPlatform utilizes only cross-platform devices, such as
+	// pluggable hardware keys.
+	// Implies Webauthn.
 	mfaModeCrossPlatform = "cross-platform"
-	mfaModePlatform      = "platform"
+	// mfaModePlatform utilizes only platform devices, such as Touch ID.
+	// Implies Webauthn.
+	mfaModePlatform = "platform"
+	// mfaModeOTP utilizes only OTP devices.
+	mfaModeOTP = "otp"
 
 	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || name == "%[1]s"`
 )
@@ -406,6 +414,7 @@ const (
 	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
+	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -479,9 +488,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
-	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform}
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
+		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
@@ -1205,6 +1215,7 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	tc.HomePath = cf.HomePath
+
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
@@ -1285,10 +1296,16 @@ func onLogin(cf *CLIConf) error {
 	// -i flag specified? save the retrieved cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
 
+	// stdin hijack is OK for login, since it tsh doesn't read input after the
+	// login ceremony is complete.
+	// Only allow the option during the login ceremony.
+	tc.AllowStdinHijack = true
+
 	key, err := tc.Login(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	tc.AllowStdinHijack = false
 
 	// the login operation may update the username and should be considered the more
 	// "authoritative" source.
@@ -2681,10 +2698,12 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.AuthConnector != "" {
 		c.AuthConnector = cf.AuthConnector
 	}
-	c.AuthenticatorAttachment, err = mfaModeToAttachment(cf.MFAMode)
+	mfaOpts, err := parseMFAMode(cf.MFAMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
+	c.PreferOTP = mfaOpts.PreferOTP
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -2763,17 +2782,25 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	return tc, nil
 }
 
-func mfaModeToAttachment(val string) (wancli.AuthenticatorAttachment, error) {
-	switch val {
+type mfaModeOpts struct {
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+	PreferOTP               bool
+}
+
+func parseMFAMode(mode string) (*mfaModeOpts, error) {
+	opts := &mfaModeOpts{}
+	switch mode {
 	case "", mfaModeAuto:
-		return wancli.AttachmentAuto, nil
 	case mfaModeCrossPlatform:
-		return wancli.AttachmentCrossPlatform, nil
+		opts.AuthenticatorAttachment = wancli.AttachmentCrossPlatform
 	case mfaModePlatform:
-		return wancli.AttachmentPlatform, nil
+		opts.AuthenticatorAttachment = wancli.AttachmentPlatform
+	case mfaModeOTP:
+		opts.PreferOTP = true
 	default:
-		return wancli.AttachmentAuto, fmt.Errorf("invalid MFA mode: %q", val)
+		return nil, fmt.Errorf("invalid MFA mode: %q", mode)
 	}
+	return opts, nil
 }
 
 // setX11Config sets X11 config using CLI and SSH option flags.
