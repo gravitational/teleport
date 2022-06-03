@@ -323,6 +323,9 @@ const (
 	OriginCloud = "cloud"
 )
 
+// EC2HostnameTag is the name of the EC2 tag used to override a node's hostname.
+const EC2HostnameTag = "TeleportHostname"
+
 // OriginValues lists all possible origin values.
 var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}
 
@@ -372,6 +375,17 @@ const (
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )
 
+type TunnelStrategyType string
+
+const (
+	// AgentMesh requires agents to create a reverse tunnel to
+	// every proxy server.
+	AgentMesh TunnelStrategyType = "agent_mesh"
+	// ProxyPeering requires agents to create a reverse tunnel to a configured
+	// number of proxy servers and enables proxy to proxy communication.
+	ProxyPeering TunnelStrategyType = "proxy_peering"
+)
+
 const (
 	// ResourceMetadataName refers to a resource metadata field named "name".
 	ResourceMetadataName = "name"
@@ -400,5 +414,15 @@ const (
 	BotGenerationLabel = "teleport.internal/bot-generation"
 )
 
-// ResourceKinds lists all Teleport resource kinds users can request access to.
-var ResourceKinds = []string{KindNode, KindDatabaseServer, KindAppServer, KindKubeService, KindWindowsDesktop}
+// RequestableResourceKinds lists all Teleport resource kinds users can request access to.
+var RequestableResourceKinds = []string{
+	KindNode,
+	KindKubeService,
+	KindKubernetesCluster,
+	KindDatabaseServer,
+	KindDatabase,
+	KindAppServer,
+	KindApp,
+	KindWindowsDesktopService,
+	KindWindowsDesktop,
+}

@@ -34,19 +34,16 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
@@ -56,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -64,12 +62,14 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-
-	"github.com/ghodss/yaml"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -98,9 +98,8 @@ type CLIConf struct {
 	SuggestedReviewers string
 	// NoWait can be used with an access request to exit without waiting for a request resolution.
 	NoWait bool
-	// RequestedResourceIDs is a list of resources to request access to
-	// separated by commas.
-	RequestedResourceIDs string
+	// RequestedResourceIDs is a list of resources to request access to.
+	RequestedResourceIDs []string
 	// RequestID is an access request ID
 	RequestID string
 	// ReviewReason indicates the reason for an access review.
@@ -323,6 +322,12 @@ type CLIConf struct {
 
 	// ExtraProxyHeaders is configuration read from the .tsh/config/config.yaml file.
 	ExtraProxyHeaders []ExtraProxyHeaders
+
+	// SampleTraces indicates whether traces should be sampled.
+	SampleTraces bool
+
+	// TracingProvider is the provider to use to create tracers, from which spans can be created.
+	TracingProvider oteltrace.TracerProvider
 }
 
 // Stdout returns the stdout writer.
@@ -353,6 +358,9 @@ func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer cancel()
+
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
 	switch path.Base(os.Args[0]) {
@@ -363,7 +371,7 @@ func main() {
 	default:
 		cmdLine = cmdLineOrig
 	}
-	if err := Run(cmdLine); err != nil {
+	if err := Run(ctx, cmdLine); err != nil {
 		var exitError *exitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.code)
@@ -409,8 +417,11 @@ type cliOption func(*CLIConf) error
 var defaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 // Run executes TSH client. same as main() but easier to test
-func Run(args []string, opts ...cliOption) error {
-	var cf CLIConf
+func Run(ctx context.Context, args []string, opts ...cliOption) error {
+	cf := CLIConf{
+		Context:         ctx,
+		TracingProvider: tracing.NoopProvider(),
+	}
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	moduleCfg := modules.GetModules()
@@ -433,6 +444,7 @@ func Run(args []string, opts ...cliOption) error {
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
+	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -666,9 +678,7 @@ func Run(args []string, opts ...cliOption) error {
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
-	// TODO(nic): unhide this command when the rest of search-based access
-	// requests is implemented (#10887)
-	reqCreate.Flag("resources", "List of resources to request access to separated by commas").Hidden().StringVar(&cf.RequestedResourceIDs)
+	reqCreate.Flag("resource", "Resource ID to be requested").StringsVar(&cf.RequestedResourceIDs)
 
 	reqReview := req.Command("review", "Review an access request")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -676,13 +686,11 @@ func Run(args []string, opts ...cliOption) error {
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
 
-	// TODO(nic): unhide this command when the rest of search-based access
-	// requests is implemented (#10887)
-	reqSearch := req.Command("search", "Search for resources to request access to").Hidden()
-	reqSearch.Flag(
-		"kind",
-		fmt.Sprintf("Resource kind to search for (%s)", strings.Join(types.ResourceKinds, ", ")),
-	).Required().EnumVar(&cf.ResourceKind, types.ResourceKinds...)
+	reqSearch := req.Command("search", "Search for resources to request access to")
+	reqSearch.Flag("kind",
+		fmt.Sprintf("Resource kind to search for (%s)",
+			strings.Join(types.RequestableResourceKinds, ", ")),
+	).Required().EnumVar(&cf.ResourceKind, types.RequestableResourceKinds...)
 	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
@@ -698,10 +706,7 @@ func Run(args []string, opts ...cliOption) error {
 	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
 
 	// touchid subcommands.
-	var tid *touchIDCommand
-	if touchid.IsAvailable() {
-		tid = newTouchIDCommand(app)
-	}
+	tid := newTouchIDCommand(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -730,9 +735,34 @@ func Run(args []string, opts ...cliOption) error {
 		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer cancel()
+	// Connect to the span exporter and initialize the trace provider only if
+	// the --trace flag was set.
+	if cf.SampleTraces {
+		provider, err := newTraceProvider(&cf, command, []string{login.FullCommand()})
+		if err != nil {
+			log.WithError(err).Debug("failed to set up span forwarding.")
+		} else {
+			// only update the provider if we successfully set it up
+			cf.TracingProvider = provider
+
+			// ensure that the provider is shutdown on exit to flush any spans
+			// that haven't been forwarded yet.
+			defer func() {
+				shutdownCtx, cancel := context.WithTimeout(cf.Context, 1*time.Second)
+				defer cancel()
+				err := provider.Shutdown(shutdownCtx)
+				if err != nil && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+					log.WithError(err).Debugf("failed to shutdown trace provider")
+				}
+			}()
+		}
+	}
+
+	// start the span for the command and update the config context so that all spans created
+	// in the future will be rooted at this span.
+	ctx, span := cf.TracingProvider.Tracer(teleport.ComponentTSH).Start(cf.Context, command)
 	cf.Context = ctx
+	defer span.End()
 
 	cf.executablePath, err = os.Executable()
 	if err != nil {
@@ -876,12 +906,14 @@ func Run(args []string, opts ...cliOption) error {
 		err = onDaemonStart(&cf)
 	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
+	case tid.diag.FullCommand():
+		err = tid.diag.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
-		case tid != nil && command == tid.ls.FullCommand():
+		case tid.ls != nil && command == tid.ls.FullCommand():
 			err = tid.ls.run(&cf)
-		case tid != nil && command == tid.rm.FullCommand():
+		case tid.rm != nil && command == tid.rm.FullCommand():
 			err = tid.rm.run(&cf)
 		default:
 			// This should only happen when there's a missing switch case above.
@@ -894,6 +926,50 @@ func Run(args []string, opts ...cliOption) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+// newTraceProvider initializes the tracing provider and exports all recorded spans
+// to the auth server to be forwarded to the telemetry backend. The whitelist allows
+// certain commands to have exporting spans be a no-op. Since the provider requires
+// connecting to the auth server, this means a user may have to log in first before
+// the provider can be created. By whitelisting the login command we can avoid having
+// users logging in twice at the expense of not exporting spans for the login command.
+func newTraceProvider(cf *CLIConf, command string, whitelist []string) (*tracing.Provider, error) {
+	// don't record any spans for commands that have been whitelisted
+	for _, c := range whitelist {
+		if strings.EqualFold(command, c) {
+			return tracing.NoopProvider(), nil
+		}
+	}
+
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var traceclt *apitracing.Client
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		traceclt, err = tc.NewTracingClient(cf.Context)
+		return err
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	provider, err := tracing.NewTraceProvider(cf.Context,
+		tracing.Config{
+			Service: teleport.ComponentTSH,
+			Client:  traceclt,
+			// We are using 1 here to record all spans as a result of this tsh command. Teleport
+			// will respect the recording flag of remote spans even if the spans it generates
+			// wouldn't otherwise be recorded due to its configured sampling rate.
+			SamplingRate: 1.0,
+		})
+	if err != nil {
+		return nil, trace.NewAggregate(err, traceclt.Close())
+	}
+
+	return provider, nil
 }
 
 // onVersion prints version info.
@@ -1538,7 +1614,7 @@ func onListNodes(cf *CLIConf) error {
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" && cf.RequestID == "" && cf.RequestedResourceIDs == "" {
+	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 {
 		return trace.BadParameter("at least one role or resource or a request ID must be specified")
 	}
 	if cf.Username == "" {
@@ -1577,11 +1653,12 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		roles := utils.SplitIdentifiers(cf.DesiredRoles)
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
 		requestedResourceIDs := []types.ResourceID{}
-		if cf.RequestedResourceIDs != "" {
-			requestedResourceIDs, err = services.ResourceIDsFromString(cf.RequestedResourceIDs)
+		for _, resourceIDString := range cf.RequestedResourceIDs {
+			resourceID, err := types.ResourceIDFromString(resourceIDString)
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			requestedResourceIDs = append(requestedResourceIDs, resourceID)
 		}
 		req, err = services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 		if err != nil {
@@ -2732,6 +2809,14 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	if len(p.Databases) != 0 {
 		fmt.Printf("  Databases:          %v\n", strings.Join(p.DatabaseServices(), ", "))
 	}
+	if len(p.AllowedResourceIDs) > 0 {
+		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
+		if err != nil {
+			log.Warnf("failed to marshal allowed resource IDs to string: %v", err)
+		} else {
+			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
+		}
+	}
 	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
@@ -2775,20 +2860,21 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProxyURL          string          `json:"profile_url"`
-	Username          string          `json:"username"`
-	ActiveRequests    []string        `json:"active_requests,omitempty"`
-	Cluster           string          `json:"cluster"`
-	Roles             []string        `json:"roles,omitempty"`
-	Traits            wrappers.Traits `json:"traits,omitempty"`
-	Logins            []string        `json:"logins,omitempty"`
-	KubernetesEnabled bool            `json:"kubernetes_enabled"`
-	KubernetesCluster string          `json:"kubernetes_cluster,omitempty"`
-	KubernetesUsers   []string        `json:"kubernetes_users,omitempty"`
-	KubernetesGroups  []string        `json:"kubernetes_groups,omitempty"`
-	Databases         []string        `json:"databases,omitempty"`
-	ValidUntil        time.Time       `json:"valid_until"`
-	Extensions        []string        `json:"extensions,omitempty"`
+	ProxyURL           string             `json:"profile_url"`
+	Username           string             `json:"username"`
+	ActiveRequests     []string           `json:"active_requests,omitempty"`
+	Cluster            string             `json:"cluster"`
+	Roles              []string           `json:"roles,omitempty"`
+	Traits             wrappers.Traits    `json:"traits,omitempty"`
+	Logins             []string           `json:"logins,omitempty"`
+	KubernetesEnabled  bool               `json:"kubernetes_enabled"`
+	KubernetesCluster  string             `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers    []string           `json:"kubernetes_users,omitempty"`
+	KubernetesGroups   []string           `json:"kubernetes_groups,omitempty"`
+	Databases          []string           `json:"databases,omitempty"`
+	ValidUntil         time.Time          `json:"valid_until"`
+	Extensions         []string           `json:"extensions,omitempty"`
+	AllowedResourceIDs []types.ResourceID `json:"allowed_resources,omitempty"`
 }
 
 func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
@@ -2796,20 +2882,21 @@ func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
 		return nil
 	}
 	return &profileInfo{
-		ProxyURL:          p.ProxyURL.String(),
-		Username:          p.Username,
-		ActiveRequests:    p.ActiveRequests.AccessRequests,
-		Cluster:           p.Cluster,
-		Roles:             p.Roles,
-		Traits:            p.Traits,
-		Logins:            p.Logins,
-		KubernetesEnabled: p.KubeEnabled,
-		KubernetesCluster: selectedKubeCluster(p.Cluster),
-		KubernetesUsers:   p.KubeUsers,
-		KubernetesGroups:  p.KubeGroups,
-		Databases:         p.DatabaseServices(),
-		ValidUntil:        p.ValidUntil,
-		Extensions:        p.Extensions,
+		ProxyURL:           p.ProxyURL.String(),
+		Username:           p.Username,
+		ActiveRequests:     p.ActiveRequests.AccessRequests,
+		Cluster:            p.Cluster,
+		Roles:              p.Roles,
+		Traits:             p.Traits,
+		Logins:             p.Logins,
+		KubernetesEnabled:  p.KubeEnabled,
+		KubernetesCluster:  selectedKubeCluster(p.Cluster),
+		KubernetesUsers:    p.KubeUsers,
+		KubernetesGroups:   p.KubeGroups,
+		Databases:          p.DatabaseServices(),
+		ValidUntil:         p.ValidUntil,
+		Extensions:         p.Extensions,
+		AllowedResourceIDs: p.AllowedResourceIDs,
 	}
 }
 
