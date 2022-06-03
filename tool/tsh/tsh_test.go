@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
@@ -148,10 +149,10 @@ func TestFailedLogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = client.SSOLoginFunc(ssoLogin)
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.mockSSOLogin = ssoLogin
 		return nil
-	}))
+	})
 	require.ErrorIs(t, err, loginFailed)
 }
 
@@ -238,12 +239,12 @@ func TestOIDCLogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice", // explicitly use wrong name
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
 		cf.overrideStderr = buf
 		return nil
-	}))
+	})
 
 	require.NoError(t, err)
 
@@ -294,10 +295,10 @@ func TestLoginIdentityOut(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--out", identPath,
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 
 	_, err = client.KeyFromIdentityFile(identPath)
@@ -333,11 +334,11 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.overrideStderr = buf
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
@@ -348,19 +349,19 @@ func TestRelogin(t *testing.T) {
 		"--proxy", proxyAddr.String(),
 		"localhost",
 	}, setHomePath(tmpHomePath),
-		cliOption(func(cf *CLIConf) error {
+		func(cf *CLIConf) error {
 			cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 			cf.overrideStderr = buf
 			return nil
-		}))
+		})
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
 	err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath),
-		cliOption(func(cf *CLIConf) error {
+		func(cf *CLIConf) error {
 			cf.overrideStderr = buf
 			return nil
-		}))
+		})
 	require.NoError(t, err)
 
 	err = Run(context.Background(), []string{
@@ -370,11 +371,11 @@ func TestRelogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.overrideStderr = buf
 		return nil
-	}))
+	})
 	findMOTD(t, sc, motd)
 	require.NoError(t, err)
 }
@@ -739,10 +740,10 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", rootProxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, rootAuthServer, alice)
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 
 	err = Run(context.Background(), []string{
@@ -1619,6 +1620,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	// We need this to get a random port assigned to it and allow parallel
 	// execution of this test.
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
@@ -1668,6 +1670,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 
 	// Set up a test proxy service.
 	cfg = service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
