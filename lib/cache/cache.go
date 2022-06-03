@@ -1412,7 +1412,7 @@ type getNodesCacheKey struct {
 var _ map[getNodesCacheKey]struct{} // compile-time hashability check
 
 // GetNodes is a part of auth.Cache implementation
-func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1420,7 +1420,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	defer rg.Release()
 
 	if !rg.IsCacheRead() {
-		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace, opts...)
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1431,7 +1431,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 		return nodes, nil
 	}
 
-	return rg.presence.GetNodes(ctx, namespace, opts...)
+	return rg.presence.GetNodes(ctx, namespace)
 }
 
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
@@ -1441,7 +1441,7 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func(ctx context.Context) (interface{}, error) {
 		// use cache's close context instead of request context in order to ensure
 		// that we don't cache a context cancellation error.
-		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+		nodes, err := rg.presence.GetNodes(c.ctx, namespace)
 		ta(nodes)
 		return nodes, err
 	})
@@ -1454,74 +1454,6 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 	}
 	ta(cachedNodes)
 	return cachedNodes, nil
-}
-
-// ListNodes is a part of auth.Cache implementation
-//
-// DELETE IN 10.0.0 in favor of ListResources.
-func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if rg.IsCacheRead() {
-		// cache is healthy, delegate to the standard ListNodes implementation
-		return rg.presence.ListNodes(ctx, req)
-	}
-
-	// Cache is not healthy. List nodes using TTL cache.
-	return c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
-}
-
-// listNodesFromTTLCache Used when the cache is not healthy. It takes advantage
-// of TTL-based caching rather than caching individual page calls (very messy).
-// It relies on caching the result of the `GetNodes` endpoint and then "faking"
-// pagination.
-//
-// DELETE IN 10.0.0 in favor of ListResources.
-func (c *Cache) listNodesFromTTLCache(ctx context.Context, rg readGuard, namespace, startKey string, labels map[string]string, limit int) ([]types.Server, string, error) {
-	if limit <= 0 {
-		return nil, "", trace.BadParameter("nonpositive limit value")
-	}
-
-	cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	// trim nodes that precede start key
-	if startKey != "" {
-		pageStart := 0
-		for i, node := range cachedNodes {
-			if node.GetName() < startKey {
-				pageStart = i + 1
-			} else {
-				break
-			}
-		}
-		cachedNodes = cachedNodes[pageStart:]
-	}
-
-	// iterate and filter nodes, halting when we reach page limit
-	var filtered []types.Server
-	for _, node := range cachedNodes {
-		if len(filtered) == limit {
-			break
-		}
-
-		if node.MatchAgainst(labels) {
-			filtered = append(filtered, node.DeepCopy())
-		}
-	}
-
-	var nextKey string
-	if len(filtered) == limit {
-		nextKey = backend.NextPaginationKey(filtered[len(filtered)-1])
-	}
-
-	return filtered, nextKey, nil
 }
 
 // GetAuthServers returns a list of registered servers

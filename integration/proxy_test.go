@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -631,6 +632,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.Version = "v2"
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
@@ -686,6 +688,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	rcConf.Auth.Preference.SetSecondFactor("off")
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
@@ -752,6 +755,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)

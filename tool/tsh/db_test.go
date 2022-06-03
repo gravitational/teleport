@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -247,6 +248,7 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	cfg := service.MakeDefaultConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	proxyAddr, err := proxy.ProxyWebAddr()
 	require.NoError(t, err)

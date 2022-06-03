@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -256,6 +257,7 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -818,8 +820,9 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 		return nil, trace.Wrap(err)
 	}
 	userClient, err := auth.NewClient(apiclient.Config{
-		Addrs:       utils.NetAddrsToStrings(s.authServers),
-		Credentials: []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
+		Addrs:                utils.NetAddrsToStrings(s.authServers),
+		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

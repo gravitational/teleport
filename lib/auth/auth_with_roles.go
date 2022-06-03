@@ -32,7 +32,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -623,14 +622,6 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 	return a.authServer.GenerateHostCerts(ctx, req)
 }
 
-// UpsertNodes bulk upserts nodes into the backend.
-func (a *ServerWithRoles) UpsertNodes(namespace string, servers []types.Server) error {
-	if err := a.action(namespace, types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertNodes(namespace, servers)
-}
-
 func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	if err := a.action(s.GetNamespace(), types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -875,14 +866,14 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
-func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Fetch full list of nodes in the backend.
 	startFetch := time.Now()
-	nodes, err := a.authServer.GetNodes(ctx, namespace, opts...)
+	nodes, err := a.authServer.GetNodes(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1294,66 +1285,6 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 // ListWindowsDesktops not implemented: can only be called locally.
 func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListNodes returns a paginated list of nodes filtered by user access.
-//
-// DELETE IN 10.0.0 in favor of ListResources.
-func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
-	if err := a.action(req.Namespace, types.KindNode, types.VerbList); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return a.filterAndListNodes(ctx, req)
-}
-
-// DELETE IN 10.0.0 in favor of ListResources.
-func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
-	limit := int(req.Limit)
-	if limit <= 0 {
-		return nil, "", trace.BadParameter("nonpositive parameter limit")
-	}
-
-	// move labels out of request so that we can perform label-based filtering *after* RBAC filtering.
-	realLabels := req.Labels
-	req.Labels = nil
-
-	checker, err := newNodeChecker(a.context, a.authServer)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	page = make([]types.Server, 0, limit)
-	nextKey, err = a.authServer.IterateNodePages(ctx, req, func(nextPage []types.Server) (bool, error) {
-		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
-		filteredPage, err := a.filterNodes(checker, nextPage)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		// add all matching nodes to page
-		for _, node := range filteredPage {
-			if len(page) == limit {
-				// page is filled, stop processing
-				break
-			}
-			if node.MatchAgainst(realLabels) {
-				page = append(page, node)
-			}
-		}
-
-		return len(page) == limit, nil
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	// Filled a page, reset nextKey in case the last node was cut out.
-	if len(page) == limit {
-		nextKey = backend.NextPaginationKey(page[len(page)-1])
-	}
-
-	return page, nextKey, nil
 }
 
 func (a *ServerWithRoles) UpsertAuthServer(s types.Server) error {
