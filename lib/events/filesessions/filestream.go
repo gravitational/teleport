@@ -38,6 +38,8 @@ import (
 
 var (
 	// openFileFunc this is the `OpenFileWithFlagsFunc` used by the handler.
+	//
+	// TODO(gabrielcorado): remove this global variable.
 	openFileFunc utils.OpenFileWithFlagsFunc = os.OpenFile
 
 	// flagLock protects access to all globals declared in this file
@@ -45,6 +47,8 @@ var (
 )
 
 // SetOpenFileFunc sets the OpenFileWithFlagsFunc used by the package.
+//
+// TODO(gabrielcorado): remove this global variable.
 func SetOpenFileFunc(f utils.OpenFileWithFlagsFunc) {
 	flagLock.Lock()
 	defer flagLock.Unlock()
@@ -52,6 +56,8 @@ func SetOpenFileFunc(f utils.OpenFileWithFlagsFunc) {
 }
 
 // GetOpenFileFunc gets the OpenFileWithFlagsFunc set in the package.
+//
+// TODO(gabrielcorado): remove this global variable.
 func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
 	flagLock.Lock()
 	defer flagLock.Unlock()

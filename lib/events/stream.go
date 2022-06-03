@@ -311,8 +311,7 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 
 	// Start writer events receiver.
 	go func() {
-		err := writer.receiveAndUpload()
-		if err != nil {
+		if err := writer.receiveAndUpload(); err != nil {
 			log.WithError(err).Debug("slice writer ended with error")
 			stream.setCancelError(err)
 		}
@@ -575,7 +574,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 				// Failure on `newSlice` indicates that the streamer won't be
 				// able to process events. Close the streamer and set the
 				// returned error so that event emitters can proceed.
-				if isNewSliceError(err) {
+				if isReserveUploadPartError(err) {
 					return trace.Wrap(err)
 				}
 
@@ -1348,12 +1347,12 @@ func (m *MemoryUploader) GetUploadMetadata(sid session.ID) UploadMetadata {
 	}
 }
 
-// ReserUploadPart reserves an upload part.
+// ReserveUploadPart reserves an upload part.
 func (m *MemoryUploader) ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error {
 	return nil
 }
 
-// isNewSliceError identifies new slice errors.
-func isNewSliceError(err error) bool {
+// isReserveUploadPartError identifies uploader reserve part errors.
+func isReserveUploadPartError(err error) bool {
 	return strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }
