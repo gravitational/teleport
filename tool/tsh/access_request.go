@@ -193,10 +193,21 @@ func printRequest(req types.AccessRequest) error {
 		reviewers = strings.Join(r, ", ")
 	}
 
+	resourcesStr := ""
+	if resources := req.GetRequestedResourceIDs(); len(resources) > 0 {
+		var err error
+		if resourcesStr, err = types.ResourceIDsToString(resources); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	table := asciitable.MakeHeadlessTable(2)
 	table.AddRow([]string{"Request ID:", req.GetName()})
 	table.AddRow([]string{"Username:", req.GetUser()})
 	table.AddRow([]string{"Roles:", strings.Join(req.GetRoles(), ", ")})
+	if len(resourcesStr) > 0 {
+		table.AddRow([]string{"Resources:", resourcesStr})
+	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
 	table.AddRow([]string{"Status:", req.GetState().String()})
