@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -34,6 +35,28 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 )
+
+var (
+	// openFileFunc this is the `OpenFileWithFlagsFunc` used by the handler.
+	openFileFunc utils.OpenFileWithFlagsFunc = os.OpenFile
+
+	// flagLock protects access to all globals declared in this file
+	flagLock sync.Mutex
+)
+
+// SetOpenFileFunc sets the OpenFileWithFlagsFunc used by the package.
+func SetOpenFileFunc(f utils.OpenFileWithFlagsFunc) {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	openFileFunc = f
+}
+
+// GetOpenFileFunc gets the OpenFileWithFlagsFunc set in the package.
+func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	return openFileFunc
+}
 
 // minUploadBytes is the minimum part file size required to trigger its upload.
 const minUploadBytes = events.MaxProtoMessageSizeBytes * 2
@@ -109,7 +132,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	uploadPath := h.path(upload.SessionID)
 
 	// Prevent other processes from accessing this file until the write is completed
-	f, err := os.OpenFile(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -291,7 +314,7 @@ func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpl
 // openUploadPart opens a upload file part.
 func (h *Handler) openUploadPart(upload events.StreamUpload, partNumber int64) (*os.File, string, error) {
 	partPath := h.partPath(upload, partNumber)
-	file, err := os.OpenFile(partPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	file, err := GetOpenFileFunc()(partPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, partPath, trace.ConvertSystemError(err)
 	}
