@@ -98,9 +98,8 @@ type CLIConf struct {
 	SuggestedReviewers string
 	// NoWait can be used with an access request to exit without waiting for a request resolution.
 	NoWait bool
-	// RequestedResourceIDs is a list of resources to request access to
-	// separated by commas.
-	RequestedResourceIDs string
+	// RequestedResourceIDs is a list of resources to request access to.
+	RequestedResourceIDs []string
 	// RequestID is an access request ID
 	RequestID string
 	// ReviewReason indicates the reason for an access review.
@@ -679,9 +678,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
-	// TODO(nic): unhide this command when the rest of search-based access
-	// requests is implemented (#10887)
-	reqCreate.Flag("resources", "List of resources to request access to separated by commas").Hidden().StringVar(&cf.RequestedResourceIDs)
+	reqCreate.Flag("resource", "Resource ID to be requested").StringsVar(&cf.RequestedResourceIDs)
 
 	reqReview := req.Command("review", "Review an access request")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -689,13 +686,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
 
-	// TODO(nic): unhide this command when the rest of search-based access
-	// requests is implemented (#10887)
-	reqSearch := req.Command("search", "Search for resources to request access to").Hidden()
-	reqSearch.Flag(
-		"kind",
-		fmt.Sprintf("Resource kind to search for (%s)", strings.Join(types.ResourceKinds, ", ")),
-	).Required().EnumVar(&cf.ResourceKind, types.ResourceKinds...)
+	reqSearch := req.Command("search", "Search for resources to request access to")
+	reqSearch.Flag("kind",
+		fmt.Sprintf("Resource kind to search for (%s)",
+			strings.Join(types.RequestableResourceKinds, ", ")),
+	).Required().EnumVar(&cf.ResourceKind, types.RequestableResourceKinds...)
 	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
@@ -1619,7 +1614,7 @@ func onListNodes(cf *CLIConf) error {
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" && cf.RequestID == "" && cf.RequestedResourceIDs == "" {
+	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 {
 		return trace.BadParameter("at least one role or resource or a request ID must be specified")
 	}
 	if cf.Username == "" {
@@ -1658,11 +1653,12 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		roles := utils.SplitIdentifiers(cf.DesiredRoles)
 		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
 		requestedResourceIDs := []types.ResourceID{}
-		if cf.RequestedResourceIDs != "" {
-			requestedResourceIDs, err = services.ResourceIDsFromString(cf.RequestedResourceIDs)
+		for _, resourceIDString := range cf.RequestedResourceIDs {
+			resourceID, err := types.ResourceIDFromString(resourceIDString)
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			requestedResourceIDs = append(requestedResourceIDs, resourceID)
 		}
 		req, err = services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 		if err != nil {
@@ -2813,6 +2809,14 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	if len(p.Databases) != 0 {
 		fmt.Printf("  Databases:          %v\n", strings.Join(p.DatabaseServices(), ", "))
 	}
+	if len(p.AllowedResourceIDs) > 0 {
+		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
+		if err != nil {
+			log.Warnf("failed to marshal allowed resource IDs to string: %v", err)
+		} else {
+			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
+		}
+	}
 	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
@@ -2856,20 +2860,21 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProxyURL          string          `json:"profile_url"`
-	Username          string          `json:"username"`
-	ActiveRequests    []string        `json:"active_requests,omitempty"`
-	Cluster           string          `json:"cluster"`
-	Roles             []string        `json:"roles,omitempty"`
-	Traits            wrappers.Traits `json:"traits,omitempty"`
-	Logins            []string        `json:"logins,omitempty"`
-	KubernetesEnabled bool            `json:"kubernetes_enabled"`
-	KubernetesCluster string          `json:"kubernetes_cluster,omitempty"`
-	KubernetesUsers   []string        `json:"kubernetes_users,omitempty"`
-	KubernetesGroups  []string        `json:"kubernetes_groups,omitempty"`
-	Databases         []string        `json:"databases,omitempty"`
-	ValidUntil        time.Time       `json:"valid_until"`
-	Extensions        []string        `json:"extensions,omitempty"`
+	ProxyURL           string             `json:"profile_url"`
+	Username           string             `json:"username"`
+	ActiveRequests     []string           `json:"active_requests,omitempty"`
+	Cluster            string             `json:"cluster"`
+	Roles              []string           `json:"roles,omitempty"`
+	Traits             wrappers.Traits    `json:"traits,omitempty"`
+	Logins             []string           `json:"logins,omitempty"`
+	KubernetesEnabled  bool               `json:"kubernetes_enabled"`
+	KubernetesCluster  string             `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers    []string           `json:"kubernetes_users,omitempty"`
+	KubernetesGroups   []string           `json:"kubernetes_groups,omitempty"`
+	Databases          []string           `json:"databases,omitempty"`
+	ValidUntil         time.Time          `json:"valid_until"`
+	Extensions         []string           `json:"extensions,omitempty"`
+	AllowedResourceIDs []types.ResourceID `json:"allowed_resources,omitempty"`
 }
 
 func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
@@ -2877,20 +2882,21 @@ func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
 		return nil
 	}
 	return &profileInfo{
-		ProxyURL:          p.ProxyURL.String(),
-		Username:          p.Username,
-		ActiveRequests:    p.ActiveRequests.AccessRequests,
-		Cluster:           p.Cluster,
-		Roles:             p.Roles,
-		Traits:            p.Traits,
-		Logins:            p.Logins,
-		KubernetesEnabled: p.KubeEnabled,
-		KubernetesCluster: selectedKubeCluster(p.Cluster),
-		KubernetesUsers:   p.KubeUsers,
-		KubernetesGroups:  p.KubeGroups,
-		Databases:         p.DatabaseServices(),
-		ValidUntil:        p.ValidUntil,
-		Extensions:        p.Extensions,
+		ProxyURL:           p.ProxyURL.String(),
+		Username:           p.Username,
+		ActiveRequests:     p.ActiveRequests.AccessRequests,
+		Cluster:            p.Cluster,
+		Roles:              p.Roles,
+		Traits:             p.Traits,
+		Logins:             p.Logins,
+		KubernetesEnabled:  p.KubeEnabled,
+		KubernetesCluster:  selectedKubeCluster(p.Cluster),
+		KubernetesUsers:    p.KubeUsers,
+		KubernetesGroups:   p.KubeGroups,
+		Databases:          p.DatabaseServices(),
+		ValidUntil:         p.ValidUntil,
+		Extensions:         p.Extensions,
+		AllowedResourceIDs: p.AllowedResourceIDs,
 	}
 }
 

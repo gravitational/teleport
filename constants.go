@@ -448,7 +448,7 @@ const (
 	CertExtensionGeneration = "generation"
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
-	CertExtensionAllowedResources = "allowed-resources"
+	CertExtensionAllowedResources = "teleport-allowed-resources"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

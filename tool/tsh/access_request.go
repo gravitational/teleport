@@ -378,37 +378,35 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 
 	rows := [][]string{}
-	resourceIDs := []types.ResourceID{}
+	var resourceIDs []string
 	for _, resource := range resources {
-		resourceIDs = append(resourceIDs, types.ResourceID{
+		resourceID := types.ResourceIDToString(types.ResourceID{
 			ClusterName: clusterName,
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		})
+		resourceIDs = append(resourceIDs, resourceID)
 		hostName := ""
 		if r, ok := resource.(interface{ GetHostname() string }); ok {
 			hostName = r.GetHostname()
 		}
 		rows = append(rows, []string{
-			resource.GetKind(),
+			resource.GetName(),
 			hostName,
 			sortedLabels(resource.GetAllLabels()),
-			resource.GetName(),
+			resourceID,
 		})
 	}
-	table := asciitable.MakeTableWithTruncatedColumn([]string{"Kind", "Hostname", "Labels", "ID"}, rows, "Labels")
+	table := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Hostname", "Labels", "Resource ID"}, rows, "Labels")
 	if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if len(resourceIDs) > 0 {
-		resourcesStr, err := services.ResourceIDsToString(resourceIDs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		resourcesStr := strings.Join(resourceIDs, " --resource ")
 		fmt.Fprintf(os.Stdout, `
 To request access to these resources, run
-> tsh request create --resources '%s' \
+> tsh request create --resource %s \
     --reason <request reason>
 
 `, resourcesStr)
