@@ -20,7 +20,7 @@ import { useStore, Store } from 'shared/libs/stores';
 import { tsh } from 'teleterm/ui/services/clusters/types';
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
-import { getClusterName } from 'teleterm/ui/utils';
+import { getClusterName, retryWithRelogin } from 'teleterm/ui/utils';
 
 type State = {
   navLocation: NavLocation;
@@ -35,9 +35,11 @@ type State = {
 class ClusterContext extends Store<State> {
   private _cluster: tsh.Cluster;
 
+  readonly appCtx: IAppContext;
+
   readonly clusterUri: string;
 
-  readonly appCtx: IAppContext;
+  readonly documentUri: string;
 
   readonly state: State = {
     navLocation: '/resources/servers',
@@ -49,9 +51,10 @@ class ClusterContext extends Store<State> {
     statusText: '',
   };
 
-  constructor(clusterUri: string, appCtx: IAppContext) {
+  constructor(appCtx: IAppContext, clusterUri: string, documentUri: string) {
     super();
     this.clusterUri = clusterUri;
+    this.documentUri = documentUri;
     this.appCtx = appCtx;
     this.appCtx.clustersService.subscribe(this.refresh);
     this.state.clusterName = routing.parseClusterName(clusterUri);
@@ -72,8 +75,20 @@ class ClusterContext extends Store<State> {
     this.appCtx.commandLauncher.executeCommand('kube-connect', { kubeUri });
   };
 
-  sync = () => {
-    this.appCtx.clustersService.syncCluster(this.clusterUri);
+  sync = async () => {
+    try {
+      await retryWithRelogin(
+        this.appCtx,
+        this.documentUri,
+        this.clusterUri,
+        () => this.appCtx.clustersService.syncCluster(this.clusterUri)
+      );
+    } catch (e) {
+      this.appCtx.notificationsService.notifyError({
+        title: `Could not synchronize cluster ${this.state.clusterName}`,
+        description: e.message,
+      });
+    }
   };
 
   refresh = () => {

@@ -20,6 +20,7 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { useAsync } from 'shared/hooks/useAsync';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export default function useGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
@@ -32,12 +33,14 @@ export default function useGateway(doc: types.DocumentGateway) {
   const cluster = ctx.clustersService.findClusterByResource(doc.targetUri);
 
   const [connectAttempt, createGateway] = useAsync(async () => {
-    const gw = await ctx.clustersService.createGateway({
-      targetUri: doc.targetUri,
-      port: doc.port,
-      user: doc.targetUser,
-      subresource_name: doc.targetSubresourceName,
-    });
+    const gw = await retryWithRelogin(ctx, doc.uri, doc.targetUri, () =>
+      ctx.clustersService.createGateway({
+        targetUri: doc.targetUri,
+        port: doc.port,
+        user: doc.targetUser,
+        subresource_name: doc.targetSubresourceName,
+      })
+    );
 
     workspaceDocumentsService.update(doc.uri, {
       gatewayUri: gw.uri,

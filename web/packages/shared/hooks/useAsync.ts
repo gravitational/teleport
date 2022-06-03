@@ -88,7 +88,7 @@ export function useAsync<R, T extends Function>(cb?: AsyncCb<R, T>) {
           setState({
             ...state,
             status: 'error',
-            statusText: err.message,
+            statusText: err?.message,
             data: null,
           });
 

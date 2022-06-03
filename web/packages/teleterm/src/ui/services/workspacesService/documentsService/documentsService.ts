@@ -209,11 +209,6 @@ export class DocumentsService {
     return !!routing.parseUri(location, { exact: true, path: uri });
   }
 
-  isClusterDocumentActive(clusterUri: string) {
-    const doc = this.getActive();
-    return doc.kind === 'doc.cluster' && doc.clusterUri === clusterUri;
-  }
-
   add(doc: Document, position?: number) {
     this.setState(draft => {
       if (position === undefined) {

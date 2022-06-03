@@ -25,8 +25,9 @@ import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts
 import { CommandLauncher } from './commandLauncher';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { IAppContext } from './types';
 
-export default class AppContext {
+export default class AppContext implements IAppContext {
   clustersService: ClustersService;
   modalsService: ModalsService;
   notificationsService: NotificationsService;

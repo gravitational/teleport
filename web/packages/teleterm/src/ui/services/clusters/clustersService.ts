@@ -13,6 +13,7 @@ import isMatch from 'design/utils/match';
 import { makeLabelTag } from 'teleport/components/formatters';
 import { Label } from 'teleport/types';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { getClusterName } from 'teleterm/ui/utils/getClusterName';
 
 export function createClusterServiceState(): ClustersServiceState {
   return {
@@ -56,7 +57,22 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
   async login(params: LoginParams, abortSignal: tsh.TshAbortSignal) {
     await this.client.login(params, abortSignal);
-    await this.syncRootCluster(params.clusterUri);
+    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+  }
+
+  async syncRootClusterAndCatchErrors(clusterUri: string) {
+    try {
+      await this.syncRootCluster(clusterUri);
+    } catch (e) {
+      const cluster = this.findCluster(clusterUri);
+      const clusterName =
+        getClusterName(cluster) ||
+        routing.parseClusterUri(clusterUri).params.rootClusterId;
+      this.notificationsService.notifyError({
+        title: `Could not synchronize cluster ${clusterName}`,
+        description: e.message,
+      });
+    }
   }
 
   async syncRootCluster(clusterUri: string) {
@@ -65,24 +81,37 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
         this.syncClusterInfo(clusterUri),
         this.syncLeafClusters(clusterUri),
       ]);
-    } catch (e) {
-      this.notificationsService.notifyError({
-        title: `Could not synchronize cluster ${
-          routing.parseClusterUri(clusterUri).params.rootClusterId
-        }`,
-        description: e.message,
-      });
+    } finally {
+      // Functions below handle their own errors, so we don't need to await them.
+      //
+      // Also, we wait for syncClusterInfo to finish first. When the response from it comes back and
+      // it turns out that the cluster is not connected, these functions will immediately exit with
+      // an error.
+      //
+      // Arguably, it is a bit of a race condition, as we assume that syncClusterInfo will return
+      // before syncLeafClusters, but for now this is a condition we can live with.
+      this.syncKubes(clusterUri);
+      this.syncApps(clusterUri);
+      this.syncDbs(clusterUri);
+      this.syncServers(clusterUri);
+      this.syncKubes(clusterUri);
+      this.syncGateways();
     }
-    this.syncKubes(clusterUri);
-    this.syncApps(clusterUri);
-    this.syncDbs(clusterUri);
-    this.syncServers(clusterUri);
-    this.syncKubes(clusterUri);
-    this.syncGateways();
   }
 
   async syncLeafCluster(clusterUri: string) {
-    // do not await these
+    try {
+      // Sync leaf clusters list, so that in case of an error that can be resolved with login we can
+      // propagate that error up.
+      const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
+      await this.syncLeafClustersList(rootClusterUri);
+    } finally {
+      this.syncLeafClusterResourcesAndCatchErrors(clusterUri);
+    }
+  }
+
+  private async syncLeafClusterResourcesAndCatchErrors(clusterUri: string) {
+    // Functions below handle their own errors, so we don't need to await them.
     this.syncKubes(clusterUri);
     this.syncApps(clusterUri);
     this.syncDbs(clusterUri);
@@ -99,7 +128,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       });
       clusters
         .filter(c => c.connected)
-        .forEach(c => this.syncRootCluster(c.uri));
+        .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
     } catch (error) {
       this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
@@ -115,9 +144,9 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
 
     if (cluster.leaf) {
-      return this.syncLeafCluster(clusterUri);
+      return await this.syncLeafCluster(clusterUri);
     } else {
-      return this.syncRootCluster(clusterUri);
+      return await this.syncRootCluster(clusterUri);
     }
   }
 
@@ -129,7 +158,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       });
     } catch (error) {
       this.notificationsService.notifyError({
-        title: 'Could not fetch databases',
+        title: 'Could not synchronize database connections',
         description: error.message,
       });
     }
@@ -235,14 +264,23 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   }
 
   async syncLeafClusters(clusterUri: string) {
+    const leaves = await this.syncLeafClustersList(clusterUri);
+
+    leaves
+      .filter(c => c.connected)
+      .forEach(c => this.syncLeafClusterResourcesAndCatchErrors(c.uri));
+  }
+
+  private async syncLeafClustersList(clusterUri: string) {
     const leaves = await this.client.listLeafClusters(clusterUri);
+
     this.setState(draft => {
       for (const leaf of leaves) {
         draft.clusters.set(leaf.uri, leaf);
       }
     });
 
-    leaves.filter(c => c.connected).forEach(c => this.syncLeafCluster(c.uri));
+    return leaves;
   }
 
   async syncServers(clusterUri: string) {
@@ -437,6 +475,8 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return useStore(this).state;
   }
 
+  // Note: client.getCluster ultimately reads data from the disk, so syncClusterInfo will not fail
+  // with a retryable error in case the certs have expired.
   private async syncClusterInfo(clusterUri: string) {
     const cluster = await this.client.getCluster(clusterUri);
     this.setState(draft => {

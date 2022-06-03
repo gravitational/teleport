@@ -24,8 +24,8 @@ import { Danger } from 'design/Alert';
 import { MenuLogin, MenuLoginHandle } from 'shared/components/MenuLogin';
 import { MenuLoginTheme } from '../MenuLoginTheme';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { ClustersService } from 'teleterm/ui/services/clusters';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { retryWithRelogin } from 'teleterm/ui/utils';
+import { IAppContext } from 'teleterm/ui/types';
 
 export default function Container() {
   const state = useDatabases();
@@ -55,6 +55,7 @@ function DatabaseList(props: State) {
             altKey: 'connect-btn',
             render: db => (
               <ConnectButton
+                documentUri={props.documentUri}
                 dbUri={db.uri}
                 onConnect={(dbUser, dbName) =>
                   props.connect(db.uri, dbUser, dbName)
@@ -71,13 +72,15 @@ function DatabaseList(props: State) {
 }
 
 function ConnectButton({
+  documentUri,
   dbUri,
   onConnect,
 }: {
+  documentUri: string;
   dbUri: string;
   onConnect: (dbUser: string, dbName: string) => void;
 }) {
-  const { clustersService, notificationsService } = useAppContext();
+  const appContext = useAppContext();
   const dbNameMenuLoginRef = useRef<MenuLoginHandle>();
   const [dbUser, setDbUser] = useState<string>();
 
@@ -99,7 +102,7 @@ function ConnectButton({
           <MenuLogin
             placeholder="Enter username"
             getLoginItems={() =>
-              getDatabaseUsers(dbUri, clustersService, notificationsService)
+              getDatabaseUsers(appContext, documentUri, dbUri)
             }
             onSelect={(_, user) => {
               setDbUser(user);
@@ -136,17 +139,19 @@ const OverlayGrid = styled.div`
 `;
 
 async function getDatabaseUsers(
-  dbUri: string,
-  clustersService: ClustersService,
-  notificationsService: NotificationsService
+  appContext: IAppContext,
+  documentUri: string,
+  dbUri: string
 ) {
   try {
-    const dbUsers = await clustersService.getDbUsers(dbUri);
+    const dbUsers = await retryWithRelogin(appContext, documentUri, dbUri, () =>
+      appContext.clustersService.getDbUsers(dbUri)
+    );
     return dbUsers.map(user => ({ login: user, url: '' }));
   } catch (e) {
     // Emitting a warning instead of an error here because fetching those username suggestions is
     // not the most important part of the app.
-    notificationsService.notifyWarning({
+    appContext.notificationsService.notifyWarning({
       title: 'Could not fetch database usernames',
       description: e.message,
     });

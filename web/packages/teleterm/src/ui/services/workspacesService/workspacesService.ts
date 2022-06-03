@@ -102,6 +102,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     return this.documentsServicesCache.get(clusterUri);
   }
 
+  isDocumentActive(documentUri: string): boolean {
+    const documentService = this.getActiveWorkspaceDocumentService();
+    return documentService && documentService.isActive(documentUri);
+  }
+
   useState() {
     return useStore(this);
   }

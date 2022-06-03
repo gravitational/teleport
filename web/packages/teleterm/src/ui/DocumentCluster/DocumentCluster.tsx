@@ -31,7 +31,9 @@ import { routing } from 'teleterm/ui/uri';
 export default function Container(props: DocumentProps) {
   const { clusterUri } = props.doc;
   const appCtx = useAppContext();
-  const [clusterCtx] = useState(() => new ClusterCtx(clusterUri, appCtx));
+  const [clusterCtx] = useState(
+    () => new ClusterCtx(appCtx, clusterUri, props.doc.uri)
+  );
 
   useEffect(() => {
     // because we don't wait for the leaf clusters to fetch before we show them
