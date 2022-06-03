@@ -30,6 +30,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -100,6 +101,7 @@ func TestMonitor(t *testing.T) {
 	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
@@ -526,6 +528,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := MakeDefaultConfig()
+			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = t.TempDir()
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
@@ -565,6 +568,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.ConnectFailureC = make(chan time.Duration, 5)
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
