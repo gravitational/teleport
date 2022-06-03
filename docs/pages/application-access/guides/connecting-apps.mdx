@@ -3,36 +3,18 @@ title: Use Teleport for Application Access
 description: How to configure Teleport for Application Access.
 ---
 
-# Connecting Web Applications
+## Prequisites
 
-Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
-and follow the installation [instructions](../../installation.mdx).
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-## Start Auth/Proxy service
+(!docs/pages/includes/tctl.mdx!)
 
-Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
+- A host where you will run the Teleport Application Service.
 
-```yaml
-teleport:
-  data_dir: /var/lib/teleport
-auth_service:
-  enabled: "yes"
-proxy_service:
-  enabled: "yes"
-  # Set public address proxy will be reachable at.
-  public_addr: teleport.example.com:3080
-ssh_service:
-  enabled: "no"
-```
+<Admonition type="tip" title="Not yet a Teleport user?">
+If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../getting-started.mdx) or try our Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon).
+</Admonition>
 
-(!docs/pages/includes/permission-warning.mdx!)
-
-Start the service:
-
-```code
-$ sudo teleport start --config=/path/to/teleport.yaml
-```
 
 ### Generate a token
 
@@ -47,11 +29,17 @@ $ tctl tokens add \
     --app-uri=http://localhost:3000
 ```
 
-### TLS requirements
+### TLS Management
+<Tabs>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 
 TLS is required to secure Teleport's Access Plane and any connected
 applications. When setting up Teleport, the minimum requirement is a certificate
-for the proxy and a wildcard certificate for its sub-domain. This is where
+for the proxy and a wildcard certificate for its sub-domain.  You can have 
+domains as application URIs that are not subdomains provided certificates are installed 
+for those domains.
+
+ This is where
 everyone will log into Teleport.
 
 <Admonition type="tip" title="Application Access and DNS">
@@ -69,7 +57,7 @@ You can either configure Teleport to obtain a TLS certificate via Let's Encrypt 
 (!docs/pages/includes/acme.mdx!)
 </TabItem>
 <TabItem label="Existing Credentials">
-If you have obtained certificate/key pairs for your domain they can be provided directly
+If you have obtained certificate/key pairs for your domains they can be provided directly
 to the proxy service:
 
 ```yaml
@@ -85,6 +73,17 @@ proxy_service:
 ```
 </TabItem>
 </Tabs>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport Cloud manages issuing TLS certificates for application address within
+cloud tenants.  Application URIs must be subdomains of the Cloud tenant URI.
+For example `grafana.example.teleport.sh` is a valid URI as a application URI for
+the cloud tenant `example.teleport.sh`.
+</TabItem>
+</Tabs>
+
+
 
 ### Create a user
 
@@ -205,6 +204,14 @@ address. To override the public address, specify the `public_addr` field:
   uri: "https://localhost:8001"
   public_addr: "jira.example.com"
 ```
+
+The certificate for the public address must be installed in the proxy.
+
+<Admonition type="Note" title="Subdomains Only for Teleport Cloud">
+Teleport Cloud only supports sub-domains of the cloud tenant URI(`grafana.example.teleport.sh` for
+cloud tenant `example.teleport.sh`). Teleport Cloud will automatically manage TLS certificates
+for any subdomains.
+</Admonition>
 
 ### Skip TLS certificate verification
 
