@@ -737,62 +737,6 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	}
 }
 
-/*
-goos: linux
-goarch: amd64
-pkg: github.com/gravitational/teleport/lib/cache
-cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
-BenchmarkListMaxNodes-16    	       1	1136071399 ns/op
-*/
-func BenchmarkListMaxNodes(b *testing.B) {
-	benchListNodes(b, backend.DefaultRangeLimit, apidefaults.DefaultChunkSize)
-}
-
-func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
-	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
-	require.NoError(b, err)
-	defer p.Close()
-
-	ctx := context.Background()
-
-	for i := 0; i < nodeCount; i++ {
-		func() {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-			_, err := p.presenceS.UpsertNode(ctx, server)
-			require.NoError(b, err)
-			timeout := time.NewTimer(time.Millisecond * 200)
-			defer timeout.Stop()
-			select {
-			case event := <-p.eventsC:
-				require.Equal(b, EventProcessed, event.Type)
-			case <-timeout.C:
-				b.Fatalf("timeout waiting for event, iteration=%d", i)
-			}
-		}()
-	}
-
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
-		var nodes []types.Server
-		req := proto.ListNodesRequest{
-			Namespace: apidefaults.Namespace,
-			Limit:     int32(pageSize),
-		}
-		for {
-			page, nextKey, err := p.cache.ListNodes(ctx, req)
-			require.NoError(b, err)
-			nodes = append(nodes, page...)
-			require.True(b, len(page) == pageSize || nextKey == "")
-			if nextKey == "" {
-				break
-			}
-			req.StartKey = nextKey
-		}
-		require.Len(b, nodes, nodeCount)
-	}
-}
-
 // TestListResources_NodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
 func TestListResources_NodesTTLVariant(t *testing.T) {
@@ -843,32 +787,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	allNodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, allNodes, nodeCount)
-
-	// DELETE IN 10.0.0 this block with ListNodes is replaced
-	// by the following block with ListResources test.
-	var nodes []types.Server
-	var startKey string
-	for {
-		page, nextKey, err := p.cache.ListNodes(ctx, proto.ListNodesRequest{
-			Namespace: apidefaults.Namespace,
-			Limit:     int32(pageSize),
-			StartKey:  startKey,
-		})
-		require.NoError(t, err)
-
-		if nextKey != "" {
-			require.Len(t, page, pageSize)
-		}
-
-		nodes = append(nodes, page...)
-
-		startKey = nextKey
-
-		if startKey == "" {
-			break
-		}
-	}
-	require.Len(t, nodes, nodeCount)
 
 	var resources []types.ResourceWithLabels
 	var listResourcesStartKey string
