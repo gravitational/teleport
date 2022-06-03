@@ -414,5 +414,15 @@ const (
 	BotGenerationLabel = "teleport.internal/bot-generation"
 )
 
-// ResourceKinds lists all Teleport resource kinds users can request access to.
-var ResourceKinds = []string{KindNode, KindDatabaseServer, KindAppServer, KindKubeService, KindWindowsDesktop}
+// RequestableResourceKinds lists all Teleport resource kinds users can request access to.
+var RequestableResourceKinds = []string{
+	KindNode,
+	KindKubeService,
+	KindKubernetesCluster,
+	KindDatabaseServer,
+	KindDatabase,
+	KindAppServer,
+	KindApp,
+	KindWindowsDesktopService,
+	KindWindowsDesktop,
+}
