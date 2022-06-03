@@ -21,6 +21,7 @@
         "initContainers",
         "resources",
         "tolerations",
+        "hostAliases",
         "probeTimeoutSeconds"
     ],
     "properties": {
@@ -535,6 +536,11 @@
         },
         "tolerations": {
             "$id": "#/properties/tolerations",
+            "type": "array",
+            "default": []
+        },
+        "hostAliases": {
+            "$id": "#/properties/hostAliases",
             "type": "array",
             "default": []
         },

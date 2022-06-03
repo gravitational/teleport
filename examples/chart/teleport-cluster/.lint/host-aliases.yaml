@@ -1,0 +1,13 @@
+clusterName: helm-lint.example.com
+hostAliases:
+- hostnames:
+  - root.teleport.internal
+  ip: 10.10.0.1
+- hostnames:
+  - mongo.db
+  - mongodb.internal
+  ip: 10.10.1.1
+- hostnames:
+  - elastic.search
+  - elasticsearch.internal
+  ip: 10.10.1.2
