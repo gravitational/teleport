@@ -114,9 +114,10 @@ When migrating backends, you should back up your Auth Service's
 ### Example of backing up and restoring a cluster
 
 ```code
-# Log in to your cluster with tsh so you can use tctl.
-# You can also run tctl on your Auth Service host.
-$ tsh login --user=myuser --proxy=teleport.example.com
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --proxy=teleport.example.com --user=myuser
 # Export dynamic configuration state from old cluster
 $ tctl get all --with-secrets > state.yaml
 
@@ -177,8 +178,9 @@ When migrating backends, you should back up your Auth Service's
 ### Example of backing up and restoring a cluster
 
 ```code
-# Log in to your cluster with tsh so you can use tctl.
-# You can also run tctl on your Auth Service host.
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
 $ tsh login --user=myuser --proxy=teleport.example.com
 # Export dynamic configuration state from old cluster
 $ tctl get all --with-secrets > state.yaml
