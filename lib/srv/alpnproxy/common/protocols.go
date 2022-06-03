@@ -18,7 +18,6 @@ package common
 
 import (
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/acme"
 
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -48,6 +47,13 @@ const (
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
 
+	// ProtocolReverseTunnelV2 is TLS ALPN protocol value used to indicate reversetunnel clients
+	// that are aware of proxy peering. This is only used on the client side to allow intermediate
+	// load balancers to make decisions based on the ALPN header. ProtocolReverseTunnel should still
+	// be included in the list of ALPN header for the proxy server to handle the connection properly.
+	ProtocolReverseTunnelV2 Protocol = "teleport-reversetunnelv2"
+
+	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP2 protocol
 	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP 1.1 protocol
 	ProtocolHTTP Protocol = "http/1.1"
 
@@ -71,7 +77,8 @@ const (
 
 // SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = []Protocol{
-	acme.ALPNProto,
+	ProtocolHTTP2,
+	ProtocolHTTP,
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
@@ -79,8 +86,6 @@ var SupportedProtocols = []Protocol{
 	ProtocolSQLServer,
 	ProtocolProxySSH,
 	ProtocolReverseTunnel,
-	ProtocolHTTP,
-	ProtocolHTTP2,
 	ProtocolAuth,
 }
 

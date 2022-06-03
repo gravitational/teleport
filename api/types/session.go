@@ -512,6 +512,8 @@ type NewWebSessionRequest struct {
 	LoginTime time.Time
 	// AccessRequests contains the UUIDs of the access requests currently in use.
 	AccessRequests []string
+	// RequestedResourceIDs optionally lists requested resources
+	RequestedResourceIDs []ResourceID
 }
 
 // Check validates the request.

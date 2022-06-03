@@ -18,11 +18,17 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+)
+
+var (
+	// ErrFnCacheClosed is returned from Get when the FnCache context is closed
+	ErrFnCacheClosed = errors.New("fncache permanently closed")
 )
 
 // FnCache is a helper for temporarily storing the results of regularly called functions. This helper is
@@ -43,8 +49,13 @@ type FnCache struct {
 const cleanupMultiplier time.Duration = 16
 
 type FnCacheConfig struct {
-	TTL   time.Duration
+	// TTL is the time to live for cache entries.
+	TTL time.Duration
+	// Clock is the clock used to determine the current time.
 	Clock clockwork.Clock
+	// Context is the context used to cancel the cache. All loadfns
+	// will be provided this context.
+	Context context.Context
 }
 
 func (c *FnCacheConfig) CheckAndSetDefaults() error {
@@ -54,6 +65,10 @@ func (c *FnCacheConfig) CheckAndSetDefaults() error {
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+
+	if c.Context == nil {
+		c.Context = context.Background()
 	}
 
 	return nil
@@ -95,7 +110,13 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 // block until the first call updates the entry.  Note that the supplied context can cancel the call to Get, but will
 // not cancel loading.  The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
-func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func() (interface{}, error)) (interface{}, error) {
+func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func(ctx context.Context) (interface{}, error)) (interface{}, error) {
+	select {
+	case <-c.cfg.Context.Done():
+		return nil, ErrFnCacheClosed
+	default:
+	}
+
 	c.mu.Lock()
 
 	now := c.cfg.Clock.Now()
@@ -128,7 +149,7 @@ func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func() (inter
 		}
 		c.entries[key] = entry
 		go func() {
-			entry.v, entry.e = loadfn()
+			entry.v, entry.e = loadfn(c.cfg.Context)
 			entry.t = c.cfg.Clock.Now()
 			close(entry.loaded)
 		}()
@@ -142,5 +163,7 @@ func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func() (inter
 		return entry.v, entry.e
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-c.cfg.Context.Done():
+		return nil, ErrFnCacheClosed
 	}
 }

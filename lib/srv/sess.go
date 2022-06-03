@@ -145,6 +145,11 @@ func (s *SessionRegistry) findSessionLocked(id rsession.ID) (*session, bool) {
 	sess, found := s.sessions[id]
 	return sess, found
 }
+func (s *SessionRegistry) findSession(id rsession.ID) (*session, bool) {
+	s.sessionsMux.Lock()
+	defer s.sessionsMux.Unlock()
+	return s.findSessionLocked(id)
+}
 
 func (s *SessionRegistry) Close() {
 	s.sessionsMux.Lock()
@@ -427,10 +432,6 @@ type session struct {
 
 	doneCh chan struct{}
 
-	bpfContext *bpf.SessionContext
-
-	cgroupID uint64
-
 	displayParticipantRequirements bool
 
 	// endingContext is the server context which closed this session.
@@ -498,11 +499,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		r.log.Errorf("Failed to create new session: %v.", err)
 	}
 
-	var policySets []*types.SessionTrackerPolicySet
-	for _, role := range ctx.Identity.RoleSet {
-		policySet := role.GetSessionPolicySet()
-		policySets = append(policySets, &policySet)
-	}
+	policySets := ctx.Identity.AccessChecker.SessionPolicySets()
 
 	sess := &session{
 		log: log.WithFields(log.Fields{
@@ -546,6 +543,11 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		if trace.IsNotImplemented(err) {
 			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
 		}
+		return nil, trace.Wrap(err)
+	}
+
+	sess.recorder, err = newRecorder(sess, ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -593,6 +595,10 @@ func (s *session) Stop() {
 	// close io copy loops
 	s.io.Close()
 
+	// remove session from server context to prevent new requests
+	// from attempting to join the session during cleanup
+	s.scx.setSession(nil)
+
 	// Close and kill terminal
 	if s.term != nil {
 		if err := s.term.Close(); err != nil {
@@ -626,7 +632,6 @@ func (s *session) Close() error {
 		p.Close()
 	}
 
-	// Remove session from registry
 	s.registry.removeSession(s)
 
 	// Remove the session from the backend.
@@ -852,6 +857,12 @@ func (s *session) setEndingContext(ctx *ServerContext) {
 	s.endingContext = ctx
 }
 
+func (s *session) setHasEnhancedRecording(val bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hasEnhancedRecording = val
+}
+
 // launch launches the session.
 // Must be called under session Lock.
 func (s *session) launch(ctx *ServerContext) error {
@@ -930,15 +941,6 @@ func (s *session) launch(ctx *ServerContext) error {
 		case <-s.doneCh:
 		}
 
-		ctx.srv.GetRestrictedSessionManager().CloseSession(s.bpfContext, s.cgroupID)
-
-		// Close the BPF recording session. If BPF was not configured, not available,
-		// or running in a recording proxy, this is simply a NOP.
-		err = ctx.srv.GetBPF().CloseSession(s.bpfContext)
-		if err != nil {
-			ctx.Errorf("Failed to close enhanced recording (interactive) session: %v: %v.", s.id, err)
-		}
-
 		if ctx.ExecRequest.GetCommand() != "" {
 			emitExecAuditEvent(ctx, ctx.ExecRequest.GetCommand(), err)
 		}
@@ -959,30 +961,6 @@ func (s *session) launch(ctx *ServerContext) error {
 // startInteractive starts a new interactive process (or a shell) in the
 // current session.
 func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
-	// create a new "party" (connected client)
-	p := newParty(s, types.SessionPeerMode, ch, ctx)
-
-	rec, err := newRecorder(s, ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.recorder = rec
-
-	// allocate a terminal or take the one previously allocated via a
-	// seaprate "allocate TTY" SSH request
-	if ctx.GetTerm() != nil {
-		s.term = ctx.GetTerm()
-		ctx.SetTerm(nil)
-	} else {
-		if s.term, err = NewTerminal(ctx); err != nil {
-			ctx.Infof("Unable to allocate new terminal: %v", err)
-			return trace.Wrap(err)
-		}
-	}
-
-	// Emit a session.start event for the interactive session.
-	s.emitSessionStartEvent(ctx)
-
 	inReader, inWriter := io.Pipe()
 	s.inWriter = inWriter
 	s.io.AddReader("reader", inReader)
@@ -990,18 +968,22 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	s.BroadcastMessage("Creating session with ID: %v...", s.id)
 	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
-	if err := s.term.Run(); err != nil {
-		ctx.Errorf("Unable to run shell command: %v.", err)
-		return trace.ConvertSystemError(err)
+	if err := s.startTerminal(ctx); err != nil {
+		return trace.Wrap(err)
 	}
 
+	// Emit a session.start event for the interactive session.
+	s.emitSessionStartEvent(ctx)
+
+	// create a new "party" (connected client) and launch/join the session.
+	p := newParty(s, types.SessionPeerMode, ch, ctx)
 	if err := s.addParty(p, types.SessionPeerMode); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
-	s.bpfContext = &bpf.SessionContext{
+	sessionContext := &bpf.SessionContext{
 		Context:   ctx.srv.Context(),
 		PID:       s.term.PID(),
 		Emitter:   s.recorder,
@@ -1010,18 +992,25 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		ServerID:  ctx.srv.HostUUID(),
 		Login:     ctx.Identity.Login,
 		User:      ctx.Identity.TeleportUser,
-		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
-	}
-	s.cgroupID, err = ctx.srv.GetBPF().OpenSession(s.bpfContext)
-	if err != nil {
-		ctx.Errorf("Failed to open enhanced recording (interactive) session: %v: %v.", s.id, err)
-		return trace.Wrap(err)
+		Events:    ctx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
-	// If a cgroup ID was assigned then enhanced session recording was enabled.
-	if s.cgroupID > 0 {
-		s.hasEnhancedRecording = true
-		ctx.srv.GetRestrictedSessionManager().OpenSession(s.bpfContext, s.cgroupID)
+	if cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext); err != nil {
+		ctx.Errorf("Failed to open enhanced recording (interactive) session: %v: %v.", s.id, err)
+		return trace.Wrap(err)
+	} else if cgroupID > 0 {
+		// If a cgroup ID was assigned then enhanced session recording was enabled.
+		s.setHasEnhancedRecording(true)
+		ctx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
+		go func() {
+			// Close the BPF recording session once the session is closed
+			<-s.stopC
+			ctx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
+			err = ctx.srv.GetBPF().CloseSession(sessionContext)
+			if err != nil {
+				ctx.Errorf("Failed to close enhanced recording (interactive) session: %v: %v.", s.id, err)
+			}
+		}()
 	}
 
 	ctx.Debug("Waiting for continue signal")
@@ -1034,6 +1023,28 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// Start a heartbeat that marks this session as active with current members
 	// of party in the backend.
 	go s.heartbeat(ctx)
+	return nil
+}
+
+func (s *session) startTerminal(ctx *ServerContext) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// allocate a terminal or take the one previously allocated via a
+	// separate "allocate TTY" SSH request
+	var err error
+	if s.term = ctx.GetTerm(); s.term != nil {
+		ctx.SetTerm(nil)
+	} else if s.term, err = NewTerminal(ctx); err != nil {
+		ctx.Infof("Unable to allocate new terminal: %v", err)
+		return trace.Wrap(err)
+	}
+
+	if err := s.term.Run(); err != nil {
+		ctx.Errorf("Unable to run shell command: %v.", err)
+		return trace.ConvertSystemError(err)
+	}
+
 	return nil
 }
 
@@ -1071,12 +1082,6 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 }
 
 func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
-	rec, err := newRecorder(s, ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.recorder = rec
-
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(ctx)
 
@@ -1103,7 +1108,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		ServerID:  ctx.srv.HostUUID(),
 		Login:     ctx.Identity.Login,
 		User:      ctx.Identity.TeleportUser,
-		Events:    ctx.Identity.RoleSet.EnhancedRecordingSet(),
+		Events:    ctx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 	cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
@@ -1113,7 +1118,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
-		s.hasEnhancedRecording = true
+		s.setHasEnhancedRecording(true)
 		ctx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 	}
 
@@ -1394,7 +1399,7 @@ func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
 
 		participants = append(participants, auth.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.RoleSet,
+			Roles:    party.ctx.Identity.AccessChecker.Roles(),
 			Mode:     party.mode,
 		})
 	}
@@ -1504,16 +1509,11 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
 	if ctx.Identity.TeleportUser != s.initiator {
-		roles := []types.Role(ctx.Identity.RoleSet)
 		accessContext := auth.SessionAccessContext{
-			Roles: roles,
+			Roles: ctx.Identity.AccessChecker.Roles(),
 		}
 
-		modes, err := s.access.CanJoin(accessContext)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
+		modes := s.access.CanJoin(accessContext)
 		if !auth.SliceContainsMode(modes, mode) {
 			return nil, trace.AccessDenied("insufficient permissions to join session %v", s.id)
 		}

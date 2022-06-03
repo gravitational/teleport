@@ -172,7 +172,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 					Period:  types.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"},
 				},
-			},
+			}, nil,
 		),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
@@ -1126,6 +1126,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:                   f.testSrv.ClusterName(),
@@ -1143,6 +1144,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1159,7 +1161,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode(reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -1178,46 +1180,37 @@ func TestProxyRoundRobin(t *testing.T) {
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	// start agent and load balance requests
-	eventsC := make(chan string, 2)
-	rsAgent, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
-		Context:     ctx,
-		Addr:        reverseTunnelAddress,
-		ClusterName: "remote",
-		Username:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
-		Signer:      f.signer,
-		Client:      proxyClient,
-		AccessPoint: proxyClient,
-		EventsC:     eventsC,
-		Log:         logger,
-	})
-	require.NoError(t, err)
-	rsAgent.Start()
-
-	rsAgent2, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
-		Context:     ctx,
-		Addr:        reverseTunnelAddress,
-		ClusterName: "remote",
-		Username:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
-		Signer:      f.signer,
-		Client:      proxyClient,
-		AccessPoint: proxyClient,
-		EventsC:     eventsC,
-		Log:         logger,
-	})
-	require.NoError(t, err)
-	rsAgent2.Start()
-	defer rsAgent2.Close()
-
-	timeout := time.After(time.Second)
-	for i := 0; i < 2; i++ {
-		select {
-		case event := <-eventsC:
-			require.Equal(t, reversetunnel.ConnectedEvent, event)
-		case <-timeout:
-			require.FailNow(t, "timeout waiting for clusters to connect")
-		}
+	resolver := func(context.Context) (*utils.NetAddr, error) {
+		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, nil
 	}
+
+	pool1, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
+		Resolver:    resolver,
+		Client:      proxyClient,
+		AccessPoint: proxyClient,
+		HostSigner:  f.signer,
+		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
+		Cluster:     "remote",
+	})
+	require.NoError(t, err)
+
+	err = pool1.Start()
+	require.NoError(t, err)
+	defer pool1.Stop()
+
+	pool2, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
+		Resolver:    resolver,
+		Client:      proxyClient,
+		AccessPoint: proxyClient,
+		HostSigner:  f.signer,
+		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
+		Cluster:     "remote",
+	})
+	require.NoError(t, err)
+
+	err = pool2.Start()
+	require.NoError(t, err)
+	defer pool2.Stop()
 
 	sshConfig := &ssh.ClientConfig{
 		User:            f.user,
@@ -1231,8 +1224,9 @@ func TestProxyRoundRobin(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
 	}
+
 	// close first connection, and test it again
-	rsAgent.Close()
+	pool1.Stop()
 
 	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
@@ -1252,6 +1246,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     proxyClient.TLSConfig(),
@@ -1269,6 +1264,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 
@@ -1286,7 +1282,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode(reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -1863,6 +1859,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     proxyClient.TLSConfig(),
@@ -1880,6 +1877,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 
@@ -1897,7 +1895,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode(reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -2096,6 +2094,19 @@ func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *ser
 	require.NoError(t, err)
 	t.Cleanup(nodeWatcher.Close)
 	return nodeWatcher
+}
+
+func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Events) *services.CertAuthorityWatcher {
+	caWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	t.Cleanup(caWatcher.Close)
+	return caWatcher
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating

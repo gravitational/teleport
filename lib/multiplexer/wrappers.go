@@ -71,11 +71,7 @@ func (c *Conn) Protocol() Protocol {
 
 // Detect detects the connection protocol by peeking into the first few bytes.
 func (c *Conn) Detect() (Protocol, error) {
-	bytes, err := c.reader.Peek(8)
-	if err != nil {
-		return ProtoUnknown, trace.Wrap(err)
-	}
-	proto, err := detectProto(bytes)
+	proto, err := detectProto(c.reader)
 	if err != nil && !trace.IsBadParameter(err) {
 		return ProtoUnknown, trace.Wrap(err)
 	}
@@ -84,7 +80,16 @@ func (c *Conn) Detect() (Protocol, error) {
 
 // ReadProxyLine reads proxy-line from the connection.
 func (c *Conn) ReadProxyLine() (*ProxyLine, error) {
-	proxyLine, err := ReadProxyLine(c.reader)
+	var proxyLine *ProxyLine
+	protocol, err := c.Detect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if protocol == ProtoProxyV2 {
+		proxyLine, err = ReadProxyLineV2(c.reader)
+	} else {
+		proxyLine, err = ReadProxyLine(c.reader)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,6 +97,8 @@ func (c *Conn) ReadProxyLine() (*ProxyLine, error) {
 	return proxyLine, nil
 }
 
+// returns a Listener that pretends to be listening on addr, closed whenever the
+// parent context is done.
 func newListener(parent context.Context, addr net.Addr) *Listener {
 	context, cancel := context.WithCancel(parent)
 	return &Listener{
@@ -122,14 +129,23 @@ func (l *Listener) Accept() (net.Conn, error) {
 	case <-l.context.Done():
 		return nil, trace.ConnectionProblem(net.ErrClosed, "listener is closed")
 	case conn := <-l.connC:
-		if conn == nil {
-			return nil, trace.ConnectionProblem(net.ErrClosed, "listener is closed")
-		}
 		return conn, nil
 	}
 }
 
-// Close closes the listener, connections to multiplexer will hang
+// HandleConnection injects the connection into the Listener, blocking until the
+// context expires, the connection is accepted or the Listener is closed.
+func (l *Listener) HandleConnection(ctx context.Context, conn net.Conn) {
+	select {
+	case <-ctx.Done():
+		conn.Close()
+	case <-l.context.Done():
+		conn.Close()
+	case l.connC <- conn:
+	}
+}
+
+// Close closes the listener.
 func (l *Listener) Close() error {
 	l.cancel()
 	return nil

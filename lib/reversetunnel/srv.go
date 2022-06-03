@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -200,11 +201,17 @@ type Config struct {
 	// and above.
 	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
 
+	// PeerClient is a client to peer proxy servers.
+	PeerClient *proxy.Client
+
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 
 	// NodeWatcher is a node watcher.
 	NodeWatcher *services.NodeWatcher
+
+	// CertAuthorityWatcher is a cert authority watcher.
+	CertAuthorityWatcher *services.CertAuthorityWatcher
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -259,6 +266,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.NodeWatcher == nil {
 		return trace.BadParameter("missing parameter NodeWatcher")
 	}
+	if cfg.CertAuthorityWatcher == nil {
+		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
 	return nil
 }
 
@@ -312,7 +322,7 @@ func NewServer(cfg Config) (Server, error) {
 	}
 
 	for _, clusterInfo := range cfg.DirectClusters {
-		cluster, err := newlocalSite(srv, clusterInfo.Name, clusterInfo.Client)
+		cluster, err := newlocalSite(srv, clusterInfo.Name, clusterInfo.Client, srv.PeerClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -571,10 +581,34 @@ func (s *server) Close() error {
 	return s.srv.Close()
 }
 
+// DrainConnections closes the listener and sends reconnects to connected agents without
+// closing open connections.
+func (s *server) DrainConnections(ctx context.Context) error {
+	// Ensure listener is closed before sending reconnects.
+	err := s.srv.Close()
+	s.srv.Wait(ctx)
+
+	s.RLock()
+	for _, site := range s.localSites {
+		s.log.Debugf("Advising reconnect to local site: %s", site.GetName())
+		go site.adviseReconnect(ctx)
+	}
+
+	for _, site := range s.remoteSites {
+		s.log.Debugf("Advising reconnect to remote site: %s", site.GetName())
+		go site.adviseReconnect(ctx)
+	}
+	s.RUnlock()
+
+	return trace.Wrap(err)
+}
+
 func (s *server) Shutdown(ctx context.Context) error {
 	err := s.srv.Shutdown(ctx)
+
 	s.proxyWatcher.Close()
 	s.cancel()
+
 	return trace.Wrap(err)
 }
 
@@ -961,6 +995,11 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 	return nil, trace.NotFound("cluster %q is not found", name)
 }
 
+// GetProxyPeerClient returns the proxy peer client
+func (s *server) GetProxyPeerClient() *proxy.Client {
+	return s.PeerClient
+}
+
 // alwaysClose forces onSiteTunnelClose to remove and close
 // the site by always returning false from HasValidConnections.
 type alwaysClose struct {
@@ -1040,6 +1079,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	connInfo.SetExpiry(srv.Clock.Now().Add(srv.offlineThreshold))
 
 	closeContext, cancel := context.WithCancel(srv.ctx)
+	defer func() {
+		if err != nil {
+			cancel()
+		}
+	}()
 	remoteSite := &remoteSite{
 		srv:        srv,
 		domainName: domainName,
@@ -1063,20 +1107,17 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 
 	clt, _, err := remoteSite.getRemoteClient()
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteClient = clt
 
 	remoteVersion, err := getRemoteAuthVersion(closeContext, sconn)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	accessPoint, err := createRemoteAccessPoint(srv, clt, remoteVersion, domainName)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteAccessPoint = accessPoint
@@ -1088,7 +1129,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		},
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.nodeWatcher = nodeWatcher
@@ -1098,7 +1138,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// is signed by the correct certificate authority.
 	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.certificateCache = certificateCache
@@ -1111,11 +1150,25 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 
-	go remoteSite.updateCertAuthorities(caRetry, remoteVersion)
+	remoteWatcher, err := services.NewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       srv.log,
+			Clock:     srv.Clock,
+			Client:    remoteSite.remoteAccessPoint,
+		},
+		Types: []types.CertAuthType{types.HostCA},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go func() {
+		remoteSite.updateCertAuthorities(caRetry, remoteWatcher, remoteVersion)
+	}()
 
 	lockRetry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(srv.Config.PollingPeriod),
@@ -1125,7 +1178,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 

@@ -1680,6 +1680,17 @@ message PresenceMFAChallengeSend {
     }
 }
 
+message GetDomainNameResponse {
+    // DomainName is the local auth domain of the current auth server.
+    string DomainName = 1 [ (gogoproto.jsontag) = "domain_name" ];
+}
+
+// GetClusterCACertResponse is a response from GetClusterCACert
+message GetClusterCACertResponse {
+    // TLSCA is a PEM-encoded TLS certificate authority.
+    bytes TLSCA = 1 [ (gogoproto.jsontag) = "tls_ca" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
@@ -1775,6 +1786,9 @@ service AuthService {
 
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
+    // GetCurrentUser returns current user as seen by the server.
+    // Useful especially in the context of remote clusters which perform role and trait mapping.
+    rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.
@@ -2180,4 +2194,11 @@ service AuthService {
 
     // ListResources retrieves a paginated list of resources.
     rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+
+    // GetDomainName returns local auth domain of the current auth server
+    rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);
+    // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
+    // without signing keys. If the cluster has multiple TLS certs, they will
+    // all be appended.
+    rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
 }
