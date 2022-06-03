@@ -77,11 +77,19 @@ var log = logrus.WithFields(logrus.Fields{
 })
 
 const (
-	// mfaModeAuto, mfaModeCrossPlatform and mfaModePlatform correspond to
-	// wancli.AuthenticatorAttachment values.
-	mfaModeAuto          = "auto"
+	// mfaModeAuto automatically chooses the best MFA device(s), without any
+	// restrictions.
+	// Allows both Webauthn and OTP.
+	mfaModeAuto = "auto"
+	// mfaModeCrossPlatform utilizes only cross-platform devices, such as
+	// pluggable hardware keys.
+	// Implies Webauthn.
 	mfaModeCrossPlatform = "cross-platform"
-	mfaModePlatform      = "platform"
+	// mfaModePlatform utilizes only platform devices, such as Touch ID.
+	// Implies Webauthn.
+	mfaModePlatform = "platform"
+	// mfaModeOTP utilizes only OTP devices.
+	mfaModeOTP = "otp"
 )
 
 // CLIConf stores command line arguments and flags:
@@ -307,6 +315,9 @@ type CLIConf struct {
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
+	// AWSEndpointURLMode is an AWS proxy mode that serves an AWS endpoint URL
+	// proxy instead of an HTTPS proxy.
+	AWSEndpointURLMode bool
 
 	// Reason is the reason for starting an ssh or kube session.
 	Reason string
@@ -394,6 +405,7 @@ const (
 	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
+	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -467,9 +479,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
-	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform}
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
+		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
@@ -501,8 +514,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
-	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
+	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI.").StringsVar(&cf.AWSCommandArgs)
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
+		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -531,13 +546,17 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxySSH.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
 	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
-	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
 	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
+	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -867,6 +886,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandDB(&cf)
 	case proxyApp.FullCommand():
 		err = onProxyCommandApp(&cf)
+	case proxyAWS.FullCommand():
+		err = onProxyCommandAWS(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1183,6 +1204,7 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	tc.HomePath = cf.HomePath
+
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
@@ -1263,10 +1285,16 @@ func onLogin(cf *CLIConf) error {
 	// -i flag specified? save the retrieved cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
 
+	// stdin hijack is OK for login, since it tsh doesn't read input after the
+	// login ceremony is complete.
+	// Only allow the option during the login ceremony.
+	tc.AllowStdinHijack = true
+
 	key, err := tc.Login(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	tc.AllowStdinHijack = false
 
 	// the login operation may update the username and should be considered the more
 	// "authoritative" source.
@@ -2524,10 +2552,12 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.AuthConnector != "" {
 		c.AuthConnector = cf.AuthConnector
 	}
-	c.AuthenticatorAttachment, err = mfaModeToAttachment(cf.MFAMode)
+	mfaOpts, err := parseMFAMode(cf.MFAMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
+	c.PreferOTP = mfaOpts.PreferOTP
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -2606,17 +2636,25 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	return tc, nil
 }
 
-func mfaModeToAttachment(val string) (wancli.AuthenticatorAttachment, error) {
-	switch val {
+type mfaModeOpts struct {
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+	PreferOTP               bool
+}
+
+func parseMFAMode(mode string) (*mfaModeOpts, error) {
+	opts := &mfaModeOpts{}
+	switch mode {
 	case "", mfaModeAuto:
-		return wancli.AttachmentAuto, nil
 	case mfaModeCrossPlatform:
-		return wancli.AttachmentCrossPlatform, nil
+		opts.AuthenticatorAttachment = wancli.AttachmentCrossPlatform
 	case mfaModePlatform:
-		return wancli.AttachmentPlatform, nil
+		opts.AuthenticatorAttachment = wancli.AttachmentPlatform
+	case mfaModeOTP:
+		opts.PreferOTP = true
 	default:
-		return wancli.AttachmentAuto, fmt.Errorf("invalid MFA mode: %q", val)
+		return nil, fmt.Errorf("invalid MFA mode: %q", mode)
 	}
+	return opts, nil
 }
 
 // setX11Config sets X11 config using CLI and SSH option flags.
