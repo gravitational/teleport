@@ -111,7 +111,7 @@ func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, er
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
-	// Doing this check via the AWS SDK involves several unrelated requests, which takes a few seconds
+	// Doing this check via imds.Client.GetMetadata() involves several unrelated requests and takes a few seconds
 	// to complete when not on EC2. This approach is faster.
 	httpClient := http.Client{
 		Timeout: 250 * time.Millisecond,
