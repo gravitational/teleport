@@ -34,6 +34,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1001,6 +1002,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -1013,6 +1015,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.leafConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1083,12 +1086,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.mongoService,
 	}
 	rdConf.Clock = p.clock
+	rdConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		p.root.dbProcess.Close()
-	})
+	t.Cleanup(func() { require.NoError(t, p.root.dbProcess.Close()) })
 
 	// Create and start database services in the leaf cluster.
 	p.leaf.postgresService = service.Database{
@@ -1122,6 +1124,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.leaf.mongoService,
 	}
 	ldConf.Clock = p.clock
+	ldConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	p.leaf.dbProcess, p.leaf.dbAuthClient, err = p.leaf.cluster.StartDatabase(ldConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1224,6 +1227,7 @@ func (p *databasePack) setupUsersAndRoles(t *testing.T) {
 }
 
 func (p *databasePack) waitForLeaf(t *testing.T) {
+	waitForProxyCount(p.leaf.cluster, p.root.cluster.Secrets.SiteName, 1)
 	site, err := p.root.cluster.Tunnel.GetSite(p.leaf.cluster.Secrets.SiteName)
 	require.NoError(t, err)
 
@@ -1280,6 +1284,7 @@ func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf.Databases.Enabled = true
 	conf.Databases.Databases = params.databases
 	conf.Databases.ResourceMatchers = params.resourceMatchers
+	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	server, authClient, err := p.root.cluster.StartDatabase(conf)
 	require.NoError(t, err)

@@ -527,9 +527,6 @@ func (u *U2F) Check() error {
 	if u.AppID == "" {
 		return trace.BadParameter("u2f configuration missing app_id")
 	}
-	if len(u.Facets) == 0 {
-		return trace.BadParameter("u2f configuration missing facets")
-	}
 	for _, ca := range u.DeviceAttestationCAs {
 		if err := isValidAttestationCert(ca); err != nil {
 			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
