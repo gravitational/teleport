@@ -358,7 +358,9 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 	if b.hasTeleportConnect() {
 		commands = append(commands,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-			`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
+			// c.extraMetadata.version overwrites the version property from package.json to $VERSION
+			// https://www.electron.build/configuration/configuration.html#Configuration-extraMetadata
+			`yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION`,
 		)
 	}
 
