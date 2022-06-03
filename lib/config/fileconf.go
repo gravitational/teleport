@@ -167,6 +167,8 @@ type SampleFlags struct {
 	AppURI string
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
+	// JoinMethod is the method that will be used to join the cluster, either "token", "iam" or "ec2"
+	JoinMethod string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -198,7 +200,11 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		g.DataDir = defaults.DataDir
 	}
 
-	g.AuthToken = flags.AuthToken
+	g.JoinParams = JoinParams{
+		TokenName: flags.AuthToken,
+		Method:    types.JoinMethod(flags.JoinMethod),
+	}
+
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
 	}

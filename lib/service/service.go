@@ -3097,6 +3097,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				PeerClient:           peerClient,
 				NodeWatcher:          nodeWatcher,
 				CertAuthorityWatcher: caWatcher,
+				CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 			})
 		if err != nil {
 			return trace.Wrap(err)
