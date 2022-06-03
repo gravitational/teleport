@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/trace"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -183,6 +184,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
+		tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return tconf
 	}
 	_, err := p.leaf.StartNode(nodeConfig())
@@ -318,6 +320,7 @@ func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.SSH.Enabled = true
 		config.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
 		config.SSH.Labels = map[string]string{"env": "integration"}
+		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
 	}
 }
@@ -337,6 +340,7 @@ func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.SSH.Enabled = true
 		config.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
 		config.SSH.Labels = map[string]string{"env": "integration"}
+		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
 	}
 }
@@ -508,6 +512,7 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig.Auth.Enabled = false
 	nodeConfig.Proxy.Enabled = false
 	nodeConfig.SSH.Enabled = true
+	nodeConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return nodeConfig
 }
 

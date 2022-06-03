@@ -20,6 +20,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -27,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -39,6 +41,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -76,7 +79,7 @@ type Client struct {
 	// JoinServiceClient is a client for the JoinService, which runs on both the
 	// auth and proxy.
 	*JoinServiceClient
-	// closedFlag is set to indicate that the connnection is closed.
+	// closedFlag is set to indicate that the connection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
 	// callOpts configure calls made by this client.
@@ -377,29 +380,40 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
+	cb, err := breaker.New(c.c.CircuitBreakerConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithChainUnaryInterceptor(
 			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
+			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
 			otelgrpc.StreamClientInterceptor(),
-			metadata.StreamClientInterceptor),
+			metadata.StreamClientInterceptor,
+			breaker.StreamClientInterceptor(cb),
+		),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
-	// to explicitly provide gprc.WithInsecure in the client's dial options.
+	// to explicitly provide grpc.WithTransportCredentials(insecure.NewCredentials())
+	// in the client's dial options.
 	if c.tlsConfig != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 	}
 	// must come last, otherwise provided opts may get clobbered by defaults above
 	dialOpts = append(dialOpts, c.c.DialOpts...)
 
-	var err error
-	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
+	conn, err := grpc.DialContext(dialContext, addr, dialOpts...)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	c.conn = conn
 	c.grpc = proto.NewAuthServiceClient(c.conn)
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -435,11 +449,14 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 	}
 }
 
-// waitForConnectionReady waits for the client's grpc connection finish dialing, returning an errror
+// waitForConnectionReady waits for the client's grpc connection finish dialing, returning an error
 // if the ctx is canceled or the client's gRPC connection enters an unexpected state. This can be used
 // alongside the DialInBackground client config option to wait until background dialing has completed.
 func (c *Client) waitForConnectionReady(ctx context.Context) error {
 	for {
+		if c.conn == nil {
+			return errors.New("conn was closed")
+		}
 		switch state := c.conn.GetState(); state {
 		case connectivity.Ready:
 			return nil
@@ -489,6 +506,8 @@ type Config struct {
 	ALPNSNIAuthDialClusterName string
 	// IgnoreHTTPProxy disables support for HTTP proxying when true.
 	IgnoreHTTPProxy bool
+	// CircuitBreakerConfig defines how the circuit breaker should behave.
+	CircuitBreakerConfig breaker.Config
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -505,6 +524,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.DialTimeout == 0 {
 		c.DialTimeout = defaults.DefaultDialTimeout
+	}
+	if c.CircuitBreakerConfig.Trip == nil || c.CircuitBreakerConfig.IsSuccessful == nil {
+		c.CircuitBreakerConfig = breaker.DefaultBreakerConfig(clockwork.NewRealClock())
 	}
 
 	c.DialOpts = append(c.DialOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
