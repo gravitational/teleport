@@ -1493,8 +1493,7 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
 			}},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
+		Roles: nil,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

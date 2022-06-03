@@ -52,8 +52,7 @@ func TestServerKeyAuth(t *testing.T) {
 				PublicKey:      pub,
 			}},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_256,
+		Roles: nil,
 	})
 	require.NoError(t, err)
 

@@ -297,8 +297,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Roles: []string{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -319,8 +318,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{services.RoleNameForCertAuthority(s.SiteName)},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Roles: []string{services.RoleNameForCertAuthority(s.SiteName)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -336,8 +334,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Roles: []string{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

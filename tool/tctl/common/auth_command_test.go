@@ -66,8 +66,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			SSH: []*types.SSHKeyPair{{PublicKey: []byte("SSH CA cert")}},
 			TLS: []*types.TLSKeyPair{{Cert: cert}},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Roles: nil,
 	})
 	require.NoError(t, err)
 
