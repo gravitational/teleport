@@ -40,7 +40,7 @@
 
 // Based on https://github.com/microsoft/vscode/blob/1.66.0/src/vs/platform/shell/node/shellEnv.ts
 
-import { Logger } from 'shared/libs/logger';
+import Logger from 'teleterm/logger';
 import { unique } from 'teleterm/ui/utils/uid';
 import { spawn } from 'child_process';
 import { memoize } from 'lodash';
@@ -50,9 +50,11 @@ const resolveShellMaxTime = 8000; // 8s
 
 export const resolveShellEnvCached = memoize(resolveShellEnv);
 
-async function resolveShellEnv(shell: string): Promise<typeof process.env | undefined> {
+async function resolveShellEnv(
+  shell: string
+): Promise<typeof process.env | undefined> {
   if (process.platform === 'win32') {
-    logger.trace('skipped Windows platform');
+    logger.info('skipped Windows platform');
     return;
   }
   // TODO(grzegorz) skip if already running from CLI
@@ -91,7 +93,7 @@ async function resolveUnixShellEnv(
     // https://unix.stackexchange.com/questions/277312/is-the-shell-created-by-bash-i-c-command-interactive
     const shellArgs = shell === '/bin/tcsh' ? ['-ic'] : ['-ilc'];
 
-    logger.trace(`Reading shell ${shell} ${shellArgs} ${command}`);
+    logger.info(`Reading shell ${shell} ${shellArgs} ${command}`);
 
     const child = spawn(shell, [...shellArgs, command], {
       detached: true,

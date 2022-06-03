@@ -11,10 +11,10 @@ import path from 'path';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 
 const settings = getRuntimeSettings();
+const logger = initMainLogger(settings);
 const fileStorage = createFileStorage({
   filePath: path.join(settings.userDataDir, 'app_state.json'),
 });
-const logger = initMainLogger(settings);
 const configService = new ConfigServiceImpl();
 const windowsManager = new WindowsManager(fileStorage, settings);
 
@@ -99,7 +99,7 @@ function initMainLogger(settings: types.RuntimeSettings) {
   const service = createLoggerService({
     dev: settings.dev,
     dir: settings.userDataDir,
-    name: "main"
+    name: 'main',
   });
 
   Logger.init(service);

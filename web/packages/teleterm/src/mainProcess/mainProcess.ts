@@ -9,6 +9,7 @@ import {
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import path from 'path';
+import createLoggerService from 'teleterm/services/logger';
 
 type Options = {
   settings: RuntimeSettings;
@@ -58,12 +59,22 @@ export default class MainProcess {
   private _initTshd() {
     const { binaryPath, flags, homeDir } = this.settings.tshd;
     this.tshdProcess = spawn(binaryPath, flags, {
-      stdio: 'inherit',
+      stdio: [null, 'pipe', 'pipe'],
       env: {
         ...process.env,
         TELEPORT_HOME: homeDir,
       },
     });
+
+    const tshdLogger = createLoggerService({
+      dev: this.settings.dev,
+      dir: this.settings.userDataDir,
+      name: 'tshd',
+      passThroughMode: true,
+    });
+
+    tshdLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stdout);
+    tshdLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stderr);
 
     this.tshdProcess.on('error', error => {
       this.logger.error('tshd failed to start', error);

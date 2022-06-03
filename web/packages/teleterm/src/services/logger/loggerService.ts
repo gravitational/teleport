@@ -1,6 +1,7 @@
 import { createLogger as createWinston, format, transports } from 'winston';
 import { isObject } from 'lodash';
 import { Logger, LoggerService } from './types';
+import split2 from 'split2';
 
 export default function createLoggerService(opts: Options): LoggerService {
   const instance = createWinston({
@@ -12,14 +13,17 @@ export default function createLoggerService(opts: Options): LoggerService {
       }),
       format.printf(({ level, message, timestamp, context }) => {
         const text = stringifier(message as unknown as unknown[]);
-        return `[${timestamp}] [${context}] ${level}: ${text}`;
+        const contextAndLevel = opts.passThroughMode
+          ? ''
+          : ` [${context}] ${level}`;
+        return `[${timestamp}]${contextAndLevel}: ${text}`;
       })
     ),
     transports: [
       new transports.File({
         maxsize: 4194304, // 4 MB - max size of a single file
         maxFiles: 5,
-        dirname: opts.dir,
+        dirname: opts.dir + '/logs',
         filename: `${opts.name}.log`,
       }),
     ],
@@ -30,13 +34,18 @@ export default function createLoggerService(opts: Options): LoggerService {
       new transports.Console({
         format: format.printf(({ level, message, context }) => {
           const text = stringifier(message as unknown as unknown[]);
-          return `[${context}] ${level}: ${text}`;
+          return opts.passThroughMode ? text : `[${context}] ${level}: ${text}`;
         }),
       })
     );
   }
 
   return {
+    pipeProcessOutputIntoLogger(stream): void {
+      stream
+        .pipe(split2(line => ({ level: 'info', message: [line] })))
+        .pipe(instance);
+    },
     createLogger(context = 'default'): Logger {
       const logger = instance.child({ context });
       return {
@@ -72,4 +81,8 @@ type Options = {
   dir: string;
   name: string;
   dev?: boolean;
+  /**
+   * Mode for logger handling logs from other sources. Log level and context are not included in the log message.
+   */
+  passThroughMode?: boolean;
 };

@@ -1,3 +1,5 @@
+import { Stream } from 'stream';
+
 export interface Logger {
   error(...args: unknown[]): void;
   warn(...args: unknown[]): void;
@@ -5,5 +7,6 @@ export interface Logger {
 }
 
 export interface LoggerService {
+  pipeProcessOutputIntoLogger(stream: Stream): void;
   createLogger(context: string): Logger;
 }
