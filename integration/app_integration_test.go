@@ -37,6 +37,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1086,6 +1087,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.Apps.Enabled = false
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -1101,6 +1103,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.SSH.Enabled = false
 	lcConf.Apps.Enabled = false
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1538,6 +1541,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
+		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		raConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.rootAppName,
@@ -1608,6 +1612,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Proxy.Enabled = false
 		laConf.SSH.Enabled = false
 		laConf.Apps.Enabled = true
+		laConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		laConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.leafAppName,
