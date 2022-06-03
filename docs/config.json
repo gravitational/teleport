@@ -208,7 +208,8 @@
             },
             {
               "title": "Recording Proxy Mode",
-              "slug": "/server-access/guides/recording-proxy-mode/"
+              "slug": "/server-access/guides/recording-proxy-mode/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "BPF Session Recording",
