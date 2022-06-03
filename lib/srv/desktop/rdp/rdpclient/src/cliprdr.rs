@@ -218,8 +218,8 @@ impl Client {
             return Ok(result);
         }
 
-        // Record the format of the data we're requesting so we can correcly decode the response.
-        // Response events a globally ordered so we use a FIFO queue for format tracking.
+        // Record the format of the data we're requesting so we can correcly decode the response later.
+        // Response events are globally ordered so we use a FIFO queue for format tracking.
         self.incoming_paste_formats.push_back(request_format);
 
         // request the data by imitating a paste event.
