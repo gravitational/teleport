@@ -60,6 +60,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apiProto "github.com/gravitational/teleport/api/client/proto"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -300,6 +301,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
 		CertAuthorityWatcher:  caWatcher,
+		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
@@ -315,7 +317,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		utils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer, s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.proxyClient),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -527,8 +529,23 @@ func TestValidRedirectURL(t *testing.T) {
 	}
 }
 
+func Test_clientMetaFromReq(t *testing.T) {
+	ua := "foobar"
+	r := httptest.NewRequest(
+		http.MethodGet, "https://example.com/webapi/foo", nil,
+	)
+	r.Header.Set("User-Agent", ua)
+
+	got := clientMetaFromReq(r)
+	require.Equal(t, &auth.ForwardedClientMetadata{
+		UserAgent:  ua,
+		RemoteAddr: "192.0.2.1:1234",
+	}, got)
+}
+
 func TestSAMLSuccess(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	s := newWebSuite(t)
 	input := fixtures.SAMLOktaConnectorV2
 
@@ -559,7 +576,7 @@ func TestSAMLSuccess(t *testing.T) {
 	err = s.server.Auth().UpsertRole(s.ctx, role)
 	require.NoError(t, err)
 
-	err = s.server.Auth().CreateSAMLConnector(connector)
+	err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
@@ -1638,8 +1655,10 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	clt := s.client()
+	ua := "test-ua"
 	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
+	req.Header.Set("User-Agent", ua)
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 	addCSRFCookieToReq(req, csrfToken)
@@ -1650,6 +1669,21 @@ func TestLogin(t *testing.T) {
 		return clt.Client.HTTPClient().Do(req)
 	})
 	require.NoError(t, err)
+
+	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(
+		s.clock.Now().Add(-time.Hour),
+		s.clock.Now().Add(time.Hour),
+		apidefaults.Namespace,
+		[]string{events.UserLoginEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+	event := events[0].(*apievents.UserLogin)
+	require.Equal(t, true, event.Success)
+	require.Equal(t, ua, event.UserAgent)
+	require.True(t, strings.HasPrefix(event.RemoteAddr, "127.0.0.1:"))
 
 	var rawSess *CreateSessionResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
@@ -1756,7 +1790,7 @@ func TestMultipleConnectors(t *testing.T) {
 
 	// create two oidc connectors, one named "foo" and another named "bar"
 	oidcConnectorSpec := types.OIDCConnectorSpecV3{
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
 		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
 		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
 		IssuerURL:    "https://oidc.example.com",
@@ -1918,11 +1952,9 @@ func (f byTimeAndIndex) Swap(i, j int) {
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func TestSearchClusterEvents(t *testing.T) {
 	t.Parallel()
-	// We need a clock that uses the current time here to work around
-	// the fact that filelog doesn't support emitting past events.
-	clock := clockwork.NewRealClock()
 
 	s := newWebSuite(t)
+	clock := s.clock
 	sessionEvents := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 3,
 		Clock:       clock,
@@ -2025,8 +2057,19 @@ func TestSearchClusterEvents(t *testing.T) {
 			var result eventsListGetResponse
 			require.NoError(t, json.Unmarshal(response.Bytes(), &result))
 
-			require.Len(t, result.Events, len(tc.Result))
-			for i, resultEvent := range result.Events {
+			// filter out irrelvant auth events
+			filteredEvents := []events.EventFields{}
+			for _, e := range result.Events {
+				t := e.GetType()
+				if t == events.SessionStartEvent ||
+					t == events.SessionPrintEvent ||
+					t == events.SessionEndEvent {
+					filteredEvents = append(filteredEvents, e)
+				}
+			}
+
+			require.Len(t, filteredEvents, len(tc.Result))
+			for i, resultEvent := range filteredEvents {
 				require.Equal(t, tc.Result[i].GetType(), resultEvent.GetType())
 				require.Equal(t, tc.Result[i].GetID(), resultEvent.GetID())
 			}
@@ -2428,9 +2471,17 @@ func TestGetWebConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a test connector.
-	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{})
+	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
-	err = env.server.Auth().CreateGithubConnector(github)
+	err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 
 	expectedCfg := webclient.WebConfig{
@@ -2599,7 +2650,7 @@ func TestDeleteMFA(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo@example.com")
 
-	//setting up client manually because we need sanitizer off
+	// setting up client manually because we need sanitizer off
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	opts := []roundtrip.ClientParam{roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar), roundtrip.HTTPClient(client.NewInsecureWebClient())}
@@ -3791,6 +3842,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
+		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
@@ -3805,7 +3857,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		utils.NetAddr{},
 		client,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer, client),
+		regular.SetProxyMode("", revTunServer, client),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),

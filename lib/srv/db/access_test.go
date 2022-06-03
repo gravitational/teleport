@@ -28,6 +28,20 @@ import (
 	"time"
 
 	mssql "github.com/denisenkom/go-mssqldb"
+	mysqlclient "github.com/go-mysql-org/go-mysql/client"
+	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
+	goredis "github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -52,20 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	goredis "github.com/go-redis/redis/v8"
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
-	"github.com/jonboulle/clockwork"
-	mysqlclient "github.com/siddontang/go-mysql/client"
-	mysqllib "github.com/siddontang/go-mysql/mysql"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
 func TestMain(m *testing.M) {
@@ -1317,6 +1317,8 @@ type testRedis struct {
 
 // testSQLServer represents a single proxied SQL Server database.
 type testSQLServer struct {
+	// db is the test SQLServer database server.
+	db *sqlserver.TestServer
 	// resource is the resource representing this SQL Server database
 	resource types.Database
 }
@@ -2307,14 +2309,22 @@ func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDataba
 
 func withSQLServer(name string) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		sqlServer, err := sqlserver.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		})
+		require.NoError(t, err)
+		go sqlServer.Serve()
+		t.Cleanup(func() { sqlServer.Close() })
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolSQLServer,
-			URI:      "localhost:1433", // URI doesn't matter as tests aren't actually going to dial it.
+			URI:      net.JoinHostPort("localhost", sqlServer.Port()),
 		})
 		require.NoError(t, err)
 		testCtx.sqlServer[name] = testSQLServer{
+			db:       sqlServer,
 			resource: database,
 		}
 		return database

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -212,6 +213,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	localLog, err := events.NewAuditLog(events.AuditLogConfig{
 		DataDir:       cfg.Dir,
 		ServerID:      cfg.ClusterName,
+		Clock:         cfg.Clock,
 		UploadHandler: events.NewMemoryUploader(),
 	})
 	if err != nil {
@@ -227,6 +229,14 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	access := local.NewAccessService(srv.Backend)
 	identity := local.NewIdentityService(srv.Backend)
 
+	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
+		Inner: localLog,
+		Clock: cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
 		Authority:              authority.NewWithClock(cfg.Clock),
@@ -235,7 +245,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		AuditLog:               srv.AuditLog,
 		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
-		Emitter:                localLog,
+		Emitter:                emitter,
 	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -350,10 +360,11 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.AuthServer, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	checker := services.NewAccessChecker(accessInfo, a.ClusterName)
 	certs, err := a.AuthServer.generateUserCert(certRequest{
 		user:          user,
 		ttl:           ttl,
@@ -396,16 +407,22 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		return nil, nil, trace.Wrap(err)
 	}
 
+	clusterName, err := authServer.GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	switch id := identity.I.(type) {
 	case LocalUser:
 		user, err := authServer.GetUser(id.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		checker, err := services.FetchRoles(user.GetRoles(), authServer, user.GetTraits())
+		accessInfo, err := services.AccessInfoFromUser(user, authServer)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
 		}
@@ -550,6 +567,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -754,6 +772,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*Client,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -795,6 +814,7 @@ func (t *TestTLSServer) CloneClient(clt *Client) *Client {
 		Credentials: []client.Credentials{
 			client.LoadTLS(clt.Config()),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		panic(err)
@@ -815,6 +835,7 @@ func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		panic(err)
@@ -835,6 +856,7 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
