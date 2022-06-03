@@ -1190,3 +1190,8 @@ dronegen:
 .PHONY: backport
 backport:
 	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO))
+
+# Generate docs from the Teleport source code
+.PHONY: docs-gen
+docs-gen:
+	(cd ./assets/docs-gen && go run main.go -in="../.." -out=../../docs/gen)

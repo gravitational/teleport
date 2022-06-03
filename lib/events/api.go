@@ -78,14 +78,15 @@ const (
 	// session when the terminal IO event happened
 	SessionEventTimestamp = "ms"
 
-	// SessionEvent indicates that session has been initiated
-	// or updated by a joining party on the server
+	// SessionStartEvent indicates that session has been initiated or
+	// updated by a joining party on the server
 	SessionStartEvent = "session.start"
 
-	// SessionEndEvent indicates that a session has ended
+	// SessionEndEvent indicates that a session has ended.
 	SessionEndEvent = "session.end"
 
-	// SessionUploadEvent indicates that session has been uploaded to the external storage
+	// SessionUploadEvent indicates that session has been uploaded to the
+	// external storage backend.
 	SessionUploadEvent = "session.upload"
 
 	// URL is used for a session upload URL
@@ -135,25 +136,28 @@ const (
 	// the beginning
 	SessionByteOffset = "offset"
 
-	// SessionJoinEvent indicates that someone joined a session
+	// SessionJoinEvent indicates that someone joined a session.
 	SessionJoinEvent = "session.join"
-	// SessionLeaveEvent indicates that someone left a session
+	// SessionLeaveEvent indicates that someone left a session.
 	SessionLeaveEvent = "session.leave"
 
-	// Data transfer events.
+	// SessionDataEvent reports how much data was transmitted and received
+	// over a connection to a Teleport SSH or Kubernetes Service instance.
+	// Reported when the connection is closed.
 	SessionDataEvent = "session.data"
 	DataTransmitted  = "tx"
 	DataReceived     = "rx"
 
 	// ClientDisconnectEvent is emitted when client is disconnected
-	// by the server due to inactivity or any other reason
+	// by the server due to inactivity or any other reason.
 	ClientDisconnectEvent = "client.disconnect"
 
 	// Reason is a field that specifies reason for event, e.g. in disconnect
 	// event it explains why server disconnected the client
 	Reason = "reason"
 
-	// UserLoginEvent indicates that a user logged into web UI or via tsh
+	// UserLoginEvent indicates that a user logged in via the Web UI or
+	// `tsh`.
 	UserLoginEvent = "user.login"
 	// LoginMethod is the event field indicating how the login was performed
 	LoginMethod = "method"
@@ -171,10 +175,10 @@ const (
 	// UserUpdatedEvent is emitted when the user is updated.
 	UserUpdatedEvent = "user.update"
 
-	// UserDeleteEvent is emitted when the user is deleted.
+	// UserDeleteEvent is emitted when a user is deleted.
 	UserDeleteEvent = "user.delete"
 
-	// UserCreateEvent is emitted when the user is created.
+	// UserCreateEvent is emitted when a user is created.
 	UserCreateEvent = "user.create"
 
 	// UserPasswordChangeEvent is when the user changes their own password.
@@ -193,16 +197,19 @@ const (
 	// UserConnector is the connector used to create the user.
 	UserConnector = "connector"
 
-	// AccessRequestCreateEvent is emitted when a new access request is created.
+	// AccessRequestCreateEvent is emitted when a new Access Request is created.
 	AccessRequestCreateEvent = "access_request.create"
-	// AccessRequestUpdateEvent is emitted when a request's state is updated.
+	// AccessRequestUpdateEvent is emitted when an Access Request's state is
+	// updated.
 	AccessRequestUpdateEvent = "access_request.update"
-	// AccessRequestReviewEvent is emitted when a review is applied to a request.
+	// AccessRequestReviewEvent is emitted when a review is applied to an
+	// Access Request.
 	AccessRequestReviewEvent = "access_request.review"
-	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
+	// AccessRequestDeleteEvent is emitted when a new Access Request is
+	// deleted.
 	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestResourceSearch is emitted when a user searches for
-	// resources as part of a search-based access request.
+	// resources as part of a search-based Access Request.
 	AccessRequestResourceSearch = "access_request.search"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
@@ -241,7 +248,7 @@ const (
 	FieldName = "name"
 
 	// ExecEvent is an exec command executed by script or user on
-	// the server side
+	// the server side.
 	ExecEvent        = "exec"
 	ExecEventCommand = "command"
 	ExecEventCode    = "exitCode"
@@ -252,25 +259,25 @@ const (
 	SubsystemName  = "name"
 	SubsystemError = "exitError"
 
-	// X11 forwarding event
+	// X11 forwarding event.
 	X11ForwardEvent   = "x11-forward"
 	X11ForwardSuccess = "success"
 	X11ForwardErr     = "error"
 
-	// Port forwarding event
+	// Port forwarding event.
 	PortForwardEvent   = "port"
 	PortForwardAddr    = "addr"
 	PortForwardSuccess = "success"
 	PortForwardErr     = "error"
 
-	// AuthAttemptEvent is authentication attempt that either
-	// succeeded or failed based on event status
+	// AuthAttemptEvent is an authentication attempt that either succeeded
+	// or failed based on the event's status.
 	AuthAttemptEvent   = "auth"
 	AuthAttemptSuccess = "success"
 	AuthAttemptErr     = "error"
 	AuthAttemptMessage = "message"
 
-	// SCPEvent means data transfer that occurred on the server
+	// SCPEvent means that a data transfer occurred on the server.
 	SCPEvent          = "scp"
 	SCPPath           = "path"
 	SCPLengh          = "len"
@@ -278,11 +285,11 @@ const (
 	SCPActionUpload   = "upload"
 	SCPActionDownload = "download"
 
-	// SFTPEvent means a user attempted a file operation
+	// SFTPEvent means that a user attempted a file operation.
 	SFTPEvent = "sftp"
 	SFTPPath  = "path"
 
-	// ResizeEvent means that some user resized PTY on the client
+	// ResizeEvent means that some user resized the PTY on their client.
 	ResizeEvent  = "resize"
 	TerminalSize = "size" // expressed as 'W:H'
 
@@ -342,37 +349,41 @@ const (
 	// TCPVersion is the version of TCP (4 or 6).
 	TCPVersion = "version"
 
-	// RoleCreatedEvent fires when role is created/updated.
+	// RoleCreatedEvent fires when a role is created/updated.
 	RoleCreatedEvent = "role.created"
-	// RoleDeletedEvent fires when role is deleted.
+	// RoleDeletedEvent fires when a role is deleted.
 	RoleDeletedEvent = "role.deleted"
 
-	// TrustedClusterCreateEvent is the event for creating a trusted cluster.
+	// TrustedClusterCreateEvent is the event for creating a Trusted Cluster.
 	TrustedClusterCreateEvent = "trusted_cluster.create"
-	// TrustedClusterDeleteEvent is the event for removing a trusted cluster.
+	// TrustedClusterDeleteEvent is the event for removing a Trusted Cluster.
 	TrustedClusterDeleteEvent = "trusted_cluster.delete"
 	// TrustedClusterTokenCreateEvent is the event for
-	// creating new join token for a trusted cluster.
+	// creating new join token for a Trusted Cluster.
 	TrustedClusterTokenCreateEvent = "trusted_cluster_token.create"
 
-	// GithubConnectorCreatedEvent fires when a Github connector is created/updated.
+	// GithubConnectorCreatedEvent fires when a GitHub connector is
+	// created/updated.
 	GithubConnectorCreatedEvent = "github.created"
-	// GithubConnectorDeletedEvent fires when a Github connector is deleted.
+	// GithubConnectorDeletedEvent fires when a GitHub connector is deleted.
 	GithubConnectorDeletedEvent = "github.deleted"
-	// OIDCConnectorCreatedEvent fires when OIDC connector is created/updated.
+	// OIDCConnectorCreatedEvent fires when an OIDC connector is
+	// created/updated.
 	OIDCConnectorCreatedEvent = "oidc.created"
-	// OIDCConnectorDeletedEvent fires when OIDC connector is deleted.
+	// OIDCConnectorDeletedEvent fires when an OIDC connector is deleted.
 	OIDCConnectorDeletedEvent = "oidc.deleted"
-	// SAMLConnectorCreatedEvent fires when SAML connector is created/updated.
+	// SAMLConnectorCreatedEvent fires when a SAML connector is
+	// created/updated.
 	SAMLConnectorCreatedEvent = "saml.created"
-	// SAMLConnectorDeletedEvent fires when SAML connector is deleted.
+	// SAMLConnectorDeletedEvent fires when a SAML connector is deleted.
 	SAMLConnectorDeletedEvent = "saml.deleted"
 
-	// SessionRejected fires when a user's attempt to create an authenticated
-	// session has been rejected due to exceeding a session control limit.
+	// SessionRejectedEvent fires when a user's attempt to create an
+	// authenticated session has been rejected due to exceeding a session
+	// control limit.
 	SessionRejectedEvent = "session.rejected"
 
-	// SessionConnect is emitted when any ssh connection is made
+	// SessionConnectEvent is emitted when any SSH connection is made.
 	SessionConnectEvent = "session.connect"
 
 	// AppCreateEvent is emitted when an application resource is created.
@@ -388,8 +399,8 @@ const (
 	AppSessionEndEvent = "app.session.end"
 
 	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
-	// proxy. This chunk is used to buffer 5 minutes of audit events at a time
-	// for applications.
+	// Application Service instance. This chunk is used to buffer 5 minutes
+	// of audit events at a time for applications.
 	AppSessionChunkEvent = "app.session.chunk"
 
 	// AppSessionRequestEvent is an HTTP request and response.
@@ -477,8 +488,8 @@ const (
 	// refresh commands.
 	DatabaseSessionMySQLRefreshEvent = "db.session.mysql.refresh"
 
-	// DatabaseSessionSQLServerRPCRequestEvent is emitted when MSServer client sends
-	// RPC request command.
+	// DatabaseSessionSQLServerRPCRequestEvent is emitted when a SQL Server
+	// client sends an RPC request command.
 	DatabaseSessionSQLServerRPCRequestEvent = "db.session.sqlserver.rpc_request"
 
 	// DatabaseSessionElasticsearchRequestEvent is emitted when Elasticsearch client sends
@@ -499,15 +510,18 @@ const (
 	// of `max_connections` for a `session.rejected` event).
 	Maximum = "max"
 
-	// KubeRequestEvent fires when a proxy handles a generic kubernetes
-	// request.
+	// KubeRequestEvent fires when a Kubernetes Service instance handles a
+	// generic Kubernetes request.
 	KubeRequestEvent = "kube.request"
 
-	// KubernetesClusterCreateEvent is emitted when a kubernetes cluster resource is created.
+	// KubernetesClusterCreateEvent is emitted when a Kubernetes cluster
+	// resource is created.
 	KubernetesClusterCreateEvent = "kube.create"
-	// KubernetesClusterUpdateEvent is emitted when a kubernetes cluster resource is updated.
+	// KubernetesClusterUpdateEvent is emitted when a Kubernetes cluster
+	// resource is updated.
 	KubernetesClusterUpdateEvent = "kube.update"
-	// KubernetesClusterDeleteEvent is emitted when a kubernetes cluster resource is deleted.
+	// KubernetesClusterDeleteEvent is emitted when a Kubernetes cluster
+	// resource is deleted.
 	KubernetesClusterDeleteEvent = "kube.delete"
 
 	// MFADeviceAddEvent is an event type for users adding MFA devices.
@@ -542,7 +556,7 @@ const (
 	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
 	CertificateTypeUser = "user"
 
-	// DesktopRecordingEvent is emitted as a desktop access session is recorded.
+	// DesktopRecordingEvent is emitted as a Desktop Access session is recorded.
 	DesktopRecordingEvent = "desktop.recording"
 	// DesktopClipboardReceiveEvent is emitted when Teleport receives
 	// clipboard data from a remote desktop.
@@ -554,11 +568,12 @@ const (
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
 
-	// SessionRecordingAccessEvent is emitted when a session recording is accessed
+	// SessionRecordingAccessEvent is emitted when a session recording is
+	// accessed.
 	SessionRecordingAccessEvent = "session.recording.access"
 
-	// SSMRunEvent is emitted when a run of an install script
-	// completes on a discovered EC2 node
+	// SSMRunEvent is emitted when a run of an install script completes on a
+	// discovered EC2 instance.
 	SSMRunEvent = "ssm.run"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
