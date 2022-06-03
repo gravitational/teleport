@@ -297,13 +297,13 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 
 // ReserveUploadPart reserves an upload part.
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
-	// Create a buffer with the max size that a part file can have.
-	buf := make([]byte, minUploadBytes+events.MaxProtoMessageSizeBytes)
-
 	file, partPath, err := h.openUploadPart(upload, partNumber)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+
+	// Create a buffer with the max size that a part file can have.
+	buf := make([]byte, minUploadBytes+events.MaxProtoMessageSizeBytes)
 
 	_, err = file.Write(buf)
 	if err = trace.NewAggregate(err, file.Close()); err != nil {
