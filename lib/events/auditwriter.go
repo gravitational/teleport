@@ -443,7 +443,8 @@ func (a *AuditWriter) processEvents() {
 				continue
 			}
 			if IsPermanentEmitError(err) {
-				a.log.WithError(err).Debug("Failed to emit audit event due to permanent emit audit event error. Event will be omitted.")
+				a.log.WithError(err).WithField("event", event).
+					Warning("Failed to emit audit event due to permanent emit audit event error. Event will be omitted.")
 				continue
 			}
 			a.log.WithError(err).Debug("Failed to emit audit event, attempting to recover stream.")
