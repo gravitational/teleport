@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -109,8 +111,21 @@ func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, er
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
-	_, err := client.getMetadata(ctx, "")
-	return err == nil
+	// Doing this check via the AWS SDK involves several unrelated requests, which takes a few seconds
+	// to complete when not on EC2. This approach is faster.
+	httpClient := http.Client{
+		Timeout: 250 * time.Millisecond,
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/meta-data", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 // getMetadata gets the raw metadata from a specified path.

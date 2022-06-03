@@ -772,11 +772,15 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	if imClient.IsAvailable(supervisor.ExitContext()) {
+	start := time.Now()
+	available := imClient.IsAvailable(supervisor.ExitContext())
+	end := time.Now()
+	fmt.Printf("IsAvailable: %v\n", end.Sub(start))
+	if available {
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
 		if err == nil {
 			if ec2Hostname != "" {
-				cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
+				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
 				cfg.Hostname = ec2Hostname
 			}
 		} else if !trace.IsNotFound(err) {
