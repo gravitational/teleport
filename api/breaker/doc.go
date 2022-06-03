@@ -23,13 +23,8 @@
 // ErrStateTripped for the configured Config.TrippedPeriod.
 //
 // After the Config.TrippedPeriod passes, Circuit breaker enters StateRecovering, during that state it will
-// start passing some executing some functions, increasing the amount of executions using linear function:
-//
-//    allowedRequestsRatio = 0.5 * (Now() - StartRecovery())/Config.RecoveryRampPeriod
-//
-// Two scenarios are possible in the StateRecovering state:
-// 1. TripFn is satisfied again, this will reset the state to StateTripped and reset the timer.
-// 2. TripFn is not satisfied, circuit breaker enters StateStandby
+// either transition to StateStandby after the Config.RecoveryLimit is met or StateTripped if the Config.Recover TripFn
+// is satisfied.
 //
 // It is possible to define actions on transitions between states:
 //

@@ -101,14 +101,9 @@ func (s State) String() string {
 	}
 }
 
-var (
-	// ErrStateTripped will be returned from executions performed while the CircuitBreaker
-	// is in StateTripped
-	ErrStateTripped = trace.ConnectionProblem(nil, "breaker is tripped")
-	// ErrRecoveryLimitExceeded will be returned from executions performed while the CircuitBreaker
-	// is in StateRecovering and the Config.RecoveryLimit is exceeded
-	ErrRecoveryLimitExceeded = trace.LimitExceeded("too many requests while breaker is recovering")
-)
+// ErrStateTripped will be returned from executions performed while the CircuitBreaker
+// is in StateTripped
+var ErrStateTripped = trace.ConnectionProblem(nil, "breaker is tripped")
 
 // Config contains configuration of the CircuitBreaker
 type Config struct {
@@ -120,9 +115,10 @@ type Config struct {
 	// TrippedPeriod is the amount of time to remain in StateTripped before transitioning
 	// into StateRecovering
 	TrippedPeriod time.Duration
-	// RecoveryRampPeriod is the ramp up time used in StateRecovering to slowly allow letting
-	// new requests be processed
-	RecoveryRampPeriod time.Duration
+	// Recover specifies the TripFn that will be used to determine if the CircuitBreaker should transition from
+	// StateRecovering to StateTripped. This is required to be supplied, failure to do so will result in an error
+	// creating the CircuitBreaker.
+	Recover TripFn
 	// RecoveryLimit is the number on consecutive successful executions required to transition from
 	// StateRecovering to StateStandby
 	RecoveryLimit uint32
@@ -210,6 +206,7 @@ func DefaultBreakerConfig(clock clockwork.Clock) Config {
 		Clock:        clock,
 		Interval:     defaults.BreakerInterval,
 		Trip:         RatioTripper(defaults.BreakerRatio, defaults.BreakerRatioMinExecutions),
+		Recover:      RatioTripper(defaults.BreakerRatio/2, defaults.BreakerRatioMinExecutions/3),
 		IsSuccessful: IsResponseSuccessful,
 	}
 }
@@ -218,6 +215,7 @@ func NoopBreakerConfig() Config {
 	return Config{
 		Interval:     defaults.BreakerInterval,
 		Trip:         StaticTripper(false),
+		Recover:      StaticTripper(false),
 		IsSuccessful: func(v interface{}, err error) bool { return true },
 	}
 }
@@ -235,13 +233,12 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Trip == nil {
 		return trace.BadParameter("CircuitBreaker Trip must be set")
 	}
+	if c.Recover == nil {
+		return trace.BadParameter("CircuitBreaker Recover must be set")
+	}
 
 	if c.TrippedPeriod <= 0 {
 		c.TrippedPeriod = defaults.TrippedPeriod
-	}
-
-	if c.RecoveryRampPeriod <= 0 {
-		c.RecoveryRampPeriod = defaults.RecoveryRampPeriod
 	}
 
 	if c.RecoveryLimit <= 0 {
@@ -274,8 +271,6 @@ func (c *Config) CheckAndSetDefaults() error {
 // CircuitBreaker implements the circuit breaker pattern
 type CircuitBreaker struct {
 	cfg Config
-
-	rc *ratioController
 
 	mu         sync.Mutex
 	state      State
@@ -337,8 +332,6 @@ func (c *CircuitBreaker) beforeExecution() (uint64, error) {
 	switch {
 	case state == StateTripped:
 		return generation, ErrStateTripped
-	case state == StateRecovering && !c.rc.allowRequest():
-		return generation, ErrRecoveryLimitExceeded
 	}
 
 	c.metrics.execute()
@@ -385,12 +378,14 @@ func (c *CircuitBreaker) success(state State, t time.Time) {
 // failure tallies a failed execution and migrate to StateTripped
 // if in another state and criteria has been met to transition
 func (c *CircuitBreaker) failure(state State, t time.Time) {
+	c.metrics.failure()
+
 	switch state {
 	case StateRecovering:
-		c.setState(StateTripped, t)
+		if c.cfg.Recover(c.metrics) {
+			c.setState(StateTripped, t)
+		}
 	case StateStandby:
-		c.metrics.failure()
-
 		if c.cfg.Trip(c.metrics) {
 			c.setState(StateTripped, t)
 			go c.cfg.OnTripped()
@@ -406,10 +401,6 @@ func (c *CircuitBreaker) setState(s State, t time.Time) {
 	}
 
 	c.cfg.Logger.Debugf("state is transition from %s -> %s", c.state, s)
-
-	if s == StateRecovering {
-		c.rc = newRatioController(c.cfg.Clock, c.cfg.RecoveryRampPeriod)
-	}
 
 	c.state = s
 	c.nextGeneration(t)

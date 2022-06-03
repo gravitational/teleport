@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -33,7 +32,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -740,102 +738,4 @@ func TestSetOIDCRedirectURLBackwardsCompatibility(t *testing.T) {
 	require.Equal(t, 1, len(connectorsResp))
 	require.Equal(t, 1, len(connectorsResp[0].GetRedirectURLs()))
 	require.Equal(t, "one.example.com", connectorsResp[0].GetRedirectURLs()[0])
-}
-
-func TestClient_NotAllErrorsTripBreaker(t *testing.T) {
-	t.Parallel()
-	srv := startMockServer(t)
-	clock := clockwork.NewFakeClock()
-
-	tripped := make(chan struct{}, 1)
-	standby := make(chan struct{}, 1)
-
-	clt, err := srv.NewClient(context.Background(), WithBreakerConfig(breaker.Config{
-		Clock:         clock,
-		Interval:      time.Second,
-		RecoveryLimit: 1,
-		Trip:          breaker.ConsecutiveFailureTripper(0),
-		OnTripped: func() {
-			tripped <- struct{}{}
-		},
-		OnStandBy: func() {
-			standby <- struct{}{}
-		},
-	}))
-	require.NoError(t, err)
-
-	returnBreakerToStandBy := func() {
-		ctx := context.Background()
-		// advance clock to enter recovering - next request will be blocked
-		clock.Advance(time.Hour)
-
-		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindDatabaseServer,
-			Namespace:    defaults.Namespace,
-			Limit:        1,
-		})
-		require.Error(t, err)
-		require.ErrorIs(t, err, breaker.ErrRecoveryLimitExceeded)
-
-		// advance clock to allow request
-		clock.Advance(time.Hour)
-
-		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindDatabaseServer,
-			Namespace:    defaults.Namespace,
-			Limit:        1,
-		})
-		require.NoError(t, err)
-
-		select {
-		case <-standby:
-		case <-time.After(time.Minute):
-			t.Fatal("timeout waiting to return to standby")
-		}
-	}
-
-	_, err = clt.ListResources(context.Background(), proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseServer,
-		Namespace:    defaults.Namespace,
-		Limit:        1,
-	})
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseServer,
-		Namespace:    defaults.Namespace,
-		Limit:        1,
-	})
-	require.Error(t, err)
-
-	select {
-	case <-tripped:
-	case <-time.After(time.Minute):
-		t.Fatal("timeout waiting to be tripped")
-	}
-
-	returnBreakerToStandBy()
-
-	_, err = clt.AddMFADeviceSync(context.Background(), &proto.AddMFADeviceSyncRequest{})
-	require.Error(t, err)
-
-	select {
-	case <-tripped:
-		t.Fatal("expected breaker to remain in standby")
-	default:
-	}
-
-	srv.Stop()
-
-	_, err = clt.CreateAppSession(context.Background(), types.CreateAppSessionRequest{})
-	require.Error(t, err)
-
-	select {
-	case <-tripped:
-	case <-time.After(time.Minute):
-		t.Fatal("timeout waiting to be tripped")
-	}
 }

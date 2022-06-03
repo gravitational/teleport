@@ -35,6 +35,7 @@ func TestCircuitBreaker_generation(t *testing.T) {
 		Clock:    clock,
 		Interval: time.Second,
 		Trip:     StaticTripper(false),
+		Recover:  StaticTripper(false),
 	})
 	require.NoError(t, err)
 
@@ -94,17 +95,7 @@ func TestCircuitBreaker_beforeRequest(t *testing.T) {
 			},
 		},
 		{
-			desc:       "recovering before rc allows prevents executions",
-			generation: 1,
-			executions: 0,
-			state:      StateRecovering,
-			errorCheck: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorIs(t, ErrRecoveryLimitExceeded, err)
-			},
-		},
-		{
-			desc:       "recovering after rc allows allows executions",
+			desc:       "recovering after allows executions",
 			generation: 1,
 			executions: 1,
 			state:      StateRecovering,
@@ -118,13 +109,14 @@ func TestCircuitBreaker_beforeRequest(t *testing.T) {
 			clock := clockwork.NewFakeClock()
 
 			cb, err := New(Config{
-				Clock:    clock,
-				Interval: time.Second,
-				Trip:     StaticTripper(false),
+				Clock:         clock,
+				Interval:      time.Second,
+				Trip:          StaticTripper(false),
+				Recover:       StaticTripper(false),
+				RecoveryLimit: 1,
 			})
 			require.NoError(t, err)
 			cb.state = tt.state
-			cb.rc = newRatioController(clock, time.Second)
 
 			clock.Advance(tt.advance)
 
@@ -145,6 +137,7 @@ func TestCircuitBreaker_afterExecution(t *testing.T) {
 		priorGeneration uint64
 		checkMetrics    require.ValueAssertionFunc
 		trip            TripFn
+		recover         TripFn
 		expectedState   State
 	}{
 		{
@@ -157,12 +150,14 @@ func TestCircuitBreaker_afterExecution(t *testing.T) {
 				require.Equal(t, uint32(0), m.Failures)
 			},
 			trip:          StaticTripper(false),
+			recover:       StaticTripper(false),
 			expectedState: StateStandby,
 		},
 		{
 			desc:            "generation change",
 			priorGeneration: 0,
 			trip:            StaticTripper(false),
+			recover:         StaticTripper(false),
 			checkMetrics: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				m, ok := i.(Metrics)
 				require.True(t, ok)
@@ -176,6 +171,7 @@ func TestCircuitBreaker_afterExecution(t *testing.T) {
 			priorGeneration: 1,
 			err:             errors.New("failure"),
 			trip:            StaticTripper(false),
+			recover:         StaticTripper(false),
 			checkMetrics: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				m, ok := i.(Metrics)
 				require.True(t, ok)
@@ -189,6 +185,7 @@ func TestCircuitBreaker_afterExecution(t *testing.T) {
 			priorGeneration: 1,
 			err:             errors.New("failure"),
 			trip:            StaticTripper(true),
+			recover:         StaticTripper(false),
 			checkMetrics: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				m, ok := i.(Metrics)
 				require.True(t, ok)
@@ -206,6 +203,7 @@ func TestCircuitBreaker_afterExecution(t *testing.T) {
 				Clock:    clock,
 				Interval: time.Second,
 				Trip:     tt.trip,
+				Recover:  tt.recover,
 			})
 			require.NoError(t, err)
 
@@ -255,6 +253,7 @@ func TestCircuitBreaker_success(t *testing.T) {
 				Interval:      time.Second,
 				RecoveryLimit: tt.recoveryLimit,
 				Trip:          StaticTripper(false),
+				Recover:       StaticTripper(false),
 			})
 			require.NoError(t, err)
 			cb.state = tt.initialState
@@ -277,6 +276,7 @@ func TestCircuitBreaker_failure(t *testing.T) {
 		failureState   State
 		expectedState  State
 		tripFn         TripFn
+		recover        TripFn
 		onTrip         func(ch chan bool) func()
 		tripped        bool
 		requireTripped require.BoolAssertionFunc
@@ -287,6 +287,7 @@ func TestCircuitBreaker_failure(t *testing.T) {
 			failureState:   StateRecovering,
 			expectedState:  StateTripped,
 			tripFn:         StaticTripper(false),
+			recover:        StaticTripper(true),
 			requireTripped: require.False,
 		},
 		{
@@ -295,6 +296,7 @@ func TestCircuitBreaker_failure(t *testing.T) {
 			failureState:   StateStandby,
 			expectedState:  StateStandby,
 			tripFn:         StaticTripper(false),
+			recover:        StaticTripper(false),
 			requireTripped: require.False,
 		},
 		{
@@ -303,6 +305,7 @@ func TestCircuitBreaker_failure(t *testing.T) {
 			failureState:   StateStandby,
 			expectedState:  StateTripped,
 			tripFn:         StaticTripper(true),
+			recover:        StaticTripper(false),
 			requireTripped: require.True,
 			onTrip: func(ch chan bool) func() {
 				return func() {
@@ -332,6 +335,7 @@ func TestCircuitBreaker_failure(t *testing.T) {
 				Interval:  time.Second,
 				Trip:      tt.tripFn,
 				OnTripped: tt.onTrip(trippedCh),
+				Recover:   tt.recover,
 			})
 			require.NoError(t, err)
 			cb.state = tt.initialState
@@ -363,13 +367,13 @@ func TestCircuitBreaker_Execute(t *testing.T) {
 	}
 
 	cb, err := New(Config{
-		Clock:              clock,
-		Interval:           time.Second,
-		Trip:               ConsecutiveFailureTripper(3),
-		OnTripped:          onTripped(trippedCh),
-		TrippedPeriod:      2 * time.Second,
-		RecoveryRampPeriod: time.Second,
-		RecoveryLimit:      2,
+		Clock:         clock,
+		Interval:      time.Second,
+		Trip:          ConsecutiveFailureTripper(3),
+		Recover:       ConsecutiveFailureTripper(1),
+		OnTripped:     onTripped(trippedCh),
+		TrippedPeriod: 2 * time.Second,
+		RecoveryLimit: 2,
 	})
 	require.NoError(t, err)
 
@@ -436,40 +440,41 @@ func TestCircuitBreaker_Execute(t *testing.T) {
 		{
 			desc:               "transition from tripped to recovering",
 			exec:               noErrorFn,
-			errorAssertion:     require.Error,
+			errorAssertion:     require.NoError,
 			expectedState:      StateRecovering,
 			expectedGeneration: 3,
 			advance:            3 * time.Second,
 		},
 		{
-			desc:               "execution blocked while in recovering",
-			exec:               noErrorFn,
+			desc:               "first failed execution recovering remains in recovering",
+			exec:               errorFn,
 			errorAssertion:     require.Error,
 			expectedState:      StateRecovering,
 			expectedGeneration: 3,
 			advance:            250 * time.Millisecond,
 		},
 		{
-			desc:               "execution allowed after but remain in recovering",
-			exec:               noErrorFn,
-			errorAssertion:     require.NoError,
-			expectedState:      StateRecovering,
-			expectedGeneration: 3,
+			desc:               "second failed execution recovering transitions to tripped",
+			exec:               errorFn,
+			errorAssertion:     require.Error,
+			expectedState:      StateTripped,
+			expectedGeneration: 4,
 			advance:            450 * time.Millisecond,
 		},
 		{
-			desc:               "execution blocked again while recovering",
-			exec:               errorFn,
-			errorAssertion:     require.Error,
+			desc:               "transition from tripped to recovering",
+			exec:               noErrorFn,
+			errorAssertion:     require.NoError,
 			expectedState:      StateRecovering,
-			expectedGeneration: 3,
+			expectedGeneration: 5,
+			advance:            3 * time.Second,
 		},
 		{
 			desc:               "transition from recovering to standby",
 			exec:               noErrorFn,
 			errorAssertion:     require.NoError,
 			expectedState:      StateStandby,
-			expectedGeneration: 4,
+			expectedGeneration: 6,
 			advance:            450 * time.Millisecond,
 		},
 		{
@@ -477,7 +482,7 @@ func TestCircuitBreaker_Execute(t *testing.T) {
 			exec:               noErrorFn,
 			errorAssertion:     require.NoError,
 			expectedState:      StateStandby,
-			expectedGeneration: 5,
+			expectedGeneration: 7,
 			advance:            time.Minute,
 		},
 	}
@@ -488,8 +493,8 @@ func TestCircuitBreaker_Execute(t *testing.T) {
 			_, err := cb.Execute(tt.exec)
 			tt.errorAssertion(t, err)
 			generation, state := cb.currentState(clock.Now().UTC())
-			require.Equal(t, tt.expectedGeneration, generation)
-			require.Equal(t, tt.expectedState, state)
+			require.Equal(t, tt.expectedGeneration, generation, "incorrect generation")
+			require.Equal(t, tt.expectedState, state, "incorrect state")
 
 			if state != StateTripped && tt.expectedState == StateTripped {
 				select {

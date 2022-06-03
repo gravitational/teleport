@@ -50,7 +50,8 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 
 			return true
 		},
-		Trip: ConsecutiveFailureTripper(1),
+		Trip:    ConsecutiveFailureTripper(1),
+		Recover: ConsecutiveFailureTripper(0),
 	})
 	require.NoError(t, err)
 
@@ -92,16 +93,6 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.ErrorIs(t, err, ErrStateTripped)
-			},
-			responseAssertion: require.Nil,
-		},
-		{
-			desc:  "error when recovery limit exceeded",
-			url:   "/success",
-			state: StateRecovering,
-			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorIs(t, err, ErrRecoveryLimitExceeded)
 			},
 			responseAssertion: require.Nil,
 		},
