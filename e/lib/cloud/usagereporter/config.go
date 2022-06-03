@@ -71,7 +71,7 @@ type BackendAPIGetter interface {
 // ResourceAPIGetter describes required resource API getters
 type ResourceAPIGetter interface {
 	// GetNodes retrieves servers
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	// GetDatabaseServers retrieves database servers
 	GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
 	// GetUsers retrieves users

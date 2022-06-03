@@ -35,7 +35,7 @@ type MockedResourceGetter struct {
 	MockedGetOIDCConnectors   func() ([]types.OIDCConnector, error)
 }
 
-func (g *MockedResourceGetter) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (g *MockedResourceGetter) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if g.MockedGetNodes != nil {
 		return g.MockedGetNodes()
 	}
