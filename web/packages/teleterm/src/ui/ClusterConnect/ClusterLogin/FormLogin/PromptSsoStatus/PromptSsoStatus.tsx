@@ -29,7 +29,7 @@ export default function PromptSsoStatus(props: Props) {
     >
       <Box mb={4} style={{ position: 'relative' }}>
         <Text bold mb={2}>
-          Please follow the steps in the new browser window authenticate.
+          Please follow the steps in the new browser window to authenticate.
         </Text>
         <LinearProgress />
       </Box>
