@@ -20,7 +20,7 @@ A not yet finished RFD on third-party artifact mirroring will address concerns r
 
 ### Scope
 
-This RFD will focus on the infrastructure, security and observability of the replacement registry. It will also include a detailed deprectation and migration plan for the existing Quay.io registry.
+This RFD will focus on the infrastructure, security, and observability of the replacement registry. It will also include a deprecation and migration plan for the existing Quay.io repositories.
 
 #### In Scope
 * Infrastructure plans with [example terraform](#appendix-a-example-terraform)
@@ -46,9 +46,21 @@ This RFD will focus on the infrastructure, security and observability of the rep
 
 The infrastructure for this will live in the [cloud-terraform](https://github.com/gravitational/cloud-terraform) repository. The terraform for the `teleport-prod` account can be found [here](https://github.com/gravitational/cloud-terraform/tree/main/teleport-team/prod). Using AWS ECR and ECR Public allow us to rely on their managed infrastructure which reduces the operational complexity while enforcing our own security policies and allowing us to better audit changes to the environment. For more information on the pros and cons of alternatives, see [alternatives](#alternatives).
 
+### Security
+Amazon ECR and ECR Public have support for AWS IAM. With IAM we can create least-privileged policies that allow limited access to one or more part of the container-registry. For an example promotion user policy, see the [terraform example](#appendix-a-example-terraform). 
+
+In addition to AWS IAM, AWS supports our existing SSO infrastructure with Okta.
+
+As a part of observability, Cloudtrail logs will log all interactions with ECR which will allow the security team to create alerts for any changes to images. 
+
+### Observabilty
+Amazon ECR provides detailed usage metrics through [Cloudwatch](https://docs.aws.amazon.com/AmazonECR/latest/userguide/monitoring-usage.html) as well as detailed logging through AWS [Cloudtrail](https://docs.aws.amazon.com/AmazonECR/latest/userguide/logging-using-cloudtrail.html). 
+
+For Amazon ECR Public, observability is limited. Currently, you can log authenticated requests via [Cloudtrail](https://docs.aws.amazon.com/AmazonECR/latest/public/logging-using-cloudtrail.html). An open issue exists for better metrics for ECR Public, see [this](https://github.com/aws/containers-roadmap/issues/1587). 
+
 ### Migration and Deprecation
-* Using the list of public teleport images defined [below](#appendix-b-teleport-public-images), the terraform infrastructure needed for these registries will be created according to the standards defined [here](https://github.com/gravitational/cloud/blob/9124947fdfb0773fa9bd567160481bed4ec84b7e/rfd/0017-artifact-storage-standards.md#levels).
-* Existing CI/CD pipelines will be updated to push to both Quay.io and ECR. 
+* Using the list of public teleport images defined [below](#appendix-b-teleport-public-images), the terraform infrastructure needed for these registries will be created according to the standards defined in[artifact storage standards](https://github.com/gravitational/cloud/blob/9124947fdfb0773fa9bd567160481bed4ec84b7e/rfd/0017-artifact-storage-standards.md#levels).
+* Existing CI/CD pipelines and tooling will be updated to push to both Quay.io and ECR. 
 * Documentation will be updated to reflect the new registry location. 
 * Quay.io images will be deprecated and removed in reverse level order. (Bronze -> Silver -> Gold)
 
