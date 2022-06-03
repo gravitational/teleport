@@ -71,7 +71,7 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiaHR0cDovLzEyNy4wLjAuMTozNDY3OSJ
 
 ## Inject JWT
 
-You can inject a JWT token into any header using [headers passthrough](./connecting-apps.mdx#headers-passthrough)
+You can inject a JWT token into any header using [headers passthrough](../guides/connecting-apps.mdx#headers-passthrough)
 configuration and the `{{internal.jwt}}` template variable. This variable will
 be replaced with JWT token signed by Teleport JWT CA containing user identity
 information like described above.
@@ -109,3 +109,11 @@ can be trusted. This endpoint is `https://[cluster-name]:3080/.well-known/jwks.j
 
 See the example Go program used to validate Teleport's JWT tokens on our
 [Github](https://github.com/gravitational/teleport/blob/v(=teleport.version=)/examples/jwt/verify-jwt.go).
+
+## Application guides
+
+Many existing web applications and APIs support JWT authentication.
+
+The following guides are currently available showing how to configure it:
+
+- [ElasticSearch](./elasticsearch.mdx)
