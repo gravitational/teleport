@@ -772,11 +772,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	start := time.Now()
-	available := imClient.IsAvailable(supervisor.ExitContext())
-	end := time.Now()
-	fmt.Printf("IsAvailable: %v\n", end.Sub(start))
-	if available {
+	if imClient.IsAvailable(supervisor.ExitContext()) {
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
 		if err == nil {
 			if ec2Hostname != "" {
