@@ -48,20 +48,53 @@ func (h *PacketHeader) Marshal() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Packet represents a single protocol packet.
-type Packet struct {
-	// PacketHeader is the parsed packet header.
-	PacketHeader
+// Packet is a packet interface.
+type Packet interface {
+	// Bytes returns whole packet bytes.
+	Bytes() []byte
+	// Data returns packet data without data related to Header.
+	Data() []byte
+	// Header returns packet Header definition.
+	Header() PacketHeader
+	// Type returns packet type ID.
+	Type() uint8
+}
 
-	// Data is the packet data bytes without header.
-	Data []byte
+// BasicPacket implements the Packet interfaces allowing to operate on
+// PacketHeader and get underlying packet type.
+type BasicPacket struct {
+	header PacketHeader
+	data   []byte
+	raw    bytes.Buffer
+}
+
+// Bytes returns raw packet bytes.
+func (g BasicPacket) Bytes() []byte {
+	return g.raw.Bytes()
+}
+
+// Data is the packet data bytes without header.
+func (g BasicPacket) Data() []byte {
+	return g.data
+}
+
+// Header is the parsed packet header.
+func (g BasicPacket) Header() PacketHeader {
+	return g.header
+}
+
+// Type is the parsed packet header.
+func (g BasicPacket) Type() uint8 {
+	return g.header.Type
 }
 
 // ReadPacket reads a single full packet from the reader.
-func ReadPacket(r io.Reader) (*Packet, error) {
+func ReadPacket(r io.Reader) (*BasicPacket, error) {
+	var buff bytes.Buffer
+	tr := io.TeeReader(r, &buff)
 	// Read 8-byte packet header.
 	var headerBytes [packetHeaderSize]byte
-	if _, err := io.ReadFull(r, headerBytes[:]); err != nil {
+	if _, err := io.ReadFull(tr, headerBytes[:]); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -73,14 +106,41 @@ func ReadPacket(r io.Reader) (*Packet, error) {
 
 	// Read packet data. Packet length includes header.
 	dataBytes := make([]byte, header.Length-packetHeaderSize)
-	if _, err := io.ReadFull(r, dataBytes); err != nil {
+	if _, err := io.ReadFull(tr, dataBytes); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	return &Packet{
-		PacketHeader: header,
-		Data:         dataBytes,
-	}, nil
+	p := &BasicPacket{
+		header: header,
+		data:   dataBytes,
+		raw:    buff,
+	}
+	return p, nil
+}
+
+// ToSQLPacket tries to convert basicPacket to MSServer SQL packet.
+func ToSQLPacket(p *BasicPacket) (out Packet, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = trace.BadParameter("failed to convert packet to SQL packet: %v", r)
+		}
+	}()
+
+	switch p.Type() {
+	case PacketTypeRPCRequest:
+		sqlBatch, err := toRPCRequest(p)
+		if err != nil {
+			return p, trace.Wrap(err)
+		}
+		return sqlBatch, trace.Wrap(err)
+	case PacketTypeSQLBatch:
+		rpcRequest, err := toSQLBatch(p)
+		if err != nil {
+			return p, trace.Wrap(err)
+		}
+		return rpcRequest, trace.Wrap(err)
+	}
+	return p, trace.Wrap(err)
 }
 
 // makePacket prepends header to the provided packet data.

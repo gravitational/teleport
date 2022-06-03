@@ -15,9 +15,25 @@ Teleport supports exporting user SSH certificates with configurable key extensio
 
 In order to export the Teleport CA, execute the following command:
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
+# Log in to your Teleport cluster so you can use tctl remotely.
+# You can also run tctl on your Auth Service host.
+$ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl auth export --type=user | sed 's/^cert-authority //g'
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+# Log in to your Teleport cluster so you can use tctl remotely.
+$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+$ tctl auth export --type=user | sed 's/^cert-authority //g'
+```
+
+</ScopedBlock>
 
 Next, follow the instructions in the guide below to import your Teleport CA into GitHub:
 

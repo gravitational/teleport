@@ -17,8 +17,9 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 BUILDBOX_VERSION ?= teleport10
-GOLANG_VERSION ?= go1.18.2
-RUST_VERSION ?= 1.58.1
+GOLANG_VERSION ?= go1.18.3
+RUST_VERSION ?= 1.61.0
+NODE_VERSION ?= 16.13.2
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.3.1
 
@@ -213,6 +214,7 @@ buildbox-teleterm: buildbox
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_TELETERM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_TELETERM) || true; fi;
 	docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
 		--cache-from $(BUILDBOX) \
@@ -443,6 +445,13 @@ print-go-version:
 .PHONY:print-rust-version
 print-rust-version:
 	@echo $(RUST_VERSION)
+
+#
+# Print the Node version used to build Teleport Connect.
+#
+.PHONY:print-node-version
+print-node-version:
+	@echo $(NODE_VERSION)
 
 #
 # Print the buildbox version used to build Teleport.

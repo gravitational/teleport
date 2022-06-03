@@ -36,11 +36,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/stretchr/testify/require"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -411,6 +413,7 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 	tconf.Log = i.log
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -651,6 +654,8 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Keygen = testauthority.New()
 	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
 	i.Config = tconf
 	return tconf, nil
 }
@@ -671,7 +676,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		return trace.Wrap(err)
 	}
 	i.Config = tconf
-	i.Process, err = service.NewTeleport(tconf)
+	i.Process, err = service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -766,7 +771,7 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -810,7 +815,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf)
+	process, err := service.NewTeleport(conf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -862,7 +867,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
-			process, err := service.NewTeleport(cfg)
+			process, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err != nil {
 				results <- result{err: err, tmpDir: dataDir}
 			}
@@ -928,7 +933,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf)
+	process, err := service.NewTeleport(conf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1060,10 +1065,11 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 			Addr:        Host,
 		},
 	}
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1147,10 +1153,11 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1199,7 +1206,7 @@ func (i *TeleInstance) Reset() (err error) {
 			return trace.Wrap(err)
 		}
 	}
-	i.Process, err = service.NewTeleport(i.Config)
+	i.Process, err = service.NewTeleport(i.Config, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1800,7 +1807,7 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	})
 
 	// start the SSH agent
-	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
+	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0o600)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
@@ -1854,6 +1861,23 @@ func enableKube(config *service.Config, clusterName string) error {
 	config.Kube.Enabled = true
 	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
 	return nil
+}
+
+// getKubeClusters gets all kubernetes clusters accessible from a given auth server.
+func getKubeClusters(t *testing.T, as *auth.Server) []*types.KubernetesCluster {
+	ctx := context.Background()
+	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{
+		ResourceType: types.KindKubeService,
+	})
+	require.NoError(t, err)
+	kss, err := types.ResourcesWithLabels(resources).AsServers()
+	require.NoError(t, err)
+
+	clusters := make([]*types.KubernetesCluster, 0)
+	for _, ks := range kss {
+		clusters = append(clusters, ks.GetKubernetesClusters()...)
+	}
+	return clusters
 }
 
 func genUserKey() (*client.Key, error) {
@@ -1927,8 +1951,6 @@ func getLocalIP() (string, error) {
 func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *TeleInstance, *TeleInstance)) *client.TeleportClient {
 	ctx := context.Background()
 	username := suite.me.Username
-
-	name := "test"
 
 	rootName := fmt.Sprintf("root-%s", name)
 	leafName := fmt.Sprintf("leaf-%s", name)
@@ -2032,4 +2054,20 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	}
 
 	return tc
+}
+
+// disabledIMDSClient is an EC2 instance metadata client that is always disabled. This is faster
+// than the default client when not testing instance metadata behavior.
+type disabledIMDSClient struct{}
+
+func (d *disabledIMDSClient) IsAvailable(ctx context.Context) bool {
+	return false
+}
+
+func (d *disabledIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (d *disabledIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
+	return "", nil
 }
