@@ -1,6 +1,6 @@
 ---
 title: Teleport FAQ
-description: Frequently Asked Questions about using Teleport for SSH and Kubernetes access
+description: Frequently asked questions about using Teleport
 h1: FAQ
 ---
 
@@ -33,20 +33,26 @@ section of the Admin Manual.
 
 ### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster?
 
-This was a popular customer [request](https://github.com/gravitational/teleport/issues/803) that was added in Teleport version 4.0.
-Once you've upgraded your Teleport Cluster, change the node config option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr`
-in file configuration). For more information, see [Adding Nodes to the Cluster](./setup/admin/adding-nodes.mdx).
+This was a popular customer
+[request](https://github.com/gravitational/teleport/issues/803) that was added
+in Teleport version 4.0. Change the node config option `--auth-server` flag when
+running the `teleport` daemon on an agent to point to the Proxy Service address
+(this would be `public_addr` and `web_listen_addr` in file configuration). For
+more information, see
+[Adding Nodes to the Cluster](./setup/admin/adding-nodes.mdx).
 
 ### Can nodes use a single port for reverse tunnels?
 
-Yes, Teleport supports tunnel multiplexing on a single port. Set the `tunnel_listen_addr` to use the same port as the `web_listen_addr` address setting in the `proxy_service` configuration. Teleport will automatically use multiplexing with that configuration.
+Yes, Teleport supports tunnel multiplexing on a single port. Set the
+`tunnel_listen_addr` to use the same port as the `web_listen_addr` address
+setting in the `proxy_service` configuration. Teleport will automatically use
+multiplexing with that configuration.
 
 ## How is Open Source different from Enterprise?
 
-Teleport provides three offerings:
-
-- Open Source - Apache 2 License, self-hosted.
-- Enterprise - self-hosted or cloud, commercial license.
+Open Source Teleport is licensed under the Apache 2 License, and must be
+self-hosted. Enterprise Teleport is commercially licensed and is available in
+both self-hosted and cloud deployments.
 
 <table>
   <thead>
@@ -165,8 +171,9 @@ commercial versions of Teleport may or may not be configured to send anonymized 
 - Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
 - Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
 
-This allows Teleport Pro to print a warning if users are exceeding the usage limits
-of their license. The reporting library code is [on Github](https://github.com/gravitational/reporting).
+This allows Teleport to print a warning if users are exceeding the usage limits
+of their license. The reporting library code is
+[on GitHub](https://github.com/gravitational/reporting).
 
 Reach out to `sales@goteleport.com` if you have questions about the commercial
 edition of Teleport.

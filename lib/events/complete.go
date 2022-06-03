@@ -167,9 +167,16 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 			}
 		}
 
-		if _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); err == nil {
+		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
+		case err == nil: // session is still in progress, continue to other uploads
 			continue
-		} else if !trace.IsNotFound(err) {
+		case trace.IsNotFound(err): // upload abandoned, complete upload
+		case trace.IsAccessDenied(err): // upload abandoned, complete upload
+			// Treat access denied errors as not found errors, since we expect
+			// to get them if the auth server is v9.2.3 or earlier, since only
+			// node, proxy, and kube roles had permissions to create trackers.
+			// DELETE IN 11.0.0
+		default: // aka err != nil
 			return trace.Wrap(err)
 		}
 

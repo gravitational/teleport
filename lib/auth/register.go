@@ -137,7 +137,7 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 	params.setDefaults()
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
-	token, err := utils.ReadToken(params.Token)
+	token, err := utils.TryReadValueAsFile(params.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -390,7 +390,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 
 	// Fetch the root CA from the Auth Server. The NOP role has access to the
 	// GetClusterCACert endpoint.
-	localCA, err := authClient.GetClusterCACert()
+	localCA, err := authClient.GetClusterCACert(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

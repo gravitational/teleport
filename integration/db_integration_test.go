@@ -1224,6 +1224,7 @@ func (p *databasePack) setupUsersAndRoles(t *testing.T) {
 }
 
 func (p *databasePack) waitForLeaf(t *testing.T) {
+	waitForProxyCount(p.leaf.cluster, p.root.cluster.Secrets.SiteName, 1)
 	site, err := p.root.cluster.Tunnel.GetSite(p.leaf.cluster.Secrets.SiteName)
 	require.NoError(t, err)
 
