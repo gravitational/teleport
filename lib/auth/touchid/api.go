@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
@@ -79,6 +80,7 @@ type CredentialInfo struct {
 	RPID         string
 	User         string
 	PublicKey    *ecdsa.PublicKey
+	CreateTime   time.Time
 
 	// publicKeyRaw is used internally to return public key data from native
 	// register requests.
