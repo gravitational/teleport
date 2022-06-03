@@ -48,9 +48,13 @@ type GithubConnector interface {
 	GetTeamsToLogins() []TeamMapping
 	// SetTeamsToLogins sets the mapping of Github teams to allowed logins
 	SetTeamsToLogins([]TeamMapping)
+	// GetTeamsToRoles returns the mapping of Github teams to allowed roles
+	GetTeamsToRoles() []TeamRolesMapping
+	// SetTeamsToRoles sets the mapping of Github teams to allowed roles
+	SetTeamsToRoles([]TeamRolesMapping)
 	// MapClaims returns the list of allows logins based on the retrieved claims
 	// returns list of logins and kubernetes groups
-	MapClaims(GithubClaims) (logins []string, kubeGroups []string, kubeUsers []string)
+	MapClaims(GithubClaims) (logins []string, roles []string, kubeGroups []string, kubeUsers []string)
 	// GetDisplay returns the connector display name
 	GetDisplay() string
 	// SetDisplay sets the connector display name
@@ -208,6 +212,16 @@ func (c *GithubConnectorV3) SetTeamsToLogins(teamsToLogins []TeamMapping) {
 	c.Spec.TeamsToLogins = teamsToLogins
 }
 
+// GetTeamsToRoles returns the mapping of Github teams to allowed roles
+func (c *GithubConnectorV3) GetTeamsToRoles() []TeamRolesMapping {
+	return c.Spec.TeamsToRoles
+}
+
+// SetTeamsToRoles sets the mapping of Github teams to allowed roles
+func (c *GithubConnectorV3) SetTeamsToRoles(m []TeamRolesMapping) {
+	c.Spec.TeamsToRoles = m
+}
+
 // GetDisplay returns the connector display name
 func (c *GithubConnectorV3) GetDisplay() string {
 	return c.Spec.Display
@@ -220,8 +234,8 @@ func (c *GithubConnectorV3) SetDisplay(display string) {
 
 // MapClaims returns a list of logins based on the provided claims,
 // returns a list of logins and list of kubernetes groups
-func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, []string) {
-	var logins, kubeGroups, kubeUsers []string
+func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, []string, []string) {
+	var logins, roles, kubeGroups, kubeUsers []string
 	for _, mapping := range c.GetTeamsToLogins() {
 		teams, ok := claims.OrganizationToTeams[mapping.Organization]
 		if !ok {
@@ -237,7 +251,20 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 			}
 		}
 	}
-	return utils.Deduplicate(logins), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
+	for _, mapping := range c.GetTeamsToRoles() {
+		teams, ok := claims.OrganizationToTeams[mapping.Organization]
+		if !ok {
+			// the user does not belong to this organization
+			continue
+		}
+		for _, team := range teams {
+			// see if the user belongs to this team
+			if team == mapping.Team {
+				roles = append(logins, mapping.Roles...)
+			}
+		}
+	}
+	return utils.Deduplicate(logins), utils.Deduplicate(roles), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
 }
 
 // SetExpiry sets expiry time for the object

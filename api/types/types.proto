@@ -2877,10 +2877,16 @@ message GithubConnectorSpecV3 {
     // RedirectURL is the authorization callback URL.
     string RedirectURL = 3 [ (gogoproto.jsontag) = "redirect_url" ];
     // TeamsToLogins maps Github team memberships onto allowed logins/roles.
+    //
+    // REMOVE IN: 11.0.0
+    // Deprecated: use GithubTeamsToRoles instead.
     repeated TeamMapping TeamsToLogins = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_logins" ];
     // Display is the connector display name.
     string Display = 5 [ (gogoproto.jsontag) = "display" ];
+    // TeamsToRoles maps Github team memberships onto allowed roles.
+    repeated TeamRolesMapping TeamsToRoles = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_roles" ];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -3092,6 +3098,18 @@ message TeamMapping {
     repeated string KubeGroups = 4 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
     // KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
     repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
+}
+
+// TeamRolesMapping represents a single team membership mapping.
+//
+// REMOVE IN: 11.0.0
+message TeamRolesMapping {
+    // Organization is a Github organization a user belongs to.
+    string Organization = 1 [ (gogoproto.jsontag) = "organization" ];
+    // Team is a team within the organization a user belongs to.
+    string Team = 2 [ (gogoproto.jsontag) = "team" ];
+    // Roles is a list of allowed logins for this org/team.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
 }
 
 // TrustedClusterV2 represents a Trusted Cluster.
