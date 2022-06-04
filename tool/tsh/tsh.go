@@ -31,10 +31,12 @@ import (
 	"runtime/pprof"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -61,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
@@ -77,11 +80,21 @@ var log = logrus.WithFields(logrus.Fields{
 })
 
 const (
-	// mfaModeAuto, mfaModeCrossPlatform and mfaModePlatform correspond to
-	// wancli.AuthenticatorAttachment values.
-	mfaModeAuto          = "auto"
+	// mfaModeAuto automatically chooses the best MFA device(s), without any
+	// restrictions.
+	// Allows both Webauthn and OTP.
+	mfaModeAuto = "auto"
+	// mfaModeCrossPlatform utilizes only cross-platform devices, such as
+	// pluggable hardware keys.
+	// Implies Webauthn.
 	mfaModeCrossPlatform = "cross-platform"
-	mfaModePlatform      = "platform"
+	// mfaModePlatform utilizes only platform devices, such as Touch ID.
+	// Implies Webauthn.
+	mfaModePlatform = "platform"
+	// mfaModeOTP utilizes only OTP devices.
+	mfaModeOTP = "otp"
+
+	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || name == "%[1]s"`
 )
 
 // CLIConf stores command line arguments and flags:
@@ -307,6 +320,9 @@ type CLIConf struct {
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
+	// AWSEndpointURLMode is an AWS proxy mode that serves an AWS endpoint URL
+	// proxy instead of an HTTPS proxy.
+	AWSEndpointURLMode bool
 
 	// Reason is the reason for starting an ssh or kube session.
 	Reason string
@@ -328,6 +344,10 @@ type CLIConf struct {
 
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
 	TracingProvider oteltrace.TracerProvider
+
+	// doRequest is set if access request should be automatically created on
+	// access denied errors.
+	doRequest bool
 }
 
 // Stdout returns the stdout writer.
@@ -394,6 +414,7 @@ const (
 	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
+	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -467,9 +488,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
-	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform}
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
+		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
@@ -493,6 +515,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
+	ssh.Flag("request", "Attempt to request access to host if access is denied").BoolVar(&cf.doRequest)
+	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
@@ -501,8 +525,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
-	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
+	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI.").StringsVar(&cf.AWSCommandArgs)
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
+		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -531,13 +557,17 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxySSH.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
 	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
-	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
 	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
+	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -867,6 +897,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandDB(&cf)
 	case proxyApp.FullCommand():
 		err = onProxyCommandApp(&cf)
+	case proxyAWS.FullCommand():
+		err = onProxyCommandAWS(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1183,6 +1215,7 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	tc.HomePath = cf.HomePath
+
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
@@ -1263,10 +1296,16 @@ func onLogin(cf *CLIConf) error {
 	// -i flag specified? save the retrieved cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
 
+	// stdin hijack is OK for login, since it tsh doesn't read input after the
+	// login ceremony is complete.
+	// Only allow the option during the login ceremony.
+	tc.AllowStdinHijack = true
+
 	key, err := tc.Login(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	tc.AllowStdinHijack = false
 
 	// the login operation may update the username and should be considered the more
 	// "authoritative" source.
@@ -1613,6 +1652,45 @@ func onListNodes(cf *CLIConf) error {
 	return nil
 }
 
+func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID, username string) (types.AccessRequest, error) {
+	var req types.AccessRequest
+	err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
+		reqs, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{
+			ID:   requestID,
+			User: username,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(reqs) != 1 {
+			return trace.BadParameter(`invalid access request "%v"`, requestID)
+		}
+		req = reqs[0]
+		return nil
+	})
+	return req, trace.Wrap(err)
+}
+
+func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
+	roles := utils.SplitIdentifiers(cf.DesiredRoles)
+	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
+	var requestedResourceIDs []types.ResourceID
+	for _, resourceIDString := range cf.RequestedResourceIDs {
+		resourceID, err := types.ResourceIDFromString(resourceIDString)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		requestedResourceIDs = append(requestedResourceIDs, resourceID)
+	}
+	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.SetRequestReason(cf.RequestReason)
+	req.SetSuggestedReviewers(reviewers)
+	return req, nil
+}
+
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 {
 		return trace.BadParameter("at least one role or resource or a request ID must be specified")
@@ -1624,88 +1702,43 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	var req types.AccessRequest
 	var err error
 	if cf.RequestID != "" {
-		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-			reqs, err := clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{
-				ID:   cf.RequestID,
-				User: cf.Username,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if len(reqs) != 1 {
-				return trace.BadParameter(`invalid access request "%v"`, cf.RequestID)
-			}
-			req = reqs[0]
-			return nil
-		})
+		// This access request already exists, fetch it.
+		req, err = getAccessRequest(cf.Context, tc, cf.RequestID, cf.Username)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		// If the request isn't pending, handle resolution
 		if !req.GetState().IsPending() {
 			err := onRequestResolution(cf, tc, req)
 			return trace.Wrap(err)
 		}
-
 		fmt.Fprint(os.Stdout, "Request pending...\n")
 	} else {
-		roles := utils.SplitIdentifiers(cf.DesiredRoles)
-		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-		requestedResourceIDs := []types.ResourceID{}
-		for _, resourceIDString := range cf.RequestedResourceIDs {
-			resourceID, err := types.ResourceIDFromString(resourceIDString)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			requestedResourceIDs = append(requestedResourceIDs, resourceID)
-		}
-		req, err = services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
+		// This is a new access request, create it. This just creates the local
+		// object, it is not yet sent to the backend.
+		req, err = createAccessRequest(cf)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.SetRequestReason(cf.RequestReason)
-		req.SetSuggestedReviewers(reviewers)
 	}
 
 	// Watch for resolution events on the given request. Start watcher and wait
 	// for it to be ready before creating the request to avoid a potential race.
-	errChan := make(chan error)
+	requestWatcher := newAccessRequestWatcher(req)
+	defer requestWatcher.Close()
 	if !cf.NoWait {
-		log.Debug("Waiting for the access-request watcher to ready up...")
-		ready := make(chan struct{})
-		go func() {
-			var resolvedReq types.AccessRequest
-			err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-				var err error
-				resolvedReq, err = waitForRequestResolution(cf, clt, req, ready)
-				return trace.Wrap(err)
-			})
-
-			if err != nil {
-				errChan <- trace.Wrap(err)
-			} else {
-				errChan <- trace.Wrap(onRequestResolution(cf, tc, resolvedReq))
-			}
-		}()
-
-		select {
-		case err = <-errChan:
-			if err == nil {
-				return trace.Errorf("event watcher exited cleanly without readying up?")
-			}
+		// Don't initialize the watcher unless we'll actually use it.
+		if err := requestWatcher.initialize(cf.Context, tc); err != nil {
 			return trace.Wrap(err)
-		case <-ready:
-			log.Debug("Access-request watcher is ready")
 		}
 	}
 
-	// Create request if it doesn't already exist
+	// Upsert request if it doesn't already exist.
 	if cf.RequestID == "" {
 		cf.RequestID = req.GetName()
 		fmt.Fprint(os.Stdout, "Creating request...\n")
 		// always create access request against the root cluster
-		if err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
 			err := clt.CreateAccessRequest(cf.Context, req)
 			return trace.Wrap(err)
 		}); err != nil {
@@ -1716,14 +1749,25 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	onRequestShow(cf)
 	fmt.Println("")
 
-	// Dont wait for request to get resolved, just print out request info
+	// Don't wait for request to get resolved, just print out request info.
 	if cf.NoWait {
 		return nil
 	}
 
-	// Wait for watcher to return
+	// Wait for the request to be resolved.
 	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
-	return trace.Wrap(<-errChan)
+	resolvedReq, err := requestWatcher.awaitResolution()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := requestWatcher.Close(); err != nil {
+		// This was deferred above to catch all other error cases, here we
+		// actually handle any errors from requestWatcher.Close().
+		return trace.Wrap(err)
+	}
+
+	// Handle resolution and update client certs if approved.
+	return trace.Wrap(onRequestResolution(cf, tc, resolvedReq))
 }
 
 func printNodes(nodes []types.Server, format string, verbose bool) error {
@@ -2140,6 +2184,129 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 	return string(out), trace.Wrap(err)
 }
 
+// accessRequestForSSH attempts to create a search-based access request for the
+// case where "tsh ssh" was attempted and access was denied
+func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.AccessRequest, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	// Match on hostname or host ID, user could have given either
+	expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
+	filter := proto.ListResourcesRequest{
+		UseSearchAsRoles:    true,
+		PredicateExpression: expr,
+	}
+	nodes, err := proxyClient.FindNodesByFilters(ctx, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(nodes) > 1 {
+		// Ambiguous hostname matches should have been handled by onSSH and
+		// would not make it here, this is a sanity check. Ambiguous host ID
+		// matches should be impossible.
+		return nil, trace.NotFound("hostname %q is ambiguous and matches multiple nodes, unable to request access", tc.Host)
+	}
+	if len(nodes) == 0 {
+		// Did not find any nodes by hostname or ID.
+		return nil, trace.NotFound("node %q not found, unable to request access", tc.Host)
+	}
+
+	// At this point we have exactly 1 node.
+	node := nodes[0]
+	requestResourceIDs := []types.ResourceID{{
+		ClusterName: tc.SiteName,
+		Kind:        types.KindNode,
+		Name:        node.GetName(),
+	}}
+
+	// Roles to request will be automatically determined on the backend.
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return req, nil
+}
+
+func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
+	origErr := fn()
+	if !cf.doRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
+		// Don't retry unless --request flag was set.
+		// Return the original error if it's not AccessDenied.
+		// Quit now if we don't have a hostname.
+		return trace.Wrap(origErr)
+	}
+
+	// Print and log the AccessDenied error first.
+	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
+	fmt.Fprintf(os.Stdout, "You do not currently have access to %s@%s, attempting to request access.\n\n", tc.HostLogin, tc.Host)
+
+	// Try to construct an access request for this node.
+	req, err := accessRequestForSSH(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cf.RequestID = req.GetName()
+
+	requestReason := cf.RequestReason
+	if requestReason == "" {
+		// Prompt for a request reason.
+		requestReason, err = prompt.Input(cf.Context, os.Stdout, prompt.Stdin(), "Enter request reason")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	req.SetRequestReason(requestReason)
+
+	// Watch for resolution events on the given request. Start watcher and wait
+	// for it to be ready before creating the request to avoid a potential race.
+	requestWatcher := newAccessRequestWatcher(req)
+	defer requestWatcher.Close()
+	if err := requestWatcher.initialize(cf.Context, tc); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprint(os.Stdout, "Creating request...\n")
+	// Always create access request against the root cluster.
+	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		err := clt.CreateAccessRequest(cf.Context, req)
+		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cf.Username == "" {
+		cf.Username = tc.Username
+	}
+	// re-fetch the request to display it with roles populated.
+	onRequestShow(cf)
+	fmt.Println("")
+
+	// Wait for the request to be resolved.
+	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
+	resolvedReq, err := requestWatcher.awaitResolution()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := requestWatcher.Close(); err != nil {
+		// This was deferred above to catch all other error cases, here we
+		// actually handle any errors from requestWatcher.Close().
+		return trace.Wrap(err)
+	}
+
+	// Handle resolution and update client certs if approved.
+	if err := onRequestResolution(cf, tc, resolvedReq); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Retry now that request has been approved and certs updated.
+	// Clear the original exit status.
+	tc.ExitStatus = 0
+	return trace.Wrap(fn())
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
@@ -2148,38 +2315,45 @@ func onSSH(cf *CLIConf) error {
 	}
 
 	tc.Stdin = os.Stdin
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
-	})
-	if err != nil {
-		if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
-			allNodes, err := tc.ListAllNodes(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			var nodes []types.Server
-			for _, node := range allNodes {
-				if node.GetHostname() == tc.Host {
-					nodes = append(nodes, node)
+	err = retryWithAccessRequest(cf, tc, func() error {
+		err = client.RetryWithRelogin(cf.Context, tc, func() error {
+			return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
+		})
+		if err != nil {
+			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
+				// Match on hostname or host ID, user could have given either
+				expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
+				tc.PredicateExpression = expr
+				nodes, err := tc.ListNodesWithFilters(cf.Context)
+				if err != nil {
+					return trace.Wrap(err)
 				}
+				fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
+				printNodesAsText(nodes, true)
+				fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
+				fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
+				fmt.Fprintf(os.Stderr, "\n")
+				return trace.Wrap(&exitCodeError{code: 1})
 			}
-			fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
-			printNodesAsText(nodes, true)
-			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
-			fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
-			fmt.Fprintf(os.Stderr, "\n")
-			return trace.Wrap(&exitCodeError{code: 1})
+			return trace.Wrap(err)
 		}
-		// exit with the same exit status as the failed command:
-		if tc.ExitStatus != 0 {
-			if _, ok := trace.Unwrap(err).(*ssh.ExitError); !ok {
-				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			}
-			return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
+		return nil
+	})
+	// Exit with the same exit status as the failed command.
+	if tc.ExitStatus != 0 {
+		var exitErr *exitCodeError
+		if errors.As(err, &exitErr) {
+			// Already have an exitCodeError, return that.
+			return trace.Wrap(err)
 		}
+		if err != nil {
+			// Print the error here so we don't lose it when returning the exitCodeError.
+			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		}
+		err = &exitCodeError{code: tc.ExitStatus}
 		return trace.Wrap(err)
 	}
-	return nil
+	return trace.Wrap(err)
 }
 
 // onBenchmark executes benchmark
@@ -2524,10 +2698,12 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.AuthConnector != "" {
 		c.AuthConnector = cf.AuthConnector
 	}
-	c.AuthenticatorAttachment, err = mfaModeToAttachment(cf.MFAMode)
+	mfaOpts, err := parseMFAMode(cf.MFAMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
+	c.PreferOTP = mfaOpts.PreferOTP
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -2606,17 +2782,25 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	return tc, nil
 }
 
-func mfaModeToAttachment(val string) (wancli.AuthenticatorAttachment, error) {
-	switch val {
+type mfaModeOpts struct {
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+	PreferOTP               bool
+}
+
+func parseMFAMode(mode string) (*mfaModeOpts, error) {
+	opts := &mfaModeOpts{}
+	switch mode {
 	case "", mfaModeAuto:
-		return wancli.AttachmentAuto, nil
 	case mfaModeCrossPlatform:
-		return wancli.AttachmentCrossPlatform, nil
+		opts.AuthenticatorAttachment = wancli.AttachmentCrossPlatform
 	case mfaModePlatform:
-		return wancli.AttachmentPlatform, nil
+		opts.AuthenticatorAttachment = wancli.AttachmentPlatform
+	case mfaModeOTP:
+		opts.PreferOTP = true
 	default:
-		return wancli.AttachmentAuto, fmt.Errorf("invalid MFA mode: %q", val)
+		return nil, fmt.Errorf("invalid MFA mode: %q", mode)
 	}
+	return opts, nil
 }
 
 // setX11Config sets X11 config using CLI and SSH option flags.
@@ -2948,16 +3132,50 @@ func host(in string) string {
 	return out
 }
 
-// waitForRequestResolution waits for an access request to be resolved. On
-// approval, returns the updated request. `clt` must be a client to the root
-// cluster, such as the one returned by
-// `(*TeleportClient).WithRootClusterClient`. `ready` will be closed when the
-// event watcher used to wait for the request updates is ready.
-func waitForRequestResolution(cf *CLIConf, clt auth.ClientI, req types.AccessRequest, ready chan<- struct{}) (types.AccessRequest, error) {
-	filter := types.AccessRequestFilter{
-		User: req.GetUser(),
+// accessRequestWatcher is a helper to wait for an access request to be resolved.
+type accessRequestWatcher struct {
+	req     types.AccessRequest
+	watcher types.Watcher
+	closers []io.Closer
+	sync.RWMutex
+}
+
+// newAccessRequestWatcher returns a new accessRequestWatcher. Callers should
+// always defer (*accessRequestWatcher).Close().
+func newAccessRequestWatcher(req types.AccessRequest) *accessRequestWatcher {
+	return &accessRequestWatcher{
+		req: req,
 	}
-	watcher, err := clt.NewWatcher(cf.Context, types.Watch{
+}
+
+// initialize sets up the underlying event watcher, when this returns without
+// error the watcher is guaranteed to be in a ready state. Call this before
+// creating the request to prevent a race.
+func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.TeleportClient) error {
+	w.Lock()
+	defer w.Unlock()
+
+	if w.watcher != nil {
+		return trace.BadParameter("cannot re-initialize accessRequestWatcher")
+	}
+
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	w.closers = append(w.closers, proxyClient)
+
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	w.closers = append(w.closers, rootClient)
+
+	filter := types.AccessRequestFilter{
+		User: w.req.GetUser(),
+		ID:   w.req.GetName(),
+	}
+	w.watcher, err = rootClient.NewWatcher(ctx, types.Watch{
 		Name: "await-request-approval",
 		Kinds: []types.WatchKind{{
 			Kind:   types.KindAccessRequest,
@@ -2965,41 +3183,75 @@ func waitForRequestResolution(cf *CLIConf, clt auth.ClientI, req types.AccessReq
 		}},
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	defer watcher.Close()
-Loop:
+	w.closers = append(w.closers, w.watcher)
+
+	// Wait for OpInit event so that returned watcher is ready.
+	select {
+	case event := <-w.watcher.Events():
+		if event.Type != types.OpInit {
+			return trace.BadParameter("failed to watch for access requests: received an unexpected event while waiting for the initial OpInit")
+		}
+	case <-w.watcher.Done():
+		return trace.Wrap(w.watcher.Error())
+	case <-ctx.Done():
+		// This should be the same as w.watcher.Done(), including for completeness.
+		return trace.Wrap(ctx.Err())
+	}
+
+	return nil
+}
+
+// awaitResolution waits for the request to be resolved (state != PENDING).
+func (w *accessRequestWatcher) awaitResolution() (types.AccessRequest, error) {
+	w.RLock()
+	defer w.RUnlock()
+
+	if w.watcher == nil {
+		return nil, trace.BadParameter("must initialize accessRequestWatcher before calling awaitResolution()")
+	}
+
 	for {
 		select {
-		case event := <-watcher.Events():
+		case event := <-w.watcher.Events():
 			switch event.Type {
-			case types.OpInit:
-				log.Infof("Access-request watcher initialized...")
-				close(ready)
-				continue Loop
 			case types.OpPut:
 				r, ok := event.Resource.(*types.AccessRequestV3)
 				if !ok {
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
-				if r.GetName() != req.GetName() || r.GetState().IsPending() {
-					log.Debugf("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
-					continue Loop
+				if !r.GetState().IsPending() {
+					return r, nil
 				}
-				return r, nil
 			case types.OpDelete:
-				if event.Resource.GetName() != req.GetName() {
-					log.Debugf("Skipping delete event id=%s", event.Resource.GetName())
-					continue Loop
-				}
 				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
-		case <-watcher.Done():
-			return nil, trace.Wrap(watcher.Error())
+		case <-w.watcher.Done():
+			return nil, trace.Wrap(w.watcher.Error())
 		}
 	}
+}
+
+// Close closes the clients held by the watcher.
+func (w *accessRequestWatcher) Close() error {
+	var errs []error
+	// Close in reverse order, like defer.
+	w.RLock()
+	for i := len(w.closers) - 1; i >= 0; i-- {
+		errs = append(errs, w.closers[i].Close())
+	}
+	w.RUnlock()
+
+	// Closed the watcher above, awaitResolution should now terminate and we can
+	// grab the lock.
+	w.Lock()
+	w.closers = nil
+	w.Unlock()
+
+	return trace.NewAggregate(errs...)
 }
 
 func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
