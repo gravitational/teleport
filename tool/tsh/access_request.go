@@ -193,10 +193,21 @@ func printRequest(req types.AccessRequest) error {
 		reviewers = strings.Join(r, ", ")
 	}
 
+	resourcesStr := ""
+	if resources := req.GetRequestedResourceIDs(); len(resources) > 0 {
+		var err error
+		if resourcesStr, err = types.ResourceIDsToString(resources); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	table := asciitable.MakeHeadlessTable(2)
 	table.AddRow([]string{"Request ID:", req.GetName()})
 	table.AddRow([]string{"Username:", req.GetUser()})
 	table.AddRow([]string{"Roles:", strings.Join(req.GetRoles(), ", ")})
+	if len(resourcesStr) > 0 {
+		table.AddRow([]string{"Resources:", resourcesStr})
+	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
 	table.AddRow([]string{"Status:", req.GetState().String()})
@@ -378,37 +389,35 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 
 	rows := [][]string{}
-	resourceIDs := []types.ResourceID{}
+	var resourceIDs []string
 	for _, resource := range resources {
-		resourceIDs = append(resourceIDs, types.ResourceID{
+		resourceID := types.ResourceIDToString(types.ResourceID{
 			ClusterName: clusterName,
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		})
+		resourceIDs = append(resourceIDs, resourceID)
 		hostName := ""
 		if r, ok := resource.(interface{ GetHostname() string }); ok {
 			hostName = r.GetHostname()
 		}
 		rows = append(rows, []string{
-			resource.GetKind(),
+			resource.GetName(),
 			hostName,
 			sortedLabels(resource.GetAllLabels()),
-			resource.GetName(),
+			resourceID,
 		})
 	}
-	table := asciitable.MakeTableWithTruncatedColumn([]string{"Kind", "Hostname", "Labels", "ID"}, rows, "Labels")
+	table := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Hostname", "Labels", "Resource ID"}, rows, "Labels")
 	if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if len(resourceIDs) > 0 {
-		resourcesStr, err := services.ResourceIDsToString(resourceIDs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		resourcesStr := strings.Join(resourceIDs, " --resource ")
 		fmt.Fprintf(os.Stdout, `
 To request access to these resources, run
-> tsh request create --resources '%s' \
+> tsh request create --resource %s \
     --reason <request reason>
 
 `, resourcesStr)

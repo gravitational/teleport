@@ -32,6 +32,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
@@ -91,10 +93,32 @@ type GRPCServer struct {
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
+
+	// traceClient is used to forward spans to the upstream collector for components
+	// within the cluster that don't have a direct connection to said collector
+	traceClient otlptrace.Client
+	// TraceServiceServer exposes the exporter server so that the auth server may
+	// collect and forward spans
+	collectortracepb.TraceServiceServer
 }
 
 func (g *GRPCServer) serverContext() context.Context {
 	return g.AuthServer.closeCtx
+}
+
+// Export forwards OTLP traces to the upstream collector configured in the tracing service. This allows for
+// tsh, tctl, etc to be able to export traces without having to know how to connect to the upstream collector
+// for the cluster.
+func (g *GRPCServer) Export(ctx context.Context, req *collectortracepb.ExportTraceServiceRequest) (*collectortracepb.ExportTraceServiceResponse, error) {
+	if len(req.ResourceSpans) == 0 {
+		return &collectortracepb.ExportTraceServiceResponse{}, nil
+	}
+
+	if err := g.traceClient.UploadTraces(ctx, req.ResourceSpans); err != nil {
+		return &collectortracepb.ExportTraceServiceResponse{}, trace.Wrap(err)
+	}
+
+	return &collectortracepb.ExportTraceServiceResponse{}, nil
 }
 
 // GetServer returns an instance of grpc server
@@ -2562,52 +2586,6 @@ func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespace
 	return serverV2, nil
 }
 
-// GetNodes retrieves all nodes in the given namespace.
-// DELETE IN 8.0.0 in favor of ListNodes
-func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ns, err := auth.ServerWithRoles.GetNodes(ctx, req.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	serversV2 := make([]*types.ServerV2, len(ns))
-	for i, t := range ns {
-		var ok bool
-		if serversV2[i], ok = t.(*types.ServerV2); !ok {
-			return nil, trace.Errorf("encountered unexpected node type: %T", t)
-		}
-	}
-	return &types.ServerV2List{
-		Servers: serversV2,
-	}, nil
-}
-
-// ListNodes retrieves a paginated list of nodes in the given namespace.
-func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ns, nextKey, err := auth.ServerWithRoles.ListNodes(ctx, *req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	serversV2 := make([]*types.ServerV2, len(ns))
-	for i, t := range ns {
-		var ok bool
-		if serversV2[i], ok = t.(*types.ServerV2); !ok {
-			return nil, trace.Errorf("encountered unexpected node type: %T", t)
-		}
-	}
-	return &proto.ListNodesResponse{
-		Servers: serversV2,
-		NextKey: nextKey,
-	}, nil
-}
-
 // UpsertNode upserts a node.
 func (g *GRPCServer) UpsertNode(ctx context.Context, node *types.ServerV2) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
@@ -3789,6 +3767,8 @@ type GRPCServerConfig struct {
 	// UnaryInterceptor intercepts GRPC streams
 	// for authentication and rate limiting
 	StreamInterceptor grpc.StreamServerInterceptor
+	// TraceClient is used to forward spans to the upstream telemetry collector
+	TraceClient otlptrace.Client
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -3841,9 +3821,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
-		server: server,
+		server:      server,
+		traceClient: cfg.TraceClient,
 	}
-	proto.RegisterAuthServiceServer(authServer.server, authServer)
+	proto.RegisterAuthServiceServer(server, authServer)
+	collectortracepb.RegisterTraceServiceServer(server, authServer)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
