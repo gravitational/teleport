@@ -16,7 +16,7 @@ https://www.microsoft.com/en-us/evalcenter
 | Windows 2012 R2 | https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2012-r2 |
 | Windows 2016 | https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2019 |
 | Window 2019 | https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2019 |
-| Windows 2022 https://www.microsoft.com/en-us/evalcenter/download-windows-server-2022 |
+| Windows 2022 | https://www.microsoft.com/en-us/evalcenter/download-windows-server-2022 |
 
 Windows Server 2012 is the oldest version we support.
 
