@@ -1,22 +1,34 @@
-# Windows Desktop Access Beta
+# Windows Desktop Access VM Setup
 
-## How to set up Desktop Access on Windows
+## How to set up Windows Server for Desktop Access
 
-### Install Windows Server 2012
+These instructions install a Domain Controller and Certificate Serviers on a Windows Server that
+are required for Teleport Desktop Access to connect.
 
-Download and instal a trial version of Windows Server 2012 R2 from:
-https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2012-r2
+### Install Windows Server 
+
+Download and install a trial version of Windows Server from
+
+https://www.microsoft.com/en-us/evalcenter
+
+|Server Version| Direct URL
+|---|----
+| Windows 2012 R2 | https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2012-r2 |
+| Windows 2016 | https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2019 |
+| Window 2019 | https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2019 |
+| Windows 2022 https://www.microsoft.com/en-us/evalcenter/download-windows-server-2022 |
 
 Windows Server 2012 is the oldest version we support.
 
 See [this appendix](#appendix-virtualbox-notes) if using VirtualBox.
 
-### Set up Active Directory
+### Set up Domain Controller with Active Directory Domain Services
 
 #### AD DS
 
 First, we need to install Active Directory Domain Services (AD DS). Save the following file as `domain-controller.ps1`,
-replacing `$domain` with your desired domain name.
+replacing `$domain` with your desired domain name.  The `Default` setting for `ForestMode` and `DomainMode` will match to the server version.  
+See Msft instructions for all options.
 
 ```powershell
 $ErrorActionPreference = "Stop"
@@ -32,8 +44,8 @@ Import-Module ADDSDeployment
 Install-ADDSForest `
     -InstallDns `
     -CreateDnsDelegation:$false `
-    -ForestMode 'Win2012R2' `
-    -DomainMode 'Win2012R2' `
+    -ForestMode 'Default' `
+    -DomainMode 'Default' `
     -DomainName $domain `
     -DomainNetbiosName $netbiosDomain `
     -SafeModeAdministratorPassword (Read-Host "Enter Your Password" -AsSecureString) `
@@ -43,7 +55,7 @@ Install-ADDSForest `
 Restart-Computer -Force
 ```
 
-#### AD CS
+#### Setup Active Directory Certificate Services
 
 Next, we'll install Active Directory Certificate Services (AD CS) to enable TLS
 on LDAP connections. While AD CS is not strictly required, it is the easiest way
