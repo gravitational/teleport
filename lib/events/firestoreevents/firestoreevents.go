@@ -411,6 +411,10 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 
 	if lastKey != "" {
 		checkpointParts = strings.Split(lastKey, ":")
+		if len(checkpointParts) != 2 {
+			return nil, "", trace.BadParameter("invalid checkpoint key: %q", lastKey)
+		}
+
 		checkpointTime, err = strconv.Atoi(checkpointParts[0])
 		if err != nil {
 			return nil, "", trace.BadParameter("invalid checkpoint key: %q", lastKey)
@@ -423,7 +427,6 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 		}
 
 		if lastKey != "" {
-			query = query.OrderBy(firestore.DocumentID, firestore.Asc)
 			query = query.StartAfter(checkpointTime, checkpointParts[1])
 		}
 
@@ -445,6 +448,7 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
 		Where(createdAtDocProperty, "<=", toUTC.Unix()).
 		OrderBy(createdAtDocProperty, firestoreOrdering)).
+		OrderBy(firestore.DocumentID, firestore.Asc).
 		Limit(limit)
 
 	start := time.Now()
