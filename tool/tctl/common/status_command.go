@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // StatusCommand implements `tctl token` group of commands.
@@ -69,6 +70,10 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 	for _, caType := range types.CertAuthTypes {
 		ca, err := client.GetCertAuthorities(ctx, caType, false)
 		if err != nil {
+			if trace.IsBadParameter(err) {
+				log.Warnf("failed to get certificate authority: %v; skipping", err)
+				continue
+			}
 			return trace.Wrap(err)
 		}
 		authorities = append(authorities, ca...)

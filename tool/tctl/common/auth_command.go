@@ -176,9 +176,9 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 		return a.exportTLSAuthority(ctx, client, types.UserCA, true)
 	}
 
-	// if no --type flag is given, export all types
+	// if no --type flag is given, export HostCA and UserCA.
 	if a.authType == "" {
-		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA}
+		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA}
 	} else {
 		authType := types.CertAuthType(a.authType)
 		if err := authType.Check(); err != nil {
@@ -197,6 +197,9 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 	for _, at := range typesToExport {
 		cas, err := client.GetCertAuthorities(ctx, at, a.exportPrivateKeys)
 		if err != nil {
+			if trace.IsBadParameter(err) {
+				continue
+			}
 			return trace.Wrap(err)
 		}
 		for _, ca := range cas {
