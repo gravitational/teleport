@@ -129,7 +129,7 @@ func (l *loginResponse) checkAndGetTokens() (sessionTokens, error) {
 // renewSessionRequest is the payload sent to the /session/token-request endpoint.
 type renewSessionRequest struct {
 	OldSessionToken string `json:"oldSessionToken"`
-	RequestType     string `json:"requestType"` // "RENEW"
+	RequestType     string `json:"requestType"`
 }
 
 // renewSessionResponse is the payload returned by the /session/token-request endpoint.

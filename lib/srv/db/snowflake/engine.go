@@ -185,6 +185,7 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 		return trace.Wrap(err)
 	}
 
+	// Force HTTPS usage even and update the host url.
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = e.snowflakeHost
 
@@ -307,6 +308,7 @@ func (e *Engine) setAuthorizationHeader(reqCopy *http.Request, snowflakeToken st
 	if snowflakeToken != "" {
 		reqCopy.Header.Set("Authorization", fmt.Sprintf("Snowflake Token=\"%s\"", snowflakeToken))
 	} else {
+		// If the authorization header hasn't been set by us remove it as only we know the session token.
 		reqCopy.Header.Del("Authorization")
 	}
 }
@@ -467,6 +469,8 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tok
 	e.tokens.setToken(sessionToken, tokens.session.token)
 	e.tokens.setToken(masterToken, tokens.master.token)
 
+	// Add Teleport: prefix to the authentication header, so we know that the header
+	// was set by us.
 	loginResp.Data.Token = teleportAuthHeaderPrefix + sessionToken
 	loginResp.Data.MasterToken = teleportAuthHeaderPrefix + masterToken
 
@@ -514,6 +518,10 @@ func (e *Engine) getConnectionToken(ctx context.Context, req *http.Request) (str
 }
 
 func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []byte) ([]byte, error)) (*bytes.Buffer, error) {
+	if req.Method != http.MethodPost {
+		return nil, trace.Errorf("unexpected request method, expected POST called %q", req.Method)
+	}
+
 	body, err := readRequestBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -539,6 +547,7 @@ func (e *Engine) modifyRequestBody(req *http.Request, modifyReqFn func(body []by
 		buf.Write(body)
 	}
 
+	// Update Content-Length header as the modified payload may have a different length.
 	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
 
 	return buf, nil
@@ -585,7 +594,8 @@ func parseConnectionString(uri string) (string, string, error) {
 	}
 
 	query := snowflakeURL.Query()
-	// Read the account name from account query if provided. This should help with some Snowflake corner cases.
+	// Read the account name from account query if provided. This should help with some Snowflake corner cases
+	// where the account URL is in different format.
 	if query.Has("account") {
 		return query.Get("account"), snowflakeURL.Host, nil
 	}
@@ -630,6 +640,7 @@ func replaceLoginReqToken(loginReq []byte, jwtToken, accountName, dbUser string)
 		return nil, trace.Wrap(err)
 	}
 
+	// Always use JWT authentication.
 	logReq.Data.Token = jwtToken
 	logReq.Data.AccountName = accountName
 	logReq.Data.LoginName = dbUser
@@ -652,12 +663,12 @@ func replaceLoginReqToken(loginReq []byte, jwtToken, accountName, dbUser string)
 }
 
 func extractSQLStmt(body []byte) (*queryRequest, error) {
-	queryRequest := &queryRequest{}
-	if err := json.Unmarshal(body, queryRequest); err != nil {
+	queryReq := &queryRequest{}
+	if err := json.Unmarshal(body, queryReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return queryRequest, nil
+	return queryReq, nil
 }
 
 type tokenTTL struct {
