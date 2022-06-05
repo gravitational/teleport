@@ -378,24 +378,16 @@ func (e *Engine) processRequest(ctx context.Context, req *http.Request) (io.Read
 	switch req.URL.Path {
 	case loginRequestPath:
 		newBody, err = e.handleLoginRequest(ctx, req)
-
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	case queryRequestPath:
 		newBody, err = e.handleQueryRequest(ctx, req)
-
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	case tokenRequestPath:
 		newBody, err = e.handleTokenRequest(ctx, req)
-
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	default:
 		newBody = req.Body
+	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return newBody, nil

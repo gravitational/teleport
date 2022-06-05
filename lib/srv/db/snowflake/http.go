@@ -66,21 +66,23 @@ func copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.
 }
 
 func readRequestBody(req *http.Request) ([]byte, error) {
+	defer req.Body.Close()
+
 	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer req.Body.Close()
 
 	return maybeReadGzip(&req.Header, body)
 }
 
 func readResponseBody(resp *http.Response) ([]byte, error) {
+	defer resp.Body.Close()
+
 	body, err := io.ReadAll(io.LimitReader(resp.Body, teleport.MaxHTTPRequestSize))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer resp.Body.Close()
 
 	return maybeReadGzip(&resp.Header, body)
 }
