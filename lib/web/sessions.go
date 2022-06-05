@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -199,7 +200,7 @@ func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = clt.GetDomainName()
+	_, err = clt.GetDomainName(context.TODO())
 	if err != nil {
 		return clt, trace.Wrap(err)
 	}
@@ -256,6 +257,7 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -336,22 +338,22 @@ func (c *SessionContext) GetX509Certificate() (*x509.Certificate, error) {
 	return tlsCert, nil
 }
 
-// GetUserRoles return roles from the SSH certificate associated with
-// this session.
-func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
+// GetUserAccessChecker returns AccessChecker derived from the SSH certificate
+// associated with this session.
+func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) {
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromCertificate(cert)
+	accessInfo, err := services.AccessInfoFromLocalCertificate(cert, c.unsafeCachedAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleset, err := services.FetchRoles(roles, c.unsafeCachedAuthClient, traits)
+	clusterName, err := c.unsafeCachedAuthClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return roleset, nil
+	return services.NewAccessChecker(accessInfo, clusterName.GetClusterName()), nil
 }
 
 // GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
@@ -818,8 +820,9 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 		return nil, trace.Wrap(err)
 	}
 	userClient, err := auth.NewClient(apiclient.Config{
-		Addrs:       utils.NetAddrsToStrings(s.authServers),
-		Credentials: []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
+		Addrs:                utils.NetAddrsToStrings(s.authServers),
+		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -127,6 +127,16 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				}),
 			},
 		},
+		{
+			name:   "malformed packet",
+			packet: fixtures.MalformedPacketTest,
+			checks: []check{
+				hasNoErr(),
+				hasAuditEventCode(libevents.DatabaseSessionStartCode),
+				hasAuditEventCode(libevents.DatabaseSessionEndCode),
+				hasAuditEventCode(libevents.DatabaseSessionMalformedPacketCode),
+			},
+		},
 	}
 
 	for _, tc := range tests {

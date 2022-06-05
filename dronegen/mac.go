@@ -19,6 +19,13 @@ import (
 	"path"
 )
 
+const (
+	perBuildDir           = "/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED"
+	perBuildToolchainsDir = perBuildDir + "/toolchains"
+	perBuildCargoDir      = perBuildToolchainsDir + "/cargo"
+	perBuildRustupDir     = perBuildToolchainsDir + "/rustup"
+)
+
 // escapedPreformatted returns expr wrapped in escaped backticks,
 // resulting in Slack "preformatted" string, but safe to use in bash
 // without triggering the command expansion.
@@ -37,8 +44,13 @@ func newDarwinPipeline(name string) pipeline {
 }
 
 func darwinPushPipeline() pipeline {
+	b := buildType{os: "darwin", arch: "amd64"}
 	p := newDarwinPipeline("push-build-darwin-amd64")
-	p.Trigger = triggerPush
+	p.Trigger = trigger{
+		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
 	p.Steps = []step{
 		setUpExecStorageStep(p.Workspace.Path),
 		{
@@ -47,10 +59,11 @@ func darwinPushPipeline() pipeline {
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: pushCheckoutCommandsDarwin(),
+			Commands: pushCheckoutCommandsDarwin(b),
 		},
 		installGoToolchainStep(),
 		installRustToolchainStep(p.Workspace.Path),
+		installNodeToolchainStep(p.Workspace.Path),
 		{
 			Name: "Build Mac artifacts",
 			Environment: map[string]value{
@@ -60,7 +73,7 @@ func darwinPushPipeline() pipeline {
 				"ARCH":          {raw: "amd64"},
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: darwinTagBuildCommands(),
+			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: false}),
 		},
 		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),
@@ -101,27 +114,36 @@ func darwinTagPipeline() pipeline {
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: darwinTagCheckoutCommands(),
+			Commands: darwinTagCheckoutCommands(b),
 		},
 		installGoToolchainStep(),
 		installRustToolchainStep(p.Workspace.Path),
+		installNodeToolchainStep(p.Workspace.Path),
 		{
 			Name: "Build Mac release artifacts",
 			Environment: map[string]value{
-				"GOPATH":        {raw: path.Join(p.Workspace.Path, "/go")},
-				"GOCACHE":       {raw: path.Join(p.Workspace.Path, "/go/cache")},
-				"OS":            {raw: b.os},
-				"ARCH":          {raw: b.arch},
-				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				"GOPATH":            {raw: path.Join(p.Workspace.Path, "/go")},
+				"GOCACHE":           {raw: path.Join(p.Workspace.Path, "/go/cache")},
+				"OS":                {raw: b.os},
+				"ARCH":              {raw: b.arch},
+				"WORKSPACE_DIR":     {raw: p.Workspace.Path},
+				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
+
+				// These credentials are necessary for the signing and notarization of
+				// Teleport Connect, which is built in to the Electron tooling.
+				// The rest of the mac artifacts are signed and notarized with gon
+				// in the darwin pkg pipeline.
+				"APPLE_USERNAME": {fromSecret: "APPLE_USERNAME"},
+				"APPLE_PASSWORD": {fromSecret: "APPLE_PASSWORD"},
 			},
-			Commands: darwinTagBuildCommands(),
+			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: true}),
 		},
 		{
 			Name: "Copy Mac artifacts",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: darwinTagCopyPackageArtifactCommands(),
+			Commands: darwinTagCopyPackageArtifactCommands(b),
 		},
 		{
 			Name: "Upload to S3",
@@ -140,8 +162,8 @@ func darwinTagPipeline() pipeline {
 			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
-				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
 			},
 		},
 		cleanUpToolchainsStep(p.Workspace.Path),
@@ -150,13 +172,27 @@ func darwinTagPipeline() pipeline {
 	return p
 }
 
-func pushCheckoutCommandsDarwin() []string {
-	return []string{
+func pushCheckoutCommandsDarwin(b buildType) []string {
+	commands := []string{
 		`set -u`,
 		`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 		`git checkout ${DRONE_TAG:-$DRONE_COMMIT}`,
+	}
+
+	// clone github.com/gravitational/webapps for the Teleport Connect source code
+	if b.hasTeleportConnect() {
+		commands = append(commands,
+			`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
+			`git clone https://github.com/gravitational/webapps.git .`,
+			`git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
+		)
+	}
+
+	commands = append(commands,
 		// fetch enterprise submodules
 		// suppressing the newline on the end of the private key makes git operations fail on MacOS
 		// with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
@@ -168,7 +204,9 @@ func pushCheckoutCommandsDarwin() []string {
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true`,
 		`rm -rf $WORKSPACE_DIR/.ssh`,
 		`mkdir -p $WORKSPACE_DIR/go/cache`,
-	}
+	)
+
+	return commands
 }
 
 func setUpExecStorageStep(path string) step {
@@ -192,9 +230,9 @@ func installGoToolchainStep() step {
 		},
 		Commands: []string{
 			`set -u`,
-			`mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`mkdir -p ` + perBuildToolchainsDir,
 			`curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz`,
-			`tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz`,
+			`tar -C  ` + perBuildToolchainsDir + ` -xzf $RUNTIME.darwin-amd64.tar.gz`,
 			`rm -rf $RUNTIME.darwin-amd64.tar.gz`,
 		},
 	}
@@ -206,12 +244,34 @@ func installRustToolchainStep(path string) step {
 		Environment: map[string]value{"WORKSPACE_DIR": {raw: path}},
 		Commands: []string{
 			`set -u`,
-			`export PATH=/Users/build/.cargo/bin:$PATH`,
-			`mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export PATH=/Users/$(whoami)/.cargo/bin:$PATH`, // use the system-installed rustup to install our custom Rust version
+			`mkdir -p ` + perBuildToolchainsDir,
 			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
-			`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export CARGO_HOME=` + perBuildCargoDir,
 			`export RUST_HOME=$CARGO_HOME`,
+			`export RUSTUP_HOME=` + perBuildRustupDir,
 			`rustup toolchain install $RUST_VERSION`,
+		},
+	}
+}
+
+func installNodeToolchainStep(workspacePath string) step {
+	return step{
+		Name:        "Install Node Toolchain",
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: workspacePath}},
+		Commands: []string{
+			`set -u`,
+			`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
+			`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
+			`export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
+			`mkdir -p $TOOLCHAIN_DIR`,
+			`curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz`,
+			`tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz`,
+			`rm -f node-v$NODE_VERSION-darwin-x64.tar.gz`,
+			`export PATH=$NODE_DIR/bin:$PATH`,
+			`corepack enable yarn`,
+			`echo Node reporting version $(node --version)`,
+			`echo Yarn reporting version $(yarn --version)`,
 		},
 	}
 }
@@ -225,16 +285,17 @@ func cleanUpToolchainsStep(path string) step {
 		},
 		Commands: []string{
 			`set -u`,
-			`export PATH=/Users/build/.cargo/bin:$PATH`,
-			`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export PATH=/Users/$(whoami)/.cargo/bin:$PATH`,
+			`export CARGO_HOME=` + perBuildCargoDir,
 			`export RUST_HOME=$CARGO_HOME`,
+			`export RUSTUP_HOME=` + perBuildRustupDir,
 			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			// clean up the rust toolchain even though we're about to delete the directory
 			// this ensures we don't leave behind a broken link
 			`rustup override unset`,
 			`rustup toolchain uninstall $RUST_VERSION`,
-			`rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`rm -rf ` + perBuildDir,
 		},
 	}
 }
@@ -251,39 +312,87 @@ func cleanUpExecStorageStep(path string) step {
 	}
 }
 
-func darwinTagCheckoutCommands() []string {
-	return append(pushCheckoutCommandsDarwin(),
+func darwinTagCheckoutCommands(b buildType) []string {
+	return append(
+		pushCheckoutCommandsDarwin(b),
 		`mkdir -p $WORKSPACE_DIR/go/artifacts`,
 		`echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt`,
 		`cat $WORKSPACE_DIR/go/.version.txt`,
 	)
 }
 
-func darwinTagBuildCommands() []string {
-	return []string{
+type darwinBuildOptions struct {
+	unlockKeychain bool
+}
+
+func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
+	commands := []string{
 		`set -u`,
+		`echo HOME=$${HOME}`,
+		`export HOME=/Users/$(whoami)`,
+		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
+		`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
 		`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
-		`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+		`export CARGO_HOME=` + perBuildCargoDir,
 		`export RUST_HOME=$CARGO_HOME`,
-		`export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH`,
+		`export RUSTUP_HOME=` + perBuildRustupDir,
+		`export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
+		`export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`build.assets/build-fido2-macos.sh build`,
 		`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
 		`rustup override set $RUST_VERSION`,
-		`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
 	}
+
+	if opts.unlockKeychain {
+		commands = append(commands,
+			`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
+			`security find-identity -v`,
+		)
+	}
+
+	commands = append(commands,
+		`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
+	)
+
+	if b.hasTeleportConnect() {
+		commands = append(commands,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
+			`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
+		)
+	}
+
+	return commands
 }
 
-func darwinTagCopyPackageArtifactCommands() []string {
-	return []string{
+func darwinTagCopyPackageArtifactCommands(b buildType) []string {
+	commands := []string{
 		`set -u`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		// copy release archives to artifact directory
 		`cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts`,
 		`cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts`,
-		// generate checksums (for mac)
-		`cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l`,
 	}
+
+	// copy Teleport Connect artifacts
+	if b.hasTeleportConnect() {
+		commands = append(commands,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
+			`cp *.dmg $WORKSPACE_DIR/go/artifacts`,
+		)
+	}
+
+	// generate checksums
+	commands = append(commands,
+		`cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l`,
+	)
+	if b.hasTeleportConnect() {
+		commands = append(commands,
+			`cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l`,
+		)
+	}
+
+	return commands
 }
 
 func darwinUploadToS3Commands() []string {
