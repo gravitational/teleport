@@ -647,6 +647,9 @@ type MultipartUploader interface {
 	CreateUpload(ctx context.Context, sessionID session.ID) (*StreamUpload, error)
 	// CompleteUpload completes the upload
 	CompleteUpload(ctx context.Context, upload StreamUpload, parts []StreamPart) error
+	// ReserveUploadPart reserves an upload part. Reserve is used to identify
+	// upload errors beforehand.
+	ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error
 	// UploadPart uploads part and returns the part
 	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
