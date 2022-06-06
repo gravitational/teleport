@@ -417,8 +417,8 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
-		AllowStdinHijack:        login.AllowStdinHijack,
-		PreferOTP:               login.PreferOTP,
+		AllowStdinHijack: login.AllowStdinHijack,
+		PreferOTP:        login.PreferOTP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
