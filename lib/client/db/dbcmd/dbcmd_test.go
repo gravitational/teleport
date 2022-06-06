@@ -455,6 +455,32 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"-p", "12345"},
 			wantErr: false,
 		},
+		{
+			name:       "snowsql no TLS",
+			dbProtocol: defaults.ProtocolSnowflake,
+			opts:       []ConnectCommandFunc{WithNoTLS()},
+			execer:     &fakeExec{},
+			cmd: []string{"snowsql",
+				"-a", "teleport",
+				"-u", "myUser",
+				"-h", "localhost",
+				"-p", "12345"},
+			wantErr: false,
+		},
+		{
+			name:         "snowsql db-name no TLS",
+			dbProtocol:   defaults.ProtocolSnowflake,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer:       &fakeExec{},
+			databaseName: "warehouse1",
+			cmd: []string{"snowsql",
+				"-a", "teleport",
+				"-u", "myUser",
+				"-h", "localhost",
+				"-p", "12345",
+				"-w", "warehouse1"},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
