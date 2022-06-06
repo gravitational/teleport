@@ -36,12 +36,18 @@ This RFD will focus on the infrastructure, security, and observability of the re
              │                                                         │
              │    ┌───────────┐                   ┌──────────────────┐ │
    Tag / Push│    │           │     Promotion     │                  │ │
-─────────────┼─►  │  AWS ECR  │  ──────────────►  │  AWS ECR Public  │ │◄───────── public.ecr.aws/gravitational/teleport
-             │    │           │                   │                  │ │
-             │    └───────────┘                   └──────────────────┘ │
-             │                                                         │
-             │AWS Account: teleport-prod                               │
-             └─────────────────────────────────────────────────────────┘
+─────────────┼─►  │  AWS ECR  │  ─────────┬────►  │  AWS ECR Public  │ │◄───────── public.ecr.aws/gravitational/teleport
+             │    │           │           │       │                  │ │
+             │    └───────────┘           │       └──────────────────┘ │
+             │                            │                            │
+             │AWS Account: teleport-prod  │                            │
+             └────────────────────────────┼────────────────────────────┘
+                                          │
+                                          │                ┌───────────┐
+                                          │                │           │
+                                          └──────────────► │  Quay.io  │◄───────── quay.io/gravitational/teleport
+                                                           │           │
+                                                           └───────────┘
 ```
 
 The infrastructure for this will live in the [cloud-terraform](https://github.com/gravitational/cloud-terraform) repository. The terraform for the `teleport-prod` account can be found [here](https://github.com/gravitational/cloud-terraform/tree/main/teleport-team/prod). Using AWS ECR and ECR Public allow us to rely on their managed infrastructure which reduces the operational complexity while enforcing our own security policies and allowing us to better audit changes to the environment. For more information on the pros and cons of alternatives, see [alternatives](#alternatives).
