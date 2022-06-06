@@ -354,10 +354,6 @@ func (c *Client) Close() error {
 	return c.APIClient.Close()
 }
 
-func (c *Client) WaitForDelivery(context.Context) error {
-	return nil
-}
-
 // CreateCertAuthority not implemented: can only be called locally.
 func (c *Client) CreateCertAuthority(ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)

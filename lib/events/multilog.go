@@ -51,12 +51,6 @@ type MultiLog struct {
 	*MultiEmitter
 }
 
-// WaitForDelivery waits for resources to be released and outstanding requests to
-// complete after calling Close method
-func (m *MultiLog) WaitForDelivery(ctx context.Context) error {
-	return nil
-}
-
 // Close releases connections and resources associated with logs if any
 func (m *MultiLog) Close() error {
 	var errors []error
