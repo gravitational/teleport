@@ -554,6 +554,7 @@ steps:
   - echo HOME=$${HOME}
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
@@ -3009,6 +3010,7 @@ steps:
   - echo HOME=$${HOME}
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
@@ -5484,6 +5486,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 000b64f66df6a8e55f82e70ba35a5e4702278fd7fcd9d1b2b2964a60756ca513
+hmac: 4521706f923884b9e1efcafae14cf92b1bbb6109f2431c95c37d6d075f51f464
 
 ...

@@ -331,6 +331,7 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		`echo HOME=$${HOME}`,
 		`export HOME=/Users/$(whoami)`,
 		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
+		`export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)`,
 		`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
 		`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 		`export CARGO_HOME=` + perBuildCargoDir,
