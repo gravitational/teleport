@@ -52,13 +52,14 @@ This RFD will focus on the infrastructure, security, and observability of the re
 
 The infrastructure will live in the [cloud-terraform](https://github.com/gravitational/cloud-terraform) repository. The terraform for the `teleport-prod` account can be found [here](https://github.com/gravitational/cloud-terraform/tree/main/teleport-team/prod). Using AWS ECR and ECR Public allow us to rely on their managed infrastructure which reduces the operational complexity while enforcing our own security policies and allowing us to better audit changes to the environment. For more information on the pros and cons of alternatives, see [alternatives](#alternatives).
 
+Amazon ECR Public assigns a random, default registry alias when the first public repository is created. However, a custom alias, such as `teleport` or `gravitational` can be requested. This alias is the display name in the Amazon ECR Public Gallery. Since the recent [terraform registry rfd](https://github.com/gravitational/teleport-plugins/blob/e68f0b5c8f594575a2a8dfc1d54cb2f983a227ce/rfd/0002-custom-terraform-registry.md) chose to use a convention of `gravitational/teleport`. I propose we request the `gravitational` alias in order to stay consistent amongst our artifacts. Thus, the image would be available to pull from `public.ecr.aws/gravitational/teleport`. 
+
 ### Security
 Most of the security standards that will be applied to the infrastructure for this RFD are defined in Cloud RFD 17 - [Artifact Storage Standards](https://github.com/gravitational/cloud/blob/9124947fdfb0773fa9bd567160481bed4ec84b7e/rfd/0017-artifact-storage-standards.md).
 
 All employee interaction with the registry and repositories will require our existing Okta SSO w/ MFA. Teleport employees will have read access to the internal ECR registry in order to test images before promoting them. Teleport employees will not have direct write access to images. Teleport Release Engineers responsible for the artifacts will have limited write access through an assumed role. This role must be logged to the audit logs. Release engineers shall have no ability to modify or change audit logs.
 
 Service Accounts with least privilege permissions will handle pushing and promoting the images to the registries. For instance, a service account that is used during tags will have limited access to push to the internal ECR repositories. Another service account that handles promotions will have access to pull from AWS ECR and push to AWS ECR Public. Example terraform for the repository and promotion can be seen [below](#appendix-a-example-terraform)
-
 
 ### Observabilty
 Amazon ECR provides detailed usage metrics through [Cloudwatch](https://docs.aws.amazon.com/AmazonECR/latest/userguide/monitoring-usage.html) as well as detailed logging through AWS [Cloudtrail](https://docs.aws.amazon.com/AmazonECR/latest/userguide/logging-using-cloudtrail.html). 
