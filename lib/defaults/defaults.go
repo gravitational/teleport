@@ -30,8 +30,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
-
-	"golang.org/x/crypto/ssh"
 )
 
 // Default port numbers used by all teleport tools
@@ -377,10 +375,6 @@ var (
 
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
-
-	// CASignatureAlgorithm is the default signing algorithm to use when
-	// creating new SSH CAs.
-	CASignatureAlgorithm = ssh.KeyAlgoRSASHA512
 
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
