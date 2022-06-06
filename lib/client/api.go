@@ -2306,7 +2306,7 @@ func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.List
 	return types.DeduplicateApps(apps), nil
 }
 
-// ListAppsAllClusters returns all registered applications accross all clusters.
+// ListAppsAllClusters returns all registered applications across all clusters.
 func (tc *TeleportClient) ListAppsAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Application, error) {
 	serversByCluster, err := tc.listAppServersWithFiltersAllClusters(ctx, customFilter)
 	if err != nil {
@@ -2415,7 +2415,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 	return types.DeduplicateDatabases(databases), nil
 }
 
-// ListDatabasesAllClusters returns all registered databases accross all clusters.
+// ListDatabasesAllClusters returns all registered databases across all clusters.
 func (tc *TeleportClient) ListDatabasesAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Database, error) {
 	serversByCluster, err := tc.listDatabaseServersWithFiltersAllClusters(ctx, customFilter)
 	if err != nil {
