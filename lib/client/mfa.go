@@ -159,23 +159,25 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	}
 
 	// Fire Webauthn or U2F goroutine.
-	origin := proxyAddr
-	if !strings.HasPrefix(origin, "https://") {
-		origin = "https://" + origin
-	}
-	switch {
-	case c.WebauthnChallenge != nil:
-		go func() {
-			log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
-			resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
-			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
-		}()
-	case len(c.U2F) > 0:
-		go func() {
-			log.Debugf("prompting U2F devices with facet %q", origin)
-			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
-			respC <- response{kind: "U2F", resp: resp, err: err}
-		}()
+	if hasNonTOTP {
+		origin := proxyAddr
+		if !strings.HasPrefix(origin, "https://") {
+			origin = "https://" + origin
+		}
+		switch {
+		case c.WebauthnChallenge != nil:
+			go func() {
+				log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
+				resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
+				respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
+			}()
+		case len(c.U2F) > 0:
+			go func() {
+				log.Debugf("prompting U2F devices with facet %q", origin)
+				resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
+				respC <- response{kind: "U2F", resp: resp, err: err}
+			}()
+		}
 	}
 
 	for i := 0; i < numGoroutines; i++ {
