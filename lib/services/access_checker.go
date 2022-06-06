@@ -163,6 +163,9 @@ type AccessChecker interface {
 	// the AccessChecker is allowed to access. An empty or nil list indicates that
 	// there are no resource-specific restrictions.
 	GetAllowedResourceIDs() []types.ResourceID
+
+	// SessionRecordingMode returns the recording mode for a specific service.
+	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
