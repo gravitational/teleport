@@ -141,7 +141,7 @@ address of your Teleport Cloud tenant.
 $ teleport db start \
   --token=/tmp/token \
   --db-name=aurora \
-  --auth-server=mytenant.teleport.sh \
+  --auth-server=mytenant.teleport.sh:443 \
   --db-protocol=postgres \
   --db-uri=postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com:5432 \
   --db-aws-region=us-west-1

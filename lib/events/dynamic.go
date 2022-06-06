@@ -167,6 +167,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		e = &events.DatabaseSessionQuery{}
+	case DatabaseSessionMalformedPacketEvent:
+		e = &events.DatabaseSessionMalformedPacket{}
 	case DatabaseSessionPostgresParseEvent:
 		e = &events.PostgresParse{}
 	case DatabaseSessionPostgresBindEvent:

@@ -69,7 +69,7 @@ type WebSession interface {
 	SetPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
-	// BearerToken is a special bearer token used for additional
+	// GetBearerToken is a special bearer token used for additional
 	// bearer authentication
 	GetBearerToken() string
 	// SetExpiryTime sets session expiry time
@@ -281,6 +281,21 @@ func (r *GetAppSessionRequest) Check() error {
 	return nil
 }
 
+// GetSnowflakeSessionRequest contains the parameters to request a Snowflake
+// web session.
+type GetSnowflakeSessionRequest struct {
+	// SessionID is the session ID of the Snowflake session itself.
+	SessionID string
+}
+
+// Check validates the request.
+func (r *GetSnowflakeSessionRequest) Check() error {
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
 // CreateAppSessionRequest contains the parameters needed to request
 // creating an application web session.
 type CreateAppSessionRequest struct {
@@ -309,9 +324,26 @@ func (r CreateAppSessionRequest) Check() error {
 	return nil
 }
 
+// CreateSnowflakeSessionRequest contains the parameters needed to request
+// creating a Snowflake web session.
+type CreateSnowflakeSessionRequest struct {
+	// Username is the identity of the user requesting the session.
+	Username string
+	// SessionToken is the Snowflake server session token.
+	SessionToken string
+	// TokenTTL is the token validity period.
+	TokenTTL time.Duration
+}
+
 // DeleteAppSessionRequest are the parameters used to request removal of
 // an application web session.
 type DeleteAppSessionRequest struct {
+	SessionID string `json:"session_id"`
+}
+
+// DeleteSnowflakeSessionRequest are the parameters used to request removal of
+// a Snowflake web session.
+type DeleteSnowflakeSessionRequest struct {
 	SessionID string `json:"session_id"`
 }
 

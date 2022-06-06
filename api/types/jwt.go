@@ -53,3 +53,22 @@ func (p *GenerateAppTokenRequest) Check() error {
 	}
 	return nil
 }
+
+// GenerateSnowflakeJWT are the parameters used to generate a Snowflake JWT.
+type GenerateSnowflakeJWT struct {
+	// Username is the Teleport identity.
+	Username string
+	// Account is the Snowflake account name.
+	Account string
+}
+
+// Check validates the request.
+func (p *GenerateSnowflakeJWT) Check() error {
+	if p.Username == "" {
+		return trace.BadParameter("username missing")
+	}
+	if p.Account == "" {
+		return trace.BadParameter("missing account")
+	}
+	return nil
+}
