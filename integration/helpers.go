@@ -212,7 +212,6 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      signer,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,
@@ -298,8 +297,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -320,8 +317,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{services.RoleNameForCertAuthority(s.SiteName)},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Roles: []string{services.RoleNameForCertAuthority(s.SiteName)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -337,8 +333,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
