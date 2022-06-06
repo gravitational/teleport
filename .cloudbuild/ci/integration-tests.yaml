@@ -19,30 +19,24 @@ steps:
     args:
       - -xeuc
       - | 
-        {
-          apt-get update -y
-          apt-get install -y socat
-        } >/dev/null
+        export KUBECONFIG=
 
         curl -LO "https://dl.k8s.io/release/v1.24.0/bin/linux/amd64/kubectl"
         chmod +x ./kubectl
         mv ./kubectl /usr/local/bin
 
-        curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.12.0/kind-linux-amd64
-        chmod +x ./kind
-        mv ./kind /usr/local/bin
+        curl -LO https://github.com/k3s-io/k3s/releases/download/v1.23.6+k3s1/k3s 
+        chmod +x ./k3s
+        mv ./k3s /usr/local/bin
 
-        kind create cluster --name ci-$BUILD_ID        
+        echo Starting k3s...
+        k3s server &
+        until [ -f $KUBECONFIG ]
+        do
+          sleep 5
+        done
 
-        startForwarder() {
-          local port
-          # Gets the apiServerPort from the KUBECONFIG file.
-          port="$( awk -F: '/server:/{ print $4 }' "$$KUBECONFIG" )"
-          socat \
-            TCP-LISTEN:${port},reuseaddr,fork \
-            "EXEC:docker run --rm -i --network=host alpine/socat 'STDIO TCP-CONNECT:localhost:${port}'"
-        }
-        startForwarder &
+        echo Kube Config created, hopefully k3s is up
 
         echo Configuring service account
         TELEPORT_NAMESPACE="ci-teleport" /workspace/examples/k8s-auth/get-kubeconfig.sh
