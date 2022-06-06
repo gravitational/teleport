@@ -130,6 +130,16 @@ func (s *Service) CreateGateway(ctx context.Context, params clusters.CreateGatew
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	gateway, err := s.createGateway(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return gateway, nil
+}
+
+// createGateway assumes that mu is already held by a public method.
+func (s *Service) createGateway(ctx context.Context, params clusters.CreateGatewayParams) (*gateway.Gateway, error) {
 	cluster, err := s.ResolveCluster(params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -184,17 +194,52 @@ func (s *Service) RemoveGateway(ctx context.Context, gatewayURI string) error {
 		return trace.Wrap(err)
 	}
 
-	gateway.Close()
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	s.removeGateway(gateway)
+
+	return nil
+}
+
+// removeGateway assumes that mu is already held by a public method.
+func (s *Service) removeGateway(gateway *gateway.Gateway) {
+	gateway.Close()
+
 	// remove closed gateway from list
 	for index := range s.gateways {
 		if s.gateways[index] == gateway {
 			s.gateways = append(s.gateways[:index], s.gateways[index+1:]...)
-			return nil
+			return
 		}
 	}
+}
+
+// RestartGateway stops a gateway and starts a new one with identical parameters.
+// It also keeps the original URI so that from the perspective of Connect it's still the same
+// gateway but with fresh certs.
+func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
+	gateway, err := s.FindGateway(gatewayURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.removeGateway(gateway)
+
+	newGateway, err := s.createGateway(ctx, clusters.CreateGatewayParams{
+		TargetURI:             gateway.TargetURI,
+		TargetUser:            gateway.TargetUser,
+		TargetSubresourceName: gateway.TargetSubresourceName,
+		LocalPort:             gateway.LocalPort,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newGateway.URI = gateway.URI
 
 	return nil
 }
