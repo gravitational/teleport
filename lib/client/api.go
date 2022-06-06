@@ -1576,8 +1576,8 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	defer proxyClient.Close()
 
 	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params,
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, c, proxyAddr, nil /* opts */)
+		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return tc.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
 		})
 
 	return key, err
