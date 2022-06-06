@@ -279,7 +279,7 @@ impl Client {
         })?;
 
         debug!(
-            "recieved {} bytes of copied data from Windows Desktop with format {:?}",
+            "received {} bytes of copied data from Windows Desktop with format {:?}",
             data_len, format,
         );
 
