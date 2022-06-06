@@ -91,10 +91,6 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	return l.Inner.StreamSessionEvents(ctx, sessionID, startIndex)
 }
 
-func (l *AuditLog) WaitForDelivery(ctx context.Context) error {
-	return trace.Wrap(l.Inner.WaitForDelivery(ctx))
-}
-
 func (l *AuditLog) Close() error {
 	return trace.Wrap(l.Inner.Close())
 }
