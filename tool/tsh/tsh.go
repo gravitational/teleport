@@ -128,7 +128,7 @@ type CLIConf struct {
 	MyRequests bool
 	// Approve/Deny indicates the desired review kind.
 	Approve, Deny bool
-	// ResourcKind is the resource kind to search for
+	// ResourceKind is the resource kind to search for
 	ResourceKind string
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
@@ -191,7 +191,7 @@ type CLIConf struct {
 	NoCache bool
 	// BenchDuration is a duration for the benchmark
 	BenchDuration time.Duration
-	// BenchRate is a requests per second rate to mantain
+	// BenchRate is a requests per second rate to maintain
 	BenchRate int
 	// BenchInteractive indicates that we should create interactive session
 	BenchInteractive bool
@@ -214,7 +214,7 @@ type CLIConf struct {
 	// IdentityFileOut is an argument to -out flag
 	IdentityFileOut string
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
-	// format to use with --out to store a fershly retreived certificate
+	// format to use with --out to store a freshly retrieved certificate
 	IdentityFormat identityfile.Format
 	// IdentityOverwrite when true will overwrite any existing identity file at
 	// IdentityFileOut. When false, user will be prompted before overwriting
