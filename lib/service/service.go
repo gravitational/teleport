@@ -654,6 +654,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		return nil, trace.Wrap(err, "configuration error")
 	}
 
+	processID := fmt.Sprintf("%v", nextProcessID())
+	cfg.Log = utils.WrapLogger(cfg.Log.WithFields(logrus.Fields{
+		trace.Component: teleport.Component(teleport.ComponentProcess, processID),
+		"pid":           fmt.Sprintf("%v.%v", os.Getpid(), processID),
+	}))
+
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
 		if !modules.GetModules().IsBoringBinary() {
@@ -746,7 +752,6 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
-	processID := fmt.Sprintf("%v", nextProcessID())
 	supervisor := NewSupervisor(processID, cfg.Log)
 	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
@@ -817,6 +822,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		importedDescriptors: cfg.FileDescriptors,
 		storage:             storage,
 		id:                  processID,
+		log:                 cfg.Log,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
 		cloudLabels:         cloudLabels,
@@ -824,10 +830,6 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 
 	process.registerAppDepend()
-
-	process.log = cfg.Log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentProcess, process.id),
-	})
 
 	serviceStarted := false
 
@@ -4192,6 +4194,10 @@ func validateConfig(cfg *Config) error {
 
 	if cfg.Console == nil {
 		cfg.Console = io.Discard
+	}
+
+	if cfg.Log == nil {
+		return trace.BadParameter("config: please supply logger")
 	}
 
 	if len(cfg.AuthServers) == 0 {
