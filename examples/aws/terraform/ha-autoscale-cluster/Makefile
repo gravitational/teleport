@@ -31,6 +31,15 @@ TF_VAR_route53_domain ?=
 # This is used to enable Teleport Application Access
 TF_VAR_add_wildcard_route53_record ?= true
 
+# Enable adding MongoDB listeners in Teleport proxy, load balancer ports and security groups
+TF_VAR_enable_mongodb_listener ?= true
+
+# Enable adding MySQL listeners in Teleport proxy, load balancer ports and security groups
+TF_VAR_enable_mysql_listener ?= true
+
+# Enable adding Postgres listeners in Teleport proxy, load balancer ports and security groups
+TF_VAR_enable_postgres_listener ?= true
+
 # Bucket name to store encrypted letsencrypt certificates.
 TF_VAR_s3_bucket_name ?=
 
