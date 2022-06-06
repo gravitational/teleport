@@ -33,6 +33,11 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
+	triggerPromote = trigger{
+		Event:  triggerRef{Include: []string{"promote"}},
+		Target: triggerRef{Include: []string{"production"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
@@ -160,6 +165,10 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 		result += fmt.Sprintf(" (%s)", strings.Join(qualifications, ", "))
 	}
 	return result
+}
+
+func (b *buildType) hasTeleportConnect() bool {
+	return b.os == "darwin" && b.arch == "amd64"
 }
 
 // dockerService generates a docker:dind service

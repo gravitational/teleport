@@ -907,7 +907,9 @@ buildbox-grpc:
 	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
 	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
 		api/client/proto/authservice.proto \
+		api/client/proto/certs.proto \
 		api/client/proto/joinservice.proto \
+		api/client/proto/proxyservice.proto \
 		api/types/events/events.proto \
 		api/types/types.proto \
 		api/types/webauthn/webauthn.proto \
@@ -918,7 +920,7 @@ buildbox-grpc:
 
 	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		certs.proto authservice.proto joinservice.proto
+		authservice.proto certs.proto joinservice.proto proxyservice.proto
 
 	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \

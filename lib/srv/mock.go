@@ -59,6 +59,7 @@ func newTestServerContext(t *testing.T, srv Server) *ServerContext {
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
+	clusterName := "localhost"
 	scx := &ServerContext{
 		Entry: logrus.NewEntry(logrus.StandardLogger()),
 		ConnectionContext: &sshutils.ConnectionContext{
@@ -67,12 +68,15 @@ func newTestServerContext(t *testing.T, srv Server) *ServerContext {
 		env:                    make(map[string]string),
 		SessionRecordingConfig: types.DefaultSessionRecordingConfig(),
 		IsTestStub:             true,
-		ClusterName:            "localhost",
+		ClusterName:            clusterName,
 		srv:                    srv,
 		Identity: IdentityContext{
 			Login:        usr.Username,
 			TeleportUser: "teleportUser",
 			Certificate:  cert,
+			// roles do not actually exist in mock backend, just need a non-nil
+			// access checker to avoid panic
+			AccessChecker: services.NewAccessChecker(&services.AccessInfo{}, clusterName),
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
