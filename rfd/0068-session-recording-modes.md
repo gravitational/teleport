@@ -55,15 +55,15 @@ There are going to be two audit modes:
 ### Configuration
 
 The configuration is going to be done at the role level. The role option
-`record_session` will be extended to hold the audit mode values: `strict` and
-`best_effort`. It will have one entry per session kind (desktop, databases,
-applications, Kubernetes, and SSH). want the same behavior for all kinds.
+`record_session` will be extended to hold the `strict` and `best_effort` audit
+mode values. It will have one entry per session kind (desktop, databases,
+applications, Kubernetes, and SSH). In addition, there will be a `default` entry
+for setting a default value used when sessions kind doesn't have one set.
 
-In addition, there will be a `default` entry for setting a default value used
-when sessions kind doesn't have one set.  Currently, Teleport doesn't prevent
-sessions from happening if there is a failure on the recording. To keep this
-behavior after introducing the recording modes, the default value will be set
-to `best_effort`.
+The default value (when none is specified in the user’s role) is `best_effort`.
+This allows users to access their servers in case of failures without changing
+their roles. Note that this is a behavior change since, currently, Teleport
+prevents sessions from happening if there is a failure on the recording.
 
 For this RFD, only the `default`, `k8s` and `ssh` options are going to be added.
 
@@ -107,8 +107,8 @@ Let's say a user has two roles assigned:
 options:
   record_session:
     default: strict
-	ssh: best_effort
-	k8s: strict
+    ssh: best_effort
+    k8s: strict
 
 # Role 2:
 options:
@@ -130,7 +130,7 @@ If the user:
 ```shell
 # Prevent users from starting new SSH sessions when it encounters an audit error.
 $ tsh ssh root@node
-Session could not start due to node error: no space left on device.
+Session could not start due to node error.
 ERROR: ssh: could not start shell
 ```
 
@@ -140,7 +140,7 @@ $ tsh ssh root@node
 root@node:~$ echo "Hello server"
 Hello server
 
-Session terminating due to node error: no space left on device.
+Session terminating due to node error.
 Closing session...
 
 # Same for Kubernetes exec sessions.
@@ -148,7 +148,7 @@ $ tsh kube exec -t pod-name bash
 root@container:~$ echo "Hello server"
 Hello server
 
-Session terminating due to node error: no space left on device.
+Session terminating due to node error.
 Closing session...
 ```
 
@@ -157,7 +157,7 @@ Closing session...
 ```shell
 # SSH Session starts with a "warning" message.
 $ tsh ssh root@node
-Warning: node error: no space left on device. This might cause some functionalities not to work correctly.
+Warning: node error. This might cause some functionalities not to work correctly.
 
 root@node:~$ echo "Hello server"
 Hello server
@@ -167,7 +167,7 @@ the connection was closed on the remote side on 01 Jan 22 00:00 -00
 
 # Same for Kubernetes exec sessions.
 $ tsh kube exec -t pod-name bash
-Warning: node error: no space left on device. This might cause some functionalities not to work correctly.
+Warning: node error. This might cause some functionalities not to work correctly.
 root@container:~$ echo "Hello server"
 Hello server
 root@container:~$ exit
@@ -178,14 +178,14 @@ root@container:~$ exit
 $ tsh ssh root@node
 root@node:~$ echo "Hello server"
 Hello server
-Warning: node error: no space left on device. This might cause some functionalities not to work correctly.
+Warning: node error. This might cause some functionalities not to work correctly.
 root@node:~$ exit
 
 # Same for Kubernetes exec sessions.
 $ tsh kube exec -t pod-name bash
 root@container:~$ echo "Hello server"
 Hello server
-Warning: node error: no space left on device. This might cause some functionalities not to work correctly.
+Warning: node error. This might cause some functionalities not to work correctly.
 root@container:~$ exit
 ```
 
