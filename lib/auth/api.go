@@ -271,6 +271,14 @@ type ReadProxyAccessPoint interface {
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
+// SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
+type SnowflakeSessionWatcher interface {
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+	// GetSnowflakeSession gets a Snowflake web session for a given request.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+}
+
 // ProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
 // used by a teleport.ComponentProxy.
 type ProxyAccessPoint interface {
@@ -745,6 +753,9 @@ type Cache interface {
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
+
+	// GetSnowflakeSession gets a Snowflake web session.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
