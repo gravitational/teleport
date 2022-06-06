@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/test"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -163,7 +162,6 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 		hostCertificateBytes, err := s.suite.A.GenerateHostCert(
 			services.HostCertParams{
 				CASigner:      caSigner,
-				CASigningAlg:  defaults.CASignatureAlgorithm,
 				PublicHostKey: hostPublicKey,
 				HostID:        tt.inHostID,
 				NodeName:      tt.inNodeName,
@@ -211,7 +209,6 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 
 		userCertificateBytes, err := s.suite.A.GenerateUserCert(services.UserCertParams{
 			CASigner:      caSigner,
-			CASigningAlg:  defaults.CASignatureAlgorithm,
 			PublicUserKey: pub,
 			Username:      "user",
 			AllowedLogins: []string{"centos", "root"},
@@ -232,8 +229,6 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 
 		userCertificate, err := sshutils.ParseCertificate(userCertificateBytes)
 		c.Assert(err, check.IsNil, comment)
-		// Check that the signature algorithm is correct.
-		c.Assert(userCertificate.Signature.Format, check.Equals, defaults.CASignatureAlgorithm)
 		// check if we added the roles extension
 		_, ok := userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
 		c.Assert(ok, check.Equals, tt.outHasRoles, comment)
