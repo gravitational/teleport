@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -186,9 +187,14 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		IdleConnTimeout: defaults.HTTPIdleTimeout,
 	}
 
+	cb, err := breaker.New(cfg.CircuitBreakerConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clientParams := append(
 		[]roundtrip.ClientParam{
-			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(transport)}),
+			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport))}),
 			roundtrip.SanitizerEnabled(true),
 		},
 		params...,
@@ -346,10 +352,6 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 func (c *Client) Close() error {
 	c.HTTPClient.Close()
 	return c.APIClient.Close()
-}
-
-func (c *Client) WaitForDelivery(context.Context) error {
-	return nil
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
@@ -522,24 +524,6 @@ func (c *Client) KeepAliveNode(ctx context.Context, keepAlive types.KeepAlive) e
 // KeepAliveServer not implemented: can only be called locally.
 func (c *Client) KeepAliveServer(ctx context.Context, keepAlive types.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
-}
-
-// UpsertNodes bulk inserts nodes.
-func (c *Client) UpsertNodes(namespace string, servers []types.Server) error {
-	if namespace == "" {
-		return trace.BadParameter("missing node namespace")
-	}
-
-	bytes, err := services.MarshalServers(servers)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertNodesReq{
-		Namespace: namespace,
-		Nodes:     bytes,
-	}
-	_, err = c.PutJSON(context.TODO(), c.Endpoint("namespaces", namespace, "nodes"), args)
-	return trace.Wrap(err)
 }
 
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
@@ -1500,6 +1484,11 @@ func (c *Client) UpsertAppSession(ctx context.Context, session types.WebSession)
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertSnowflakeSession not implemented: can only be called locally.
+func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // ResumeAuditStream resumes existing audit stream.
 // This is a wrapper on the grpc endpoint and is deprecated.
 // DELETE IN 7.0.0
@@ -1574,7 +1563,7 @@ func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) err
 
 // WebService implements features used by Web UI clients
 type WebService interface {
-	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
+	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
 	// it is valid, or error otherwise.
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
@@ -1585,6 +1574,8 @@ type WebService interface {
 
 	// AppSession defines application session features.
 	services.AppSession
+	// SnowflakeSession defines Snowflake session features.
+	services.SnowflakeSession
 }
 
 // IdentityService manages identities and users
@@ -1595,7 +1586,7 @@ type IdentityService interface {
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
-	// GetOIDCConnector gets OIDC connectors list
+	// GetOIDCConnectors gets OIDC connectors list
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
@@ -1696,7 +1687,7 @@ type IdentityService interface {
 	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
 	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
 
-	// IsMFARequiredRequest is a request to check whether MFA is required to
+	// IsMFARequired is a request to check whether MFA is required to
 	// access the Target.
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 
@@ -1859,6 +1850,10 @@ type ClientI interface {
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(context.Context, types.CreateAppSessionRequest) (types.WebSession, error)
+
+	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
+	// sessions represent Database Access Snowflake session the client holds.
+	CreateSnowflakeSession(context.Context, types.CreateSnowflakeSessionRequest) (types.WebSession, error)
 
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.

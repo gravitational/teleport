@@ -20,10 +20,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -31,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
@@ -146,10 +149,10 @@ func TestFailedLogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = client.SSOLoginFunc(ssoLogin)
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.mockSSOLogin = ssoLogin
 		return nil
-	}))
+	})
 	require.ErrorIs(t, err, loginFailed)
 }
 
@@ -236,12 +239,12 @@ func TestOIDCLogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice", // explicitly use wrong name
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
 		cf.overrideStderr = buf
 		return nil
-	}))
+	})
 
 	require.NoError(t, err)
 
@@ -292,10 +295,10 @@ func TestLoginIdentityOut(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--out", identPath,
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 
 	_, err = client.KeyFromIdentityFile(identPath)
@@ -331,11 +334,11 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.overrideStderr = buf
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
@@ -346,19 +349,19 @@ func TestRelogin(t *testing.T) {
 		"--proxy", proxyAddr.String(),
 		"localhost",
 	}, setHomePath(tmpHomePath),
-		cliOption(func(cf *CLIConf) error {
+		func(cf *CLIConf) error {
 			cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 			cf.overrideStderr = buf
 			return nil
-		}))
+		})
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
 	err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath),
-		cliOption(func(cf *CLIConf) error {
+		func(cf *CLIConf) error {
 			cf.overrideStderr = buf
 			return nil
-		}))
+		})
 	require.NoError(t, err)
 
 	err = Run(context.Background(), []string{
@@ -368,11 +371,11 @@ func TestRelogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.overrideStderr = buf
 		return nil
-	}))
+	})
 	findMOTD(t, sc, motd)
 	require.NoError(t, err)
 }
@@ -492,6 +495,192 @@ func TestMakeClient(t *testing.T) {
 	require.Greater(t, len(agentKeys), 0)
 }
 
+// approveAllAccessRequests starts a loop which gets all pending AccessRequests
+// from access and approves them. It accepts a stop channel, which will stop the
+// loop and cancel all active requests when it is closed.
+func approveAllAccessRequests(access services.DynamicAccess, stop <-chan struct{}) (err error) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	// Make a context that will be cancelled when the stop chan is closed, to
+	// pass to the requests.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-stop
+		cancel()
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+		requests, err := access.GetAccessRequests(ctx,
+			types.AccessRequestFilter{
+				State: types.RequestState_PENDING,
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, req := range requests {
+			err = access.SetAccessRequestState(ctx,
+				types.AccessRequestUpdate{
+					RequestID: req.GetName(),
+					State:     types.RequestState_APPROVED,
+				})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+}
+
+// TestSSHAccessRequest tests that a user can automatically request access to a
+// ssh server using a search-based access request when "tsh ssh" fails with
+// AccessDenied.
+func TestSSHAccessRequest(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	requester, err := types.NewRole("requester", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"requester"})
+	user, err := user.Current()
+	require.NoError(t, err)
+	traits := map[string][]string{
+		teleport.TraitLogins: []string{user.Username},
+	}
+	alice.SetTraits(traits)
+
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, connector, alice))
+
+	authAddr, err := rootAuth.AuthSSHAddr()
+	require.NoError(t, err)
+
+	proxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	sshHostname := "test-ssh-server"
+	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname))
+	require.NotNil(t, node)
+
+	// wait for auth to see node
+	var sshHostID string
+	require.Eventually(t, func() bool {
+		nodes, err := rootAuth.GetAuthServer().GetNodes(context.Background(), apidefaults.Namespace)
+		require.NoError(t, err)
+		for _, node := range nodes {
+			if node.GetHostname() == sshHostname {
+				sshHostID = node.GetName()
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second, time.Second, "node never showed up")
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	// sanity check, cannot ssh without access request
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--debug",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// approve all requests as they're created
+	errChan := make(chan error)
+	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
+		if !errors.Is(err, context.Canceled) {
+			// Kill auth so Run calls don't hang. Don't worry about the Close
+			// error, the test will already fail.
+			rootAuth.Close()
+		}
+		errChan <- err
+	}()
+
+	// ssh with request, by hostname
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--debug",
+		"--request",
+		"--request-reason", "for testing purposes",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// now that we have an approved access request, it should still work without --request
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--debug",
+		"--request-reason", "for testing purposes",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// log out and back in with no access request
+	err = Run(context.Background(), []string{
+		"logout",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	// ssh with request, by host ID
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--debug",
+		"--request",
+		"--request-reason", "for testing purposes",
+		fmt.Sprintf("%s@%s", user.Username, sshHostID),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+}
+
 func TestAccessRequestOnLeaf(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
@@ -551,10 +740,10 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", rootProxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, rootAuthServer, alice)
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 
 	err = Run(context.Background(), []string{
@@ -584,47 +773,30 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
+	// approve all requests as they're created
 	errChan := make(chan error)
+	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
+	stop := make(chan struct{})
+	defer close(stop)
 	go func() {
-		errChan <- Run(context.Background(), []string{
-			"request",
-			"new",
-			"--insecure",
-			"--debug",
-			"--proxy", rootProxyAddr.String(),
-			"--roles=access",
-		}, setHomePath(tmpHomePath))
+		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
+		if !errors.Is(err, context.Canceled) {
+			// Kill auth so Run calls don't hang. Don't worry about the Close
+			// error, the test will already fail.
+			rootAuth.Close()
+		}
+		errChan <- err
 	}()
 
-	var request types.AccessRequest
-	for i := 0; i < 5; i++ {
-		log.Debugf("Waiting for access request %d", i)
-		requests, err := rootAuth.GetAuthServer().GetAccessRequests(rootAuth.ExitContext(), types.AccessRequestFilter{})
-		require.NoError(t, err)
-		require.LessOrEqual(t, len(requests), 1)
-		if len(requests) == 1 {
-			request = requests[0]
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	require.NotNil(t, request)
-
-	err = rootAuth.GetAuthServer().SetAccessRequestState(
-		rootAuth.ExitContext(),
-		types.AccessRequestUpdate{
-			RequestID: request.GetName(),
-			State:     types.RequestState_APPROVED,
-		},
-	)
+	err = Run(context.Background(), []string{
+		"request",
+		"new",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"--roles=access",
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
-
-	select {
-	case err := <-errChan:
-		require.NoError(t, err)
-	case <-time.After(2 * time.Minute):
-		t.Fatal("access request wasn't resolved after 2 minutes")
-	}
 }
 
 // tryCreateTrustedCluster performs several attempts to create a trusted cluster,
@@ -1334,9 +1506,8 @@ func TestAuthClientFromTSHProfile(t *testing.T) {
 }
 
 type testServersOpts struct {
-	bootstrap          []types.Resource
-	authConfigFuncs    []func(cfg *service.AuthConfig)
-	serviceConfigFuncs []func(cfg *service.Config)
+	bootstrap   []types.Resource
+	configFuncs []func(cfg *service.Config)
 }
 
 type testServerOptFunc func(o *testServersOpts)
@@ -1347,24 +1518,16 @@ func withBootstrap(bootstrap ...types.Resource) testServerOptFunc {
 	}
 }
 
-func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
+func withConfig(fn func(cfg *service.Config)) testServerOptFunc {
 	return func(o *testServersOpts) {
-		if o.authConfigFuncs == nil {
-			o.authConfigFuncs = []func(cfg *service.AuthConfig){}
-		}
-
-		o.authConfigFuncs = append(o.authConfigFuncs, fn)
+		o.configFuncs = append(o.configFuncs, fn)
 	}
 }
 
-func withConfig(fn func(cfg *service.Config)) testServerOptFunc {
-	return func(o *testServersOpts) {
-		if o.serviceConfigFuncs == nil {
-			o.serviceConfigFuncs = []func(cfg *service.Config){}
-		}
-
-		o.serviceConfigFuncs = append(o.serviceConfigFuncs, fn)
-	}
+func withAuthConfig(fn func(*service.AuthConfig)) testServerOptFunc {
+	return withConfig(func(cfg *service.Config) {
+		fn(&cfg.Auth)
+	})
 }
 
 func withClusterName(t *testing.T, n string) testServerOptFunc {
@@ -1392,6 +1555,59 @@ func withMOTD(t *testing.T, motd string) testServerOptFunc {
 	})
 }
 
+func withHostname(hostname string) testServerOptFunc {
+	return withConfig(func(cfg *service.Config) {
+		cfg.Hostname = hostname
+	})
+}
+
+func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) (node *service.TeleportProcess) {
+	var options testServersOpts
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	var err error
+
+	// Set up a test ssh service.
+	cfg := service.MakeDefaultConfig()
+	cfg.Hostname = "node"
+	cfg.DataDir = t.TempDir()
+
+	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.Token = staticToken
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = true
+	cfg.SSH.Addr = *utils.MustParseAddr("127.0.0.1:0")
+	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+	cfg.Log = utils.NewLoggerForTests()
+
+	for _, fn := range options.configFuncs {
+		fn(cfg)
+	}
+
+	node, err = service.NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, node.Start())
+
+	t.Cleanup(func() {
+		require.NoError(t, node.Close())
+		require.NoError(t, node.Wait())
+	})
+
+	// Wait for node to become ready.
+	eventCh := make(chan service.Event, 1)
+	node.WaitForEvent(node.ExitContext(), service.NodeSSHReady, eventCh)
+	select {
+	case <-eventCh:
+	case <-time.After(10 * time.Second):
+		t.Fatal("node didn't start after 10s")
+	}
+
+	return node
+}
+
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
 	var options testServersOpts
 	for _, opt := range opts {
@@ -1404,6 +1620,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	// We need this to get a random port assigned to it and allow parallel
 	// execution of this test.
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
@@ -1412,7 +1629,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
@@ -1424,11 +1641,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
-	for _, fn := range options.authConfigFuncs {
-		fn(&cfg.Auth)
-	}
-
-	for _, fn := range options.serviceConfigFuncs {
+	for _, fn := range options.configFuncs {
 		fn(cfg)
 	}
 
@@ -1457,6 +1670,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 
 	// Set up a test proxy service.
 	cfg = service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
