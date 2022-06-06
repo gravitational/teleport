@@ -68,17 +68,18 @@ type testPack struct {
 	provisionerS   services.Provisioner
 	clusterConfigS services.ClusterConfiguration
 
-	usersS          services.UsersService
-	accessS         services.Access
-	dynamicAccessS  services.DynamicAccessCore
-	presenceS       services.Presence
-	appSessionS     services.AppSession
-	restrictions    services.Restrictions
-	apps            services.Apps
-	databases       services.Databases
-	webSessionS     types.WebSessionInterface
-	webTokenS       types.WebTokenInterface
-	windowsDesktops services.WindowsDesktops
+	usersS            services.UsersService
+	accessS           services.Access
+	dynamicAccessS    services.DynamicAccessCore
+	presenceS         services.Presence
+	appSessionS       services.AppSession
+	snowflakeSessionS services.SnowflakeSession
+	restrictions      services.Restrictions
+	apps              services.Apps
+	databases         services.Databases
+	webSessionS       types.WebSessionInterface
+	webTokenS         types.WebTokenInterface
+	windowsDesktops   services.WindowsDesktops
 }
 
 func (t *testPack) Close() {
@@ -185,6 +186,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
 	p.appSessionS = local.NewIdentityService(p.backend)
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
+	p.snowflakeSessionS = local.NewIdentityService(p.backend)
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
@@ -203,25 +205,26 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 	}
 
 	p.cache, err = New(setupConfig(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
+		Context:          ctx,
+		Backend:          p.cacheBackend,
+		Events:           p.eventsS,
+		ClusterConfig:    p.clusterConfigS,
+		Provisioner:      p.provisionerS,
+		Trust:            p.trustS,
+		Users:            p.usersS,
+		Access:           p.accessS,
+		DynamicAccess:    p.dynamicAccessS,
+		Presence:         p.presenceS,
+		AppSession:       p.appSessionS,
+		WebSession:       p.webSessionS,
+		WebToken:         p.webTokenS,
+		SnowflakeSession: p.snowflakeSessionS,
+		Restrictions:     p.restrictions,
+		Apps:             p.apps,
+		Databases:        p.databases,
+		WindowsDesktops:  p.windowsDesktops,
+		MaxRetryPeriod:   200 * time.Millisecond,
+		EventsC:          p.eventsC,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -578,25 +581,26 @@ func TestCompletenessInit(t *testing.T) {
 		p.eventsS.closeWatchers()
 
 		p.cache, err = New(ForAuth(Config{
-			Context:         ctx,
-			Backend:         p.cacheBackend,
-			Events:          p.eventsS,
-			ClusterConfig:   p.clusterConfigS,
-			Provisioner:     p.provisionerS,
-			Trust:           p.trustS,
-			Users:           p.usersS,
-			Access:          p.accessS,
-			DynamicAccess:   p.dynamicAccessS,
-			Presence:        p.presenceS,
-			AppSession:      p.appSessionS,
-			WebSession:      p.webSessionS,
-			WebToken:        p.webTokenS,
-			Restrictions:    p.restrictions,
-			Apps:            p.apps,
-			Databases:       p.databases,
-			WindowsDesktops: p.windowsDesktops,
-			MaxRetryPeriod:  200 * time.Millisecond,
-			EventsC:         p.eventsC,
+			Context:          ctx,
+			Backend:          p.cacheBackend,
+			Events:           p.eventsS,
+			ClusterConfig:    p.clusterConfigS,
+			Provisioner:      p.provisionerS,
+			Trust:            p.trustS,
+			Users:            p.usersS,
+			Access:           p.accessS,
+			DynamicAccess:    p.dynamicAccessS,
+			Presence:         p.presenceS,
+			AppSession:       p.appSessionS,
+			WebSession:       p.webSessionS,
+			SnowflakeSession: p.snowflakeSessionS,
+			WebToken:         p.webTokenS,
+			Restrictions:     p.restrictions,
+			Apps:             p.apps,
+			Databases:        p.databases,
+			WindowsDesktops:  p.windowsDesktops,
+			MaxRetryPeriod:   200 * time.Millisecond,
+			EventsC:          p.eventsC,
 		}))
 		require.NoError(t, err)
 
@@ -638,25 +642,26 @@ func TestCompletenessReset(t *testing.T) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
+		Context:          ctx,
+		Backend:          p.cacheBackend,
+		Events:           p.eventsS,
+		ClusterConfig:    p.clusterConfigS,
+		Provisioner:      p.provisionerS,
+		Trust:            p.trustS,
+		Users:            p.usersS,
+		Access:           p.accessS,
+		DynamicAccess:    p.dynamicAccessS,
+		Presence:         p.presenceS,
+		AppSession:       p.appSessionS,
+		WebSession:       p.webSessionS,
+		SnowflakeSession: p.snowflakeSessionS,
+		WebToken:         p.webTokenS,
+		Restrictions:     p.restrictions,
+		Apps:             p.apps,
+		Databases:        p.databases,
+		WindowsDesktops:  p.windowsDesktops,
+		MaxRetryPeriod:   200 * time.Millisecond,
+		EventsC:          p.eventsC,
 	}))
 	require.NoError(t, err)
 
@@ -753,26 +758,27 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-		neverOK:         true, // ensure reads are never healthy
+		Context:          ctx,
+		Backend:          p.cacheBackend,
+		Events:           p.eventsS,
+		ClusterConfig:    p.clusterConfigS,
+		Provisioner:      p.provisionerS,
+		Trust:            p.trustS,
+		Users:            p.usersS,
+		Access:           p.accessS,
+		DynamicAccess:    p.dynamicAccessS,
+		Presence:         p.presenceS,
+		AppSession:       p.appSessionS,
+		WebSession:       p.webSessionS,
+		WebToken:         p.webTokenS,
+		SnowflakeSession: p.snowflakeSessionS,
+		Restrictions:     p.restrictions,
+		Apps:             p.apps,
+		Databases:        p.databases,
+		WindowsDesktops:  p.windowsDesktops,
+		MaxRetryPeriod:   200 * time.Millisecond,
+		EventsC:          p.eventsC,
+		neverOK:          true, // ensure reads are never healthy
 	}))
 	require.NoError(t, err)
 
@@ -823,25 +829,26 @@ func initStrategy(t *testing.T) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
+		Context:          ctx,
+		Backend:          p.cacheBackend,
+		Events:           p.eventsS,
+		ClusterConfig:    p.clusterConfigS,
+		Provisioner:      p.provisionerS,
+		Trust:            p.trustS,
+		Users:            p.usersS,
+		Access:           p.accessS,
+		DynamicAccess:    p.dynamicAccessS,
+		Presence:         p.presenceS,
+		AppSession:       p.appSessionS,
+		SnowflakeSession: p.snowflakeSessionS,
+		WebSession:       p.webSessionS,
+		WebToken:         p.webTokenS,
+		Restrictions:     p.restrictions,
+		Apps:             p.apps,
+		Databases:        p.databases,
+		WindowsDesktops:  p.windowsDesktops,
+		MaxRetryPeriod:   200 * time.Millisecond,
+		EventsC:          p.eventsC,
 	}))
 	require.NoError(t, err)
 
@@ -2532,6 +2539,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindApp:                     &types.AppV3{},
 		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
 		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
+		types.KindSnowflakeSession:        &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
 		types.KindWebToken:                &types.WebTokenV3{},
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
 		types.KindKubeService:             &types.ServerV2{},
