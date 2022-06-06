@@ -1951,7 +1951,7 @@ func getLocalIP() (string, error) {
 func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *TeleInstance, *TeleInstance)) *client.TeleportClient {
 	ctx := context.Background()
 	username := suite.me.Username
-
+	name := "test"
 	rootName := fmt.Sprintf("root-%s", name)
 	leafName := fmt.Sprintf("leaf-%s", name)
 

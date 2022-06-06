@@ -6399,11 +6399,13 @@ func testListKubeClustersAcrossClusters(t *testing.T, suite *integrationTestSuit
 			if test.search != "" {
 				req.SearchKeywords = strings.Split(test.search, " ")
 			}
-			clusterMap, err := tc.ListKubeClusterNamesWithFiltersAllClusters(ctx, req)
+			clusterMap, err := tc.ListKubeClustersWithFiltersAllClusters(ctx, req)
 			require.NoError(t, err)
 			clusters := make([]string, 0)
 			for _, cl := range clusterMap {
-				clusters = append(clusters, cl...)
+				for _, c := range cl {
+					clusters = append(clusters, c.Name)
+				}
 			}
 			require.ElementsMatch(t, test.expected, clusters)
 		})

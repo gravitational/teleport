@@ -1751,6 +1751,8 @@ func serializeNodesWithClusters(nodes []nodeListing, format string) (string, err
 		out, err = yaml.Marshal(nodes)
 	}
 	return string(out), trace.Wrap(err)
+}
+
 func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID, username string) (types.AccessRequest, error) {
 	var req types.AccessRequest
 	err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {

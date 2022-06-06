@@ -665,9 +665,9 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 }
 
 type kubeListing struct {
-	Proxy       string `json:"proxy"`
-	Cluster     string `json:"cluster"`
-	KubeCluster string `json:"kube_cluster"`
+	Proxy       string                   `json:"proxy"`
+	Cluster     string                   `json:"cluster"`
+	KubeCluster *types.KubernetesCluster `json:"kube_cluster"`
 }
 
 type kubeListings []kubeListing
@@ -683,11 +683,23 @@ func (l kubeListings) Less(i, j int) bool {
 	if l[i].Cluster != l[j].Cluster {
 		return l[i].Cluster < l[j].Cluster
 	}
-	return l[i].KubeCluster < l[j].KubeCluster
+	return l[i].KubeCluster.Name < l[j].KubeCluster.Name
 }
 
 func (l kubeListings) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
+}
+
+func formatKubeLabels(cluster *types.KubernetesCluster) string {
+	labels := make([]string, 0, len(cluster.StaticLabels)+len(cluster.DynamicLabels))
+	for key, value := range cluster.StaticLabels {
+		labels = append(labels, fmt.Sprintf("%s=%s", key, value))
+	}
+	for key, value := range cluster.DynamicLabels {
+		labels = append(labels, fmt.Sprintf("%s=%s", key, value.Result))
+	}
+	sort.Strings(labels)
+	return strings.Join(labels, " ")
 }
 
 func (c *kubeLSCommand) run(cf *CLIConf) error {
@@ -725,16 +737,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 				selectedMark = "*"
 			}
 
-			labels := make([]string, 0, len(cluster.StaticLabels)+len(cluster.DynamicLabels))
-			for key, value := range cluster.StaticLabels {
-				labels = append(labels, fmt.Sprintf("%s=%s", key, value))
-			}
-			for key, value := range cluster.DynamicLabels {
-				labels = append(labels, fmt.Sprintf("%s=%s", key, value.Result))
-			}
-			sort.Strings(labels)
-
-			t.AddRow([]string{cluster.Name, strings.Join(labels, " "), selectedMark})
+			t.AddRow([]string{cluster.Name, formatKubeLabels(cluster), selectedMark})
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
@@ -789,7 +792,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 			Labels:              tc.Labels,
 		}
 
-		kubeClusters, err := tc.ListKubeClusterNamesWithFiltersAllClusters(cf.Context, req)
+		kubeClusters, err := tc.ListKubeClustersWithFiltersAllClusters(cf.Context, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -817,10 +820,10 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		if cf.Quiet {
 			t = asciitable.MakeHeadlessTable(3)
 		} else {
-			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name"})
+			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"})
 		}
 		for _, listing := range listings {
-			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster})
+			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster.Name, formatKubeLabels(listing.KubeCluster)})
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
