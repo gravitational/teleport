@@ -1685,25 +1685,26 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 
 	return cache.New(cfg.setup(cache.Config{
-		Context:         process.ExitContext(),
-		Backend:         reporter,
-		Events:          cfg.services,
-		ClusterConfig:   cfg.services,
-		Provisioner:     cfg.services,
-		Trust:           cfg.services,
-		Users:           cfg.services,
-		Access:          cfg.services,
-		DynamicAccess:   cfg.services,
-		Presence:        cfg.services,
-		Restrictions:    cfg.services,
-		Apps:            cfg.services,
-		Databases:       cfg.services,
-		AppSession:      cfg.services,
-		WindowsDesktops: cfg.services,
-		WebSession:      cfg.services.WebSessions(),
-		WebToken:        cfg.services.WebTokens(),
-		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
-		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
+		Context:          process.ExitContext(),
+		Backend:          reporter,
+		Events:           cfg.services,
+		ClusterConfig:    cfg.services,
+		Provisioner:      cfg.services,
+		Trust:            cfg.services,
+		Users:            cfg.services,
+		Access:           cfg.services,
+		DynamicAccess:    cfg.services,
+		Presence:         cfg.services,
+		Restrictions:     cfg.services,
+		Apps:             cfg.services,
+		Databases:        cfg.services,
+		AppSession:       cfg.services,
+		SnowflakeSession: cfg.services,
+		WindowsDesktops:  cfg.services,
+		WebSession:       cfg.services.WebSessions(),
+		WebToken:         cfg.services.WebTokens(),
+		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
+		MetricComponent:  teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 	}))
 }
 
@@ -3421,6 +3422,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				MatchFunc: alpnproxy.MatchByProtocol(
 					alpncommon.ProtocolMongoDB,
 					alpncommon.ProtocolRedisDB,
+					alpncommon.ProtocolSnowflake,
 					alpncommon.ProtocolSQLServer),
 			})
 		}
