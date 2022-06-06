@@ -3809,10 +3809,6 @@ func (a *ServerWithRoles) Close() error {
 	return a.authServer.Close()
 }
 
-func (a *ServerWithRoles) WaitForDelivery(context.Context) error {
-	return nil
-}
-
 // UpsertKubeService creates or updates a Server representing a teleport
 // kubernetes service.
 func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server) error {
