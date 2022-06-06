@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -30,12 +31,8 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http/httpguts"
-	"k8s.io/apimachinery/pkg/util/validation"
-
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -47,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -61,6 +59,12 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http/httpguts"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -265,6 +269,9 @@ type Config struct {
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
 	TeleportHome string
+
+	// CircuitBreakerConfig configures the auth client circuit breaker.
+	CircuitBreakerConfig breaker.Config
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -277,13 +284,35 @@ type Config struct {
 func (cfg *Config) ApplyToken(token string) (bool, error) {
 	if token != "" {
 		var err error
-		cfg.Token, err = utils.ReadToken(token)
+		cfg.Token, err = utils.TryReadValueAsFile(token)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 		return true, nil
 	}
 	return false, nil
+}
+
+// ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
+// If a pin is specified as a path to a file, that file must not be empty.
+func (cfg *Config) ApplyCAPins(caPins []string) error {
+	var filteredPins []string
+	for _, pinOrPath := range caPins {
+		if pinOrPath == "" {
+			continue
+		}
+		pins, err := utils.TryReadValueAsFile(pinOrPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// an empty pin file is less obvious than a blank ca_pin in the config yaml.
+		if pins == "" {
+			return trace.BadParameter("empty ca_pin file: %v", pinOrPath)
+		}
+		filteredPins = append(filteredPins, strings.Split(pins, "\n")...)
+	}
+	cfg.CAPins = filteredPins
+	return nil
 }
 
 // RoleConfig is a config for particular Teleport role
@@ -371,6 +400,9 @@ type ProxyConfig struct {
 
 	// MongoAddr is address of Mongo proxy.
 	MongoAddr utils.NetAddr
+
+	// PeerAddr is the proxy peering address.
+	PeerAddr utils.NetAddr
 
 	Limiter limiter.Config
 
@@ -716,6 +748,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
+	// SecretStore contains settings for managing secrets.
+	SecretStore DatabaseAWSSecretStore
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -736,6 +770,14 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string
+}
+
+// DatabaseAWSSecretStore contains secret store configurations.
+type DatabaseAWSSecretStore struct {
+	// KeyPrefix specifies the secret key prefix.
+	KeyPrefix string
+	// KMSKeyID specifies the AWS KMS key for encryption.
+	KMSKeyID string
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -990,6 +1032,51 @@ type TracingConfig struct {
 	SamplingRate float64
 }
 
+// Config generates a tracing.Config that is populated from the values
+// provided to the tracing_service
+func (t TracingConfig) Config(attrs ...attribute.KeyValue) (*tracing.Config, error) {
+	traceConf := &tracing.Config{
+		Service:      teleport.ComponentTeleport,
+		Attributes:   attrs,
+		ExporterURL:  t.ExporterURL,
+		SamplingRate: t.SamplingRate,
+	}
+
+	tlsConfig := &tls.Config{}
+	// if a custom CA is specified, use a custom cert pool
+	if len(t.CACerts) > 0 {
+		pool := x509.NewCertPool()
+		for _, caCertPath := range t.CACerts {
+			caCert, err := os.ReadFile(caCertPath)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to read tracing CA certificate %+v", caCertPath)
+			}
+
+			if !pool.AppendCertsFromPEM(caCert) {
+				return nil, trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
+			}
+		}
+		tlsConfig.ClientCAs = pool
+		tlsConfig.RootCAs = pool
+	}
+
+	// add any custom certificates for mTLS
+	if len(t.KeyPairs) > 0 {
+		for _, pair := range t.KeyPairs {
+			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to read keypair: %+v", err)
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+		}
+	}
+
+	if len(t.CACerts) > 0 || len(t.KeyPairs) > 0 {
+		traceConf.TLSConfig = tlsConfig
+	}
+	return traceConf, nil
+}
+
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop
 // Access service.
 type WindowsDesktopConfig struct {
@@ -1210,6 +1297,7 @@ func ApplyDefaults(cfg *Config) {
 	}
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
+	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

@@ -52,7 +52,15 @@ Add the following to your Teleport configuration file, which is stored in
 
 ### Dynamic resource
 
-Create a file called `cap.yaml` to define your `cluster_auth_preference`:
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` includes the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -84,7 +92,15 @@ $ tsh login --proxy=myinstance.teleport.sh
 $ tctl status
 ```
 
-Create a file called `cap.yaml` to define your `cluster_auth_preference`:
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` includes the following content:
 
 ```yaml
 kind: cluster_auth_preference

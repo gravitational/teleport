@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/stretchr/testify/require"
 
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -69,6 +70,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -138,6 +140,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 

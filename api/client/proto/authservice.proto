@@ -1159,28 +1159,6 @@ message Events {
     string LastKey = 2;
 }
 
-// DELETE IN 10.0
-message ListNodesRequest {
-    // Namespace is the namespace of resources.
-    string Namespace = 1;
-    // Limit is the maximum amount of nodes to retrieve.
-    int32 Limit = 2;
-    // StartKey is used to start listing nodes from a specific spot. This should
-    // be set to the previous NextKey value if using pagination, or left empty.
-    string StartKey = 3;
-    // Labels is a label-based matcher if non-empty.
-    map<string, string> Labels = 4;
-}
-
-// DELETE IN 10.0
-message ListNodesResponse {
-    // Servers is a list of servers.
-    repeated types.ServerV2 Servers = 1;
-    // NextKey is the next Key to use as StartKey in a ListNodesRequest to continue
-    // retrieving pages of nodes. If NextKey is empty, there are no more pages.
-    string NextKey = 2;
-}
-
 message GetLocksRequest {
     // Targets is a list of targets. Every returned lock must match at least
     // one of the targets.
@@ -1500,6 +1478,7 @@ message PaginatedResource {
 // one type of resource can be retrieved per request.
 message ListResourcesRequest {
     // ResourceType is the resource that is going to be retrieved.
+    // This only needs to be set explicitly for the `ListResources` rpc.
     string ResourceType = 1 [ (gogoproto.jsontag) = "resource_type,omitempty" ];
     // Namespace is the namespace of resources.
     string Namespace = 2 [ (gogoproto.jsontag) = "namespace,omitempty" ];
@@ -1680,6 +1659,17 @@ message PresenceMFAChallengeSend {
     }
 }
 
+message GetDomainNameResponse {
+    // DomainName is the local auth domain of the current auth server.
+    string DomainName = 1 [ (gogoproto.jsontag) = "domain_name" ];
+}
+
+// GetClusterCACertResponse is a response from GetClusterCACert
+message GetClusterCACertResponse {
+    // TLSCA is a PEM-encoded TLS certificate authority.
+    bytes TLSCA = 1 [ (gogoproto.jsontag) = "tls_ca" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
@@ -1709,12 +1699,6 @@ service AuthService {
 
     // GetNode retrieves a node described by the given request.
     rpc GetNode(types.ResourceInNamespaceRequest) returns (types.ServerV2);
-    // GetNodes retrieves all nodes.
-    // DELETE IN 8.0.0 in favor of ListNodes
-    rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
-    // ListNodes retrieves a paginated list of nodes.
-    // DELETE IN 10.0. Deprecated, use ListResources.
-    rpc ListNodes(ListNodesRequest) returns (ListNodesResponse) { option deprecated = true; };
     // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
     // DeleteNode deletes an existing node in a backend described by the given request.
@@ -2183,4 +2167,11 @@ service AuthService {
 
     // ListResources retrieves a paginated list of resources.
     rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+
+    // GetDomainName returns local auth domain of the current auth server
+    rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);
+    // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
+    // without signing keys. If the cluster has multiple TLS certs, they will
+    // all be appended.
+    rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
 }

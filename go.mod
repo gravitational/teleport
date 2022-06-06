@@ -52,7 +52,7 @@ require (
 	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
 	github.com/gravitational/roundtrip v1.0.1
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.1.17
+	github.com/gravitational/trace v1.1.18
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-20220308023801-e4a6915ea237
 	github.com/hashicorp/golang-lru v0.5.4
@@ -112,6 +112,7 @@ require (
 	google.golang.org/api v0.65.0
 	google.golang.org/genproto v0.0.0-20220118154757-00ab72f36ad5
 	google.golang.org/grpc v1.46.0
+	google.golang.org/grpc/examples v0.0.0-20210424002626-9572fd6faeae
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/ini.v1 v1.62.0
@@ -279,7 +280,7 @@ require (
 
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
-	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0
+	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20220509084309-3d41480ef74f
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible => github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/go-mysql-org/go-mysql v1.5.0 => github.com/gravitational/go-mysql v1.5.0-teleport.1
 	github.com/go-redis/redis/v8 => github.com/gravitational/redis/v8 v8.11.5-0.20220211010318-7af711b76a91
