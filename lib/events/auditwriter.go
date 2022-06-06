@@ -445,7 +445,7 @@ func (a *AuditWriter) processEvents() {
 			if err != nil {
 				if IsPermanentEmitError(err) {
 					a.log.WithError(err).WithField("event", event).
-					Warning("Failed to emit audit event due to permanent emit audit event error. Event will be omitted.")
+							Warning("Failed to emit audit event due to permanent emit audit event error. Event will be omitted.")
 					continue
 				}
 
