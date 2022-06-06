@@ -108,6 +108,7 @@ SA_TOKEN=$(kubectl create token -n ${NAMESPACE} ${TELEPORT_SA})
 
 # Extract cluster IP from the current context
 CURRENT_CONTEXT=$(kubectl config current-context)
+
 echo "Extracting connectivity info from kubectl"
 CURRENT_CLUSTER=$(kubectl config view -o jsonpath="{.contexts[?(@.name == \"${CURRENT_CONTEXT}\"})].context.cluster}")
 CURRENT_CLUSTER_ADDR=$(kubectl config view -o jsonpath="{.clusters[?(@.name == \"${CURRENT_CLUSTER}\"})].cluster.server}")
