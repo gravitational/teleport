@@ -5096,7 +5096,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:133
+# Generated at dronegen/misc.go:145
 ################################################
 
 kind: pipeline
@@ -5124,7 +5124,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:157
+# Generated at dronegen/misc.go:169
 ################################################
 
 kind: pipeline
@@ -5153,10 +5153,16 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p /go/src/github.com/gravitational/teleport
-  - cd /go/src/github.com/gravitational/teleport
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout "${DRONE_TAG}"
+- name: Check if tag is prerelease
+  image: golang:1.17-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -5179,7 +5185,7 @@ steps:
   - chown -R root:root $GNUPGHOME
   - apt update
   - apt install aptly tree -y
-  - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -local-bucket-path "$BUCKET_CACHE_PATH"
@@ -5602,6 +5608,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0f665f13b0e591f35ceb28f503ac0e81e219011914af7d27bcb1ced907ebd397
+hmac: 0e4cc09300fb79eeeb510175f11418f84b9447541ae6628e0450442df02528d6
 
 ...
