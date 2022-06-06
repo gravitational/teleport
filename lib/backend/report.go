@@ -127,6 +127,7 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		log.Errorf("GH1720: write failured: %v", err)
 	}
 	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
@@ -141,6 +142,7 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		log.Errorf("GH1720: write failured: %v", err)
 	}
 	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
@@ -154,6 +156,7 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		log.Errorf("GH1720: write failured: %v", err)
 	}
 	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
@@ -181,6 +184,7 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		log.Errorf("GH1720: write failured: %v", err)
 	}
 	s.trackRequest(types.OpPut, expected.Key, nil)
 	return lease, err
@@ -194,6 +198,7 @@ func (s *Reporter) Delete(ctx context.Context, key []byte) error {
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		log.Errorf("GH1720: write failured: %v", err)
 	}
 	s.trackRequest(types.OpDelete, key, nil)
 	return err
@@ -223,6 +228,7 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		log.Errorf("GH1720: write failured: %v", err)
 	}
 	s.trackRequest(types.OpPut, lease.Key, nil)
 	return err
