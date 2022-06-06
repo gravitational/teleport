@@ -423,6 +423,7 @@ auth_service:
   listen_addr: 0.0.0.0:3025
   authentication:
     ${AUTHENTICATION_STANZA}
+  cluster_name: ${TELEPORT_CLUSTER_NAME}
 EOF
 
     # copy and set up license if provided
@@ -519,6 +520,7 @@ auth_service:
   listen_addr: 0.0.0.0:3025
   authentication:
     ${AUTHENTICATION_STANZA}
+  cluster_name: ${TELEPORT_CLUSTER_NAME}
 
 ssh_service:
   enabled: yes

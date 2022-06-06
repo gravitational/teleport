@@ -39,14 +39,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -70,11 +69,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
-	"github.com/gravitational/trace"
-
 	"github.com/duo-labs/webauthn/protocol"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 const (
@@ -326,6 +326,11 @@ type Config struct {
 	// AuthenticatorAttachment is the desired authenticator attachment.
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
 
+	// PreferOTP prefers OTP in favor of other MFA methods.
+	// Useful in constrained environments without access to USB or platform
+	// authenticators, such as remote hosts or virtual machines.
+	PreferOTP bool
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
@@ -376,11 +381,11 @@ type Config struct {
 	// ExtraProxyHeaders is a collection of http headers to be included in requests to the WebProxy.
 	ExtraProxyHeaders map[string]string
 
-	// UseStrongestAuth instructs TeleportClient to use the strongest
-	// authentication method supported by the cluster in Login attempts.
-	// Apart from the obvious benefits, UseStrongestAuth also avoids stdin
-	// hijacking issues from Login, as a single auth method is used.
-	UseStrongestAuth bool
+	// AllowStdinHijack allows stdin hijack during MFA prompts.
+	// Stdin hijack provides a better login UX, but it can be difficult to reason
+	// about and is often a source of bugs.
+	// Do not set this options unless you deeply understand what you are doing.
+	AllowStdinHijack bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -532,6 +537,10 @@ type ProfileStatus struct {
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRolesARNs []string
 
+	// AllowedResourceIDs is a list of resources the user can access. An empty
+	// list means there are no resource-specific restrictions.
+	AllowedResourceIDs []types.ResourceID
+
 	// IsVirtual is set when this profile does not actually exist on disk,
 	// probably because it was constructed from an identity file. When set,
 	// certain profile functions - particularly those that return paths to
@@ -634,6 +643,14 @@ func (p *ProfileStatus) AppCertPath(name string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
+// AppLocalCAPath returns the specified app's self-signed localhost CA path for
+// this profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-localca.pem
+func (p *ProfileStatus) AppLocalCAPath(name string) string {
+	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+}
+
 // KubeConfigPath returns path to the specified kubeconfig for this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-kube/<cluster>/<name>-kubeconfig
@@ -687,8 +704,6 @@ func (p *ProfileStatus) AppNames() (result []string) {
 
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
-// RetryWithRelogin automatically enables tc.UseStrongestAuth for Login attempts
-// in order to avoid stdin hijack bugs.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
 	err := fn()
 	if err == nil {
@@ -704,17 +719,6 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	log.Debugf("Activating relogin on %v.", err)
-
-	if !tc.UseStrongestAuth {
-		defer func() {
-			tc.UseStrongestAuth = false
-		}()
-		// Avoid stdin hijack on relogin attempts.
-		// Users can pick an alternative MFA method by explicitly calling Login (or
-		// running `tsh login`).
-		tc.UseStrongestAuth = true
-		log.Debug("Enabling strongest auth for login. Use `tsh login` for alternative authentication methods.")
-	}
 
 	key, err := tc.Login(ctx)
 	if err != nil {
@@ -787,6 +791,12 @@ func profileFromKey(key *Key, opts ProfileOptions) (*ProfileStatus, error) {
 		}
 	}
 
+	allowedResourcesStr := sshCert.Extensions[teleport.CertExtensionAllowedResources]
+	allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
@@ -794,7 +804,8 @@ func profileFromKey(key *Key, opts ProfileOptions) (*ProfileStatus, error) {
 		if ext == teleport.CertExtensionTeleportRoles ||
 			ext == teleport.CertExtensionTeleportTraits ||
 			ext == teleport.CertExtensionTeleportRouteToCluster ||
-			ext == teleport.CertExtensionTeleportActiveRequests {
+			ext == teleport.CertExtensionTeleportActiveRequests ||
+			ext == teleport.CertExtensionAllowedResources {
 			continue
 		}
 		extensions = append(extensions, ext)
@@ -837,21 +848,22 @@ func profileFromKey(key *Key, opts ProfileOptions) (*ProfileStatus, error) {
 			Scheme: "https",
 			Host:   opts.WebProxyAddr,
 		},
-		Username:       opts.Username,
-		Logins:         sshCert.ValidPrincipals,
-		ValidUntil:     validUntil,
-		Extensions:     extensions,
-		Roles:          roles,
-		Cluster:        opts.SiteName,
-		Traits:         traits,
-		ActiveRequests: activeRequests,
-		KubeEnabled:    opts.KubeProxyAddr != "",
-		KubeUsers:      tlsID.KubernetesUsers,
-		KubeGroups:     tlsID.KubernetesGroups,
-		Databases:      databases,
-		Apps:           apps,
-		AWSRolesARNs:   tlsID.AWSRoleARNs,
-		IsVirtual:      opts.IsVirtual,
+		Username:           opts.Username,
+		Logins:             sshCert.ValidPrincipals,
+		ValidUntil:         validUntil,
+		Extensions:         extensions,
+		Roles:              roles,
+		Cluster:            opts.SiteName,
+		Traits:             traits,
+		ActiveRequests:     activeRequests,
+		KubeEnabled:        opts.KubeProxyAddr != "",
+		KubeUsers:          tlsID.KubernetesUsers,
+		KubeGroups:         tlsID.KubernetesGroups,
+		Databases:          databases,
+		Apps:               apps,
+		AWSRolesARNs:       tlsID.AWSRoleARNs,
+		IsVirtual:          opts.IsVirtual,
+		AllowedResourceIDs: allowedResourceIDs,
 	}, nil
 }
 
@@ -1348,7 +1360,7 @@ type TeleportClient struct {
 // hasn't begun yet.
 //
 // It allows clients to cancel SSH action
-type ShellCreatedCallback func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
+type ShellCreatedCallback func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
@@ -1677,6 +1689,28 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 	return trace.Wrap(do(clt))
 }
 
+// NewTracingClient provides a tracing client that will forward spans on to
+// the current clusters auth server. The auth server will then forward along to the configured
+// telemetry backend.
+func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*tracing.Client, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	site, err := proxyClient.currentCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := proxyClient.NewTracingClient(ctx, site.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clt, nil
+}
+
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 //
@@ -1691,7 +1725,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	siteInfo, err := proxyClient.currentCluster()
+	siteInfo, err := proxyClient.currentCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1956,7 +1990,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	}
 	defer proxyClient.Close()
 
-	clusterInfo, err := proxyClient.currentCluster()
+	clusterInfo, err := proxyClient.currentCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2025,7 +2059,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 	// helper function connects to the src/target node:
 	connectToNode := func(addr, hostLogin string) (*NodeClient, error) {
 		// determine which cluster we're connecting to:
-		siteInfo, err := proxyClient.currentCluster()
+		siteInfo, err := proxyClient.currentCluster(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2525,7 +2559,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 //    In case of proxy web address check if the proxy supports TLS Routing and connect to the proxy with TLSWrapper
 // 3) Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
 //    JumpHost address was provided.
-func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*tracessh.Client, error) {
 	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
 	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
 		log.Infof("Connecting to proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
@@ -2557,7 +2591,7 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	}
 
 	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
-	client, err := makeProxySSHClientDirect(tc, sshConfig, sshProxyAddr)
+	client, err := makeProxySSHClientDirect(ctx, tc, sshConfig, sshProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
 	}
@@ -2565,12 +2599,12 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	return client, nil
 }
 
-func makeProxySSHClientDirect(tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
+func makeProxySSHClientDirect(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
 	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr)
-	return dialer.Dial("tcp", proxyAddr, sshConfig)
+	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
-func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
+func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
 	tlsConfig, err := tc.loadTLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2578,7 +2612,7 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
-	return dialer.Dial("tcp", proxyAddr, sshConfig)
+	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {
@@ -2732,11 +2766,6 @@ func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*webclient.WebConfi
 }
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
-//
-// Login may hijack stdin in some scenarios; it's strongly recommended for
-// callers to rely exclusively on prompt.Stdin after calling this method.
-// Alternatively, if tc.UseStrongestAuth is set, then no stdin hijacking
-// happens.
 //
 // The returned Key should typically be passed to ActivateKey in order to
 // update local agent state.
@@ -2973,8 +3002,9 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.
 		},
 		User:                    tc.Username,
 		Password:                password,
-		UseStrongestAuth:        tc.UseStrongestAuth,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+		PreferOTP:               tc.PreferOTP,
+		AllowStdinHijack:        tc.AllowStdinHijack,
 	})
 
 	return response, trace.Wrap(err)
