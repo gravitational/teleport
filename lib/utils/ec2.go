@@ -34,6 +34,10 @@ import (
 // metadataReadLimit is the largest number of bytes that will be read from imds responses.
 const metadataReadLimit = 1_000_000
 
+// instanceMetadataURL is the URL for EC2 instance metadata.
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
+const instanceMetadataURL = "http://169.254.169.254/latest/meta-data"
+
 // GetEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
 // from the IMDS for this EC2 instance.
 func GetEC2IdentityDocument() ([]byte, error) {
@@ -116,7 +120,7 @@ func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 	httpClient := http.Client{
 		Timeout: 250 * time.Millisecond,
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/meta-data", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, instanceMetadataURL, nil)
 	if err != nil {
 		return false
 	}
