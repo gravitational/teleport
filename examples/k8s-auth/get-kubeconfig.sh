@@ -104,6 +104,7 @@ EOF
 
 # Get the service account token and CA cert.
 echo "Fetching service account ${NAMESPACE} sa/${TELEPORT_SA}"
+kubectl create token -n ${NAMESPACE} ${TELEPORT_SA}
 SA_SECRET_NAME=$(kubectl get -n ${NAMESPACE} sa/${TELEPORT_SA} -o "jsonpath={.secrets[0]..name}")
 
 # Note: service account token is stored base64-encoded in the secret but must
