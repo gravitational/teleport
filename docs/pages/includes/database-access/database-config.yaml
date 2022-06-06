@@ -13,8 +13,7 @@ db_service:
     # 'rds' - discovers and registers AWS RDS and Aurora databases.
     # 'redshift' - discovers and registers AWS Redshift databases.
     # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
-    # 'memorydb' - discovers and registers AWS MemoryDB databases.
-  - types: ["rds", "redshift", "elasticache", "memorydb"]
+  - types: ["rds", "redshift", "elasticache"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # AWS resource tags to match when registering databases.
@@ -55,7 +54,9 @@ db_service:
       # When this option is set the Database Agent doesn't try to check the MySQL server version.
       server_version: 8.0.28
 
-    # AWS specific configuration, only required for AWS hosted databases.
+    # Optional AWS configuration for AWS hosted databases. AWS region and
+    # service specific configurations can usually be auto-detected from the
+    # endpoint.
     aws:
       # Region the database is deployed in.
       region: "us-east-1"
@@ -63,12 +64,24 @@ db_service:
       redshift:
         # Redshift cluster identifier.
         cluster_id: "redshift-cluster-1"
-      # Optional AWS Secrets Manager configuration for saving temporary
-      # passwords for Teleport managed ElastiCache and MemoryDB users.
+      # RDS specific configuration.
+      rds:
+        # RDS instance identifier.
+        instance_id: "rds-instance-1"
+        # RDS Aurora cluster identifier.
+        cluster_id: "aurora-cluster-1"
+      # ElastiCache specific configuration.
+      elasticache:
+        # ElastiCache replication group identifier.
+        replication_group_id: "elasticache-replication-group-1"
+
+      # Optional AWS Secrets Manager configuration for managing ElastiCache
+      # users.
       #
-      # IMPORTANT: please make sure databases sharing the same users have the
-      # same configuration and the configuration should be consistent across
-      # all Database Services in High Availability (HA) mode.
+      # IMPORTANT: please make sure databases sharing the same ElastiCache
+      # users have the same secret_store configuration. The configuration
+      # should also be consistent across all Database Services in High
+      # Availability (HA) mode.
       secret_store:
         # Prefix to all secrets created by the service. Defaults to 'teleport/'.
         key_prefix: "teleport/"

@@ -5,7 +5,7 @@ description: AWS IAM policies for Teleport database access.
 
 ## Auto-discovery
 With the appropriate IAM permissions, Teleport automatically discovers and
-configures IAM policies for Amazon RDS, Redshift, ElastiCache and MemoryDB.
+configures IAM policies for Amazon RDS, Redshift and ElastiCache.
 
 Teleport may also require permission to update database configurations, for
 example, to enable IAM authentication on RDS databases.
@@ -19,8 +19,8 @@ IAM policies:
 $ teleport db configure bootstrap --manual
 ```
 
-Or if you prefer, you manage the IAM permissions yourself. Examples of policies
-for each discovery type are shown below.
+Or if you prefer, you can manage the IAM permissions yourself. Examples of
+policies for each discovery type are shown below.
 
 ### Aurora/RDS
 
@@ -214,104 +214,32 @@ for each discovery type are shown below.
   </TabItem>
 </Tabs>
 
-### ElastiCache/MemoryDB
+### ElastiCache
 
-In addition to discovery, Teleport requires permissions to AWS Secrets Manager
-for saving the temporary passwords for Teleport managed ElastiCache and
-MemoryDB users. Teleport may also require permissions to KMS keys if custom KMS
-keys are used for encryption.
+In addition to database discovery, Teleport requires permissions to modify user
+passwords and save passwords in AWS Secrets Manager, if any ElastiCache users
+are tagged to be managed by Teleport.
 
 Replace `{account-id}` with your AWS Account ID.
 
-<Tabs>
-  <TabItem label="ElastiCache">
-
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "elasticache:ListTagsForResource",
-                  "elasticache:DescribeReplicationGroups",
-                  "elasticache:DescribeCacheClusters",
-                  "elasticache:DescribeCacheSubnetGroups",
-                  "elasticache:DescribeUsers",
-                  "elasticache:ModifyUser"
-              ],
-              "Resource": [
-                  "*"
-              ]
-          },
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "secretsmanager:DescribeSecret",
-                  "secretsmanager:CreateSecret",
-                  "secretsmanager:UpdateSecret",
-                  "secretsmanager:DeleteSecret",
-                  "secretsmanager:GetSecretValue",
-                  "secretsmanager:PutSecretValue",
-                  "secretsmanager:TagResource"
-              ],
-              "Resource": [
-                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
-              ]
-          }
-      ]
-  }
-  ```
-
-  </TabItem>
-  <TabItem label="MemoryDB">
-
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "memorydb:ListTags",
-                  "memorydb:DescribeClusters",
-                  "memorydb:DescribeSubnetGroups",
-                  "memorydb:DescribeUsers",
-                  "memorydb:UpdateUser"
-              ],
-              "Resource": [
-                  "*"
-              ]
-          },
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "secretsmanager:DescribeSecret",
-                  "secretsmanager:CreateSecret",
-                  "secretsmanager:UpdateSecret",
-                  "secretsmanager:DeleteSecret",
-                  "secretsmanager:GetSecretValue",
-                  "secretsmanager:PutSecretValue",
-                  "secretsmanager:TagResource"
-              ],
-              "Resource": [
-                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
-              ]
-          }
-      ]
-  }
-  ```
-
-  </TabItem>
-</Tabs>
-
-If any custom key prefix or KMS key ID is used in the
-[configuration](./configuration.mdx), you can add the following to the IAM
-policy.
-```
+```json
 {
     "Version": "2012-10-17",
     "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "elasticache:ListTagsForResource",
+                "elasticache:DescribeReplicationGroups",
+                "elasticache:DescribeCacheClusters",
+                "elasticache:DescribeCacheSubnetGroups",
+                "elasticache:DescribeUsers",
+                "elasticache:ModifyUser"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
         {
             "Effect": "Allow",
             "Action": [
@@ -324,17 +252,7 @@ policy.
                 "secretsmanager:TagResource"
             ],
             "Resource": [
-                "arn:aws:secretsmanager:*:{account-id}:secret:{my-prefix}/*"
-            ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "kms:GenerateDataKey",
-                "kms:Decrypt"
-            ],
-            "Resource": [
-                "arn:aws:kms:*:{account-id}:key/{my-kms-id}",
+                "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
             ]
         }
     ]
@@ -342,8 +260,8 @@ policy.
 ```
 
 ## Manual registration
-If you prefer to register RDS or Redshift databases manually using a [static
-configuration](./configuration.mdx) or
+If you prefer to register RDS, Redshift or ElastiCache databases manually using
+a [static configuration](./configuration.mdx) or
 [`tctl`](../guides/dynamic-registration.mdx) and manage IAM yourself, example
 IAM policies with the required permissions are shown below.
 
@@ -434,4 +352,85 @@ Parameters:
 See [Create an IAM role or user with permissions to call
 GetClusterCredentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-iam-credentials-role-permissions.html)
 for more information.
+
+### ElastiCache policy
+
+If any ElastiCache users are tagged to be managed by Teleport, below are the
+IAM permissions required for managing the ElastiCache users. Otherwise, no
+additional IAM permissions are required.
+
+Replace `{account-id}` with your AWS Account ID.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "elasticache:ListTagsForResource",
+                "elasticache:DescribeReplicationGroups",
+                "elasticache:DescribeUsers",
+                "elasticache:ModifyUser"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:CreateSecret",
+                "secretsmanager:UpdateSecret",
+                "secretsmanager:DeleteSecret",
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:PutSecretValue",
+                "secretsmanager:TagResource"
+            ],
+            "Resource": [
+                "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
+            ]
+        }
+    ]
+}
+```
+
+If any custom key prefix or KMS key ID is used in the static configuration, add
+the following to the IAM policy.
+
+Replace `{account-id}`, `{my-prefix}` and `{my-kms-id}` accordingly.
+
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:CreateSecret",
+                "secretsmanager:UpdateSecret",
+                "secretsmanager:DeleteSecret",
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:PutSecretValue",
+                "secretsmanager:TagResource"
+            ],
+            "Resource": [
+                "arn:aws:secretsmanager:*:{account-id}:secret:{my-prefix}/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "kms:GenerateDataKey",
+                "kms:Decrypt"
+            ],
+            "Resource": [
+                "arn:aws:kms:*:{account-id}:key/{my-kms-id}",
+            ]
+        }
+    ]
+}
+```
 

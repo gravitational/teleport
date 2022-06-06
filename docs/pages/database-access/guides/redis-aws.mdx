@@ -1,12 +1,12 @@
 ---
-title: Database Access with AWS ElatiCache and MemoryDB for Redis
-description: How to configure Teleport Database Access with AWS ElatiCache and Memory for Redis.
+title: Database Access with AWS ElatiCache for Redis
+description: How to configure Teleport Database Access with AWS ElatiCache for Redis.
 ---
 
 This guide will help you to:
 
 - Install Teleport `(=teleport.version=)`.
-- Set up Teleport to access your ElastiCache and MemoryDB clusters for Redis.
+- Set up Teleport to access your ElastiCache clusters for Redis.
 - Connect to your clusters through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -19,8 +19,8 @@ This guide will help you to:
 
 ## Prerequisites
 
-- AWS account with ElastiCache or MemoryDB Redis clusters **with in-transit
-  encryption (TLS) enabled**.
+- AWS account with ElastiCache Redis clusters **with in-transit encryption
+  (TLS) enabled**.
 - Permissions to create and attach IAM policies.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
@@ -43,60 +43,32 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Create the Database Service configuration:
 
-<Tabs>
-  <TabItem label="ElastiCache">
-    <ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss", "enterprise"]}>
 
-    ```code
-    $ teleport db configure create \
-       -o file \
-       --proxy=teleport.example.com:3080 \
-       --token=/tmp/token \
-       --elasticache-discovery=us-west-1
-    ```
- 
-    </ScopedBlock>
-    <ScopedBlock scope={["oss", "enterprise"]}>
+```code
+$ teleport db configure create \
+   -o file \
+   --proxy=teleport.example.com:3080 \
+   --token=/tmp/token \
+   --elasticache-discovery=us-west-1
+```
 
-    ```code
-    $ teleport db configure create \
-       -o file \
-       --proxy=mytenant.teleport.sh \
-       --token=/tmp/token \
-       --elasticache-discovery=us-west-1
-    ```
+</ScopedBlock>
+<ScopedBlock scope={["oss", "enterprise"]}>
 
-    </ScopedBlock>
-  </TabItem>
-  <TabItem label="MemoryDB">
-    <ScopedBlock scope={["oss", "enterprise"]}>
+```code
+$ teleport db configure create \
+   -o file \
+   --proxy=mytenant.teleport.sh \
+   --token=/tmp/token \
+   --elasticache-discovery=us-west-1
+```
 
-    ```code
-    $ teleport db configure create \
-       -o file \
-       --proxy=teleport.example.com:3080 \
-       --token=/tmp/token \
-       --memorydb-discovery=us-west-1
-    ```
- 
-    </ScopedBlock>
-    <ScopedBlock scope={["oss", "enterprise"]}>
+</ScopedBlock>
 
-    ```code
-    $ teleport db configure create \
-       -o file \
-       --proxy=mytenant.teleport.sh \
-       --token=/tmp/token \
-       --memorydb-discovery=us-west-1
-    ```
-
-    </ScopedBlock>
-  </TabItem>
-</Tabs>
-
-The command will generate a Database Service configuration with
-ElastiCache/MemoryDB database auto-discovery enabled on the `us-west-1` region
-and place it at the `/etc/teleport.yaml` location. See [Configuration
+The command will generate a Database Service configuration with ElastiCache
+database auto-discovery enabled on the `us-west-1` region and place it at the
+`/etc/teleport.yaml` location. See [Configuration
 Reference](../reference/configuration.mdx) for more details if you wish to
 customize the configuration.
 
@@ -104,8 +76,8 @@ customize the configuration.
 
 Teleport needs AWS IAM permissions to be able to:
 
-- Discover and register ElastiCache and MemoryDB Redis clusters.
-- Modify ElastiCache and MemoryDB user passwords for Teleport managed users and
+- Discover and register ElastiCache Redis clusters.
+- Modify ElastiCache user passwords for Teleport managed users and
   save the passwords in AWS Secrets Manager. 
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
@@ -118,8 +90,8 @@ Start the Database Service:
 $ teleport start --config=/etc/teleport.yaml
 ```
 
-The Database Service will discover and register all ElastiCache and MemoryDB
-Redis clusters according to the configuration.
+The Database Service will discover and register all ElastiCache Redis clusters
+according to the configuration.
 
 <Admonition type="note" title="AWS credentials">
   The Teleport Database Service uses the default credential provider chain to
@@ -128,7 +100,7 @@ Redis clusters according to the configuration.
   for more information.
 </Admonition>
 
-## Step 6/7. Create a Teleport managed user (optional)
+## Step 6/7. Create a Teleport managed ElastiCache user (optional)
 
 To provide better security, it is recommended to use [Redis
 ACL](https://redis.io/docs/manual/security/acl/) for authentication with Redis
@@ -137,22 +109,21 @@ Teleport managed user's password, saves the password in AWS Secrets Manager,
 and automatically sends `AUTH` with the saved password when connecting the
 client to the Redis server.
 
-To enable Redis ACL, please see [Authenticating users with
-Role-Based Access Control for
-ElastiCache](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html)
-or [Authenticating users with Access Control Lists for
-MemoryDB](https://docs.aws.amazon.com/memorydb/latest/devguide/clusters.acls.html).
+To enable Redis ACL, please see [Authenticating users with Role-Based Access
+Control for
+ElastiCache](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html).
 
-Once an ElastiCache/MemoryDB user is created with the desired access, add an
+Once an ElastiCache user is created with the desired access, add an
 AWS resource tag `teleport.dev/managed` with the value `true` to this user. The
 Database Service will automatically discover this user if it is associated with
 a registered database. Keep in mind that it may take the Database Service some
 time (up to 20 minutes) to discover this user once the tag is added.
 
-<Admonition type="note">
-It is not required for all users in the same ElastiCache user group or MemoryDB
-ACL to be managed by Teleport. Just the tag users that are desired to be
-managed by Teleport.
+<Admonition type="tip">
+It is not required for all users in the same ElastiCache user group to be
+managed by Teleport. Just the tag users that are desired to be used for
+Teleport database access. You can still have other ElastiCache users for other
+usages like programming access.
 </Admonition>
 
 ## Step 7/7. Connect
@@ -170,7 +141,6 @@ $ tsh db ls
 # my-cluster-mode-elasticache ElastiCache cluster in us-west-1 (configuration endpoint) ...
 # my-elasticache              ElastiCache cluster in us-west-1 (primary endpoint)       ...
 # my-elasticache-reader       ElastiCache cluster in us-west-1 (reader endpoint)        ...
-# my-memorydb                 MemoryDB cluster in us-west-1                             ...
 ```
 
 </ScopedBlock>
@@ -184,13 +154,12 @@ $ tsh db ls
 # my-cluster-mode-elasticache ElastiCache cluster in us-west-1 (configuration endpoint) ...
 # my-elasticache              ElastiCache cluster in us-west-1 (primary endpoint)       ...
 # my-elasticache-reader       ElastiCache cluster in us-west-1 (reader endpoint)        ...
-# my-memorydb                 MemoryDB cluster in us-west-1                             ...
 ```
 
 </ScopedBlock>
 
-To connect to a particular database instance, first retrieve its certificate
-using the `tsh db login` command:
+To connect to a particular database, first retrieve its certificate using the
+`tsh db login` command:
 
 ```code
 $ tsh db login --db-user=my-database-user my-elasticache
