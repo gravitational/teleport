@@ -42,7 +42,7 @@ func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, di
 	}
 
 	header := make(http.Header)
-	if proxyURL.User != nil {
+	if proxyURL != nil && proxyURL.User != nil {
 		// dont use User.String() because it performs url encoding (rfc 1738),
 		// which we don't want in our header
 		creds := proxyURL.User.Username()
