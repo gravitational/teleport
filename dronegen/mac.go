@@ -384,8 +384,7 @@ func darwinTagCopyPackageArtifactCommands(b buildType) []string {
 	// copy Teleport Connect artifacts
 	if b.hasTeleportConnect() {
 		commands = append(commands,
-			`export TELEPORT_CONNECT_DIR="$(yarn --cwd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps -s get-teleport-connect-dir)"`,
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/$TELEPORT_CONNECT_DIR/build/release`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
 			`cp *.dmg $WORKSPACE_DIR/go/artifacts`,
 		)
 	}
