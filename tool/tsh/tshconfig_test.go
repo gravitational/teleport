@@ -153,15 +153,15 @@ func TestTshConfigMerge(t *testing.T) {
 			want: TshConfig{
 				ExtraHeaders: []ExtraProxyHeaders{
 					{
-						Proxy: "foo",
-						Headers: map[string]string{
-							"bar": "123",
-						},
-					},
-					{
 						Proxy: "bar",
 						Headers: map[string]string{
 							"baz": "456",
+						},
+					},
+					{
+						Proxy: "foo",
+						Headers: map[string]string{
+							"bar": "123",
 						},
 					},
 				}},
@@ -187,13 +187,13 @@ func TestTshConfigMerge(t *testing.T) {
 					{
 						Proxy: "foo",
 						Headers: map[string]string{
-							"bar": "123",
+							"bar": "456",
 						},
 					},
 					{
 						Proxy: "foo",
 						Headers: map[string]string{
-							"bar": "456",
+							"bar": "123",
 						},
 					},
 				}},
