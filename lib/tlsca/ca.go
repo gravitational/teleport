@@ -395,17 +395,12 @@ var (
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
-	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
-	if err != nil {
-		return pkix.Name{}, trace.Wrap(err)
-	}
-
 	subject := pkix.Name{
-		CommonName: id.Username,
+		CommonName:         id.Username,
+		Organization:       append([]string{}, id.Groups...),
+		OrganizationalUnit: append([]string{}, id.Usage...),
+		Locality:           append([]string{}, id.Principals...),
 	}
-	subject.Organization = append([]string{}, id.Groups...)
-	subject.OrganizationalUnit = append([]string{}, id.Usage...)
-	subject.Locality = append([]string{}, id.Principals...)
 
 	for i := range id.KubernetesUsers {
 		kubeUser := id.KubernetesUsers[i]
