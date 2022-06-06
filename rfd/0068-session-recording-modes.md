@@ -1,6 +1,6 @@
 ---
 authors: Gabriel Corado (gabriel.oliveira@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 68 - Session recording modes
