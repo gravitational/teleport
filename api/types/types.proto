@@ -2874,7 +2874,7 @@ message GithubAuthRequest {
     // CertTTL is TTL of the cert that's generated in case of successful auth.
     int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
     // CreateWebSession indicates that a user wants to generate a web session
-    // after successul authentication.
+    // after successful authentication.
     bool CreateWebSession = 7 [ (gogoproto.jsontag) = "create_web_session" ];
     // RedirectURL will be used by browser.
     string RedirectURL = 8 [ (gogoproto.jsontag) = "redirect_url" ];

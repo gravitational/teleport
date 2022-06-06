@@ -1179,6 +1179,20 @@ func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error)
 	return out, nil
 }
 
+// GetSnowflakeSessions gets all Snowflake web sessions.
+func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	resp, err := c.grpc.GetSnowflakeSessions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	out := make([]types.WebSession, 0, len(resp.GetSessions()))
+	for _, v := range resp.GetSessions() {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
@@ -1195,6 +1209,32 @@ func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	return resp.GetSession(), nil
 }
 
+// CreateSnowflakeSession creates a Snowflake web session.
+func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.CreateSnowflakeSession(ctx, &proto.CreateSnowflakeSessionRequest{
+		Username:     req.Username,
+		SessionToken: req.SessionToken,
+		TokenTTL:     proto.Duration(req.TokenTTL),
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// GetSnowflakeSession gets a Snowflake web session.
+func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.GetSnowflakeSession(ctx, &proto.GetSnowflakeSessionRequest{
+		SessionID: req.SessionID,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
 // DeleteAppSession removes an application web session.
 func (c *Client) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	_, err := c.grpc.DeleteAppSession(ctx, &proto.DeleteAppSessionRequest{
@@ -1203,8 +1243,22 @@ func (c *Client) DeleteAppSession(ctx context.Context, req types.DeleteAppSessio
 	return trail.FromGRPC(err)
 }
 
+// DeleteSnowflakeSession removes a Snowflake web session.
+func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSnowflakeSessionRequest) error {
+	_, err := c.grpc.DeleteSnowflakeSession(ctx, &proto.DeleteSnowflakeSessionRequest{
+		SessionID: req.SessionID,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteAllAppSessions removes all application web sessions.
 func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllAppSessions(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
+func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllAppSessions(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
@@ -1223,6 +1277,19 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		URI:      req.URI,
 		Expires:  req.Expires,
 	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetToken(), nil
+}
+
+// GenerateSnowflakeJWT generates JWT in the Snowflake required format.
+func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSnowflakeJWT) (string, error) {
+	resp, err := c.grpc.GenerateSnowflakeJWT(ctx, &proto.SnowflakeJWTRequest{
+		UserName:    req.Username,
+		AccountName: req.Account,
+	}, c.callOpts...)
 	if err != nil {
 		return "", trail.FromGRPC(err)
 	}

@@ -485,6 +485,8 @@ const (
 	ProtocolCockroachDB = "cockroachdb"
 	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
 	ProtocolSQLServer = "sqlserver"
+	// ProtocolSnowflake is the Snowflake REST database protocol.
+	ProtocolSnowflake = "snowflake"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -494,6 +496,7 @@ var DatabaseProtocols = []string{
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
 	ProtocolRedis,
+	ProtocolSnowflake,
 	ProtocolSQLServer,
 }
 
@@ -574,6 +577,11 @@ const (
 	SelfSignedPubPath = "webproxy_pub.pem"
 	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
 	SelfSignedCertPath = "webproxy_cert.pem"
+)
+
+const (
+	// SnowflakeURL is the Snowflake URL used for address validation.
+	SnowflakeURL = "snowflakecomputing.com"
 )
 
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)

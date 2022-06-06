@@ -8232,7 +8232,7 @@ type GithubAuthRequest struct {
 	// CertTTL is TTL of the cert that's generated in case of successful auth.
 	CertTTL Duration `protobuf:"varint,6,opt,name=CertTTL,proto3,casttype=Duration" json:"cert_ttl"`
 	// CreateWebSession indicates that a user wants to generate a web session
-	// after successul authentication.
+	// after successful authentication.
 	CreateWebSession bool `protobuf:"varint,7,opt,name=CreateWebSession,proto3" json:"create_web_session"`
 	// RedirectURL will be used by browser.
 	RedirectURL string `protobuf:"bytes,8,opt,name=RedirectURL,proto3" json:"redirect_url"`
