@@ -395,11 +395,21 @@ var (
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
+	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
+	if err != nil {
+		return pkix.Name{}, trace.Wrap(err)
+	}
+
 	subject := pkix.Name{
 		CommonName:         id.Username,
 		Organization:       append([]string{}, id.Groups...),
 		OrganizationalUnit: append([]string{}, id.Usage...),
 		Locality:           append([]string{}, id.Principals...),
+
+		// TODO: create ASN.1 extensions for traits and RouteToCluster
+		// and move away from using StreetAddress and PostalCode
+		StreetAddress: []string{id.RouteToCluster},
+		PostalCode:    []string{string(rawTraits)},
 	}
 
 	for i := range id.KubernetesUsers {
@@ -606,7 +616,6 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		Principals: subject.Locality,
 		Expires:    expires,
 	}
-	// DELETE IN 11.0 (Teleport 10 stopped issuing certs using the StreetAddress and PostalCode fields)
 	if len(subject.StreetAddress) > 0 {
 		id.RouteToCluster = subject.StreetAddress[0]
 	}
