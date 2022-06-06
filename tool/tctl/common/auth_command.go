@@ -197,9 +197,6 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 	for _, at := range typesToExport {
 		cas, err := client.GetCertAuthorities(ctx, at, a.exportPrivateKeys)
 		if err != nil {
-			if trace.IsBadParameter(err) {
-				continue
-			}
 			return trace.Wrap(err)
 		}
 		for _, ca := range cas {
