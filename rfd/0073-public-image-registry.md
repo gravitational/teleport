@@ -161,95 +161,92 @@ resource "aws_iam_user_policy_attachment" "teleport_promotion_user" {
 
 ### Appendix B: Teleport Public Images
 The following table represents a best guess guide to migration of existing images from Quay to Harbor. They have been marked as such given their perceived relevance based on Quay activity and number of references in the Gravitational organization. 
-Key:
-* **Y**: Will Migrate
-* **N**: Won't Migrate
-* **U**: Unsure
 
-### Repositories to still mirror
-| Repositories | Migration |
-| ---- | ---- |
-| fpm-centos | Y |
-| fpm-debian | Y |
-| teleport | Y |
-| teleport-ent | Y |
-| teleport-plugin-email | Y |
-| teleport-plugin-event-handler | Y |
-| teleport-plugin-jira | Y | 
-| teleport-plugin-mattermost | Y |
-| teleport-plugin-pagerduty | Y |
-| teleport-plugin-slack | Y |
+#### **Repositories to migrate and mirror**
+| Repositories |
+| ---- |
+| teleport |
+| teleport-ent |
+| teleport-plugin-email |
+| teleport-plugin-event-handler |
+| teleport-plugin-jira |
+| teleport-plugin-mattermost |
+| teleport-plugin-pagerduty |
+| teleport-plugin-slack |
 
-### Repositories to keep
-| Repositories | Migration |
-| ---- | ---- |
-| aws-ecr-helper | Y |
-| buildbox-base | Y |
-| debian-grande | Y |
-| debian-tall | Y |
-| debian-venti | Y |
-| mkdocs-base | Y |
-| next | Y |
-| prometheus-operator | Y |
-| slackbot | Y | 
-| teleport-buildbox | Y |
-| teleport-buildbox-arm | Y |
-| teleport-buildbox-arm-fips | Y | 
-| teleport-buildbox-fips | Y |
-| teleport-ent-dev | U |
-| teleport-lab | Y |
-| ubuntu-grande | Y | 
-| ubuntu-tall | Y | 
-| ubuntu-venti | Y |
+#### **Repositories to migrate, but not mirror**
+| Repositories |
+| ---- |
+| aws-ecr-helper |
+| buildbox-base |
+| fpm-centos |
+| fpm-debian |
+| next |
+| prometheus-operator |
+| teleport-buildbox |
+| teleport-buildbox-arm |
+| teleport-buildbox-arm-fips | 
+| teleport-buildbox-fips |
+| teleport-ent-dev |
+| teleport-lab |
 
-### Gravity
-| Repositories | Migration |
-| ---- | ---- |
-| kube-router | Y | 
-| gravity-scan | N |
-| planet | Y | 
-| robotest | N |
-| robotest-e2e | N |
-| robotest-suite | Y |
-| rig | Y |
-| satellite | Y |
-| wormhole | Y | 
-| wormhole-dev | U | 
+### **Repositories to not migrate**
 
-### Repositories to remove
-| Repositories | Migration |
-| ---- | ---- |
-| alpine | N |
-| alpine-glibc | N |
-| busyloop | N |
-| cve-2018-1002105 | N |
-| docker-alpine-build | N |
-| docker-gc | N |
-| drone-fork-approval-extension | N | 
-| force | N |
-| kaniko-init-container | N |
-| keygen | N |
-| mattermost-worker | N |
-| monitoring-grafana | N | 
-| monitoring-influxdb | N |
-| netbox | N |
-| nethealth-dev | N | 
-| nginx | N | 
-| nginx-controller | N |
-| pithos | N |
-| pithosctl | N |
-| pithos-proxy | N |
-| provisioner | N |
-| s3-mounter | N |
-| stolon | N | 
-| stolonctl | N |
-| stolon-etcd | N |
-| stolon-pgbouncer | N | 
-| stress | N |
-| sync-kubeconfig | N |
-| sync-kubesecrets | N |
-| teleport-buildbox-centos6 | N |
-| teleport-buildbox-centos6-fips | N |
-| teleport-dev | N | 
-| tube | N |
-| watcher | N | 
+| Repositories |
+| ---- |
+| debian-grande |
+| debian-tall |
+| debian-venti |
+| kube-router | 
+| gravity-scan |
+| pithos |
+| pithosctl |
+| pithos-proxy |
+| planet |
+| robotest |
+| robotest-e2e |
+| robotest-suite |
+| rig |
+| satellite |
+| stolon | 
+| stolonctl |
+| stolon-etcd |
+| stolon-pgbouncer | 
+| ubuntu-grande | 
+| ubuntu-tall | 
+| ubuntu-venti |
+| wormhole | 
+| wormhole-dev |
+
+### **Repositories to delete**
+| Repositories |
+| ---- |
+| alpine |
+| alpine-glibc |
+| busyloop |
+| cve-2018-1002105 |
+| docker-alpine-build |
+| docker-gc |
+| drone-fork-approval-extension | 
+| force |
+| kaniko-init-container |
+| keygen |
+| mattermost-worker |
+| mkdocs-base |
+| monitoring-grafana | 
+| monitoring-influxdb |
+| netbox |
+| nethealth-dev | 
+| nginx | 
+| nginx-controller |
+| provisioner |
+| s3-mounter |
+| slackbot |
+| stress |
+| sync-kubeconfig |
+| sync-kubesecrets |
+| teleport-buildbox-centos6 |
+| teleport-buildbox-centos6-fips |
+| teleport-dev | 
+| tube |
+| watcher | 
