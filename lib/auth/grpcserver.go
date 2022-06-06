@@ -302,7 +302,14 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			start := time.Now()
 			err = eventStream.EmitAuditEvent(stream.Context(), event)
 			if err != nil {
-				return trace.Wrap(err)
+				switch {
+				case events.IsPermanentEmitError(err):
+					g.WithError(err).WithField("event", event).
+						Error("Failed to EmitAuditEvent due to a permanent error. Event wil be omitted.")
+					continue
+				default:
+					return trace.Wrap(err)
+				}
 			}
 			event.Size()
 			processed += int64(event.Size())
@@ -2584,52 +2591,6 @@ func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespace
 		return nil, trace.Errorf("encountered unexpected node type: %T", node)
 	}
 	return serverV2, nil
-}
-
-// GetNodes retrieves all nodes in the given namespace.
-// DELETE IN 8.0.0 in favor of ListNodes
-func (g *GRPCServer) GetNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ns, err := auth.ServerWithRoles.GetNodes(ctx, req.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	serversV2 := make([]*types.ServerV2, len(ns))
-	for i, t := range ns {
-		var ok bool
-		if serversV2[i], ok = t.(*types.ServerV2); !ok {
-			return nil, trace.Errorf("encountered unexpected node type: %T", t)
-		}
-	}
-	return &types.ServerV2List{
-		Servers: serversV2,
-	}, nil
-}
-
-// ListNodes retrieves a paginated list of nodes in the given namespace.
-func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ns, nextKey, err := auth.ServerWithRoles.ListNodes(ctx, *req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	serversV2 := make([]*types.ServerV2, len(ns))
-	for i, t := range ns {
-		var ok bool
-		if serversV2[i], ok = t.(*types.ServerV2); !ok {
-			return nil, trace.Errorf("encountered unexpected node type: %T", t)
-		}
-	}
-	return &proto.ListNodesResponse{
-		Servers: serversV2,
-		NextKey: nextKey,
-	}, nil
 }
 
 // UpsertNode upserts a node.

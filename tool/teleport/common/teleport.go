@@ -318,6 +318,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dumpNodeConfigure.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
+	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2")
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)

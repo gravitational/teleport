@@ -36,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -211,7 +212,6 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      signer,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,
@@ -297,8 +297,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -319,8 +317,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{services.RoleNameForCertAuthority(s.SiteName)},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Roles: []string{services.RoleNameForCertAuthority(s.SiteName)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -336,8 +333,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -411,6 +406,7 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 	tconf.Log = i.log
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -650,6 +646,8 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Keygen = testauthority.New()
 	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
 	i.Config = tconf
 	return tconf, nil
 }
@@ -1010,6 +1008,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 			Addr:        Host,
 		},
 	}
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -1097,6 +1096,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".

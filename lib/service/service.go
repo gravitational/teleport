@@ -1333,7 +1333,6 @@ func (process *TeleportProcess) initAuthService() error {
 		OIDCConnectors:          cfg.OIDCConnectors,
 		AuditLog:                process.auditLog,
 		CipherSuites:            cfg.CipherSuites,
-		CASigningAlg:            cfg.CASignatureAlgorithm,
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
@@ -3097,6 +3096,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				PeerClient:           peerClient,
 				NodeWatcher:          nodeWatcher,
 				CertAuthorityWatcher: caWatcher,
+				CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 			})
 		if err != nil {
 			return trace.Wrap(err)

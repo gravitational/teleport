@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -191,11 +192,6 @@ type Config struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
 
-	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
-	// algorithm that the server uses for signing user and host certificates.
-	// If omitted, the default will be used.
-	CASignatureAlgorithm *string
-
 	// DiagnosticAddr is an address for diagnostic and healthz endpoint service
 	DiagnosticAddr utils.NetAddr
 
@@ -268,6 +264,9 @@ type Config struct {
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
 	TeleportHome string
+
+	// CircuitBreakerConfig configures the auth client circuit breaker.
+	CircuitBreakerConfig breaker.Config
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -1293,6 +1292,7 @@ func ApplyDefaults(cfg *Config) {
 	}
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
+	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
