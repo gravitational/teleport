@@ -19,7 +19,7 @@ steps:
     args:
       - -xeuc
       - | 
-        export KUBECONFIG=
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
         curl -LO "https://dl.k8s.io/release/v1.24.0/bin/linux/amd64/kubectl"
         chmod +x ./kubectl
@@ -31,7 +31,7 @@ steps:
 
         echo Starting k3s...
         k3s server &
-        until [ -f $KUBECONFIG ]
+        until [ -f $$KUBECONFIG ]
         do
           sleep 5
         done
