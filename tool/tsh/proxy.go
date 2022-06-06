@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -64,7 +65,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(sshProxyWithTLSRouting(cf, tc, targetHost, targetPort))
 	}
 
-	return trace.Wrap(sshProxy(cf, tc, targetHost, targetPort))
+	return trace.Wrap(sshProxy(tc, targetHost, targetPort))
 }
 
 // cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
@@ -93,7 +94,7 @@ func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHos
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpncommon.ProtocolProxySSH,
+		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolProxySSH},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
@@ -107,13 +108,13 @@ func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHos
 		return trace.Wrap(err)
 	}
 	defer lp.Close()
-	if err := lp.SSHProxy(tc.LocalAgent()); err != nil {
+	if err := lp.SSHProxy(cf.Context, tc.LocalAgent()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func sshProxy(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort string) error {
+func sshProxy(tc *libclient.TeleportClient, targetHost, targetPort string) error {
 	sshPath, err := getSSHPath()
 	if err != nil {
 		return trace.Wrap(err)
@@ -147,7 +148,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := pickActiveDatabase(cf)
+	routeToDatabase, err := pickActiveDatabase(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -155,7 +156,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -174,25 +175,17 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 	}()
 
-	// If user requested no client auth, open an authenticated tunnel using
-	// client cert/key of the database.
-	certFile := cf.LocalProxyCertFile
-	if certFile == "" && cf.LocalProxyTunnel {
-		certFile = profile.DatabaseCertPathForCluster(cf.SiteName, database.ServiceName)
-	}
-	keyFile := cf.LocalProxyKeyFile
-	if keyFile == "" && cf.LocalProxyTunnel {
-		keyFile = profile.KeyPath()
+	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
+		cliConf:         cf,
+		teleportClient:  client,
+		profile:         profile,
+		routeToDatabase: routeToDatabase,
+		listener:        listener})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	lp, err := mkLocalProxy(cf.Context, localProxyOpts{
-		proxyAddr: client.WebProxyAddr,
-		protocol:  database.Protocol,
-		listener:  listener,
-		insecure:  cf.InsecureSkipVerify,
-		certFile:  certFile,
-		keyFile:   keyFile,
-	})
+	lp, err := mkLocalProxy(cf.Context, proxyOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -206,15 +199,17 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cmd, err := newCmdBuilder(client, profile, database, cf.SiteName,
-			WithLocalProxy("localhost", addr.Port(0), ""),
-			WithNoTLS()).getConnectCommand()
+		cmd, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, cf.SiteName,
+			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
+			dbcmd.WithNoTLS(),
+			dbcmd.WithLogger(log),
+		).GetConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		err = dbProxyAuthTpl.Execute(os.Stdout, map[string]string{
-			"database": database.ServiceName,
-			"type":     dbProtocolToText(database.Protocol),
+			"database": routeToDatabase.ServiceName,
+			"type":     dbProtocolToText(routeToDatabase.Protocol),
 			"cluster":  profile.Cluster,
 			"command":  cmd.String(),
 			"address":  listener.Addr().String(),
@@ -224,10 +219,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]string{
-			"database": database.ServiceName,
+			"database": routeToDatabase.ServiceName,
 			"address":  listener.Addr().String(),
 			"ca":       profile.CACertPathForCluster(rootCluster),
-			"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, database.ServiceName),
+			"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
 			"key":      profile.KeyPath(),
 		})
 		if err != nil {
@@ -245,14 +240,22 @@ func onProxyCommandDB(cf *CLIConf) error {
 type localProxyOpts struct {
 	proxyAddr string
 	listener  net.Listener
-	protocol  string
+	protocols []alpncommon.Protocol
 	insecure  bool
 	certFile  string
 	keyFile   string
 }
 
+// protocol returns the first protocol or string if configuration doesn't contain any protocols.
+func (l *localProxyOpts) protocol() string {
+	if len(l.protocols) == 0 {
+		return ""
+	}
+	return string(l.protocols[0])
+}
+
 func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol)
+	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -267,7 +270,7 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		InsecureSkipVerify: opts.insecure,
 		RemoteProxyAddr:    opts.proxyAddr,
-		Protocol:           alpnProtocol,
+		Protocols:          append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...),
 		Listener:           opts.listener,
 		ParentContext:      ctx,
 		SNI:                address.Host(),
@@ -283,7 +286,7 @@ func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
 	if certFile == "" && keyFile == "" {
 		return []tls.Certificate{}, nil
 	}
-	if certFile == "" && keyFile != "" || certFile != "" && keyFile == "" {
+	if (certFile == "" && keyFile != "") || (certFile != "" && keyFile == "") {
 		return nil, trace.BadParameter("both --cert-file and --key-file are required")
 	}
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -322,7 +325,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpncommon.ProtocolHTTP,
+		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolHTTP},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
@@ -350,6 +353,49 @@ func onProxyCommandApp(cf *CLIConf) error {
 	return nil
 }
 
+// onProxyCommandAWS creates local proxes for AWS apps.
+func onProxyCommandAWS(cf *CLIConf) error {
+	awsApp, err := pickActiveAWSApp(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = awsApp.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := awsApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close AWS app.")
+		}
+	}()
+
+	envVars, err := awsApp.GetEnvVars()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	templateData := map[string]interface{}{
+		"envVars":     envVars,
+		"address":     awsApp.GetForwardProxyAddr(),
+		"endpointURL": awsApp.GetEndpointURL(),
+	}
+
+	template := awsHTTPSProxyTemplate
+	if cf.AWSEndpointURLMode {
+		template = awsEndpointURLProxyTemplate
+	}
+
+	if err = template.Execute(os.Stdout, templateData); err != nil {
+		return trace.Wrap(err)
+	}
+
+	<-cf.Context.Done()
+	return nil
+}
+
+// loadAppCertificate loads the app certificate for the provided app.
 func loadAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
 	key, err := tc.LocalAgent().GetKey(tc.SiteName, client.WithAppCerts{})
 	if err != nil {
@@ -363,19 +409,29 @@ func loadAppCertificate(tc *client.TeleportClient, appName string) (tls.Certific
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	if len(cert.Certificate) < 1 {
-		return tls.Certificate{}, trace.NotFound("invalid certificate - please login to the application again. 'tsh app login'")
-	}
-	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+
+	expiresAt, err := getTLSCertExpireTime(cert)
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh app login'")
 	}
-	if time.Until(x509cert.NotAfter) < 5*time.Second {
+	if time.Until(expiresAt) < 5*time.Second {
 		return tls.Certificate{}, trace.BadParameter(
 			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
 			appName)
 	}
 	return cert, nil
+}
+
+// getTLSCertExpireTime returns the certificate NotAfter time.
+func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
+	if len(cert.Certificate) < 1 {
+		return time.Time{}, trace.NotFound("invalid certificate length")
+	}
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	return x509cert.NotAfter, nil
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
@@ -411,4 +467,27 @@ var dbProxyAuthTpl = template.Must(template.New("").Parse(
 
 Use the following command to connect to the database:
   $ {{.command}}
+`))
+
+// awsHTTPSProxyTemplate is the message that gets printed to a user when an
+// HTTPS proxy is started.
+var awsHTTPSProxyTemplate = template.Must(template.New("").Parse(
+	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+  AWS_ACCESS_KEY_ID={{.envVars.AWS_ACCESS_KEY_ID}}
+  AWS_SECRET_ACCESS_KEY={{.envVars.AWS_SECRET_ACCESS_KEY}}
+  AWS_CA_BUNDLE={{.envVars.AWS_CA_BUNDLE}}
+  HTTPS_PROXY={{.envVars.HTTPS_PROXY}}
+`))
+
+// awsEndpointURLProxyTemplate is the message that gets printed to a user when an
+// AWS endpoint URL proxy is started.
+var awsEndpointURLProxyTemplate = template.Must(template.New("").Parse(
+	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
+
+In addition to the endpoint URL, use the following credentials to connect to the proxy:
+  AWS_ACCESS_KEY_ID={{.envVars.AWS_ACCESS_KEY_ID}}
+  AWS_SECRET_ACCESS_KEY={{.envVars.AWS_SECRET_ACCESS_KEY}}
+  AWS_CA_BUNDLE={{.envVars.AWS_CA_BUNDLE}}
 `))

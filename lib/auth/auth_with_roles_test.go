@@ -24,18 +24,21 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -50,7 +53,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	_, pub, err := srv.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	start := srv.AuthServer.Clock().Now()
@@ -157,7 +160,7 @@ func TestBotCertificateGenerationCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := native.GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)
@@ -210,7 +213,7 @@ func TestBotCertificateGenerationStolen(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := native.GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)
@@ -273,7 +276,7 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := srv.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -282,6 +285,599 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 		Expires:   time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
+}
+
+func TestSAMLAuthRequest(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAML},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAML, types.KindSAMLRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLRequest},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
+		Issuer:                   "test",
+		SSO:                      "test",
+		Cert:                     fixtures.TLSCACertPEM,
+		AssertionConsumerService: "test",
+		AttributesToRoles: []types.AttributeMapping{{
+			Name:  "foo",
+			Value: "bar",
+			Roles: []string{"baz"},
+		}},
+	})
+	require.NoError(t, err)
+
+	err = srv.Auth().UpsertSAMLConnector(ctx, conn)
+	require.NoError(t, err)
+
+	reqNormal := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
+	reqTest := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
+		Issuer:                   "test",
+		Audience:                 "test",
+		ServiceProviderIssuer:    "test",
+		SSO:                      "test",
+		Cert:                     fixtures.TLSCACertPEM,
+		AssertionConsumerService: "test",
+		AttributesToRoles: []types.AttributeMapping{{
+			Name:  "foo",
+			Value: "bar",
+			Roles: []string{"baz"},
+		}},
+	}}
+
+	tests := []struct {
+		desc               string
+		roles              []string
+		request            services.SAMLAuthRequest
+		expectAccessDenied bool
+	}{
+		{
+			desc:               "empty role - no access",
+			roles:              []string{emptyRole.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "cannot create sso test request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create normal request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create sso test request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "can create sso test request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: false,
+		},
+	}
+
+	user, err := CreateUser(srv.Auth(), "dummy")
+	require.NoError(t, err)
+
+	userReader, err := CreateUser(srv.Auth(), "dummy-reader", readerRole)
+	require.NoError(t, err)
+
+	clientReader, err := srv.NewClient(TestUser(userReader.GetName()))
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			user.SetRoles(tt.roles)
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			request, err := client.CreateSAMLAuthRequest(tt.request)
+			if tt.expectAccessDenied {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotEmpty(t, request.ID)
+			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
+
+			requestCopy, err := clientReader.GetSAMLAuthRequest(ctx, request.ID)
+			require.NoError(t, err)
+			require.Equal(t, request, requestCopy)
+		})
+	}
+}
+
+func TestOIDCAuthRequest(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindOIDCRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindOIDC},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindOIDC, types.KindOIDCRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindOIDCRequest},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
+		IssuerURL:    "https://gitlab.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "idp-admin",
+				Roles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = srv.Auth().UpsertOIDCConnector(context.Background(), conn)
+	require.NoError(t, err)
+
+	reqNormal := services.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
+	reqTest := services.OIDCAuthRequest{
+		ConnectorID: conn.GetName(),
+		Type:        constants.OIDC,
+		SSOTestFlow: true,
+		ConnectorSpec: &types.OIDCConnectorSpecV3{
+			IssuerURL:    "https://gitlab.com",
+			ClientID:     "example-client-id",
+			ClientSecret: "example-client-secret",
+			RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+			Display:      "sign in with example.com",
+			Scope:        []string{"foo", "bar"},
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "groups",
+					Value: "idp-admin",
+					Roles: []string{"access"},
+				},
+			},
+		}}
+
+	tests := []struct {
+		desc               string
+		roles              []string
+		request            services.OIDCAuthRequest
+		expectAccessDenied bool
+	}{
+		{
+			desc:               "empty role - no access",
+			roles:              []string{emptyRole.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "cannot create sso test request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create normal request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create sso test request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "can create sso test request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: false,
+		},
+	}
+
+	user, err := CreateUser(srv.Auth(), "dummy")
+	require.NoError(t, err)
+
+	userReader, err := CreateUser(srv.Auth(), "dummy-reader", readerRole)
+	require.NoError(t, err)
+
+	clientReader, err := srv.NewClient(TestUser(userReader.GetName()))
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			user.SetRoles(tt.roles)
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			request, err := client.CreateOIDCAuthRequest(tt.request)
+			if tt.expectAccessDenied {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotEmpty(t, request.StateToken)
+			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
+
+			requestCopy, err := clientReader.GetOIDCAuthRequest(ctx, request.StateToken)
+			require.NoError(t, err)
+			require.Equal(t, request, requestCopy)
+		})
+	}
+}
+
+func TestGithubAuthRequest(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindGithubRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindGithub},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindGithub, types.KindGithubRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindGithubRequest},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	conn, err := types.NewGithubConnector("example", types.GithubConnectorSpecV3{
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "sign in with github",
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "idp-admin",
+				Logins:       []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = srv.Auth().UpsertGithubConnector(context.Background(), conn)
+	require.NoError(t, err)
+
+	reqNormal := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
+	reqTest := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "sign in with github",
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "idp-admin",
+				Logins:       []string{"access"},
+			},
+		},
+	}}
+
+	tests := []struct {
+		desc               string
+		roles              []string
+		request            services.GithubAuthRequest
+		expectAccessDenied bool
+	}{
+		{
+			desc:               "empty role - no access",
+			roles:              []string{emptyRole.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "cannot create sso test request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create normal request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create sso test request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "can create sso test request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: false,
+		},
+	}
+
+	user, err := CreateUser(srv.Auth(), "dummy")
+	require.NoError(t, err)
+
+	userReader, err := CreateUser(srv.Auth(), "dummy-reader", readerRole)
+	require.NoError(t, err)
+
+	clientReader, err := srv.NewClient(TestUser(userReader.GetName()))
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			user.SetRoles(tt.roles)
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			request, err := client.CreateGithubAuthRequest(tt.request)
+			if tt.expectAccessDenied {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotEmpty(t, request.StateToken)
+			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
+
+			requestCopy, err := clientReader.GetGithubAuthRequest(ctx, request.StateToken)
+			require.NoError(t, err)
+			require.Equal(t, request, requestCopy)
+		})
+	}
+}
+
+func TestSSODiagnosticInfo(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// empty role
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	// privileged role
+	privRole, err := CreateRole(ctx, srv.Auth(), "priv-access", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLRequest},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := CreateUser(srv.Auth(), "dummy", emptyRole)
+	require.NoError(t, err)
+
+	userPriv, err := CreateUser(srv.Auth(), "superDummy", privRole)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	clientPriv, err := srv.NewClient(TestUser(userPriv.GetName()))
+	require.NoError(t, err)
+
+	// fresh server, no SSO diag info, request fails
+	info, err := client.GetSSODiagnosticInfo(ctx, types.KindSAML, "XXX-INVALID-ID")
+	require.Error(t, err)
+	require.Nil(t, info)
+
+	infoCreate := types.SSODiagnosticInfo{
+		TestFlow: true,
+		Error:    "aaa bbb ccc",
+	}
+
+	// invalid auth kind returns error, no information stored.
+	err = srv.Auth().CreateSSODiagnosticInfo(ctx, "XXX-BAD-KIND", "ABC123", infoCreate)
+	require.Error(t, err)
+	info, err = client.GetSSODiagnosticInfo(ctx, "XXX-BAD-KIND", "XXX-INVALID-ID")
+	require.Error(t, err)
+	require.Nil(t, info)
+
+	// proper record can be stored, retrieved, if user has access.
+	err = srv.Auth().CreateSSODiagnosticInfo(ctx, types.KindSAML, "ABC123", infoCreate)
+	require.NoError(t, err)
+
+	info, err = client.GetSSODiagnosticInfo(ctx, types.KindSAML, "ABC123")
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, info)
+
+	info, err = clientPriv.GetSSODiagnosticInfo(ctx, types.KindSAML, "ABC123")
+	require.NoError(t, err)
+	require.Equal(t, &infoCreate, info)
+
 }
 
 func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
@@ -430,7 +1026,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := srv.Auth().GenerateKeyPair("")
+			_, pub, err := native.GenerateKeyPair()
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -461,7 +1057,8 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			if len(tt.expectPrincipals) > 0 {
-				require.ElementsMatch(t, tt.expectPrincipals, userCert.ValidPrincipals, "principals must match")
+				expectPrincipals := append(tt.expectPrincipals, teleport.SSHSessionJoinPrincipal)
+				require.ElementsMatch(t, expectPrincipals, userCert.ValidPrincipals, "principals must match")
 			}
 
 			if tt.expectRoles != nil {
@@ -526,7 +1123,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Generate cert with a role request.
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	priv, pub, err := srv.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Request certs for only the `foo` role.
@@ -624,7 +1221,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 
 	// Generate CSR once for speed sake.
-	priv, _, err := srv.Auth().GenerateKeyPair("")
+	priv, _, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)
@@ -798,67 +1395,6 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 	})
 }
 
-// TestListNodes users can retrieve nodes with the appropriate permissions.
-func TestListNodes(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	// Create test nodes.
-	for i := 0; i < 10; i++ {
-		name := uuid.New().String()
-		node, err := types.NewServerWithLabels(
-			name,
-			types.KindNode,
-			types.ServerSpecV2{},
-			map[string]string{"name": name},
-		)
-		require.NoError(t, err)
-
-		_, err = srv.Auth().UpsertNode(ctx, node)
-		require.NoError(t, err)
-	}
-
-	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
-	require.NoError(t, err)
-
-	// create user, role, and client
-	username := "user"
-	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
-	require.NoError(t, err)
-	identity := TestUser(user.GetName())
-	clt, err := srv.NewClient(identity)
-	require.NoError(t, err)
-
-	// permit user to list all nodes
-	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-
-	// listing nodes 0-4 should list first 5 nodes
-	nodes, _, err := clt.ListNodes(ctx, proto.ListNodesRequest{
-		Namespace: defaults.Namespace,
-		Limit:     5,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 5, len(nodes))
-	expectedNodes := testNodes[:5]
-	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-
-	// remove permission for third node
-	role.SetNodeLabels(types.Deny, types.Labels{"name": {testNodes[3].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-
-	// listing nodes 0-4 should skip the third node and add the fifth to the end.
-	nodes, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-		Namespace: defaults.Namespace,
-		Limit:     5,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 5, len(nodes))
-	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
-	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-}
-
 // TestGetAndList_Nodes users can retrieve nodes with various filters
 // and with the appropriate permissions.
 func TestGetAndList_Nodes(t *testing.T) {
@@ -1011,7 +1547,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	require.NoError(t, err)
 
 	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := contextForLocalUser(localUser, srv.AuthServer)
+	authContext, err := contextForLocalUser(localUser, srv.AuthServer, srv.ClusterName)
 	require.NoError(t, err)
 
 	return &ServerWithRoles{
@@ -2075,6 +2611,94 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	require.Empty(t, resp.TotalCount)
 }
 
+func TestListResources_SearchAsRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	const numTestNodes = 2
+	for i := 0; i < numTestNodes; i++ {
+		name := fmt.Sprintf("node%d", i)
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, numTestNodes)
+
+	// create user and client
+	user, role, err := CreateUserAndRole(srv.Auth(), "user", []string{"user"})
+	require.NoError(t, err)
+
+	// only allow user to see first node
+	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
+
+	// create a new role which can see second node
+	searchAsRole := services.RoleForUser(user)
+	searchAsRole.SetName("test_search_role")
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"user"})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, searchAsRole))
+
+	role.SetSearchAsRoles([]string{searchAsRole.GetName()})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Regular ListResources returns first node, which user normally has
+	// permission for
+	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Limit:        int32(len(testNodes)),
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Equal(t, resp.Resources[0].GetName(), testNodes[0].GetName())
+
+	// ListResources with UseSearchAsRoles returns both nodes
+	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType:     types.KindNode,
+		Limit:            int32(len(testNodes)),
+		UseSearchAsRoles: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testNodes))
+	var expectedNodes []string
+	for _, node := range testNodes {
+		expectedNodes = append(expectedNodes, node.GetName())
+	}
+	var gotNodes []string
+	for _, node := range resp.Resources {
+		gotNodes = append(gotNodes, node.GetName())
+	}
+	require.ElementsMatch(t, expectedNodes, gotNodes)
+
+	// make sure an audit event is logged for the search
+	auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", nil, 10, 0, "")
+	require.NoError(t, err)
+	foundAuditEvent := false
+	for _, event := range auditEvents {
+		if searchEvent, ok := event.(*apievents.AccessRequestResourceSearch); ok {
+			foundAuditEvent = true
+			require.ElementsMatch(t,
+				[]string{role.GetName(), searchAsRole.GetName()},
+				searchEvent.SearchAsRoles)
+		}
+	}
+	require.True(t, foundAuditEvent)
+}
+
 func TestGetAndList_WindowsDesktops(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2311,4 +2935,102 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.IsDecreasing(t, names)
 	})
+}
+
+func TestDeleteUserAppSessions(t *testing.T) {
+	ctx := context.Background()
+
+	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
+
+	// Generates a new user client.
+	userClient := func(username string) *Client {
+		user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+		require.NoError(t, err)
+		identity := TestUser(user.GetName())
+		clt, err := srv.NewClient(identity)
+		require.NoError(t, err)
+		return clt
+	}
+
+	// Register users.
+	aliceClt := userClient("alice")
+	bobClt := userClient("bob")
+
+	// Register multiple applications.
+	applications := []struct {
+		name       string
+		publicAddr string
+	}{
+		{name: "panel", publicAddr: "panel.example.com"},
+		{name: "admin", publicAddr: "admin.example.com"},
+		{name: "metrics", publicAddr: "metrics.example.com"},
+	}
+
+	// Register and create a session for each application.
+	for _, application := range applications {
+		// Register an application.
+		app, err := types.NewAppV3(types.Metadata{
+			Name: application.name,
+		}, types.AppSpecV3{
+			URI:        "localhost",
+			PublicAddr: application.publicAddr,
+		})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+
+		// Create a session for alice.
+		_, err = aliceClt.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			Username:    "alice",
+			PublicAddr:  application.publicAddr,
+			ClusterName: "localhost",
+		})
+		require.NoError(t, err)
+
+		// Create a session for bob.
+		_, err = bobClt.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			Username:    "bob",
+			PublicAddr:  application.publicAddr,
+			ClusterName: "localhost",
+		})
+		require.NoError(t, err)
+	}
+
+	// Ensure the correct number of sessions.
+	sessions, err := srv.Auth().GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 6)
+
+	// Try to delete other user app sessions.
+	err = aliceClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "bob"})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	err = bobClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "alice"})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Delete alice sessions.
+	err = aliceClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "alice"})
+	require.NoError(t, err)
+
+	// Check if only bob's sessions are left.
+	sessions, err = srv.Auth().GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 3)
+	for _, session := range sessions {
+		require.Equal(t, "bob", session.GetUser())
+	}
+
+	// Delete bob sessions.
+	err = bobClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "bob"})
+	require.NoError(t, err)
+
+	// No sessions left.
+	sessions, err = srv.Auth().GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 0)
 }

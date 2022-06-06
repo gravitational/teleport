@@ -17,15 +17,23 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509/pkix"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"text/template"
+	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -40,7 +48,7 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -92,9 +100,13 @@ func onAppLogin(cf *CLIConf) error {
 			"awsCmd":     "s3 ls",
 		})
 	}
+	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return appLoginTpl.Execute(os.Stdout, map[string]string{
 		"appName": app.GetName(),
-		"curlCmd": formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster),
+		"curlCmd": curlCmd,
 	})
 }
 
@@ -145,7 +157,7 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -173,6 +185,8 @@ func onAppLogout(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		removeAppLocalFiles(profile, app.Name)
 	}
 	if len(logout) == 1 {
 		fmt.Printf("Logged out of app %q\n", logout[0].Name)
@@ -188,7 +202,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -196,39 +210,80 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Print(formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, ""))
+	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Print(conf)
 	return nil
 }
 
-func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) string {
-	switch format {
-	case appFormatURI:
-		return fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
-	case appFormatCA:
-		return profile.CACertPathForCluster(cluster)
-	case appFormatCert:
-		return profile.AppCertPath(appName)
-	case appFormatKey:
-		return profile.KeyPath()
-	case appFormatCURL:
-		return fmt.Sprintf(`curl \
+func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) (string, error) {
+	var uri string
+	if port := tc.WebProxyPort(); port == teleport.StandardHTTPSPort {
+		uri = fmt.Sprintf("https://%v", appPublicAddr)
+	} else {
+		uri = fmt.Sprintf("https://%v:%v", appPublicAddr, port)
+	}
+	curlCmd := fmt.Sprintf(`curl \
   --cacert %v \
   --cert %v \
   --key %v \
-  https://%v:%v`,
-			profile.CACertPathForCluster(cluster),
-			profile.AppCertPath(appName),
-			profile.KeyPath(),
-			appPublicAddr,
-			tc.WebProxyPort())
+  %v`,
+		profile.CACertPathForCluster(cluster),
+		profile.AppCertPath(appName),
+		profile.KeyPath(),
+		uri)
+	format = strings.ToLower(format)
+	switch format {
+	case appFormatURI:
+		return uri, nil
+	case appFormatCA:
+		return profile.CACertPathForCluster(cluster), nil
+	case appFormatCert:
+		return profile.AppCertPath(appName), nil
+	case appFormatKey:
+		return profile.KeyPath(), nil
+	case appFormatCURL:
+		return curlCmd, nil
+	case appFormatJSON, appFormatYAML:
+		appConfig := &appConfigInfo{
+			appName, uri, profile.CACertPathForCluster(cluster),
+			profile.AppCertPath(appName), profile.KeyPath(), curlCmd,
+		}
+		out, err := serializeAppConfig(appConfig, format)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("%s\n", out), nil
 	}
 	return fmt.Sprintf(`Name:      %v
-URI:       https://%v:%v
+URI:       %v
 CA:        %v
 Cert:      %v
 Key:       %v
-`, appName, appPublicAddr, tc.WebProxyPort(), profile.CACertPathForCluster(cluster),
-		profile.AppCertPath(appName), profile.KeyPath())
+`, appName, uri, profile.CACertPathForCluster(cluster),
+		profile.AppCertPath(appName), profile.KeyPath()), nil
+}
+
+type appConfigInfo struct {
+	Name string `json:"name"`
+	URI  string `json:"uri"`
+	CA   string `json:"ca"`
+	Cert string `json:"cert"`
+	Key  string `json:"key"`
+	Curl string `json:"curl"`
+}
+
+func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == appFormatJSON {
+		out, err = utils.FastMarshalIndent(configInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(configInfo)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // pickActiveApp returns the app the current profile is logged into.
@@ -236,7 +291,7 @@ Key:       %v
 // If logged into multiple apps, returns an error unless one was specified
 // explicitly on CLI.
 func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -260,6 +315,90 @@ func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
 	return nil, trace.NotFound("not logged into app %q", name)
 }
 
+// removeAppLocalFiles removes generated local files for the provided app.
+func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
+	removeFileIfExist(profile.AppLocalCAPath(appName))
+}
+
+// removeFileIfExist removes a local file if it exists.
+func removeFileIfExist(filePath string) {
+	if !utils.FileExists(filePath) {
+		return
+	}
+
+	if err := os.Remove(filePath); err != nil {
+		log.WithError(err).Warnf("Failed to remove %v", filePath)
+	}
+}
+
+// loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
+// generate a new CA if first load fails.
+func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
+	caPath := profile.AppLocalCAPath(appName)
+	keyPath := profile.KeyPath()
+
+	localCA, err := tls.LoadX509KeyPair(caPath, keyPath)
+	if err == nil {
+		return localCA, nil
+	}
+
+	// Generate and load again.
+	log.WithError(err).Debugf("Failed to load certificate from %v. Generating local self signed CA.", caPath)
+	if err = generateAppSelfSignedCA(profile, tc, appName); err != nil {
+		return tls.Certificate{}, err
+	}
+
+	localCA, err = tls.LoadX509KeyPair(caPath, keyPath)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return localCA, nil
+}
+
+// generateAppSelfSignedCA generates a new self-signed CA for provided app and
+// saves/overwrites the local CA file in the profile directory.
+func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) error {
+	appCerts, err := loadAppCertificate(tc, appName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	appCertsExpireAt, err := getTLSCertExpireTime(appCerts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyPem, err := utils.ReadPath(profile.KeyPath())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := utils.ParsePrivateKey(keyPem)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Entity: pkix.Name{
+			CommonName:   "localhost",
+			Organization: []string{"Teleport"},
+		},
+		Signer:      key,
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
+		TTL:         time.Until(appCertsExpireAt),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// WriteFile truncates existing file before writing.
+	if err = os.WriteFile(profile.AppLocalCAPath(appName), certPem, 0600); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
 const (
 	// appFormatURI prints app URI.
 	appFormatURI = "uri"
@@ -271,4 +410,8 @@ const (
 	appFormatKey = "key"
 	// appFormatCURL prints app curl command.
 	appFormatCURL = "curl"
+	// appFormatJSON prints app URI, CA cert path, cert path, key path, and curl command in JSON format.
+	appFormatJSON = "json"
+	// appFormatYAML prints app URI, CA cert path, cert path, key path, and curl command in YAML format.
+	appFormatYAML = "yaml"
 )

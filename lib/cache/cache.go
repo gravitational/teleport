@@ -61,11 +61,9 @@ var (
 	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
 )
 
-const cacheTargetAuth string = "auth"
-
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
-	cfg.target = cacheTargetAuth
+	cfg.target = "auth"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
@@ -352,10 +350,6 @@ type Cache struct {
 	// fails.
 	initErr error
 
-	// wrapper is a wrapper around cache backend that
-	// allows to set backend into failure mode,
-	// intercepting all calls and returning errors instead
-	wrapper *backend.Wrapper
 	// ctx is a cache exit context
 	ctx context.Context
 	// cancel triggers exit context closure
@@ -556,6 +550,9 @@ type Config struct {
 	// "relative expiration" checks which are used to compensate for real backends
 	// that have suffer from overly lazy ttl'ing of resources.
 	RelativeExpiryCheckInterval time.Duration
+	// RelativeExpiryLimit determines the maximum number of nodes that may be
+	// removed during relative expiration.
+	RelativeExpiryLimit int
 	// EventsC is a channel for event notifications,
 	// used in tests
 	EventsC chan Event
@@ -598,11 +595,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.CacheInitTimeout = time.Second * 20
 	}
 	if c.RelativeExpiryCheckInterval == 0 {
-		// TODO(fspmarshall): change this to 1/2 offline threshold once that becomes
-		// a configurable value. This will likely be a dynamic configuration, and
-		// therefore require lazy initialization after the cache has become healthy.
-		c.RelativeExpiryCheckInterval = apidefaults.ServerAnnounceTTL / 2
+		c.RelativeExpiryCheckInterval = apidefaults.ServerKeepAliveTTL() + 5*time.Second
 	}
+	if c.RelativeExpiryLimit == 0 {
+		c.RelativeExpiryLimit = 2000
+	}
+
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache
 	}
@@ -642,44 +640,43 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	wrapper := backend.NewWrapper(config.Backend)
-
-	clusterConfigCache, err := local.NewClusterConfigurationService(wrapper)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   time.Second,
-		Clock: config.Clock,
-	})
+	clusterConfigCache, err := local.NewClusterConfigurationService(config.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	ctx, cancel := context.WithCancel(config.Context)
+	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:     time.Second,
+		Clock:   config.Clock,
+		Context: ctx,
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
-		wrapper:              wrapper,
 		ctx:                  ctx,
 		cancel:               cancel,
 		Config:               config,
 		generation:           atomic.NewUint64(0),
 		initC:                make(chan struct{}),
 		fnCache:              fnCache,
-		trustCache:           local.NewCAService(wrapper),
+		trustCache:           local.NewCAService(config.Backend),
 		clusterConfigCache:   clusterConfigCache,
-		provisionerCache:     local.NewProvisioningService(wrapper),
-		usersCache:           local.NewIdentityService(wrapper),
-		accessCache:          local.NewAccessService(wrapper),
-		dynamicAccessCache:   local.NewDynamicAccessService(wrapper),
-		presenceCache:        local.NewPresenceService(wrapper),
-		restrictionsCache:    local.NewRestrictionsService(wrapper),
-		appsCache:            local.NewAppService(wrapper),
-		databasesCache:       local.NewDatabasesService(wrapper),
-		appSessionCache:      local.NewIdentityService(wrapper),
-		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
-		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
-		windowsDesktopsCache: local.NewWindowsDesktopService(wrapper),
+		provisionerCache:     local.NewProvisioningService(config.Backend),
+		usersCache:           local.NewIdentityService(config.Backend),
+		accessCache:          local.NewAccessService(config.Backend),
+		dynamicAccessCache:   local.NewDynamicAccessService(config.Backend),
+		presenceCache:        local.NewPresenceService(config.Backend),
+		restrictionsCache:    local.NewRestrictionsService(config.Backend),
+		appsCache:            local.NewAppService(config.Backend),
+		databasesCache:       local.NewDatabasesService(config.Backend),
+		appSessionCache:      local.NewIdentityService(config.Backend),
+		webSessionCache:      local.NewIdentityService(config.Backend).WebSessions(),
+		webTokenCache:        local.NewIdentityService(config.Backend).WebTokens(),
+		windowsDesktopsCache: local.NewWindowsDesktopService(config.Backend),
 		eventsFanout:         services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -902,11 +899,19 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 
 	retry.Reset()
 
-	relativeExpiryInterval := interval.New(interval.Config{
-		Duration:      c.Config.RelativeExpiryCheckInterval,
-		FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-		Jitter:        utils.NewSeventhJitter(),
-	})
+	// only enable relative node expiry if the cache is configured
+	// to watch for types.KindNode
+	relativeExpiryInterval := interval.NewNoop()
+	for _, watch := range c.Config.Watches {
+		if watch.Kind == types.KindNode {
+			relativeExpiryInterval = interval.New(interval.Config{
+				Duration:      c.Config.RelativeExpiryCheckInterval,
+				FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+				Jitter:        utils.NewSeventhJitter(),
+			})
+			break
+		}
+	}
 	defer relativeExpiryInterval.Stop()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
@@ -958,7 +963,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 				}
 			}
 
-			err = c.processEvent(ctx, event)
+			err = c.processEvent(ctx, event, true)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -973,7 +978,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 // staleness by only removing items which are stale from within the cache's own "frame of
 // reference".
 //
-// to better understand why we use this expiry strategy, its important to understand the two
+// to better understand why we use this expiry strategy, it's important to understand the two
 // distinct scenarios that we're trying to accommodate:
 //
 // 1. Expiry events are being emitted very lazily by the real backend (*hours* after the time
@@ -993,15 +998,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 // relative to our current view of the world.
 //
 // *note*: this function is only sane to call when the cache and event stream are healthy, and
-// cannot run concurrently with event processing. this function injects additional events into
-// the outbound event stream.
+// cannot run concurrently with event processing.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
-	if c.target != cacheTargetAuth {
-		// if we are not the auth cache, we are a downstream cache and can rely upon the
-		// upstream auth cache to perform relative expiry and propagate the changes.
-		return nil
-	}
-
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
 	gracePeriod := apidefaults.ServerAnnounceTTL
 
@@ -1051,20 +1049,24 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 			continue
 		}
 
-		// event stream processing is paused while this function runs.  we perform the
-		// actual expiry by constructing a fake delete event for the resource which both
-		// updates this cache, and all downstream caches.
-		err = c.processEvent(ctx, types.Event{
+		// remove the node locally without emitting an event, other caches will
+		// eventually remove the same node when they run their expiry logic.
+		if err := c.processEvent(ctx, types.Event{
 			Type: types.OpDelete,
 			Resource: &types.ResourceHeader{
 				Kind:     types.KindNode,
 				Metadata: node.GetMetadata(),
 			},
-		})
-		if err != nil {
+		}, false); err != nil {
 			return trace.Wrap(err)
 		}
-		removed++
+
+		// high churn rates can cause purging a very large number of nodes
+		// per interval, limit to a sane number such that we don't overwhelm
+		// things or get too far out of sync with other caches.
+		if removed++; removed >= c.Config.RelativeExpiryLimit {
+			break
+		}
 	}
 
 	if removed > 0 {
@@ -1126,7 +1128,10 @@ func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 	}, nil
 }
 
-func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
+// processEvent hands the event off to the appropriate collection for processing. Any
+// resources which were not registered are ignored. If processing completed successfully
+// and emit is true the event will be emitted via the fanout.
+func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections[resourceKind]
 	if !ok {
@@ -1137,7 +1142,9 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	if err := collection.processEvent(ctx, event); err != nil {
 		return trace.Wrap(err)
 	}
-	c.eventsFanout.Emit(event)
+	if emit {
+		c.eventsFanout.Emit(event)
+	}
 	return nil
 }
 
@@ -1158,10 +1165,8 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			ca, err := rg.trust.GetCertAuthority(c.ctx, id, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func(ctx context.Context) (interface{}, error) {
+			ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
 			ta(ca)
 			return ca, err
 		})
@@ -1202,10 +1207,8 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	defer rg.Release()
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			cas, err := rg.trust.GetCertAuthorities(c.ctx, caType, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) (interface{}, error) {
+			cas, err := rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
 			ta(cas)
 			return cas, trace.Wrap(err)
 		})
@@ -1234,13 +1237,13 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (c *Cache) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
+func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.provisioner.GetTokens(ctx, opts...)
+	return rg.provisioner.GetTokens(ctx)
 }
 
 // GetToken finds and returns token by ID
@@ -1279,10 +1282,8 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterAuditConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			cfg, err := rg.clusterConfig.GetClusterAuditConfig(c.ctx, opts...)
+		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (interface{}, error) {
+			cfg, err := rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
 			ta(cfg)
 			return cfg, err
 		})
@@ -1305,10 +1306,8 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterNetworkingConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(c.ctx, opts...)
+		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (interface{}, error) {
+			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
 			ta(cfg)
 			return cfg, err
 		})
@@ -1331,7 +1330,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterName) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func() (interface{}, error) {
+		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func(ctx context.Context) (interface{}, error) {
 			cfg, err := rg.clusterConfig.GetClusterName(opts...)
 			ta(cfg)
 			return cfg, err
@@ -1413,7 +1412,7 @@ type getNodesCacheKey struct {
 var _ map[getNodesCacheKey]struct{} // compile-time hashability check
 
 // GetNodes is a part of auth.Cache implementation
-func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1421,7 +1420,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	defer rg.Release()
 
 	if !rg.IsCacheRead() {
-		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace, opts...)
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1432,17 +1431,17 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 		return nodes, nil
 	}
 
-	return rg.presence.GetNodes(ctx, namespace, opts...)
+	return rg.presence.GetNodes(ctx, namespace)
 }
 
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
 // must be cloned to avoid concurrent modification.
 func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	ta := func(_ []types.Server) {} // compile-time type assertion
-	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
+	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func(ctx context.Context) (interface{}, error) {
 		// use cache's close context instead of request context in order to ensure
 		// that we don't cache a context cancellation error.
-		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+		nodes, err := rg.presence.GetNodes(c.ctx, namespace)
 		ta(nodes)
 		return nodes, err
 	})
@@ -1457,74 +1456,6 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 	return cachedNodes, nil
 }
 
-// ListNodes is a part of auth.Cache implementation
-//
-// DELETE IN 10.0.0 in favor of ListResources.
-func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if rg.IsCacheRead() {
-		// cache is healthy, delegate to the standard ListNodes implementation
-		return rg.presence.ListNodes(ctx, req)
-	}
-
-	// Cache is not healthy. List nodes using TTL cache.
-	return c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
-}
-
-// listNodesFromTTLCache Used when the cache is not healthy. It takes advantage
-// of TTL-based caching rather than caching individual page calls (very messy).
-// It relies on caching the result of the `GetNodes` endpoint and then "faking"
-// pagination.
-//
-// DELETE IN 10.0.0 in favor of ListResources.
-func (c *Cache) listNodesFromTTLCache(ctx context.Context, rg readGuard, namespace, startKey string, labels map[string]string, limit int) ([]types.Server, string, error) {
-	if limit <= 0 {
-		return nil, "", trace.BadParameter("nonpositive limit value")
-	}
-
-	cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	// trim nodes that precede start key
-	if startKey != "" {
-		pageStart := 0
-		for i, node := range cachedNodes {
-			if node.GetName() < startKey {
-				pageStart = i + 1
-			} else {
-				break
-			}
-		}
-		cachedNodes = cachedNodes[pageStart:]
-	}
-
-	// iterate and filter nodes, halting when we reach page limit
-	var filtered []types.Server
-	for _, node := range cachedNodes {
-		if len(filtered) == limit {
-			break
-		}
-
-		if node.MatchAgainst(labels) {
-			filtered = append(filtered, node.DeepCopy())
-		}
-	}
-
-	var nextKey string
-	if len(filtered) == limit {
-		nextKey = backend.NextPaginationKey(filtered[len(filtered)-1])
-	}
-
-	return filtered, nextKey, nil
-}
-
 // GetAuthServers returns a list of registered servers
 func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	rg, err := c.read()
@@ -1536,13 +1467,13 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 }
 
 // GetReverseTunnels is a part of auth.Cache implementation
-func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (c *Cache) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.presence.GetReverseTunnels(opts...)
+	return rg.presence.GetReverseTunnels(ctx, opts...)
 }
 
 // GetProxies is a part of auth.Cache implementation
@@ -1570,7 +1501,7 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ []types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func() (interface{}, error) {
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func(ctx context.Context) (interface{}, error) {
 			remotes, err := rg.presence.GetRemoteClusters(opts...)
 			ta(remotes)
 			return remotes, err
@@ -1598,7 +1529,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{clusterName}, func() (interface{}, error) {
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{clusterName}, func(ctx context.Context) (interface{}, error) {
 			remote, err := rg.presence.GetRemoteCluster(clusterName)
 			ta(remote)
 			return remote, err

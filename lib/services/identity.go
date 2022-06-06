@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
@@ -182,10 +183,7 @@ type Identity interface {
 	CreateOIDCAuthRequest(req OIDCAuthRequest, ttl time.Duration) error
 
 	// GetOIDCAuthRequest returns OIDC auth request if found
-	GetOIDCAuthRequest(stateToken string) (*OIDCAuthRequest, error)
-
-	// CreateSAMLConnector creates SAML Connector
-	CreateSAMLConnector(connector types.SAMLConnector) error
+	GetOIDCAuthRequest(ctx context.Context, stateToken string) (*OIDCAuthRequest, error)
 
 	// UpsertSAMLConnector upserts SAML Connector
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
@@ -202,11 +200,14 @@ type Identity interface {
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(req SAMLAuthRequest, ttl time.Duration) error
 
-	// GetSAMLAuthRequest returns OSAML auth request if found
-	GetSAMLAuthRequest(id string) (*SAMLAuthRequest, error)
+	// GetSAMLAuthRequest returns SAML auth request if found
+	GetSAMLAuthRequest(ctx context.Context, id string) (*SAMLAuthRequest, error)
 
-	// CreateGithubConnector creates a new Github connector
-	CreateGithubConnector(connector types.GithubConnector) error
+	// CreateSSODiagnosticInfo creates new SSO diagnostic info record.
+	CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error
+
+	// GetSSODiagnosticInfo returns SSO diagnostic info records.
+	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
 
 	// UpsertGithubConnector creates or updates a new Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
@@ -224,7 +225,7 @@ type Identity interface {
 	CreateGithubAuthRequest(req GithubAuthRequest) error
 
 	// GetGithubAuthRequest retrieves Github auth request by the token
-	GetGithubAuthRequest(stateToken string) (*GithubAuthRequest, error)
+	GetGithubAuthRequest(ctx context.Context, stateToken string) (*GithubAuthRequest, error)
 
 	// CreateUserToken creates a new user token.
 	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)
@@ -278,6 +279,8 @@ type AppSession interface {
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
+	// DeleteUserAppSessions deletes all user’s application sessions.
+	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -324,6 +327,10 @@ type GithubAuthRequest struct {
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
 	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
+	// SSOTestFlow indicates if the request is part of the test flow.
+	SSOTestFlow bool `json:"sso_test_flow"`
+	// ConnectorSpec is embedded connector spec for use in test flow.
+	ConnectorSpec *types.GithubConnectorSpecV3 `json:"connector_spec,omitempty"`
 }
 
 // SetExpiry sets expiry time for the object
@@ -356,6 +363,16 @@ func (r *GithubAuthRequest) Check() error {
 			return trace.BadParameter("wrong CertTTL")
 		}
 	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if r.SSOTestFlow && r.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !r.SSOTestFlow && r.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	}
+
 	return nil
 }
 
@@ -378,7 +395,8 @@ type OIDCAuthRequest struct {
 	// CSRFToken is associated with user web session token
 	CSRFToken string `json:"csrf_token"`
 
-	// RedirectURL will be used by browser
+	// RedirectURL will be used to route the user back to a
+	// Teleport Proxy after the oidc login attempt in the brower.
 	RedirectURL string `json:"redirect_url"`
 
 	// PublicKey is an optional public key, users want these
@@ -405,6 +423,18 @@ type OIDCAuthRequest struct {
 
 	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
+
+	// SSOTestFlow indicates if the request is part of the test flow.
+	SSOTestFlow bool `json:"sso_test_flow"`
+
+	// ConnectorSpec is embedded connector spec for use in test flow.
+	ConnectorSpec *types.OIDCConnectorSpecV3 `json:"connector_spec,omitempty"`
+
+	// ProxyAddress is an optional address which can be used to
+	// find a redirect url from the OIDC connector which matches
+	// the address. If there is no match, the default redirect
+	// url will be used.
+	ProxyAddress string `json:"proxy_address,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -423,6 +453,15 @@ func (i *OIDCAuthRequest) Check() error {
 		if (i.CertTTL > apidefaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
+	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
 
 	return nil
@@ -473,6 +512,12 @@ type SAMLAuthRequest struct {
 
 	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
+
+	// SSOTestFlow indicates if the request is part of the test flow.
+	SSOTestFlow bool `json:"sso_test_flow"`
+
+	// ConnectorSpec is embedded connector spec for use in test flow.
+	ConnectorSpec *types.SAMLConnectorSpecV2 `json:"connector_spec,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -488,6 +533,15 @@ func (i *SAMLAuthRequest) Check() error {
 		if (i.CertTTL > apidefaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
+	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
 
 	return nil

@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -63,6 +64,7 @@ func TestClient_DialTimeout(t *testing.T) {
 				Credentials: []apiclient.Credentials{
 					apiclient.LoadTLS(&tls.Config{}),
 				},
+				CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 			}
 			clt, err := NewClient(cfg)
 			require.NoError(t, err)
@@ -118,6 +120,7 @@ func TestClient_RequestTimeout(t *testing.T) {
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(srv.TLS),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	}
 	clt, err := NewClient(cfg)
 	require.NoError(t, err)
@@ -141,7 +144,7 @@ func TestClient_RequestTimeout(t *testing.T) {
 
 func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
 	ta := testauthority.New()
-	priv, pub, err := ta.GenerateKeyPair("")
+	priv, pub, err := ta.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// CA for cluster1 with 1 key pair.

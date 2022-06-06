@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/api/constants"
@@ -46,10 +45,10 @@ func (c *StatusCommand) Initialize(app *kingpin.Application, config *service.Con
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *StatusCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.status.FullCommand():
-		err = c.Status(context.Background(), client)
+		err = c.Status(ctx, client)
 	default:
 		return false, nil
 	}
@@ -77,7 +76,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert()
+	localCAResponse, err := client.GetClusterCACert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,7 +93,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 			if ca.GetClusterName() != clusterName {
 				continue
 			}
-			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
+			info := fmt.Sprintf("%v CA ", string(ca.GetType()))
 			rotation := ca.GetRotation()
 			standbyPhase := rotation.Phase == types.RotationPhaseStandby || rotation.Phase == ""
 			if standbyPhase && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
@@ -107,12 +106,14 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 					"has been completed.")
 			}
 			if c.config.Debug {
-				table.AddRow([]string{info,
+				table.AddRow([]string{
+					info,
 					fmt.Sprintf("%v, update_servers: %v, complete: %v",
 						rotation.String(),
 						rotation.Schedule.UpdateServers.Format(constants.HumanDateFormatSeconds),
 						rotation.Schedule.Standby.Format(constants.HumanDateFormatSeconds),
-					)})
+					),
+				})
 			} else {
 				table.AddRow([]string{info, rotation.String()})
 			}
@@ -133,7 +134,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 				if ca.GetClusterName() == clusterName {
 					continue
 				}
-				info := fmt.Sprintf("Remote %v CA %q", strings.Title(string(ca.GetType())), ca.GetClusterName())
+				info := fmt.Sprintf("Remote %v CA %q", string(ca.GetType()), ca.GetClusterName())
 				rotation := ca.GetRotation()
 				table.AddRow([]string{info, rotation.String()})
 			}

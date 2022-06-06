@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -174,7 +175,7 @@ func TestAuthenticationSection(t *testing.T) {
 		expected    *AuthenticationConfig
 	}{
 		{
-			desc: "local auth with OTP",
+			desc: "Local auth with OTP",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
@@ -187,7 +188,7 @@ func TestAuthenticationSection(t *testing.T) {
 				SecondFactor: "otp",
 			},
 		}, {
-			desc: "local auth without OTP",
+			desc: "Local auth without OTP",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
@@ -294,6 +295,29 @@ func TestAuthenticationSection(t *testing.T) {
 					Disabled: true,
 				},
 			},
+		}, {
+			desc: "Local auth with passwordless connector",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "on",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"passwordless":   "true",
+					"connector_name": "passwordless",
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "on",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				Passwordless:  types.NewBoolOption(true),
+				ConnectorName: "passwordless",
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -304,6 +328,37 @@ func TestAuthenticationSection(t *testing.T) {
 			tt.expectError(t, err)
 
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
+		})
+	}
+}
+
+func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc  string
+		token string
+	}{
+		{desc: "file path on windows", token: `C:\path\to\some\file`},
+		{desc: "literal string", token: "some-literal-token"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			staticToken := StaticToken("Auth,Node,Proxy:" + tt.token)
+			provisionTokens, err := staticToken.Parse()
+			require.NoError(t, err)
+
+			require.Len(t, provisionTokens, 1)
+			provisionToken := provisionTokens[0]
+
+			want := types.ProvisionTokenV1{
+				Roles: []types.SystemRole{
+					types.RoleAuth, types.RoleNode, types.RoleProxy,
+				},
+				Token:   tt.token,
+				Expires: provisionToken.Expires,
+			}
+			require.Equal(t, provisionToken, want)
 		})
 	}
 }
@@ -490,20 +545,6 @@ func TestX11Config(t *testing.T) {
 				MaxDisplay:    100,
 			},
 		}, {
-			// DELETE IN 10.0.0 (Joerger): yaml typo, use max_display.
-			desc: "max displays set",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":      "yes",
-					"max_displays": 100,
-				}
-			},
-			expectX11Config: &x11.ServerConfig{
-				Enabled:       true,
-				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    100,
-			},
-		}, {
 			desc: "max display value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -552,4 +593,163 @@ func TestX11Config(t *testing.T) {
 			require.Equal(t, tc.expectX11Config, serverCfg)
 		})
 	}
+}
+
+func TestMakeSampleFileConfig(t *testing.T) {
+	t.Run("Default roles", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles: "",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "yes", fc.SSH.EnabledFlag)
+		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
+		require.Equal(t, "yes", fc.Auth.EnabledFlag)
+	})
+
+	t.Run("Node role", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles: "node",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "yes", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+	})
+
+	t.Run("App role", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:   "app",
+			AppName: "app name",
+			AppURI:  "localhost:8080",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+	})
+
+	t.Run("App name and URI are mandatory", func(t *testing.T) {
+		_, err := MakeSampleFileConfig(SampleFlags{
+			Roles:  "app",
+			AppURI: "localhost:8080",
+		})
+		require.Error(t, err)
+
+		_, err = MakeSampleFileConfig(SampleFlags{
+			Roles:   "app",
+			AppName: "nginx",
+		})
+		require.Error(t, err)
+
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:   "app",
+			AppURI:  "localhost:8080",
+			AppName: "nginx",
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+	})
+
+	t.Run("Proxy role", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles: "proxy",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+	})
+
+	t.Run("App role included when flag AppName is added", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:   "proxy",
+			AppName: "my-app",
+			AppURI:  "localhost:8080",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.Equal(t, "my-app", fc.Apps.Apps[0].Name)
+	})
+
+	t.Run("Multiple roles", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:   "proxy,app,db",
+			AppName: "app name",
+			AppURI:  "localhost:8080",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.Equal(t, "no", fc.Databases.EnabledFlag) // db is always disabled
+	})
+
+	t.Run("Auth server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AuthServer: "auth-server",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "auth-server", fc.AuthServers[0])
+	})
+
+	t.Run("Data dir", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			DataDir: "/path/to/data/dir",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "/path/to/data/dir", fc.DataDir)
+
+		fc, err = MakeSampleFileConfig(SampleFlags{
+			DataDir: "",
+		})
+		require.NoError(t, err)
+		require.Equal(t, defaults.DataDir, fc.DataDir)
+	})
+
+	t.Run("Token", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AuthToken:  "auth-token",
+			JoinMethod: "token",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "auth-token", fc.JoinParams.TokenName)
+		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
+	})
+
+	t.Run("App name and URI", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AppName: "app-name",
+			AppURI:  "https://localhost:8080",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "app-name", fc.Apps.Apps[0].Name)
+		require.Equal(t, "https://localhost:8080", fc.Apps.Apps[0].URI)
+	})
+
+	t.Run("Node labels", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			NodeLabels: "foo=bar,baz=bax",
+		})
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{
+			"foo": "bar",
+			"baz": "bax",
+		}, fc.SSH.Labels)
+	})
+
+	t.Run("Node labels - invalid", func(t *testing.T) {
+		_, err := MakeSampleFileConfig(SampleFlags{
+			NodeLabels: "foo=bar,baz",
+		})
+		require.Error(t, err)
+	})
 }

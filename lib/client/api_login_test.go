@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -138,47 +139,60 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	ctx := context.Background()
 	tests := []struct {
-		name                      string
-		secondFactor              constants.SecondFactorType
-		inputReader               *prompt.FakeReader
-		solveWebauthn             func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
-		pwdless, useStrongestAuth bool
+		name             string
+		secondFactor     constants.SecondFactorType
+		inputReader      *prompt.FakeReader
+		solveWebauthn    func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		authConnector    string
+		allowStdinHijack bool
+		preferOTP        bool
 	}{
 		{
-			name:          "OTP device login",
-			secondFactor:  constants.SecondFactorOptional,
-			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
-			solveWebauthn: noopWebauthnFn,
+			name:             "OTP device login with hijack",
+			secondFactor:     constants.SecondFactorOptional,
+			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
+			solveWebauthn:    noopWebauthnFn,
+			allowStdinHijack: true,
 		},
 		{
-			name:          "Webauthn device login",
-			secondFactor:  constants.SecondFactorOptional,
-			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
-			solveWebauthn: solveWebauthn,
+			name:             "Webauthn device login with hijack",
+			secondFactor:     constants.SecondFactorOptional,
+			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
+			solveWebauthn:    solveWebauthn,
+			allowStdinHijack: true,
 		},
 		{
-			name:         "Webauthn and UseStrongestAuth",
+			name:             "Webauthn device with PIN and hijack", // a bit hypothetical, but _could_ happen.
+			secondFactor:     constants.SecondFactorOptional,
+			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn).AddReply(userPINFn),
+			solveWebauthn:    solvePIN,
+			allowStdinHijack: true,
+		},
+		{
+			name:         "OTP preferred",
+			secondFactor: constants.SecondFactorOptional,
+			inputReader:  prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
+			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+				panic("this should not be called")
+			},
+			preferOTP: true,
+		},
+		{
+			name:         "Webauthn device login",
 			secondFactor: constants.SecondFactorOptional,
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(func(ctx context.Context) (string, error) {
 					panic("this should not be called")
 				}),
-			solveWebauthn:    solveWebauthn,
-			useStrongestAuth: true,
-		},
-		{
-			name:          "Webauthn device with PIN", // a bit hypothetical, but _could_ happen.
-			secondFactor:  constants.SecondFactorOptional,
-			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn).AddReply(userPINFn),
-			solveWebauthn: solvePIN,
+			solveWebauthn: solveWebauthn,
 		},
 		{
 			name:          "passwordless login",
 			secondFactor:  constants.SecondFactorOptional,
 			inputReader:   prompt.NewFakeReader(), // no inputs
 			solveWebauthn: solvePwdless,
-			pwdless:       true,
+			authConnector: constants.PasswordlessConnector,
 		},
 	}
 	for _, test := range tests {
@@ -205,8 +219,9 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
-			tc.Passwordless = test.pwdless
-			tc.UseStrongestAuth = test.useStrongestAuth
+			tc.AllowStdinHijack = test.allowStdinHijack
+			tc.AuthConnector = test.authConnector
+			tc.PreferOTP = test.preferOTP
 
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
@@ -277,6 +292,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Auth.SSHAddr = randomAddr
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	authProcess := startAndWait(t, cfg, service.AuthTLSReady)
 	t.Cleanup(func() { authProcess.Close() })
 	authAddr, err := authProcess.AuthSSHAddr()
@@ -343,6 +359,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Proxy.ReverseTunnelListenAddr = randomAddr
 	cfg.Proxy.DisableWebInterface = true
 	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	proxyProcess := startAndWait(t, cfg, service.ProxyWebServerReady)
 	t.Cleanup(func() { proxyProcess.Close() })
 	proxyWebAddr, err := proxyProcess.ProxyWebAddr()

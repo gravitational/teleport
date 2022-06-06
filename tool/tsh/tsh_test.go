@@ -20,24 +20,25 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
+	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils/prompt"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-	"golang.org/x/crypto/ssh"
-
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -45,12 +46,21 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/prompt"
+
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	"go.uber.org/atomic"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -133,16 +143,16 @@ func TestFailedLogin(t *testing.T) {
 		return nil, loginFailed
 	}
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = client.SSOLoginFunc(ssoLogin)
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.mockSSOLogin = ssoLogin
 		return nil
-	}))
+	})
 	require.ErrorIs(t, err, loginFailed)
 }
 
@@ -222,19 +232,19 @@ func TestOIDCLogin(t *testing.T) {
 
 	buf := bytes.NewBuffer([]byte{})
 	sc := bufio.NewScanner(buf)
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice", // explicitly use wrong name
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
 		cf.overrideStderr = buf
 		return nil
-	}))
+	})
 
 	require.NoError(t, err)
 
@@ -278,17 +288,17 @@ func TestLoginIdentityOut(t *testing.T) {
 
 	identPath := filepath.Join(t.TempDir(), "ident")
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--out", identPath,
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 
 	_, err = client.KeyFromIdentityFile(identPath)
@@ -318,54 +328,54 @@ func TestRelogin(t *testing.T) {
 
 	buf := bytes.NewBuffer([]byte{})
 	sc := bufio.NewScanner(buf)
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.overrideStderr = buf
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--proxy", proxyAddr.String(),
 		"localhost",
 	}, setHomePath(tmpHomePath),
-		cliOption(func(cf *CLIConf) error {
+		func(cf *CLIConf) error {
 			cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 			cf.overrideStderr = buf
 			return nil
-		}))
+		})
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
-	err = Run([]string{"logout"}, setHomePath(tmpHomePath),
-		cliOption(func(cf *CLIConf) error {
+	err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath),
+		func(cf *CLIConf) error {
 			cf.overrideStderr = buf
 			return nil
-		}))
+		})
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.overrideStderr = buf
 		return nil
-	}))
+	})
 	findMOTD(t, sc, motd)
 	require.NoError(t, err)
 }
@@ -485,6 +495,192 @@ func TestMakeClient(t *testing.T) {
 	require.Greater(t, len(agentKeys), 0)
 }
 
+// approveAllAccessRequests starts a loop which gets all pending AccessRequests
+// from access and approves them. It accepts a stop channel, which will stop the
+// loop and cancel all active requests when it is closed.
+func approveAllAccessRequests(access services.DynamicAccess, stop <-chan struct{}) (err error) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	// Make a context that will be cancelled when the stop chan is closed, to
+	// pass to the requests.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-stop
+		cancel()
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+		requests, err := access.GetAccessRequests(ctx,
+			types.AccessRequestFilter{
+				State: types.RequestState_PENDING,
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, req := range requests {
+			err = access.SetAccessRequestState(ctx,
+				types.AccessRequestUpdate{
+					RequestID: req.GetName(),
+					State:     types.RequestState_APPROVED,
+				})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+}
+
+// TestSSHAccessRequest tests that a user can automatically request access to a
+// ssh server using a search-based access request when "tsh ssh" fails with
+// AccessDenied.
+func TestSSHAccessRequest(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	requester, err := types.NewRole("requester", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"requester"})
+	user, err := user.Current()
+	require.NoError(t, err)
+	traits := map[string][]string{
+		teleport.TraitLogins: []string{user.Username},
+	}
+	alice.SetTraits(traits)
+
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, connector, alice))
+
+	authAddr, err := rootAuth.AuthSSHAddr()
+	require.NoError(t, err)
+
+	proxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	sshHostname := "test-ssh-server"
+	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname))
+	require.NotNil(t, node)
+
+	// wait for auth to see node
+	var sshHostID string
+	require.Eventually(t, func() bool {
+		nodes, err := rootAuth.GetAuthServer().GetNodes(context.Background(), apidefaults.Namespace)
+		require.NoError(t, err)
+		for _, node := range nodes {
+			if node.GetHostname() == sshHostname {
+				sshHostID = node.GetName()
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second, time.Second, "node never showed up")
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	// sanity check, cannot ssh without access request
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--debug",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// approve all requests as they're created
+	errChan := make(chan error)
+	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
+		if !errors.Is(err, context.Canceled) {
+			// Kill auth so Run calls don't hang. Don't worry about the Close
+			// error, the test will already fail.
+			rootAuth.Close()
+		}
+		errChan <- err
+	}()
+
+	// ssh with request, by hostname
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--debug",
+		"--request",
+		"--request-reason", "for testing purposes",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// now that we have an approved access request, it should still work without --request
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--debug",
+		"--request-reason", "for testing purposes",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// log out and back in with no access request
+	err = Run(context.Background(), []string{
+		"logout",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	// ssh with request, by host ID
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--debug",
+		"--request",
+		"--request-reason", "for testing purposes",
+		fmt.Sprintf("%s@%s", user.Username, sshHostID),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+}
+
 func TestAccessRequestOnLeaf(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
@@ -538,19 +734,19 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	leafAuth, _ := makeTestServers(t, withClusterName(t, "leafcluster"))
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", rootProxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, rootAuthServer, alice)
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -559,7 +755,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -568,7 +764,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -577,47 +773,30 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
+	// approve all requests as they're created
 	errChan := make(chan error)
+	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
+	stop := make(chan struct{})
+	defer close(stop)
 	go func() {
-		errChan <- Run([]string{
-			"request",
-			"new",
-			"--insecure",
-			"--debug",
-			"--proxy", rootProxyAddr.String(),
-			"--roles=access",
-		}, setHomePath(tmpHomePath))
+		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
+		if !errors.Is(err, context.Canceled) {
+			// Kill auth so Run calls don't hang. Don't worry about the Close
+			// error, the test will already fail.
+			rootAuth.Close()
+		}
+		errChan <- err
 	}()
 
-	var request types.AccessRequest
-	for i := 0; i < 5; i++ {
-		log.Debugf("Waiting for access request %d", i)
-		requests, err := rootAuth.GetAuthServer().GetAccessRequests(rootAuth.ExitContext(), types.AccessRequestFilter{})
-		require.NoError(t, err)
-		require.LessOrEqual(t, len(requests), 1)
-		if len(requests) == 1 {
-			request = requests[0]
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	require.NotNil(t, request)
-
-	err = rootAuth.GetAuthServer().SetAccessRequestState(
-		rootAuth.ExitContext(),
-		types.AccessRequestUpdate{
-			RequestID: request.GetName(),
-			State:     types.RequestState_APPROVED,
-		},
-	)
+	err = Run(context.Background(), []string{
+		"request",
+		"new",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"--roles=access",
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
-
-	select {
-	case err := <-errChan:
-		require.NoError(t, err)
-	case <-time.After(2 * time.Minute):
-		t.Fatal("access request wasn't resolved after 2 minutes")
-	}
 }
 
 // tryCreateTrustedCluster performs several attempts to create a trusted cluster,
@@ -704,9 +883,6 @@ func TestIdentityRead(t *testing.T) {
 	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
 	require.NoError(t, err)
 	require.NotNil(t, conf)
-
-	// ensure that at least root CA was successfully loaded
-	require.Greater(t, len(conf.RootCAs.Subjects()), 0)
 }
 
 func TestFormatConnectCommand(t *testing.T) {
@@ -906,6 +1082,20 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 	})
+
+	t.Run("tsh global config path", func(t *testing.T) {
+		t.Run("nothing set", testEnvFlag(testCase{
+			outCLIConf: CLIConf{},
+		}))
+		t.Run("TELEPORT_GLOBAL_TSH_CONFIG set", testEnvFlag(testCase{
+			envMap: map[string]string{
+				globalTshConfigEnvVar: "/opt/teleport/tsh.yaml",
+			},
+			outCLIConf: CLIConf{
+				GlobalTshConfigPath: "/opt/teleport/tsh.yaml",
+			},
+		}))
+	})
 }
 
 func TestKubeConfigUpdate(t *testing.T) {
@@ -928,8 +1118,15 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{"dev", "prod"},
-				credentials:         creds,
+				kubeClusters: []*types.KubernetesCluster{
+					{
+						Name: "dev",
+					},
+					{
+						Name: "prod",
+					},
+				},
+				credentials: creds,
 			},
 			errorAssertion: require.NoError,
 			expectedValues: &kubeconfig.Values{
@@ -953,8 +1150,15 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{"dev", "prod"},
-				credentials:         creds,
+				kubeClusters: []*types.KubernetesCluster{
+					{
+						Name: "dev",
+					},
+					{
+						Name: "prod",
+					},
+				},
+				credentials: creds,
 			},
 			errorAssertion: require.NoError,
 			expectedValues: &kubeconfig.Values{
@@ -978,8 +1182,15 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{"dev", "prod"},
-				credentials:         creds,
+				kubeClusters: []*types.KubernetesCluster{
+					{
+						Name: "dev",
+					},
+					{
+						Name: "prod",
+					},
+				},
+				credentials: creds,
 			},
 			errorAssertion: func(t require.TestingT, err error, _ ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
@@ -995,7 +1206,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{},
+				kubeClusters:        []*types.KubernetesCluster{},
 				credentials:         creds,
 			},
 			errorAssertion: require.NoError,
@@ -1015,8 +1226,15 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []string{"dev", "prod"},
-				credentials:         creds,
+				kubeClusters: []*types.KubernetesCluster{
+					{
+						Name: "dev",
+					},
+					{
+						Name: "prod",
+					},
+				},
+				credentials: creds,
 			},
 			errorAssertion: require.NoError,
 			expectedValues: &kubeconfig.Values{
@@ -1065,7 +1283,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1076,7 +1295,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
@@ -1086,7 +1306,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTimeout: time.Minute,
 			},
-		}, {
+		},
+		{
 			desc: "$DISPLAY not set",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1106,7 +1327,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1114,7 +1336,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1122,7 +1345,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1131,7 +1355,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=no",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1140,7 +1365,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Timeout=60",
 			opts:        []string{"ForwardX11Timeout=60"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1162,7 +1388,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1174,7 +1401,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1186,7 +1414,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1198,7 +1427,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1210,7 +1440,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m with -oForwardX11Timeout=120",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
@@ -1250,7 +1481,7 @@ func TestAuthClientFromTSHProfile(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -1275,8 +1506,8 @@ func TestAuthClientFromTSHProfile(t *testing.T) {
 }
 
 type testServersOpts struct {
-	bootstrap       []types.Resource
-	authConfigFuncs []func(cfg *service.AuthConfig)
+	bootstrap   []types.Resource
+	configFuncs []func(cfg *service.Config)
 }
 
 type testServerOptFunc func(o *testServersOpts)
@@ -1287,14 +1518,16 @@ func withBootstrap(bootstrap ...types.Resource) testServerOptFunc {
 	}
 }
 
-func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
+func withConfig(fn func(cfg *service.Config)) testServerOptFunc {
 	return func(o *testServersOpts) {
-		if o.authConfigFuncs == nil {
-			o.authConfigFuncs = []func(cfg *service.AuthConfig){}
-		}
-
-		o.authConfigFuncs = append(o.authConfigFuncs, fn)
+		o.configFuncs = append(o.configFuncs, fn)
 	}
+}
+
+func withAuthConfig(fn func(*service.AuthConfig)) testServerOptFunc {
+	return withConfig(func(cfg *service.Config) {
+		fn(&cfg.Auth)
+	})
 }
 
 func withClusterName(t *testing.T, n string) testServerOptFunc {
@@ -1322,6 +1555,59 @@ func withMOTD(t *testing.T, motd string) testServerOptFunc {
 	})
 }
 
+func withHostname(hostname string) testServerOptFunc {
+	return withConfig(func(cfg *service.Config) {
+		cfg.Hostname = hostname
+	})
+}
+
+func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) (node *service.TeleportProcess) {
+	var options testServersOpts
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	var err error
+
+	// Set up a test ssh service.
+	cfg := service.MakeDefaultConfig()
+	cfg.Hostname = "node"
+	cfg.DataDir = t.TempDir()
+
+	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.Token = staticToken
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = true
+	cfg.SSH.Addr = *utils.MustParseAddr("127.0.0.1:0")
+	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+	cfg.Log = utils.NewLoggerForTests()
+
+	for _, fn := range options.configFuncs {
+		fn(cfg)
+	}
+
+	node, err = service.NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, node.Start())
+
+	t.Cleanup(func() {
+		require.NoError(t, node.Close())
+		require.NoError(t, node.Wait())
+	})
+
+	// Wait for node to become ready.
+	eventCh := make(chan service.Event, 1)
+	node.WaitForEvent(node.ExitContext(), service.NodeSSHReady, eventCh)
+	select {
+	case <-eventCh:
+	case <-time.After(10 * time.Second):
+		t.Fatal("node didn't start after 10s")
+	}
+
+	return node
+}
+
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
 	var options testServersOpts
 	for _, opt := range opts {
@@ -1334,6 +1620,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	// We need this to get a random port assigned to it and allow parallel
 	// execution of this test.
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
@@ -1342,7 +1629,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
@@ -1354,8 +1641,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
-	for _, fn := range options.authConfigFuncs {
-		fn(&cfg.Auth)
+	for _, fn := range options.configFuncs {
+		fn(cfg)
 	}
 
 	auth, err = service.NewTeleport(cfg)
@@ -1363,7 +1650,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	require.NoError(t, auth.Start())
 
 	t.Cleanup(func() {
-		auth.Close()
+		require.NoError(t, auth.Close())
+		require.NoError(t, auth.Wait())
 	})
 
 	// Wait for proxy to become ready.
@@ -1382,6 +1670,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 
 	// Set up a test proxy service.
 	cfg = service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
@@ -1401,7 +1690,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	require.NoError(t, proxy.Start())
 
 	t.Cleanup(func() {
-		proxy.Close()
+		require.NoError(t, proxy.Close())
+		require.NoError(t, proxy.Wait())
 	})
 
 	// Wait for proxy to become ready.
@@ -1419,9 +1709,16 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
 	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV3{
-		IssuerURL:   "https://auth.example.com",
-		RedirectURL: "https://cluster.example.com",
-		ClientID:    "fake-client",
+		IssuerURL:    "https://auth.example.com",
+		RedirectURLs: []string{"https://cluster.example.com"},
+		ClientID:     "fake-client",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
 	})
 	require.NoError(t, err)
 	return connector
@@ -1458,5 +1755,862 @@ func setHomePath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
 		return nil
+	}
+}
+
+func testSerialization(t *testing.T, expected string, serializer func(string) (string, error)) {
+	out, err := serializer(teleport.JSON)
+	require.NoError(t, err)
+	require.JSONEq(t, expected, out)
+
+	out, err = serializer(teleport.YAML)
+	require.NoError(t, err)
+	outJSON, err := yaml.YAMLToJSON([]byte(out))
+	require.NoError(t, err)
+	require.JSONEq(t, expected, string(outJSON))
+}
+
+func TestSerializeVersion(t *testing.T) {
+	testCases := []struct {
+		name     string
+		expected string
+
+		proxyVersion string
+	}{
+		{
+			name: "no proxy version provided",
+			expected: fmt.Sprintf(
+				`{"version": %q, "gitref": %q, "runtime": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(),
+			),
+		},
+		{
+			name:         "proxy version provided",
+			proxyVersion: "1.33.7",
+			expected: fmt.Sprintf(
+				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7"),
+		},
+	}
+
+	for _, tC := range testCases {
+		t.Run(tC.name, func(t *testing.T) {
+			testSerialization(t, tC.expected, func(fmt string) (string, error) {
+				return serializeVersion(fmt, tC.proxyVersion)
+			})
+		})
+	}
+}
+
+func TestSerializeApps(t *testing.T) {
+	expected := `
+	[{
+		"kind": "app",
+		"version": "v3",
+		"metadata": {
+			"name": "my app",
+			"description": "this is the description",
+			"labels": {
+				"a": "1",
+				"b": "2"
+			}
+		},
+		"spec": {
+			"uri": "https://example.com",
+			"insecure_skip_verify": false
+		}
+	}]
+	`
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        "my app",
+		Description: "this is the description",
+		Labels:      map[string]string{"a": "1", "b": "2"},
+	}, types.AppSpecV3{
+		URI: "https://example.com",
+	})
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeApps([]types.Application{app}, f)
+	})
+}
+
+func TestSerializeAppsEmpty(t *testing.T) {
+	testSerialization(t, "[]", func(f string) (string, error) {
+		return serializeApps(nil, f)
+	})
+}
+
+func TestSerializeAppConfig(t *testing.T) {
+	expected := `
+	{
+		"name": "my app",
+		"uri": "https://example.com",
+		"ca": "/path/to/ca",
+		"cert": "/path/to/cert",
+		"key": "/path/to/key",
+		"curl": "curl https://example.com"
+	}
+	`
+	appConfig := &appConfigInfo{
+		Name: "my app",
+		URI:  "https://example.com",
+		CA:   "/path/to/ca",
+		Cert: "/path/to/cert",
+		Key:  "/path/to/key",
+		Curl: "curl https://example.com",
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeAppConfig(appConfig, f)
+	})
+}
+
+func TestSerializeDatabases(t *testing.T) {
+	expected := `
+	[{
+    "kind": "db",
+    "version": "v3",
+    "metadata": {
+      "name": "my db",
+      "description": "this is the description",
+      "labels": {"a": "1", "b": "2"}
+    },
+    "spec": {
+      "protocol": "mongodb",
+      "uri": "mongodb://example.com",
+      "aws": {
+        "redshift": {},
+        "rds": {
+          "iam_auth": false
+        },
+        "elasticache": {},
+        "secret_store": {}
+      },
+      "mysql": {},
+      "gcp": {},
+      "azure": {},
+      "tls": {
+        "mode": 0
+      },
+      "ad": {
+        "keytab_file": "",
+        "domain": "",
+        "spn": ""
+      }
+    },
+    "status": {
+      "mysql": {},
+      "aws": {
+        "redshift": {},
+        "rds": {
+          "iam_auth": false
+        },
+        "elasticache": {},
+        "secret_store": {}
+      }
+    }
+  }]
+	`
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my db",
+		Description: "this is the description",
+		Labels:      map[string]string{"a": "1", "b": "2"},
+	}, types.DatabaseSpecV3{
+		Protocol: "mongodb",
+		URI:      "mongodb://example.com",
+	})
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeDatabases([]types.Database{db}, f)
+	})
+}
+
+func TestSerializeDatabasesEmpty(t *testing.T) {
+	testSerialization(t, "[]", func(f string) (string, error) {
+		return serializeDatabases(nil, f)
+	})
+}
+
+func TestSerializeDatabaseEnvironment(t *testing.T) {
+	expected := `
+	{
+		"A": "1",
+		"B": "2"
+	}
+	`
+	env := map[string]string{
+		"A": "1",
+		"B": "2",
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeDatabaseEnvironment(env, f)
+	})
+}
+
+func TestSerializeDatabaseConfig(t *testing.T) {
+	expected := `
+	{
+		"name": "my db",
+		"host": "example.com",
+		"port": 27017,
+		"ca": "/path/to/ca",
+		"cert": "/path/to/cert",
+		"key": "/path/to/key"
+	}
+	`
+	configInfo := &dbConfigInfo{
+		Name: "my db",
+		Host: "example.com",
+		Port: 27017,
+		CA:   "/path/to/ca",
+		Cert: "/path/to/cert",
+		Key:  "/path/to/key",
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeDatabaseConfig(configInfo, f)
+	})
+}
+
+func TestSerializeNodes(t *testing.T) {
+	expected := `
+	[{
+    "kind": "node",
+    "version": "v2",
+    "metadata": {
+      "name": "my server"
+    },
+    "spec": {
+      "addr": "https://example.com",
+      "hostname": "example.com",
+      "rotation": {
+        "current_id": "",
+        "started": "0001-01-01T00:00:00Z",
+        "last_rotated": "0001-01-01T00:00:00Z",
+        "schedule": {
+          "update_clients": "0001-01-01T00:00:00Z",
+          "update_servers": "0001-01-01T00:00:00Z",
+          "standby": "0001-01-01T00:00:00Z"
+        }
+      },
+      "version": "v2"
+    }
+  }]
+	`
+	node, err := types.NewServer("my server", "node", types.ServerSpecV2{
+		Addr:     "https://example.com",
+		Hostname: "example.com",
+		Version:  "v2",
+	})
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeNodes([]types.Server{node}, f)
+	})
+}
+
+func TestSerializeNodesEmpty(t *testing.T) {
+	testSerialization(t, "[]", func(f string) (string, error) {
+		return serializeNodes(nil, f)
+	})
+}
+
+func TestSerializeClusters(t *testing.T) {
+	expected := `
+	[
+		{
+			"cluster_name": "rootCluster",
+			"status": "online",
+			"cluster_type": "root",
+			"labels": null,
+			"selected": true
+		},
+		{
+			"cluster_name": "leafCluster",
+			"status": "offline",
+			"cluster_type": "leaf",
+			"labels": {"foo": "bar", "baz": "boof"},
+			"selected": false
+		}
+	]
+	`
+	root := clusterInfo{
+		ClusterName: "rootCluster",
+		Status:      teleport.RemoteClusterStatusOnline,
+		ClusterType: "root",
+		Selected:    true,
+	}
+	leafClusters := []clusterInfo{
+		{
+			ClusterName: "leafCluster",
+			Status:      teleport.RemoteClusterStatusOffline,
+			ClusterType: "leaf",
+			Labels: map[string]string{
+				"foo": "bar",
+				"baz": "boof",
+			},
+			Selected: false,
+		},
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeClusters(root, leafClusters, f)
+	})
+}
+
+func TestSerializeProfiles(t *testing.T) {
+	expected := `
+	{
+  "active": {
+    "profile_url": "example.com",
+    "username": "test",
+    "active_requests": [
+      "1",
+      "2",
+      "3"
+    ],
+    "cluster": "main",
+    "roles": [
+      "a",
+      "b",
+      "c"
+    ],
+    "traits": {
+      "a": [
+  "1",
+  "2",
+  "3"
+]
+    },
+    "logins": [
+      "a",
+      "b",
+      "c"
+    ],
+    "kubernetes_enabled": true,
+    "kubernetes_users": [
+      "x"
+    ],
+    "kubernetes_groups": [
+      "y"
+    ],
+    "databases": [
+      "z"
+    ],
+    "valid_until": "1970-01-01T00:00:00Z",
+    "extensions": [
+      "7",
+      "8",
+      "9"
+    ]
+  },
+  "profiles": [
+    {
+      "profile_url": "example.com",
+      "username": "test2",
+      "cluster": "other",
+      "kubernetes_enabled": false,
+      "valid_until": "1970-01-01T00:00:00Z"
+    }
+  ]
+}
+	`
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	p, err := url.Parse("example.com")
+	require.NoError(t, err)
+	activeProfile := &client.ProfileStatus{
+		ProxyURL:       *p,
+		Username:       "test",
+		ActiveRequests: services.RequestIDs{AccessRequests: []string{"1", "2", "3"}},
+		Cluster:        "main",
+		Roles:          []string{"a", "b", "c"},
+		Traits:         wrappers.Traits{"a": []string{"1", "2", "3"}},
+		Logins:         []string{"a", "b", "c"},
+		KubeEnabled:    true,
+		KubeUsers:      []string{"x"},
+		KubeGroups:     []string{"y"},
+		Databases:      []tlsca.RouteToDatabase{{ServiceName: "z"}},
+		ValidUntil:     aTime,
+		Extensions:     []string{"7", "8", "9"},
+	}
+	otherProfile := &client.ProfileStatus{
+		ProxyURL:   *p,
+		Username:   "test2",
+		Cluster:    "other",
+		ValidUntil: aTime,
+	}
+
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeProfiles(activeProfile, []*client.ProfileStatus{otherProfile}, f)
+	})
+}
+
+func TestSerializeProfilesNoOthers(t *testing.T) {
+	expected := `
+	{
+		"active": {
+      "profile_url": "example.com",
+      "username": "test",
+      "cluster": "main",
+      "kubernetes_enabled": false,
+      "valid_until": "1970-01-01T00:00:00Z"
+    },
+		"profiles": []
+	}
+	`
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	p, err := url.Parse("example.com")
+	require.NoError(t, err)
+	profile := &client.ProfileStatus{
+		ProxyURL:   *p,
+		Username:   "test",
+		Cluster:    "main",
+		ValidUntil: aTime,
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeProfiles(profile, nil, f)
+	})
+}
+
+func TestSerializeProfilesNoActive(t *testing.T) {
+	expected := `
+	{
+		"profiles": []
+	}
+	`
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeProfiles(nil, nil, f)
+	})
+}
+
+func TestSerializeEnvironment(t *testing.T) {
+	expected := fmt.Sprintf(`
+	{
+		%q: "example.com",
+		%q: "main"
+	}
+	`, proxyEnvVar, clusterEnvVar)
+	p, err := url.Parse("https://example.com")
+	require.NoError(t, err)
+	profile := &client.ProfileStatus{
+		ProxyURL: *p,
+		Cluster:  "main",
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeEnvironment(profile, f)
+	})
+}
+
+func TestSerializeAccessRequests(t *testing.T) {
+	expected := `
+	{
+    "kind": "access_request",
+    "version": "v3",
+    "metadata": {
+      "name": "test"
+    },
+    "spec": {
+      "user": "user",
+      "roles": [
+        "a",
+        "b",
+        "c"
+      ],
+      "state": 1,
+      "created": "0001-01-01T00:00:00Z",
+      "expires": "0001-01-01T00:00:00Z"
+    }
+  }
+	`
+	req, err := types.NewAccessRequest("test", "user", "a", "b", "c")
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeAccessRequest(req, f)
+	})
+	expected2 := fmt.Sprintf("[%v]", expected)
+	testSerialization(t, expected2, func(f string) (string, error) {
+		return serializeAccessRequests([]types.AccessRequest{req}, f)
+	})
+}
+
+func TestSerializeKubeSessions(t *testing.T) {
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	expected := `
+	[
+  {
+    "kind": "session_tracker",
+    "version": "v1",
+    "metadata": {
+      "name": "id",
+      "expires": "1970-01-01T00:00:00Z"
+    },
+    "spec": {
+      "session_id": "id",
+      "kind": "session-kind",
+      "state": 1,
+      "created": "1970-01-01T00:00:00Z",
+      "expires": "1970-01-01T00:00:00Z",
+      "attached": "arbitrary attached data",
+      "reason": "some reason",
+      "invited": [
+        "a",
+        "b",
+        "c"
+      ],
+      "target_hostname": "example.com",
+      "target_address": "https://example.com",
+      "cluster_name": "cluster",
+      "login": "login",
+      "participants": [
+        {
+          "id": "some-id",
+          "user": "test",
+          "mode": "mode",
+          "last_active": "1970-01-01T00:00:00Z"
+        }
+      ],
+      "kubernetes_cluster": "kc",
+      "host_user": "test",
+      "host_roles": [
+        {
+          "name": "policy",
+          "version": "v1",
+          "require_session_join": [
+            {
+              "name": "policy",
+              "filter": "filter",
+              "kinds": [
+                "x",
+                "y",
+                "z"
+              ],
+              "count": 1,
+              "modes": [
+                "mode",
+                "mode-1",
+                "mode-2"
+              ],
+              "on_leave": "do something"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+	`
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    "id",
+		Kind:         "session-kind",
+		State:        types.SessionState_SessionStateRunning,
+		Created:      aTime,
+		Expires:      aTime,
+		AttachedData: "arbitrary attached data",
+		Reason:       "some reason",
+		Invited:      []string{"a", "b", "c"},
+		Hostname:     "example.com",
+		Address:      "https://example.com",
+		ClusterName:  "cluster",
+		Login:        "login",
+		Participants: []types.Participant{
+			{
+				ID:         "some-id",
+				User:       "test",
+				Mode:       "mode",
+				LastActive: aTime,
+			},
+		},
+		KubernetesCluster: "kc",
+		HostUser:          "test",
+		HostPolicies: []*types.SessionTrackerPolicySet{
+			{
+				Name:    "policy",
+				Version: "v1",
+				RequireSessionJoin: []*types.SessionRequirePolicy{
+					{
+						Name:    "policy",
+						Filter:  "filter",
+						Kinds:   []string{"x", "y", "z"},
+						Count:   1,
+						Modes:   []string{"mode", "mode-1", "mode-2"},
+						OnLeave: "do something",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeKubeSessions([]types.SessionTracker{tracker}, f)
+	})
+}
+
+func TestSerializeKubeClusters(t *testing.T) {
+	expected := `
+	[
+		{
+			"kube_cluster_name": "cluster1",
+			"labels": {"cmd": "result", "foo": "bar"},
+			"selected": true
+		},
+		{
+			"kube_cluster_name": "cluster2",
+			"labels": null,
+			"selected": false
+		}
+	]
+	`
+
+	clusters := []*types.KubernetesCluster{
+		{
+			Name: "cluster1",
+			StaticLabels: map[string]string{
+				"foo": "bar",
+			},
+			DynamicLabels: map[string]types.CommandLabelV2{
+				"cmd": {
+					Result: "result",
+				},
+			},
+		},
+		{
+			Name: "cluster2",
+		},
+	}
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeKubeClusters(clusters, "cluster1", f)
+	})
+}
+
+func TestSerializeMFADevices(t *testing.T) {
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	expected := `
+	[
+  {"metadata":{"Name":"my device"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z"}
+	]
+	`
+	dev := types.NewMFADevice("my device", "id", aTime)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeMFADevices([]*types.MFADevice{dev}, f)
+	})
+}
+
+func Test_getUsersForDb(t *testing.T) {
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	roleDevStage := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		roles    services.RoleSet
+		database types.Database
+		result   string
+	}{
+		{
+			name:     "developer allowed any username in stage database except superuser",
+			roles:    services.RoleSet{roleDevStage, roleDevProd},
+			database: dbStage,
+			result:   "[* dev], except: [superuser]",
+		},
+		{
+			name:     "developer allowed only specific username/database in prod database",
+			roles:    services.RoleSet{roleDevStage, roleDevProd},
+			database: dbProd,
+			result:   "[dev]",
+		},
+		{
+			name:     "roleDevStage x dbStage",
+			roles:    services.RoleSet{roleDevStage},
+			database: dbStage,
+			result:   "[*], except: [superuser]",
+		},
+		{
+			name:     "roleDevStage x dbProd",
+			roles:    services.RoleSet{roleDevStage},
+			database: dbProd,
+			result:   "(none)",
+		},
+		{
+			name:     "roleDevProd x dbStage",
+			roles:    services.RoleSet{roleDevProd},
+			database: dbStage,
+			result:   "(none)",
+		},
+		{
+			name:     "roleDevProd x dbProd",
+			roles:    services.RoleSet{roleDevProd},
+			database: dbProd,
+			result:   "[dev]",
+		},
+		{
+			name:     "no role set",
+			roles:    nil,
+			database: dbProd,
+			result:   "(unknown)",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := getUsersForDb(tc.database, tc.roles)
+			require.Equal(t, tc.result, got)
+		})
+	}
+}
+
+func TestExportingTraces(t *testing.T) {
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	spanAssertion := func(containsTSH bool) func(t require.TestingT, i interface{}, i2 ...interface{}) {
+		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			spans, ok := i.([]*otlp.ScopeSpans)
+			require.True(t, ok)
+
+			var scopes []string
+			for _, span := range spans {
+				scopes = append(scopes, span.Scope.Name)
+			}
+
+			if containsTSH {
+				require.Contains(t, scopes, teleport.ComponentTSH)
+			} else {
+				require.NotContains(t, scopes, teleport.ComponentTSH)
+			}
+		}
+	}
+
+	cases := []struct {
+		name          string
+		cfg           func(c *tracing.Collector) service.TracingConfig
+		spanAssertion require.ValueAssertionFunc
+	}{
+		{
+			name: "spans exported with auth sampling all",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
+					Enabled:      true,
+					ExporterURL:  c.GRPCAddr(),
+					SamplingRate: 1.0,
+				}
+			},
+			spanAssertion: spanAssertion(true),
+		},
+		{
+			name: "spans exported with auth sampling none",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
+					Enabled:      true,
+					ExporterURL:  c.HTTPAddr(),
+					SamplingRate: 0.0,
+				}
+			},
+			spanAssertion: spanAssertion(true),
+		},
+		{
+			name: "spans not exported when tracing disabled",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{}
+			},
+			spanAssertion: require.Empty,
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			tmpHomePath := t.TempDir()
+			collector, err := tracing.NewCollector(tracing.CollectorConfig{})
+			require.NoError(t, err)
+
+			errCh := make(chan error)
+			go func() {
+				errCh <- collector.Start()
+			}()
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+				defer cancel()
+				require.NoError(t, collector.Shutdown(ctx))
+				require.NoError(t, <-errCh)
+			})
+
+			authProcess, proxyProcess := makeTestServers(t,
+				withBootstrap(connector, alice),
+				withConfig(func(cfg *service.Config) {
+					cfg.Tracing = tt.cfg(collector)
+				}),
+			)
+
+			authServer := authProcess.GetAuthServer()
+			require.NotNil(t, authServer)
+
+			proxyAddr, err := proxyProcess.ProxyWebAddr()
+			require.NoError(t, err)
+
+			// --trace should have no impact on login, since login is whitelisted
+			err = Run(context.Background(), []string{
+				"login",
+				"--insecure",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--trace",
+			}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+				cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+				return nil
+			})
+			require.NoError(t, err)
+			// ensure login doesn't generate any spans from tsh. we can't
+			// check for an empty span list here because other spans may be
+			// generated from background components running within the auth/proxy
+			loginAssertion := spanAssertion(false)
+			loginAssertion(t, collector.Spans())
+
+			err = Run(context.Background(), []string{
+				"ls",
+				"--insecure",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--trace",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+			tt.spanAssertion(t, collector.Spans())
+		})
 	}
 }

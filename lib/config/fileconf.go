@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -54,9 +55,9 @@ import (
 )
 
 var validCASigAlgos = []string{
-	ssh.SigAlgoRSA,
-	ssh.SigAlgoRSASHA2256,
-	ssh.SigAlgoRSASHA2512,
+	ssh.KeyAlgoRSA,
+	ssh.KeyAlgoRSASHA256,
+	ssh.KeyAlgoRSASHA512,
 }
 
 // FileConfig structre represents the teleport configuration stored in a config file
@@ -86,6 +87,9 @@ type FileConfig struct {
 	// WindowsDesktop is the "windows_desktop_service" that defines the
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
+
+	// Tracing is the "tracing_service" section in Teleport configuration file
+	Tracing TracingService `yaml:"tracing_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -149,6 +153,22 @@ type SampleFlags struct {
 	KeyFile string
 	// CertFile is a TLS Certificate file
 	CertFile string
+	// DataDir is a path to a directory where Teleport keep its data
+	DataDir string
+	// AuthToken is a token to register with an auth server
+	AuthToken string
+	// Roles is a list of comma-separated roles to create a config file with
+	Roles string
+	// AuthServer is the address of the auth server
+	AuthServer string
+	// AppName is the name of the application to start
+	AppName string
+	// AppURI is the internal address of the application to proxy
+	AppURI string
+	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
+	NodeLabels string
+	// JoinMethod is the method that will be used to join the cluster, either "token", "iam" or "ec2"
+	JoinMethod string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -174,80 +194,197 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.Logger.Format.Output = "text"
-	g.DataDir = defaults.DataDir
+
+	g.DataDir = flags.DataDir
+	if g.DataDir == "" {
+		g.DataDir = defaults.DataDir
+	}
+
+	g.JoinParams = JoinParams{
+		TokenName: flags.AuthToken,
+		Method:    types.JoinMethod(flags.JoinMethod),
+	}
+
+	if flags.AuthServer != "" {
+		g.AuthServers = []string{flags.AuthServer}
+	}
+
+	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	var s SSH
-	s.EnabledFlag = "yes"
-	s.ListenAddress = conf.SSH.Addr.Addr
-	s.Commands = []CommandLabel{
-		{
-			Name:    "hostname",
-			Command: []string{"hostname"},
-			Period:  time.Minute,
-		},
-	}
-	s.Labels = map[string]string{
-		"env": "example",
+	s, err := makeSampleSSHConfig(conf, flags, roles[defaults.RoleNode])
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Auth config:
-	var a Auth
-	a.ListenAddress = conf.Auth.SSHAddr.Addr
-	a.ClusterName = ClusterName(flags.ClusterName)
-	a.EnabledFlag = "yes"
-
-	if flags.LicensePath != "" {
-		a.LicenseFile = flags.LicensePath
-	}
-
-	if flags.Version == defaults.TeleportConfigVersionV2 {
-		a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
-	}
+	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
 
 	// sample proxy config:
-	var p Proxy
-	p.EnabledFlag = "yes"
-	p.ListenAddress = conf.Proxy.SSHAddr.Addr
-	if flags.ACMEEnabled {
-		p.ACME.EnabledFlag = "yes"
-		p.ACME.Email = flags.ACMEEmail
-		// ACME uses TLS-ALPN-01 challenge that requires port 443
-		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
-		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
-		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+	p, err := makeSampleProxyConfig(conf, flags, roles[defaults.RoleProxy])
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if flags.PublicAddr != "" {
-		// default to 443 if port is not specified
-		publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		p.PublicAddr = apiutils.Strings{publicAddr.String()}
 
-		// use same port for web addr
-		webPort := publicAddr.Port(teleport.StandardHTTPSPort)
-		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+	// Apps config:
+	apps, err := makeSampleAppsConfig(conf, flags, roles[defaults.RoleApp])
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if flags.KeyFile != "" && flags.CertFile != "" {
-		if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
-			return nil, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
-		}
 
-		p.KeyPairs = append(p.KeyPairs, KeyPair{
-			PrivateKey:  flags.KeyFile,
-			Certificate: flags.CertFile,
-		})
+	// DB config:
+	var dbs Databases
+	if roles[defaults.RoleDatabase] {
+		// keep it disable since `teleport configure` don't have all the necessary flags
+		// for this kind of resource
+		dbs.EnabledFlag = "no"
+	}
+
+	// WindowsDesktop config:
+	var d WindowsDesktopService
+	if roles[defaults.RoleWindowsDesktop] {
+		// keep it disable since `teleport configure` don't have all the necessary flags
+		// for this kind of resource
+		d.EnabledFlag = "no"
 	}
 
 	fc = &FileConfig{
-		Version: flags.Version,
-		Global:  g,
-		Proxy:   p,
-		SSH:     s,
-		Auth:    a,
+		Version:        flags.Version,
+		Global:         g,
+		Proxy:          p,
+		SSH:            s,
+		Auth:           a,
+		Apps:           apps,
+		Databases:      dbs,
+		WindowsDesktop: d,
 	}
 	return fc, nil
+}
+
+func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) (SSH, error) {
+	var s SSH
+	if enabled {
+		s.EnabledFlag = "yes"
+		s.ListenAddress = conf.SSH.Addr.Addr
+		s.Commands = []CommandLabel{
+			{
+				Name:    "hostname",
+				Command: []string{"hostname"},
+				Period:  time.Minute,
+			},
+		}
+		labels, err := client.ParseLabelSpec(flags.NodeLabels)
+		if err != nil {
+			return s, trace.Wrap(err)
+		}
+		s.Labels = labels
+	} else {
+		s.EnabledFlag = "no"
+	}
+
+	return s, nil
+}
+
+func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
+	var a Auth
+	if enabled {
+		a.ListenAddress = conf.Auth.SSHAddr.Addr
+		a.ClusterName = ClusterName(flags.ClusterName)
+		a.EnabledFlag = "yes"
+
+		if flags.LicensePath != "" {
+			a.LicenseFile = flags.LicensePath
+		}
+
+		if flags.Version == defaults.TeleportConfigVersionV2 {
+			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
+		}
+	} else {
+		a.EnabledFlag = "no"
+	}
+
+	return a
+}
+
+func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool) (Proxy, error) {
+	var p Proxy
+	if enabled {
+		p.EnabledFlag = "yes"
+		p.ListenAddress = conf.Proxy.SSHAddr.Addr
+		if flags.ACMEEnabled {
+			p.ACME.EnabledFlag = "yes"
+			p.ACME.Email = flags.ACMEEmail
+			// ACME uses TLS-ALPN-01 challenge that requires port 443
+			// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
+			p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+		}
+		if flags.PublicAddr != "" {
+			// default to 443 if port is not specified
+			publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
+			if err != nil {
+				return Proxy{}, trace.Wrap(err)
+			}
+			p.PublicAddr = apiutils.Strings{publicAddr.String()}
+
+			// use same port for web addr
+			webPort := publicAddr.Port(teleport.StandardHTTPSPort)
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+		}
+		if flags.KeyFile != "" && flags.CertFile != "" {
+			if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
+				return Proxy{}, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
+			}
+
+			p.KeyPairs = append(p.KeyPairs, KeyPair{
+				PrivateKey:  flags.KeyFile,
+				Certificate: flags.CertFile,
+			})
+		}
+	} else {
+		p.EnabledFlag = "no"
+	}
+
+	return p, nil
+}
+
+func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, enabled bool) (Apps, error) {
+	var apps Apps
+	// assume users want app role if they added app name and/or uri but didn't add app role
+	if enabled || flags.AppURI != "" || flags.AppName != "" {
+		if flags.AppURI == "" || flags.AppName == "" {
+			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
+		}
+
+		apps.EnabledFlag = "yes"
+		apps.Apps = []*App{
+			{
+				Name: flags.AppName,
+				URI:  flags.AppURI,
+			},
+		}
+	}
+
+	return apps, nil
+}
+
+func roleMapFromFlags(flags SampleFlags) map[string]bool {
+	// if no roles are provided via CLI, return the default roles
+	if flags.Roles == "" {
+		return map[string]bool{
+			defaults.RoleProxy:       true,
+			defaults.RoleNode:        true,
+			defaults.RoleAuthService: true,
+		}
+	}
+
+	roles := splitRoles(flags.Roles)
+	m := make(map[string]bool)
+	for _, r := range roles {
+		m[r] = true
+	}
+
+	return m
 }
 
 // DebugDumpToYAML allows for quick YAML dumping of the config
@@ -526,10 +663,6 @@ type Auth struct {
 	// Deprecated: Remove in Teleport 2.4.1.
 	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
 
-	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
-	// Deprecated: Remove in Teleport 2.4.1.
-	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors,omitempty"`
-
 	// DynamicConfig determines when file configuration is pushed to the backend. Setting
 	// it here overrides defaults.
 	// Deprecated: Remove in Teleport 2.4.1.
@@ -583,6 +716,9 @@ type Auth struct {
 
 	// RoutingStrategy configures the routing strategy to nodes.
 	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
+
+	// TunnelStrategy configures the tunnel strategy used by the cluster.
+	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -637,28 +773,32 @@ func (c ClusterName) Parse() (types.ClusterName, error) {
 type StaticTokens []StaticToken
 
 func (t StaticTokens) Parse() (types.StaticTokens, error) {
-	staticTokens := []types.ProvisionTokenV1{}
+	var provisionTokens []types.ProvisionTokenV1
 
-	for _, token := range t {
-		st, err := token.Parse()
+	for _, st := range t {
+		tokens, err := st.Parse()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		staticTokens = append(staticTokens, *st)
+		provisionTokens = append(provisionTokens, tokens...)
 	}
 
 	return types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: staticTokens,
+		StaticTokens: provisionTokens,
 	})
 }
 
 type StaticToken string
 
 // Parse is applied to a string in "role,role,role:token" format. It breaks it
-// apart and constructs a services.ProvisionToken which contains the token,
+// apart and constructs a list of services.ProvisionToken which contains the token,
 // role, and expiry (infinite).
-func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
-	parts := strings.Split(string(t), ":")
+// If the token string is a file path, the file may contain multiple newline delimited
+// tokens, in which case each token is used to construct a services.ProvisionToken
+// with the same roles.
+func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
+	// Split only on the first ':', for future cross platform compat with windows paths
+	parts := strings.SplitN(string(t), ":", 2)
 	if len(parts) != 2 {
 		return nil, trace.BadParameter("invalid static token spec: %q", t)
 	}
@@ -668,16 +808,21 @@ func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := utils.ReadToken(parts[1])
+	tokenPart, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tokens := strings.Split(tokenPart, "\n")
+	provisionTokens := make([]types.ProvisionTokenV1, 0, len(tokens))
 
-	return &types.ProvisionTokenV1{
-		Token:   token,
-		Roles:   roles,
-		Expires: time.Unix(0, 0).UTC(),
-	}, nil
+	for _, token := range tokens {
+		provisionTokens = append(provisionTokens, types.ProvisionTokenV1{
+			Token:   token,
+			Roles:   roles,
+			Expires: time.Unix(0, 0).UTC(),
+		})
+	}
+	return provisionTokens, nil
 }
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
@@ -692,6 +837,12 @@ type AuthenticationConfig struct {
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
+
+	// Passwordless enables/disables passwordless support.
+	// Requires Webauthn to work.
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	Passwordless *types.BoolOption `yaml:"passwordless"`
 }
 
 // Parse returns a types.AuthPreference (type, second factor, U2F).
@@ -723,11 +874,14 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		RequireSessionMFA: a.RequireSessionMFA,
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
+		AllowPasswordless: a.Passwordless,
 	})
 }
 
 type UniversalSecondFactor struct {
-	AppID                string   `yaml:"app_id"`
+	AppID string `yaml:"app_id"`
+	// Facets kept only to avoid breakages during Teleport updates.
+	// Webauthn is now used instead of U2F.
 	Facets               []string `yaml:"facets"`
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
@@ -739,7 +893,6 @@ func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
 	}
 	return &types.U2F{
 		AppID:                u.AppID,
-		Facets:               u.Facets,
 		DeviceAttestationCAs: attestationCAs,
 	}, nil
 }
@@ -875,11 +1028,6 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 		}
 	}
 
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	if ssh.X11.MaxDisplays != nil && ssh.X11.MaxDisplay == nil {
-		ssh.X11.MaxDisplay = ssh.X11.MaxDisplays
-	}
-
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
 	if ssh.X11.MaxDisplay != nil {
 		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
@@ -998,8 +1146,6 @@ type X11 struct {
 	// MaxDisplay tells the server what X11 display number to stop at when
 	// searching for an open X11 unix socket for XServer proxies.
 	MaxDisplay *uint `yaml:"max_display,omitempty"`
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	MaxDisplays *uint `yaml:"max_displays,omitempty"`
 }
 
 // Databases represents the database proxy service configuration.
@@ -1024,7 +1170,7 @@ type ResourceMatcher struct {
 
 // AWSMatcher matches AWS databases.
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds" or "redshift".
+	// Types are AWS database types to match, "rds", "redshift", or "elasticache".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
@@ -1047,6 +1193,8 @@ type Database struct {
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
 	// TLS keeps an optional TLS configuration options.
 	TLS DatabaseTLS `yaml:"tls"`
+	// MySQL are additional database options.
+	MySQL DatabaseMySQL `yaml:"mysql"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
@@ -1083,6 +1231,20 @@ type DatabaseTLS struct {
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
 }
 
+// DatabaseMySQL are an additional MySQL database options.
+type DatabaseMySQL struct {
+	// ServerVersion is the MySQL version reported by DB proxy instead of default Teleport string.
+	ServerVersion string `yaml:"server_version,omitempty"`
+}
+
+// SecretStore contains settings for managing secrets.
+type SecretStore struct {
+	// KeyPrefix specifies the secret key prefix.
+	KeyPrefix string `yaml:"key_prefix,omitempty"`
+	// KMSKeyID specifies the KMS key used to encrypt and decrypt the secret.
+	KMSKeyID string `yaml:"kms_key_id,omitempty"`
+}
+
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is a cloud region for RDS/Aurora database endpoint.
@@ -1091,6 +1253,10 @@ type DatabaseAWS struct {
 	Redshift DatabaseAWSRedshift `yaml:"redshift"`
 	// RDS contains RDS specific settings.
 	RDS DatabaseAWSRDS `yaml:"rds"`
+	// ElastiCache contains ElastiCache specific settings.
+	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
+	// SecretStore contains settings for managing secrets.
+	SecretStore SecretStore `yaml:"secret_store"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1105,6 +1271,12 @@ type DatabaseAWSRDS struct {
 	InstanceID string `yaml:"instance_id,omitempty"`
 	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string `yaml:"cluster_id,omitempty"`
+}
+
+// DatabaseAWSElastiCache contains settings for ElastiCache databases.
+type DatabaseAWSElastiCache struct {
+	// ReplicationGroupID is the ElastiCache replication group ID.
+	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -1179,6 +1351,8 @@ type Proxy struct {
 	WebAddr string `yaml:"web_listen_addr,omitempty"`
 	// TunAddr is a reverse tunnel address
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
+	// PeerAddr is the address this proxy will be dialed at by its peers.
+	PeerAddr string `yaml:"peer_listen_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file
@@ -1351,77 +1525,6 @@ type ClaimMapping struct {
 	Roles []string `yaml:"roles,omitempty"`
 }
 
-// OIDCConnector specifies configuration fo Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
-type OIDCConnector struct {
-	// ID is a provider id, 'e.g.' google, used internally
-	ID string `yaml:"id"`
-	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
-	IssuerURL string `yaml:"issuer_url"`
-	// ClientID is id for authentication client (in our case it's our Auth server)
-	ClientID string `yaml:"client_id"`
-	// ClientSecret is used to authenticate our client and should not
-	// be visible to end user
-	ClientSecret string `yaml:"client_secret"`
-	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successful authentication
-	// Should match the URL on Provider's side
-	RedirectURL string `yaml:"redirect_url"`
-	// ACR is the acr_values parameter to be sent with an authorization request.
-	ACR string `yaml:"acr_values,omitempty"`
-	// Provider is the identity provider we connect to. This field is
-	// only required if using acr_values.
-	Provider string `yaml:"provider,omitempty"`
-	// Display controls how this connector is displayed
-	Display string `yaml:"display"`
-	// Scope is a list of additional scopes to request from OIDC
-	// note that oidc and email scopes are always requested
-	Scope []string `yaml:"scope"`
-	// ClaimsToRoles is a list of mappings of claims to roles
-	ClaimsToRoles []ClaimMapping `yaml:"claims_to_roles"`
-}
-
-// Parse parses config struct into services connector and checks if it's valid
-func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
-	if o.Display == "" {
-		o.Display = o.ID
-	}
-
-	var mappings []types.ClaimMapping
-	for _, c := range o.ClaimsToRoles {
-		var roles []string
-		if len(c.Roles) > 0 {
-			roles = append(roles, c.Roles...)
-		}
-
-		mappings = append(mappings, types.ClaimMapping{
-			Claim: c.Claim,
-			Value: c.Value,
-			Roles: roles,
-		})
-	}
-
-	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
-		IssuerURL:     o.IssuerURL,
-		ClientID:      o.ClientID,
-		ClientSecret:  o.ClientSecret,
-		RedirectURL:   o.RedirectURL,
-		Display:       o.Display,
-		Scope:         o.Scope,
-		ClaimsToRoles: mappings,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connector.SetACR(o.ACR)
-	connector.SetProvider(o.Provider)
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return connector, nil
-}
-
 // Metrics is a `metrics_service` section of the config file:
 type Metrics struct {
 	// Service is a generic service configuration section
@@ -1487,4 +1590,34 @@ type LDAPConfig struct {
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+}
+
+// TracingService contains configuration for the tracing_service.
+type TracingService struct {
+	// Enabled turns the tracing service role on or off for this process
+	EnabledFlag string `yaml:"enabled,omitempty"`
+
+	// ExporterURL is the OTLP exporter URL to send spans to
+	ExporterURL string `yaml:"exporter_url"`
+
+	// KeyPairs is a list of x509 serving key pairs used for mTLS.
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts are the exporter ca certs to use
+	CACerts []string `yaml:"ca_certs,omitempty"`
+
+	// SamplingRatePerMillion is the sampling rate for the exporter.
+	// 1_000_000 means all spans will be sampled and 0 means none are sampled.
+	SamplingRatePerMillion int `yaml:"sampling_rate_per_million"`
+}
+
+func (s *TracingService) Enabled() bool {
+	if s.EnabledFlag == "" {
+		return false
+	}
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	if err != nil {
+		return false
+	}
+	return v
 }

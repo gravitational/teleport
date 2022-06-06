@@ -83,6 +83,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		return trace.Wrap(err)
 	}
 
+	proxyGetter := reversetunnel.NewConnectedProxyGetter()
+
 	useTunnel := conn.UseTunnel()
 	// This service can run in 2 modes:
 	// 1. Reachable (by the proxy) - registers with auth server directly and
@@ -122,15 +124,16 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:   teleport.ComponentWindowsDesktop,
-				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				Resolver:    conn.TunnelProxyResolver(),
-				Client:      conn.Client,
-				AccessPoint: accessPoint,
-				HostSigner:  conn.ServerIdentity.KeySigner,
-				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-				Server:      shtl,
-				FIPS:        process.Config.FIPS,
+				Component:            teleport.ComponentWindowsDesktop,
+				HostUUID:             conn.ServerIdentity.ID.HostUUID,
+				Resolver:             conn.TunnelProxyResolver(),
+				Client:               conn.Client,
+				AccessPoint:          accessPoint,
+				HostSigner:           conn.ServerIdentity.KeySigner,
+				Cluster:              conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				Server:               shtl,
+				FIPS:                 process.Config.FIPS,
+				ConnectedProxyGetter: proxyGetter,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -180,7 +183,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, err := auth.DefaultClientCertPool(accessPoint, clusterName)
+		pool, _, err := auth.DefaultClientCertPool(accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -227,6 +230,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		DiscoveryBaseDN:      cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters: cfg.WindowsDesktop.Discovery.Filters,
 		Hostname:             cfg.Hostname,
+		ConnectedProxyGetter: proxyGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -248,10 +252,6 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				"Windows desktop service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
-
-		// since srv.Serve is a blocking call, we emit this event right before
-		// the service has started
-		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 		err := srv.Serve(listener)
 		if err != nil {
 			if err == http.ErrServerClosed {

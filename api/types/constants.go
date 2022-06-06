@@ -43,9 +43,6 @@ const (
 	// KindUser is a user resource
 	KindUser = "user"
 
-	// KindKeyPair is a public/private key pair
-	KindKeyPair = "key_pair"
-
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
 
@@ -309,7 +306,7 @@ const (
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
 
-	// OriginConfigFile is an origin value indicating that the resource was
+	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = "defaults"
 
@@ -324,10 +321,17 @@ const (
 	// OriginCloud is an origin value indicating that the resource was
 	// imported from a cloud provider.
 	OriginCloud = "cloud"
+
+	// OriginKubernetes is an origin value indicating that the resource was
+	// created from the Kubernetes Operator.
+	OriginKubernetes = "kubernetes"
 )
 
+// EC2HostnameTag is the name of the EC2 tag used to override a node's hostname.
+const EC2HostnameTag = "TeleportHostname"
+
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
@@ -375,6 +379,17 @@ const (
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )
 
+type TunnelStrategyType string
+
+const (
+	// AgentMesh requires agents to create a reverse tunnel to
+	// every proxy server.
+	AgentMesh TunnelStrategyType = "agent_mesh"
+	// ProxyPeering requires agents to create a reverse tunnel to a configured
+	// number of proxy servers and enables proxy to proxy communication.
+	ProxyPeering TunnelStrategyType = "proxy_peering"
+)
+
 const (
 	// ResourceMetadataName refers to a resource metadata field named "name".
 	ResourceMetadataName = "name"
@@ -402,3 +417,16 @@ const (
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = "teleport.internal/bot-generation"
 )
+
+// RequestableResourceKinds lists all Teleport resource kinds users can request access to.
+var RequestableResourceKinds = []string{
+	KindNode,
+	KindKubeService,
+	KindKubernetesCluster,
+	KindDatabaseServer,
+	KindDatabase,
+	KindAppServer,
+	KindApp,
+	KindWindowsDesktopService,
+	KindWindowsDesktop,
+}

@@ -28,17 +28,11 @@ export class Gateway extends jspb.Message {
     getProtocol(): string;
     setProtocol(value: string): Gateway;
 
-    getInsecure(): boolean;
-    setInsecure(value: boolean): Gateway;
+    getCliCommand(): string;
+    setCliCommand(value: string): Gateway;
 
-    getCaCertPath(): string;
-    setCaCertPath(value: string): Gateway;
-
-    getCertPath(): string;
-    setCertPath(value: string): Gateway;
-
-    getKeyPath(): string;
-    setKeyPath(value: string): Gateway;
+    getTargetSubresourceName(): string;
+    setTargetSubresourceName(value: string): Gateway;
 
 
     serializeBinary(): Uint8Array;
@@ -60,9 +54,7 @@ export namespace Gateway {
         localAddress: string,
         localPort: string,
         protocol: string,
-        insecure: boolean,
-        caCertPath: string,
-        certPath: string,
-        keyPath: string,
+        cliCommand: string,
+        targetSubresourceName: string,
     }
 }

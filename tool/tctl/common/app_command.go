@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
@@ -66,10 +67,10 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun attempts to run subcommands like "apps ls".
-func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *AppsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.appsList.FullCommand():
-		err = c.ListApps(client)
+		err = c.ListApps(ctx, client)
 	default:
 		return false, nil
 	}
@@ -78,9 +79,7 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
-func (c *AppsCommand) ListApps(clt auth.ClientI) error {
-	ctx := context.TODO()
-
+func (c *AppsCommand) ListApps(ctx context.Context, clt auth.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
@@ -104,6 +103,9 @@ func (c *AppsCommand) ListApps(clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case err != nil:
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	default:
 		servers, err = types.ResourcesWithLabels(resources).AsAppServers()

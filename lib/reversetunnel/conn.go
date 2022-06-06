@@ -45,6 +45,10 @@ type connKey struct {
 
 // remoteConn holds a connection to a remote host, either node or proxy.
 type remoteConn struct {
+	// lastHeartbeat is the last time a heartbeat was received.
+	// intentionally placed first to ensure 64-bit alignment
+	lastHeartbeat int64
+
 	*connConfig
 	mu  sync.Mutex
 	log *logrus.Entry
@@ -68,9 +72,6 @@ type remoteConn struct {
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
-
-	// lastHeartbeat is the last time a heartbeat was received.
-	lastHeartbeat int64
 }
 
 // connConfig is the configuration for the remoteConn.
@@ -207,6 +208,11 @@ func (c *remoteConn) updateProxies(proxies []types.Server) {
 		// discovery protocol that tolerates conflicting, stale or missing updates
 		c.log.Warnf("Discovery channel overflow at %v.", len(c.newProxiesC))
 	}
+}
+
+func (c *remoteConn) adviseReconnect() error {
+	_, _, err := c.sconn.SendRequest(reconnectRequest, true, nil)
+	return trace.Wrap(err)
 }
 
 // sendDiscoveryRequest sends a discovery request with up to date

@@ -28,7 +28,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -103,18 +105,17 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 }
 
 func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.TeleportClient) (types.SessionTracker, error) {
-	sessions, err := tc.GetActiveSessions(ctx)
+	proxy, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, session := range sessions {
-		if session.GetSessionID() == c.session {
-			return session, nil
-		}
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return nil, trace.NotFound("session %q not found", c.session)
+	return site.GetSessionTracker(ctx, c.session)
 }
 
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
@@ -133,7 +134,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	cluster := meta.GetClustername()
+	cluster := meta.GetClusterName()
 	kubeCluster := meta.GetKubeCluster()
 	var k *client.Key
 
@@ -469,12 +470,14 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 
 type kubeSessionsCommand struct {
 	*kingpin.CmdClause
+	format string
 }
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
 		CmdClause: parent.Command("sessions", "Get a list of active kubernetes sessions."),
 	}
+	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 
 	return c
 }
@@ -485,7 +488,17 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	sessions, err := tc.GetActiveSessions(cf.Context)
+	proxy, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	site, err := proxy.ConnectToCurrentCluster(cf.Context, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessions, err := site.GetActiveSessionTrackers(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -501,8 +514,31 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return filteredSessions[i].GetCreated().Before(filteredSessions[j].GetCreated())
 	})
 
-	printSessions(filteredSessions)
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		printSessions(filteredSessions)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeKubeSessions(sessions, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", c.format)
+	}
 	return nil
+}
+
+func serializeKubeSessions(sessions []types.SessionTracker, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(sessions, "", "  ")
+	} else {
+		out, err = yaml.Marshal(sessions)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func printSessions(sessions []types.SessionTracker) {
@@ -512,7 +548,7 @@ func printSessions(sessions []types.SessionTracker) {
 	}
 
 	output := table.AsBuffer().String()
-	print(output)
+	fmt.Println(output)
 }
 
 type kubeCredentialsCommand struct {
@@ -610,14 +646,18 @@ type kubeLSCommand struct {
 	labels         string
 	predicateExpr  string
 	searchKeywords string
+	format         string
+	siteName       string
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of kubernetes clusters"),
 	}
+	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
+	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	return c
 }
@@ -626,6 +666,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.UserHost = c.labels
 	cf.PredicateExpression = c.predicateExpr
+	cf.SiteName = c.siteName
 
 	tc, err := makeClient(cf, true)
 	if err != nil {
@@ -637,23 +678,73 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	}
 
 	selectedCluster := selectedKubeCluster(currentTeleportCluster)
-
-	var t asciitable.Table
-	if cf.Quiet {
-		t = asciitable.MakeHeadlessTable(2)
-	} else {
-		t = asciitable.MakeTable([]string{"Kube Cluster Name", "Selected"})
-	}
-	for _, cluster := range kubeClusters {
-		var selectedMark string
-		if cluster == selectedCluster {
-			selectedMark = "*"
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		var t asciitable.Table
+		if cf.Quiet {
+			t = asciitable.MakeHeadlessTable(2)
+		} else {
+			t = asciitable.MakeTable([]string{"Kube Cluster Name", "Labels", "Selected"})
 		}
-		t.AddRow([]string{cluster, selectedMark})
+		for _, cluster := range kubeClusters {
+			var selectedMark string
+			if cluster.Name == selectedCluster {
+				selectedMark = "*"
+			}
+
+			labels := make([]string, 0, len(cluster.StaticLabels)+len(cluster.DynamicLabels))
+			for key, value := range cluster.StaticLabels {
+				labels = append(labels, fmt.Sprintf("%s=%s", key, value))
+			}
+			for key, value := range cluster.DynamicLabels {
+				labels = append(labels, fmt.Sprintf("%s=%s", key, value.Result))
+			}
+			sort.Strings(labels)
+
+			t.AddRow([]string{cluster.Name, strings.Join(labels, " "), selectedMark})
+		}
+		fmt.Println(t.AsBuffer().String())
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeKubeClusters(kubeClusters, selectedCluster, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
-	fmt.Println(t.AsBuffer().String())
 
 	return nil
+}
+
+func serializeKubeClusters(kubeClusters []*types.KubernetesCluster, selectedCluster, format string) (string, error) {
+	type cluster struct {
+		KubeClusterName string            `json:"kube_cluster_name"`
+		Labels          map[string]string `json:"labels"`
+		Selected        bool              `json:"selected"`
+	}
+	clusterInfo := make([]cluster, 0, len(kubeClusters))
+	for _, cl := range kubeClusters {
+		labels := cl.StaticLabels
+		for key, value := range cl.DynamicLabels {
+			labels[key] = value.Result
+		}
+
+		clusterInfo = append(clusterInfo, cluster{
+			KubeClusterName: cl.Name,
+			Labels:          labels,
+			Selected:        cl.Name == selectedCluster,
+		})
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(clusterInfo)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func selectedKubeCluster(currentTeleportCluster string) string {
@@ -668,12 +759,14 @@ func selectedKubeCluster(currentTeleportCluster string) string {
 type kubeLoginCommand struct {
 	*kingpin.CmdClause
 	kubeCluster string
+	siteName    string
 }
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
 		CmdClause: parent.Command("login", "Login to a kubernetes cluster"),
 	}
+	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
 	return c
 }
@@ -681,7 +774,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
 	cf.KubernetesCluster = c.kubeCluster
-
+	cf.SiteName = c.siteName
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -691,7 +784,8 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !apiutils.SliceContainsStr(kubeClusters, c.kubeCluster) {
+	clusterNames := kubeClustersToStrings(kubeClusters)
+	if !apiutils.SliceContainsStr(clusterNames, c.kubeCluster) {
 		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
 	}
 
@@ -724,7 +818,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []string, err error) {
+func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []*types.KubernetesCluster, err error) {
 	err = client.RetryWithRelogin(ctx, tc, func() error {
 		pc, err := tc.ConnectToProxy(ctx)
 		if err != nil {
@@ -743,23 +837,26 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		}
 		teleportCluster = cn.GetClusterName()
 
-		kubeClusters, err = kubeutils.ListKubeClusterNamesWithFilters(ctx, ac, proto.ListResourcesRequest{
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, ac, proto.ListResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,
 		})
 		if err != nil {
-			// ListResources for kube service not availalbe, provide fallback.
+			// ListResources for kube service not available, provide fallback.
 			// Fallback does not support filters, so if users
 			// provide them, it does nothing.
 			//
 			// DELETE IN 11.0.0
 			if trace.IsNotImplemented(err) {
-				kubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
+				kubeClusters, err = kubeutils.KubeClusters(ctx, ac)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 				return nil
+			}
+			if utils.IsPredicateError(err) {
+				return trace.Wrap(utils.PredicateError{Err: err})
 			}
 			return trace.Wrap(err)
 		}
@@ -772,11 +869,20 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 	return teleportCluster, kubeClusters, nil
 }
 
+func kubeClustersToStrings(kubeClusters []*types.KubernetesCluster) []string {
+	names := make([]string, len(kubeClusters))
+	for i, cluster := range kubeClusters {
+		names[i] = cluster.Name
+	}
+
+	return names
+}
+
 // kubernetesStatus holds teleport client information necessary to populate the user's kubeconfig.
 type kubernetesStatus struct {
 	clusterAddr         string
 	teleportClusterName string
-	kubeClusters        []string
+	kubeClusters        []*types.KubernetesCluster
 	credentials         *client.Key
 	tlsServerName       string
 }
@@ -847,10 +953,11 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		return v, nil
 	}
 
+	clusterNames := kubeClustersToStrings(kubeStatus.kubeClusters)
 	v.Exec = &kubeconfig.ExecValues{
 		TshBinaryPath:     cf.executablePath,
 		TshBinaryInsecure: cf.InsecureSkipVerify,
-		KubeClusters:      kubeStatus.kubeClusters,
+		KubeClusters:      clusterNames,
 		Env:               make(map[string]string),
 	}
 
@@ -860,7 +967,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 
 	// Only switch the current context if kube-cluster is explicitly set on the command line.
 	if cf.KubernetesCluster != "" {
-		if !apiutils.SliceContainsStr(kubeStatus.kubeClusters, cf.KubernetesCluster) {
+		if !apiutils.SliceContainsStr(clusterNames, cf.KubernetesCluster) {
 			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
 		}
 		v.Exec.SelectCluster = cf.KubernetesCluster

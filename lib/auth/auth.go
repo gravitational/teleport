@@ -41,6 +41,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/google/uuid"
@@ -60,12 +61,14 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -150,7 +153,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
-		cfg.KeyStoreConfig.RSAKeyPairSource = cfg.Authority.GenerateKeyPair
+		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	if cfg.KeyStoreConfig.HostUUID == "" {
 		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
@@ -198,7 +201,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			WindowsDesktops:       cfg.WindowsDesktops,
 			SessionTrackerService: cfg.SessionTrackerService,
 		},
-		keyStore: keyStore,
+		keyStore:     keyStore,
+		getClaimsFun: getClaims,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -307,7 +311,8 @@ var (
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
-	lock          sync.RWMutex
+	lock sync.RWMutex
+	// oidcClients is a map from authID & proxyAddr -> oidcClient
 	oidcClients   map[string]*oidcClient
 	samlProviders map[string]*samlProvider
 	githubClients map[string]*githubClient
@@ -358,6 +363,9 @@ type Server struct {
 
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
+
+	// getClaimsFun is used in tests for overriding the implementation of getClaims method used in OIDC.
+	getClaimsFun func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
 }
 
 // SetCache sets cache used by auth server
@@ -614,22 +622,15 @@ func (a *Server) GetDomainName() (string, error) {
 	return clusterName.GetClusterName(), nil
 }
 
-// LocalCAResponse contains the concatenated PEM-encoded TLS certs for the local
-// cluster's Host CA
-type LocalCAResponse struct {
-	// TLSCA is a PEM-encoded TLS certificate authority.
-	TLSCA []byte `json:"tls_ca"`
-}
-
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
 // the cluster has multiple TLS certs, they will all be concatenated.
-func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
+func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Extract the TLS CA for this cluster.
-	hostCA, err := a.GetCache().GetCertAuthority(context.TODO(), types.CertAuthID{
+	hostCA, err := a.GetCache().GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
@@ -642,7 +643,7 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	}
 	allCerts := bytes.Join(certs, []byte("\n"))
 
-	return &LocalCAResponse{
+	return &proto.GetClusterCACertResponse{
 		TLSCA: allCerts,
 	}, nil
 }
@@ -815,10 +816,15 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
 		ttl:            ttl,
@@ -859,10 +865,15 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	sessionID := req.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -912,10 +923,15 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -1042,6 +1058,15 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Add the special join-only principal used for joining sessions.
+	// All users have access to this and join RBAC rules are checked after the connection is established.
+	allowedLogins = append(allowedLogins, "-teleport-internal-join")
+
+	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	params := services.UserCertParams{
 		CASigner:              caSigner,
 		CASigningAlg:          sshutils.GetSigningAlgName(userCA),
@@ -1064,6 +1089,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Renewable:             req.renewable,
 		Generation:            req.generation,
 		CertificateExtensions: req.checker.CertificateExtensions(),
+		AllowedResourceIDs:    requestedResourcesStr,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1135,15 +1161,16 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			Username:    req.dbUser,
 			Database:    req.dbName,
 		},
-		DatabaseNames:   dbNames,
-		DatabaseUsers:   dbUsers,
-		MFAVerified:     req.mfaVerified,
-		ClientIP:        req.clientIP,
-		AWSRoleARNs:     roleARNs,
-		ActiveRequests:  req.activeRequests.AccessRequests,
-		DisallowReissue: req.disallowReissue,
-		Renewable:       req.renewable,
-		Generation:      req.generation,
+		DatabaseNames:      dbNames,
+		DatabaseUsers:      dbUsers,
+		MFAVerified:        req.mfaVerified,
+		ClientIP:           req.clientIP,
+		AWSRoleARNs:        roleARNs,
+		ActiveRequests:     req.activeRequests.AccessRequests,
+		DisallowReissue:    req.disallowReissue,
+		Renewable:          req.renewable,
+		Generation:         req.generation,
+		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1287,15 +1314,16 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 // PreAuthenticatedSignIn is for MFA authentication methods where the password
 // is already checked before issuing the second factor challenge
 func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (types.WebSession, error) {
-	roles, traits, err := services.ExtractFromIdentity(a, identity)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:           user,
-		Roles:          roles,
-		Traits:         traits,
-		AccessRequests: identity.ActiveRequests,
+		User:                 user,
+		Roles:                accessInfo.Roles,
+		Traits:               accessInfo.Traits,
+		AccessRequests:       identity.ActiveRequests,
+		RequestedResourceIDs: accessInfo.AllowedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1622,10 +1650,12 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 		return nil, trace.Wrap(err)
 	}
 
-	dev, err := a.verifyMFARespAndAddDevice(ctx, req.GetNewMFAResponse(), &newMFADeviceFields{
+	dev, err := a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:      privilegeToken.GetUser(),
 		newDeviceName: req.GetNewDeviceName(),
 		tokenID:       privilegeToken.GetName(),
+		deviceResp:    req.GetNewMFAResponse(),
+		deviceUsage:   req.DeviceUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1654,10 +1684,14 @@ type newMFADeviceFields struct {
 	// Identity with an in-memory SessionData storage.
 	// Defaults to the Server's IdentityService.
 	webIdentityOverride wanlib.RegistrationIdentity
+	// deviceResp is the register response from the new device.
+	deviceResp *proto.MFARegisterResponse
+	// deviceUsage describes the intended usage of the new device.
+	deviceUsage proto.DeviceUsage
 }
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
-func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
+func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADeviceFields) (*types.MFADevice, error) {
 	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1668,19 +1702,19 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.M
 	}
 
 	var dev *types.MFADevice
-	switch regResp.GetResponse().(type) {
+	switch req.deviceResp.GetResponse().(type) {
 	case *proto.MFARegisterResponse_TOTP:
-		dev, err = a.registerTOTPDevice(ctx, regResp, req)
+		dev, err = a.registerTOTPDevice(ctx, req.deviceResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case *proto.MFARegisterResponse_Webauthn:
-		dev, err = a.registerWebauthnDevice(ctx, regResp, req)
+		dev, err = a.registerWebauthnDevice(ctx, req.deviceResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
-		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", regResp.Response)
+		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", req.deviceResp.Response)
 	}
 
 	clusterName, err := a.GetClusterName()
@@ -1762,8 +1796,12 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 		Identity: identity,
 	}
 	// Finish upserts the device on success.
-	dev, err := webRegistration.Finish(
-		ctx, req.username, req.newDeviceName, wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()))
+	dev, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             req.username,
+		DeviceName:       req.newDeviceName,
+		CreationResponse: wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
+		Passwordless:     req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
 	return dev, trace.Wrap(err)
 }
 
@@ -1775,8 +1813,8 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 //
 // If there is a switchback request, the roles will switchback to user's default roles and
 // the expiration time is derived from users recently logged in time.
-func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
-	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
+	prevSession, err := a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: req.PrevSessionID,
 	})
@@ -1792,25 +1830,36 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	roles, traits, err := services.ExtractFromIdentity(a, identity)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	roles := accessInfo.Roles
+	traits := accessInfo.Traits
+	allowedResourceIDs := accessInfo.AllowedResourceIDs
 	accessRequests := identity.ActiveRequests
+
 	if req.AccessRequestID != "" {
-		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
+		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		roles = append(roles, newRoles...)
+		roles = append(roles, accessRequest.GetRoles()...)
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
+		// There's not a consistent way to merge multiple search-based access
+		// requests, a user may be able to request access to different resources
+		// with different roles which should not overlap.
+		if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
+			return nil, trace.BadParameter("user is already logged in with a search-based access request, cannot issue another")
+		}
+		allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
+
 		// Let session expire with the shortest expiry time.
-		if expiresAt.After(requestExpiry) {
-			expiresAt = requestExpiry
+		if expiresAt.After(accessRequest.GetAccessExpiry()) {
+			expiresAt = accessRequest.GetAccessExpiry()
 		}
 	}
 
@@ -1824,6 +1873,9 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
+
+		// Reset any search-based access requests
+		allowedResourceIDs = nil
 
 		// Calculate expiry time.
 		roleSet, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
@@ -1841,11 +1893,12 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:           req.User,
-		Roles:          roles,
-		Traits:         traits,
-		SessionTTL:     sessionTTL,
-		AccessRequests: accessRequests,
+		User:                 req.User,
+		Roles:                roles,
+		Traits:               traits,
+		SessionTTL:           sessionTTL,
+		AccessRequests:       accessRequests,
+		RequestedResourceIDs: allowedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1854,47 +1907,47 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 	// Keep preserving the login time.
 	sess.SetLoginTime(prevSession.GetLoginTime())
 
-	if err := a.upsertWebSession(context.TODO(), req.User, sess); err != nil {
+	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return sess, nil
 }
 
-func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string) ([]string, time.Time, error) {
+func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequestID string) (types.AccessRequest, error) {
 	reqFilter := types.AccessRequestFilter{
 		User: user,
 		ID:   accessRequestID,
 	}
 
-	reqs, err := a.GetAccessRequests(context.TODO(), reqFilter)
+	reqs, err := a.GetAccessRequests(ctx, reqFilter)
 	if err != nil {
-		return nil, time.Time{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if len(reqs) < 1 {
-		return nil, time.Time{}, trace.NotFound("access request %q not found", accessRequestID)
+		return nil, trace.NotFound("access request %q not found", accessRequestID)
 	}
 
 	req := reqs[0]
 
 	if !req.GetState().IsApproved() {
 		if req.GetState().IsDenied() {
-			return nil, time.Time{}, trace.AccessDenied("access request %q has been denied", accessRequestID)
+			return nil, trace.AccessDenied("access request %q has been denied", accessRequestID)
 		}
-		return nil, time.Time{}, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
+		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
 	if err := services.ValidateAccessRequestForUser(a, req); err != nil {
-		return nil, time.Time{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	accessExpiry := req.GetAccessExpiry()
 	if accessExpiry.Before(a.GetClock().Now()) {
-		return nil, time.Time{}, trace.BadParameter("access request %q has expired", accessRequestID)
+		return nil, trace.BadParameter("access request %q has expired", accessRequestID)
 	}
 
-	return req.GetRoles(), accessExpiry, nil
+	return req, nil
 }
 
 // CreateWebSession creates a new web session for user without any
@@ -2284,17 +2337,27 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
+	roleSet, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(&services.AccessInfo{
+		Roles:              req.Roles,
+		Traits:             req.Traits,
+		RoleSet:            roleSet,
+		AllowedResourceIDs: req.RequestedResourceIDs,
+	}, clusterName.GetClusterName())
 
 	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	priv, pub, err := a.GetNewKeyPairFromPool()
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2422,10 +2485,11 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
-		Roles:        req.GetRoles(),
-		RequestID:    req.GetName(),
-		RequestState: req.GetState().String(),
-		Reason:       req.GetRequestReason(),
+		Roles:                req.GetRoles(),
+		RequestedResourceIDs: types.EventResourceIDs(req.GetRequestedResourceIDs()),
+		RequestID:            req.GetName(),
+		RequestState:         req.GetState().String(),
+		Reason:               req.GetRequestReason(),
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
@@ -2675,39 +2739,8 @@ func (a *Server) GetNamespaces() ([]types.Namespace, error) {
 }
 
 // GetNodes returns nodes from the cache
-func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	return a.GetCache().GetNodes(ctx, namespace, opts...)
-}
-
-// ListNodes lists nodes from the cache
-func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	return a.GetCache().ListNodes(ctx, req)
-}
-
-// NodePageFunc is a function to run on each page iterated over.
-type NodePageFunc func(next []types.Server) (stop bool, err error)
-
-// IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
-	for {
-		nextPage, nextKey, err := a.ListNodes(ctx, req)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		stop, err := f(nextPage)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
-		}
-
-		req.StartKey = nextKey
-	}
+func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	return a.GetCache().GetNodes(ctx, namespace)
 }
 
 // ResourcePageFunc is a function to run on each page iterated over.
@@ -2759,8 +2792,8 @@ func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourc
 }
 
 // GetReverseTunnels returns reverse tunnels from the cache
-func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	return a.GetCache().GetReverseTunnels(opts...)
+func (a *Server) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+	return a.GetCache().GetReverseTunnels(ctx, opts...)
 }
 
 // GetProxies returns proxies from the cache
@@ -2919,8 +2952,17 @@ func (a *Server) GetApp(ctx context.Context, name string) (types.Application, er
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (a *Server) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	return a.SessionTrackerService.CreateSessionTracker(ctx, req)
+func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	// Don't allow sessions that require moderation without the enterprise feature enabled.
+	for _, policySet := range tracker.GetHostPolicySets() {
+		if len(policySet.RequireSessionJoin) != 0 {
+			if !modules.GetModules().Features().ModeratedSessions {
+				return nil, trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			}
+		}
+	}
+
+	return a.SessionTrackerService.CreateSessionTracker(ctx, tracker)
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.
@@ -3330,7 +3372,8 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 // username.
 func (a *Server) validateMFAAuthResponse(
 	ctx context.Context,
-	resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	resp *proto.MFAAuthenticateResponse, user string, passwordless bool,
+) (*types.MFADevice, string, error) {
 	// Sanity check user/passwordless.
 	if user == "" && !passwordless {
 		return nil, "", trace.BadParameter("user required")
@@ -3438,7 +3481,8 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 	ctx context.Context,
 	currentCA types.CertAuthority,
 	newKeys types.CAKeySet,
-	needsUpdate func(types.CertAuthority) bool) error {
+	needsUpdate func(types.CertAuthority) bool,
+) error {
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -3662,8 +3706,13 @@ const (
 
 // oidcClient is internal structure that stores OIDC client and its config
 type oidcClient struct {
-	client *oidc.Client
-	config oidc.ClientConfig
+	client    *oidc.Client
+	connector types.OIDCConnector
+	// syncCtx controls the provider sync goroutine.
+	syncCtx    context.Context
+	syncCancel context.CancelFunc
+	// firstSync will be closed once the first provider sync succeeds
+	firstSync chan struct{}
 }
 
 // samlProvider is internal structure that stores SAML client and its config
@@ -3676,28 +3725,6 @@ type samlProvider struct {
 type githubClient struct {
 	client *oauth2.Client
 	config oauth2.Config
-}
-
-// oidcConfigsEqual returns true if the provided OIDC configs are equal
-func oidcConfigsEqual(a, b oidc.ClientConfig) bool {
-	if a.RedirectURL != b.RedirectURL {
-		return false
-	}
-	if a.Credentials.ID != b.Credentials.ID {
-		return false
-	}
-	if a.Credentials.Secret != b.Credentials.Secret {
-		return false
-	}
-	if len(a.Scope) != len(b.Scope) {
-		return false
-	}
-	for i := range a.Scope {
-		if a.Scope[i] != b.Scope[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // oauth2ConfigsEqual returns true if the provided OAuth2 configs are equal
@@ -3760,7 +3787,7 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 				}
 			}
 		}
-		pool, err := DefaultClientCertPool(ap, clusterName)
+		pool, totalSubjectsLen, err := DefaultClientCertPool(ap, clusterName)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
 			// this falls back to the default config
@@ -3779,16 +3806,10 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 		// If the number of CAs turns out too large for the handshake, drop all but
 		// the current cluster CA. In the unlikely case where it's wrong, the
 		// client will be rejected.
-		var totalSubjectsLen int64
-		for _, s := range pool.Subjects() {
-			// Each subject in the list gets a separate 2-byte length prefix.
-			totalSubjectsLen += 2
-			totalSubjectsLen += int64(len(s))
-		}
 		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("Number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.", len(pool.Subjects()))
+			log.Debugf("Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.")
 
-			pool, err = DefaultClientCertPool(ap, currentClusterName)
+			pool, _, err = DefaultClientCertPool(ap, currentClusterName)
 			if err != nil {
 				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
 				// this falls back to the default config

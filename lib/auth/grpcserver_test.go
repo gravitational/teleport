@@ -37,8 +37,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -622,13 +622,15 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Enable MFA support.
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+	authSpec := &types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-	})
+	}
+	authPref, err := types.NewAuthPreference(*authSpec)
+
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
 	auth := srv.Auth()
@@ -711,8 +713,10 @@ func TestDeleteLastMFADevice(t *testing.T) {
 			cap, err := auth.GetAuthPreference(ctx)
 			require.NoError(t, err)
 			if cap.GetSecondFactor() != test.secondFactor {
-				cap.SetSecondFactor(test.secondFactor)
-				require.NoError(t, auth.SetAuthPreference(ctx, cap))
+				authSpec.SecondFactor = test.secondFactor
+				newCAP, err := types.NewAuthPreference(*authSpec)
+				require.NoError(t, err)
+				require.NoError(t, auth.SetAuthPreference(ctx, newCAP))
 			}
 
 			testDeleteMFADevice(ctx, t, cl, test.opts)
@@ -803,7 +807,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		}
 	}
 
-	_, pub, err := srv.Auth().GenerateKeyPair("")
+	_, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1337,7 +1341,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	clt, err := srv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	priv, pub, err := clt.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
@@ -1386,51 +1390,6 @@ func TestNodesCRUD(t *testing.T) {
 
 	// Run NodeGetters in nested subtests to allow parallelization.
 	t.Run("NodeGetters", func(t *testing.T) {
-		t.Run("List Nodes", func(t *testing.T) {
-			t.Parallel()
-			// List nodes one at a time, last page should be empty.
-
-			// First node.
-			nodes, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-				Limit:     1,
-			})
-			require.NoError(t, err)
-			require.Len(t, nodes, 1)
-			require.Empty(t, cmp.Diff([]types.Server{node1}, nodes,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-			require.Equal(t, backend.NextPaginationKey(node1), nextKey)
-
-			// Second node (last).
-			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-				Limit:     1,
-				StartKey:  nextKey,
-			})
-			require.NoError(t, err)
-			require.Len(t, nodes, 1)
-			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-			require.Empty(t, nextKey)
-
-			// ListNodes should not fail if namespace is empty
-			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Limit: 1,
-			})
-			require.NoError(t, err)
-
-			// ListNodes should fail if limit is nonpositive
-			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-			})
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
-
-			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-				Limit:     -1,
-			})
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
-		})
 		t.Run("GetNodes", func(t *testing.T) {
 			t.Parallel()
 			// Get all nodes

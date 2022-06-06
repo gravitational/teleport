@@ -106,25 +106,26 @@ teleport:
       average: 170
       burst: 171
   diag_addr: 127.0.0.1:3000
-  ca_pin: ""
+  ca_pin:
+    - ca-pin-from-string
+    - %v
 auth_service:
   enabled: yes
   listen_addr: 10.5.5.1:3025
   cluster_name: magadan
   tokens:
   - "proxy,node:xxx"
+  - "node:%v"
   - "auth:yyy"
   ca_key_params:
     pkcs11:
-      module_path: /usr/local/lib/example/path.so
+      module_path: %s
       token_label: "example_token"
       slot_number: 1
       pin: "example_pin"
   authentication:
     u2f:
       app_id: "app-id"
-      facets:
-      - https://localhost:3080
       device_attestation_cas:
       - "testdata/u2f_attestation_ca.pem"
       - |
@@ -155,6 +156,7 @@ proxy_service:
   enabled: yes
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
+  peer_listen_addr: peerhost:1234
   public_addr: web3:443
   postgres_public_addr: postgres.example:5432
   mysql_listen_addr: webhost:3336
