@@ -980,7 +980,7 @@ func (set RoleSet) WithoutImplicit() (out RoleSet) {
 	return out
 }
 
-// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
+// AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	for _, role := range set {
