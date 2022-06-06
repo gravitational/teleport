@@ -24,11 +24,13 @@ import (
 	osfs "io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
@@ -140,8 +142,10 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := fs.writeBytes(key.PPK, fs.PPKFilePath(key.KeyIndex)); err != nil {
-		return trace.Wrap(err)
+	if runtime.GOOS == constants.WindowsOS {
+		if err := fs.writeBytes(key.PPK, fs.PPKFilePath(key.KeyIndex)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Store per-cluster key data.
