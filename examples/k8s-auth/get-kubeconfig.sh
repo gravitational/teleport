@@ -105,7 +105,7 @@ EOF
 # Get the service account token and CA cert.
 echo "Fetching service account ${NAMESPACE} sa/${TELEPORT_SA}"
 kubectl create token -n ${NAMESPACE} ${TELEPORT_SA}
-
+kubectl get -n -n ${NAMESPACE} secrets
 SA_SECRET_NAME=$(kubectl get -n ${NAMESPACE} secrets -o=jsonpath="{.items[?(@.metadata.annotations.kubernetes\.io/service-account\.name==\"${TELEPORT_SA}\")].metadata.name}")
 
 # Note: service account token is stored base64-encoded in the secret but must
