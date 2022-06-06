@@ -81,6 +81,13 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
   `localhost` and `127.0.0.1` are invalid values for the proxy host. If for some reason your proxy runs locally, you'll need to provide some other DNS name or a private IP address for it.
 </Admonition>
 
+<Admonition
+  type="warning"
+  title="Note"
+>
+  The proxy service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
+</Admonition>
+
 ## Ports
 
 <Tabs>
