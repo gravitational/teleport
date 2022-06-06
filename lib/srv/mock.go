@@ -47,7 +47,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func newTestServerContext(t *testing.T, srv Server) *ServerContext {
+func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -76,7 +76,7 @@ func newTestServerContext(t *testing.T, srv Server) *ServerContext {
 			Certificate:  cert,
 			// roles do not actually exist in mock backend, just need a non-nil
 			// access checker to avoid panic
-			AccessChecker: services.NewAccessChecker(&services.AccessInfo{}, clusterName),
+			AccessChecker: services.NewAccessChecker(&services.AccessInfo{RoleSet: roleSet}, clusterName),
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
