@@ -28,7 +28,7 @@ This RFD will focus on the infrastructure, security, and observability of the re
 
 #### Out of Scope
 * Image Signing w/ Cosign
-* Mirroring of images to third-party registries. See [Artifact Mirroring](https://github.com/gravitational/teleport/commit/2262efbb25463ccc135553d43293f6d8aee22ba2).
+* Mirroring of images to third-party registries (other than Quay.io). See [Artifact Mirroring](https://github.com/gravitational/teleport/commit/2262efbb25463ccc135553d43293f6d8aee22ba2).
 
 ### Infrastructure
 ```
