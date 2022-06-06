@@ -103,8 +103,10 @@ subjects:
 EOF
 
 # Get the service account token and CA cert.
-echo "Fetching service account ${NAMESPACE} sa/${TELEPORT_SA}"
+echo "Creating service account token for ${NAMESPACE} sa/${TELEPORT_SA}"
 kubectl create token -n ${NAMESPACE} ${TELEPORT_SA}
+
+echo "Querying account token for ${NAMESPACE} sa/${TELEPORT_SA}"
 kubectl get -n -n ${NAMESPACE} secrets
 SA_SECRET_NAME=$(kubectl get -n ${NAMESPACE} secrets -o=jsonpath="{.items[?(@.metadata.annotations.kubernetes\.io/service-account\.name==\"${TELEPORT_SA}\")].metadata.name}")
 
