@@ -2,7 +2,7 @@
 
 ## How to set up Windows Server for Desktop Access
 
-These instructions install a Domain Controller and Certificate Serviers on a Windows Server that
+These instructions install a Domain Controller and Certificate Servers on a Windows Server that
 are required for Teleport Desktop Access to connect.
 
 ### Install Windows Server 
