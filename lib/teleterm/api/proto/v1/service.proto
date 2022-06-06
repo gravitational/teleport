@@ -78,10 +78,10 @@ message LoginRequest {
     string cluster_uri = 1;
 
     oneof params {
-      // local holds parameters for local logins
-      LocalParams local = 2;
-      // sso holds parameters for sso logins
-      SsoParams sso = 3;
+        // local holds parameters for local logins
+        LocalParams local = 2;
+        // sso holds parameters for sso logins
+        SsoParams sso = 3;
     }
 
     // LocalParams describes parameters for local user logins
