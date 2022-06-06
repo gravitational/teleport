@@ -28,7 +28,7 @@ See [this appendix](#appendix-virtualbox-notes) if using VirtualBox.
 
 First, we need to install Active Directory Domain Services (AD DS). Save the following file as `domain-controller.ps1`,
 replacing `$domain` with your desired domain name.  The `Default` setting for `ForestMode` and `DomainMode` will match to the server version.  
-See Msft instructions for all options.
+See [Msft Powershell parameters instructions](https://docs.microsoft.com/en-us/powershell/module/addsdeployment/install-addsforest#parameters) for all options.
 
 ```powershell
 $ErrorActionPreference = "Stop"
