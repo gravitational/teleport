@@ -894,12 +894,6 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
 }
 
-// WaitForDelivery waits for resources to be released and outstanding requests to
-// complete after calling Close method
-func (l *Log) WaitForDelivery(ctx context.Context) error {
-	return nil
-}
-
 func (l *Log) turnOnTimeToLive(ctx context.Context) error {
 	status, err := l.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
 		TableName: aws.String(l.Tablename),
