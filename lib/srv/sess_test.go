@@ -268,12 +268,20 @@ func TestInteractiveSession(t *testing.T) {
 	t.Run("BrokenRecorder", func(t *testing.T) {
 		t.Parallel()
 		sess := testOpenSession(t, reg)
+		timeout, cancel := context.WithTimeout(context.Background(), time.Second*15)
+		defer cancel()
+
+		err := sess.tracker.WaitOnState(timeout, types.SessionState_SessionStateRunning)
+		require.NoError(t, err)
 
 		// The recorder might be closed in the case of an error downstream.
 		// Closing the session recorder should result in the session ending.
-		err := sess.recorder.Close(context.Background())
+		err = sess.recorder.Close(context.Background())
 		require.NoError(t, err)
-		require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+
+		_, err = sess.inWriter.Write([]byte("foo"))
+		require.NoError(t, err)
+		require.Eventually(t, sess.isStopped, time.Second*15, time.Millisecond*500)
 	})
 }
 

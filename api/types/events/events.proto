@@ -2024,6 +2024,11 @@ message Identity {
     // deny any attempts to reissue new certificates while authenticated with
     // this certificate.
     bool DisallowReissue = 21 [ (gogoproto.jsontag) = "disallow_reissue,omitempty" ];
+    // AllowedResourceIds is the list of resources which the identity will be
+    // allowed to access. An empty list indicates that no resource-specific
+    // restrictions will be applied.
+    repeated ResourceID AllowedResourceIDs = 22
+        [ (gogoproto.jsontag) = "allowed_resource_ids,omitempty", (gogoproto.nullable) = false ];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
