@@ -1452,6 +1452,42 @@ func (set RoleSet) CertificateExtensions() []*types.CertExtension {
 	return exts
 }
 
+// SessionRecordingMode returns the recording mode for a specific service.
+func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode {
+	defaultValue := constants.SessionRecordingModeBestEffort
+	useDefault := true
+
+	for _, role := range set {
+		recordSession := role.GetOptions().RecordSession
+
+		// If one of the default values is "strict", set it as the value.
+		if recordSession.Default == constants.SessionRecordingModeStrict {
+			defaultValue = constants.SessionRecordingModeStrict
+		}
+
+		var roleMode constants.SessionRecordingMode
+		switch service {
+		case constants.SessionRecordingServiceSSH:
+			roleMode = recordSession.SSH
+		}
+
+		switch roleMode {
+		case constants.SessionRecordingModeStrict:
+			// Early return as "strict" since it is the strictest value.
+			return constants.SessionRecordingModeStrict
+		case constants.SessionRecordingModeBestEffort:
+			useDefault = false
+		}
+	}
+
+	// Return the strictest default value.
+	if useDefault {
+		return defaultValue
+	}
+
+	return constants.SessionRecordingModeBestEffort
+}
+
 func roleNames(roles []types.Role) string {
 	out := make([]string, len(roles))
 	for i := range roles {
