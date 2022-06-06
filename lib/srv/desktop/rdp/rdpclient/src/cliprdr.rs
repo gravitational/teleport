@@ -108,21 +108,26 @@ impl Client {
     /// that should be sent to the RDP server.
     pub fn update_clipboard(&mut self, data: String) -> RdpResult<Vec<Vec<u8>>> {
         // convert LF to CRLF, as required by CF_TEXT and CF_UNICODETEXT
-        let data = data.into_bytes();
-        let len_orig = data.len();
-        let mut converted = Vec::with_capacity(len_orig);
-        for i in 0..len_orig {
-            match data[i] {
-                b'\n' => {
+        let mut converted = String::with_capacity(data.len());
+        let mut prev_was_cr = false;
+        for c in data.chars() {
+            match c {
+                '\n' if !prev_was_cr => {
                     // convert LF to CRLF, so long as the previous character
                     // wasn't CR (in which case there's no conversion necessary)
-                    if i == 0 || (data[i - 1] != b'\r') {
-                        converted.push(b'\r');
-                    }
-                    converted.push(b'\n');
+                    converted.push('\r');
+                    converted.push('\n');
                 }
-                _ => converted.push(data[i]),
+                c => {
+                    converted.push(c);
+                    if c == '\r' {
+                        prev_was_cr = true;
+                        continue;
+                    }
+                }
             }
+
+            prev_was_cr = false;
         }
 
         let (data, format) = encode_clipboard(converted);
@@ -551,17 +556,16 @@ impl<T: FormatName> FormatListPDU<T> {
 // This means determining the appropriate format and making sure the data has a nul terminator.
 //
 // This data must be valid UTF-8.
-fn encode_clipboard(mut data: Vec<u8>) -> (Vec<u8>, ClipboardFormat) {
+fn encode_clipboard(mut data: String) -> (Vec<u8>, ClipboardFormat) {
     if data.is_ascii() {
-        if matches!(data.last(), Some(x) if *x != b'\0') {
-            data.push(b'\0');
+        if matches!(data.chars().last(), Some(x) if x != '\0') {
+            data.push('\0');
         }
 
-        (data, ClipboardFormat::CF_TEXT)
+        (data.into_bytes(), ClipboardFormat::CF_TEXT)
     } else {
-        let str = std::str::from_utf8(&data).unwrap();
-        data = util::to_nul_terminated_utf16le(str);
-        (data, ClipboardFormat::CF_UNICODETEXT)
+        let encoded = util::to_nul_terminated_utf16le(&data);
+        (encoded, ClipboardFormat::CF_UNICODETEXT)
     }
 }
 
@@ -1065,15 +1069,27 @@ mod tests {
             Ok(())
         }));
 
+        let data_format_list = FormatListPDU {
+            format_names: vec![LongFormatName {
+                format_id: ClipboardFormat::CF_TEXT as u32,
+                format_name: None,
+            }],
+        }
+        .encode()
+        .unwrap();
+
         let data_resp = FormatDataResponsePDU {
             data: String::from("abc\0").into_bytes(),
         }
         .encode()
         .unwrap();
 
-        let len = data_resp.len();
+        let mut len = data_format_list.len() as u32;
+        c.handle_format_list(&mut Cursor::new(data_format_list), len)
+            .unwrap();
 
-        c.handle_format_data_response(&mut Cursor::new(data_resp), len as u32)
+        len = data_resp.len() as u32;
+        c.handle_format_data_response(&mut Cursor::new(data_resp), len)
             .unwrap();
 
         // ensure that the null terminator was trimmed
