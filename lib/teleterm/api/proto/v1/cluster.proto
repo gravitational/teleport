@@ -23,12 +23,13 @@ message Cluster {
     // uri is the cluster resource URI
     string uri = 1;
     // name is used throughout the Teleport Connect codebase as the cluster name.
-    // Unfortunately, we made a mistake where instead of taking the name of the cluster from the key,
-    // we take it from the hostname part of the proxy service. These two are not always equal.
-    // And actually there are places in tsh code where it needs the name of the cluster from the key,
-    // not the hostname of the proxy service (like in the `TELEPORT_CLUSTER` env var).
-    // Since this identifier is so widely used, we didn't have time to change it before the preview release.
-    // In the future we plan to fix the value sent under name to the name from the key and get rid of the `actual_name` field.
+    // Unfortunately, we made a mistake where instead of taking the name of the cluster from the
+    // key, we take it from the hostname part of the proxy service. These two are not always equal.
+    // And actually there are places in tsh code where it needs the name of the cluster from the
+    // key, not the hostname of the proxy service (like in the `TELEPORT_CLUSTER` env var). Since
+    // this identifier is so widely used, we didn't have time to change it before the preview
+    // release. In the future we plan to fix the value sent under name to the name from the key and
+    // get rid of the `actual_name` field.
     string name = 2;
     // actual_name is a temporary field that stores the cluster name taken from the key.
     // See the comment for the name field for an explanation as to why we added this field.

@@ -23,8 +23,15 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -34,13 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
-
-	"github.com/gravitational/trace"
 )
 
 const dynamoDBLargeQueryRetries int = 10
@@ -244,4 +244,40 @@ func TestFromWhereExpr(t *testing.T) {
 		attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
 		attrValues: map[string]interface{}{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
 	}, params)
+}
+
+// TestEmitAuditEventForLargeEvents tries to emit large audit events to DynamoDB backend.
+func (s *DynamoeventsLargeTableSuite) TestEmitAuditEventForLargeEvents(c *check.C) {
+	ctx := context.Background()
+	now := s.Clock.Now()
+	dbQueryEvent := &apievents.DatabaseSessionQuery{
+		Metadata: apievents.Metadata{
+			Time: s.Clock.Now(),
+			Type: events.DatabaseSessionQueryEvent,
+		},
+		DatabaseQuery: strings.Repeat("A", maxItemSize),
+	}
+	err := s.Log.EmitAuditEvent(ctx, dbQueryEvent)
+	c.Assert(err, check.IsNil)
+
+	result, _, err := s.Log.SearchEvents(
+		now.Add(-1*time.Hour),
+		now.Add(time.Hour),
+		apidefaults.Namespace,
+		[]string{events.DatabaseSessionQueryEvent},
+		0, types.EventOrderAscending,
+		"",
+	)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.HasLen, 1)
+
+	appReqEvent := &apievents.AppSessionRequest{
+		Metadata: apievents.Metadata{
+			Time: s.Clock.Now(),
+			Type: events.AppSessionRequestEvent,
+		},
+		Path: strings.Repeat("A", maxItemSize),
+	}
+	err = s.Log.EmitAuditEvent(ctx, appReqEvent)
+	c.Check(trace.Unwrap(err), check.FitsTypeOf, errAWSValidation)
 }
