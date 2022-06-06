@@ -88,12 +88,12 @@ func TestLoadAllConfigs(t *testing.T) {
 	require.Equal(t, &TshConfig{
 		ExtraHeaders: []ExtraProxyHeaders{
 			{
-				Proxy:   "global",
-				Headers: map[string]string{"bar": "123"},
-			},
-			{
 				Proxy:   "user",
 				Headers: map[string]string{"bar": "456"},
+			},
+			{
+				Proxy:   "global",
+				Headers: map[string]string{"bar": "123"},
 			},
 		},
 	}, config)
