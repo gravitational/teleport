@@ -5171,8 +5171,8 @@ volumes:
 # This was originally generated using dronegen,
 # but it looks like dronegen was not backported
 # to v8.
-# Generated at dronegen/misc.go:133 on commit
-# 5f0a933dabe316717eed3e6e316e3cf1853d13a3
+# Generated at dronegen/misc.go:149 on commit
+# f4b0ae4a2abe9c17622aee99b20be1220d3a8414
 ################################################
 
 kind: pipeline
@@ -5201,8 +5201,8 @@ steps:
 # This was originally generated using dronegen,
 # but it looks like dronegen was not backported
 # to v8.
-# Generated at dronegen/misc.go:157 on commit
-# 5f0a933dabe316717eed3e6e316e3cf1853d13a3
+# Generated at dronegen/misc.go:169 on commit
+# f4b0ae4a2abe9c17622aee99b20be1220d3a8414
 ################################################
 
 kind: pipeline
@@ -5231,10 +5231,16 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p /go/src/github.com/gravitational/teleport
-  - cd /go/src/github.com/gravitational/teleport
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout "${DRONE_TAG}"
+- name: Check if tag is prerelease
+  image: golang:1.17-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -5257,7 +5263,7 @@ steps:
   - chown -R root:root $GNUPGHOME
   - apt update
   - apt install aptly tree -y
-  - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -local-bucket-path "$BUCKET_CACHE_PATH"
@@ -5593,6 +5599,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: c066e6fd4d0110fcd0cd9dfabcd7472f3a6ec2dc774d1ce3e6dc01f2dd1137d0
+hmac: a2be8ae54a829b54a3c5f8149eb822340f2b22a5399d96fa53f262c15ab0855e
 
 ...
