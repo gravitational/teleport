@@ -13,10 +13,24 @@ ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
-# Install dev tools (make, etc) and a Perl package needed to build OpenSSL.
-RUN yum groupinstall -y "Development Tools"
-RUN yum install -y pam-devel net-tools tree git zip libatomic perl-IPC-Cmd && \
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y \
+        git \
+        libatomic \
+        net-tools \
+        pam-devel \
+        perl-IPC-Cmd \
+        tree \
+        zip \
+        elfutils-libelf-devel \
+        elfutils-libelf-devel-static \
+        zlib-devel \
+        zlib-static \
+        centos-release-scl \
+        which \
     yum clean all
+
+RUN yum install -y devtoolset-11-gcc* && yum clean all
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
@@ -28,6 +42,15 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLA
     chmod a+w /go && \
     chmod a+w /var/lib && \
     /opt/go/bin/go version
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+# Install libbpf
+ARG LIBBPF_VERSION
+RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
+    scl enable devtoolset-11 "make && make install"
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
@@ -52,9 +75,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy && \
     cargo install cbindgen
 
-ENV GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
-
+USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

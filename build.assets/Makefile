@@ -20,7 +20,7 @@ BUILDBOX_VERSION=teleport9
 GOLANG_VERSION ?= go1.17.9
 RUST_VERSION ?= 1.58.1
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
-LIBBPF_VERSION ?= 0.3.1
+LIBBPF_VERSION ?= 0.7.0-teleport
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -159,6 +159,7 @@ buildbox-centos7:
 		--build-arg GID=$(GID) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7) \
 		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
 
