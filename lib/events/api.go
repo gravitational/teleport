@@ -735,10 +735,6 @@ type IAuditLog interface {
 	// This function may never return more than 1 MiB of event data.
 	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error)
 
-	// WaitForDelivery waits for resources to be released and outstanding requests to
-	// complete after calling Close method
-	WaitForDelivery(context.Context) error
-
 	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 	// The event channel is not closed on error to prevent race conditions in downstream select statements.
