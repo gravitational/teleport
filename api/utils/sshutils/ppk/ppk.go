@@ -101,8 +101,8 @@ func ConvertToPPK(priv []byte, pub []byte) ([]byte, error) {
 	// these values are also used in the MAC generation, so we declare them as variables
 	keyType := constants.SSHRSAType
 	encryptionType := "none"
-	// TODO(gus): is there a way we can get the proxy/user pair name in here?
-	// annoyingly this has to be done at generation time because the comment is part of the MAC
+	// as work for the future, it'd be nice to get the proxy/user pair name in here to make the name more
+	// of a unique identifier. this has to be done at generation time because the comment is part of the MAC
 	fileComment := "teleport-generated-ppk"
 
 	// string: the algorithm-name header field.
