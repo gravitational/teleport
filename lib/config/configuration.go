@@ -345,7 +345,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
 	if fc.CASignatureAlgorithm != nil {
-		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
+		log.Warn("ca_signing_algo config option is deprecated and will be removed in a future release, Teleport defaults to rsa-sha2-512.")
 	}
 
 	// Read in how nodes will validate the CA. A single empty string in the file
@@ -1493,8 +1493,6 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
 			}},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

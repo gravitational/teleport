@@ -54,12 +54,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var validCASigAlgos = []string{
-	ssh.KeyAlgoRSA,
-	ssh.KeyAlgoRSASHA256,
-	ssh.KeyAlgoRSASHA512,
-}
-
 // FileConfig structre represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
 //
@@ -426,9 +420,6 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
-	if conf.CASignatureAlgorithm != nil && !apiutils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
-		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", *conf.CASignatureAlgorithm, validCASigAlgos)
-	}
 
 	return nil
 }
@@ -543,9 +534,7 @@ type Global struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
 
-	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
-	// algorithm that the server uses for signing user and host certificates.
-	// If omitted, the default will be used.
+	// CASignatureAlgorithm is ignored but ketp for config backwards compat
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
