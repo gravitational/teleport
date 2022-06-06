@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -272,7 +271,6 @@ func TestHostCertVerification(t *testing.T) {
 	require.NoError(t, err)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: hostPub,
 		HostID:        "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
 		NodeName:      "server01",
@@ -520,7 +518,6 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         publicKey,
 		Username:              username,
 		AllowedLogins:         allowedLogins,

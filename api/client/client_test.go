@@ -482,43 +482,6 @@ func TestWaitForConnectionReady(t *testing.T) {
 	require.Error(t, clt.waitForConnectionReady(ctx))
 }
 
-func TestLimitExceeded(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := startMockServer(t)
-
-	// Create client
-	clt, err := srv.NewClient(ctx)
-	require.NoError(t, err)
-
-	// ListNodes should return a limit exceeded error when exceeding gRPC message size limit.
-	_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-		Namespace: defaults.Namespace,
-		Limit:     50,
-	})
-	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
-
-	// GetNodes should retrieve all nodes and transparently handle limit exceeded errors.
-	expectedResources, err := testResources(types.KindNode, defaults.Namespace)
-	require.NoError(t, err)
-
-	expectedNodes := make([]types.Server, len(expectedResources))
-	for i, expectedResource := range expectedResources {
-		var ok bool
-		expectedNodes[i], ok = expectedResource.(*types.ServerV2)
-		require.True(t, ok)
-	}
-
-	resp, err := clt.GetNodes(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	require.EqualValues(t, expectedNodes, resp)
-
-	// GetNodes should fail with a limit exceeded error if a
-	// single node is too big to send over gRPC (over 4MB).
-	_, err = clt.GetNodes(ctx, fiveMBNode)
-	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
-}
-
 func TestListResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
