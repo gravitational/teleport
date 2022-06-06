@@ -442,6 +442,11 @@ func (a *AuditWriter) processEvents() {
 			if err == nil {
 				continue
 			}
+			if IsPermanentEmitError(err) {
+				a.log.WithError(err).WithField("event", event).
+					Warning("Failed to emit audit event due to permanent emit audit event error. Event will be omitted.")
+				continue
+			}
 			a.log.WithError(err).Debug("Failed to emit audit event, attempting to recover stream.")
 			start := time.Now()
 			if err := a.recoverStream(); err != nil {
@@ -462,6 +467,40 @@ func (a *AuditWriter) processEvents() {
 			return
 		}
 	}
+}
+
+// IsPermanentEmitError checks if the error contains underlying BadParameter error.
+func IsPermanentEmitError(err error) bool {
+	var (
+		maxDeep            = 50
+		iter               = 0
+		isPerErrRecurCheck func(error) bool
+	)
+
+	isPerErrRecurCheck = func(err error) bool {
+		defer func() { iter++ }()
+		if iter >= maxDeep {
+			return false
+		}
+
+		if trace.IsBadParameter(err) {
+			return true
+		}
+		if !trace.IsAggregate(err) {
+			return false
+		}
+		agg, ok := trace.Unwrap(err).(trace.Aggregate)
+		if !ok {
+			return false
+		}
+		for _, err := range agg.Errors() {
+			if !isPerErrRecurCheck(err) {
+				return false
+			}
+		}
+		return true
+	}
+	return isPerErrRecurCheck(err)
 }
 
 func (a *AuditWriter) recoverStream() error {

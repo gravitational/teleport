@@ -64,7 +64,6 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 	cert, err := s.A.GenerateHostCert(
 		services.HostCertParams{
 			CASigner:      caSigner,
-			CASigningAlg:  defaults.CASignatureAlgorithm,
 			PublicHostKey: pub,
 			HostID:        "00000000-0000-0000-0000-000000000000",
 			NodeName:      "auth.example.com",
@@ -95,7 +94,6 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	cert, err := s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"centos", "root"},
@@ -113,7 +111,6 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -128,7 +125,6 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -143,7 +139,6 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -158,7 +153,6 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	impersonator := "alice"
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		Impersonator:          impersonator,
