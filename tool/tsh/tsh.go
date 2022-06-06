@@ -2880,9 +2880,7 @@ func serializeProfiles(profile *profileInfo, profiles []*profileInfo, env map[st
 		Profiles []*profileInfo    `json:"profiles"`
 		Env      map[string]string `json:"environment,omitempty"`
 	}{profile, []*profileInfo{}, env}
-	for _, p := range profiles {
-		profileData.Profiles = append(profileData.Profiles, p)
-	}
+	profileData.Profiles = append(profileData.Profiles, profiles...)
 	var out []byte
 	var err error
 	if format == teleport.JSON {
