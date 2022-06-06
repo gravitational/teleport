@@ -472,15 +472,15 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	}
 
 	// Inherit the user's roles and traits verbatim.
-	roles := user.GetRoles()
-	traits := user.GetTraits()
-
-	parsedRoles, err := services.FetchRoleList(roles, s, traits)
+	accessInfo, err := services.AccessInfoFromUser(user, s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// add implicit roles to the set and build a checker
-	checker := services.NewRoleSet(parsedRoles...)
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 
 	// renewable cert request must include a generation
 	var generation uint64
@@ -494,7 +494,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 		ttl:           expires.Sub(s.GetClock().Now()),
 		publicKey:     pubKey,
 		checker:       checker,
-		traits:        user.GetTraits(),
+		traits:        accessInfo.Traits,
 		renewable:     renewable,
 		includeHostCA: true,
 		generation:    generation,

@@ -18,7 +18,9 @@ package clusters
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
@@ -71,7 +73,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gw.CLICommand = cliCommand.String()
+	gw.CLICommand = fmt.Sprintf("%s %s", strings.Join(cliCommand.Env, " "), cliCommand.String())
 
 	return gw, nil
 }

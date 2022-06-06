@@ -118,11 +118,11 @@ func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeC
 }
 
 // benchmarkGetNodes runs GetNodes b.N times.
-func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
+func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
 	var nodes []types.Server
 	var err error
 	for i := 0; i < b.N; i++ {
-		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace, opts...)
+		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(b, err)
 	}
 	// do *something* with the loop result.  probably unnecessary since the loop

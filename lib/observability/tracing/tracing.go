@@ -22,6 +22,9 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
@@ -34,10 +37,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-
-	"github.com/gravitational/teleport"
 )
 
 const (
@@ -73,7 +75,13 @@ type Config struct {
 	DialTimeout time.Duration
 	// Logger is the logger to use.
 	Logger logrus.FieldLogger
+	// Client is the client to use to export traces. This takes precedence over creating a
+	// new client with the ExporterURL. Ownership of the client is transferred to the
+	// tracing provider. It should **NOT** be closed by the caller.
+	Client *tracing.Client
 
+	// exporterURL is the parsed value of ExporterURL that is populated
+	// by CheckAndSetDefaults
 	exporterURL *url.URL
 }
 
@@ -83,25 +91,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("service name cannot be empty")
 	}
 
-	if c.ExporterURL == "" {
+	if c.Client == nil && c.ExporterURL == "" {
 		return trace.BadParameter("exporter URL cannot be empty")
-	}
-
-	// first check if a network address is specified, if it was, default
-	// to using grpc. If provided a URL, ensure that it is valid
-	_, _, err := net.SplitHostPort(c.ExporterURL)
-	if err == nil {
-		c.exporterURL = &url.URL{
-			Scheme: "grpc",
-			Host:   c.ExporterURL,
-		}
-	} else {
-		exporterURL, err := url.Parse(c.ExporterURL)
-		if err != nil {
-			return trace.BadParameter("failed to parse exporter URL: %v", err)
-		}
-		c.exporterURL = exporterURL
-
 	}
 
 	if c.DialTimeout <= 0 {
@@ -112,13 +103,82 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Logger = logrus.WithField(trace.Component, teleport.ComponentTracing)
 	}
 
+	if c.Client == nil {
+		// first check if a network address is specified, if it was, default
+		// to using grpc. If provided a URL, ensure that it is valid
+		_, _, err := net.SplitHostPort(c.ExporterURL)
+		if err == nil {
+			c.exporterURL = &url.URL{
+				Scheme: "grpc",
+				Host:   c.ExporterURL,
+			}
+		} else {
+			exporterURL, err := url.Parse(c.ExporterURL)
+			if err != nil {
+				return trace.BadParameter("failed to parse exporter URL: %v", err)
+			}
+			c.exporterURL = exporterURL
+		}
+	}
+
 	return nil
 }
 
-// NewExporter returns a new exporter that is configured per the provided Config.
-func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error) {
+var _ otlptrace.Client = (*noopClient)(nil)
+
+type noopClient struct{}
+
+func (n noopClient) Start(context.Context) error {
+	return nil
+}
+
+func (n noopClient) Stop(context.Context) error {
+	return nil
+}
+
+func (n noopClient) UploadTraces(context.Context, []*otlp.ResourceSpans) error {
+	return nil
+}
+
+// NewNoopClient returns an oltptrace.Client that does nothing
+func NewNoopClient() otlptrace.Client {
+	return &noopClient{}
+}
+
+// NewStartedClient either returns the provided Config.Client or constructs
+// a new client that is connected to the Config.ExporterURL with the
+// appropriate TLS credentials. The client is started prior to returning to
+// the caller.
+func NewStartedClient(ctx context.Context, cfg Config) (otlptrace.Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	clt, err := NewClient(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
+	defer cancel()
+	if err := clt.Start(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clt, nil
+}
+
+// NewClient either returns the provided Config.Client or constructs
+// a new client that is connected to the Config.ExporterURL with the
+// appropriate TLS credentials. The returned client is not started,
+// it will be started by the provider if passed to one.
+func NewClient(cfg Config) (otlptrace.Client, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.Client != nil {
+		return cfg.Client, nil
 	}
 
 	var httpOptions []otlptracehttp.Option
@@ -144,6 +204,35 @@ func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error)
 		return nil, trace.BadParameter("unsupported exporter scheme: %q", cfg.exporterURL.Scheme)
 	}
 
+	return traceClient, nil
+}
+
+// wrappedExporter is a sdktrace.SpanExporter wrapper that is used to ensure that any
+// tracing.Client that are provided to NewExporter are closed when the Exporter is
+// Shutdown. This is required because the tracing.Client ownership is transferred to
+// the Exporter, which means we need to ensure it is closed.
+type wrappedExporter struct {
+	client   *tracing.Client
+	exporter *otlptrace.Exporter
+}
+
+// ExportSpans forwards the spans to the wrapped exporter.
+func (w *wrappedExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+	return w.exporter.ExportSpans(ctx, spans)
+}
+
+// Shutdown shuts down the wrapped exporter and closes the client.
+func (w *wrappedExporter) Shutdown(ctx context.Context) error {
+	return trace.NewAggregate(w.exporter.Shutdown(ctx), w.client.Close())
+}
+
+// NewExporter returns a new exporter that is configured per the provided Config.
+func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error) {
+	traceClient, err := NewClient(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
 	defer cancel()
 	exporter, err := otlptrace.New(ctx, traceClient)
@@ -154,7 +243,14 @@ func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error)
 		return nil, trace.NewAggregate(err, traceClient.Stop(context.Background()))
 	}
 
-	return exporter, nil
+	if cfg.Client == nil {
+		return exporter, nil
+	}
+
+	return &wrappedExporter{
+		exporter: exporter,
+		client:   cfg.Client,
+	}, nil
 }
 
 // Provider wraps the OpenTelemetry tracing provider to provide common tags for all tracers.
