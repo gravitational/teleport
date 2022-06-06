@@ -18,9 +18,6 @@ spec:
         app: etcd
     spec:
       volumes:
-        - name: telegraf-config
-          configMap:
-            name: etcd-telegraf-config
         - name: server-certs
           secret:
             secretName: etcd-server-certs
@@ -28,18 +25,6 @@ spec:
           secret:
             secretName: etcd-client-certs
       containers:
-        - name: telegraf
-          image: telegraf:1.20.3
-          envFrom:
-            - secretRef:
-                name: influxdb-creds
-          volumeMounts:
-            - name: telegraf-config
-              mountPath: /etc/telegraf
-              readOnly: true
-            - name: client-certs
-              mountPath: /etc/etcd/certs/
-              readOnly: true
         - name: etcd
           image: quay.io/coreos/etcd:v3.3.25
           ports:

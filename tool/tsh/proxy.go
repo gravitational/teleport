@@ -152,6 +152,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if routeToDatabase.Protocol == defaults.ProtocolSnowflake && !cf.LocalProxyTunnel {
+		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
+	}
+
 	rootCluster, err := client.RootClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -176,11 +180,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}()
 
 	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:         cf,
-		teleportClient:  client,
-		profile:         profile,
-		routeToDatabase: routeToDatabase,
-		listener:        listener})
+		cliConf:          cf,
+		teleportClient:   client,
+		profile:          profile,
+		routeToDatabase:  routeToDatabase,
+		listener:         listener,
+		localProxyTunnel: cf.LocalProxyTunnel,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -211,7 +217,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"database": routeToDatabase.ServiceName,
 			"type":     dbProtocolToText(routeToDatabase.Protocol),
 			"cluster":  profile.Cluster,
-			"command":  cmd.String(),
+			"command":  fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()),
 			"address":  listener.Addr().String(),
 		})
 		if err != nil {
