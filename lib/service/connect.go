@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"context"
 	"crypto/tls"
 	"path/filepath"
 	"strings"
@@ -428,6 +429,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
+			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -932,6 +934,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -939,7 +942,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 
 	// Check connectivity to cluster. If the request fails, unwrap the error to
 	// get the underlying error.
-	_, err = clt.GetLocalClusterName()
+	_, err = clt.GetDomainName(context.TODO())
 	if err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
@@ -973,7 +976,8 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
-		DialOpts: dialOpts,
+		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+		DialOpts:             dialOpts,
 		// Deliberately ignore HTTP proxies for backwards compatibility.
 		IgnoreHTTPProxy: true,
 	}, cltParams...)
@@ -981,7 +985,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := clt.GetLocalClusterName(); err != nil {
+	if _, err := clt.GetDomainName(context.TODO()); err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close direct Auth Server client.")
 		}

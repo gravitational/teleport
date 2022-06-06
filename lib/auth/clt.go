@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -186,9 +187,14 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		IdleConnTimeout: defaults.HTTPIdleTimeout,
 	}
 
+	cb, err := breaker.New(cfg.CircuitBreakerConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clientParams := append(
 		[]roundtrip.ClientParam{
-			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(transport)}),
+			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport))}),
 			roundtrip.SanitizerEnabled(true),
 		},
 		params...,
@@ -341,33 +347,6 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	}
 	_, err := c.PutJSON(context.TODO(), c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
 	return trace.Wrap(err)
-}
-
-// GetDomainName returns local auth domain of the current auth server
-func (c *Client) GetDomainName() (string, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("domain"), url.Values{})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var domain string
-	if err := json.Unmarshal(out.Bytes(), &domain); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return domain, nil
-}
-
-// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
-// the cluster has multiple TLS certs, they will all be concatenated.
-func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("cacert"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var localCA LocalCAResponse
-	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &localCA, nil
 }
 
 func (c *Client) Close() error {
@@ -549,24 +528,6 @@ func (c *Client) KeepAliveNode(ctx context.Context, keepAlive types.KeepAlive) e
 // KeepAliveServer not implemented: can only be called locally.
 func (c *Client) KeepAliveServer(ctx context.Context, keepAlive types.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
-}
-
-// UpsertNodes bulk inserts nodes.
-func (c *Client) UpsertNodes(namespace string, servers []types.Server) error {
-	if namespace == "" {
-		return trace.BadParameter("missing node namespace")
-	}
-
-	bytes, err := services.MarshalServers(servers)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertNodesReq{
-		Namespace: namespace,
-		Nodes:     bytes,
-	}
-	_, err = c.PutJSON(context.TODO(), c.Endpoint("namespaces", namespace, "nodes"), args)
-	return trace.Wrap(err)
 }
 
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
@@ -1428,18 +1389,8 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return nil
 }
 
-// GetLocalClusterName returns local cluster name
-func (c *Client) GetLocalClusterName() (string, error) {
-	return c.GetDomainName()
-}
-
 // DeleteClusterName not implemented: can only be called locally.
 func (c *Client) DeleteClusterName() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertLocalClusterName not implemented: can only be called locally.
-func (c *Client) UpsertLocalClusterName(string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1632,7 +1583,7 @@ type IdentityService interface {
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
-	// GetOIDCConnector gets OIDC connectors list
+	// GetOIDCConnectors gets OIDC connectors list
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
@@ -1733,7 +1684,7 @@ type IdentityService interface {
 	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
 	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
 
-	// IsMFARequiredRequest is a request to check whether MFA is required to
+	// IsMFARequired is a request to check whether MFA is required to
 	// access the Target.
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 
@@ -1870,11 +1821,11 @@ type ClientI interface {
 	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 
 	// GetDomainName returns auth server cluster name
-	GetDomainName() (string, error)
+	GetDomainName(ctx context.Context) (string, error)
 
 	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster.
 	// If the cluster has multiple TLS certs, they will all be concatenated.
-	GetClusterCACert() (*LocalCAResponse, error)
+	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 
 	// GenerateHostCerts generates new host certificates (signed
 	// by the host certificate authority) for a node

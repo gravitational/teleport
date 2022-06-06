@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -83,7 +82,7 @@ type TerminalRequest struct {
 
 // AuthProvider is a subset of the full Auth API.
 type AuthProvider interface {
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
 }
 

@@ -87,7 +87,11 @@ func New(ctx context.Context, c *Config) (*EC2, error) {
 func (l *EC2) Get() map[string]string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.labels
+	labels := make(map[string]string)
+	for k, v := range l.labels {
+		labels[k] = v
+	}
+	return labels
 }
 
 // Apply adds EC2 labels to the provided resource.
@@ -113,13 +117,16 @@ func (l *EC2) Sync(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		m[t] = value
+		if types.IsValidLabelKey(t) {
+			m[toAWSLabel(t)] = value
+		} else {
+			l.c.Log.Debugf("Skipping EC2 tag %q, not a valid label key.", t)
+		}
 	}
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.labels = toAWSLabels(m)
-
+	l.labels = m
 	return nil
 }
 
@@ -144,11 +151,7 @@ func (l *EC2) periodicUpdateLabels(ctx context.Context) {
 	}
 }
 
-// toAWSLabels formats labels coming from EC2.
-func toAWSLabels(labels map[string]string) map[string]string {
-	m := make(map[string]string, len(labels))
-	for k, v := range labels {
-		m[fmt.Sprintf("%s/%s", AWSNamespace, k)] = v
-	}
-	return m
+// toAWSLabel formats labels coming from EC2.
+func toAWSLabel(key string) string {
+	return fmt.Sprintf("%s/%s", AWSNamespace, key)
 }
