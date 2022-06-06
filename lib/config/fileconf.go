@@ -647,16 +647,6 @@ type Auth struct {
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
 
-	// TrustedClustersFile is a file path to a file containing public CA keys
-	// of clusters we trust. One key per line, those starting with '#' are comments
-	// Deprecated: Remove in Teleport 2.4.1.
-	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
-
-	// DynamicConfig determines when file configuration is pushed to the backend. Setting
-	// it here overrides defaults.
-	// Deprecated: Remove in Teleport 2.4.1.
-	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
-
 	// PublicAddr sets SSH host principals and TLS DNS names to auth
 	// server certificates
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
