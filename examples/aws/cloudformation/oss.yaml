@@ -731,7 +731,7 @@ Resources:
             - "s3:ListBucket"
             - "s3:ListBucketVersions"
             - "s3:ListBucketMultipartUploads"
-            - "s3:AbortMultipartUploads"
+            - "s3:AbortMultipartUpload"
 
           -
             Effect: "Allow"
@@ -819,7 +819,7 @@ Resources:
             - "s3:ListBucket"
             - "s3:ListBucketVersions"
             - "s3:ListBucketMultipartUploads"
-            - "s3:AbortMultipartUploads"
+            - "s3:AbortMultipartUpload"
 
           -
             Effect: "Allow"

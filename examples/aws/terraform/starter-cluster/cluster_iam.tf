@@ -45,7 +45,7 @@ resource "aws_iam_role_policy" "cluster_s3" {
          "s3:ListBucket",
          "s3:ListBucketVersions",
          "s3:ListBucketMultipartUploads",
-         "s3:AbortMultipartUploads"
+         "s3:AbortMultipartUpload"
       ],
        "Resource": ["arn:aws:s3:::${aws_s3_bucket.storage.bucket}"]
      },
