@@ -130,34 +130,30 @@ func (p pinCancelPrompt) PromptTouch() {
 }
 
 func TestIsFIDO2Available(t *testing.T) {
-	const fido2Key = "TSH_FIDO2"
-	defer func() {
-		os.Unsetenv(fido2Key)
-	}()
-
+	const fido2Key = "TELEPORT_FIDO2"
 	tests := []struct {
 		name   string
 		setenv func()
 		want   bool
 	}{
 		{
-			name: "TSH_FIDO2 unset",
+			name: "env var unset",
 			setenv: func() {
 				os.Unsetenv(fido2Key)
 			},
 			want: true,
 		},
 		{
-			name: "TSH_FIDO2=1",
+			name: "env var set to 1",
 			setenv: func() {
-				os.Setenv(fido2Key, "1")
+				t.Setenv(fido2Key, "1")
 			},
 			want: true,
 		},
 		{
-			name: "TSH_FIDO2=0",
+			name: "env var set to 0",
 			setenv: func() {
-				os.Setenv(fido2Key, "0")
+				t.Setenv(fido2Key, "0")
 			},
 			want: false,
 		},

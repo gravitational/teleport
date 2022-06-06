@@ -39,12 +39,12 @@ func ReadPreLoginPacket(r io.Reader) (*PreLoginPacket, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if pkt.Type != PacketTypePreLogin {
+	if pkt.Type() != PacketTypePreLogin {
 		return nil, trace.BadParameter("expected Pre-Login packet, got: %#v", pkt)
 	}
 
 	return &PreLoginPacket{
-		packet: *pkt,
+		packet: pkt,
 	}, nil
 }
 

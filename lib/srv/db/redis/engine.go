@@ -23,6 +23,7 @@ import (
 	"net"
 
 	"github.com/go-redis/redis/v8"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -195,13 +196,37 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
-		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, username, password)
+		onConnect := e.createOnClientConnectFunc(sessionCtx, username, password)
+
+		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, onConnect)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		return redisClient, nil
 	}, nil
+}
+
+// createOnClientConnectFunc creates a callback function that is called after a
+// successful client connection with the Redis server.
+func (e *Engine) createOnClientConnectFunc(sessionCtx *common.Session, username, password string) onClientConnectFunc {
+	switch {
+	// If password is provided by client.
+	case password != "":
+		return authWithPasswordOnConnect(username, password)
+
+	// If database user is one of managed users.
+	//
+	// Teleport managed users can have their passwords rotated during a
+	// database session. Fetching an user's password on each new connection
+	// ensures the correct password is used for each shard connection when
+	// Redis is in cluster mode.
+	case apiutils.SliceContainsStr(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
+		return fetchUserPasswordOnConnect(sessionCtx, e.Users, e.Audit)
+
+	default:
+		return nil
+	}
 }
 
 // reconnect closes the current Redis server connection and creates a new one pre-authenticated
@@ -238,10 +263,6 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error 
 		// the session.
 		value, err := processServerResponse(cmd, err, sessionCtx)
 		if err != nil {
-			// Send server error to client before closing.
-			if sendError := e.sendToClient(err); sendError != nil {
-				return trace.NewAggregate(err, sendError)
-			}
 			return trace.Wrap(err)
 		}
 

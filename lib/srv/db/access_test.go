@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
+	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1279,6 +1281,8 @@ type testContext struct {
 	redis map[string]testRedis
 	// sqlServer is a collection of SQL Server databases the test uses.
 	sqlServer map[string]testSQLServer
+	// snowflake is a collection of Snowflake databases the test uses.
+	snowflake map[string]testSnowflake
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1317,7 +1321,16 @@ type testRedis struct {
 
 // testSQLServer represents a single proxied SQL Server database.
 type testSQLServer struct {
+	// db is the test SQLServer database server.
+	db *sqlserver.TestServer
 	// resource is the resource representing this SQL Server database
+	resource types.Database
+}
+
+type testSnowflake struct {
+	// db is the test Snowflake database server.
+	db *snowflake.TestServer
+	// resource is the resource representing this Snowflake database.
 	resource types.Database
 }
 
@@ -1629,6 +1642,35 @@ func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, telepo
 	return proxy, nil
 }
 
+// snowflakeClient returns a Snowflake test DB client.
+func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*sql.DB, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolSnowflake,
+		Username:    dbUser,
+		Database:    dbName,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	db, err := snowflake.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return db, proxy, nil
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
@@ -1688,6 +1730,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		mongo:       make(map[string]testMongoDB),
 		redis:       make(map[string]testRedis),
 		sqlServer:   make(map[string]testSQLServer),
+		snowflake:   make(map[string]testSnowflake),
 		clock:       clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
@@ -2307,14 +2350,22 @@ func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDataba
 
 func withSQLServer(name string) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		sqlServer, err := sqlserver.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		})
+		require.NoError(t, err)
+		go sqlServer.Serve()
+		t.Cleanup(func() { sqlServer.Close() })
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolSQLServer,
-			URI:      "localhost:1433", // URI doesn't matter as tests aren't actually going to dial it.
+			URI:      net.JoinHostPort("localhost", sqlServer.Port()),
 		})
 		require.NoError(t, err)
 		testCtx.sqlServer[name] = testSQLServer{
+			db:       sqlServer,
 			resource: database,
 		}
 		return database
