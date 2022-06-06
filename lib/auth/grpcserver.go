@@ -302,7 +302,14 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			start := time.Now()
 			err = eventStream.EmitAuditEvent(stream.Context(), event)
 			if err != nil {
-				return trace.Wrap(err)
+				switch {
+				case events.IsPermanentEmitError(err):
+					g.WithError(err).WithField("event", event).
+						Error("Failed to EmitAuditEvent due to a permanent error. Event wil be omitted.")
+					continue
+				default:
+					return trace.Wrap(err)
+				}
 			}
 			event.Size()
 			processed += int64(event.Size())
