@@ -162,7 +162,7 @@ teleport:
         audit_events_uri: ['dynamodb://events_table_name', 'firestore://events_table_name', 'file:///var/lib/teleport/log', 'stdout://']
 
         # Use this setting to configure teleport to store the recorded sessions
-        # in an AWS S3 bucket or use GCP Storage with 'gs://'. See "Storage backends" for more information
+        # in an AWS S3 bucket or use GCP Storage with 'gs://'. See the S3 section on "Storage backends" for more information
         # (https://goteleport.com/docs/setup/reference/backends/#s3).
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
