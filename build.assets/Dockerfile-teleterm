@@ -16,8 +16,8 @@ RUN BIN="/usr/local/bin" && \
 
 # Install node
 ARG NODE_VERSION
-ENV NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
-ENV NODE_PATH="/usr/local/lib/node-${NODE_VERSION}-linux-${BUILDARCH}"
+ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
+ENV NODE_PATH="/usr/local/lib/node-v${NODE_VERSION}-linux-${BUILDARCH}"
 ENV PATH="$PATH:${NODE_PATH}/bin"
 RUN (curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib)
 

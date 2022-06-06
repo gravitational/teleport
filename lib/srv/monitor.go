@@ -198,9 +198,6 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 					reason = fmt.Sprintf("client is idle for %v, exceeded idle timeout of %v",
 						since, w.ClientIdleTimeout)
 				}
-				if err := w.emitDisconnectEvent(reason); err != nil {
-					w.Entry.WithError(err).Warn("Failed to emit audit event.")
-				}
 				if w.MessageWriter != nil && w.IdleTimeoutMessage != "" {
 					if _, err := w.MessageWriter.WriteString(w.IdleTimeoutMessage); err != nil {
 						w.Entry.WithError(err).Warn("Failed to send idle timeout message.")
@@ -209,6 +206,9 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 				w.Entry.Debugf("Disconnecting client: %v", reason)
 				if err := w.Conn.Close(); err != nil {
 					w.Entry.WithError(err).Error("Failed to close connection.")
+				}
+				if err := w.emitDisconnectEvent(reason); err != nil {
+					w.Entry.WithError(err).Warn("Failed to emit audit event.")
 				}
 				return
 			}
