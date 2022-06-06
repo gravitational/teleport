@@ -16,7 +16,7 @@ Ensure that your environment includes the following:
 <TabItem scope={["oss"]} label="Open Source">
 
 - A running Teleport cluster. For details on how to set this up, see one of our
-  [Getting Started](/docs/getting-started) guides. 
+  [Getting Started](/docs/getting-started) guides.
 
 - The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
 
@@ -43,7 +43,7 @@ Ensure that your environment includes the following:
   ```code
   $ tctl version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
-  
+
   $ tsh version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
@@ -61,7 +61,7 @@ Ensure that your environment includes the following:
   ```code
   $ tctl version
   # Teleport v(=cloud.version=) go(=teleport.golang=)
-  
+
   $ tsh version
   # Teleport v(=cloud.version=) go(=teleport.golang=)
   ```
@@ -358,7 +358,7 @@ Congratulations! You have just connected to your Redis instance.
 ## Snowflake: JetBrains (IntelliJ, Goland, DataGrip, PyCharm, etc.)
 
 <Admonition type="note">
-  Snowflake integration works only in the authenticated proxy mode. Remember to add `--tunnel` flag when starting the proxy, example:
+  Snowflake integration works only in the authenticated proxy mode. Remember to add the `--tunnel` flag when starting the proxy, example:
   ```
   tsh proxy db --tunnel --port 2000 snowflake
   ```
@@ -391,7 +391,7 @@ Congratulations! You have just connected to your Snowflake instance.
 ## Snowflake: DBeaver
 
 <Admonition type="note">
-  Snowflake integration works only in the authenticated proxy mode. Remember to add `--tunnel` flag when starting the proxy, example:
+  Snowflake integration works only in the authenticated proxy mode. Remember to add the `--tunnel` flag when starting the proxy, example:
   ```
   tsh proxy db --tunnel --port 2000 snowflake
   ```
