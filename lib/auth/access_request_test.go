@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -26,12 +27,15 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+
 	"github.com/gravitational/trace"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,13 +50,16 @@ func TestAccessRequest(t *testing.T) {
 	server, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
 
+	clusterName, err := server.Auth().GetClusterName()
+	require.NoError(t, err)
+
 	roleSpecs := map[string]types.RoleSpecV5{
 		// admins is the role to be requested
 		"admins": types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Logins: []string{"root"},
 				NodeLabels: types.Labels{
-					"owner": []string{"admins"},
+					"env": []string{"prod", "staging"},
 				},
 				ReviewRequests: &types.AccessReviewConditions{
 					Roles: []string{"admins"},
@@ -110,11 +117,27 @@ func TestAccessRequest(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	resourceIDs := []types.ResourceID{{
-		ClusterName: "cluster-one",
-		Kind:        "node",
-		Name:        "some-uuid",
-	}}
+	type nodeDesc struct {
+		labels map[string]string
+	}
+	nodes := map[string]nodeDesc{
+		"staging": nodeDesc{
+			labels: map[string]string{
+				"env": "staging",
+			},
+		},
+		"prod": nodeDesc{
+			labels: map[string]string{
+				"env": "prod",
+			},
+		},
+	}
+	for nodeName, desc := range nodes {
+		node, err := types.NewServerWithLabels(nodeName, types.KindNode, types.ServerSpecV2{}, desc.labels)
+		require.NoError(t, err)
+		_, err = server.Auth().UpsertNode(context.Background(), node)
+		require.NoError(t, err)
+	}
 
 	privKey, pubKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
@@ -126,7 +149,8 @@ func TestAccessRequest(t *testing.T) {
 		expectRequestableRoles []string
 		requestRoles           []string
 		expectRoles            []string
-		requestResources       []types.ResourceID
+		expectNodes            []string
+		requestResources       []string
 		expectRequestError     error
 		expectReviewError      error
 	}{
@@ -137,6 +161,7 @@ func TestAccessRequest(t *testing.T) {
 			expectRequestableRoles: []string{"admins"},
 			requestRoles:           []string{"admins"},
 			expectRoles:            []string{"operators", "admins"},
+			expectNodes:            []string{"prod", "staging"},
 		},
 		{
 			desc:               "no requestable roles",
@@ -160,16 +185,33 @@ func TestAccessRequest(t *testing.T) {
 			expectReviewError:      trace.AccessDenied(`user "operator" cannot submit reviews`),
 		},
 		{
-			desc:             "search-based request",
+			desc:             "search-based request for staging",
 			requester:        "responder",
 			reviewer:         "admin",
-			requestResources: resourceIDs,
+			requestResources: []string{"staging"},
 			expectRoles:      []string{"responders", "admins"},
+			expectNodes:      []string{"staging"},
+		},
+		{
+			desc:             "search-based request for prod",
+			requester:        "responder",
+			reviewer:         "admin",
+			requestResources: []string{"prod"},
+			expectRoles:      []string{"responders", "admins"},
+			expectNodes:      []string{"prod"},
+		},
+		{
+			desc:             "search-based request for both",
+			requester:        "responder",
+			reviewer:         "admin",
+			requestResources: []string{"prod", "staging"},
+			expectRoles:      []string{"responders", "admins"},
+			expectNodes:      []string{"prod", "staging"},
 		},
 		{
 			desc:               "no search_as_roles",
 			requester:          "nobody",
-			requestResources:   resourceIDs,
+			requestResources:   []string{"prod"},
 			expectRequestError: trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`),
 		},
 	}
@@ -198,6 +240,11 @@ func TestAccessRequest(t *testing.T) {
 			// should have no logins, requests, or resources in ssh cert
 			checkCerts(t, certs, userDesc[tc.requester].roles, nil, nil, nil)
 
+			// should not be able to list any nodes
+			nodes, err := requesterClient.GetNodes(ctx, defaults.Namespace)
+			require.NoError(t, err)
+			require.Empty(t, nodes)
+
 			// requestable roles should be correct
 			caps, err := requesterClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
 				RequestableRoles: true,
@@ -206,7 +253,15 @@ func TestAccessRequest(t *testing.T) {
 			require.Equal(t, tc.expectRequestableRoles, caps.RequestableRoles)
 
 			// create the access request object
-			req, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, tc.requestResources)
+			requestResourceIDs := []types.ResourceID{}
+			for _, nodeName := range tc.requestResources {
+				requestResourceIDs = append(requestResourceIDs, types.ResourceID{
+					ClusterName: clusterName.GetClusterName(),
+					Kind:        types.KindNode,
+					Name:        nodeName,
+				})
+			}
+			req, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, requestResourceIDs)
 			require.NoError(t, err)
 
 			// send the request to the auth server
@@ -249,11 +304,21 @@ func TestAccessRequest(t *testing.T) {
 				tc.expectRoles,
 				[]string{"root"},
 				[]string{req.GetName()},
-				tc.requestResources)
+				requestResourceIDs)
 
 			elevatedCert, err := tls.X509KeyPair(certs.TLS, privKey)
 			require.NoError(t, err)
 			elevatedClient := server.NewClientWithCert(elevatedCert)
+
+			// should be able to list the expected nodes
+			nodes, err = elevatedClient.GetNodes(ctx, defaults.Namespace)
+			require.NoError(t, err)
+			gotNodes := []string{}
+			for _, node := range nodes {
+				gotNodes = append(gotNodes, node.GetName())
+			}
+			sort.Strings(gotNodes)
+			require.Equal(t, tc.expectNodes, gotNodes)
 
 			// renew elevated certs
 			newCerts, err := elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -265,14 +330,14 @@ func TestAccessRequest(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// inspite of providing no access requests, we still have elevated
+			// in spite of providing no access requests, we still have elevated
 			// roles and the certicate shows the original access request
 			checkCerts(t,
 				newCerts,
 				tc.expectRoles,
 				[]string{"root"},
 				[]string{req.GetName()},
-				tc.requestResources)
+				requestResourceIDs)
 
 			// attempt to apply request in DENIED state (should fail)
 			require.NoError(t, server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
@@ -357,12 +422,8 @@ func checkCerts(t *testing.T,
 	require.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
 
 	// Make sure both certs have the expected allowed resources, if any.
-	for _, certResourcesStr := range []string{
-		sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources],
-		tlsIdentity.AllowedResourceIDs,
-	} {
-		certResources, err := services.ResourceIDsFromString(certResourcesStr)
-		require.NoError(t, err)
-		require.ElementsMatch(t, resourceIDs, certResources)
-	}
+	sshCertAllowedResources, err := types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+	require.NoError(t, err)
+	require.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
+	require.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
 }

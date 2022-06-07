@@ -345,7 +345,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
 	if fc.CASignatureAlgorithm != nil {
-		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
+		log.Warn("ca_signing_algo config option is deprecated and will be removed in a future release, Teleport defaults to rsa-sha2-512.")
 	}
 
 	// Read in how nodes will validate the CA. A single empty string in the file
@@ -611,6 +611,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
+		TunnelStrategy:           fc.Auth.TunnelStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -745,6 +746,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MongoAddr = *addr
+	}
+	if fc.Proxy.PeerAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerAddr, int(defaults.ProxyPeeringListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PeerAddr = *addr
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -1360,6 +1368,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
+
+	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
+		if !types.IsValidLabelKey(attributeName) {
+			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+		}
+	}
+
 	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
 
 	var err error
@@ -1485,8 +1500,6 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
 			}},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

@@ -42,6 +42,7 @@ var (
 	listenerProxyMySQL        = listenerType(teleport.Component(teleport.ComponentProxy, "mysql"))
 	listenerProxyPostgres     = listenerType(teleport.Component(teleport.ComponentProxy, "postgres"))
 	listenerProxyMongo        = listenerType(teleport.Component(teleport.ComponentProxy, "mongo"))
+	listenerProxyPeer         = listenerType(teleport.Component(teleport.ComponentProxy, "peer"))
 	listenerMetrics           = listenerType(teleport.ComponentMetrics)
 	listenerWindowsDesktop    = listenerType(teleport.ComponentWindowsDesktop)
 )
@@ -90,6 +91,11 @@ func (process *TeleportProcess) ProxyTunnelAddr() (*utils.NetAddr, error) {
 		return addr, nil
 	}
 	return process.registeredListenerAddr(listenerProxyTunnel)
+}
+
+// ProxyTunnelAddr returns the proxy peer address, if configured and started.
+func (process *TeleportProcess) ProxyPeerAddr() (*utils.NetAddr, error) {
+	return process.registeredListenerAddr(listenerProxyPeer)
 }
 
 func (process *TeleportProcess) registeredListenerAddr(typ listenerType) (*utils.NetAddr, error) {
