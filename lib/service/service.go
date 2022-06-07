@@ -1679,6 +1679,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentCache,
 		Backend:   mem,
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentCache),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4091,6 +4092,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentBackend,
 		Backend:   backend.NewSanitizer(bk),
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
