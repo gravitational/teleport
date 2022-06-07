@@ -644,6 +644,7 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if r.Spec.Options.RecordSession == nil {
 		r.Spec.Options.RecordSession = &RecordSession{
 			Desktop: NewBoolOption(true),
+			Default: constants.SessionRecordingModeBestEffort,
 		}
 	}
 	if r.Spec.Options.DesktopClipboard == nil {
