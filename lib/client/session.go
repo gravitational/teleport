@@ -102,7 +102,6 @@ func newSession(client *NodeClient,
 	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
-	legacyID bool,
 	enableEscapeSequences bool,
 ) (*NodeSession, error) {
 	// Initialize the terminal. Note that at this point, we don't know if this
@@ -149,15 +148,7 @@ func newSession(client *NodeClient,
 	} else {
 		sid, ok := ns.env[sshutils.SessionEnvVar]
 		if !ok {
-			// DELETE IN: 4.1.0.
-			//
-			// Always send UUIDv4 after 4.1.
-			if legacyID {
-				sid = string(session.NewLegacyID())
-			} else {
-				sid = string(session.NewID())
-			}
-
+			sid = string(session.NewID())
 		}
 		ns.id = session.ID(sid)
 	}

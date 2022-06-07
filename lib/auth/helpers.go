@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -90,17 +91,8 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 
 // CreateUploaderDir creates directory for file uploader service
 func CreateUploaderDir(dir string) error {
-	// DELETE IN(5.1.0)
-	// this folder is no longer used past 5.0 upgrade
-	err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.SessionLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	err = os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 
@@ -566,6 +558,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -770,6 +763,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*Client,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -811,6 +805,7 @@ func (t *TestTLSServer) CloneClient(clt *Client) *Client {
 		Credentials: []client.Credentials{
 			client.LoadTLS(clt.Config()),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		panic(err)
@@ -831,6 +826,7 @@ func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		panic(err)
@@ -851,6 +847,7 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

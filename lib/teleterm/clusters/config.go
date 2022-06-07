@@ -46,7 +46,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "teleterm: storage")
+		c.Log = logrus.WithField(trace.Component, "conn:storage")
 	}
 
 	return nil

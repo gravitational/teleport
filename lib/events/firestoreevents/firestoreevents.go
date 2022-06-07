@@ -565,12 +565,6 @@ type searchEventsFilter struct {
 	condition  utils.FieldsCondition
 }
 
-// WaitForDelivery waits for resources to be released and outstanding requests to
-// complete after calling Close method
-func (l *Log) WaitForDelivery(ctx context.Context) error {
-	return nil
-}
-
 func (l *Log) getIndexParent() string {
 	return "projects/" + l.ProjectID + "/databases/(default)/collectionGroups/" + l.CollectionName
 }

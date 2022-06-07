@@ -717,10 +717,12 @@ func TestMakeSampleFileConfig(t *testing.T) {
 
 	t.Run("Token", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
-			AuthToken: "auth-token",
+			AuthToken:  "auth-token",
+			JoinMethod: "token",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "auth-token", fc.AuthToken)
+		require.Equal(t, "auth-token", fc.JoinParams.TokenName)
+		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
 	})
 
 	t.Run("App name and URI", func(t *testing.T) {
