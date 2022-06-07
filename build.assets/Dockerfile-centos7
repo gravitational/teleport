@@ -68,8 +68,10 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y epel-release && \
     yum install -y \
         git \
+        cmake3 \
         libatomic \
         net-tools \
         pam-devel \
@@ -84,7 +86,18 @@ RUN yum groupinstall -y 'Development Tools' && \
         which \
     yum clean all
 
-RUN yum install -y devtoolset-11-gcc* && yum clean all
+RUN yum install -y devtoolset-11-gcc* devtoolset-11-make && yum clean all
+
+
+# Compile Clang from source as Centos 7 doesn't provide any packages.
+# LLVM_INCLUDE_BENCHMARKS must be off, otherwise comilations fails.
+RUN git clone --branch llvmorg-10.0.1 --depth=1 https://github.com/llvm/llvm-project.git && \
+    cd llvm-project/ && \ 
+    mkdir build && \
+    cd build/ && \
+    scl enable devtoolset-11 'bash -c "cmake3 -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_BUILD_TYPE=Release -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_ENABLE_PROJECTS=clang -DLLVM_TOOL_LLI_BUILD=OFF -G \"Unix Makefiles\" ../llvm && \
+    time make -j24 && make install && \
+    cd ../.. rm -rf llvm-project"'
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
