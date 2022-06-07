@@ -121,6 +121,9 @@ message Event {
         types.AppServerV3 AppServer = 29 [ (gogoproto.jsontag) = "app_server,omitempty" ];
         // App is an application resource.
         types.AppV3 App = 30 [ (gogoproto.jsontag) = "app,omitempty" ];
+        // SnowflakeSession is a Snowflake web session.
+        types.WebSessionV2 SnowflakeSession = 31
+            [ (gogoproto.jsontag) = "snowflake_session,omitempty" ];
     }
 }
 
@@ -641,6 +644,12 @@ message GetAppSessionsResponse {
     repeated types.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
 }
 
+// GetSnowflakeSessionsResponse contains all the requested Snowflake web sessions.
+message GetSnowflakeSessionsResponse {
+    // Sessions is a list of Snowflake web sessions.
+    repeated types.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
+}
+
 // CreateAppSessionRequest contains the parameters to request a application web session.
 message CreateAppSessionRequest {
     reserved 2;
@@ -660,8 +669,40 @@ message CreateAppSessionResponse {
     types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
 }
 
+// CreateSnowflakeSessionRequest contains data required to create Snowflake web session.
+message CreateSnowflakeSessionRequest {
+    // Username is the name of the user requesting the session.
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    // SessionToken is the Snowflake server session token.
+    string SessionToken = 2 [ (gogoproto.jsontag) = "session_token" ];
+    // TokenTTL is the token validity period.
+    int64 TokenTTL = 3 [ (gogoproto.jsontag) = "token_ttl", (gogoproto.casttype) = "Duration" ];
+}
+
+// CreateSnowflakeSessionResponse contains Snowflake WebSession.
+message CreateSnowflakeSessionResponse {
+    types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
+// GetSnowflakeSessionRequest are the parameters used to request an Snowflake web session.
+message GetSnowflakeSessionRequest {
+    // SessionID is the ID of the session being requested.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+}
+
+// GetSnowflakeSessionResponse contains the requested Snowflake web session.
+message GetSnowflakeSessionResponse {
+    // Session is the Snowflake web session.
+    types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
+
+// DeleteSnowflakeSessionRequest contains the parameters used to remove a Snowflake web session.
+message DeleteSnowflakeSessionRequest {
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+}
 
 // DeleteUserAppSessionsRequest contains the parameters used to remove the
 // user's application web sessions.
@@ -806,6 +847,15 @@ message DatabaseCertResponse {
     // CACerts is a list of certificate authorities.
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
 }
+
+// SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.
+message SnowflakeJWTRequest {
+    string AccountName = 1 [ (gogoproto.jsontag) = "account_name" ];
+    string UserName = 2 [ (gogoproto.jsontag) = "user_name" ];
+}
+
+// SnowflakeJWTResponse contains signed JWT that can be used for Snowflake authentication.
+message SnowflakeJWTResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
 
 // GetRoleRequest is a request to query a role.
 message GetRoleRequest {
@@ -1843,6 +1893,19 @@ service AuthService {
     // DeleteUserAppSessions deletes all user’s application sessions.
     rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
 
+    // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
+    // Snowflake integration.
+    rpc CreateSnowflakeSession(CreateSnowflakeSessionRequest)
+        returns (CreateSnowflakeSessionResponse);
+    // GetSnowflakeSession returns a web session with sub kind Snowflake.
+    rpc GetSnowflakeSession(GetSnowflakeSessionRequest) returns (GetSnowflakeSessionResponse);
+    // GetSnowflakeSessions gets all Snowflake web sessions.
+    rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse);
+    // DeleteSnowflakeSession removes a Snowflake web session.
+    rpc DeleteSnowflakeSession(DeleteSnowflakeSessionRequest) returns (google.protobuf.Empty);
+    // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
+    rpc DeleteAllSnowflakeSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
     // GetWebSession gets a web session.
     rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
     // GetWebSessions gets all web sessions.
@@ -1899,6 +1962,8 @@ service AuthService {
     // GenerateDatabaseCert generates client certificate used by a database
     // service to authenticate with the database instance.
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
+    /// GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
+    rpc GenerateSnowflakeJWT(SnowflakeJWTRequest) returns (SnowflakeJWTResponse);
 
     // GetRole retrieves a role described by the given request.
     rpc GetRole(GetRoleRequest) returns (types.RoleV5);

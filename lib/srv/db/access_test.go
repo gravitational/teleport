@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
+	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -924,61 +926,6 @@ func TestPostgresInjectionUser(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestCompatibilityWithOldAgents verifies that older database agents where
-// each database was represented as a DatabaseServer are supported.
-//
-// DELETE IN 9.0.
-func TestCompatibilityWithOldAgents(t *testing.T) {
-	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t)
-	go testCtx.startProxy()
-
-	postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
-		Name:       "postgres",
-		AuthClient: testCtx.authClient,
-	})
-	require.NoError(t, err)
-	go postgresServer.Serve()
-	t.Cleanup(func() { postgresServer.Close() })
-
-	database, err := types.NewDatabaseV3(types.Metadata{
-		Name: "postgres",
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      net.JoinHostPort("localhost", postgresServer.Port()),
-	})
-	require.NoError(t, err)
-	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
-		Databases: []types.Database{database},
-		GetServerInfoFn: func(database types.Database) func() (types.Resource, error) {
-			return func() (types.Resource, error) {
-				return types.NewDatabaseServerV3(types.Metadata{
-					Name: database.GetName(),
-				}, types.DatabaseServerSpecV3{
-					Protocol: database.GetProtocol(),
-					URI:      database.GetURI(),
-					HostID:   testCtx.hostID,
-					Hostname: constants.APIDomain,
-				})
-			}
-		},
-	})
-	go func() {
-		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
-			go databaseServer.HandleConnection(conn)
-		}
-	}()
-
-	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"postgres"}, []string{"postgres"})
-
-	// Make sure we can connect successfully.
-	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
-	require.NoError(t, err)
-
-	err = psql.Close(ctx)
-	require.NoError(t, err)
-}
-
 func TestRedisGetSet(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
@@ -1279,6 +1226,8 @@ type testContext struct {
 	redis map[string]testRedis
 	// sqlServer is a collection of SQL Server databases the test uses.
 	sqlServer map[string]testSQLServer
+	// snowflake is a collection of Snowflake databases the test uses.
+	snowflake map[string]testSnowflake
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1320,6 +1269,13 @@ type testSQLServer struct {
 	// db is the test SQLServer database server.
 	db *sqlserver.TestServer
 	// resource is the resource representing this SQL Server database
+	resource types.Database
+}
+
+type testSnowflake struct {
+	// db is the test Snowflake database server.
+	db *snowflake.TestServer
+	// resource is the resource representing this Snowflake database.
 	resource types.Database
 }
 
@@ -1631,6 +1587,35 @@ func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, telepo
 	return proxy, nil
 }
 
+// snowflakeClient returns a Snowflake test DB client.
+func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*sql.DB, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolSnowflake,
+		Username:    dbUser,
+		Database:    dbName,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	db, err := snowflake.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return db, proxy, nil
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
@@ -1690,6 +1675,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		mongo:       make(map[string]testMongoDB),
 		redis:       make(map[string]testRedis),
 		sqlServer:   make(map[string]testSQLServer),
+		snowflake:   make(map[string]testSnowflake),
 		clock:       clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
