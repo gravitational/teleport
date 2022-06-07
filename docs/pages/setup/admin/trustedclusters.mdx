@@ -101,7 +101,7 @@ and the "leaf" cluster:
 
 ![Tunnels](../../../img/tunnel.svg)
 
-This setup works as follows. The "leaf" creates an outbound reverse SSH tunnel
+This setup works as follows: the "leaf" creates an outbound reverse SSH tunnel
 to "root" and keeps the tunnel open. When a user tries to connect to a Node
 inside "leaf" using the root's Proxy Service, the reverse tunnel is used to establish
 this connection shown as the green line above.
@@ -163,8 +163,8 @@ configuration file or to create them on the fly using the `tctl` tool.
 
 ### Static join tokens
 
-To create a static join token, update the configuration file on "root" cluster
-to look like this:
+To create a static join token, update the configuration file on the "root"
+cluster to look like this:
 
 ```yaml
 # fragment of /etc/teleport.yaml:
@@ -260,7 +260,8 @@ an expiration time of 5 minutes.
 Users of Teleport will recognize that this is the same way you would add any
 Node to a cluster. 
 
-Now, the administrator of "leaf" must create the following resource file:
+Now, the administrator of the leaf cluster must create the following
+resource file:
 
 ```yaml
 # cluster.yaml
