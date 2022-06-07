@@ -85,6 +85,11 @@ A minimal, _oci-compatible_ registry could be implemented through just CloudFron
 
 A negative to this solution is the lack of features that come standard with other registry solutions. This includes, but is not limited to, vulnerability scanning and tag immutability. Additionally, discoverability would be a missing feature from this solution.
 
+#### Artifact Registry / Google Container Registry
+[GCR](https://cloud.google.com/container-registry) and [Artifact Registry](https://cloud.google.com/artifact-registry) are Google's container registry solution where the former is a subset of the latters capabilities. They support [vulnerability scanning](https://cloud.google.com/artifact-registry/docs/analysis) for a [cost](https://cloud.google.com/container-analysis/pricing), but lack tag immutability. 
+
+With support for multi-regional deployment, GCR / Artifact Registry provide a similar experience for both the Teleport team and our customers. However, due to Teleports stronger operational experience using AWS, we recommend ECR over GCR / Artifact Registry.
+
 ### Appendix A: Example Terraform
 ```hcl
 # Internal Repository for Teleport
