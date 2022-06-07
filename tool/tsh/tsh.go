@@ -3014,14 +3014,14 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	if debug {
-		count = 0
+		first := true
 		for k, v := range p.CriticalOptions {
-			if count == 0 {
+			if first {
 				fmt.Printf("  Critical options:   %v: %v\n", k, v)
 			} else {
 				fmt.Printf("                      %v: %v\n", k, v)
 			}
-			count = count + 1
+			first = false
 		}
 	}
 

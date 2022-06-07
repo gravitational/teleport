@@ -166,6 +166,8 @@ type AccessChecker interface {
 
 	// SessionRecordingMode returns the recording mode for a specific service.
 	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
+
+	PinSourceIP() bool
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
