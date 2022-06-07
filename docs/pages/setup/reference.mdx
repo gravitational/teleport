@@ -26,11 +26,16 @@ layout: tocless-doc
   <li>
     [Authentication](./reference/authentication.mdx). Cluster authentication options.
   </li>
+  <ScopedBlock scope={["oss", "enterprise"]}>
   <li>
     [Backends](./reference/backends.mdx). Supported storage backends.
   </li>
+  </ScopedBlock>
   <li>
     [Networking](./reference/networking.mdx). Ports, protocols and networking requirements.
+  </li>
+  <li>
+    [Signals](./reference/signals.mdx). Signals you can send to the `teleport` daemon.
   </li>
   <li>
     [Predicate Language](./reference/predicate-language.mdx). The language used to define filter conditions.

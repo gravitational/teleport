@@ -25,13 +25,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gokyle/hotp"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+
+	"github.com/gokyle/hotp"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -390,7 +391,7 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	}
 	// each user has multiple related entries in the backend,
 	// so use DeleteRange to make sure we get them all
-	startKey := backend.Key(webPrefix, usersPrefix, user)
+	startKey := backend.ExactKey(webPrefix, usersPrefix, user)
 	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
@@ -1057,11 +1058,11 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 }
 
 // GetOIDCAuthRequest returns OIDC auth request
-func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCAuthRequest, error) {
+func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*services.OIDCAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1070,27 +1071,6 @@ func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCA
 		return nil, trace.Wrap(err)
 	}
 	return &req, nil
-}
-
-// CreateSAMLConnector creates SAML Connector
-func (s *IdentityService) CreateSAMLConnector(connector types.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalSAMLConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // UpsertSAMLConnector upserts SAML Connector
@@ -1200,11 +1180,11 @@ func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, tt
 }
 
 // GetSAMLAuthRequest returns SAML auth request if found
-func (s *IdentityService) GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error) {
+func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing parameter id")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, id))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, id))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1215,25 +1195,60 @@ func (s *IdentityService) GetSAMLAuthRequest(id string) (*services.SAMLAuthReque
 	return &req, nil
 }
 
-// CreateGithubConnector creates a new Github connector
-func (s *IdentityService) CreateGithubConnector(connector types.GithubConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+// CreateSSODiagnosticInfo creates new SAML diagnostic info record.
+func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error {
+	if authRequestID == "" {
+		return trace.BadParameter("missing parameter authRequestID")
 	}
-	value, err := services.MarshalGithubConnector(connector)
+
+	switch authKind {
+	case types.KindSAML, types.KindGithub, types.KindOIDC:
+		// nothing to do
+	default:
+		return trace.BadParameter("unsupported authKind %q", authKind)
+	}
+
+	jsonValue, err := json.Marshal(entry)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
+		Key:     backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID),
+		Value:   jsonValue,
+		Expires: backend.Expiry(s.Clock(), time.Minute*15),
 	}
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetSSODiagnosticInfo returns SSO diagnostic info records.
+func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
+	if authRequestID == "" {
+		return nil, trace.BadParameter("missing parameter authRequestID")
+	}
+
+	switch authKind {
+	case types.KindSAML, types.KindGithub, types.KindOIDC:
+		// nothing to do
+	default:
+		return nil, trace.BadParameter("unsupported authKind %q", authKind)
+	}
+
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req types.SSODiagnosticInfo
+	if err := json.Unmarshal(item.Value, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &req, nil
 }
 
 // UpsertGithubConnector creates or updates a Github connector
@@ -1332,11 +1347,11 @@ func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest
 }
 
 // GetGithubAuthRequest retrieves Github auth request by the token
-func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.GithubAuthRequest, error) {
+func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken string) (*services.GithubAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1485,6 +1500,7 @@ const (
 	samlPrefix                = "saml"
 	githubPrefix              = "github"
 	requestsPrefix            = "requests"
+	requestsTracePrefix       = "requestsTrace"
 	usedTOTPPrefix            = "used_totp"
 	usedTOTPTTL               = 30 * time.Second
 	mfaDevicePrefix           = "mfa"

@@ -1,9 +1,12 @@
 <Tabs>
 <TabItem scope={["oss"]} label="Open Source">
 
-- The `tsh` client tool version >= (=teleport.version=).
+- The `tctl` and `tsh` client tools version >= (=teleport.version=).
 
   ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+
   $ tsh version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
@@ -18,11 +21,14 @@
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
-- The `tsh` client tool version >= (=teleport.version=), which you can download
-  by visiting the
+- The `tctl` and `tsh` client tools version >= (=teleport.version=), which you
+  can download by visiting the
   [customer portal](https://dashboard.gravitational.com/web/login).
 
   ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+
   $ tsh version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
@@ -35,16 +41,16 @@
 <TabItem scope={["cloud"]}
   label="Teleport Cloud">
 
-- The `tctl` and `tsh` client tools version >= (=teleport.version=).
+- The `tctl` and `tsh` client tools version >= (=cloud.version=).
 
   You can download these from [Teleport Cloud Downloads](/docs/cloud/downloads).
 
   ```code
   $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  # Teleport v(=cloud.version=) go(=teleport.golang=)
 
   $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  # Teleport v(=cloud.version=) go(=teleport.golang=)
   ```
 
 </TabItem>

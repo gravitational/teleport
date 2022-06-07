@@ -34,6 +34,8 @@ import (
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
 var computerAttribtes = []string{
 	attrName,
+	attrCommonName,
+	attrDistinguishedName,
 	attrDNSHostName,
 	attrObjectGUID,
 	attrOS,
@@ -53,12 +55,14 @@ const (
 	writableDomainControllerGroupID = "516"
 	readOnlyDomainControllerGroupID = "521"
 
-	attrName           = "name"
-	attrDNSHostName    = "dNSHostName" // unusual capitalization is correct
-	attrObjectGUID     = "objectGUID"
-	attrOS             = "operatingSystem"
-	attrOSVersion      = "operatingSystemVersion"
-	attrPrimaryGroupID = "primaryGroupID"
+	attrName              = "name"
+	attrCommonName        = "cn"
+	attrDistinguishedName = "distinguishedName"
+	attrDNSHostName       = "dNSHostName" // unusual capitalization is correct
+	attrObjectGUID        = "objectGUID"
+	attrOS                = "operatingSystem"
+	attrOSVersion         = "operatingSystemVersion"
+	attrPrimaryGroupID    = "primaryGroupID"
 )
 
 // startDesktopDiscovery starts fetching desktops from LDAP, periodically
@@ -177,11 +181,21 @@ func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWith
 }
 
 func applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
+	labels[types.OriginLabel] = types.OriginDynamic
+
 	labels[types.TeleportNamespace+"/dns_host_name"] = entry.GetAttributeValue(attrDNSHostName)
 	labels[types.TeleportNamespace+"/computer_name"] = entry.GetAttributeValue(attrName)
 	labels[types.TeleportNamespace+"/os"] = entry.GetAttributeValue(attrOS)
 	labels[types.TeleportNamespace+"/os_version"] = entry.GetAttributeValue(attrOSVersion)
-	labels[types.OriginLabel] = types.OriginDynamic
+
+	dn := entry.GetAttributeValue(attrDistinguishedName)
+	cn := entry.GetAttributeValue(attrCommonName)
+
+	if len(dn) > 0 && len(cn) > 0 {
+		ou := strings.TrimPrefix(dn, "CN="+cn+",")
+		labels[types.TeleportNamespace+"/ou"] = ou
+	}
+
 	switch entry.GetAttributeValue(attrPrimaryGroupID) {
 	case writableDomainControllerGroupID, readOnlyDomainControllerGroupID:
 		labels[types.TeleportNamespace+"/is_domain_controller"] = "true"

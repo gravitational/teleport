@@ -55,6 +55,8 @@ const (
 	redisBin = "redis-cli"
 	// mssqlBin is the SQL Server client program name.
 	mssqlBin = "mssql-cli"
+	// snowsqlBin is the Snowflake client program name.
+	snowsqlBin = "snowsql"
 )
 
 // execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -166,6 +168,9 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolSQLServer:
 		return c.getSQLServerCommand(), nil
+
+	case defaults.ProtocolSnowflake:
+		return c.getSnowflakeCommand(), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -381,17 +386,17 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 			flags.tlsCertKeyFile,
 			c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName))
 
-		// mongosh does not load system CAs by default which will cause issues if
-		// the proxy presents a certificate signed by a non-recognized authority
-		// which your system trusts (e.g. mkcert).
-		if hasMongosh {
-			args = append(args, "--tlsUseSystemCA")
-		}
-
 		if c.options.caPath != "" {
 			// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
 			// and connection is terminated by proxy identity certificate.
 			args = append(args, []string{flags.tlsCAFile, c.options.caPath}...)
+		} else {
+			// mongosh does not load system CAs by default which will cause issues if
+			// the proxy presents a certificate signed by a non-recognized authority
+			// which your system trusts (e.g. mkcert).
+			if hasMongosh {
+				args = append(args, "--tlsUseSystemCA")
+			}
 		}
 	}
 
@@ -456,6 +461,24 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	return c.exe.Command(mssqlBin, args...)
 }
 
+func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
+	args := []string{
+		"-a", "teleport", // Account name doesn't matter as it will be overridden in the backend anyway.
+		"-u", c.db.Username,
+		"-h", c.host,
+		"-p", strconv.Itoa(c.port),
+	}
+
+	if c.db.Database != "" {
+		args = append(args, "-w", c.db.Database)
+	}
+
+	cmd := exec.Command(snowsqlBin, args...)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SNOWSQL_PWD=%s", c.uid.New()))
+
+	return cmd
+}
+
 type connectionCommandOpts struct {
 	localProxyPort           int
 	localProxyHost           string
@@ -511,11 +534,11 @@ func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 }
 
 // WithTolerateMissingCLIClient is the connect command option that makes CLICommandBuilder not
-// return an error in case a specific binary couldn't be found in the system. Instead it should
+// return an error in case a specific binary couldn't be found in the system. Instead, it should
 // return the command with just a base version of the binary name, without an absolute path.
 //
 // In general CLICommandBuilder doesn't return an error in that scenario as it uses exec.Command
-// underneath. However, there are some specific situations where we need to execute some of the
+// underneath. However, there are some specific situations where we need to execute some
 // binaries before returning the final command.
 //
 // The flag is mostly for scenarios where the caller doesn't care that the final command might not

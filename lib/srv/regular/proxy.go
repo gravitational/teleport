@@ -18,6 +18,7 @@ package regular
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,10 +31,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -198,7 +202,7 @@ func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest)
 		req.clusterName = ctx.Identity.RouteToCluster
 	}
 	if req.clusterName != "" && srv.proxyTun != nil {
-		_, err := srv.tunnelWithRoles(ctx).GetSite(req.clusterName)
+		_, err := srv.tunnelWithAccessChecker(ctx).GetSite(req.clusterName)
 		if err != nil {
 			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q", req.clusterName)
 		}
@@ -223,7 +227,7 @@ func (t *proxySubsys) String() string {
 
 // Start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
 // a mapping connection between a client & remote node we're proxying to)
-func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	// once we start the connection, update logger to include component fields
 	t.log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentSubsystemProxy,
@@ -237,12 +241,12 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	var (
 		site       reversetunnel.RemoteSite
 		err        error
-		tunnel     = t.srv.tunnelWithRoles(ctx)
+		tunnel     = t.srv.tunnelWithAccessChecker(serverContext)
 		clientAddr = sconn.RemoteAddr()
 	)
 	// did the client pass us a true client IP ahead of time via an environment variable?
 	// (usually the web client would do that)
-	trueClientIP, ok := ctx.GetEnv(sshutils.TrueClientAddrVar)
+	trueClientIP, ok := serverContext.GetEnv(sshutils.TrueClientAddrVar)
 	if ok {
 		a, err := utils.ParseAddr(trueClientIP)
 		if err == nil {
@@ -276,7 +280,7 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 		return t.proxyToHost(ctx, site, clientAddr, ch)
 	}
 	// connect to a site's auth server:
-	return t.proxyToSite(ctx, site, clientAddr, ch)
+	return t.proxyToSite(serverContext, site, clientAddr, ch)
 }
 
 // proxyToSite establishes a proxy connection from the connected SSH client to the
@@ -313,7 +317,7 @@ func (t *proxySubsys) proxyToSite(
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
 func (t *proxySubsys) proxyToHost(
-	ctx *srv.ServerContext, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
+	ctx context.Context, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
 	//
 	// first, lets fetch a list of servers at the given site. this allows us to
 	// match the given "host name" against node configuration (their 'nodename' setting)
@@ -322,20 +326,17 @@ func (t *proxySubsys) proxyToHost(
 	// network resolution (by IP or DNS)
 	//
 	var (
-		strategy types.RoutingStrategy
-		servers  []types.Server
-		err      error
+		strategy    types.RoutingStrategy
+		nodeWatcher *services.NodeWatcher
+		err         error
 	)
 	localCluster, _ := t.srv.proxyAccessPoint.GetClusterName()
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {
-		servers, err = t.srv.proxyAccessPoint.GetNodes(ctx.CancelContext(), t.namespace)
-		if err != nil {
-			t.log.Warn(err)
-		}
+		nodeWatcher = t.srv.nodeWatcher
 
-		cfg, err := t.srv.authService.GetClusterNetworkingConfig(ctx.CancelContext())
+		cfg, err := t.srv.authService.GetClusterNetworkingConfig(ctx)
 		if err != nil {
 			t.log.Warn(err)
 		} else {
@@ -347,12 +348,14 @@ func (t *proxySubsys) proxyToHost(
 		if err != nil {
 			t.log.Warn(err)
 		} else {
-			servers, err = siteClient.GetNodes(ctx.CancelContext(), t.namespace)
+			watcher, err := site.NodeWatcher()
 			if err != nil {
 				t.log.Warn(err)
+			} else {
+				nodeWatcher = watcher
 			}
 
-			cfg, err := siteClient.GetClusterNetworkingConfig(ctx.CancelContext())
+			cfg, err := siteClient.GetClusterNetworkingConfig(ctx)
 			if err != nil {
 				t.log.Warn(err)
 			} else {
@@ -366,7 +369,7 @@ func (t *proxySubsys) proxyToHost(
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v, strategy=%s", t.host, t.port, t.SpecifiedPort(), strategy)
 
 	// determine which server to connect to
-	server, err := t.getMatchingServer(servers, strategy)
+	server, err := t.getMatchingServer(nodeWatcher, strategy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -380,11 +383,16 @@ func (t *proxySubsys) proxyToHost(
 
 	// Resolve the IP address to dial to because the hostname may not be
 	// DNS resolvable.
-	var serverAddr string
+	var (
+		serverAddr string
+		proxyIDs   []string
+	)
+
 	if server != nil {
 		// Add hostUUID.clusterName to list of principals.
 		serverID = fmt.Sprintf("%v.%v", server.GetName(), t.clusterName)
 		principals = append(principals, serverID)
+		proxyIDs = server.GetProxyIDs()
 
 		// Add IP address (if it exists) of the node to list of principals.
 		serverAddr = server.GetAddr()
@@ -420,6 +428,7 @@ func (t *proxySubsys) proxyToHost(
 		GetUserAgent: t.ctx.StartAgentChannel,
 		Address:      t.host,
 		ServerID:     serverID,
+		ProxyIDs:     proxyIDs,
 		Principals:   principals,
 		ConnType:     types.NodeTunnel,
 	})
@@ -430,7 +439,7 @@ func (t *proxySubsys) proxyToHost(
 
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH server
-	t.doHandshake(remoteAddr, ch, conn)
+	t.doHandshake(ctx, remoteAddr, ch, conn)
 
 	proxiedSessions.Inc()
 	go func() {
@@ -453,12 +462,22 @@ func (t *proxySubsys) proxyToHost(
 	return nil
 }
 
+// NodesGetter is a function that retrieves a subset of nodes matching
+// the filter criteria.
+type NodesGetter interface {
+	GetNodes(fn func(n services.Node) bool) []types.Server
+}
+
 // getMatchingServer determines the server to connect to from the provided servers. Duplicate entries are treated
 // differently based on strategy. Legacy behavior of returning an ambiguous error occurs if the strategy
 // is types.RoutingStrategy_UNAMBIGUOUS_MATCH. When the strategy is types.RoutingStrategy_MOST_RECENT then
 // the server that has heartbeated most recently will be returned instead of an error. If no matches are found then
 // both the types.Server and error returned will be nil.
-func (t *proxySubsys) getMatchingServer(servers []types.Server, strategy types.RoutingStrategy) (types.Server, error) {
+func (t *proxySubsys) getMatchingServer(watcher NodesGetter, strategy types.RoutingStrategy) (types.Server, error) {
+	if watcher == nil {
+		return nil, trace.NotFound("unable to retrieve nodes matching host %s", t.host)
+	}
+
 	// check if hostname is a valid uuid or EC2 node ID.  If it is, we will
 	// preferentially match by node ID over node hostname.
 	_, err := uuid.Parse(t.host)
@@ -466,35 +485,36 @@ func (t *proxySubsys) getMatchingServer(servers []types.Server, strategy types.R
 
 	ips, _ := net.LookupHost(t.host)
 
+	var unambiguousIDMatch bool
 	// enumerate and try to find a server with self-registered with a matching name/IP:
-	var matches []types.Server
-	for _, server := range servers {
+	matches := watcher.GetNodes(func(server services.Node) bool {
+		if unambiguousIDMatch {
+			return false
+		}
+
 		// If the host parameter is a UUID or EC2 node ID, and it matches the
 		// Node ID, treat this as an unambiguous match.
 		if hostIsUniqueID && server.GetName() == t.host {
-			matches = []types.Server{server}
-			break
+			unambiguousIDMatch = true
+			return true
 		}
 		// If the server has connected over a reverse tunnel, match only on hostname.
 		if server.GetUseTunnel() {
-			if t.host == server.GetHostname() {
-				matches = append(matches, server)
-			}
-			continue
+			return t.host == server.GetHostname()
 		}
 
 		ip, port, err := net.SplitHostPort(server.GetAddr())
 		if err != nil {
 			t.log.Errorf("Failed to parse address %q: %v.", server.GetAddr(), err)
-			continue
+			return false
 		}
 		if t.host == ip || t.host == server.GetHostname() || apiutils.SliceContainsStr(ips, ip) {
 			if !t.SpecifiedPort() || t.port == port {
-				matches = append(matches, server)
-				continue
+				return true
 			}
 		}
-	}
+		return false
+	})
 
 	var server types.Server
 	switch {
@@ -546,8 +566,8 @@ func (t *proxySubsys) Wait() error {
 
 // doHandshake allows a proxy server to send additional information (client IP)
 // to an SSH server before establishing a bridge
-func (t *proxySubsys) doHandshake(clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.ReadWriter) {
-	// on behalf of a client ask the server for it's version:
+func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.ReadWriter) {
+	// on behalf of a client ask the server for its version:
 	buff := make([]byte, sshutils.MaxVersionStringBytes)
 	n, err := serverConn.Read(buff)
 	if err != nil {
@@ -561,22 +581,23 @@ func (t *proxySubsys) doHandshake(clientAddr net.Addr, clientConn io.ReadWriter,
 	if bytes.HasPrefix(buff, []byte(sshutils.SSHVersionPrefix)) {
 		// if we're connecting to a Teleport SSH server, send our own "handshake payload"
 		// message, along with a client's IP:
-		hp := &sshutils.HandshakePayload{
-			ClientAddr: clientAddr.String(),
+		hp := &apisshutils.HandshakePayload{
+			ClientAddr:     clientAddr.String(),
+			TracingContext: tracing.PropagationContextFromContext(ctx),
 		}
 		payloadJSON, err := json.Marshal(hp)
 		if err != nil {
 			t.log.Error(err)
 		} else {
-			// send a JSON payload sandwitched between 'teleport proxy signature' and 0x00:
-			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
+			// send a JSON payload sandwiched between 'teleport proxy signature' and 0x00:
+			payload := fmt.Sprintf("%s%s\x00", apisshutils.ProxyHelloSignature, payloadJSON)
 			_, err = serverConn.Write([]byte(payload))
 			if err != nil {
 				t.log.Error(err)
 			}
 		}
 	}
-	// forwrd server's response to the client:
+	// forward server's response to the client:
 	_, err = clientConn.Write(buff)
 	if err != nil {
 		t.log.Error(err)

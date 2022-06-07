@@ -17,11 +17,12 @@ limitations under the License.
 package events
 
 import (
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"encoding/json"
 )
@@ -37,7 +38,16 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	eventType := fields.GetString(EventType)
+	getFieldEmpty := func(field string) string {
+		i, ok := fields[field]
+		if !ok {
+			return ""
+		}
+		s, _ := i.(string)
+		return s
+	}
+
+	var eventType = getFieldEmpty(EventType)
 	var e events.AuditEvent
 
 	switch eventType {
@@ -157,6 +167,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		e = &events.DatabaseSessionQuery{}
+	case DatabaseSessionMalformedPacketEvent:
+		e = &events.DatabaseSessionMalformedPacket{}
 	case DatabaseSessionPostgresParseEvent:
 		e = &events.PostgresParse{}
 	case DatabaseSessionPostgresBindEvent:
@@ -195,6 +207,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MySQLDebug{}
 	case DatabaseSessionMySQLRefreshEvent:
 		e = &events.MySQLRefresh{}
+	case DatabaseSessionSQLServerRPCRequestEvent:
+		e = &events.SQLServerRPCRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
@@ -241,7 +255,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		unknown.Type = UnknownEvent
 		unknown.Code = UnknownCode
 		unknown.UnknownType = eventType
-		unknown.UnknownCode = fields.GetString(EventCode)
+		unknown.UnknownCode = getFieldEmpty(EventCode)
 		unknown.Data = string(data)
 		return unknown, nil
 	}

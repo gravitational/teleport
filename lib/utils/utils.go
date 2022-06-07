@@ -603,6 +603,17 @@ func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 	return data, nil
 }
 
+// HasPrefixAny determines if any of the string values have the given prefix.
+func HasPrefixAny(prefix string, values []string) bool {
+	for _, val := range values {
+		if strings.HasPrefix(val, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ErrLimitReached means that the read limit is reached.
 var ErrLimitReached = &trace.LimitExceededError{Message: "the read limit is reached"}
 
