@@ -980,6 +980,8 @@ func (set RoleSet) WithoutImplicit() (out RoleSet) {
 	return out
 }
 
+// PinSourceIP determines if the role set should use source IP pinning.
+// If one or more roles in the set requires IP pinning then it will be enabled.
 func (set RoleSet) PinSourceIP() bool {
 	for _, role := range set {
 		if role.GetOptions().PinSourceIP {

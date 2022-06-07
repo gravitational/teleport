@@ -292,7 +292,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		ip := c.SourceIP + "/32"
 		if strings.Contains(c.SourceIP, ":") {
 			//IPv6
-			ip = c.SourceIP + "/64"
+			ip = c.SourceIP + "/128"
 		}
 		cert.CriticalOptions[sourceAddress] = ip
 	}
