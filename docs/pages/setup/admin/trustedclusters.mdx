@@ -4,9 +4,9 @@ description: How to configure access and trust between two SSH and Kubernetes en
 h1: Trusted Clusters
 ---
 
-The design of Trusted Clusters allows Teleport users to connect to compute
-infrastructure located behind firewalls without any open TCP ports. The
-real-world usage examples of this capability include:
+Trusted Clusters enable Teleport users to connect to compute infrastructure
+located behind firewalls without any open TCP ports. The real-world usage
+examples of this capability include:
 
 - Managed service providers (MSP) remotely managing the infrastructure of their clients.
 - Device manufacturers remotely maintaining computing appliances deployed on premises.
@@ -19,24 +19,24 @@ This guide will explain how to:
 
 - Add and remove Trusted Clusters using CLI commands.
 - Enable/disable trust between clusters.
-- Establish permissions mapping between clusters using Teleport roles.
+- Establish permission mapping between clusters using Teleport roles.
 
 <Details title="Teleport Node Tunneling" scope={["enterprise", "oss"]} scopeOnly opened>
 
- If you have a large number of devices on different networks, such as managed
- IoT devices, you can configure your Teleport Nodes to connect to your cluster
- via Teleport Node Tunneling. Instead of connecting to the Auth Service
- directly, a Node connects to the Proxy Service, and the Auth Service creates a
- reverse tunnel to the Node.
+If your Nodes are deployed behind a firewall or otherwise not reachable by the
+Teleport Proxy Service, you can connect them to your Teleport cluster via
+Teleport Node Tunneling. Instead of connection to the Auth Service directly,
+each Node connects to the Proxy Service, and the Auth Service creates a reverse
+tunnel to the Node.
 
- Learn more in [Adding Nodes to the Cluster](./adding-nodes.mdx).
+Learn more in [Adding Nodes to the Cluster](./adding-nodes.mdx).
 
 </Details>
 
 ## How Trusted Clusters work
 
 Teleport can partition compute infrastructure into multiple clusters. A cluster
-is a group of Teleport SSH Nodes connected to the cluster's Auth Service, which
+is a group of Teleport resources connected to the cluster's Auth Service, which
 acts as a certificate authority (CA) for all users and nodes in the cluster.
 
 To retrieve an SSH certificate, users must authenticate with a cluster through a
