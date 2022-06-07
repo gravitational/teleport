@@ -71,7 +71,6 @@ func TestDefaultConfig(t *testing.T) {
 		"hmac-sha2-256-etm@openssh.com",
 		"hmac-sha2-256",
 	})
-	require.Nil(t, config.CASignatureAlgorithm)
 
 	// auth section
 	auth := config.Auth

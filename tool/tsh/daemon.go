@@ -23,6 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/teleterm"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 )
@@ -32,6 +34,12 @@ func onDaemonStart(cf *CLIConf) error {
 	homeDir := profile.FullProfilePath(cf.HomePath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Use info-level daemon-grade logging for the daemon running in non-debug mode.
+	// tsh already sets debug-level CLI-grade logging when running in debug mode.
+	if !cf.Debug {
+		utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
+	}
 
 	err := teleterm.Start(ctx, teleterm.Config{
 		HomeDir:            homeDir,

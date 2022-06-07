@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -1200,6 +1201,7 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, ports.Pop())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
 	tconf.Proxy.Kube.LegacyKubeProxy = true
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	return tconf
 }

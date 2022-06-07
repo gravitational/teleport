@@ -324,6 +324,7 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 		SortBy:              sortBy,
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
+		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
 	}
 
 	return clt.ListResources(r.Context(), req)

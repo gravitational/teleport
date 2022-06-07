@@ -19,8 +19,8 @@ package main
 import (
 	"path/filepath"
 
-	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/tshwrap"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 	"github.com/gravitational/trace"
 )
 
