@@ -113,7 +113,7 @@ func getServerLogins(server types.Server, roleSet services.RoleSet) []string {
 	allowed := []string{}
 	denied := []string{}
 	for _, role := range roleSet {
-		// remove any denied logins, even if they don't apply to that nodes's labels
+		// remove any denied logins, even if they don't apply to that node's labels
 		denied = append(denied, role.GetLogins(types.Deny)...)
 
 		// add only logins related to that server
