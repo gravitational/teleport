@@ -85,6 +85,24 @@ variable "use_acm" {
   type = string
 }
 
+//CIDR blocks allows to connect to the SSH port
+variable "allowed_ssh_ingress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+//CIDR blocks allowed for ingress for all Teleport ports 
+variable "allowed_ingress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+//CIDR blocks allowed for egress from Teleport
+variable "allowed_egress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
 variable "kms_alias_name" {
   default = "alias/aws/ssm"
 }

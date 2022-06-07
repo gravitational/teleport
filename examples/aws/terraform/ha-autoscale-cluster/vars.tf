@@ -175,6 +175,73 @@ variable "use_acm" {
   default = "false"
 }
 
+//CIDR blocks allows to connect to the bastion SSH port
+variable "allowed_bastion_ssh_ingress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+
+//CIDR blocks allowed for egress from bastion
+variable "allowed_bastion_ssh_egress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+//CIDR blocks allowed for ingress for Teleport Proxy ports
+variable "allowed_proxy_ingress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+//CIDR blocks allowed for egress from Teleport Proxies
+variable "allowed_proxy_egress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+//CIDR blocks allowed for egress from Teleport Auth servers
+variable "allowed_auth_egress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+//CIDR blocks allowed for ingress for Teleport Monitor ports
+variable "allowed_monitor_ingress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+//CIDR blocks allowed for egress from Teleport Monitor
+variable "allowed_monitor_egress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+//CIDR blocks allowed for egress from Teleport Node
+variable "allowed_node_egress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+//Internet gateway destination CIDR Block
+variable "internet_gateway_dest_cidr_block" {
+  type = string
+  default = "0.0.0.0/0"
+}
+
+//Route allows for Auth Servers Destination CIDR Block
+variable "auth_aws_route_dest_cidr_block" {
+  type = string
+  default = "0.0.0.0/0"
+}
+
+//Route allows for Node Servers Destination CIDR Block
+variable "node_aws_route_dest_cidr_block" {
+  type = string
+  default = "0.0.0.0/0"
+}
+
 // Optional domain name to use for Teleport proxy NLB alias
 // Only applied when using ACM, it will do nothing when ACM is disabled
 // When using ACM we have one ALB (for port 443 with TLS termination) and one NLB
