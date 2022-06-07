@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -163,6 +164,44 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 		c.Assert(arr, check.HasLen, 0)
 	}
 	c.Assert(checkpoint, check.Equals, "")
+
+	// This serves no special purpose except to make querying easier.
+	baseTime2 := time.Date(2019, time.August, 10, 14, 43, 47, 0, time.UTC)
+
+	for _, name := range names {
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: name},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: baseTime2,
+			},
+		})
+		c.Assert(err, check.IsNil)
+	}
+
+Outer:
+	for i := 0; i < len(names); i++ {
+		arr, checkpoint, err = s.Log.SearchEvents(baseTime2, baseTime2.Add(time.Second), apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 1)
+		event, ok := arr[0].(*apievents.UserLogin)
+		c.Assert(ok, check.Equals, true)
+		c.Assert(event.GetTime(), check.Equals, baseTime2)
+		c.Assert(slices.Contains(names, event.User), check.Equals, true)
+
+		for i, name := range names {
+			if name == event.User {
+				// delete name from list
+				copy(names[i:], names[i+1:])
+				names = names[:len(names)-1]
+				continue Outer
+			}
+		}
+
+		c.Fatalf("unexpected event: %#v", event)
+	}
 }
 
 // SessionEventsCRUD covers session events
