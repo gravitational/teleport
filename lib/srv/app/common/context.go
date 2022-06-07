@@ -55,7 +55,9 @@ func GetAppRequestContext(r *http.Request) (*AppRequestContext, error) {
 	return requestCtx, nil
 }
 
+type contextKey string
+
 const (
 	// contextKeyAppRequstContext is the context key for the App request context.
-	contextKeyAppRequstContext = "app-request-context"
+	contextKeyAppRequstContext contextKey = "app-request-context"
 )

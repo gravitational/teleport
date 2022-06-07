@@ -60,7 +60,7 @@ func NewSigningService(config SigningServiceConfig) (*SigningService, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	svc.fwd = fwd
+	svc.Forwarder = fwd
 	return svc, nil
 }
 
@@ -70,8 +70,8 @@ type SigningService struct {
 	// SigningServiceConfig is the SigningService configuration.
 	SigningServiceConfig
 
-	// fwd signs and forwards the request to AWS API.
-	fwd *forward.Forwarder
+	// Forwarder signs and forwards the request to AWS API.
+	*forward.Forwarder
 }
 
 // SigningServiceConfig is the SigningService configuration.
@@ -120,11 +120,6 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 		s.getSigningCredentials = getAWSCredentialsFromSTSAPI
 	}
 	return nil
-}
-
-// Handle handles the AWS CLI request.
-func (s *SigningService) Handle(rw http.ResponseWriter, r *http.Request) {
-	s.fwd.ServeHTTP(rw, r)
 }
 
 // RoundTrip handles incoming requests and forwards them to the proper AWS API.
@@ -178,6 +173,7 @@ func (s *SigningService) emitAuditEvent(ctx context.Context, req *http.Request, 
 			Type: events.AppSessionAWSRequestEvent,
 			Code: events.AppSessionAWSRequestCode,
 		},
+		Host:       req.Host,
 		Method:     req.Method,
 		Path:       req.URL.Path,
 		RawQuery:   req.URL.RawQuery,

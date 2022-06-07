@@ -154,6 +154,11 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	return nil
 }
 
+func (s *Server) withAWSForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+	sess.fwd = s.awsSigner.Forwarder
+	return nil
+}
+
 func (s *sessionChunk) close(ctx context.Context) error {
 	close(s.closeC)
 	err := s.streamWriter.Close(ctx)

@@ -171,10 +171,11 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		user := auth.LocalUser{Username: "user"}
 		identity := user.GetIdentity()
-
-		svc.Handle(writer, common.WithAppRequestContext(request, &common.AppRequestContext{
+		request = common.WithAppRequestContext(request, &common.AppRequestContext{
 			Identity: &identity,
-		}))
+		})
+
+		svc.ServeHTTP(writer, request)
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(func() {

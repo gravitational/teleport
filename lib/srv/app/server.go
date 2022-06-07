@@ -619,7 +619,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		//  services that support it (All services expect Amazon SimpleDB but
 		//  this AWS service has been deprecated)
 		if aws.IsSignedByAWSSigV4(r) {
-			return s.serveAWSAPISession(w, r, requestCtx)
+			return s.serveSession(w, r, requestCtx, s.withAWSForwarder)
 		}
 
 		// Request for AWS console access originated from Teleport Proxy WebUI
@@ -627,38 +627,27 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		return s.serveAWSWebConsole(w, r, requestCtx)
 
 	default:
-		return s.serveGenericAppSession(w, r, requestCtx)
+		return s.serveSession(w, r, requestCtx, s.withJWTTokenForwarder)
 	}
 
 }
 
-// serveGeneicAppSession serves the HTTP request for a generic app session.
-func (s *Server) serveGenericAppSession(w http.ResponseWriter, r *http.Request, requestCtx *common.AppRequestContext) error {
+// serveSession finds the app session and forwards the request.
+func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, requestCtx *common.AppRequestContext, opts ...sessionOpt) error {
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
-	session, err := s.getSession(r.Context(), requestCtx, s.withJWTTokenForwarder)
+	session, err := s.getSession(r.Context(), requestCtx, opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, r)
-	return nil
-}
-
-// serveCommonSession serves the HTTP request for an AWS API session.
-func (s *Server) serveAWSAPISession(w http.ResponseWriter, r *http.Request, requestCtx *common.AppRequestContext) error {
-	session, err := s.getSession(r.Context(), requestCtx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	requestCtx.Emitter = session.streamWriter
-	s.awsSigner.Handle(w, common.WithAppRequestContext(r, requestCtx))
+	session.fwd.ServeHTTP(w, common.WithAppRequestContext(r, requestCtx))
 	return nil
 }
 
-// serveAWSWebConsole generates a sign-in URL for AWS managment console and
+// serveAWSWebConsole generates a sign-in URL for AWS management console and
 // redirects the user to it.
 func (s *Server) serveAWSWebConsole(w http.ResponseWriter, r *http.Request, requestCtx *common.AppRequestContext) error {
 	s.log.Debugf("Redirecting %v to AWS mananement console with role %v.",

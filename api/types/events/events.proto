@@ -1372,10 +1372,12 @@ message AppSessionAWSRequest {
     // App is a common application resource metadata.
     AppMetadata App = 6
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Host is the requested AWS host.
+    string Host = 7 [ (gogoproto.jsontag) = "host" ];
     // Service is the requested AWS service name.
-    string Service = 7 [ (gogoproto.jsontag) = "service" ];
+    string Service = 8 [ (gogoproto.jsontag) = "service" ];
     // Region is the requested AWS region.
-    string Region = 8 [ (gogoproto.jsontag) = "region" ];
+    string Region = 9 [ (gogoproto.jsontag) = "region" ];
 }
 
 // DatabaseMetadata contains common database information.
