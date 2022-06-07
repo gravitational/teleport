@@ -48,6 +48,10 @@ windows_desktop_service:
     filters:
     - '(location=Oakland)'
     - '(!(primaryGroupID=516))' # exclude domain controllers
+    # (optional) LDAP attributes to convert into Teleport labels.
+    # The key of the label will be "ldap/" + the value of the attribute.
+    label_attributes:
+    - location
   # Rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
