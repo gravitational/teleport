@@ -167,7 +167,7 @@ type AccessChecker interface {
 	// SessionRecordingMode returns the recording mode for a specific service.
 	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
 
-	// PinSourceIP forces the same client IP for certificate generation and usage
+	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool
 }
 
