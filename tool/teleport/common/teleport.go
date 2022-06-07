@@ -79,7 +79,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start := app.Command("start", "Starts the Teleport service.")
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Generate a simple config file to get started.")
-	ver := app.Command("version", "Print the version.")
+	ver := app.Command("version", "Print the version of your teleport binary.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()

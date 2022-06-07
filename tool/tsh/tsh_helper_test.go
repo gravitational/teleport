@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os/user"
 	"testing"
 	"time"
@@ -40,6 +41,9 @@ type suite struct {
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
+	sshListenAddr := localListenerAddr()
+	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
+	require.NoError(t, err)
 	fileConfig := &config.FileConfig{
 		Version: "v1",
 		Global: config.Global{
@@ -55,10 +59,11 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: sshListenAddr,
 			},
-			WebAddr: localListenerAddr(),
-			TunAddr: localListenerAddr(),
+			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
+			WebAddr:       localListenerAddr(),
+			TunAddr:       localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -71,7 +76,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	err := config.ApplyFileConfig(fileConfig, cfg)
+	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
