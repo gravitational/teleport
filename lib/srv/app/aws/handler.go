@@ -34,8 +34,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/lib/auth"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -142,7 +144,7 @@ func (s *SigningService) Handle(rw http.ResponseWriter, r *http.Request) {
 // 5) Sign HTTP request.
 // 6) Forward the signed HTTP request to the AWS API.
 func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
-	identity, err := getUserIdentityFromContext(req.Context())
+	requestCtx, err := common.GetAppRequestContext(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +152,7 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, identity)
+	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, requestCtx.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,17 +160,37 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := s.emitAuditEvent(req.Context(), signedReq, resp, requestCtx, resolvedEndpoint); err != nil {
+		s.Log.WithError(err).Warn("Failed to emit audit event.")
+	}
 	return resp, nil
 }
 
-func getUserIdentityFromContext(ctx context.Context) (*tlsca.Identity, error) {
-	ctxUser := ctx.Value(auth.ContextUser)
-	userI, ok := ctxUser.(auth.IdentityGetter)
-	if !ok {
-		return nil, trace.BadParameter("failed to get user identity")
+// emitAuditEvent writes the request and response to audit stream.
+func (s *SigningService) emitAuditEvent(ctx context.Context, req *http.Request, resp *http.Response, requestCtx *common.AppRequestContext, endpoint *endpoints.ResolvedEndpoint) error {
+	if requestCtx.Emitter == nil {
+		return trace.BadParameter("missing audit emitter")
 	}
-	identity := userI.GetIdentity()
-	return &identity, nil
+
+	event := &apievents.AppSessionAWSRequest{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionAWSRequestEvent,
+			Code: events.AppSessionAWSRequestCode,
+		},
+		Method:     req.Method,
+		Path:       req.URL.Path,
+		RawQuery:   req.URL.RawQuery,
+		StatusCode: uint32(resp.StatusCode),
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        requestCtx.App.GetURI(),
+			AppPublicAddr: requestCtx.App.GetPublicAddr(),
+			AppName:       requestCtx.App.GetName(),
+		},
+		Service: endpoint.SigningName,
+		Region:  endpoint.SigningRegion,
+	}
+	return trace.Wrap(requestCtx.Emitter.EmitAuditEvent(ctx, event))
 }
 
 func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {

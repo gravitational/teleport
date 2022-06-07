@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 
@@ -607,41 +607,36 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Extract the identity and application being requested from the certificate
 	// and check if the caller has access.
-	identity, app, err := s.authorize(r.Context(), r)
+	requestCtx, err := s.authorize(r.Context(), r)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Distinguish between AWS console access originated from Teleport Proxy WebUI and
-	// access from AWS CLI where the request is already singed by the AWS Signature Version 4 algorithm.
-	// AWS CLI, automatically use SigV4 for all services that support it (All services expect Amazon SimpleDB
-	// but this AWS service has been deprecated)
-	if aws.IsSignedByAWSSigV4(r) && app.IsAWSConsole() {
-		// Sign the request based on RouteToApp.AWSRoleARN user identity and route signed request to the AWS API.
-		s.awsSigner.Handle(w, r)
-		return nil
-	}
-
-	// If this application is AWS management console, generate a sign-in URL
-	// and redirect the user to it.
-	if app.IsAWSConsole() {
-		s.log.Debugf("Redirecting %v to AWS mananement console with role %v.",
-			identity.Username, identity.RouteToApp.AWSRoleARN)
-		url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{
-			Identity:  identity,
-			TargetURL: app.GetURI(),
-			Issuer:    app.GetPublicAddr(),
-		})
-		if err != nil {
-			return trace.Wrap(err)
+	switch {
+	case requestCtx.App.IsAWSConsole():
+		//  Requests from AWS applications are singed by AWS Signature Version
+		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
+		//  services that support it (All services expect Amazon SimpleDB but
+		//  this AWS service has been deprecated)
+		if aws.IsSignedByAWSSigV4(r) {
+			return s.serveAWSAPISession(w, r, requestCtx)
 		}
-		http.Redirect(w, r, url.SigninURL, http.StatusFound)
-		return nil
+
+		// Request for AWS console access originated from Teleport Proxy WebUI
+		// is not signed by SigV4.
+		return s.serveAWSWebConsole(w, r, requestCtx)
+
+	default:
+		return s.serveGenericAppSession(w, r, requestCtx)
 	}
 
+}
+
+// serveGeneicAppSession serves the HTTP request for a generic app session.
+func (s *Server) serveGenericAppSession(w http.ResponseWriter, r *http.Request, requestCtx *common.AppRequestContext) error {
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
-	session, err := s.getSession(r.Context(), identity, app)
+	session, err := s.getSession(r.Context(), requestCtx, s.withJWTTokenForwarder)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -651,32 +646,62 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// serveCommonSession serves the HTTP request for an AWS API session.
+func (s *Server) serveAWSAPISession(w http.ResponseWriter, r *http.Request, requestCtx *common.AppRequestContext) error {
+	session, err := s.getSession(r.Context(), requestCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	requestCtx.Emitter = session.streamWriter
+	s.awsSigner.Handle(w, common.WithAppRequestContext(r, requestCtx))
+	return nil
+}
+
+// serveAWSWebConsole generates a sign-in URL for AWS managment console and
+// redirects the user to it.
+func (s *Server) serveAWSWebConsole(w http.ResponseWriter, r *http.Request, requestCtx *common.AppRequestContext) error {
+	s.log.Debugf("Redirecting %v to AWS mananement console with role %v.",
+		requestCtx.Identity.Username, requestCtx.Identity.RouteToApp.AWSRoleARN)
+
+	url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{
+		Identity:  requestCtx.Identity,
+		TargetURL: requestCtx.App.GetURI(),
+		Issuer:    requestCtx.App.GetPublicAddr(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	http.Redirect(w, r, url.SigninURL, http.StatusFound)
+	return nil
+}
+
 // authorize will check if request carries a session cookie matching a
 // session in the backend.
-func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, types.Application, error) {
+func (s *Server) authorize(ctx context.Context, r *http.Request) (*common.AppRequestContext, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType := r.Context().Value(auth.ContextUser)
 	switch userType.(type) {
 	case auth.LocalUser, auth.RemoteUser:
 	default:
-		return nil, nil, trace.BadParameter("invalid identity: %T", userType)
+		return nil, trace.BadParameter("invalid identity: %T", userType)
 	}
 
 	// Extract authorizing context and identity of the user from the request.
 	authContext, err := s.c.Authorizer.Authorize(r.Context())
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
 
 	// Fetch the application and check if the identity has access.
 	app, err := s.getApp(r.Context(), identity.RouteToApp.PublicAddr)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	ap, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	mfaParams := services.AccessMFAParams{
 		Verified:       identity.MFAVerified != "",
@@ -697,24 +722,30 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 		mfaParams,
 		matchers...)
 	if err != nil {
-		return nil, nil, utils.OpaqueAccessDenied(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	return &identity, app, nil
+	return &common.AppRequestContext{
+		Identity: &identity,
+		App:      app,
+	}, nil
 }
 
 // getSession returns a request session used to proxy the request to the
 // target application. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
-func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
+func (s *Server) getSession(ctx context.Context, requestCtx *common.AppRequestContext, opts ...sessionOpt) (*sessionChunk, error) {
 	// If a cached forwarder exists, return it right away.
-	session, err := s.cache.get(identity.RouteToApp.SessionID)
+	session, err := s.cache.get(requestCtx.Identity.RouteToApp.SessionID)
 	if err == nil {
+		// Update request context.
+		requestCtx.Emitter = session.streamWriter
+
 		return session, nil
 	}
 
 	// Create a new session with a recorder and forwarder in it.
-	session, err = s.newSessionChunk(ctx, identity, app)
+	session, err = s.newSessionChunk(ctx, requestCtx.Identity, requestCtx.App, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

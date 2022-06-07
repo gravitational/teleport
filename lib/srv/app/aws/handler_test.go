@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -168,8 +169,12 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		ctx := context.WithValue(context.Background(), auth.ContextUser, auth.LocalUser{Username: "user"})
-		svc.Handle(writer, request.WithContext(ctx))
+		user := auth.LocalUser{Username: "user"}
+		identity := user.GetIdentity()
+
+		svc.Handle(writer, common.WithAppRequestContext(request, &common.AppRequestContext{
+			Identity: &identity,
+		}))
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(func() {
