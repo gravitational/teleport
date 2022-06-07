@@ -66,6 +66,19 @@ variable "route53_domain" {
 variable "add_wildcard_route53_record" {
   type = string
 }
+  
+variable "enable_mongodb_listener" {
+  type = string
+}
+
+
+variable "enable_mysql_listener" {
+  type = string
+}
+
+variable "enable_postgres_listener" {
+  type = string
+}
 
 // Email for letsencrypt domain registration
 variable "email" {
