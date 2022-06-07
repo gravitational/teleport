@@ -63,7 +63,7 @@ func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	}
 
 	// defaults:
-	ses, err := newSession(nc, nil, nil, nil, nil, nil, false, true)
+	ses, err := newSession(nc, nil, nil, nil, nil, nil, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(ses, check.NotNil)
 	c.Assert(ses.NodeClient(), check.Equals, nc)
@@ -77,7 +77,7 @@ func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	env := map[string]string{
 		sshutils.SessionEnvVar: "session-id",
 	}
-	ses, err = newSession(nc, nil, env, nil, nil, nil, false, true)
+	ses, err = newSession(nc, nil, env, nil, nil, nil, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(ses, check.NotNil)
 	c.Assert(ses.env, check.DeepEquals, env)

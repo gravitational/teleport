@@ -136,6 +136,7 @@ spec:
     max_session_ttl: 30h0m0s
     port_forwarding: true
     record_session:
+      default: best_effort
       desktop: true
 version: v3
 `
