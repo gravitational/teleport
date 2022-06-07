@@ -42,7 +42,7 @@ type StorageWrapper struct {
 }
 
 func (sw *StorageWrapper) GetByURI(uri string) (cluster, error) {
-	return sw.GetByURI(uri)
+	return sw.Storage.GetByURI(uri)
 }
 
 // Config is the cluster service config
