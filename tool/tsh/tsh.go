@@ -495,7 +495,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
-	ver := app.Command("version", "Print the version")
+	ver := app.Command("version", "Print the version of your tsh binary")
 	ver.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	// ssh
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
