@@ -71,7 +71,7 @@ type sessionChunk struct {
 	// inflightCond protects and signals change of inflight
 	inflightCond *sync.Cond
 	// inflight is the amount of in-flight requests
-	// closing the chunk is only allowed when this is 0.
+	// closing the chunk is only allowed when this is 0, or after closeTimeout elapses.
 	// On session expiration, this will first be atomically decremented to -1,
 	// preventing any new requests from using the closing/closed session.
 	inflight int64
