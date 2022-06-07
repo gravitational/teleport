@@ -50,6 +50,7 @@ access and modify files they are allowed to.
 
 The UX of `tsh sftp` will be very similar to that of `tsh scp`, but there
 will be some differences of behavior between the two. SFTP does not natively
-support expanding home directories, so absolute paths will have to be used.
-Likewise passing quoted commands to be remotely executed (ex. ``tsh scp my_file 'user@host:/tmp/`whoami`.txt'``) will not work as `teleport sftp` is run without
-any other arguments.
+support expanding home directories, so absolute paths will have to be used
+for remote paths. Likewise passing quoted commands to be remotely executed
+(ex. ``tsh scp my_file 'user@host:/tmp/`whoami`.txt'``) will not work as
+`teleport sftp` is run without any other arguments.
