@@ -27,14 +27,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type (
-	cluster interface {
-		GetServers(ctx context.Context) ([]clusters.Server, error)
-	}
-	storage interface {
-		GetByURI(uri string) (cluster, error)
-	}
-)
+type cluster interface {
+	GetServers(ctx context.Context) ([]clusters.Server, error)
+}
+
+type storage interface {
+	GetByURI(uri string) (cluster, error)
+}
 
 // This is used to wrap a real clusters.Storage so it meets our interface
 type StorageWrapper struct {
