@@ -305,6 +305,8 @@ func (b *Bot) generateImpersonatedIdentity(
 			return nil, trace.Wrap(err)
 		}
 
+		defer impClient.Close()
+
 		route, err := b.getRouteToDatabase(ctx, impClient, destCfg.Database)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -463,9 +465,9 @@ func (b *Bot) renew(
 		return trace.Wrap(err, "unable to communicate with auth server")
 	}
 
-	b.log.Debug("Auth client now using renewed credentials.")
 	b.setClient(newClient)
 	b.setIdent(newIdentity)
+	b.log.Debug("Auth client now using renewed credentials.")
 
 	// Now that we're sure the new creds work, persist them.
 	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
