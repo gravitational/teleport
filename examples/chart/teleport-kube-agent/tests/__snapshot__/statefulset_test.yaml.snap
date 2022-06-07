@@ -8,7 +8,7 @@ sets Pod annotations when specified:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -63,7 +63,7 @@ sets Pod labels when specified:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -142,7 +142,7 @@ sets StatefulSet labels when specified:
             livenessProbe:
               failureThreshold: 6
               httpGet:
-                path: /readyz
+                path: /healthz
                 port: diag
               initialDelaySeconds: 5
               periodSeconds: 5
@@ -208,7 +208,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -263,7 +263,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -318,7 +318,7 @@ should add volumeMount for data volume when using StatefulSet:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -373,7 +373,7 @@ should expose diag port:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -440,7 +440,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -507,7 +507,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -562,7 +562,7 @@ should have one replica when replicaCount is not set:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -617,7 +617,7 @@ should mount extraVolumes and extraVolumeMounts:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -677,7 +677,7 @@ should not add emptyDir for data when using StatefulSet:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -732,7 +732,7 @@ should provision initContainer correctly when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -823,7 +823,7 @@ should set SecurityContext:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -898,7 +898,7 @@ should set affinity when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -953,7 +953,7 @@ should set default serviceAccountName when not set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1011,7 +1011,7 @@ should set environment when extraEnv set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1066,7 +1066,7 @@ should set image and tag correctly:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1121,7 +1121,7 @@ should set imagePullPolicy when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1176,7 +1176,7 @@ should set nodeSelector if set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1245,7 +1245,7 @@ should set preferred affinity when more than one replica is used:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1300,7 +1300,7 @@ should set probeTimeoutSeconds when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1365,7 +1365,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1420,7 +1420,7 @@ should set resources when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1482,7 +1482,7 @@ should set serviceAccountName when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1537,7 +1537,7 @@ should set storage.requests when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1592,7 +1592,7 @@ should set storage.storageClassName when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1647,7 +1647,7 @@ should set tolerations when set in values:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
