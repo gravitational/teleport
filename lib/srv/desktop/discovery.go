@@ -32,7 +32,7 @@ import (
 // computerAttributes are the attributes we fetch when discovering
 // Windows hosts via LDAP
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
-var computerAttribtes = []string{
+var computerAttributes = []string{
 	attrName,
 	attrCommonName,
 	attrDistinguishedName,
@@ -131,7 +131,7 @@ func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabelsMap {
 	s.cfg.Log.Debugf("searching for desktops with LDAP filter %v", filter)
 
 	var attrs []string
-	attrs = append(attrs, computerAttribtes...)
+	attrs = append(attrs, computerAttributes...)
 	attrs = append(attrs, s.cfg.DiscoveryLDAPAttributeLabels...)
 
 	entries, err := s.lc.readWithFilter(s.cfg.DiscoveryBaseDN, filter, attrs)
