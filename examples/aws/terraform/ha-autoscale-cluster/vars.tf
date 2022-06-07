@@ -67,18 +67,26 @@ variable "add_wildcard_route53_record" {
   type    = bool
   default = false
 }
-  
+
+//whether to enable the mongodb listener
+//adds security group setting, maps load balancer to port and adds to teleport config
 variable "enable_mongodb_listener" {
-  type = string
+  type    = bool
+  default = false
 }
 
-
+//whether to enable the mysql listener
+//adds security group setting, maps load balancer to port and adds to teleport config
 variable "enable_mysql_listener" {
-  type = string
+  type    = bool
+  default = false
 }
 
+//whether to enable the postgres listener
+//adds security group setting, maps load balancer to port and adds to teleport config
 variable "enable_postgres_listener" {
-  type = string
+  type    = bool
+  default = false
 }
 
 // Email for letsencrypt domain registration
