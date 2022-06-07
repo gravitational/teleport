@@ -208,6 +208,47 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
+	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
+}
+
+// testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
+func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	tconf := suite.defaultServiceConfig()
+	tconf.Auth.Enabled = true
+	tconf.Proxy.Enabled = true
+	tconf.Proxy.DisableWebService = true
+	tconf.Proxy.DisableWebInterface = true
+	tconf.SSH.Enabled = true
+
+	teleport := suite.newTeleportInstance()
+
+	role := services.NewImplicitRole()
+	ro := role.GetOptions()
+	ro.PinSourceIP = true
+	role.SetOptions(ro)
+	role.SetName("x")
+	teleport.AddUserWithRole(suite.me.Username, role)
+
+	require.NoError(t, teleport.CreateEx(t, nil, tconf))
+	require.NoError(t, teleport.Start())
+	defer teleport.StopAll()
+
+	site := teleport.GetSiteAPI(Site)
+	require.NotNil(t, site)
+	cl, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	err = cl.SSH(ctx, []string{}, false)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "ssh: unable to authenticate")
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
