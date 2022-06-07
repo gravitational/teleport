@@ -23,7 +23,9 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Label describes label for webapp
@@ -48,6 +50,8 @@ type Server struct {
 	Addr string `json:"addr"`
 	// Labels is this server list of labels
 	Labels []Label `json:"tags"`
+	// SSHLogins is the list of logins this user can use on this server
+	SSHLogins []string `json:"sshLogins"`
 }
 
 // sortedLabels is a sort wrapper that sorts labels by name
@@ -66,7 +70,7 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []types.Server) []Server {
+func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
 		uiLabels := []Label{}
@@ -88,6 +92,8 @@ func MakeServers(clusterName string, servers []types.Server) []Server {
 
 		sort.Sort(sortedLabels(uiLabels))
 
+		sshLogins := getServerLogins(server, userRoles)
+
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
 			Labels:      uiLabels,
@@ -95,10 +101,40 @@ func MakeServers(clusterName string, servers []types.Server) []Server {
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
+			SSHLogins:   sshLogins,
 		})
 	}
 
 	return uiServers
+}
+
+// getServerLogins returns the list of logins the role set has that is associated with this node
+func getServerLogins(server types.Server, roleSet services.RoleSet) []string {
+	allowed := []string{}
+	denied := []string{}
+	for _, role := range roleSet {
+		// remove any denied logins, even if they don't apply to that nodes's labels
+		denied = append(denied, role.GetLogins(types.Deny)...)
+
+		// add only logins related to that server
+		isAllowed, _, err := services.MatchLabels(role.GetNodeLabels(types.Allow), server.GetAllLabels())
+		if !isAllowed || err != nil {
+			continue
+		}
+
+		allowed = append(allowed, role.GetLogins(types.Allow)...)
+	}
+
+	allowed = apiutils.Deduplicate(allowed)
+	denied = apiutils.Deduplicate(denied)
+	serverLogins := []string{}
+	for _, login := range allowed {
+		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
+			serverLogins = append(serverLogins, login)
+		}
+	}
+
+	return serverLogins
 }
 
 // KubeCluster describes a kube cluster.
