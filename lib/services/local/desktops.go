@@ -137,11 +137,6 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 	}
 
 	key := backend.Key(windowsDesktopsPrefix, hostID, name)
-	// legacy behavior, we didn't have host IDs
-	// DELETE IN 10.0 (zmb3, lxea)
-	if hostID == "" {
-		key = backend.Key(windowsDesktopsPrefix, name)
-	}
 
 	err := s.Delete(ctx, key)
 	if err != nil {

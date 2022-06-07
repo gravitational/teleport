@@ -180,6 +180,11 @@ func (a *LocalKeyAgent) UpdateUsername(username string) {
 	a.username = username
 }
 
+// UpdateCluster changes the cluster that the local agent operates on.
+func (a *LocalKeyAgent) UpdateCluster(cluster string) {
+	a.siteName = cluster
+}
+
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
 // SSH agent.
 func (a *LocalKeyAgent) LoadKeyForCluster(clusterName string) (*agent.AddedKey, error) {

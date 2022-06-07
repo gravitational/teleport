@@ -609,21 +609,6 @@ teleport:
 `,
 			outError: true,
 		},
-		{
-			desc: "change CA signature alg, valid",
-			inConfig: `
-teleport:
-  ca_signature_algo: ssh-rsa
-`,
-		},
-		{
-			desc: "invalid CA signature alg, not valid",
-			inConfig: `
-teleport:
-  ca_signature_algo: foobar
-`,
-			outError: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -1700,6 +1685,13 @@ func TestWindowsDesktopService(t *testing.T) {
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: "g(-z]+ invalid regex", Labels: map[string]string{"key": "value"}},
 				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label key for LDAP attribute",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
 		{

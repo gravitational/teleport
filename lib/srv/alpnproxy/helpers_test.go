@@ -28,6 +28,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -216,11 +217,28 @@ func mustCreateLocalListener(t *testing.T) net.Listener {
 	return l
 }
 
+func mustCreateCertGenListener(t *testing.T, ca tls.Certificate) net.Listener {
+	listener, err := NewCertGenListener(CertGenListenerConfig{
+		ListenAddr: "localhost:0",
+		CA:         ca,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
 func mustSuccessfullyCallHTTPSServer(t *testing.T, addr string, client http.Client) {
+	mustCallHTTPSServerAndReceiveCode(t, addr, client, http.StatusOK)
+}
+
+func mustCallHTTPSServerAndReceiveCode(t *testing.T, addr string, client http.Client, expectStatusCode int) {
 	resp, err := client.Get(fmt.Sprintf("https://%s", addr))
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, expectStatusCode, resp.StatusCode)
 }
 
 func mustStartHTTPServer(t *testing.T, l net.Listener) {
@@ -240,4 +258,22 @@ func mustStartLocalProxy(t *testing.T, config LocalProxyConfig) {
 		err := lp.Start(context.Background())
 		require.NoError(t, err)
 	}()
+}
+
+func httpsClientWithProxyURL(proxyAddr string, caPem []byte) *http.Client {
+	rootCAs := x509.NewCertPool()
+	rootCAs.AppendCertsFromPEM(caPem)
+
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(&url.URL{
+				Scheme: "http",
+				Host:   proxyAddr,
+			}),
+
+			TLSClientConfig: &tls.Config{
+				RootCAs: rootCAs,
+			},
+		},
+	}
 }
