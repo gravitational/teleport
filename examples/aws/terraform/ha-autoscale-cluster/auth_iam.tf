@@ -136,7 +136,8 @@ resource "aws_iam_role_policy" "auth_s3" {
        "Action": [
          "s3:ListBucket",
          "s3:ListBucketVersions",
-         "s3:ListBucketMultipartUploads"
+         "s3:ListBucketMultipartUploads",
+         "s3:AbortMultipartUpload"
         ],
        "Resource": ["arn:aws:s3:::${aws_s3_bucket.certs.bucket}"]
      },

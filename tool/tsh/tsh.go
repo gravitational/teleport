@@ -336,8 +336,8 @@ type CLIConf struct {
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
 
-	// ExtraProxyHeaders is configuration read from the .tsh/config/config.yaml file.
-	ExtraProxyHeaders []ExtraProxyHeaders
+	// TshConfig is the loaded tsh configuration file ~/.tsh/config/config.yaml.
+	TshConfig TshConfig
 
 	// ListAll specifies if an ls command should return results from all clusters and proxies.
 	ListAll bool
@@ -497,7 +497,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
-	ver := app.Command("version", "Print the version")
+	ver := app.Command("version", "Print the version of your tsh binary")
 	ver.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	// ssh
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
@@ -814,6 +814,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cf.TshConfig = *confOptions
 
 	if cpuProfile != "" {
 		log.Debugf("writing CPU profile to %v", cpuProfile)
@@ -844,8 +845,6 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 			}
 		}()
 	}
-
-	cf.ExtraProxyHeaders = confOptions.ExtraHeaders
 
 	switch command {
 	case ver.FullCommand():
@@ -2639,7 +2638,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		if strings.Contains(cf.UserHost, "=") {
 			labels, err = client.ParseLabelSpec(cf.UserHost)
 			if err != nil {
-				return nil, err
+				return nil, trace.Wrap(err)
 			}
 		}
 	} else if cf.CopySpec != nil {
@@ -2657,20 +2656,31 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	}
 	fPorts, err := client.ParsePortForwardSpec(cf.LocalForwardPorts)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	dPorts, err := client.ParseDynamicPortForwardSpec(cf.DynamicForwardedPorts)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
+	c.Host = cf.UserHost
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
-		hosts, err := utils.ParseProxyJump(cf.ProxyJump)
+		proxyJump := cf.ProxyJump
+		if strings.Contains(cf.ProxyJump, "{{proxy}}") {
+			proxy, host, matched := cf.TshConfig.ProxyTemplates.Apply(c.Host)
+			if !matched {
+				return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
+			}
+			proxyJump = strings.ReplaceAll(proxyJump, "{{proxy}}", proxy)
+			c.Host = host
+			log.Debugf("Will connect to proxy %q and host %q according to proxy templates.", proxyJump, host)
+		}
+		hosts, err := utils.ParseProxyJump(proxyJump)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2789,7 +2799,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	if c.ExtraProxyHeaders == nil {
 		c.ExtraProxyHeaders = map[string]string{}
 	}
-	for _, proxyHeaders := range cf.ExtraProxyHeaders {
+	for _, proxyHeaders := range cf.TshConfig.ExtraHeaders {
 		proxyGlob := utils.GlobToRegexp(proxyHeaders.Proxy)
 		proxyRegexp, err := regexp.Compile(proxyGlob)
 		if err != nil {
@@ -2825,7 +2835,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	if hostLogin != "" {
 		c.HostLogin = hostLogin
 	}
-	c.Host = cf.UserHost
 	c.HostPort = int(cf.NodePort)
 	c.Labels = labels
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
