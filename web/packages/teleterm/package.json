@@ -54,7 +54,7 @@
     "xterm": "^4.15.0",
     "xterm-addon-fit": "^0.5.0"
   },
-  "productName": "Teleport Connect Preview",
+  "productName": "Teleport Connect",
   "build": {
     "appId": "gravitational.teleport.connect",
     "asar": true,
