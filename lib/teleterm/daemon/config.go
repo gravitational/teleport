@@ -31,7 +31,7 @@ type cluster interface {
 	GetServers(ctx context.Context) ([]clusters.Server, error)
 }
 
-type ClusterStorer interface {
+type Storage interface {
 	GetByURI(uri string) (cluster, error)
 }
 
@@ -47,7 +47,7 @@ func (sw StorageWrapper) GetByURI(uri string) (cluster, error) {
 // Config is the cluster service config
 type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
-	Storage ClusterStorer
+	Storage Storage
 	// Clock is a clock for time-related operations
 	Clock clockwork.Clock
 	// InsecureSkipVerify is an option to skip HTTPS cert check

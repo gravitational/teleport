@@ -17,7 +17,7 @@ func (mc *mockCluster) GetServers(ctx context.Context) ([]clusters.Server, error
 }
 
 type mockStorage struct {
-	ClusterStorer
+	Storage
 	clusterToReturn cluster
 }
 
