@@ -1322,6 +1322,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
+
+	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
+		if !types.IsValidLabelKey(attributeName) {
+			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+		}
+	}
+
 	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
 
 	var err error
