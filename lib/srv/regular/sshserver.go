@@ -99,6 +99,9 @@ type Server struct {
 	// dynamicLabels are the result of command execution.
 	dynamicLabels *labels.Dynamic
 
+	// cloudLabels are the labels imported from a cloud provider.
+	cloudLabels labels.Importer
+
 	proxyMode        bool
 	proxyTun         reversetunnel.Tunnel
 	proxyAccessPoint auth.ReadProxyAccessPoint
@@ -333,6 +336,10 @@ func (s *Server) Serve(l net.Listener) error {
 		go s.dynamicLabels.Start()
 	}
 
+	if s.cloudLabels != nil {
+		s.cloudLabels.Start(s.Context())
+	}
+
 	go s.heartbeat.Run()
 	return s.srv.Serve(l)
 }
@@ -409,7 +416,7 @@ func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) Serve
 
 // SetLabels sets dynamic and static labels that server will report to the
 // auth servers.
-func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels) ServerOption {
+func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels, cloudLabels labels.Importer) ServerOption {
 	return func(s *Server) error {
 		var err error
 
@@ -433,7 +440,7 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
+		s.cloudLabels = cloudLabels
 		return nil
 	}
 }
@@ -805,6 +812,20 @@ func (s *Server) getRole() types.SystemRole {
 	return types.RoleNode
 }
 
+// getStaticLabels gets the labels that the server should present as static,
+// which includes EC2 labels if available.
+func (s *Server) getStaticLabels() map[string]string {
+	if s.cloudLabels == nil {
+		return s.labels
+	}
+	labels := s.cloudLabels.Get()
+	// Let static labels override ec2 labels if they conflict.
+	for k, v := range s.labels {
+		labels[k] = v
+	}
+	return labels
+}
+
 // getDynamicLabels returns all dynamic labels. If no dynamic labels are
 // defined, return an empty set.
 func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
@@ -828,7 +849,7 @@ func (s *Server) GetInfo() types.Server {
 		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),
-			Labels:    s.labels,
+			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
 			CmdLabels: s.getDynamicLabels(),

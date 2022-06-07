@@ -43,6 +43,60 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
+### Set up the Teleport Database Service
+
+(!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+Start the Teleport Database Service, pointing the `--auth-server` flag to the
+address of your Teleport Proxy Service:
+
+```code
+$ teleport db start \
+  --token=/tmp/token \
+  --auth-server=teleport.example.com:3080 \
+  --name=example-redis \
+  --protocol=redis \
+  --uri=rediss://redis.example.com:6379 \
+  --labels=env=dev
+```
+
+<Admonition type="note">
+
+The `--auth-server` flag must point to the Teleport cluster's Proxy Service
+endpoint because the Database Service always connects back to the cluster over a
+reverse tunnel.
+
+</Admonition>
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Start the Teleport Database Service, pointing the `--auth-server` flag to the
+address of your Teleport Cloud tenant:
+
+```code
+$ teleport db start \
+  --token=/tmp/token \
+  --auth-server=mytenant.teleport.sh:443 \
+  --name=example-redis \
+  --protocol=redis \
+  --uri=rediss://redis.example.com:6379 \
+  --labels=env=dev
+```
+
+</ScopedBlock>
+
+<Admonition type="tip">
+  You can start the Database Service using a configuration file instead of CLI flags.
+  See the [YAML reference](../reference/configuration.mdx) for details.
+</Admonition>
+
 ## Step 2/5. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
