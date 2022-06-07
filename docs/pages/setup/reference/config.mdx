@@ -51,7 +51,7 @@ By default, it is stored in `/etc/teleport.yaml`.
   ```yaml
   auth_service:
     enabled: no
-  
+
   proxy_service:
     enabled: no
   ```
@@ -238,7 +238,7 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', 'saml' and 'false' for Enterprise.
-        #  only local authentication (Teleport's own user DB) & Github is supported in the open
+        #  only local authentication (Teleport's own user DB) & GitHub is supported in the open
         #  source version
         type: local
 
@@ -513,13 +513,13 @@ ssh_service:
     port_forwarding: true
 
     # When x11.enabled is set to yes, users with the "permit_x11_forwarding"
-    # role option will be able to request X11 forwarding sessions with 
+    # role option will be able to request X11 forwarding sessions with
     # "tsh ssh -X".
     #
     # X11 forwarding will only work if the server has the "xauth" binary
     # installed and the Teleport node can open Unix sockets.
     # e.g. "$TEMP/.X11-unix/X[display_number]."
-    x11: 
+    x11:
       # no by default
       enabled: yes
       # display_offset can be used to specify the start of the range of X11
