@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/trace"
@@ -751,5 +752,18 @@ func TestMakeSampleFileConfig(t *testing.T) {
 			NodeLabels: "foo=bar,baz",
 		})
 		require.Error(t, err)
+	})
+
+	t.Run("CAPin", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			CAPin: "sha256:7e12c17c20d9cb",
+		})
+		require.NoError(t, err)
+		require.Equal(t, apiutils.Strings{"sha256:7e12c17c20d9cb"}, fc.CAPin)
+		fc, err = MakeSampleFileConfig(SampleFlags{
+			CAPin: "sha256:7e12c17c20d9cb,sha256:7e12c17c20d9cb",
+		})
+		require.NoError(t, err)
+		require.Equal(t, apiutils.Strings{"sha256:7e12c17c20d9cb", "sha256:7e12c17c20d9cb"}, fc.CAPin)
 	})
 }
