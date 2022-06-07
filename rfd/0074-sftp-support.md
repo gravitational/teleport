@@ -27,16 +27,22 @@ by other tools.
 [github.com/pkg/sftp](https://pkg.go.dev/github.com/pkg/sftp) will be leveraged 
 heavily to provide both an SFTP client and server.
 
-SFTP support will be added in two stages. Adding SFTP subsystem support to
-Teleport's SSH server will be the first step. When an SFTP request is
-first received on an SSH connection, the Teleport daemon will be re-executed as the
-logon user of the SSH connection. This will require
+SFTP support will be added in three stages. 
+
+Adding SFTP subsystem support to Teleport's SSH server will be the first step.
+When an SFTP request is first received on an SSH connection, the Teleport daemon
+will be re-executed as the logon user of the SSH connection. This will require
 adding a hidden `sftp` sub command to the `teleport` binary. The parent process will
 create 2 anonymous pipes and pass them to the child (`teleport sftp`) so the child
 can access the SFTP connection.
 
-The second stage will be adding the `sftp` sub command to `tsh`, and ensuring
-SFTP trasfers work on the web UI.
+The second stage will be adding SFTP protocol support to `tsh scp` sub command, and
+ensuring SFTP trasfers work on the web UI. `tsh scp` will continue to use the scp/rcp
+protocol by default, but the SFTP protocol can be optionally enabled with a flag.
+
+The third and final stage will be making the SFTP protcol be used by default for
+`tsh scp`, and adding a flag to optionally using the scp/rcp protocol instead
+for backwards compatibility.
 
 ### Security
 
@@ -53,21 +59,25 @@ SFTP.
 
 ### UX
 
-The UX of `tsh sftp` will be very similar to that of `tsh scp`, but there
-will be some differences of behavior between the two. SFTP does not natively
-support expanding home directories, so absolute paths will have to be used
-for remote paths. Likewise passing quoted commands to be remotely executed
-(ex. ``tsh scp my_file 'user@host:/tmp/`whoami`.txt'``) will not work as
-`teleport sftp` is run without any other arguments.
+The UX of `tsh scp` with SFTP enabled will be very similar to that of `tsh scp`
+with scp/rcp enabled, but there will be some differences of behavior between the
+two. SFTP does not natively support expanding home directories, so absolute paths
+will have to be used for remote paths. Likewise passing quoted commands to be 
+remotely executed (ex. ``tsh scp my_file 'user@host:/tmp/`whoami`.txt'``) will
+not work as `teleport sftp` is run without any other arguments.
 
 The web UI for trasferring files will need to have a method of allowing the
 user to choose between scp and SFTP. A knob could be added for this purpose,
 and it would be grayed out if the user is not allowed to use either scp or
 SFTP due to role constraints.
 
-Examples of `tsh sftp`:
+Examples of `tsh scp` with SFTP enabled:
 
 ```bash
 tsh sftp ~/Downloads/notes.txt user@cluster.host:/home/user/Documents
 tsh sftp user@cluster.host:/home/user/Documents/notes.txt ~/Downloads/notes.txt
 ```
+
+### Future Work
+
+- Add a `tsh sftp` subcommand that closely mirrors OpenSSH's `sftp` command
