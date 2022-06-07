@@ -331,6 +331,7 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		`echo HOME=$${HOME}`,
 		`export HOME=/Users/$(whoami)`,
 		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
+		`export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport print-version)`,
 		`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
 		`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 		`export CARGO_HOME=` + perBuildCargoDir,
@@ -342,6 +343,10 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		`build.assets/build-fido2-macos.sh build`,
 		`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
 		`rustup override set $RUST_VERSION`,
+		// BUILD_NUMBER is used by electron-builder to add an extra fourth integer to CFBundleVersion on macOS.
+		// This makes the full app version look like this: 9.3.5.12489
+		// https://www.electron.build/configuration/configuration.html#Configuration-buildVersion
+		`export BUILD_NUMBER=$DRONE_BUILD_NUMBER`,
 	}
 
 	if opts.unlockKeychain {
@@ -358,7 +363,9 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 	if b.hasTeleportConnect() {
 		commands = append(commands,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-			`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
+			// c.extraMetadata.version overwrites the version property from package.json to $VERSION
+			// https://www.electron.build/configuration/configuration.html#Configuration-extraMetadata
+			`yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION`,
 		)
 	}
 

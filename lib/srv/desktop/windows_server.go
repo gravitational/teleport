@@ -164,6 +164,9 @@ type WindowsServiceConfig struct {
 	// Windows Desktops. If multiple filters are specified, they are ANDed
 	// together into a single search.
 	DiscoveryLDAPFilters []string
+	// DiscoveryLDAPAttributeLabels are optional LDAP attributes to convert
+	// into Teleport labels.
+	DiscoveryLDAPAttributeLabels []string
 	// Hostname of the windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
