@@ -776,6 +776,8 @@ type certRequest struct {
 	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
+	// sourceIP is an IP this certificate should be pinned to
+	sourceIP string
 	// disallowReissue flags that a cert should not be allowed to issue future
 	// certificates.
 	disallowReissue bool
@@ -838,6 +840,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		routeToCluster: routeToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
+		sourceIP:       "1.2.3.4",
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -896,6 +899,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
+		sourceIP:       "1.2.3.4",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -940,6 +944,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		dbProtocol:     req.RouteToDatabase.Protocol,
 		dbUser:         req.RouteToDatabase.Username,
 		dbName:         req.RouteToDatabase.Database,
+		sourceIP:       "1.2.3.4",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1085,6 +1090,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Generation:            req.generation,
 		CertificateExtensions: req.checker.CertificateExtensions(),
 		AllowedResourceIDs:    requestedResourcesStr,
+		SourceIP:              req.sourceIP,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {

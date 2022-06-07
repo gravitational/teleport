@@ -727,6 +727,9 @@ type AccessChecker interface {
 	// "assume" while searching for resources, and should be able to request with a
 	// search-based access request.
 	GetSearchAsRoles() []string
+
+	// PinSourceIP forces the same client IP for certificate generation and usage
+	PinSourceIP() bool
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1074,6 +1077,15 @@ func (set RoleSet) WithoutImplicit() (out RoleSet) {
 		out = append(out, r)
 	}
 	return out
+}
+
+func (set RoleSet) PinSourceIP() bool {
+	for _, role := range set {
+		if role.GetOptions().PinSourceIP {
+			return true
+		}
+	}
+	return false
 }
 
 // AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL

@@ -462,6 +462,14 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		authority,
 	}
 
+	sourceIP := ""
+	if checker.PinSourceIP() {
+		host, err := utils.Host(req.ClientMetadata.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sourceIP = host
+	}
 	certs, err := s.generateUserCert(certRequest{
 		user:              user,
 		ttl:               req.TTL,
@@ -471,6 +479,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		traits:            user.GetTraits(),
 		routeToCluster:    req.RouteToCluster,
 		kubernetesCluster: req.KubernetesCluster,
+		sourceIP:          sourceIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

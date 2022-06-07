@@ -2733,6 +2733,18 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
+	if debug {
+		count = 0
+		for k, v := range p.CriticalOptions {
+			if count == 0 {
+				fmt.Printf("  Critical options:   %v: %v\n", k, v)
+			} else {
+				fmt.Printf("                      %v: %v\n", k, v)
+			}
+			count = count + 1
+		}
+	}
+
 	fmt.Printf("\n")
 }
 

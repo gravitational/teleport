@@ -665,11 +665,17 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 			if err = json.Unmarshal(payload, &hp); err != nil {
 				c.logger.Error(err)
 			} else {
-				ca, err := utils.ParseAddr(hp.ClientAddr)
-				if err == nil {
+				if ca, err := utils.ParseAddr(hp.ClientAddr); err == nil {
 					// replace proxy's client addr with a real client address
 					// we just got from the custom payload:
 					c.clientAddr = ca
+					if ca.AddrNetwork == "tcp" {
+						// source-address check in SSH server requires TCPAddr
+						c.clientAddr = &net.TCPAddr{
+							IP:   net.ParseIP(ca.Host()),
+							Port: ca.Port(0),
+						}
+					}
 				}
 
 				c.traceContext = hp.TracingContext
