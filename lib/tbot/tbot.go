@@ -70,7 +70,7 @@ func (b *Bot) setClient(client auth.ClientI) {
 
 	// Make sure the previous client is closed.
 	if b._client != nil {
-		defer b._client.Close()
+		_ = b._client.Close()
 	}
 
 	b._client = client
