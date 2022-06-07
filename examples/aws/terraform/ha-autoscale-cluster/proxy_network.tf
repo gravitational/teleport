@@ -36,7 +36,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_web_acm" {
   from_port         = 443
   to_port           = 443
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy_acm[0].id
   count             = var.use_acm ? 1 : 0
 }
@@ -47,7 +47,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_proxy" {
   from_port         = 3023
   to_port           = 3023
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
 }
 
@@ -57,7 +57,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_tunnel" {
   from_port         = 3024
   to_port           = 3024
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
   count             = var.use_acm ? 1 : 0
 }
@@ -68,7 +68,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_kube" {
   from_port         = 3026
   to_port           = 3026
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
 }
 
@@ -78,7 +78,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_mysql" {
   from_port         = 3036
   to_port           = 3036
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
 }
 // Permit inbound to Teleport postgres services
@@ -87,7 +87,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_postgres" {
   from_port         = 5432
   to_port           = 5432
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
 }
 
@@ -97,7 +97,7 @@ resource "aws_security_group_rule" "cluster_ingress_mongodb" {
   from_port         = 27017
   to_port           = 27017
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
 }
 
@@ -107,7 +107,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_web" {
   from_port         = 3080
   to_port           = 3080
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
 }
 
@@ -117,7 +117,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_grafana_acm" {
   from_port         = 8443
   to_port           = 8443
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy_acm[0].id
   count             = var.use_acm ? 1 : 0
 }
@@ -128,7 +128,7 @@ resource "aws_security_group_rule" "proxy_egress_allow_all_traffic" {
   from_port         = 0
   to_port           = 0
   protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_egress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
 }
 
@@ -138,7 +138,7 @@ resource "aws_security_group_rule" "proxy_egress_allow_all_traffic_acm" {
   from_port         = 0
   to_port           = 0
   protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_proxy_egress_cidr_blocks
   security_group_id = aws_security_group.proxy_acm[0].id
   count             = var.use_acm ? 1 : 0
 }
