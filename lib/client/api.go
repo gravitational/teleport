@@ -2355,7 +2355,7 @@ func (tc *TeleportClient) runCommandOnNodes(
 
 // runCommand executes a given bash command on an established NodeClient.
 func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient, command []string) error {
-	nodeSession, err := newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+	nodeSession, err := newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2397,7 +2397,7 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 		env[key] = value
 	}
 
-	nodeSession, err := newSession(nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+	nodeSession, err := newSession(nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3522,46 +3522,6 @@ func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) 
 func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err error) {
 	return prompt.Password(
 		ctx, tc.Stderr, prompt.Stdin(), fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
-}
-
-// DELETE IN: 4.1.0
-//
-// useLegacyID returns true if an old style (UUIDv1) session ID should be
-// generated because the client is talking with a older server.
-func (tc *TeleportClient) useLegacyID(nodeClient *NodeClient) bool {
-	_, err := tc.getServerVersion(nodeClient)
-	return trace.IsNotFound(err)
-}
-
-type serverResponse struct {
-	version string
-	err     error
-}
-
-// getServerVersion makes a SSH global request to the server to request the
-// version.
-func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, error) {
-	responseCh := make(chan serverResponse)
-
-	go func() {
-		ok, payload, err := nodeClient.Client.SendRequest(teleport.VersionRequest, true, nil)
-		if err != nil {
-			responseCh <- serverResponse{err: trace.NotFound(err.Error())}
-		} else if !ok {
-			responseCh <- serverResponse{err: trace.NotFound("server does not support version request")}
-		}
-		responseCh <- serverResponse{version: string(payload)}
-	}()
-
-	select {
-	case resp := <-responseCh:
-		if resp.err != nil {
-			return "", trace.Wrap(resp.err)
-		}
-		return resp.version, nil
-	case <-time.After(500 * time.Millisecond):
-		return "", trace.NotFound("timed out waiting for server response")
-	}
 }
 
 // loadTLS returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set
