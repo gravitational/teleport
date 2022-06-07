@@ -2,31 +2,45 @@
   "navigation": [
     {
       "icon": "stack",
-      "title": "Home",
+      "title": "Get Started",
       "entries": [
         {
           "title": "Introduction",
           "slug": "/"
         },
         {
-          "title": "Adopters",
-          "slug": "/adopters/"
-        },
-        {
-          "title": "Getting Started",
-          "slug": "/getting-started/",
+          "title": "Try out Teleport",
+          "slug": "/getting-started/try-out-teleport/",
           "entries": [
             {
-              "title": "Linux Server",
-              "slug": "/getting-started/linux-server/",
-              "hideInScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "title": "Get Started in your Browser",
+              "slug": "/getting-started/try-out-teleport/browser-labs/"
             },
             {
-              "title": "Docker Compose",
-              "slug": "/getting-started/docker-compose/"
+              "title": "Docker Compose Lab",
+              "slug": "/getting-started/try-out-teleport/docker-compose/"
+            },
+            {
+              "title": "Kubernetes Lab",
+              "slug": "/getting-started/try-out-teleport/local-kubernetes/"
+            }
+          ]
+        },
+        {
+          "title": "Deploy a Teleport Cluster",
+          "slug": "/getting-started/deploy-a-cluster/",
+          "entries": [
+            {
+              "title": "Open Source Teleport",
+              "slug": "/getting-started/deploy-a-cluster/open-source/?scope=oss"
+            },
+            {
+              "title": "Teleport Cloud",
+              "slug": "/getting-started/deploy-a-cluster/cloud/?scope=cloud"
+            },
+            {
+              "title": "Teleport Enterprise",
+              "slug": "/getting-started/deploy-a-cluster/enterprise/?scope=enterprise"
             }
           ]
         },
@@ -37,10 +51,6 @@
         {
           "title": "FAQ",
           "slug": "/faq/"
-        },
-        {
-          "title": "Changelog",
-          "slug": "/changelog/"
         }
       ]
     },
@@ -732,11 +742,15 @@
     },
     {
       "icon": "wand",
-      "title": "Preview",
+      "title": "Releases",
       "entries": [
         {
           "title": "Upcoming Releases",
-          "slug": "/preview/upcoming-releases/"
+          "slug": "/releases/upcoming-releases/"
+        },
+        {
+            "title": "Changelog",
+            "slug": "/releases/changelog/"
         }
       ]
     },
@@ -1262,8 +1276,28 @@
       "permanent": true
     },
     {
+      "source": "/preview/upcoming-releases/",
+      "destination": "/releases/upcoming-releases/",
+      "permanent": true
+    },
+    {
+      "source": "/changelog/",
+      "destination": "/releases/changelog/",
+      "permanent": true
+    },
+    {
+      "source": "/adopters/",
+      "destination": "https://goteleport.com/case-study/",
+      "permanent": true
+    },
+    {
       "source": "/getting-started/digitalocean/",
       "destination": "/setup/deployments/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/",
+      "destination": "/",
       "permanent": true
     }
   ]

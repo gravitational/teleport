@@ -1,0 +1,92 @@
+---
+title: "Deploy a Teleport Cluster"
+description: "How to deploy Teleport Enterprise, Teleport Cloud, or open source Teleport."
+---
+
+A Teleport cluster includes two components that manage access to resources in
+your infrastructure:
+
+- The **Teleport Auth Service** hosts the certificate authorities for users and
+  resources in your cluster. It authenticates users to your cluster, executes
+  role-based access controls, and issues credentials to enable secure
+  communication.
+- The **Teleport Proxy Service** manages communication between the Auth Service,
+  users, and your infrastructure. Resources in your infrastructure can run
+  within a private network while the Proxy Service routes client traffic to
+  them. This means that you can secure your entire infrastructure behind a
+  single domain name.
+
+Teleport has three editions:
+
+- Open Source Teleport
+- Teleport Cloud
+- Teleport Enterprise
+
+For a detailed comparison of Teleport's editions, please see [our FAQ page](../faq.mdx#how-is-open-source-different-from-enterprise).
+
+## Open Source Teleport
+
+Open Source Teleport enables you to deploy and manage the Auth Service and Proxy
+Service on your own infrastructure, then secure your servers, databases, Windows
+desktops, Kubernetes clusters, and internal web applications.
+
+You can get help from our
+[discussion forum](https://github.com/gravitational/teleport/discussions) and
+[community Slack channel](https://goteleport.com/slack), or even clone our
+[GitHub repository](https://github.com/gravitational/teleport) to investigate
+the source.
+
+<TileSet>
+
+  <Tile 
+  icon="stack"
+  title="Get Started"
+  href="./deploy-a-cluster/open-source.mdx/?scope=oss"
+  >
+
+  Learn how to host Open Source Teleport on a Linux server.
+
+  </Tile>
+</TileSet>
+
+## Teleport Cloud
+
+Teleport Cloud is a managed deployment of the Auth Service and Proxy Service.
+Our team takes care of upgrades, security patches, scaling, monitoring, backend
+management, and other administration tasks.
+
+A Teleport Cloud account takes minutes to set up. After that, you can define
+RBAC rules, register Single Sign-On providers, and start connecting all of your
+infrastructure.
+
+<TileSet>
+
+  <Tile icon="cloud" title="Get Started" href="./deploy-a-cluster/cloud.mdx/?scope=cloud">
+
+    Learn how to use Teleport Cloud with a free trial.
+
+  </Tile>
+</TileSet>
+
+## Teleport Enterprise
+
+Teleport Enterprise is a self-hosted deployment of the Auth Service and Proxy
+Service that is intended for large organizations with requirements for full
+customization and the highest security standards. 
+
+Teleport Enterprise is FedRAMP compliant and lets you use Teleport with
+your own hardware security module.
+
+<TileSet>
+
+  <Tile
+  icon="building"
+  title="Get Started"
+  href="./deploy-a-cluster/enterprise.mdx/?scope=enterprise"
+  >
+
+  Learn how to deploy Teleport Enterprise.
+
+  </Tile>
+
+</TileSet>

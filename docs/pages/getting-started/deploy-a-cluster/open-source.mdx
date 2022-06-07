@@ -15,13 +15,13 @@ Teleport.
 
 <TileSet>
 <Tile 
-href="./linux-server.mdx/?scope=oss" 
+href="./open-source.mdx/?scope=oss" 
 title="View this guide as a Teleport Open Source user"
 icon="stack"
 >
 </Tile>
 <Tile 
-href="../enterprise/getting-started.mdx/" 
+href="./enterprise.mdx/" 
 title="View the Enterprise Getting Started Guide"
 icon="building"
 >
@@ -37,13 +37,13 @@ Teleport.
 
 <TileSet>
 <Tile 
-href="./linux-server.mdx/?scope=oss" 
+href="./open-source.mdx/?scope=oss" 
 title="View this guide as a Teleport Open Source user"
 icon="stack"
 >
 </Tile>
 <Tile 
-href="../cloud/getting-started.mdx/" 
+href="./cloud.mdx/?scope=cloud" 
 title="View the Teleport Cloud Getting Started Guide"
 icon="cloud"
 >
@@ -96,7 +96,7 @@ You must also have one of the following:
 
 If you would like to try out Teleport on your local machine—e.g., you do not
 have access to DNS resources or internal public key infrastructure—we recommend
-following our [Docker Compose guide](./docker-compose.mdx).
+following our [Docker Compose guide](../try-out-teleport/docker-compose.mdx).
 
 </Admonition>
 
@@ -145,7 +145,7 @@ on your Linux host:
 
 <Details title="Don't see your system here?" opened={false}>
 
-Take a look at the [Installation Guide](../installation.mdx) for more options.
+Take a look at the [Installation Guide](../../installation.mdx) for more options.
 
 </Details>
 
@@ -220,7 +220,7 @@ You can access Teleport's Web UI via HTTPS at the domain you created earlier
 (e.g., `https://teleport.example.com`). You should see a welcome screen similar
 to the following:
 
-![Teleport User Registration](../../img/quickstart/login.png)
+![Teleport User Registration](../../../img/quickstart/login.png)
 
 ## Step 4/6. Create a Teleport user and set up two-factor authentication
 
@@ -268,7 +268,7 @@ one-time passwords (OTP) and second-factor authenticators (WebAuthn). In this
 guide, you will need to enroll an OTP authenticator application using the QR
 code on the Teleport welcome screen.
 
-![Teleport UI Dashboard](../../img/quickstart/teleport-nodes.png)
+![Teleport UI Dashboard](../../../img/quickstart/teleport-nodes.png)
 
 ## Step 5/6. Log in using tsh
 
@@ -295,7 +295,7 @@ Install `tsh` on your local machine:
       If you choose to use Homebrew, you must verify that the versions of `tsh` and
       `tctl` are compatible with the versions you run server-side. Homebrew usually
       ships the latest release of Teleport, which may be incompatible with older
-      versions. See our [compatibility policy](../setup/operations/upgrading.mdx#component-compatibility) for details.
+      versions. See our [compatibility policy](../../setup/operations/upgrading.mdx#component-compatibility) for details.
     </Admonition>
   </TabItem>
 
@@ -307,7 +307,7 @@ Install `tsh` on your local machine:
   </TabItem>
 
   <TabItem label="Linux">
-    For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](../installation.mdx).
+    For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](../../installation.mdx).
 
     ```code
     $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
@@ -391,22 +391,22 @@ $ tsh ssh root@mynode
 Now that you know how to set up a Teleport cluster, learn how to register all of the
 resources in your infrastructure with Teleport:
 
-- [Applications](../application-access/getting-started.mdx)
-- [Databases](../database-access/getting-started.mdx)
-- [Kubernetes clusters](../kubernetes-access/getting-started.mdx)
-- [Servers](../server-access/getting-started.mdx)
-- [Windows desktops](../desktop-access/getting-started.mdx)
-- [Service accounts](../machine-id/introduction.mdx) (via Machine ID)
+- [Applications](../../application-access/getting-started.mdx)
+- [Databases](../../database-access/getting-started.mdx)
+- [Kubernetes clusters](../../kubernetes-access/getting-started.mdx)
+- [Servers](../../server-access/getting-started.mdx)
+- [Windows desktops](../../desktop-access/getting-started.mdx)
+- [Service accounts](../../machine-id/introduction.mdx) (via Machine ID)
 
 ### Manage your cluster
 
 You can also check out our collection of step-by-step guides for common
 Teleport tasks, such as:
 
-- [Managing users](../setup/admin/users.mdx)
-- [Setting up single sign-on with GitHub](../setup/admin/github-sso.mdx)
-- [Recording SSH sessions](../server-access/guides/bpf-session-recording.mdx)
-- [Labeling Teleport resources](../setup/admin/labels.mdx)
+- [Managing users](../../setup/admin/users.mdx)
+- [Setting up single sign-on with GitHub](../../setup/admin/github-sso.mdx)
+- [Recording SSH sessions](../../server-access/guides/bpf-session-recording.mdx)
+- [Labeling Teleport resources](../../setup/admin/labels.mdx)
 
 ## Further reading
 
