@@ -33,29 +33,46 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Verify that custom PAM environment variables are available as expected.
 
 - [ ] Users
-With every user combination, try to login and signup with invalid second factor, invalid password to see how the system reacts.
+
+    With every user combination, try to login and signup with invalid second
+    factor, invalid password to see how the system reacts.
+
+    WebAuthn in the release `tsh` binary is implemented using libfido2. Ask for
+    a statically built pre-release binary for realistic tests. (`tsh fido2 diag`
+    should work in our binary.)
+
+    Touch ID requires a signed `tsh`, ask for a signed pre-release binary so you
+    may run the tests.
 
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
-  - [ ] Adding Users U2F
   - [ ] Adding Users WebAuthn
+  - [ ] Adding Users Touch ID
   - [ ] Managing MFA devices
     - [ ] Add an OTP device with `tsh mfa add`
-    - [ ] Add a U2F device with `tsh mfa add`
-    - [ ] Verify that the U2F device works under WebAuthn
     - [ ] Add a WebAuthn device with `tsh mfa add`
+    - [ ] Add a Touch ID device with `tsh mfa add`
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
-    - [ ] Remove a U2F device with `tsh mfa rm`
     - [ ] Remove a WebAuthn device with `tsh mfa rm`
     - [ ] Attempt removing the last MFA device on the user
       - [ ] with `second_factor: on` in `auth_service`, should fail
       - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
   - [ ] Login with MFA
-    - [ ] Add 2 OTP and 2 WebAuthn devices with `tsh mfa add`
+    - [ ] Add an OTP, a WebAuthn and a Touch ID device with `tsh mfa add`
     - [ ] Login via OTP
     - [ ] Login via WebAuthn
+    - [ ] Login via Touch ID
+    - [ ] Login via WebAuthn using an U2F device
+
+    U2F devices must be registered in a previous version of Teleport.
+
+    Using Teleport v9, set `auth_service.authentication.second_factor = u2f`,
+    restart the server and then register an U2F device (`tsh mfa add`). Upgrade
+    the install to the current Teleport version (one major at a time) and try to
+    login using the U2F device as your second factor - it should work.
+
   - [ ] Login OIDC
   - [ ] Login SAML
   - [ ] Login GitHub
@@ -266,15 +283,38 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
 - [ ] G Suite install instructions work
     - [ ] G Suite Screenshots are up to date
-- [ ] ActiveDirectory install instructions work
-    - [ ] Active Directory Screenshots are up to date
+- [ ] Azure Active Directory (AD) install instructions work
+    - [ ] Azure Active Directory (AD) Screenshots are up to date
+- [ ] ActiveDirectory (ADFS) install instructions work
+    - [ ] Active Directory (ADFS) Screenshots are up to date
 - [ ] Okta install instructions work
     - [ ] Okta Screenshots are up to date
 - [ ] OneLogin install instructions work
     - [ ] OneLogin Screenshots are up to date
+- [ ] GitLab install instructions work
+    - [ ] GitLab Screenshots are up to date
 - [ ] OIDC install instructions work
     - [ ] OIDC Screenshots are up to date
+- [ ] All providers with guides in docs are covered in this test plan
 
+### `tctl sso` family of commands
+
+`tctl sso configure` helps to construct a valid connector definition:
+
+- [ ] `tctl sso configure github ...` creates valid connector definitions
+- [ ] `tctl sso configure oidc ...` creates valid connector definitions
+- [ ] `tctl sso configure saml ...` creates valid connector definitions
+
+`tctl sso test` test a provided connector definition, which can be loaded from
+file or piped in with `tctl sso configure` or `tctl get --with-secrets`. Valid
+connectors are accepted, invalid are rejected with sensible error messages.
+
+- [ ] Connectors can be tested with `tctl sso test`.
+    - [ ] GitHub
+    - [ ] SAML
+    - [ ] OIDC
+        - [ ] Google Workspace
+        - [ ] Non-Google IdP
 
 ### Teleport Plugins
 
@@ -289,6 +329,46 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestIAMNodeJoin`
 - [ ] EC2 Join method in IoT mode with node and auth in different AWS accounts
 - [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
+
+### Passwordless
+
+Passwordless requires `tsh` compiled with libfido2 for most operations (apart
+from Touch ID). Ask for a statically-built `tsh` binary for realistic tests.
+
+Touch ID requires a properly built and signed `tsh` binary. Ask for a
+pre-release binary so you may run the tests.
+
+This sections complements "Users -> Managing MFA devices". Ideally both macOS
+and Linux `tsh` binaries are tested for FIDO2 items.
+
+- [ ] Diagnostics
+
+    Both commands should pass all tests.
+
+  - [ ] `tsh fido2 diag`
+  - [ ] `tsh touchid diag`
+
+- [ ] Registration
+  - [ ] Register a passworldess FIDO2 key (`tsh mfa add`, choose WEBAUTHN and
+        passwordless)
+  - [ ] Register a Touch ID credential (`tsh mfa add`, choose TOUCHID)
+
+- [ ] Login
+  - [ ] Passwordless login using FIDO2 (`tsh login --auth=passwordless`)
+  - [ ] Passwordless login using Touch ID (`tsh login --auth=passwordless`)
+  - [ ] `tsh login --auth=passwordless --mfa-mode=cross-platform` uses FIDO2
+  - [ ] `tsh login --auth=passwordless --mfa-mode=platform` uses Touch ID
+  - [ ] `tsh login --auth=passwordless --mfa-mode=auto` prefers Touch ID
+  - [ ] Passwordless disable switch works
+        (`auth_service.authentication.passwordless = false`)
+  - [ ] Cluster in passwordless mode defaults to passwordless
+        (`auth_service.authentication.connector_name = passwordless`)
+  - [ ] Cluster in passwordless mode allows MFA login
+        (`tsh login --auth=local`)
+
+- [ ] Touch ID support commands
+  - [ ] `tsh touchid ls` works
+  - [ ] `tsh touchid rm` works (careful, may lock you out!)
 
 ## WEB UI
 
@@ -596,6 +676,12 @@ Using the same user as above:
 - [ ] Verify adding an OTP device works
 - [ ] Verify removing a device works
 - [ ] Verify `second_factor` set to `off` disables adding devices
+
+#### Passwordless
+
+- [ ] Pure passwordless registrations and resets are possible
+- [ ] Verify adding a passwordless device (WebAuthn)
+- [ ] Verify passwordless logins
 
 ## Cloud
 From your cloud staging account, change the field `teleportVersion` to the test version.

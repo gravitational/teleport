@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -239,11 +240,18 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
 
-// TestMultiPortNoProxy tests that the reverse tunnel does NOT use http_proxy
-// when not in single-port mode.
-func TestMultiPortNoProxy(t *testing.T) {
+// TestMultiPortHTTPSProxy tests if the reverse tunnel uses http_proxy
+// on a multiple proxy port setup.
+func TestMultiPortHTTPSProxy(t *testing.T) {
+	// start the http proxy
+	ps := &proxyServer{}
+	ts := httptest.NewServer(ps)
+	defer ts.Close()
+
 	// set the http_proxy environment variable
-	t.Setenv("http_proxy", "fakeproxy.example.com")
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
 	// httpproxy won't proxy when target address is localhost, so use this instead.
@@ -266,6 +274,8 @@ func TestMultiPortNoProxy(t *testing.T) {
 		"Two clusters do not see each other: tunnels are not working.")
 	require.Eventually(t, waitForClusters(suite.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
+
+	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
@@ -631,6 +641,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.Version = "v2"
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
@@ -641,7 +652,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	require.NoError(t, err)
 	defer rc.StopAll()
 
-	identityFilePath := mustCreateUserIdentityFile(t, rc, username)
+	identityFilePath := mustCreateUserIdentityFile(t, rc, username, time.Hour)
 
 	identity := client.LoadIdentityFile(identityFilePath)
 	require.NoError(t, err)
@@ -686,6 +697,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	rcConf.Auth.Preference.SetSecondFactor("off")
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
@@ -752,6 +764,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)

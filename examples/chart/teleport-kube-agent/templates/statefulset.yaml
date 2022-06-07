@@ -139,7 +139,7 @@ spec:
           protocol: TCP
         livenessProbe:
           httpGet:
-            path: /readyz
+            path: /healthz
             port: diag
           initialDelaySeconds: 5 # wait 5s for agent to start
           periodSeconds: 5 # poll health every 5s

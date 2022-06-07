@@ -361,7 +361,27 @@ type ElastiCacheMock struct {
 	elasticacheiface.ElastiCacheAPI
 
 	ReplicationGroups []*elasticache.ReplicationGroup
+	Users             []*elasticache.User
 	TagsByARN         map[string][]*elasticache.Tag
+}
+
+func (m *ElastiCacheMock) AddMockUser(user *elasticache.User, tagsMap map[string]string) {
+	m.Users = append(m.Users, user)
+	m.addTags(aws.StringValue(user.ARN), tagsMap)
+}
+func (m *ElastiCacheMock) addTags(arn string, tagsMap map[string]string) {
+	if m.TagsByARN == nil {
+		m.TagsByARN = make(map[string][]*elasticache.Tag)
+	}
+
+	var tags []*elasticache.Tag
+	for key, value := range tagsMap {
+		tags = append(tags, &elasticache.Tag{
+			Key:   aws.String(key),
+			Value: aws.String(value),
+		})
+	}
+	m.TagsByARN[arn] = tags
 }
 
 func (m *ElastiCacheMock) DescribeReplicationGroupsWithContext(_ aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error) {
@@ -377,6 +397,12 @@ func (m *ElastiCacheMock) DescribeReplicationGroupsWithContext(_ aws.Context, in
 func (m *ElastiCacheMock) DescribeReplicationGroupsPagesWithContext(_ aws.Context, _ *elasticache.DescribeReplicationGroupsInput, fn func(*elasticache.DescribeReplicationGroupsOutput, bool) bool, _ ...request.Option) error {
 	fn(&elasticache.DescribeReplicationGroupsOutput{
 		ReplicationGroups: m.ReplicationGroups,
+	}, true)
+	return nil
+}
+func (m *ElastiCacheMock) DescribeUsersPagesWithContext(_ aws.Context, _ *elasticache.DescribeUsersInput, fn func(*elasticache.DescribeUsersOutput, bool) bool, _ ...request.Option) error {
+	fn(&elasticache.DescribeUsersOutput{
+		Users: m.Users,
 	}, true)
 	return nil
 }
@@ -400,4 +426,12 @@ func (m *ElastiCacheMock) ListTagsForResourceWithContext(_ aws.Context, input *e
 	return &elasticache.TagListMessage{
 		TagList: tags,
 	}, nil
+}
+func (m *ElastiCacheMock) ModifyUserWithContext(_ aws.Context, input *elasticache.ModifyUserInput, opts ...request.Option) (*elasticache.ModifyUserOutput, error) {
+	for _, user := range m.Users {
+		if aws.StringValue(user.UserId) == aws.StringValue(input.UserId) {
+			return &elasticache.ModifyUserOutput{}, nil
+		}
+	}
+	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserId))
 }

@@ -31,9 +31,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -578,24 +580,6 @@ func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
 	return resp.IsBoring, trace.Wrap(err)
 }
 
-// FindServersByLabels returns list of the nodes which have labels exactly matching
-// the given label set.
-//
-// A server is matched when ALL labels match.
-// If no labels are passed, ALL nodes are returned.
-//
-// DELETE IN 11.0.0 replaced by FindNodesByFilters.
-func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(auth.MissingNamespaceError)
-	}
-	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return auth.GetNodesWithLabels(ctx, site, namespace, labels)
-}
-
 // FindServersByFilters returns list of the nodes which have filters matched.
 func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
 	req.ResourceType = types.KindNode
@@ -607,18 +591,6 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 
 	resources, err := client.GetResourcesWithFilters(ctx, site, req)
 	if err != nil {
-		// ListResources for nodes not available, provide fallback.
-		// Fallback does not support search/predicate support, so if users
-		// provide them, it does nothing.
-		//
-		// DELETE IN 11.0.0
-		if trace.IsNotImplemented(err) {
-			servers, err := proxy.FindServersByLabels(ctx, req.Namespace, req.Labels)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return servers, nil
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -847,6 +819,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 			client.LoadTLS(tlsConfig),
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
+		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -880,6 +853,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 			Credentials: []client.Credentials{
 				client.LoadTLS(proxy.teleportClient.TLS),
 			},
+			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		})
 	}
 
@@ -897,11 +871,77 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return clt, nil
+}
+
+// NewTracingClient connects to the auth server of the given cluster via proxy.
+// It returns a connected and authenticated tracing.Client that will export spans
+// to the auth server, where they will be forwarded onto the configured exporter.
+func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName string) (*tracing.Client, error) {
+	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return proxy.dialAuthServer(ctx, clusterName)
+	})
+
+	switch {
+	case proxy.teleportClient.TLSRoutingEnabled:
+		tlsConfig, err := proxy.loadTLS(clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clt, err := client.NewTracingClient(ctx, client.Config{
+			Addrs:            []string{proxy.teleportClient.WebProxyAddr},
+			DialInBackground: true,
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+			ALPNSNIAuthDialClusterName: clusterName,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	case proxy.teleportClient.SkipLocalAuth:
+		clt, err := client.NewTracingClient(ctx, client.Config{
+			Dialer:           dialer,
+			DialInBackground: true,
+			Credentials: []client.Credentials{
+				client.LoadTLS(proxy.teleportClient.TLS),
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	default:
+		tlsKey, err := proxy.localAgent().GetCoreKey()
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
+		}
+
+		tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{clusterName})
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to generate client TLS config")
+		}
+		tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
+
+		clt, err := client.NewTracingClient(ctx, client.Config{
+			Dialer:           dialer,
+			DialInBackground: true,
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	}
 }
 
 // nodeName removes the port number from the hostname, if present

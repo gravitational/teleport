@@ -25,13 +25,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gokyle/hotp"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+
+	"github.com/gokyle/hotp"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -1072,27 +1073,6 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 	return &req, nil
 }
 
-// CreateSAMLConnector creates SAML Connector
-func (s *IdentityService) CreateSAMLConnector(connector types.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalSAMLConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
 	if err := services.ValidateSAMLConnector(connector); err != nil {
@@ -1271,27 +1251,6 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	return &req, nil
 }
 
-// CreateGithubConnector creates a new Github connector
-func (s *IdentityService) CreateGithubConnector(connector types.GithubConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalGithubConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // UpsertGithubConnector creates or updates a Github connector
 func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	if err := connector.CheckAndSetDefaults(); err != nil {
@@ -1388,11 +1347,11 @@ func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest
 }
 
 // GetGithubAuthRequest retrieves Github auth request by the token
-func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.GithubAuthRequest, error) {
+func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken string) (*services.GithubAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

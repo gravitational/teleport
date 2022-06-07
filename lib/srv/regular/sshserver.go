@@ -99,9 +99,13 @@ type Server struct {
 	// dynamicLabels are the result of command execution.
 	dynamicLabels *labels.Dynamic
 
+	// cloudLabels are the labels imported from a cloud provider.
+	cloudLabels labels.Importer
+
 	proxyMode        bool
 	proxyTun         reversetunnel.Tunnel
 	proxyAccessPoint auth.ReadProxyAccessPoint
+	peerAddr         string
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
@@ -188,6 +192,9 @@ type Server struct {
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
+
+	// connectedProxyGetter gets the proxies teleport is connected to.
+	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
 	// nodeWatcher is the server's node watcher.
 	nodeWatcher *services.NodeWatcher
@@ -333,6 +340,10 @@ func (s *Server) Serve(l net.Listener) error {
 		go s.dynamicLabels.Start()
 	}
 
+	if s.cloudLabels != nil {
+		s.cloudLabels.Start(s.Context())
+	}
+
 	go s.heartbeat.Run()
 	return s.srv.Serve(l)
 }
@@ -395,7 +406,7 @@ func SetSessionServer(sessionServer rsession.Service) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -403,13 +414,14 @@ func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) Serve
 		s.proxyMode = true
 		s.proxyTun = tsrv
 		s.proxyAccessPoint = ap
+		s.peerAddr = peerAddr
 		return nil
 	}
 }
 
 // SetLabels sets dynamic and static labels that server will report to the
 // auth servers.
-func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels) ServerOption {
+func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels, cloudLabels labels.Importer) ServerOption {
 	return func(s *Server) error {
 		var err error
 
@@ -433,7 +445,7 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
+		s.cloudLabels = cloudLabels
 		return nil
 	}
 }
@@ -574,6 +586,14 @@ func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	}
 }
 
+// SetConnectedProxyGetter sets the ConnectedProxyGetter.
+func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
+	return func(s *Server) error {
+		s.connectedProxyGetter = getter
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -637,6 +657,10 @@ func New(addr utils.NetAddr,
 
 	if s.lockWatcher == nil {
 		return nil, trace.BadParameter("setup valid LockWatcher parameter using SetLockWatcher")
+	}
+
+	if s.connectedProxyGetter == nil {
+		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	var component string
@@ -727,8 +751,8 @@ func (s *Server) getNamespace() string {
 	return types.ProcessNamespace(s.namespace)
 }
 
-func (s *Server) tunnelWithRoles(ctx *srv.ServerContext) reversetunnel.Tunnel {
-	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.RoleSet, s.proxyAccessPoint)
+func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) reversetunnel.Tunnel {
+	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.AccessChecker, s.proxyAccessPoint)
 }
 
 // Context returns server shutdown context
@@ -805,6 +829,20 @@ func (s *Server) getRole() types.SystemRole {
 	return types.RoleNode
 }
 
+// getStaticLabels gets the labels that the server should present as static,
+// which includes EC2 labels if available.
+func (s *Server) getStaticLabels() map[string]string {
+	if s.cloudLabels == nil {
+		return s.labels
+	}
+	labels := s.cloudLabels.Get()
+	// Let static labels override ec2 labels if they conflict.
+	for k, v := range s.labels {
+		labels[k] = v
+	}
+	return labels
+}
+
 // getDynamicLabels returns all dynamic labels. If no dynamic labels are
 // defined, return an empty set.
 func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
@@ -828,7 +866,7 @@ func (s *Server) GetInfo() types.Server {
 		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),
-			Labels:    s.labels,
+			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
 			CmdLabels: s.getDynamicLabels(),
@@ -836,6 +874,7 @@ func (s *Server) GetInfo() types.Server {
 			Hostname:  s.hostname,
 			UseTunnel: s.useTunnel,
 			Version:   teleport.Version,
+			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
 		},
 	}
 }
@@ -852,8 +891,10 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 			server.SetRotation(*rotation)
 		}
 	}
+
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
+	server.SetPeerAddr(s.peerAddr)
 	return server, nil
 }
 
@@ -949,7 +990,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
-	lockingMode := identityContext.RoleSet.LockingMode(authPref.GetLockingMode())
+	lockingMode := identityContext.AccessChecker.LockingMode(authPref.GetLockingMode())
 
 	event := &apievents.SessionReject{
 		Metadata: apievents.Metadata{
@@ -985,7 +1026,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		return ctx, nil
 	}
 
-	maxConnections := identityContext.RoleSet.MaxConnections()
+	maxConnections := identityContext.AccessChecker.MaxConnections()
 	if maxConnections == 0 {
 		// concurrent session control is not active, nothing
 		// else needs to be done here.
@@ -1088,7 +1129,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
 		var decr func()
-		if max := identityContext.RoleSet.MaxSessions(); max != 0 {
+		if max := identityContext.AccessChecker.MaxSessions(); max != 0 {
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.

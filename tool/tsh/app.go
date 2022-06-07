@@ -17,16 +17,21 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509/pkix"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -180,6 +185,8 @@ func onAppLogout(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		removeAppLocalFiles(profile, app.Name)
 	}
 	if len(logout) == 1 {
 		fmt.Printf("Logged out of app %q\n", logout[0].Name)
@@ -306,6 +313,90 @@ func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
 		}
 	}
 	return nil, trace.NotFound("not logged into app %q", name)
+}
+
+// removeAppLocalFiles removes generated local files for the provided app.
+func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
+	removeFileIfExist(profile.AppLocalCAPath(appName))
+}
+
+// removeFileIfExist removes a local file if it exists.
+func removeFileIfExist(filePath string) {
+	if !utils.FileExists(filePath) {
+		return
+	}
+
+	if err := os.Remove(filePath); err != nil {
+		log.WithError(err).Warnf("Failed to remove %v", filePath)
+	}
+}
+
+// loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
+// generate a new CA if first load fails.
+func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
+	caPath := profile.AppLocalCAPath(appName)
+	keyPath := profile.KeyPath()
+
+	localCA, err := tls.LoadX509KeyPair(caPath, keyPath)
+	if err == nil {
+		return localCA, nil
+	}
+
+	// Generate and load again.
+	log.WithError(err).Debugf("Failed to load certificate from %v. Generating local self signed CA.", caPath)
+	if err = generateAppSelfSignedCA(profile, tc, appName); err != nil {
+		return tls.Certificate{}, err
+	}
+
+	localCA, err = tls.LoadX509KeyPair(caPath, keyPath)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return localCA, nil
+}
+
+// generateAppSelfSignedCA generates a new self-signed CA for provided app and
+// saves/overwrites the local CA file in the profile directory.
+func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) error {
+	appCerts, err := loadAppCertificate(tc, appName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	appCertsExpireAt, err := getTLSCertExpireTime(appCerts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyPem, err := utils.ReadPath(profile.KeyPath())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := utils.ParsePrivateKey(keyPem)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Entity: pkix.Name{
+			CommonName:   "localhost",
+			Organization: []string{"Teleport"},
+		},
+		Signer:      key,
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
+		TTL:         time.Until(appCertsExpireAt),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// WriteFile truncates existing file before writing.
+	if err = os.WriteFile(profile.AppLocalCAPath(appName), certPem, 0600); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 const (

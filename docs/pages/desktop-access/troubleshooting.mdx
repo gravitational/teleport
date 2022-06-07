@@ -45,7 +45,27 @@ This means that the host does not trust the Teleport CA.
 First, make sure that you [import the Teleport CA into Group
 Policy](./getting-started.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
 Teleport CA was rotated since the last import, you will have to fetch the
-new CA using `tctl auth export --type=windows >user-ca.cer`
+new CA using the following command:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+# Log in to your Teleport cluster so you can use tctl remotely.
+# You can also run tctl on your Auth Service host.
+$ tsh login --proxy=teleport.example.com --user=myuser
+$ tctl auth export --type=windows >user-ca.cer
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+# Log in to your Teleport cluster so you can use tctl remotely.
+$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+$ tctl auth export --type=windows >user-ca.cer
+```
+
+</ScopedBlock>
 
 If that doesn't help, log into the target host directly, open PowerShell and
 run `gpupdate.exe /force`. This forces a Group Policy sync and should pick up
