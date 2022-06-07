@@ -517,6 +517,8 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	_, err = b.svc.PutItemWithContext(ctx, &input)
 	err = convertError(err)
 	if err != nil {
+		log.Infof("GH1720: CompareAndSwap input: %v", input)
+		log.Infof("GH1720: CompareAndSwap error: %v", err)
 		// in this case let's use more specific compare failed error
 		if trace.IsAlreadyExists(err) {
 			return nil, trace.CompareFailed(err.Error())
@@ -576,6 +578,9 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	if trace.IsCompareFailed(err) {
 		err = trace.NotFound(err.Error())
 	}
+
+	log.Infof("GH1720: KeepAlive input: %v", input)
+	log.Infof("GH1720: KeepAlive Error: %v", err)
 	return err
 }
 
@@ -828,6 +833,8 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) error
 	_, err = b.svc.PutItemWithContext(ctx, &input)
 	err = convertError(err)
 	if err != nil {
+		log.Infof("GH1720: Create input: %v", input)
+		log.Infof("GH1720: Create Error: %v", err)
 		return trace.Wrap(err)
 	}
 	return nil
