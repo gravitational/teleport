@@ -45,6 +45,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -58,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -205,6 +207,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
+	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -848,6 +851,165 @@ func testInteractiveReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	defer teleport.StopAll()
 
 	verifySessionJoin(t, suite.me.Username, teleport)
+}
+
+func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtNode,
+	})
+	require.NoError(t, err)
+
+	// Enable session recording on node.
+	cfg := suite.defaultServiceConfig()
+	cfg.Auth.Enabled = true
+	cfg.Auth.SessionRecordingConfig = recConfig
+	cfg.Proxy.DisableWebService = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.Enabled = true
+	cfg.SSH.Enabled = true
+
+	teleport := suite.newTeleportWithConfig(t, nil, nil, cfg)
+	defer teleport.StopAll()
+
+	// startSession starts an interactive session, users must terminate the
+	// session by typing "exit" in the terminal.
+	startSession := func(username string) (*Terminal, chan error) {
+		term := NewTerminal(250)
+		errCh := make(chan error)
+
+		go func() {
+			cl, err := teleport.NewClient(ClientConfig{
+				Login:   username,
+				Cluster: Site,
+				Host:    Host,
+			})
+			if err != nil {
+				errCh <- trace.Wrap(err)
+				return
+			}
+			cl.Stdout = term
+			cl.Stdin = term
+
+			errCh <- cl.SSH(context.TODO(), []string{}, false)
+		}()
+
+		return term, errCh
+	}
+
+	waitSessionTermination := func(t *testing.T, errCh chan error, errorAssertion require.ErrorAssertionFunc) {
+		require.Eventually(t, func() bool {
+			select {
+			case err := <-errCh:
+				errorAssertion(t, err)
+				return true
+			default:
+				return false
+			}
+		}, 10*time.Second, 500*time.Millisecond)
+	}
+
+	// enableDiskFailure changes the OpenFileFunc on filesession package. The
+	// replace function will always return an error when called.
+	enableDiskFailure := func() {
+		filesessions.SetOpenFileFunc(func(path string, _ int, _ os.FileMode) (*os.File, error) {
+			return nil, fmt.Errorf("failed to open file %q", path)
+		})
+	}
+
+	// disableDiskFailure restore the OpenFileFunc.
+	disableDiskFailure := func() {
+		filesessions.SetOpenFileFunc(os.OpenFile)
+	}
+
+	for name, test := range map[string]struct {
+		recordingMode        constants.SessionRecordingMode
+		expectSessionFailure bool
+	}{
+		"BestEffortMode": {
+			recordingMode:        constants.SessionRecordingModeBestEffort,
+			expectSessionFailure: false,
+		},
+		"StrictMode": {
+			recordingMode:        constants.SessionRecordingModeStrict,
+			expectSessionFailure: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// Setup user and session recording mode.
+			username := suite.me.Username
+			role, err := types.NewRoleV3("devs", types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Logins: []string{username},
+				},
+				Options: types.RoleOptions{
+					RecordSession: &types.RecordSession{
+						SSH: test.recordingMode,
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.NoError(t, SetupUser(teleport.Process, username, []types.Role{role}))
+
+			t.Run("BeforeStartFailure", func(t *testing.T) {
+				// Enable disk failure.
+				enableDiskFailure()
+				defer disableDiskFailure()
+
+				// Start session.
+				term, errCh := startSession(username)
+				if test.expectSessionFailure {
+					waitSessionTermination(t, errCh, require.Error)
+					return
+				}
+
+				// Send stuff to the session.
+				term.Type("echo Hello\n\r")
+
+				// Guarantee the session hasn't stopped after typing.
+				select {
+				case <-errCh:
+					require.Fail(t, "session was closed before")
+				default:
+				}
+
+				// Wait for the session to terminate without error.
+				term.Type("exit\n\r")
+				waitSessionTermination(t, errCh, require.NoError)
+			})
+
+			t.Run("MidSessionFailure", func(t *testing.T) {
+				// Start session.
+				term, errCh := startSession(username)
+
+				// Guarantee the session started properly.
+				select {
+				case <-errCh:
+					require.Fail(t, "session was closed before")
+				default:
+				}
+
+				// Enable disk failure
+				enableDiskFailure()
+				defer disableDiskFailure()
+
+				// Send stuff to the session.
+				term.Type("echo Hello\n\r")
+
+				// Expect the session to fail
+				if test.expectSessionFailure {
+					waitSessionTermination(t, errCh, require.Error)
+					return
+				}
+
+				// Wait for the session to terminate without error.
+				term.Type("exit\n\r")
+				waitSessionTermination(t, errCh, require.NoError)
+			})
+		})
+	}
 }
 
 // TestCustomReverseTunnel tests that the SSH node falls back to configured

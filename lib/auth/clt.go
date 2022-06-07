@@ -129,12 +129,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		var contextDialer client.ContextDialer
-		if cfg.IgnoreHTTPProxy {
-			contextDialer = client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		} else {
-			contextDialer = client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		}
+		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -352,10 +347,6 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 func (c *Client) Close() error {
 	c.HTTPClient.Close()
 	return c.APIClient.Close()
-}
-
-func (c *Client) WaitForDelivery(context.Context) error {
-	return nil
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
@@ -1488,6 +1479,11 @@ func (c *Client) UpsertAppSession(ctx context.Context, session types.WebSession)
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertSnowflakeSession not implemented: can only be called locally.
+func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // ResumeAuditStream resumes existing audit stream.
 // This is a wrapper on the grpc endpoint and is deprecated.
 // DELETE IN 7.0.0
@@ -1562,7 +1558,7 @@ func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) err
 
 // WebService implements features used by Web UI clients
 type WebService interface {
-	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
+	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
 	// it is valid, or error otherwise.
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
@@ -1573,6 +1569,8 @@ type WebService interface {
 
 	// AppSession defines application session features.
 	services.AppSession
+	// SnowflakeSession defines Snowflake session features.
+	services.SnowflakeSession
 }
 
 // IdentityService manages identities and users
@@ -1847,6 +1845,10 @@ type ClientI interface {
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(context.Context, types.CreateAppSessionRequest) (types.WebSession, error)
+
+	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
+	// sessions represent Database Access Snowflake session the client holds.
+	CreateSnowflakeSession(context.Context, types.CreateSnowflakeSessionRequest) (types.WebSession, error)
 
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.

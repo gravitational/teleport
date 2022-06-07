@@ -395,10 +395,6 @@ func (l *FileLog) Close() error {
 	return err
 }
 
-func (l *FileLog) WaitForDelivery(context.Context) error {
-	return nil
-}
-
 func (l *FileLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	return nil, trace.NotImplemented("not implemented")
 }

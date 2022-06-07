@@ -1696,6 +1696,20 @@ message RecordSession {
         (gogoproto.jsontag) = "desktop",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    // Default indicates the default value for the services.
+    string Default = 2 [
+        (gogoproto.jsontag) = "default,omitempty",
+        (gogoproto.casttype) =
+            "github.com/gravitational/teleport/api/constants.SessionRecordingMode"
+    ];
+
+    // SSH indicates the session mode used on SSH sessions.
+    string SSH = 3 [
+        (gogoproto.jsontag) = "ssh,omitempty",
+        (gogoproto.casttype) =
+            "github.com/gravitational/teleport/api/constants.SessionRecordingMode"
+    ];
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert.
