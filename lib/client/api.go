@@ -855,7 +855,7 @@ func profileFromKey(key *Key, opts ProfileOptions) (*ProfileStatus, error) {
 		Logins:             sshCert.ValidPrincipals,
 		ValidUntil:         validUntil,
 		Extensions:         extensions,
-		CriticalOptions: 	sshCert.CriticalOptions,
+		CriticalOptions:    sshCert.CriticalOptions,
 		Roles:              roles,
 		Cluster:            opts.SiteName,
 		Traits:             traits,
