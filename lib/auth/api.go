@@ -201,7 +201,7 @@ type ReadProxyAccessPoint interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -271,6 +271,14 @@ type ReadProxyAccessPoint interface {
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
+// SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
+type SnowflakeSessionWatcher interface {
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+	// GetSnowflakeSession gets a Snowflake web session for a given request.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+}
+
 // ProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
 // used by a teleport.ComponentProxy.
 type ProxyAccessPoint interface {
@@ -329,7 +337,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -697,10 +705,7 @@ type Cache interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
-	// ListNodes returns a paginated list of registered servers for this cluster.
-	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -748,6 +753,9 @@ type Cache interface {
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
+
+	// GetSnowflakeSession gets a Snowflake web session.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
