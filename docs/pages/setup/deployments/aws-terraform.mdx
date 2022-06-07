@@ -193,7 +193,7 @@ EC2 instances. Do not use a keypair that you do not have access to.
 Setting `export TF_VAR_license_path="/home/user/teleport-license.pem"`
 
 The full local path to your Teleport license file, which customers can download from
-[the Gravitational dashboard](https://dashboard.gravitational.com/).
+[the Teleport customer dashboard](https://dashboard.gravitational.com/).
 
 This license will be uploaded to AWS SSM and automatically downloaded to Teleport auth nodes in order to enable
 Teleport Enterprise/Pro functionality.
@@ -302,7 +302,7 @@ table for cluster state will be the same as the cluster name configured in the [
 
 In our example, the DynamoDB table would be called `example-cluster`.
 
-More information about how Teleport works with DynamoDB can be found in our [DynamoDB Admin Guide](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../reference/backends.mdx#dynamodb).
 
 ### Audit event storage
 
@@ -312,7 +312,7 @@ with `-events` appended to the end.
 
 In our example, the DynamoDB table would be called `example-cluster-events`.
 
-More information about how Teleport works with DynamoDB can be found in our [DynamoDB Admin Guide](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../reference/backends.mdx#dynamodb).
 
 ### Recorded session storage
 
@@ -492,7 +492,7 @@ Once this user is successfully configured, you should be logged into the Telepor
 
 You can use the Teleport command line tool (`tsh`) to log into your Teleport cluster after provisioning a user.
 
-You can [download the Teleport package containing the `tsh` client from here](https://gravitational.com/teleport/download)
+You can [download the Teleport package containing the `tsh` client from here](https://goteleport.com/download)
 
 - the client is the same for both OSS and Enterprise versions of Teleport.
 
@@ -786,7 +786,7 @@ spec:
 ```
 
 You can generate a token for adding the trusted cluster using `tctl tokens add --type=trusted_cluster` after connecting
-to an auth server. Follow the instructions in our [trusted cluster guide](https://gravitational.com/teleport/docs/trustedclusters/#dynamic-join-tokens).
+to an auth server. Follow the instructions in our [Trusted Clusters guide](../admin/trustedclusters.mdx).
 
 ## Script to quickly connect to instances
 
