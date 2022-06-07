@@ -25,7 +25,6 @@ import (
 	"encoding/binary"
 	"os"
 	"sync"
-	"unsafe"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -169,7 +168,7 @@ func (m *sessionMgr) OpenSession(ctx *bpf.SessionContext, cgroupID uint64) {
 	key := make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, cgroupID)
 
-	m.restrictedCGroups.Update(unsafe.Pointer(&key[0]), unsafe.Pointer(&unit[0]))
+	m.restrictedCGroups.Update(key, unit)
 
 	log.Debugf("CGroup %v registered", cgroupID)
 }
@@ -180,7 +179,7 @@ func (m *sessionMgr) CloseSession(ctx *bpf.SessionContext, cgroupID uint64) {
 	key := make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, cgroupID)
 
-	m.restrictedCGroups.DeleteKey(unsafe.Pointer(&key[0]))
+	m.restrictedCGroups.DeleteKey(key)
 
 	m.watch.Remove(cgroupID)
 
