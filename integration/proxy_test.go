@@ -240,11 +240,18 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
 
-// TestMultiPortNoProxy tests that the reverse tunnel does NOT use http_proxy
-// when not in single-port mode.
-func TestMultiPortNoProxy(t *testing.T) {
+// TestMultiPortHTTPSProxy tests if the reverse tunnel uses http_proxy
+// on a multiple proxy port setup.
+func TestMultiPortHTTPSProxy(t *testing.T) {
+	// start the http proxy
+	ps := &proxyServer{}
+	ts := httptest.NewServer(ps)
+	defer ts.Close()
+
 	// set the http_proxy environment variable
-	t.Setenv("http_proxy", "fakeproxy.example.com")
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
 	// httpproxy won't proxy when target address is localhost, so use this instead.
@@ -267,6 +274,8 @@ func TestMultiPortNoProxy(t *testing.T) {
 		"Two clusters do not see each other: tunnels are not working.")
 	require.Eventually(t, waitForClusters(suite.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
+
+	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
