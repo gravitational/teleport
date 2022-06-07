@@ -85,11 +85,15 @@ type sessionChunk struct {
 }
 
 // newSessionChunk creates a new chunk session.
+// The session chunk is created with inflight=1,
+// and as such expects `release()` to eventually be called
+// by the caller of this function.
 func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
 	sess := &sessionChunk{
 		id:           uuid.New().String(),
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
+		inflight:     1,
 		closeTimeout: sessionChunkCloseTimeout,
 		log:          s.log,
 	}
