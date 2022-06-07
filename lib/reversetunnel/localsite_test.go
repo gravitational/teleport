@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +42,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 		},
 	}
 
-	site, err := newlocalSite(srv, "clustername", &mockLocalSiteClient{})
+	site, err := newlocalSite(srv, "clustername", &mockLocalSiteClient{}, nil)
 	require.NoError(t, err)
 
 	nodeID := uuid.NewString()
@@ -89,7 +88,7 @@ type mockLocalSiteClient struct {
 }
 
 // called by (*localSite).sshTunnelStats() as part of (*localSite).periodicFunctions()
-func (mockLocalSiteClient) GetNodes(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.Server, error) {
+func (mockLocalSiteClient) GetNodes(_ context.Context, _ string) ([]types.Server, error) {
 	return nil, nil
 }
 

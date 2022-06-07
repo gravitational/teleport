@@ -116,6 +116,9 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentProxyPeer is the proxy peering component of the proxy service
+	ComponentProxyPeer = "proxy:peer"
+
 	// ComponentApp is the application proxy service.
 	ComponentApp = "app:service"
 
@@ -443,6 +446,9 @@ const (
 	// CertExtensionGeneration counts the number of times a certificate has
 	// been renewed.
 	CertExtensionGeneration = "generation"
+	// CertExtensionAllowedResources lists the resources which this certificate
+	// should be allowed to access
+	CertExtensionAllowedResources = "teleport-allowed-resources"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

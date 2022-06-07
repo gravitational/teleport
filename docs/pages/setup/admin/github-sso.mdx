@@ -88,7 +88,15 @@ $ tctl create github.yaml
 Configure the Teleport Auth Service to enable the GitHub authentication
 connector.
 
-Create a file called `cap.yaml` with the following content:
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` includes the following content:
 
 ```yaml
 kind: cluster_auth_preference

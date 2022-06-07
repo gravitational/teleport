@@ -141,6 +141,9 @@ type ForwarderConfig struct {
 	// DynamicLabels is map of dynamic labels associated with this cluster.
 	// Used for RBAC.
 	DynamicLabels *labels.Dynamic
+	// CloudLabels is a map of labels imported from a cloud provider associated with this
+	// cluster. Used for RBAC.
+	CloudLabels labels.Importer
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CheckImpersonationPermissions is an optional override of the default
@@ -1980,6 +1983,20 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+// getStaticLabels gets the labels that the forwarder should present as static,
+// which includes EC2 labels if available.
+func (f *Forwarder) getStaticLabels() map[string]string {
+	if f.cfg.CloudLabels == nil {
+		return f.cfg.StaticLabels
+	}
+	labels := f.cfg.CloudLabels.Get()
+	// Let static labels override ec2 labels.
+	for k, v := range f.cfg.StaticLabels {
+		labels[k] = v
+	}
+	return labels
+}
+
 func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
 	var dynLabels map[string]types.CommandLabelV2
 	if f.cfg.DynamicLabels != nil {
@@ -1990,7 +2007,7 @@ func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
 	for n := range f.creds {
 		res = append(res, &types.KubernetesCluster{
 			Name:          n,
-			StaticLabels:  f.cfg.StaticLabels,
+			StaticLabels:  f.getStaticLabels(),
 			DynamicLabels: dynLabels,
 		})
 	}
