@@ -208,10 +208,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
-	t.Run("ListNodesAcrossClusters", suite.bind(testListNodesAcrossClusters))
-	t.Run("ListAppsAcrossClusters", suite.bind(testListAppsAcrossClusters))
-	t.Run("ListDatabasesAcrossClusters", suite.bind(testListDatabasesAcrossClusters))
-	t.Run("ListKubeClustersAcrossClusters", suite.bind(testListKubeClustersAcrossClusters))
+	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 }
 
@@ -6136,47 +6133,96 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func testListNodesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
+func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
 	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *TeleInstance) {
-		rootNodes := []string{"root-one", "root-two", "root-three"}
-		leafNodes := []string{"leaf-one", "leaf-two", "leaf-three"}
-		for _, node := range rootNodes {
+		rootNodes := []string{"root-one", "root-two"}
+		leafNodes := []string{"leaf-one", "leaf-two"}
+
+		// Start a Teleport node that has SSH, Apps, Databases, and Kubernetes.
+		startNode := func(name string, i *TeleInstance) {
 			conf := suite.defaultServiceConfig()
-			conf.Hostname = node
+			conf.Auth.Enabled = false
+			conf.Proxy.Enabled = false
+
+			conf.DataDir = t.TempDir()
+			conf.Token = "token"
+			conf.UploadEventsC = i.UploadEventsC
+			conf.AuthServers = []utils.NetAddr{
+				*utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortWeb())),
+			}
+			conf.HostUUID = name
+			conf.Hostname = name
 			conf.SSH.Enabled = true
+			conf.CachePolicy = service.CachePolicy{
+				Enabled: true,
+			}
 			conf.SSH.Addr = utils.NetAddr{
 				Addr: fmt.Sprintf("%s:%d", Host, ports.PopInt()),
 			}
-			_, err := root.StartNode(conf)
-			require.NoError(t, err)
+			conf.Proxy.Enabled = false
 
+			conf.Apps.Enabled = true
+			conf.Apps.Apps = []service.App{
+				{
+					Name: name,
+					URI:  name,
+				},
+			}
+
+			conf.Databases.Enabled = true
+			conf.Databases.Databases = []service.Database{
+				{
+					Name:     name,
+					URI:      name,
+					Protocol: "postgres",
+				},
+			}
+
+			conf.Kube.KubeconfigPath = filepath.Join(conf.DataDir, "kube_config")
+			require.NoError(t, enableKube(conf, name))
+			conf.Kube.ListenAddr = nil
+			process, err := service.NewTeleport(conf)
+			require.NoError(t, err)
+			i.Nodes = append(i.Nodes, process)
+
+			expectedEvents := []string{
+				service.NodeSSHReady,
+				service.AppsReady,
+				service.DatabasesIdentityEvent,
+				service.DatabasesReady,
+				service.KubeIdentityEvent,
+				service.KubernetesReady,
+				service.TeleportReadyEvent,
+			}
+
+			receivedEvents, err := startAndWait(process, expectedEvents)
+			require.NoError(t, err)
+			log.Debugf("Teleport Kube Server (in instance %v) started: %v/%v events received.",
+				i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+		}
+
+		for _, node := range rootNodes {
+			startNode(node, root)
 		}
 		for _, node := range leafNodes {
-			conf := suite.defaultServiceConfig()
-			conf.Hostname = node
-			conf.SSH.Enabled = true
-			conf.SSH.Addr = utils.NetAddr{
-				Addr: fmt.Sprintf("%s:%d", Host, ports.PopInt()),
-			}
-			_, err := leaf.StartNode(conf)
-			require.NoError(t, err)
+			startNode(node, leaf)
 		}
 	})
 
-	tests := []struct {
+	nodeTests := []struct {
 		name     string
 		search   string
 		expected []string
 	}{
 		{
 			name: "all nodes",
-			expected: []string{"root-zero", "root-one", "root-two", "root-three",
-				"leaf-zero", "leaf-one", "leaf-two", "leaf-three"},
+			expected: []string{"root-zero", "root-one", "root-two",
+				"leaf-zero", "leaf-one", "leaf-two"},
 		},
 		{
 			name:     "leaf only",
 			search:   "leaf",
-			expected: []string{"leaf-zero", "leaf-one", "leaf-two", "leaf-three"},
+			expected: []string{"leaf-zero", "leaf-one", "leaf-two"},
 		},
 		{
 			name:     "two only",
@@ -6185,8 +6231,8 @@ func testListNodesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+	for _, test := range nodeTests {
+		t.Run("node - "+test.name, func(t *testing.T) {
 			if test.search != "" {
 				tc.SearchKeywords = strings.Split(test.search, " ")
 			} else {
@@ -6204,42 +6250,8 @@ func testListNodesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
 			require.ElementsMatch(t, test.expected, nodes)
 		})
 	}
-}
 
-func testListAppsAcrossClusters(t *testing.T, suite *integrationTestSuite) {
-	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *TeleInstance) {
-		rootNodes := []string{"root-one", "root-two", "root-three"}
-		leafNodes := []string{"leaf-one", "leaf-two", "leaf-three"}
-
-		var rootApps []service.App
-		for _, app := range rootNodes {
-			rootApps = append(rootApps, service.App{
-				Name: app,
-				URI:  app,
-			})
-		}
-		var leafApps []service.App
-		for _, app := range leafNodes {
-			leafApps = append(leafApps, service.App{
-				Name: app,
-				URI:  app,
-			})
-		}
-
-		appConf := suite.defaultServiceConfig()
-		appConf.Auth.Enabled = false
-		appConf.Proxy.Enabled = false
-		appConf.SSH.Enabled = false
-		appConf.Apps.Enabled = true
-		appConf.Apps.Apps = rootApps
-		_, err := root.StartApp(appConf)
-		require.NoError(t, err)
-
-		appConf.Apps.Apps = leafApps
-		_, err = leaf.StartApp(appConf)
-		require.NoError(t, err)
-	})
-
+	// Everything other than ssh nodes.
 	tests := []struct {
 		name     string
 		search   string
@@ -6247,13 +6259,13 @@ func testListAppsAcrossClusters(t *testing.T, suite *integrationTestSuite) {
 	}{
 		{
 			name: "all",
-			expected: []string{"root-one", "root-two", "root-three",
-				"leaf-one", "leaf-two", "leaf-three"},
+			expected: []string{"root-one", "root-two",
+				"leaf-one", "leaf-two"},
 		},
 		{
 			name:     "leaf only",
 			search:   "leaf",
-			expected: []string{"leaf-one", "leaf-two", "leaf-three"},
+			expected: []string{"leaf-one", "leaf-two"},
 		},
 		{
 			name:     "two only",
@@ -6263,12 +6275,13 @@ func testListAppsAcrossClusters(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("apps - %s", test.name), func(t *testing.T) {
-			if test.search != "" {
-				tc.SearchKeywords = strings.Split(test.search, " ")
-			} else {
-				tc.SearchKeywords = nil
-			}
+		if test.search != "" {
+			tc.SearchKeywords = strings.Split(test.search, " ")
+		} else {
+			tc.SearchKeywords = nil
+		}
+
+		t.Run("apps - "+test.name, func(t *testing.T) {
 			clusters, err := tc.ListAppsAllClusters(context.TODO(), nil)
 			require.NoError(t, err)
 			apps := make([]string, 0)
@@ -6280,74 +6293,8 @@ func testListAppsAcrossClusters(t *testing.T, suite *integrationTestSuite) {
 
 			require.ElementsMatch(t, test.expected, apps)
 		})
-	}
-}
 
-func testListDatabasesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
-	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *TeleInstance) {
-		rootNodes := []string{"root-one", "root-two", "root-three"}
-		leafNodes := []string{"leaf-one", "leaf-two", "leaf-three"}
-
-		var rootDatabases []service.Database
-		for _, db := range rootNodes {
-			rootDatabases = append(rootDatabases, service.Database{
-				Name:     db,
-				URI:      db,
-				Protocol: "postgres",
-			})
-		}
-		var leafDatabases []service.Database
-		for _, db := range leafNodes {
-			leafDatabases = append(leafDatabases, service.Database{
-				Name:     db,
-				URI:      db,
-				Protocol: "postgres",
-			})
-		}
-
-		dbConf := suite.defaultServiceConfig()
-		dbConf.Auth.Enabled = false
-		dbConf.Proxy.Enabled = false
-		dbConf.SSH.Enabled = false
-		dbConf.Databases.Enabled = true
-		dbConf.Databases.Databases = rootDatabases
-		_, _, err := root.StartDatabase(dbConf)
-		require.NoError(t, err)
-
-		dbConf.Databases.Databases = leafDatabases
-		_, _, err = leaf.StartDatabase(dbConf)
-		require.NoError(t, err)
-	})
-
-	tests := []struct {
-		name     string
-		search   string
-		expected []string
-	}{
-		{
-			name: "all",
-			expected: []string{"root-one", "root-two", "root-three",
-				"leaf-one", "leaf-two", "leaf-three"},
-		},
-		{
-			name:     "leaf only",
-			search:   "leaf",
-			expected: []string{"leaf-one", "leaf-two", "leaf-three"},
-		},
-		{
-			name:     "two only",
-			search:   "two",
-			expected: []string{"root-two", "leaf-two"},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("apps - %s", test.name), func(t *testing.T) {
-			if test.search != "" {
-				tc.SearchKeywords = strings.Split(test.search, " ")
-			} else {
-				tc.SearchKeywords = nil
-			}
+		t.Run("databases - "+test.name, func(t *testing.T) {
 			clusters, err := tc.ListDatabasesAllClusters(context.TODO(), nil)
 			require.NoError(t, err)
 			databases := make([]string, 0)
@@ -6359,58 +6306,13 @@ func testListDatabasesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 
 			require.ElementsMatch(t, test.expected, databases)
 		})
-	}
-}
 
-func testListKubeClustersAcrossClusters(t *testing.T, suite *integrationTestSuite) {
-	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *TeleInstance) {
-		rootNodes := []string{"root-one", "root-two", "root-three"}
-		leafNodes := []string{"leaf-one", "leaf-two", "leaf-three"}
-
-		kubeConf := suite.defaultServiceConfig()
-
-		for _, k := range rootNodes {
-			_, err := root.StartKube(kubeConf, k)
-			require.NoError(t, err)
-		}
-
-		for _, k := range leafNodes {
-			_, err := leaf.StartKube(kubeConf, k)
-			require.NoError(t, err)
-		}
-
-	})
-	ctx := context.Background()
-
-	tests := []struct {
-		name     string
-		search   string
-		expected []string
-	}{
-		{
-			name: "all",
-			expected: []string{"root-one", "root-two", "root-three",
-				"leaf-one", "leaf-two", "leaf-three"},
-		},
-		{
-			name:     "leaf only",
-			search:   "leaf",
-			expected: []string{"leaf-one", "leaf-two", "leaf-three"},
-		},
-		{
-			name:     "two only",
-			search:   "two",
-			expected: []string{"root-two", "leaf-two"},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run("kube - "+test.name, func(t *testing.T) {
 			req := proto.ListResourcesRequest{}
 			if test.search != "" {
 				req.SearchKeywords = strings.Split(test.search, " ")
 			}
-			clusterMap, err := tc.ListKubeClustersWithFiltersAllClusters(ctx, req)
+			clusterMap, err := tc.ListKubeClustersWithFiltersAllClusters(context.TODO(), req)
 			require.NoError(t, err)
 			clusters := make([]string, 0)
 			for _, cl := range clusterMap {

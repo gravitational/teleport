@@ -1259,6 +1259,9 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Databases.Enabled {
 		expectedEvents = append(expectedEvents, service.DatabasesReady)
 	}
+	if i.Config.Kube.Enabled {
+		expectedEvents = append(expectedEvents, service.KubernetesReady)
+	}
 
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := startAndWait(i.Process, expectedEvents)
