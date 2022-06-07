@@ -70,7 +70,7 @@ func MakeServers(clusterName string, servers []types.Server) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
 		uiLabels := []Label{}
-		serverLabels := server.GetLabels()
+		serverLabels := server.GetStaticLabels()
 		for name, value := range serverLabels {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,

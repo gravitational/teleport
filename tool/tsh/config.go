@@ -19,7 +19,6 @@ package main
 import (
 	"fmt"
 	"net"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -152,44 +151,4 @@ func onConfig(cf *CLIConf) error {
 	stdout := cf.Stdout()
 	fmt.Fprint(stdout, sb.String())
 	return nil
-}
-
-func onConfigProxy(cf *CLIConf) error {
-	proxyHost, proxyPort, err := net.SplitHostPort(cf.Proxy)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	targetHost, targetPort, err := net.SplitHostPort(cf.ConfigProxyTarget)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// If the node is suffixed by either the root or leaf cluster name, remove it.
-	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
-	targetHost = strings.TrimSuffix(targetHost, "."+cf.SiteName)
-
-	// NOTE: This should eventually make use of `tsh proxy ssh`.
-	sshPath, err := getSSHPath()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	args := []string{
-		"-p",
-		proxyPort,
-		proxyHost,
-		"-s",
-		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, cf.SiteName),
-	}
-
-	if cf.NodeLogin != "" {
-		args = append([]string{"-l", cf.NodeLogin}, args...)
-	}
-
-	child := exec.Command(sshPath, args...)
-	child.Stdin = os.Stdin
-	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
-	return child.Run()
 }

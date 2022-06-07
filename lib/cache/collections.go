@@ -18,7 +18,6 @@ package cache
 
 import (
 	"context"
-	"strings"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -155,6 +154,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 					return nil, trace.BadParameter("missing parameter AppSession")
 				}
 				collections[resourceKind] = &appSession{watch: watch, Cache: c}
+			case types.KindSnowflakeSession:
+				if c.SnowflakeSession == nil {
+					return nil, trace.BadParameter("missing parameter SnowflakeSession")
+				}
+				collections[resourceKind] = &snowflakeSession{watch: watch, Cache: c}
 			case types.KindWebSession:
 				if c.WebSession == nil {
 					return nil, trace.BadParameter("missing parameter WebSession")
@@ -828,12 +832,6 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 func (c *certAuthority) fetchCertAuthorities(ctx context.Context, caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
 	authorities, err := c.Trust.GetCertAuthorities(ctx, caType, c.watch.LoadSecrets)
 	if err != nil {
-		// DELETE IN: 5.1
-		//
-		// All clusters will support JWT signers in 5.1.
-		if strings.Contains(err.Error(), "authority type is not supported") {
-			return func(ctx context.Context) error { return nil }, nil
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -1636,6 +1634,70 @@ func (a *appSession) processEvent(ctx context.Context, event types.Event) error 
 }
 
 func (a *appSession) watchKind() types.WatchKind {
+	return a.watch
+}
+
+type snowflakeSession struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (a *snowflakeSession) erase(ctx context.Context) error {
+	if err := a.snowflakeSessionCache.DeleteAllSnowflakeSessions(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (a *snowflakeSession) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := a.SnowflakeSession.GetSnowflakeSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := a.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			if err := a.snowflakeSessionCache.UpsertSnowflakeSession(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (a *snowflakeSession) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := a.snowflakeSessionCache.DeleteSnowflakeSession(ctx, types.DeleteSnowflakeSessionRequest{
+			SessionID: event.Resource.GetName(),
+		})
+		if err != nil {
+			// Resource could be missing in the cache expired or not created, if the
+			// first consumed event is deleted.
+			if !trace.IsNotFound(err) {
+				a.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.WebSession)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := a.snowflakeSessionCache.UpsertSnowflakeSession(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		a.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (a *snowflakeSession) watchKind() types.WatchKind {
 	return a.watch
 }
 

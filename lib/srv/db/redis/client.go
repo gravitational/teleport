@@ -22,11 +22,16 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/trace"
 )
@@ -82,6 +87,11 @@ const (
 	watchCmd      = "watch"
 )
 
+const (
+	// aclWhoami is a subcommand of "acl" that requires special handling.
+	aclWhoami = "whoami"
+)
+
 // clusterClient is a wrapper around redis.ClusterClient
 type clusterClient struct {
 	redis.ClusterClient
@@ -89,7 +99,7 @@ type clusterClient struct {
 
 // newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
-func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsConfig *tls.Config, username, password string) (redis.UniversalClient, error) {
+func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsConfig *tls.Config, onConnect onClientConnectFunc) (redis.UniversalClient, error) {
 	connectionAddr := net.JoinHostPort(connectionOptions.address, connectionOptions.port)
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch connectionOptions.mode {
@@ -97,16 +107,14 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 		return redis.NewClient(&redis.Options{
 			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
-			Username:  username,
-			Password:  password,
+			OnConnect: onConnect,
 		}), nil
 	case Cluster:
 		client := &clusterClient{
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
 				Addrs:     []string{connectionAddr},
 				TLSConfig: tlsConfig,
-				Username:  username,
-				Password:  password,
+				OnConnect: onConnect,
 			}),
 		}
 		// Load cluster information.
@@ -117,6 +125,64 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 		// We've checked that while validating the config, but checking again can help with regression.
 		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
 	}
+}
+
+// onClientConnectFunc is a callback function that performs setups after Redis
+// client makes a new connection.
+type onClientConnectFunc func(context.Context, *redis.Conn) error
+
+// authWithPasswordOnConnect returns an onClientConnectFunc that sends "auth"
+// with provided username and password.
+func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
+	return func(ctx context.Context, conn *redis.Conn) error {
+		return authConnection(ctx, conn, username, password)
+	}
+}
+
+// fetchUserPasswordOnConnect returns an onClientConnectFunc that fetches user
+// password on the fly then uses it for "auth".
+func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users, audit common.Audit) onClientConnectFunc {
+	var auditOnce sync.Once
+	return func(ctx context.Context, conn *redis.Conn) error {
+		err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
+			services.AccessMFAParams{Verified: true},
+			role.DatabaseRoleMatchers(
+				defaults.ProtocolRedis,
+				sessionCtx.DatabaseUser,
+				sessionCtx.DatabaseName,
+			)...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		username := sessionCtx.DatabaseUser
+		password, err := users.GetPassword(ctx, sessionCtx.Database, username)
+		if err != nil {
+			return trace.AccessDenied("failed to get password for %v: %v.", username, err)
+		}
+
+		auditOnce.Do(func() {
+			audit.OnQuery(ctx, sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ******", username)})
+		})
+		return authConnection(ctx, conn, username, password)
+	}
+}
+
+// authConnection is a helper function that sends "auth" command to provided
+// Redis connection with provided username and password.
+func authConnection(ctx context.Context, conn *redis.Conn, username, password string) error {
+	// Copied from redis.baseClient.initConn.
+	_, err := conn.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		if password != "" {
+			if username != "" {
+				pipe.AuthACL(ctx, username, password)
+			} else {
+				pipe.Auth(ctx, password)
+			}
+		}
+		return nil
+	})
+	return trace.Wrap(err)
 }
 
 // Process add supports for additional cluster commands. Our Redis implementation passes most commands to
@@ -135,11 +201,21 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	}
 
 	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
-	case multiCmd, execCmd, watchCmd, scanCmd, aclCmd, askingCmd, clientCmd, clusterCmd, configCmd, debugCmd,
+	case multiCmd, execCmd, watchCmd, scanCmd, askingCmd, clientCmd, clusterCmd, configCmd, debugCmd,
 		infoCmd, latencyCmd, memoryCmd, migrateCmd, moduleCmd, monitorCmd, pfdebugCmd, pfselftestCmd,
 		psyncCmd, readonlyCmd, readwriteCmd, replconfCmd, replicaofCmd, roleCmd, shutdownCmd, slaveofCmd,
 		slowlogCmd, syncCmd, timeCmd, waitCmd:
 		// block commands that return incorrect results in Cluster mode
+		return protocol.ErrCmdNotSupported
+	case aclCmd:
+		// allows "acl whoami" which is a very useful command that works fine
+		// in Cluster mode.
+		if len(cmd.Args()) == 2 {
+			if subcommand, ok := cmd.Args()[1].(string); ok && strings.ToLower(subcommand) == aclWhoami {
+				return c.ClusterClient.Process(ctx, cmd)
+			}
+		}
+		// block other "acl" commands.
 		return protocol.ErrCmdNotSupported
 	case dbsizeCmd:
 		// use go-redis dbsize implementation. It returns size of all keys in the whole cluster instead of

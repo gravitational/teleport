@@ -68,6 +68,7 @@ func (p *proxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 		SSH: webclient.SSHProxySettings{
 			ListenAddr:       p.proxySSHAddr.String(),
 			TunnelListenAddr: p.cfg.Proxy.ReverseTunnelListenAddr.String(),
+			WebListenAddr:    p.cfg.Proxy.WebAddr.String(),
 		},
 	}
 
@@ -98,6 +99,7 @@ func (p *proxySettings) buildProxySettingsV2(proxyListenerMode types.ProxyListen
 	if proxyListenerMode == types.ProxyListenerMode_Multiplex {
 		settings.SSH.ListenAddr = multiplexAddr
 		settings.SSH.TunnelListenAddr = multiplexAddr
+		settings.SSH.WebListenAddr = multiplexAddr
 		settings.Kube.ListenAddr = multiplexAddr
 		settings.DB.MySQLListenAddr = multiplexAddr
 		settings.DB.PostgresListenAddr = multiplexAddr

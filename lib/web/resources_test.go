@@ -80,19 +80,32 @@ spec:
   client_secret: ""
   display: ""
   redirect_url: ""
-  teams_to_logins: null
+  teams_to_logins:
+  - logins:
+    - dummy
+    organization: octocats
+    team: dummy
 version: v3
 `
-	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
 	item, err := ui.NewResourceItem(githubConn)
-	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.NoError(t, err)
+
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "github:githubName",
 		Kind:    types.KindGithubConnector,
 		Name:    "githubName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestNewResourceItemRole(t *testing.T) {
@@ -123,6 +136,7 @@ spec:
     max_session_ttl: 30h0m0s
     port_forwarding: true
     record_session:
+      default: best_effort
       desktop: true
 version: v3
 `
@@ -232,7 +246,15 @@ func TestGetGithubConnectors(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
+			TeamsToLogins: []types.TeamMapping{
+				{
+					Organization: "octocats",
+					Team:         "dummy",
+					Logins:       []string{"dummy"},
+				},
+			},
+		})
 		require.NoError(t, err)
 
 		return []types.GithubConnector{connector}, nil
@@ -356,7 +378,7 @@ func TestListResources(t *testing.T) {
 		},
 		{
 			name: "all param defined and set",
-			url:  `https://dev:3080/login?query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
+			url:  `https://dev:3080/login?searchAsRoles=yes&query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
 			expected: proto.ListResourcesRequest{
 				ResourceType:        types.KindNode,
 				Limit:               50,
@@ -364,6 +386,7 @@ func TestListResources(t *testing.T) {
 				SearchKeywords:      []string{"foo+bar", "baz", "foo,bar", "some phrase"},
 				PredicateExpression: `labels.env == "prod"`,
 				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
+				UseSearchAsRoles:    true,
 			},
 		},
 		{

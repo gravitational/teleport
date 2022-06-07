@@ -345,7 +345,7 @@ func (s *Server) Close() error {
 		if utils.IsUseOfClosedNetworkError(err) {
 			return nil
 		}
-		return err
+		return trace.Wrap(err)
 	}
 
 	return nil
