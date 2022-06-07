@@ -43,7 +43,7 @@ func Start(ctx context.Context, cfg Config) error {
 	}
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage:            storage,
+		Storage:            &daemon.StorageWrapper{Storage: storage},
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 	})
 	if err != nil {

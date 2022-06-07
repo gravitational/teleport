@@ -17,6 +17,8 @@ limitations under the License.
 package daemon
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 
 	"github.com/gravitational/trace"
@@ -25,10 +27,28 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type (
+	cluster interface {
+		GetServers(ctx context.Context) ([]clusters.Server, error)
+	}
+	storage interface {
+		GetByURI(uri string) (cluster, error)
+	}
+)
+
+// This is used to wrap a real clusters.Storage so it meets our interface
+type StorageWrapper struct {
+	*clusters.Storage
+}
+
+func (sw *StorageWrapper) GetByURI(uri string) (cluster, error) {
+	return sw.GetByURI(uri)
+}
+
 // Config is the cluster service config
 type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
-	Storage *clusters.Storage
+	Storage storage
 	// Clock is a clock for time-related operations
 	Clock clockwork.Clock
 	// InsecureSkipVerify is an option to skip HTTPS cert check
