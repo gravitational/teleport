@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -165,6 +166,8 @@ type WindowsServiceConfig struct {
 	DiscoveryLDAPFilters []string
 	// Hostname of the windows desktop service
 	Hostname string
+	// ConnectedProxyGetter gets the proxies teleport is connected to.
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -277,6 +280,9 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	}
 	if err := cfg.checkAndSetDiscoveryDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+	if cfg.ConnectedProxyGetter == nil {
+		cfg.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	return nil
@@ -952,6 +958,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 			Addr:            s.cfg.Heartbeat.PublicAddr,
 			TeleportVersion: teleport.Version,
 			Hostname:        s.cfg.Hostname,
+			ProxyIDs:        s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -23,7 +23,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -1282,39 +1281,4 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}
-}
-
-func ResourceIDsToString(ids []types.ResourceID) (string, error) {
-	if len(ids) == 0 {
-		return "", nil
-	}
-	bytes, err := utils.FastMarshal(ids)
-	if err != nil {
-		return "", trace.BadParameter("failed to marshal resource IDs to JSON: %v", err)
-	}
-	return string(bytes), nil
-}
-
-func ResourceIDsFromString(raw string) ([]types.ResourceID, error) {
-	if raw == "" {
-		return nil, nil
-	}
-	resourceIDs := []types.ResourceID{}
-	if err := utils.FastUnmarshal([]byte(raw), &resourceIDs); err != nil {
-		return nil, trace.BadParameter("failed to parse resource IDs from JSON: %v", err)
-	}
-	return resourceIDs, nil
-}
-
-func EventResourceIDs(resourceIDs []types.ResourceID) []events.ResourceID {
-	if resourceIDs == nil {
-		return nil
-	}
-	out := make([]events.ResourceID, len(resourceIDs))
-	for i := range resourceIDs {
-		out[i].ClusterName = resourceIDs[i].ClusterName
-		out[i].Kind = resourceIDs[i].Kind
-		out[i].Name = resourceIDs[i].Name
-	}
-	return out
 }

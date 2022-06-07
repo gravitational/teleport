@@ -30,8 +30,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
-
-	"golang.org/x/crypto/ssh"
 )
 
 // Default port numbers used by all teleport tools
@@ -78,6 +76,10 @@ const (
 	// TODO(awly): update to match HTTPListenPort once SNI routing is
 	// implemented.
 	WindowsDesktopListenPort = 3028
+
+	// ProxyPeeringListenPort is the default port proxies will listen on when
+	// proxy peering is enabled.
+	ProxyPeeringListenPort = 3021
 
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
@@ -374,10 +376,6 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
-	// CASignatureAlgorithm is the default signing algorithm to use when
-	// creating new SSH CAs.
-	CASignatureAlgorithm = ssh.KeyAlgoRSASHA512
-
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
@@ -490,6 +488,8 @@ const (
 	ProtocolCockroachDB = "cockroachdb"
 	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
 	ProtocolSQLServer = "sqlserver"
+	// ProtocolSnowflake is the Snowflake REST database protocol.
+	ProtocolSnowflake = "snowflake"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -499,6 +499,7 @@ var DatabaseProtocols = []string{
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
 	ProtocolRedis,
+	ProtocolSnowflake,
 	ProtocolSQLServer,
 }
 
@@ -581,6 +582,11 @@ const (
 	SelfSignedCertPath = "webproxy_cert.pem"
 )
 
+const (
+	// SnowflakeURL is the Snowflake URL used for address validation.
+	SnowflakeURL = "snowflakecomputing.com"
+)
+
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
 func ConfigureLimiter(lc *limiter.Config) {
 	lc.MaxConnections = LimiterMaxConnections
@@ -627,6 +633,10 @@ func ReverseTunnelListenAddr() *utils.NetAddr {
 // MetricsServiceListenAddr returns the default listening address for the metrics service
 func MetricsServiceListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, MetricsListenPort)
+}
+
+func ProxyPeeringListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, ProxyPeeringListenPort)
 }
 
 func makeAddr(host string, port int16) *utils.NetAddr {
