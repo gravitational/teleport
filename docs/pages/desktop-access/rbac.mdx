@@ -96,8 +96,10 @@ via LDAP:
 | `teleport.dev/is_domain_controller` | `primaryGroupID`                                                                                | `true`                        |
 | `teleport.dev/ou`                   | Derived from `distinguishedName`                                                                | `OU=IT,DC=goteleport,DC=com`  |
 
-Additionally, users can configure LDAP attributes which will be converted into
-Teleport labels. For example, consider the following Desktop Access configuration:
+Additionally, users can configure
+[LDAP attributes](https://docs.microsoft.com/en-us/windows/win32/adschema/attributes-all)
+which will be converted into Teleport labels. For example, consider the
+following Desktop Access configuration:
 
 ```yaml
 discovery:
