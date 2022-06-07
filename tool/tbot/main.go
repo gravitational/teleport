@@ -58,7 +58,7 @@ func Run(args []string, stdout io.Writer) error {
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
 	app.HelpFlag.Short('h')
 
-	versionCmd := app.Command("version", "Print the version")
+	versionCmd := app.Command("version", "Print the version of your tbot binary")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
 	startCmd.Flag("auth-server", "Address of the Teleport Auth Server (On-Prem installs) or Proxy Server (Cloud installs).").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
