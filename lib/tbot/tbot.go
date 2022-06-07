@@ -24,13 +24,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 type Bot struct {
@@ -111,20 +111,15 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	watcher, err := b.client().NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{{
-			Kind: types.KindCertAuthority,
-		}},
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		return trace.Wrap(b.caRotationLoop(egCtx))
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	eg.Go(func() error {
+		return trace.Wrap(b.renewLoop(egCtx))
+	})
 
-	go b.watchCARotations(watcher)
-
-	defer watcher.Close()
-
-	return trace.Wrap(b.renewLoop(ctx))
+	return eg.Wait()
 }
 
 func (b *Bot) initialize(ctx context.Context) error {

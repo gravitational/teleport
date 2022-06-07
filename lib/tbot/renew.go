@@ -151,6 +151,8 @@ func (b *Bot) generateIdentity(
 	configurator identityConfigurator,
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
+	//   This should be ignored if a renewal has been triggered manually or
+	//   by a CA rotation.
 
 	// Generate a fresh keypair for the impersonated identity. We don't care to
 	// reuse keys here: impersonated certs might not be as well-protected so
@@ -591,19 +593,4 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (b *Bot) watchCARotations(watcher types.Watcher) {
-	for {
-		select {
-		case event := <-watcher.Events():
-			b.log.Debugf("CA event: %+v", event)
-			// TODO: handle CA rotations
-		case <-watcher.Done():
-			if err := watcher.Error(); err != nil {
-				b.log.WithError(err).Warnf("error watching for CA rotations")
-			}
-			return
-		}
-	}
 }
