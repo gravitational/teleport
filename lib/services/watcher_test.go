@@ -866,8 +866,6 @@ func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) type
 				},
 			},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_256,
 	})
 	require.NoError(t, err)
 	return ca

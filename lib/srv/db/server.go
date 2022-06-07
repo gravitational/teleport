@@ -46,6 +46,8 @@ import (
 	_ "github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
+	// Import to register Snowflake engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"

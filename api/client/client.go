@@ -1179,6 +1179,20 @@ func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error)
 	return out, nil
 }
 
+// GetSnowflakeSessions gets all Snowflake web sessions.
+func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	resp, err := c.grpc.GetSnowflakeSessions(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	out := make([]types.WebSession, 0, len(resp.GetSessions()))
+	for _, v := range resp.GetSessions() {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
@@ -1195,6 +1209,32 @@ func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	return resp.GetSession(), nil
 }
 
+// CreateSnowflakeSession creates a Snowflake web session.
+func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.CreateSnowflakeSession(ctx, &proto.CreateSnowflakeSessionRequest{
+		Username:     req.Username,
+		SessionToken: req.SessionToken,
+		TokenTTL:     proto.Duration(req.TokenTTL),
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// GetSnowflakeSession gets a Snowflake web session.
+func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.GetSnowflakeSession(ctx, &proto.GetSnowflakeSessionRequest{
+		SessionID: req.SessionID,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
 // DeleteAppSession removes an application web session.
 func (c *Client) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	_, err := c.grpc.DeleteAppSession(ctx, &proto.DeleteAppSessionRequest{
@@ -1203,8 +1243,22 @@ func (c *Client) DeleteAppSession(ctx context.Context, req types.DeleteAppSessio
 	return trail.FromGRPC(err)
 }
 
+// DeleteSnowflakeSession removes a Snowflake web session.
+func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSnowflakeSessionRequest) error {
+	_, err := c.grpc.DeleteSnowflakeSession(ctx, &proto.DeleteSnowflakeSessionRequest{
+		SessionID: req.SessionID,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteAllAppSessions removes all application web sessions.
 func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllAppSessions(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
+func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllAppSessions(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
@@ -1223,6 +1277,19 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		URI:      req.URI,
 		Expires:  req.Expires,
 	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetToken(), nil
+}
+
+// GenerateSnowflakeJWT generates JWT in the Snowflake required format.
+func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSnowflakeJWT) (string, error) {
+	resp, err := c.grpc.GenerateSnowflakeJWT(ctx, &proto.SnowflakeJWTRequest{
+		UserName:    req.Username,
+		AccountName: req.Account,
+	}, c.callOpts...)
 	if err != nil {
 		return "", trail.FromGRPC(err)
 	}
@@ -1707,17 +1774,6 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 		Namespace:    namespace,
 	})
 	if err != nil {
-		// Underlying ListResources for nodes was not available, use fallback.
-		//
-		// DELETE IN 11.0.0
-		if trace.IsNotImplemented(err) {
-			servers, err := GetNodesWithLabels(ctx, c, namespace, nil)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return servers, nil
-		}
-
 		return nil, trace.Wrap(err)
 	}
 
@@ -1727,116 +1783,6 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	}
 
 	return servers, nil
-}
-
-// NodeClient is an interface used by GetNodesWithLabels to abstract over implementations of
-// the ListNodes method.
-//
-// DELETE IN 11.0.0 with GetNodesWithLabels (used in both api/client/client.go and lib/auth/httpfallback.go)
-// replaced by ListResourcesClient
-type NodeClient interface {
-	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
-}
-
-// GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  In addition to
-// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
-//
-// DELETE IN 11.0.0 replaced by GetResourcesWithFilters.
-func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
-	// Retrieve the complete list of nodes in chunks.
-	var (
-		nodes     []types.Server
-		startKey  string
-		chunkSize = int32(defaults.DefaultChunkSize)
-	)
-	for {
-		resp, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
-			Namespace: namespace,
-			Limit:     chunkSize,
-			StartKey:  startKey,
-			Labels:    labels,
-		})
-		if trace.IsLimitExceeded(err) {
-			// Cut chunkSize in half if gRPC max message size is exceeded.
-			chunkSize = chunkSize / 2
-			// This is an extremely unlikely scenario, but better to cover it anyways.
-			if chunkSize == 0 {
-				return nil, trace.Wrap(trail.FromGRPC(err), "Node is too large to retrieve over gRPC (over 4MiB).")
-			}
-			continue
-		} else if err != nil {
-			return nil, trail.FromGRPC(err)
-		}
-
-		// perform client-side filtering in case we're dealing with an older auth server which
-		// does not support server-side filtering.
-		for _, node := range resp {
-			if node.MatchAgainst(labels) {
-				nodes = append(nodes, node)
-			}
-		}
-
-		startKey = nextKey
-		if startKey == "" {
-			return nodes, nil
-		}
-	}
-}
-
-// ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
-// nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
-// ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
-func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	resp, err := c.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Namespace:    req.Namespace,
-		StartKey:     req.StartKey,
-		Limit:        req.Limit,
-		Labels:       req.Labels,
-	})
-	if err != nil {
-		if trace.IsNotImplemented(err) {
-			return c.listNodesFallback(ctx, req)
-		}
-
-		return nil, "", trace.Wrap(err)
-	}
-
-	servers := make([]types.Server, len(resp.Resources))
-	for i, resource := range resp.Resources {
-		server, ok := resource.(*types.ServerV2)
-		if !ok {
-			return nil, "", trace.BadParameter("invalid node type %T", resource)
-		}
-
-		servers[i] = server
-	}
-
-	return servers, resp.NextKey, nil
-}
-
-// listNodesFallback previous implementation of `ListNodes` function using
-// `ListNodes` RPC call.
-// DELETE IN 10.0
-func (c *Client) listNodesFallback(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
-	if req.Namespace == "" {
-		return nil, "", trace.BadParameter("missing parameter namespace")
-	}
-	if req.Limit <= 0 {
-		return nil, "", trace.BadParameter("nonpositive parameter limit")
-	}
-
-	resp, err := c.grpc.ListNodes(ctx, &req, c.callOpts...)
-	if err != nil {
-		return nil, "", trail.FromGRPC(err)
-	}
-
-	nodes = make([]types.Server, len(resp.Servers))
-	for i, node := range resp.Servers {
-		nodes[i] = node
-	}
-
-	return nodes, resp.NextKey, nil
 }
 
 // UpsertNode is used by SSH servers to report their presence

@@ -180,7 +180,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		oidcClients:     make(map[string]*oidcClient),
 		samlProviders:   make(map[string]*samlProvider),
 		githubClients:   make(map[string]*githubClient),
-		caSigningAlg:    cfg.CASigningAlg,
 		cancelFunc:      cancelFunc,
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
@@ -338,9 +337,6 @@ type Server struct {
 
 	// cipherSuites is a list of ciphersuites that the auth server supports.
 	cipherSuites []uint16
-
-	// caSigningAlg is an SSH signing algorithm to use when generating new CAs.
-	caSigningAlg *string
 
 	// cache is a fast cache that allows auth server
 	// to use cache for most frequent operations,
@@ -673,7 +669,6 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	// create and sign!
 	return a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  sshutils.GetSigningAlgName(ca),
 		PublicHostKey: hostPublicKey,
 		HostID:        hostID,
 		NodeName:      nodeName,
@@ -1069,7 +1064,6 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	params := services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          sshutils.GetSigningAlgName(userCA),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
 		Impersonator:          req.impersonator,
@@ -1823,8 +1817,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	// consider absolute expiry time that may be set for this session
-	// by some external identity serivce, so we can not renew this session
-	// any more without extra logic for renewal with external OIDC provider
+	// by some external identity service, so we can not renew this session
+	// anymore without extra logic for renewal with external OIDC provider
 	expiresAt := prevSession.GetExpiryTime()
 	if !expiresAt.IsZero() && expiresAt.Before(a.clock.Now().UTC()) {
 		return nil, trace.NotFound("web session has expired")
@@ -2178,7 +2172,6 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	// generate host SSH certificate
 	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  sshutils.GetSigningAlgName(ca),
 		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
@@ -2739,39 +2732,8 @@ func (a *Server) GetNamespaces() ([]types.Namespace, error) {
 }
 
 // GetNodes returns nodes from the cache
-func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	return a.GetCache().GetNodes(ctx, namespace, opts...)
-}
-
-// ListNodes lists nodes from the cache
-func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	return a.GetCache().ListNodes(ctx, req)
-}
-
-// NodePageFunc is a function to run on each page iterated over.
-type NodePageFunc func(next []types.Server) (stop bool, err error)
-
-// IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
-	for {
-		nextPage, nextKey, err := a.ListNodes(ctx, req)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		stop, err := f(nextPage)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
-		}
-
-		req.StartKey = nextKey
-	}
+func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	return a.GetCache().GetNodes(ctx, namespace)
 }
 
 // ResourcePageFunc is a function to run on each page iterated over.
@@ -3611,15 +3573,10 @@ func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sigAlg := defaults.CASignatureAlgorithm
-	if a.caSigningAlg != nil && *a.caSigningAlg != "" {
-		sigAlg = *a.caSigningAlg
-	}
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        caID.Type,
 		ClusterName: caID.DomainName,
 		ActiveKeys:  keySet,
-		SigningAlg:  sshutils.ParseSigningAlg(sigAlg),
 	})
 	if err != nil {
 		return trace.Wrap(err)

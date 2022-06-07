@@ -517,9 +517,13 @@ func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
 // IsRDSClusterSupported checks whether the Aurora cluster is supported.
 func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	switch aws.StringValue(cluster.EngineMode) {
-	// Aurora Serverless (v1 and v2) does not support IAM authentication
+	// Aurora Serverless v1 does NOT support IAM authentication.
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html#aurora-serverless.limitations
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-2.limitations.html
+	//
+	// Note that Aurora Serverless v2 does support IAM authentication.
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html
+	// However, v2's engine mode is "provisioned" instead of "serverless" so it
+	// goes to the default case (true).
 	case RDSEngineModeServerless:
 		return false
 
