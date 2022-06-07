@@ -2878,7 +2878,7 @@ message GithubConnectorSpecV3 {
     string RedirectURL = 3 [ (gogoproto.jsontag) = "redirect_url" ];
     // TeamsToLogins maps Github team memberships onto allowed logins/roles.
     //
-    // REMOVE IN: 11.0.0
+    // DELETE IN 11.0.0
     // Deprecated: use GithubTeamsToRoles instead.
     repeated TeamMapping TeamsToLogins = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_logins" ];
@@ -3088,7 +3088,7 @@ message GithubClaims {
 
 // TeamMapping represents a single team membership mapping.
 //
-// REMOVE IN: 11.0.0
+// DELETE IN 11.0.0
 message TeamMapping {
     // Organization is a Github organization a user belongs to.
     string Organization = 1 [ (gogoproto.jsontag) = "organization" ];

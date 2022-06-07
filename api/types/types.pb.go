@@ -8185,7 +8185,7 @@ type GithubConnectorSpecV3 struct {
 	RedirectURL string `protobuf:"bytes,3,opt,name=RedirectURL,proto3" json:"redirect_url"`
 	// TeamsToLogins maps Github team memberships onto allowed logins/roles.
 	//
-	// REMOVE IN: 11.0.0
+	// DELETE IN 11.0.0
 	// Deprecated: use GithubTeamsToRoles instead.
 	TeamsToLogins []TeamMapping `protobuf:"bytes,4,rep,name=TeamsToLogins,proto3" json:"teams_to_logins"`
 	// Display is the connector display name.
@@ -8574,6 +8574,8 @@ func (m *GithubClaims) XXX_DiscardUnknown() {
 var xxx_messageInfo_GithubClaims proto.InternalMessageInfo
 
 // TeamMapping represents a single team membership mapping.
+//
+// DELETE IN 11.0.0
 type TeamMapping struct {
 	// Organization is a Github organization a user belongs to.
 	Organization string `protobuf:"bytes,1,opt,name=Organization,proto3" json:"organization"`
@@ -8624,8 +8626,6 @@ func (m *TeamMapping) XXX_DiscardUnknown() {
 var xxx_messageInfo_TeamMapping proto.InternalMessageInfo
 
 // TeamRolesMapping represents a single team membership mapping.
-//
-// REMOVE IN: 11.0.0
 type TeamRolesMapping struct {
 	// Organization is a Github organization a user belongs to.
 	Organization string `protobuf:"bytes,1,opt,name=Organization,proto3" json:"organization"`
