@@ -52,6 +52,16 @@ func AddMetadataToContext(ctx context.Context, raw map[string]string) context.Co
 // to stop the client interceptors from adding any metadata to the context (useful for testing).
 type DisableInterceptors struct{}
 
+// StreamServerInterceptor intercepts a GRPC client stream call and adds
+// default metadata to the context.
+func StreamServerInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	if disable := stream.Context().Value(DisableInterceptors{}); disable == nil {
+		header := metadata.New(defaultMetadata())
+		grpc.SendHeader(stream.Context(), header)
+	}
+	return handler(srv, stream)
+}
+
 // StreamClientInterceptor intercepts a GRPC client stream call and adds
 // default metadata to the context.
 func StreamClientInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {

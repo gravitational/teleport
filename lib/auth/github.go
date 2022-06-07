@@ -42,11 +42,7 @@ import (
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
 	ctx := context.TODO()
-	connector, err := a.Identity.GetGithubConnector(ctx, req.ConnectorID, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	client, err := a.getGithubOAuth2Client(connector)
+	_, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,12 +124,14 @@ type GithubAuthResponse struct {
 }
 
 type githubManager interface {
-	validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error)
+	validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error)
+	newSSODiagContext(authKind string) *ssoDiagContext
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
-	return validateGithubAuthCallbackHelper(a.closeCtx, a, q, a.emitter)
+func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+
+	return validateGithubAuthCallbackHelper(ctx, a, q, a.emitter)
 }
 
 func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter apievents.Emitter) (*GithubAuthResponse, error) {
@@ -144,9 +142,16 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 		Method: events.LoginMethodGithub,
 	}
 
-	re, err := m.validateGithubAuthCallback(q)
-	if re != nil && re.claims != nil {
-		attributes, err := apievents.EncodeMapStrings(re.claims)
+	diagCtx := m.newSSODiagContext(types.KindGithub)
+
+	auth, err := m.validateGithubAuthCallback(ctx, diagCtx, q)
+	diagCtx.info.Error = trace.UserMessage(err)
+
+	diagCtx.writeToBackend(ctx)
+
+	claims := diagCtx.info.GithubClaims
+	if claims != nil {
+		attributes, err := apievents.EncodeMapStrings(claims.OrganizationToTeams)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
 			log.WithError(err).Debug("Failed to encode identity attributes.")
@@ -157,6 +162,9 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
+		if diagCtx.info.TestFlow {
+			event.Code = events.UserSSOTestFlowLoginFailureCode
+		}
 		event.Status.Success = false
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
@@ -167,64 +175,163 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 		return nil, trace.Wrap(err)
 	}
 	event.Code = events.UserSSOLoginCode
+	if diagCtx.info.TestFlow {
+		event.Code = events.UserSSOTestFlowLoginCode
+	}
 	event.Status.Success = true
-	event.User = re.auth.Username
+	event.User = auth.Username
 
 	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit Github login event.")
 	}
 
-	return &re.auth, nil
+	return auth, nil
 }
 
-type githubAuthResponse struct {
-	auth   GithubAuthResponse
-	claims map[string][]string
+func (a *Server) getGithubConnectorAndClient(ctx context.Context, request services.GithubAuthRequest) (types.GithubConnector, *oauth2.Client, error) {
+	if request.SSOTestFlow {
+		if request.ConnectorSpec == nil {
+			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+		}
+
+		if request.ConnectorID == "" {
+			return nil, nil, trace.BadParameter("ConnectorID cannot be empty")
+		}
+
+		// stateless test flow
+		connector, err := types.NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// construct client directly.
+		config := newGithubOAuth2Config(connector)
+		client, err := oauth2.NewClient(http.DefaultClient, config)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		return connector, client, nil
+	}
+
+	// regular execution flow
+	connector, err := a.Identity.GetGithubConnector(ctx, request.ConnectorID, true)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	client, err := a.getGithubOAuth2Client(connector)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return connector, client, nil
+}
+
+func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
+	return oauth2.Config{
+		Credentials: oauth2.ClientCredentials{
+			ID:     connector.GetClientID(),
+			Secret: connector.GetClientSecret(),
+		},
+		RedirectURL: connector.GetRedirectURL(),
+		Scope:       GithubScopes,
+		AuthURL:     GithubAuthURL,
+		TokenURL:    GithubTokenURL,
+	}
+}
+
+func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2.Client, error) {
+	config := newGithubOAuth2Config(connector)
+
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	cachedClient, ok := a.githubClients[connector.GetName()]
+	if ok && oauth2ConfigsEqual(cachedClient.config, config) {
+		return cachedClient.client, nil
+	}
+
+	delete(a.githubClients, connector.GetName())
+	client, err := oauth2.NewClient(http.DefaultClient, config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	a.githubClients[connector.GetName()] = &githubClient{
+		client: client,
+		config: config,
+	}
+	return client, nil
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error) {
-	ctx := context.TODO()
+func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
-	error := q.Get("error")
-	if error != "" {
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
+
+	if errParam := q.Get("error"); errParam != "" {
+		// try to find request so the error gets logged against it.
+		state := q.Get("state")
+		if state != "" {
+			diagCtx.requestID = state
+			req, err := a.Identity.GetGithubAuthRequest(ctx, state)
+			if err == nil {
+				diagCtx.info.TestFlow = req.SSOTestFlow
+			}
+		}
+
+		// optional parameter: error_description
+		errDesc := q.Get("error_description")
+		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q).AddUserMessage("Github returned error: %v [%v]", errDesc, errParam)
 	}
+
 	code := q.Get("code")
 	if code == "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest,
-			"code query param must be set", q)
+			"code query param must be set", q).AddUserMessage("Invalid parameters received from Github.")
 	}
+
 	stateToken := q.Get("state")
 	if stateToken == "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest,
-			"missing state query param", q)
+			"missing state query param", q).AddUserMessage("Invalid parameters received from Github.")
 	}
-	req, err := a.Identity.GetGithubAuthRequest(stateToken)
+	diagCtx.requestID = stateToken
+
+	req, err := a.Identity.GetGithubAuthRequest(ctx, stateToken)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
-	connector, err := a.Identity.GetGithubConnector(ctx, req.ConnectorID, true)
+	diagCtx.info.TestFlow = req.SSOTestFlow
+
+	connector, client, err := a.getGithubConnectorAndClient(ctx, *req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to get Github connector and client.")
 	}
+	diagCtx.info.GithubTeamsToLogins = connector.GetTeamsToLogins()
+	logger.Debugf("Connector %q teams to logins: %v", connector.GetName(), connector.GetTeamsToLogins())
+
 	if len(connector.GetTeamsToLogins()) == 0 {
 		logger.Warnf("Github connector %q has empty teams_to_logins mapping, cannot populate claims.",
 			connector.GetName())
 		return nil, trace.BadParameter(
 			"connector %q has empty teams_to_logins mapping", connector.GetName())
 	}
-	client, err := a.getGithubOAuth2Client(connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	// exchange the authorization code received by the callback for an access token
 	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Requesting Github OAuth2 token failed.")
 	}
+
+	diagCtx.info.GithubTokenInfo = &types.GithubTokenInfo{
+		TokenType: token.TokenType,
+		Expires:   int64(token.Expires),
+		Scope:     token.Scope,
+	}
+
 	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
 		token.TokenType, token.Expires, token.Scope)
+
 	// Github does not support OIDC so user claims have to be populated
 	// by making requests to Github API using the access token
 	claims, err := populateGithubClaims(&githubAPIClient{
@@ -232,26 +339,35 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 		authServer: a,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to query Github API for user claims.")
 	}
-
-	re := &githubAuthResponse{
-		claims: claims.OrganizationToTeams,
-	}
+	diagCtx.info.GithubClaims = claims
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
 	params, err := a.calculateGithubUser(connector, claims, req)
 	if err != nil {
-		return re, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
-	user, err := a.createGithubUser(params)
+
+	diagCtx.info.CreateUserParams = &types.CreateUserParams{
+		ConnectorName: params.connectorName,
+		Username:      params.username,
+		Logins:        params.logins,
+		KubeGroups:    params.kubeGroups,
+		KubeUsers:     params.kubeUsers,
+		Roles:         params.roles,
+		Traits:        params.traits,
+		SessionTTL:    types.Duration(params.sessionTTL),
+	}
+
+	user, err := a.createGithubUser(ctx, params, req.SSOTestFlow)
 	if err != nil {
-		return re, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	re.auth = GithubAuthResponse{
+	auth := GithubAuthResponse{
 		Req: *req,
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.connectorName,
@@ -259,7 +375,12 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 		},
 		Username: user.GetName(),
 	}
-	re.auth.Username = user.GetName()
+
+	// In test flow skip signing and creating web sessions.
+	if req.SSOTestFlow {
+		diagCtx.info.Success = true
+		return &auth, nil
+	}
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
@@ -271,26 +392,26 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to create web session.")
 		}
 
-		re.auth.Session = session
+		auth.Session = session
 	}
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
 		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster, req.KubernetesCluster)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
 
 		clusterName, err := a.GetClusterName()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to obtain cluster name.")
 		}
 
-		re.auth.Cert = sshCert
-		re.auth.TLSCert = tlsCert
+		auth.Cert = sshCert
+		auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
@@ -298,12 +419,12 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to obtain cluster's host CA.")
 		}
-		re.auth.HostSigners = append(re.auth.HostSigners, authority)
+		auth.HostSigners = append(auth.HostSigners, authority)
 	}
 
-	return re, nil
+	return &auth, nil
 }
 
 // createUserParams is a set of parameters used to create a user for an
@@ -344,12 +465,12 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 	p.logins, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
 	if len(p.logins) == 0 {
 		return nil, trace.BadParameter(
-			"user %q does not belong to any teams configured in %q connector",
+			"user %q does not belong to any teams configured in %q connector; the configuration may have typos.",
 			claims.Username, connector.GetName())
 	}
 	p.roles = p.logins
 	p.traits = map[string][]string{
-		teleport.TraitLogins:     []string{p.username},
+		teleport.TraitLogins:     {p.username},
 		teleport.TraitKubeGroups: p.kubeGroups,
 		teleport.TraitKubeUsers:  p.kubeUsers,
 		teleport.TraitTeams:      claims.Teams,
@@ -366,11 +487,10 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 	return &p, nil
 }
 
-func (a *Server) createGithubUser(p *createUserParams) (types.User, error) {
-
+func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryRun bool) (types.User, error) {
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
-		"Generating dynamic identity %v/%v with logins: %v.",
-		p.connectorName, p.username, p.logins)
+		"Generating dynamic GitHub identity %v/%v with logins: %v. Dry run: %v.",
+		p.connectorName, p.username, p.logins, dryRun)
 
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
@@ -401,12 +521,14 @@ func (a *Server) createGithubUser(p *createUserParams) (types.User, error) {
 		},
 	}
 
+	if dryRun {
+		return user, nil
+	}
+
 	existingUser, err := a.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-
-	ctx := context.TODO()
 
 	if existingUser != nil {
 		ref := user.GetCreatedBy().Connector
@@ -461,35 +583,6 @@ func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) 
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Claims: %#v.", claims)
 	return claims, nil
-}
-
-func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2.Client, error) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	config := oauth2.Config{
-		Credentials: oauth2.ClientCredentials{
-			ID:     connector.GetClientID(),
-			Secret: connector.GetClientSecret(),
-		},
-		RedirectURL: connector.GetRedirectURL(),
-		Scope:       GithubScopes,
-		AuthURL:     GithubAuthURL,
-		TokenURL:    GithubTokenURL,
-	}
-	cachedClient, ok := a.githubClients[connector.GetName()]
-	if ok && oauth2ConfigsEqual(cachedClient.config, config) {
-		return cachedClient.client, nil
-	}
-	delete(a.githubClients, connector.GetName())
-	client, err := oauth2.NewClient(http.DefaultClient, config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	a.githubClients[connector.GetName()] = &githubClient{
-		client: client,
-		config: config,
-	}
-	return client, nil
 }
 
 // githubAPIClientI defines an interface for Github API wrapper

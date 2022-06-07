@@ -120,9 +120,25 @@ spec:
 
 Create or update this role using `tctl`:
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
+# Log in to your Teleport cluster so you can use tctl remotely.
+# You can also run tctl on your Auth Service host.
+$ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create -f member.yaml
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+# Log in to your Teleport cluster so you can use tctl remotely.
+$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+$ tctl create -f member.yaml
+```
+
+</ScopedBlock>
 
 Assign this role to a user in OIDC or SAML connector:
 

@@ -85,6 +85,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
 		{Kind: types.KindAppServer, Version: types.V2},
+		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
@@ -122,6 +123,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindApp},
+		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
@@ -362,21 +364,22 @@ type Cache struct {
 	// regularly called methods.
 	fnCache *utils.FnCache
 
-	trustCache           services.Trust
-	clusterConfigCache   services.ClusterConfiguration
-	provisionerCache     services.Provisioner
-	usersCache           services.UsersService
-	accessCache          services.Access
-	dynamicAccessCache   services.DynamicAccessExt
-	presenceCache        services.Presence
-	restrictionsCache    services.Restrictions
-	appsCache            services.Apps
-	databasesCache       services.Databases
-	appSessionCache      services.AppSession
-	webSessionCache      types.WebSessionInterface
-	webTokenCache        types.WebTokenInterface
-	windowsDesktopsCache services.WindowsDesktops
-	eventsFanout         *services.FanoutSet
+	trustCache            services.Trust
+	clusterConfigCache    services.ClusterConfiguration
+	provisionerCache      services.Provisioner
+	usersCache            services.UsersService
+	accessCache           services.Access
+	dynamicAccessCache    services.DynamicAccessExt
+	presenceCache         services.Presence
+	restrictionsCache     services.Restrictions
+	appsCache             services.Apps
+	databasesCache        services.Databases
+	appSessionCache       services.AppSession
+	snowflakeSessionCache services.SnowflakeSession
+	webSessionCache       types.WebSessionInterface
+	webTokenCache         types.WebTokenInterface
+	windowsDesktopsCache  services.WindowsDesktops
+	eventsFanout          *services.FanoutSet
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -421,40 +424,42 @@ func (c *Cache) read() (readGuard, error) {
 	c.rw.RLock()
 	if c.ok {
 		return readGuard{
-			trust:           c.trustCache,
-			clusterConfig:   c.clusterConfigCache,
-			provisioner:     c.provisionerCache,
-			users:           c.usersCache,
-			access:          c.accessCache,
-			dynamicAccess:   c.dynamicAccessCache,
-			presence:        c.presenceCache,
-			restrictions:    c.restrictionsCache,
-			apps:            c.appsCache,
-			databases:       c.databasesCache,
-			appSession:      c.appSessionCache,
-			webSession:      c.webSessionCache,
-			webToken:        c.webTokenCache,
-			release:         c.rw.RUnlock,
-			windowsDesktops: c.windowsDesktopsCache,
+			trust:            c.trustCache,
+			clusterConfig:    c.clusterConfigCache,
+			provisioner:      c.provisionerCache,
+			users:            c.usersCache,
+			access:           c.accessCache,
+			dynamicAccess:    c.dynamicAccessCache,
+			presence:         c.presenceCache,
+			restrictions:     c.restrictionsCache,
+			apps:             c.appsCache,
+			databases:        c.databasesCache,
+			appSession:       c.appSessionCache,
+			snowflakeSession: c.SnowflakeSession,
+			webSession:       c.webSessionCache,
+			webToken:         c.webTokenCache,
+			release:          c.rw.RUnlock,
+			windowsDesktops:  c.windowsDesktopsCache,
 		}, nil
 	}
 	c.rw.RUnlock()
 	return readGuard{
-		trust:           c.Config.Trust,
-		clusterConfig:   c.Config.ClusterConfig,
-		provisioner:     c.Config.Provisioner,
-		users:           c.Config.Users,
-		access:          c.Config.Access,
-		dynamicAccess:   c.Config.DynamicAccess,
-		presence:        c.Config.Presence,
-		restrictions:    c.Config.Restrictions,
-		apps:            c.Config.Apps,
-		databases:       c.Config.Databases,
-		appSession:      c.Config.AppSession,
-		webSession:      c.Config.WebSession,
-		webToken:        c.Config.WebToken,
-		windowsDesktops: c.Config.WindowsDesktops,
-		release:         nil,
+		trust:            c.Config.Trust,
+		clusterConfig:    c.Config.ClusterConfig,
+		provisioner:      c.Config.Provisioner,
+		users:            c.Config.Users,
+		access:           c.Config.Access,
+		dynamicAccess:    c.Config.DynamicAccess,
+		presence:         c.Config.Presence,
+		restrictions:     c.Config.Restrictions,
+		apps:             c.Config.Apps,
+		databases:        c.Config.Databases,
+		appSession:       c.Config.AppSession,
+		snowflakeSession: c.SnowflakeSession,
+		webSession:       c.Config.WebSession,
+		webToken:         c.Config.WebToken,
+		windowsDesktops:  c.Config.WindowsDesktops,
+		release:          nil,
 	}, nil
 }
 
@@ -463,22 +468,23 @@ func (c *Cache) read() (readGuard, error) {
 // function for the read lock, and ensures that it is not
 // double-called.
 type readGuard struct {
-	trust           services.Trust
-	clusterConfig   services.ClusterConfiguration
-	provisioner     services.Provisioner
-	users           services.UsersService
-	access          services.Access
-	dynamicAccess   services.DynamicAccessCore
-	presence        services.Presence
-	appSession      services.AppSession
-	restrictions    services.Restrictions
-	apps            services.Apps
-	databases       services.Databases
-	webSession      types.WebSessionInterface
-	webToken        types.WebTokenInterface
-	windowsDesktops services.WindowsDesktops
-	release         func()
-	released        bool
+	trust            services.Trust
+	clusterConfig    services.ClusterConfiguration
+	provisioner      services.Provisioner
+	users            services.UsersService
+	access           services.Access
+	dynamicAccess    services.DynamicAccessCore
+	presence         services.Presence
+	appSession       services.AppSession
+	snowflakeSession services.SnowflakeSession
+	restrictions     services.Restrictions
+	apps             services.Apps
+	databases        services.Databases
+	webSession       types.WebSessionInterface
+	webToken         types.WebTokenInterface
+	windowsDesktops  services.WindowsDesktops
+	release          func()
+	released         bool
 }
 
 // Release releases the read lock if it is held.  This method
@@ -528,6 +534,8 @@ type Config struct {
 	Apps services.Apps
 	// Databases is a databases service.
 	Databases services.Databases
+	// SnowflakeSession holds Snowflake sessions.
+	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
 	AppSession services.AppSession
 	// WebSession holds regular web sessions.
@@ -645,37 +653,40 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancel(config.Context)
 	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   time.Second,
-		Clock: config.Clock,
+		TTL:     time.Second,
+		Clock:   config.Clock,
+		Context: ctx,
 	})
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
-		ctx:                  ctx,
-		cancel:               cancel,
-		Config:               config,
-		generation:           atomic.NewUint64(0),
-		initC:                make(chan struct{}),
-		fnCache:              fnCache,
-		trustCache:           local.NewCAService(config.Backend),
-		clusterConfigCache:   clusterConfigCache,
-		provisionerCache:     local.NewProvisioningService(config.Backend),
-		usersCache:           local.NewIdentityService(config.Backend),
-		accessCache:          local.NewAccessService(config.Backend),
-		dynamicAccessCache:   local.NewDynamicAccessService(config.Backend),
-		presenceCache:        local.NewPresenceService(config.Backend),
-		restrictionsCache:    local.NewRestrictionsService(config.Backend),
-		appsCache:            local.NewAppService(config.Backend),
-		databasesCache:       local.NewDatabasesService(config.Backend),
-		appSessionCache:      local.NewIdentityService(config.Backend),
-		webSessionCache:      local.NewIdentityService(config.Backend).WebSessions(),
-		webTokenCache:        local.NewIdentityService(config.Backend).WebTokens(),
-		windowsDesktopsCache: local.NewWindowsDesktopService(config.Backend),
-		eventsFanout:         services.NewFanoutSet(),
+		ctx:                   ctx,
+		cancel:                cancel,
+		Config:                config,
+		generation:            atomic.NewUint64(0),
+		initC:                 make(chan struct{}),
+		fnCache:               fnCache,
+		trustCache:            local.NewCAService(config.Backend),
+		clusterConfigCache:    clusterConfigCache,
+		provisionerCache:      local.NewProvisioningService(config.Backend),
+		usersCache:            local.NewIdentityService(config.Backend),
+		accessCache:           local.NewAccessService(config.Backend),
+		dynamicAccessCache:    local.NewDynamicAccessService(config.Backend),
+		presenceCache:         local.NewPresenceService(config.Backend),
+		restrictionsCache:     local.NewRestrictionsService(config.Backend),
+		appsCache:             local.NewAppService(config.Backend),
+		databasesCache:        local.NewDatabasesService(config.Backend),
+		appSessionCache:       local.NewIdentityService(config.Backend),
+		snowflakeSessionCache: local.NewIdentityService(config.Backend),
+		webSessionCache:       local.NewIdentityService(config.Backend).WebSessions(),
+		webTokenCache:         local.NewIdentityService(config.Backend).WebTokens(),
+		windowsDesktopsCache:  local.NewWindowsDesktopService(config.Backend),
+		eventsFanout:          services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -852,7 +863,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	// If there is a way that NewWatcher() on line 1 could
 	// return without subscription established first,
 	// Code line 3 could execute and line 4 could miss event,
-	// wrapping up with out of sync replica.
+	// wrapping up without of sync replica.
 	// To avoid this, before doing fetch,
 	// cache process makes sure the connection is established
 	// by receiving init event first.
@@ -890,7 +901,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	// the cache was in a healthy state; broadcast OpInit.
 	// It is very important that OpInit is not broadcast until
 	// after we've placed the cache into a readable state.  This ensures
-	// that any derivative caches do not peform their fetch operations
+	// that any derivative caches do not perform their fetch operations
 	// until this cache has finished its apply operations.
 	c.eventsFanout.SetInit()
 	defer c.eventsFanout.Reset()
@@ -934,7 +945,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			//
 			// NOTE: The inconsistent state mentioned above is a symptom of a deeper issue with the cache
 			// design.  The cache should not expire individual items.  It should instead rely on OpDelete events
-			// from backend expiries.  As soon as the cache has expired at least one item, it is no longer
+			// from backend expires. As soon as the cache has expired at least one item, it is no longer
 			// a faithful representation of a real backend state, since it is 'anticipating' a change in
 			// backend state that may or may not have actually happened.  Instead, it aught to serve the
 			// most recent internally-consistent "view" of the backend, and individual consumers should
@@ -1163,10 +1174,8 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			ca, err := rg.trust.GetCertAuthority(c.ctx, id, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func(ctx context.Context) (interface{}, error) {
+			ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
 			ta(ca)
 			return ca, err
 		})
@@ -1207,10 +1216,8 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	defer rg.Release()
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			cas, err := rg.trust.GetCertAuthorities(c.ctx, caType, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) (interface{}, error) {
+			cas, err := rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
 			ta(cas)
 			return cas, trace.Wrap(err)
 		})
@@ -1239,13 +1246,13 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (c *Cache) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
+func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.provisioner.GetTokens(ctx, opts...)
+	return rg.provisioner.GetTokens(ctx)
 }
 
 // GetToken finds and returns token by ID
@@ -1284,10 +1291,8 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterAuditConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			cfg, err := rg.clusterConfig.GetClusterAuditConfig(c.ctx, opts...)
+		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (interface{}, error) {
+			cfg, err := rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
 			ta(cfg)
 			return cfg, err
 		})
@@ -1310,10 +1315,8 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterNetworkingConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(c.ctx, opts...)
+		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (interface{}, error) {
+			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
 			ta(cfg)
 			return cfg, err
 		})
@@ -1336,7 +1339,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterName) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func() (interface{}, error) {
+		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func(ctx context.Context) (interface{}, error) {
 			cfg, err := rg.clusterConfig.GetClusterName(opts...)
 			ta(cfg)
 			return cfg, err
@@ -1418,7 +1421,7 @@ type getNodesCacheKey struct {
 var _ map[getNodesCacheKey]struct{} // compile-time hashability check
 
 // GetNodes is a part of auth.Cache implementation
-func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1426,7 +1429,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	defer rg.Release()
 
 	if !rg.IsCacheRead() {
-		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace, opts...)
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1437,17 +1440,17 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 		return nodes, nil
 	}
 
-	return rg.presence.GetNodes(ctx, namespace, opts...)
+	return rg.presence.GetNodes(ctx, namespace)
 }
 
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
 // must be cloned to avoid concurrent modification.
 func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	ta := func(_ []types.Server) {} // compile-time type assertion
-	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
+	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func(ctx context.Context) (interface{}, error) {
 		// use cache's close context instead of request context in order to ensure
 		// that we don't cache a context cancellation error.
-		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+		nodes, err := rg.presence.GetNodes(c.ctx, namespace)
 		ta(nodes)
 		return nodes, err
 	})
@@ -1460,74 +1463,6 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 	}
 	ta(cachedNodes)
 	return cachedNodes, nil
-}
-
-// ListNodes is a part of auth.Cache implementation
-//
-// DELETE IN 10.0.0 in favor of ListResources.
-func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if rg.IsCacheRead() {
-		// cache is healthy, delegate to the standard ListNodes implementation
-		return rg.presence.ListNodes(ctx, req)
-	}
-
-	// Cache is not healthy. List nodes using TTL cache.
-	return c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
-}
-
-// listNodesFromTTLCache Used when the cache is not healthy. It takes advantage
-// of TTL-based caching rather than caching individual page calls (very messy).
-// It relies on caching the result of the `GetNodes` endpoint and then "faking"
-// pagination.
-//
-// DELETE IN 10.0.0 in favor of ListResources.
-func (c *Cache) listNodesFromTTLCache(ctx context.Context, rg readGuard, namespace, startKey string, labels map[string]string, limit int) ([]types.Server, string, error) {
-	if limit <= 0 {
-		return nil, "", trace.BadParameter("nonpositive limit value")
-	}
-
-	cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	// trim nodes that precede start key
-	if startKey != "" {
-		pageStart := 0
-		for i, node := range cachedNodes {
-			if node.GetName() < startKey {
-				pageStart = i + 1
-			} else {
-				break
-			}
-		}
-		cachedNodes = cachedNodes[pageStart:]
-	}
-
-	// iterate and filter nodes, halting when we reach page limit
-	var filtered []types.Server
-	for _, node := range cachedNodes {
-		if len(filtered) == limit {
-			break
-		}
-
-		if node.MatchAgainst(labels) {
-			filtered = append(filtered, node.DeepCopy())
-		}
-	}
-
-	var nextKey string
-	if len(filtered) == limit {
-		nextKey = backend.NextPaginationKey(filtered[len(filtered)-1])
-	}
-
-	return filtered, nextKey, nil
 }
 
 // GetAuthServers returns a list of registered servers
@@ -1575,7 +1510,7 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ []types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func() (interface{}, error) {
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func(ctx context.Context) (interface{}, error) {
 			remotes, err := rg.presence.GetRemoteClusters(opts...)
 			ta(remotes)
 			return remotes, err
@@ -1603,7 +1538,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{clusterName}, func() (interface{}, error) {
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{clusterName}, func(ctx context.Context) (interface{}, error) {
 			remote, err := rg.presence.GetRemoteCluster(clusterName)
 			ta(remote)
 			return remote, err
@@ -1745,6 +1680,16 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 	}
 	defer rg.Release()
 	return rg.appSession.GetAppSession(ctx, req)
+}
+
+// GetSnowflakeSession gets Snowflake web session.
+func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.snowflakeSession.GetSnowflakeSession(ctx, req)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.

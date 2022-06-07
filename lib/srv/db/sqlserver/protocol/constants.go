@@ -17,6 +17,11 @@ limitations under the License.
 package protocol
 
 const (
+	// PacketTypeSQLBatch is the SQLBatch packet type.
+	PacketTypeSQLBatch uint8 = 0x01
+	// PacketTypeRPCRequest is the RPCRequest packet type.
+	PacketTypeRPCRequest uint8 = 0x03
+
 	// PacketTypeResponse is the packet type for server response messages.
 	PacketTypeResponse uint8 = 0x04
 	// PacketTypeLogin7 is the Login7 packet type.
@@ -60,3 +65,10 @@ var preLoginOptions = map[uint8][]byte{
 	preLoginOptionThreadID:   {},
 	preLoginOptionMARS:       {0x00},
 }
+
+const (
+	// procIDSwitchRPCRequest is a magic value defined in:
+	// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/619c43b6-9495-4a58-9e49-a4950db245b3
+	// as  "ProcIDSwitch     =   %xFF %xFF" used to distinguish user custom user procedure.
+	procIDSwitchRPCRequest = 0xFFFF
+)

@@ -290,10 +290,6 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	return al, nil
 }
 
-func (l *AuditLog) WaitForDelivery(context.Context) error {
-	return nil
-}
-
 func getAuthServers(dataDir string) ([]string, error) {
 	// scan the log directory:
 	df, err := os.Open(dataDir)
