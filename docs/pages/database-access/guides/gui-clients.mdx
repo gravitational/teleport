@@ -357,23 +357,22 @@ Congratulations! You have just connected to your Redis instance.
 
 ## Snowflake: JetBrains (IntelliJ, Goland, DataGrip, PyCharm, etc.)
 
-<Admonition type="note">
-  Snowflake integration works only in the authenticated proxy mode. Remember to add the `--tunnel` flag when starting the proxy, example:
-  ```
-  tsh proxy db --tunnel --port 2000 snowflake
-  ```
-</Admonition>
+
+Snowflake integration works only in the authenticated proxy mode. Run `tsh` proxy by using the command below:
+```
+tsh proxy db --tunnel --port 2000 snowflake
+```
 
 In "Database Explorer" click the "add" button, pick "Data Source", and then pick "Snowflake":
 
 ![JetBrains Add Database](../../../img/database-access/guides/snowflake/jetbrains-add-database.png)
 
 Next, set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
-Set the "Username" to match the one that you are connecting to using Teleport and enter any value in the "Password" field:
+Set the "Username" to match the one that you are connecting to using Teleport and enter any value (e.g., "teleport") in the "Password" field:
 
 ![JetBrains General](../../../img/database-access/guides/snowflake/jetbrains-general.png)
 
-Switch to "Advanced" tab and set any value as `account` and add new record named `ssl` with value `off`:
+Switch to "Advanced" tab and set any value (e.g., "teleport") as `account` and add new record named `ssl` with value `off`:
 
 ![JetBrains Advanced](../../../img/database-access/guides/snowflake/jetbrains-advanced.png)
 
@@ -390,12 +389,10 @@ Congratulations! You have just connected to your Snowflake instance.
 
 ## Snowflake: DBeaver
 
-<Admonition type="note">
-  Snowflake integration works only in the authenticated proxy mode. Remember to add the `--tunnel` flag when starting the proxy, example:
-  ```
-  tsh proxy db --tunnel --port 2000 snowflake
-  ```
-</Admonition>
+Snowflake integration works only in the authenticated proxy mode. Run `tsh` proxy by using the command below:
+```
+tsh proxy db --tunnel --port 2000 snowflake
+```
 
 Add a new database by clicking the "add" icon in the top-left corner:
 
@@ -406,12 +403,12 @@ In the search bar of the "Connect to a database" window that opens up, type "sno
 ![DBeaver Select Database](../../../img/database-access/guides/snowflake/dbeaver-select-database.png)
 
 Set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
-In the "Authentication" section set the "Username" to match the one that you are connecting to using Teleport
-and enter any value in the "Password" field:
+In the "Authentication" section set the "Username" to match the database username passed to Teleport with `--db-user`
+and enter any value (e.g., "teleport") in the "Password" field:
 
 ![DBeaver Main](../../../img/database-access/guides/snowflake/dbeaver-main.png)
 
-Next click on "Driver properties" tab and set `account` to any value and in "User properties" set `ssl` to `off`:
+Next click on "Driver properties" tab and set `account` to any value (e.g., "teleport") and in "User properties" set `ssl` to `off`:
 
 ![DBeaver Driver](../../../img/database-access/guides/snowflake/dbeaver-driver.png)
 

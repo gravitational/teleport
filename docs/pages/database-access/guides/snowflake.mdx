@@ -16,7 +16,7 @@ description: How to configure Teleport Database Access with Snowflake.
 This guide will help you to:
 
 - Install and configure Teleport.
-- Add Teleport's public key to a Snowflake's user.
+- Assign Teleport's public key to a Snowflake's user.
 - Connect to Snowflake through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -111,7 +111,8 @@ Use the `tctl auth sign` command below to export a public key for your Snowflake
 $ tctl auth sign --format=snowflake --out=server
 ```
 
-The command will create `server.pub` file with Teleport's public key.
+The command will create `server.pub` file with Teleport's public key. Teleport will use the corresponding private key to
+generate JWT (JSON Web Token) which will be used to authenticate in Snowflake.
 
 (!docs/pages/includes/database-access/rotation-note.mdx!)
 
