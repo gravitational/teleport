@@ -64,7 +64,8 @@ variable "route53_domain" {
 // Whether to set wildcard Route53
 // for use in Application Access
 variable "add_wildcard_route53_record" {
-  type = string
+  type    = bool
+  default = false
 }
   
 variable "enable_mongodb_listener" {
