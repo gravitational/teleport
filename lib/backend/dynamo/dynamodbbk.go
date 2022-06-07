@@ -578,9 +578,10 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	if trace.IsCompareFailed(err) {
 		err = trace.NotFound(err.Error())
 	}
-
-	log.Infof("GH1720: KeepAlive input: %v", input)
-	log.Infof("GH1720: KeepAlive Error: %v", err)
+	if err != nil {
+		log.Infof("GH1720: KeepAlive input: %v", input)
+		log.Infof("GH1720: KeepAlive Error: %v", err)
+	}
 	return err
 }
 
@@ -835,6 +836,7 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) error
 	if err != nil {
 		log.Infof("GH1720: Create input: %v", input)
 		log.Infof("GH1720: Create Error: %v", err)
+    log.Infof("GH1720: Create item: %v", item)
 		return trace.Wrap(err)
 	}
 	return nil
