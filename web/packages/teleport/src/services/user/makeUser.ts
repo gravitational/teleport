@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2020-2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ export default function makeUser(json): User {
   const [name, roles, authType] = at(json, ['name', 'roles', 'authType']);
   return {
     name,
-    roles,
+    roles: roles || [],
     authType: authType === 'local' ? 'teleport local user' : authType,
     isLocal: authType === 'local',
   };

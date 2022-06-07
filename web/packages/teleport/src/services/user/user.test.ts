@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2020-2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -177,9 +177,15 @@ test('undefined values in context response gives proper default values', async (
   });
 });
 
-test('fetch users, null response gives empty array', async () => {
+test('fetch users, null response values gives empty array', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(null);
-
-  const response = await user.fetchUsers();
+  let response = await user.fetchUsers();
   expect(response).toStrictEqual([]);
+
+  jest.spyOn(api, 'get').mockResolvedValue([{ name: '', authType: '' }]);
+
+  response = await user.fetchUsers();
+  expect(response).toStrictEqual([
+    { authType: '', isLocal: false, name: '', roles: [] },
+  ]);
 });
