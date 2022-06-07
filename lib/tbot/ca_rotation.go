@@ -37,6 +37,18 @@ import (
 // - Update Servers -> Standby: So we can stop trusting the old CA.
 
 func (b *Bot) caRotationLoop(ctx context.Context) error {
+	for ctx.Err() != nil {
+		err := b.watchCARotations(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (b *Bot) watchCARotations(ctx context.Context) error {
+	b.log.Debugf("Attempting to establish watch for CA events")
 	watcher, err := b.client().NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
@@ -50,20 +62,49 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 	for {
 		select {
 		case event := <-watcher.Events():
+			b.log.Debugf("Received event: %+v", event)
+			if event.Type == types.OpInit {
+				b.log.Infof("Started watching for CA rotations")
+				continue
+			}
+			if event.Type != types.OpPut {
+				b.log.Debugf("Ignoring CA event due to type: %s", event.Type)
+				continue
+			}
+			ca, ok := event.Resource.(types.CertAuthority)
+			if !ok {
+				// TODO: Determine if we should take more drastic action here.
+				// Realistically, if other event types are being delivered,
+				// there's probably been some element of developer error. We
+				// could hypothetically panic here.
+				b.log.Debugf(
+					"Skipping unexpected event type: %v for %v",
+					event.Type, event.Resource.GetName(),
+				)
+				continue
+			}
+
+			phase := ca.GetRotation().Phase
+			if phase == "init" || phase == "update_servers" {
+				b.log.Debug("Skipping due to phase: %s", phase)
+			}
+			b.log.Debugf("CA: %+v", ca)
+
+			// TODO: Fetch the CA so we can determine if we need to rotate.
+
 			// We need to debounce here, as multiple events will be received if
 			// the user is rotating multiple CAs at once.
-			b.log.Debugf("CA event: %+v", event)
-
 			b.log.Infof("CA Rotation step detected; attempting to force renewal.")
 			select {
 			case b.reloadChan <- struct{}{}:
 			default:
 				// TODO: Come up with a significantly less janky debounce method
-				b.log.Warnf("Renewal already in progress")
+				b.log.Debugf("Renewal already in progress; ignoring event.")
 			}
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
 				b.log.WithError(err).Warnf("error watching for CA rotations")
+				// return trace.Wrap(err)
 			}
 			return nil
 		case <-ctx.Done():
