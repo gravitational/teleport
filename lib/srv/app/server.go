@@ -697,24 +697,19 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 // The in-flight request count is automatically incremented on the session.
 // The caller must call session.release() after finishing its use
 func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
-	for {
-		// If a cached forwarder exists, return it right away.
-		session, err := s.cache.get(identity.RouteToApp.SessionID)
-		if err != nil {
-			// Create a new session with a recorder and forwarder in it.
-			session, err = s.newSessionChunk(ctx, identity, app)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		// session could have been closed in between us retrieving it and calling acquire()
-		// if so, continue the loop and try to get a fresh session
-		err = session.acquire()
-		if err == nil {
-			return session, nil
-		}
+	session, err := s.cache.get(identity.RouteToApp.SessionID)
+	// If a cached forwarder exists, return it right away.
+	if err == nil && session.acquire() == nil {
+		return session, nil
 	}
+
+	// Create a new session with a recorder and forwarder in it.
+	session, err = s.newSessionChunk(ctx, identity, app)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
 }
 
 // getApp returns an application matching the public address. If multiple
