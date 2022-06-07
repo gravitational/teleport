@@ -978,8 +978,6 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		},
 		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 		DialOpts:             dialOpts,
-		// Deliberately ignore HTTP proxies for backwards compatibility.
-		IgnoreHTTPProxy: true,
 	}, cltParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)

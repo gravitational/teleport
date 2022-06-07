@@ -305,12 +305,7 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	var dialer ContextDialer
-	if params.cfg.IgnoreHTTPProxy {
-		dialer = NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
-	} else {
-		dialer = NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
-	}
+	dialer := NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -504,8 +499,6 @@ type Config struct {
 	// ALPNSNIAuthDialClusterName if present the client will include ALPN SNI routing information in TLS Hello message
 	// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
 	ALPNSNIAuthDialClusterName string
-	// IgnoreHTTPProxy disables support for HTTP proxying when true.
-	IgnoreHTTPProxy bool
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	CircuitBreakerConfig breaker.Config
 }
