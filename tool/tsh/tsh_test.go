@@ -537,7 +537,7 @@ func approveAllAccessRequests(access services.DynamicAccess, stop <-chan struct{
 }
 
 // TestSSHAccessRequest tests that a user can automatically request access to a
-// ssh server using a search-based access request when "tsh ssh" fails with
+// ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
 	tmpHomePath := t.TempDir()
@@ -545,8 +545,18 @@ func TestSSHAccessRequest(t *testing.T) {
 	requester, err := types.NewRole("requester", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
-				SearchAsRoles: []string{"access"},
+				SearchAsRoles: []string{"node-access"},
 			},
+		},
+	})
+	require.NoError(t, err)
+
+	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"access": {"true"},
+			},
+			Logins: []string{"{{internal.logins}}"},
 		},
 	})
 	require.NoError(t, err)
@@ -563,7 +573,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	}
 	alice.SetTraits(traits)
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, connector, alice))
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, nodeAccessRole, connector, alice))
 
 	authAddr, err := rootAuth.AuthSSHAddr()
 	require.NoError(t, err)
@@ -572,22 +582,32 @@ func TestSSHAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	sshHostname := "test-ssh-server"
-	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname))
+	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
 	require.NotNil(t, node)
+	sshHostID := node.Config.HostUUID
 
-	// wait for auth to see node
-	var sshHostID string
-	require.Eventually(t, func() bool {
-		nodes, err := rootAuth.GetAuthServer().GetNodes(context.Background(), apidefaults.Namespace)
-		require.NoError(t, err)
-		for _, node := range nodes {
-			if node.GetHostname() == sshHostname {
-				sshHostID = node.GetName()
-				return true
+	sshHostnameNoAccess := "test-ssh-server-no-access"
+	nodeNoAccess := makeTestSSHNode(t, authAddr, withHostname(sshHostnameNoAccess), withSSHLabel("access", "false"))
+	require.NotNil(t, nodeNoAccess)
+
+	hasNode := func(hostName string) func() bool {
+		return func() bool {
+			nodes, err := rootAuth.GetAuthServer().GetNodes(context.Background(), apidefaults.Namespace)
+			require.NoError(t, err)
+			for _, node := range nodes {
+				if node.GetHostname() == hostName {
+					return true
+				}
 			}
+			return false
 		}
-		return false
-	}, 10*time.Second, time.Second, "node never showed up")
+	}
+
+	// wait for auth to see nodes
+	require.Eventually(t, hasNode(sshHostname), 10*time.Second, time.Second,
+		sshHostname+" never showed up")
+	require.Eventually(t, hasNode(sshHostnameNoAccess), 10*time.Second, time.Second,
+		sshHostnameNoAccess+" never showed up")
 
 	err = Run(context.Background(), []string{
 		"login",
@@ -602,12 +622,22 @@ func TestSSHAccessRequest(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// sanity check, cannot ssh without access request
+	// won't request access unless possible
 	err = Run(context.Background(), []string{
 		"ssh",
 		"--insecure",
 		"--debug",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		fmt.Sprintf("%s@%s", user.Username, sshHostnameNoAccess),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// won't request to non-existant node
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--debug",
+		fmt.Sprintf("%s@unknown", user.Username),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
@@ -632,19 +662,18 @@ func TestSSHAccessRequest(t *testing.T) {
 		"ssh",
 		"--insecure",
 		"--debug",
-		"--request",
-		"--request-reason", "for testing purposes",
+		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostname),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	// now that we have an approved access request, it should still work without --request
+	// now that we have an approved access request, it should work without
+	// prompting for a request reason
 	err = Run(context.Background(), []string{
 		"ssh",
 		"--insecure",
 		"--debug",
-		"--request-reason", "for testing purposes",
 		fmt.Sprintf("%s@%s", user.Username, sshHostname),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
@@ -673,8 +702,7 @@ func TestSSHAccessRequest(t *testing.T) {
 		"ssh",
 		"--insecure",
 		"--debug",
-		"--request",
-		"--request-reason", "for testing purposes",
+		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostID),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
@@ -1561,6 +1589,15 @@ func withHostname(hostname string) testServerOptFunc {
 	})
 }
 
+func withSSHLabel(key, value string) testServerOptFunc {
+	return withConfig(func(cfg *service.Config) {
+		if cfg.SSH.Labels == nil {
+			cfg.SSH.Labels = make(map[string]string)
+		}
+		cfg.SSH.Labels[key] = value
+	})
+}
+
 func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) (node *service.TeleportProcess) {
 	var options testServersOpts
 	for _, opt := range opts {
@@ -1581,6 +1618,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.SSH.Enabled = true
 	cfg.SSH.Addr = *utils.MustParseAddr("127.0.0.1:0")
 	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+	cfg.SSH.DisableCreateHostUser = true
 	cfg.Log = utils.NewLoggerForTests()
 
 	for _, fn := range options.configFuncs {
