@@ -17,12 +17,14 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"crypto/rand"
 	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/semaphore"
 )
 
 func TestCTRLCPassthrough(t *testing.T) {
@@ -85,4 +87,43 @@ func TestBufferedKept(t *testing.T) {
 
 	kept := data[len(data)-maxPausedHistoryBytes:]
 	require.Equal(t, m.buffer, kept)
+}
+
+type funcReader func(p []byte) (n int, err error)
+
+func (f funcReader) Read(p []byte) (n int, err error) {
+	return f(p)
+}
+
+func TestNoReadWhenOff(t *testing.T) {
+	m := NewTermManager()
+
+	r, w := io.Pipe()
+	data := make([]byte, 90)
+	n, err := rand.Read(data)
+	require.NoError(t, err)
+
+	s := semaphore.NewWeighted(1)
+	require.NoError(t, s.Acquire(context.Background(), 1))
+	var fr funcReader = func(p []byte) (n int, err error) {
+		n, err = r.Read(p)
+		s.Release(1)
+		return
+	}
+
+	m.AddReader("reader", fr)
+
+	_, err = w.Write(data[:n])
+	require.NoError(t, err)
+
+	require.NoError(t, s.Acquire(context.Background(), 1))
+	m.On()
+
+	_, err = w.Write([]byte{1, 2, 3})
+	require.NoError(t, err)
+
+	n, err = m.Read(data)
+	require.NoError(t, err)
+
+	require.Equal(t, []byte{1, 2, 3}, data[:n])
 }
