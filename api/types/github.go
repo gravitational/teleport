@@ -19,7 +19,10 @@ package types
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 )
@@ -46,9 +49,13 @@ type GithubConnector interface {
 	GetTeamsToLogins() []TeamMapping
 	// SetTeamsToLogins sets the mapping of Github teams to allowed logins
 	SetTeamsToLogins([]TeamMapping)
+	// GetTeamsToRoles returns the mapping of Github teams to allowed roles
+	GetTeamsToRoles() []TeamRolesMapping
+	// SetTeamsToRoles sets the mapping of Github teams to allowed roles
+	SetTeamsToRoles([]TeamRolesMapping)
 	// MapClaims returns the list of allows logins based on the retrieved claims
 	// returns list of logins and kubernetes groups
-	MapClaims(GithubClaims) (logins []string, kubeGroups []string, kubeUsers []string)
+	MapClaims(GithubClaims) (roles []string, kubeGroups []string, kubeUsers []string)
 	// GetDisplay returns the connector display name
 	GetDisplay() string
 	// SetDisplay sets the connector display name
@@ -152,15 +159,25 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	// DELETE IN 11.0.0
+	if len(c.Spec.TeamsToLogins) > 0 {
+		log.Warn("GitHub connector field teams_to_logins is deprecated and will be removed in the next version. Please use teams_to_roles instead.")
+	}
+
 	// make sure claim mappings have either roles or a role template
 	for i, v := range c.Spec.TeamsToLogins {
 		if v.Team == "" {
 			return trace.BadParameter("team_to_logins mapping #%v is invalid, team is empty.", i+1)
 		}
 	}
+	for i, v := range c.Spec.TeamsToRoles {
+		if v.Team == "" {
+			return trace.BadParameter("team_to_roles mapping #%v is invalid, team is empty.", i+1)
+		}
+	}
 
-	if len(c.Spec.TeamsToLogins) == 0 {
-		return trace.BadParameter("team_to_logins mapping is invalid, no mappings defined.")
+	if len(c.Spec.TeamsToLogins)+len(c.Spec.TeamsToRoles) == 0 {
+		return trace.BadParameter("team_to_logins or team_to_roles mapping is invalid, no mappings defined.")
 	}
 
 	return nil
@@ -197,13 +214,27 @@ func (c *GithubConnectorV3) SetRedirectURL(redirectURL string) {
 }
 
 // GetTeamsToLogins returns the connector team membership mappings
+//
+// DEPRECATED: use GetTeamsToRoles instead
 func (c *GithubConnectorV3) GetTeamsToLogins() []TeamMapping {
 	return c.Spec.TeamsToLogins
 }
 
 // SetTeamsToLogins sets the connector team membership mappings
+//
+// DEPRECATED: use SetTeamsToRoles instead
 func (c *GithubConnectorV3) SetTeamsToLogins(teamsToLogins []TeamMapping) {
 	c.Spec.TeamsToLogins = teamsToLogins
+}
+
+// GetTeamsToRoles returns the mapping of Github teams to allowed roles
+func (c *GithubConnectorV3) GetTeamsToRoles() []TeamRolesMapping {
+	return c.Spec.TeamsToRoles
+}
+
+// SetTeamsToRoles sets the mapping of Github teams to allowed roles
+func (c *GithubConnectorV3) SetTeamsToRoles(m []TeamRolesMapping) {
+	c.Spec.TeamsToRoles = m
 }
 
 // GetDisplay returns the connector display name
@@ -219,7 +250,7 @@ func (c *GithubConnectorV3) SetDisplay(display string) {
 // MapClaims returns a list of logins based on the provided claims,
 // returns a list of logins and list of kubernetes groups
 func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, []string) {
-	var logins, kubeGroups, kubeUsers []string
+	var roles, kubeGroups, kubeUsers []string
 	for _, mapping := range c.GetTeamsToLogins() {
 		teams, ok := claims.OrganizationToTeams[mapping.Organization]
 		if !ok {
@@ -229,11 +260,67 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 		for _, team := range teams {
 			// see if the user belongs to this team
 			if team == mapping.Team {
-				logins = append(logins, mapping.Logins...)
+				roles = append(roles, mapping.Logins...)
 				kubeGroups = append(kubeGroups, mapping.KubeGroups...)
 				kubeUsers = append(kubeUsers, mapping.KubeUsers...)
 			}
 		}
 	}
-	return utils.Deduplicate(logins), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
+	for _, mapping := range c.GetTeamsToRoles() {
+		teams, ok := claims.OrganizationToTeams[mapping.Organization]
+		if !ok {
+			// the user does not belong to this organization
+			continue
+		}
+		for _, team := range teams {
+			// see if the user belongs to this team
+			if team == mapping.Team {
+				roles = append(roles, mapping.Roles...)
+			}
+		}
+	}
+	return utils.Deduplicate(roles), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
+}
+
+// SetExpiry sets expiry time for the object
+func (r *GithubAuthRequest) SetExpiry(expires time.Time) {
+	r.Expires = &expires
+}
+
+// Expiry returns object expiry setting.
+func (r *GithubAuthRequest) Expiry() time.Time {
+	if r.Expires == nil {
+		return time.Time{}
+	}
+	return *r.Expires
+}
+
+// Check makes sure the request is valid
+func (r *GithubAuthRequest) Check() error {
+	if r.ConnectorID == "" {
+		return trace.BadParameter("missing ConnectorID")
+	}
+	if r.StateToken == "" {
+		return trace.BadParameter("missing StateToken")
+	}
+	if len(r.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(r.PublicKey)
+		if err != nil {
+			return trace.BadParameter("bad PublicKey: %v", err)
+		}
+		if (r.CertTTL.Duration() > defaults.MaxCertDuration) || (r.CertTTL.Duration() < defaults.MinCertDuration) {
+			return trace.BadParameter("wrong CertTTL")
+		}
+	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if r.SSOTestFlow && r.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !r.SSOTestFlow && r.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	}
+
+	return nil
 }

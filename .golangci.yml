@@ -34,6 +34,8 @@ linters-settings:
     include-go-root: true # check against stdlib
     packages-with-error-message:
     - io/ioutil: 'use "io" or "os" packages instead'
+    - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
+    - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
 
 output:
   uniq-by-line: false

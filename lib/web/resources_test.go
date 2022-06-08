@@ -85,6 +85,7 @@ spec:
     - dummy
     organization: octocats
     team: dummy
+  teams_to_roles: null
 version: v3
 `
 	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{
@@ -127,6 +128,7 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    create_host_user: false
     desktop_clipboard: true
     desktop_directory_sharing: true
     enhanced_recording:

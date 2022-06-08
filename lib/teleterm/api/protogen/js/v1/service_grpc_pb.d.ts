@@ -28,6 +28,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     addCluster: ITerminalServiceService_IAddCluster;
     removeCluster: ITerminalServiceService_IRemoveCluster;
     removeGateway: ITerminalServiceService_IRemoveGateway;
+    restartGateway: ITerminalServiceService_IRestartGateway;
     getAuthSettings: ITerminalServiceService_IGetAuthSettings;
     getCluster: ITerminalServiceService_IGetCluster;
     login: ITerminalServiceService_ILogin;
@@ -142,6 +143,15 @@ interface ITerminalServiceService_IRemoveGateway extends grpc.MethodDefinition<v
     responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
 }
+interface ITerminalServiceService_IRestartGateway extends grpc.MethodDefinition<v1_service_pb.RestartGatewayRequest, v1_service_pb.EmptyResponse> {
+    path: "/teleport.terminal.v1.TerminalService/RestartGateway";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.RestartGatewayRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.RestartGatewayRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
+}
 interface ITerminalServiceService_IGetAuthSettings extends grpc.MethodDefinition<v1_service_pb.GetAuthSettingsRequest, v1_auth_settings_pb.AuthSettings> {
     path: "/teleport.terminal.v1.TerminalService/GetAuthSettings";
     requestStream: false;
@@ -194,6 +204,7 @@ export interface ITerminalServiceServer {
     addCluster: grpc.handleUnaryCall<v1_service_pb.AddClusterRequest, v1_cluster_pb.Cluster>;
     removeCluster: grpc.handleUnaryCall<v1_service_pb.RemoveClusterRequest, v1_service_pb.EmptyResponse>;
     removeGateway: grpc.handleUnaryCall<v1_service_pb.RemoveGatewayRequest, v1_service_pb.EmptyResponse>;
+    restartGateway: grpc.handleUnaryCall<v1_service_pb.RestartGatewayRequest, v1_service_pb.EmptyResponse>;
     getAuthSettings: grpc.handleUnaryCall<v1_service_pb.GetAuthSettingsRequest, v1_auth_settings_pb.AuthSettings>;
     getCluster: grpc.handleUnaryCall<v1_service_pb.GetClusterRequest, v1_cluster_pb.Cluster>;
     login: grpc.handleUnaryCall<v1_service_pb.LoginRequest, v1_service_pb.EmptyResponse>;
@@ -237,6 +248,9 @@ export interface ITerminalServiceClient {
     removeGateway(request: v1_service_pb.RemoveGatewayRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     removeGateway(request: v1_service_pb.RemoveGatewayRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     removeGateway(request: v1_service_pb.RemoveGatewayRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    restartGateway(request: v1_service_pb.RestartGatewayRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    restartGateway(request: v1_service_pb.RestartGatewayRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    restartGateway(request: v1_service_pb.RestartGatewayRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     getAuthSettings(request: v1_service_pb.GetAuthSettingsRequest, callback: (error: grpc.ServiceError | null, response: v1_auth_settings_pb.AuthSettings) => void): grpc.ClientUnaryCall;
     getAuthSettings(request: v1_service_pb.GetAuthSettingsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_auth_settings_pb.AuthSettings) => void): grpc.ClientUnaryCall;
     getAuthSettings(request: v1_service_pb.GetAuthSettingsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_auth_settings_pb.AuthSettings) => void): grpc.ClientUnaryCall;
@@ -289,6 +303,9 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public removeGateway(request: v1_service_pb.RemoveGatewayRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public removeGateway(request: v1_service_pb.RemoveGatewayRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public removeGateway(request: v1_service_pb.RemoveGatewayRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public restartGateway(request: v1_service_pb.RestartGatewayRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public restartGateway(request: v1_service_pb.RestartGatewayRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public restartGateway(request: v1_service_pb.RestartGatewayRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public getAuthSettings(request: v1_service_pb.GetAuthSettingsRequest, callback: (error: grpc.ServiceError | null, response: v1_auth_settings_pb.AuthSettings) => void): grpc.ClientUnaryCall;
     public getAuthSettings(request: v1_service_pb.GetAuthSettingsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_auth_settings_pb.AuthSettings) => void): grpc.ClientUnaryCall;
     public getAuthSettings(request: v1_service_pb.GetAuthSettingsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_auth_settings_pb.AuthSettings) => void): grpc.ClientUnaryCall;

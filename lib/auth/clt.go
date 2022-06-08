@@ -129,12 +129,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		var contextDialer client.ContextDialer
-		if cfg.IgnoreHTTPProxy {
-			contextDialer = client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		} else {
-			contextDialer = client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		}
+		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -989,34 +984,6 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// CreateOIDCAuthRequest creates OIDCAuthRequest
-func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
-		Req: req,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *services.OIDCAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-// GetOIDCAuthRequest gets OIDC AuthnRequest
-func (c *Client) GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error) {
-	out, err := c.Get(ctx, c.Endpoint("oidc", "requests", "get", id), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *services.OIDCAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
@@ -1054,47 +1021,6 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 	return &response, nil
 }
 
-// CreateSAMLAuthRequest creates SAML AuthnRequest
-func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("saml", "requests", "create"), createSAMLAuthRequestReq{
-		Req: req,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *services.SAMLAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-// GetSAMLAuthRequest gets SAML AuthnRequest
-func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
-	out, err := c.Get(ctx, c.Endpoint("saml", "requests", "get", id), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *services.SAMLAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-// GetSSODiagnosticInfo returns SSO diagnostic info records.
-func (c *Client) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
-	out, err := c.Get(ctx, c.Endpoint("sso", "diag", authKind, authRequestID), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response types.SSODiagnosticInfo
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &response, nil
-}
-
 // ValidateSAMLResponse validates response returned by SAML identity provider
 func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
@@ -1128,33 +1054,6 @@ func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuth
 			return nil, trace.Wrap(err)
 		}
 		response.HostSigners[i] = ca
-	}
-	return &response, nil
-}
-
-// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
-func (c *Client) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("github", "requests", "create"),
-		createGithubAuthRequestReq{Req: req})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response services.GithubAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &response, nil
-}
-
-// GetGithubAuthRequest gets Github AuthnRequest
-func (c *Client) GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error) {
-	out, err := c.Get(ctx, c.Endpoint("github", "requests", "get", id), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response services.GithubAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return &response, nil
 }
@@ -1591,9 +1490,9 @@ type IdentityService interface {
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
-	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
+	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
 	// GetOIDCAuthRequest returns OIDC auth request if found
-	GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error)
+	GetOIDCAuthRequest(ctx context.Context, id string) (*types.OIDCAuthRequest, error)
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 
@@ -1606,11 +1505,11 @@ type IdentityService interface {
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
-	CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error)
+	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
 	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
 	// GetSAMLAuthRequest returns SAML auth request if found
-	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*services.SAMLAuthRequest, error)
+	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*types.SAMLAuthRequest, error)
 
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
@@ -1621,9 +1520,9 @@ type IdentityService interface {
 	// DeleteGithubConnector deletes the specified Github connector
 	DeleteGithubConnector(ctx context.Context, id string) error
 	// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
-	CreateGithubAuthRequest(services.GithubAuthRequest) (*services.GithubAuthRequest, error)
+	CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error)
 	// GetGithubAuthRequest returns Github auth request if found
-	GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error)
+	GetGithubAuthRequest(ctx context.Context, id string) (*types.GithubAuthRequest, error)
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error)
 

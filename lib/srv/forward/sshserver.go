@@ -406,6 +406,18 @@ func (s Server) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
 }
 
+// GetCreateHostUser determines whether users should be created on the
+// host automatically
+func (s *Server) GetCreateHostUser() bool {
+	return false
+}
+
+// GetHostUser returns the HostUsers instance being used to manage
+// host user provisioning, unimplemented for the forwarder server.
+func (s *Server) GetHostUsers() srv.HostUsers {
+	return nil
+}
+
 // GetRestrictedSessionManager returns a NOP manager since for a
 // forwarding server it makes no sense (it has to run on the actual
 // node).
