@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/profile"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -76,6 +77,218 @@ const (
 	Loopback = "127.0.0.1"
 	Host     = "localhost"
 )
+
+const (
+	HostID = "00000000-0000-0000-0000-000000000000"
+	Site   = "local-site"
+)
+
+type integrationTestSuite struct {
+	me *user.User
+	// priv/pub pair to avoid re-generating it
+	priv []byte
+	pub  []byte
+	// log defines the test-specific logger
+	log utils.Logger
+}
+
+func newSuite(t *testing.T) *integrationTestSuite {
+	SetTestTimeouts(time.Millisecond * time.Duration(100))
+
+	suite := &integrationTestSuite{}
+
+	var err error
+	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	// Find AllocatePortsNum free listening ports to use.
+	suite.me, _ = user.Current()
+
+	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
+	stdin, err := os.Open("/dev/tty")
+	if err == nil {
+		os.Stdin.Close()
+		os.Stdin = stdin
+	}
+
+	t.Cleanup(func() {
+		// restore os.Stdin to its original condition: connected to /dev/null
+		os.Stdin.Close()
+		os.Stdin, err = os.Open("/dev/null")
+		require.NoError(t, err)
+	})
+
+	return suite
+}
+
+type integrationTest func(t *testing.T, suite *integrationTestSuite)
+
+func (s *integrationTestSuite) bind(test integrationTest) func(t *testing.T) {
+	return func(t *testing.T) {
+		// Attempt to set a logger for the test. Be warned that parts of the
+		// Teleport codebase do not honour the logger passed in via config and
+		// will create their own. Do not expect to catch _all_ output with this.
+		s.log = utils.NewLoggerForTests()
+		os.RemoveAll(profile.FullProfilePath(""))
+		t.Cleanup(func() { s.log = nil })
+		test(t, s)
+	}
+}
+
+// newTeleportWithConfig is a helper function that will create a running
+// Teleport instance with the passed in user, instance secrets, and Teleport
+// configuration.
+func (s *integrationTestSuite) newTeleportWithConfig(t *testing.T, logins []string, instanceSecrets []*InstanceSecrets, teleportConfig *service.Config) *TeleInstance {
+	teleport := s.newTeleportInstance()
+
+	// use passed logins, but use suite's default login if nothing was passed
+	if len(logins) == 0 {
+		logins = []string{s.me.Username}
+	}
+	for _, login := range logins {
+		teleport.AddUser(login, []string{login})
+	}
+
+	// create a new teleport instance with passed in configuration
+	if err := teleport.CreateEx(t, instanceSecrets, teleportConfig); err != nil {
+		t.Fatalf("Unexpected response from CreateEx: %v", trace.DebugReport(err))
+	}
+	if err := teleport.Start(); err != nil {
+		t.Fatalf("Unexpected response from Start: %v", trace.DebugReport(err))
+	}
+
+	return teleport
+}
+
+// newUnstartedTeleport helper returns a created but not started Teleport instance pre-configured
+// with the current user os.user.Current().
+func (s *integrationTestSuite) newUnstartedTeleport(t *testing.T, logins []string, enableSSH bool) *TeleInstance {
+	teleport := s.newTeleportInstance()
+	// use passed logins, but use suite's default login if nothing was passed
+	if len(logins) == 0 {
+		logins = []string{s.me.Username}
+	}
+	for _, login := range logins {
+		teleport.AddUser(login, []string{login})
+	}
+	require.NoError(t, teleport.Create(t, nil, enableSSH, nil))
+	return teleport
+}
+
+// newTeleport helper returns a running Teleport instance pre-configured
+// with the current user os.user.Current().
+func (s *integrationTestSuite) newTeleport(t *testing.T, logins []string, enableSSH bool) *TeleInstance {
+	teleport := s.newUnstartedTeleport(t, logins, enableSSH)
+	require.NoError(t, teleport.Start())
+	return teleport
+}
+
+// newTeleportIoT helper returns a running Teleport instance with Host as a
+// reversetunnel node.
+func (s *integrationTestSuite) newTeleportIoT(t *testing.T, logins []string) *TeleInstance {
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() *service.Config {
+		tconf := s.defaultServiceConfig()
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return tconf
+	}
+	main := s.newTeleportWithConfig(t, logins, nil, mainConfig())
+
+	// Create a Teleport instance with a Node.
+	nodeConfig := func() *service.Config {
+		tconf := s.defaultServiceConfig()
+		tconf.Hostname = Host
+		tconf.Token = "token"
+		tconf.AuthServers = []utils.NetAddr{
+			{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, main.GetPortWeb()),
+			},
+		}
+
+		tconf.Auth.Enabled = false
+
+		tconf.Proxy.Enabled = false
+
+		tconf.SSH.Enabled = true
+
+		return tconf
+	}
+	_, err := main.StartReverseTunnelNode(nodeConfig())
+	require.NoError(t, err)
+
+	return main
+}
+
+// rotationConfig sets up default config used for CA rotation tests
+func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.Config {
+	tconf := s.defaultServiceConfig()
+	tconf.SSH.Enabled = true
+	tconf.Proxy.DisableWebService = disableWebService
+	tconf.Proxy.DisableWebInterface = true
+	tconf.Proxy.DisableDatabaseProxy = true
+	tconf.Proxy.DisableALPNSNIListener = true
+	tconf.PollingPeriod = time.Second
+	tconf.ClientTimeout = time.Second
+	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.MaxRetryPeriod = time.Second
+	return tconf
+}
+
+func (s *integrationTestSuite) newTeleportInstance() *TeleInstance {
+	return NewInstance(s.defaultInstanceConfig())
+}
+
+func (s *integrationTestSuite) defaultInstanceConfig() InstanceConfig {
+	return InstanceConfig{
+		ClusterName: Site,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        s.priv,
+		Pub:         s.pub,
+		log:         s.log,
+		Ports:       standardPortSetup(),
+	}
+}
+
+type InstanceConfigOption func(config *InstanceConfig)
+
+func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterName string, opts ...InstanceConfigOption) *TeleInstance {
+	cfg := InstanceConfig{
+		ClusterName: clusterName,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        s.priv,
+		Pub:         s.pub,
+		log:         utils.WrapLogger(s.log.WithField("cluster", clusterName)),
+		Ports:       standardPortSetup(),
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return NewInstance(cfg)
+}
+
+func WithNodeName(nodeName string) InstanceConfigOption {
+	return func(config *InstanceConfig) {
+		config.NodeName = nodeName
+	}
+}
+
+func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
+	cfg := service.MakeDefaultConfig()
+	cfg.Console = nil
+	cfg.Log = s.log
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	return cfg
+}
 
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
 // work faster but consuming more CPU (useful for integration testing).
@@ -1931,6 +2144,76 @@ func getLocalIP() (string, error) {
 		}
 	}
 	return "", trace.NotFound("No non-loopback local IP address found")
+}
+
+// tryCreateTrustedCluster performs several attempts to create a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+//
+// Duplicated in tool/tsh/tsh_test.go
+func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
+	ctx := context.TODO()
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
+		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
+}
+
+func standardPortsOrMuxSetup(mux bool) *InstancePorts {
+	if mux {
+		return webReverseTunnelMuxPortSetup()
+	}
+	return standardPortSetup()
+}
+
+// waitForTunnelConnections waits for remote tunnels connections
+func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName string, expectedCount int) {
+	var conns []types.TunnelConnection
+	for i := 0; i < 30; i++ {
+		conns, err := authServer.Presence.GetTunnelConnections(clusterName)
+		require.NoError(t, err)
+		if len(conns) == expectedCount {
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+	require.Len(t, conns, expectedCount)
+}
+
+func waitForClusters(tun reversetunnel.Server, expected int) func() bool {
+	return func() bool {
+		clusters, err := tun.GetSites()
+		if err != nil {
+			return false
+		}
+
+		// Check the expected number of clusters are connected, and they have all
+		// connected with the past 10 seconds.
+		if len(clusters) >= expected {
+			for _, cluster := range clusters {
+				if time.Since(cluster.GetLastConnected()).Seconds() > 10.0 {
+					return false
+				}
+			}
+		}
+
+		return true
+	}
 }
 
 func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *TeleInstance, *TeleInstance)) *client.TeleportClient {
