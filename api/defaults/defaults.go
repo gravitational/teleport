@@ -37,6 +37,9 @@ const (
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
 	KeepAliveCountMax = 3
 
+	// MinCertDuration specifies minimum duration of validity of issued certificate
+	MinCertDuration = time.Minute
+
 	// MaxCertDuration limits maximum duration of validity of issued certificate
 	MaxCertDuration = 30 * time.Hour
 
