@@ -1,16 +1,32 @@
+// This example program demonstrates how to connect to a Postgres database
+// using certificates issued by Teleport Machine ID.
+
 package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {
 	// Open connection to database.
-	db, err := sql.Open("postgres", "host=localhost")
+	db, err := sql.Open("postgres", fmt.Sprint(
+		"host=localhost ",
+		"port=1234 ",
+		"dbname=example ",
+		"user=alice ",
+		"sslmode=verify-full ",
+		"sslrootcert=/opt/machine-id/teleport-host-ca.crt ",
+		"sslkey=/opt/machine-id/key ",
+		"sslcert=/opt/machine-id/tlscert ",
+	))
 	if err != nil {
-		log.Fatalf("Failed to Open database: %v.", err)
+		log.Fatalf("Failed to open database: %v.", err)
 	}
+
 	defer db.Close()
 
 	// Call "Ping" to test connectivity.
