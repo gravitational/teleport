@@ -808,7 +808,7 @@ func certRequestClientIP(ip string) certRequestOption {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
+func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, sourceIP string) ([]byte, []byte, error) {
 	user, err := a.Identity.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -830,7 +830,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		routeToCluster: routeToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
-		sourceIP:       "1.2.3.4",
+		sourceIP:       sourceIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -894,7 +894,6 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
-		sourceIP:       "1.2.3.4",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -944,7 +943,6 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		dbProtocol:     req.RouteToDatabase.Protocol,
 		dbUser:         req.RouteToDatabase.Username,
 		dbName:         req.RouteToDatabase.Database,
-		sourceIP:       "1.2.3.4",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

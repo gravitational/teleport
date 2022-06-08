@@ -224,6 +224,7 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.SSH.Enabled = true
+	tconf.SSH.DisableCreateHostUser = true
 
 	teleport := suite.newTeleportInstance()
 
@@ -240,17 +241,21 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 
 	site := teleport.GetSiteAPI(Site)
 	require.NotNil(t, site)
-	cl, err := teleport.NewClient(ClientConfig{
-		Login:   suite.me.Username,
-		Cluster: Site,
-		Host:    Host,
-	})
-	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	err = cl.SSH(ctx, []string{}, false)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "ssh: unable to authenticate")
+
+	for _, ip := range []string{"1.2.3.4/32", "1843:4545::12/256"} {
+		cl, err := teleport.NewClient(ClientConfig{
+			Login:    suite.me.Username,
+			Cluster:  Site,
+			Host:     Host,
+			SourceIP: ip,
+		})
+		require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		err = cl.SSH(ctx, []string{}, false)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "ssh: unable to authenticate")
+	}
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
