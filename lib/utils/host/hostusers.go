@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/siddontang/go-log/log"
+	log "github.com/sirupsen/logrus"
 )
 
 // man GROUPADD(8), exit codes section
