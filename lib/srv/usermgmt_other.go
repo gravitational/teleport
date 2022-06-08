@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
+//nolint:staticcheck // intended to always return an error for non-linux builds
 func newHostUsersBackend() (HostUsersBackend, error) {
 	return nil, trace.NotImplemented("Host user creation management is only supported on linux")
 }
