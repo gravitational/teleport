@@ -34,7 +34,7 @@ heavily to provide both an SFTP client and server.
 
 SFTP support will be added in three stages. 
 
-Adding SFTP subsystem support to Teleport's SSH server will be the first step.
+1. Adding SFTP subsystem support to Teleport's SSH server.
 When an SFTP request is first received on an SSH connection, the Teleport daemon
 will be re-executed as the logon user of the SSH connection. This will require
 adding a hidden `sftp` sub command to the `teleport` binary. The parent process will
@@ -43,12 +43,12 @@ can access the SFTP connection. The `enable_file_copying` option will be added t
 the `ssh_server` yaml config to control whether scp and sftp will be enabled or not
 for per node.
 
-The second stage will be adding SFTP protocol support to `tsh scp` sub command, and
+2. Adding SFTP protocol support to `tsh scp` sub command, and
 ensuring SFTP trasfers work on the web UI. `tsh scp` will continue to use the scp/rcp
 protocol by default for backwards compatibility, but the SFTP protocol can be
 optionally enabled with the `-s` flag.
 
-The third and final stage will be making the SFTP protocol be used by default for
+3. Making the SFTP protocol be used by default for
 `tsh scp`, and adding the `-O` flag to allow optional usage of thee scp/rcp protocol
 for backwards compatibility. This stage will take place in a future major release
 (11?) and will be documented as a potentially breaking change.
