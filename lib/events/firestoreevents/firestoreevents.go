@@ -25,10 +25,11 @@ import (
 
 	"google.golang.org/genproto/googleapis/firestore/admin/v1"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -548,7 +549,7 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed sessions.
-func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
 	if cond != nil {
 		condFn, err := utils.ToFieldsCondition(cond)

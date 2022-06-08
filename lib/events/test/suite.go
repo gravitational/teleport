@@ -234,7 +234,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
 	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil)
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
 
@@ -245,15 +245,15 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 		}}
 	}
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"))
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"), "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"))
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"), "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 0)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil)
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 0)
 }

@@ -279,5 +279,38 @@ func (s *DynamoeventsLargeTableSuite) TestEmitAuditEventForLargeEvents(c *check.
 		Path: strings.Repeat("A", maxItemSize),
 	}
 	err = s.Log.EmitAuditEvent(ctx, appReqEvent)
-	c.Check(trace.Unwrap(err), check.FitsTypeOf, errAWSValidation)
+	c.Assert(err, check.NotNil)
+}
+
+func (s *DynamoeventsSuite) TestSearchSessionEvensBySessionID(c *check.C) {
+	now := time.Now().UTC()
+	id := uuid.New().String()
+	event := &apievents.WindowsDesktopSessionEnd{
+		Metadata: apievents.Metadata{
+			Type: events.WindowsDesktopSessionEndEvent,
+			Code: events.DesktopSessionEndCode,
+			Time: now,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: id,
+		},
+	}
+	err := s.Log.EmitAuditEvent(context.Background(), event)
+	c.Assert(err, check.IsNil)
+	from := time.Time{}
+	to := now.Add(time.Second)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		events, _, err := s.Log.SearchSessionEvents(from, to, 1000, types.EventOrderDescending, "", nil, id)
+		c.Assert(err, check.IsNil)
+		c.Assert(events, check.HasLen, 1)
+	}()
+
+	select {
+	case <-time.Tick(time.Second * 10):
+		c.Fatalf("Search event query timeout")
+	case <-done:
+	}
 }
