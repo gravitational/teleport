@@ -317,7 +317,7 @@ func NewServer(cfg Config) (Server, error) {
 		offlineThreshold: offlineThreshold,
 	}
 
-	localSite, err := newlocalSite(srv, cfg.ClusterName, cfg.LocalAuthClient, srv.PeerClient)
+	localSite, err := newlocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses, cfg.LocalAuthClient, srv.PeerClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
