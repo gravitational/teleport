@@ -2416,6 +2416,32 @@ func (g *GRPCServer) DeleteOIDCConnector(ctx context.Context, req *types.Resourc
 	return &empty.Empty{}, nil
 }
 
+// CreateOIDCAuthRequest creates OIDCAuthRequest
+func (g *GRPCServer) CreateOIDCAuthRequest(ctx context.Context, req *types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.CreateOIDCAuthRequest(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+// GetOIDCAuthRequest gets OIDC AuthnRequest
+func (g *GRPCServer) GetOIDCAuthRequest(ctx context.Context, req *proto.GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	request, err := auth.ServerWithRoles.GetOIDCAuthRequest(ctx, req.StateToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return request, nil
+}
+
 // GetSAMLConnector retrieves a SAML connector by name.
 func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error) {
 	auth, err := g.authenticate(ctx)
@@ -2482,6 +2508,32 @@ func (g *GRPCServer) DeleteSAMLConnector(ctx context.Context, req *types.Resourc
 	return &empty.Empty{}, nil
 }
 
+// CreateSAMLAuthRequest creates SAMLAuthRequest.
+func (g *GRPCServer) CreateSAMLAuthRequest(ctx context.Context, req *types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.CreateSAMLAuthRequest(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+// GetSAMLAuthRequest gets a SAMLAuthRequest by id.
+func (g *GRPCServer) GetSAMLAuthRequest(ctx context.Context, req *proto.GetSAMLAuthRequestRequest) (*types.SAMLAuthRequest, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	request, err := auth.GetSAMLAuthRequest(ctx, req.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return request, nil
+}
+
 // GetGithubConnector retrieves a Github connector by name.
 func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
@@ -2543,6 +2595,45 @@ func (g *GRPCServer) DeleteGithubConnector(ctx context.Context, req *types.Resou
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil
+}
+
+// CreateGithubAuthRequest creates GithubAuthRequest.
+func (g *GRPCServer) CreateGithubAuthRequest(ctx context.Context, req *types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.CreateGithubAuthRequest(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+// GetGithubAuthRequest gets a GithubAuthRequest by id.
+func (g *GRPCServer) GetGithubAuthRequest(ctx context.Context, req *proto.GetGithubAuthRequestRequest) (*types.GithubAuthRequest, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	request, err := auth.GetGithubAuthRequest(ctx, req.StateToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return request, nil
+}
+
+// GetSSODiagnosticInfo gets a SSO diagnostic info for a specific SSO auth request.
+func (g *GRPCServer) GetSSODiagnosticInfo(ctx context.Context, req *proto.GetSSODiagnosticInfoRequest) (*types.SSODiagnosticInfo, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	info, err := auth.GetSSODiagnosticInfo(ctx, req.AuthRequestKind, req.AuthRequestID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return info, nil
 }
 
 // GetTrustedCluster retrieves a Trusted Cluster by name.
