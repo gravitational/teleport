@@ -132,7 +132,8 @@ func Test_formatJSON(t *testing.T) {
         "cert_format": "",
         "record_session": null,
         "desktop_clipboard": null,
-        "desktop_directory_sharing": null
+        "desktop_directory_sharing": null,
+		"pin_source_ip": false
     },
     "allow": {
         "logins": [
