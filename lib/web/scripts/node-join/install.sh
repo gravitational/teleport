@@ -436,7 +436,7 @@ install_teleport_node_config() {
     teleport node configure \
       --token ${JOIN_TOKEN} \
       --join-method ${JOIN_METHOD} \
-      --ca-pins ${CA_PINS} \
+      --ca-pin ${CA_PINS} \
       --auth-server ${TARGET_HOSTNAME}:${TARGET_PORT} \
       --labels ${NODE_LABELS} \
       --output ${TELEPORT_CONFIG_PATH}
