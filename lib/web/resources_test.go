@@ -85,6 +85,7 @@ spec:
     - dummy
     organization: octocats
     team: dummy
+  teams_to_roles: null
 version: v3
 `
 	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{
