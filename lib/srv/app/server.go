@@ -660,7 +660,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 		return trace.Wrap(err)
 	}
 
-	// Update request context from session parameters.
+	// Create session context.
 	sessionCtx := &common.SessionContext{
 		Identity: identity,
 		App:      app,
