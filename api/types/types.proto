@@ -1693,6 +1693,9 @@ message RoleOptions {
         (gogoproto.jsontag) = "create_host_user",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    // PinSourceIP forces the same client IP for certificate generation and usage
+    bool PinSourceIP = 21 [ (gogoproto.jsontag) = "pin_source_ip", (gogoproto.casttype) = "Bool" ];
 }
 
 message RecordSession {
