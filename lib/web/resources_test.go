@@ -127,6 +127,7 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    create_host_user: false
     desktop_clipboard: true
     desktop_directory_sharing: true
     enhanced_recording:
@@ -136,6 +137,7 @@ spec:
     max_session_ttl: 30h0m0s
     port_forwarding: true
     record_session:
+      default: best_effort
       desktop: true
 version: v3
 `

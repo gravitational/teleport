@@ -82,6 +82,7 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -776,7 +777,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
 		if err == nil {
 			if ec2Hostname != "" {
-				cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
+				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
 				cfg.Hostname = ec2Hostname
 			}
 		} else if !trace.IsNotFound(err) {
@@ -1333,7 +1334,6 @@ func (process *TeleportProcess) initAuthService() error {
 		OIDCConnectors:          cfg.OIDCConnectors,
 		AuditLog:                process.auditLog,
 		CipherSuites:            cfg.CipherSuites,
-		CASigningAlg:            cfg.CASignatureAlgorithm,
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
@@ -1686,25 +1686,26 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 
 	return cache.New(cfg.setup(cache.Config{
-		Context:         process.ExitContext(),
-		Backend:         reporter,
-		Events:          cfg.services,
-		ClusterConfig:   cfg.services,
-		Provisioner:     cfg.services,
-		Trust:           cfg.services,
-		Users:           cfg.services,
-		Access:          cfg.services,
-		DynamicAccess:   cfg.services,
-		Presence:        cfg.services,
-		Restrictions:    cfg.services,
-		Apps:            cfg.services,
-		Databases:       cfg.services,
-		AppSession:      cfg.services,
-		WindowsDesktops: cfg.services,
-		WebSession:      cfg.services.WebSessions(),
-		WebToken:        cfg.services.WebTokens(),
-		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
-		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
+		Context:          process.ExitContext(),
+		Backend:          reporter,
+		Events:           cfg.services,
+		ClusterConfig:    cfg.services,
+		Provisioner:      cfg.services,
+		Trust:            cfg.services,
+		Users:            cfg.services,
+		Access:           cfg.services,
+		DynamicAccess:    cfg.services,
+		Presence:         cfg.services,
+		Restrictions:     cfg.services,
+		Apps:             cfg.services,
+		Databases:        cfg.services,
+		AppSession:       cfg.services,
+		SnowflakeSession: cfg.services,
+		WindowsDesktops:  cfg.services,
+		WebSession:       cfg.services.WebSessions(),
+		WebToken:         cfg.services.WebTokens(),
+		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
+		MetricComponent:  teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 	}))
 }
 
@@ -2024,6 +2025,8 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		storagePresence := local.NewPresenceService(process.storage)
+
 		s, err = regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -2053,6 +2056,8 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetLockWatcher(lockWatcher),
 			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 			regular.SetConnectedProxyGetter(proxyGetter),
+			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
+			regular.SetStoragePresenceService(storagePresence),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3422,6 +3427,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				MatchFunc: alpnproxy.MatchByProtocol(
 					alpncommon.ProtocolMongoDB,
 					alpncommon.ProtocolRedisDB,
+					alpncommon.ProtocolSnowflake,
 					alpncommon.ProtocolSQLServer),
 			})
 		}

@@ -98,6 +98,9 @@ const (
 	// KindAppSession represents an application specific web session.
 	KindAppSession = "app_session"
 
+	// KindSnowflakeSession represents a Snowflake specific web session.
+	KindSnowflakeSession = "snowflake_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -271,7 +274,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -421,12 +424,15 @@ const (
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
 var RequestableResourceKinds = []string{
 	KindNode,
-	KindKubeService,
 	KindKubernetesCluster,
-	KindDatabaseServer,
 	KindDatabase,
-	KindAppServer,
 	KindApp,
-	KindWindowsDesktopService,
 	KindWindowsDesktop,
 }
+
+const (
+	// TeleportServiceGroup is a default group that users of the
+	// teleport automated user provisioning system get added to so
+	// already existing users are not deleted
+	TeleportServiceGroup = "teleport-system"
+)

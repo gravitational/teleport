@@ -45,6 +45,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -57,15 +58,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/uuid"
@@ -191,7 +191,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
 	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
-	t.Run("RotateChangeSigningAlg", suite.bind(testRotateChangeSigningAlg))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
 	t.Run("RotateTrustedClusters", suite.bind(testRotateTrustedClusters))
@@ -208,6 +207,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
+	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -627,8 +627,7 @@ func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand || os.Args[1] == teleport.CheckHomeDirSubCommand) {
+	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -851,6 +850,165 @@ func testInteractiveReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	defer teleport.StopAll()
 
 	verifySessionJoin(t, suite.me.Username, teleport)
+}
+
+func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtNode,
+	})
+	require.NoError(t, err)
+
+	// Enable session recording on node.
+	cfg := suite.defaultServiceConfig()
+	cfg.Auth.Enabled = true
+	cfg.Auth.SessionRecordingConfig = recConfig
+	cfg.Proxy.DisableWebService = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.Enabled = true
+	cfg.SSH.Enabled = true
+
+	teleport := suite.newTeleportWithConfig(t, nil, nil, cfg)
+	defer teleport.StopAll()
+
+	// startSession starts an interactive session, users must terminate the
+	// session by typing "exit" in the terminal.
+	startSession := func(username string) (*Terminal, chan error) {
+		term := NewTerminal(250)
+		errCh := make(chan error)
+
+		go func() {
+			cl, err := teleport.NewClient(ClientConfig{
+				Login:   username,
+				Cluster: Site,
+				Host:    Host,
+			})
+			if err != nil {
+				errCh <- trace.Wrap(err)
+				return
+			}
+			cl.Stdout = term
+			cl.Stdin = term
+
+			errCh <- cl.SSH(context.TODO(), []string{}, false)
+		}()
+
+		return term, errCh
+	}
+
+	waitSessionTermination := func(t *testing.T, errCh chan error, errorAssertion require.ErrorAssertionFunc) {
+		require.Eventually(t, func() bool {
+			select {
+			case err := <-errCh:
+				errorAssertion(t, err)
+				return true
+			default:
+				return false
+			}
+		}, 10*time.Second, 500*time.Millisecond)
+	}
+
+	// enableDiskFailure changes the OpenFileFunc on filesession package. The
+	// replace function will always return an error when called.
+	enableDiskFailure := func() {
+		filesessions.SetOpenFileFunc(func(path string, _ int, _ os.FileMode) (*os.File, error) {
+			return nil, fmt.Errorf("failed to open file %q", path)
+		})
+	}
+
+	// disableDiskFailure restore the OpenFileFunc.
+	disableDiskFailure := func() {
+		filesessions.SetOpenFileFunc(os.OpenFile)
+	}
+
+	for name, test := range map[string]struct {
+		recordingMode        constants.SessionRecordingMode
+		expectSessionFailure bool
+	}{
+		"BestEffortMode": {
+			recordingMode:        constants.SessionRecordingModeBestEffort,
+			expectSessionFailure: false,
+		},
+		"StrictMode": {
+			recordingMode:        constants.SessionRecordingModeStrict,
+			expectSessionFailure: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// Setup user and session recording mode.
+			username := suite.me.Username
+			role, err := types.NewRoleV3("devs", types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Logins: []string{username},
+				},
+				Options: types.RoleOptions{
+					RecordSession: &types.RecordSession{
+						SSH: test.recordingMode,
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.NoError(t, SetupUser(teleport.Process, username, []types.Role{role}))
+
+			t.Run("BeforeStartFailure", func(t *testing.T) {
+				// Enable disk failure.
+				enableDiskFailure()
+				defer disableDiskFailure()
+
+				// Start session.
+				term, errCh := startSession(username)
+				if test.expectSessionFailure {
+					waitSessionTermination(t, errCh, require.Error)
+					return
+				}
+
+				// Send stuff to the session.
+				term.Type("echo Hello\n\r")
+
+				// Guarantee the session hasn't stopped after typing.
+				select {
+				case <-errCh:
+					require.Fail(t, "session was closed before")
+				default:
+				}
+
+				// Wait for the session to terminate without error.
+				term.Type("exit\n\r")
+				waitSessionTermination(t, errCh, require.NoError)
+			})
+
+			t.Run("MidSessionFailure", func(t *testing.T) {
+				// Start session.
+				term, errCh := startSession(username)
+
+				// Guarantee the session started properly.
+				select {
+				case <-errCh:
+					require.Fail(t, "session was closed before")
+				default:
+				}
+
+				// Enable disk failure
+				enableDiskFailure()
+				defer disableDiskFailure()
+
+				// Send stuff to the session.
+				term.Type("echo Hello\n\r")
+
+				// Expect the session to fail
+				if test.expectSessionFailure {
+					waitSessionTermination(t, errCh, require.Error)
+					return
+				}
+
+				// Wait for the session to terminate without error.
+				term.Type("exit\n\r")
+				waitSessionTermination(t, errCh, require.NoError)
+			})
+		})
+	}
 }
 
 // TestCustomReverseTunnel tests that the SSH node falls back to configured
@@ -4201,154 +4359,6 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	cancel()
 	// close the service without waiting for the connections to drain
 	require.NoError(t, svc.Close())
-
-	select {
-	case err := <-runErrCh:
-		require.NoError(t, err)
-	case <-time.After(20 * time.Second):
-		t.Fatalf("failed to shut down the server")
-	}
-}
-
-// TestRotateChangeSigningAlg tests the change of CA signing algorithm on
-// manual rotation.
-func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
-	ctx := context.Background()
-	// Start with an instance using default signing alg.
-	tconf := suite.rotationConfig(true)
-	teleport := suite.newTeleportInstance()
-	logins := []string{suite.me.Username}
-	for _, login := range logins {
-		teleport.AddUser(login, []string{login})
-	}
-	config, err := teleport.GenerateConfig(t, nil, tconf)
-	require.NoError(t, err)
-
-	serviceC := make(chan *service.TeleportProcess, 20)
-	runErrCh := make(chan error, 1)
-
-	restart := func(svc *service.TeleportProcess, cancel func()) (*service.TeleportProcess, func()) {
-		if svc != nil && cancel != nil {
-			// shut down the service
-			cancel()
-			// close the service without waiting for the connections to drain
-			err := svc.Close()
-			require.NoError(t, err)
-			err = svc.Wait()
-			require.NoError(t, err)
-
-			select {
-			case err := <-runErrCh:
-				require.NoError(t, err)
-			case <-time.After(20 * time.Second):
-				t.Fatalf("failed to shut down the server")
-			}
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-				svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
-				if err == nil {
-					serviceC <- svc
-				}
-				return svc, err
-			})
-		}()
-
-		svc, err = waitForProcessStart(serviceC)
-		require.NoError(t, err)
-		return svc, cancel
-	}
-
-	assertSigningAlg := func(svc *service.TeleportProcess, alg string) {
-		hostCA, err := svc.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
-		require.NoError(t, err)
-		require.Equal(t, alg, sshutils.GetSigningAlgName(hostCA))
-
-		userCA, err := svc.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{Type: types.UserCA, DomainName: Site}, false)
-		require.NoError(t, err)
-		require.Equal(t, alg, sshutils.GetSigningAlgName(userCA))
-	}
-
-	rotate := func(svc *service.TeleportProcess, mode string) *service.TeleportProcess {
-		t.Logf("Rotation phase: %q.", types.RotationPhaseInit)
-		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-			TargetPhase: types.RotationPhaseInit,
-			Mode:        mode,
-		})
-		require.NoError(t, err)
-
-		// wait until service phase update to be broadcasted (init phase does not trigger reload)
-		err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
-		require.NoError(t, err)
-
-		t.Logf("Rotation phase: %q.", types.RotationPhaseUpdateClients)
-		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-			TargetPhase: types.RotationPhaseUpdateClients,
-			Mode:        mode,
-		})
-		require.NoError(t, err)
-
-		// wait until service reload
-		svc, err = waitForReload(serviceC, svc)
-		require.NoError(t, err)
-
-		t.Logf("Rotation phase: %q.", types.RotationPhaseUpdateServers)
-		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-			TargetPhase: types.RotationPhaseUpdateServers,
-			Mode:        mode,
-		})
-		require.NoError(t, err)
-
-		// wait until service reloaded
-		svc, err = waitForReload(serviceC, svc)
-		require.NoError(t, err)
-
-		t.Logf("rotation phase: %q", types.RotationPhaseStandby)
-		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-			TargetPhase: types.RotationPhaseStandby,
-			Mode:        mode,
-		})
-		require.NoError(t, err)
-
-		// wait until service reloaded
-		svc, err = waitForReload(serviceC, svc)
-		require.NoError(t, err)
-
-		return svc
-	}
-
-	// Start the instance.
-	svc, cancel := restart(nil, nil)
-
-	t.Log("default signature algorithm due to empty config value")
-	// Verify the default signing algorithm with config value empty.
-	assertSigningAlg(svc, defaults.CASignatureAlgorithm)
-
-	t.Log("change signature algorithm with custom config value and manual rotation")
-	// Change the signing algorithm in config file.
-	signingAlg := ssh.KeyAlgoRSA
-	config.CASignatureAlgorithm = &signingAlg
-	svc, cancel = restart(svc, cancel)
-	// Do a manual rotation - this should change the signing algorithm.
-	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.KeyAlgoRSA)
-
-	t.Log("preserve signature algorithm with empty config value and manual rotation")
-	// Unset the config value.
-	config.CASignatureAlgorithm = nil
-	svc, cancel = restart(svc, cancel)
-
-	// Do a manual rotation - this should leave the signing algorithm
-	// unaffected because config value is not set.
-	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.KeyAlgoRSA)
-
-	// shut down the service
-	cancel()
-	// close the service without waiting for the connections to drain
-	svc.Close()
 
 	select {
 	case err := <-runErrCh:
