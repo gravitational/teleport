@@ -12,16 +12,21 @@ export default function useTable<T>({
   customSearchMatchers = [],
   serversideProps,
   fetching,
+  customSort,
+  disableFilter = false,
   ...props
 }: TableProps<T>) {
   const [state, setState] = useState(() => {
     // Finds the first sortable column to use for the initial sorting
-    const col = props.initialSort
-      ? columns.find(column => column.key === props.initialSort.key)
-      : columns.find(column => column.isSortable);
+    let col: TableColumn<T>;
+    if (!customSort) {
+      col = props.initialSort
+        ? columns.find(column => column.key === props.initialSort.key)
+        : columns.find(column => column.isSortable);
+    }
 
     return {
-      data: serversideProps ? data : [],
+      data: serversideProps || disableFilter ? data : [],
       searchValue: '',
       sort: col
         ? {
@@ -35,7 +40,7 @@ export default function useTable<T>({
             paginatedData: paginateData(data, pagination.pageSize),
             currentPage: 0,
             pagerPosition: pagination.pagerPosition || 'top',
-            pageSize: pagination.pageSize || 10,
+            pageSize: pagination.pageSize || 15,
           }
         : null,
     };
@@ -93,6 +98,14 @@ export default function useTable<T>({
   };
 
   function onSort(column: TableColumn<any>) {
+    if (customSort) {
+      customSort.onSort({
+        fieldName: column.key,
+        dir: customSort.dir === 'ASC' ? 'DESC' : 'ASC',
+      });
+      return;
+    }
+
     updateData(
       {
         key: column.key,
@@ -134,7 +147,7 @@ export default function useTable<T>({
   }
 
   useEffect(() => {
-    if (serversideProps) {
+    if (serversideProps || disableFilter) {
       setState({
         ...state,
         data,
@@ -154,6 +167,7 @@ export default function useTable<T>({
     prevPage,
     fetching,
     serversideProps,
+    customSort,
     ...props,
   };
 }

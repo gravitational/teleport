@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import * as Icons from 'design/Icon';
 import * as Store from 'teleport/stores/storeNav';
+import cfg from 'teleport/config';
 
 export default function useSideNav() {
   const h = useHistory();
@@ -63,7 +64,7 @@ function makeItems(clusterId: string, storeItems: Store.NavItem[]) {
 }
 
 function getGroups() {
-  return {
+  const groups = {
     team: {
       Icon: Icons.Users,
       title: 'Team',
@@ -83,6 +84,17 @@ function getGroups() {
       route: '',
     },
   };
+
+  if (cfg.isEnterprise) {
+    groups['accessrequests'] = {
+      Icon: Icons.EqualizerVertical,
+      title: 'Access Requests',
+      items: [] as Item[],
+      route: '',
+    };
+  }
+
+  return groups;
 }
 
 export interface Item {

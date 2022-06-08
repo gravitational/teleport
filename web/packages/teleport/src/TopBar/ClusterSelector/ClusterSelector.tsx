@@ -82,7 +82,7 @@ export default function ClusterSelector({
   }
 
   return (
-    <Box {...styles}>
+    <StyledBox {...styles} className="teleport-cluster-selector">
       <StyledSelect>
         <SelectAsync
           components={{ ValueContainer }}
@@ -101,7 +101,7 @@ export default function ClusterSelector({
           cacheOptions
         />
       </StyledSelect>
-    </Box>
+    </StyledBox>
   );
 }
 
@@ -122,5 +122,12 @@ const StyledSelect = styled(DarkStyledSelect)`
     top: 4px;
     width: 270px;
     text-overflow: ellipsis;
+  }
+`;
+
+const StyledBox = styled(Box)`
+  &.mute {
+    opacity: 0.5;
+    pointer-events: none;
   }
 `;

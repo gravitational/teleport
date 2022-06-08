@@ -16,7 +16,7 @@ limitations under the License.
 
 import { generatePath } from 'react-router';
 import { merge } from 'lodash';
-import { SortType } from 'design/DataTable/types';
+import { SortType } from 'teleport/services/agents';
 import {
   AuthProvider,
   Auth2faType,
@@ -105,7 +105,7 @@ const cfg = {
     appSession: '/v1/webapi/sessions/app',
     appFqdnPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
     applicationsPath:
-      '/v1/webapi/sites/:clusterId/apps?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+      '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
@@ -118,9 +118,9 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     nodesPath:
-      '/v1/webapi/sites/:clusterId/nodes?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
-    databasesPath: `/v1/webapi/sites/:clusterId/databases?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
-    desktopsPath: `/v1/webapi/sites/:clusterId/desktops?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
+      '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+    databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
+    desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username&width=:width&height=:height',
@@ -131,7 +131,7 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
     kubernetesPath:
-      '/v1/webapi/sites/:clusterId/kubernetes?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+      '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
     usersPath: '/v1/webapi/users',
     usersDelete: '/v1/webapi/users/:username',
@@ -520,6 +520,7 @@ export interface UrlResourcesParams {
   sort?: SortType;
   limit?: number;
   startKey?: string;
+  searchAsRoles?: 'yes' | '';
 }
 
 export default cfg;

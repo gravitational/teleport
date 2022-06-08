@@ -17,6 +17,13 @@ export type TableProps<T> = {
   showFirst?: (data: T[]) => T;
   className?: string;
   style?: React.CSSProperties;
+  // customSort contains fields that describe the current sort direction,
+  // the field to sort by, and a custom sort function.
+  customSort?: CustomSort;
+  // disableFilter when true means to skip running
+  // any client table filtering supplied by default.
+  // Use case: filtering is done on the caller side e.g. server side.
+  disableFilter?: boolean;
 };
 
 type TableColumnBase<T> = {
@@ -24,6 +31,11 @@ type TableColumnBase<T> = {
   render?: (row: T) => JSX.Element;
   isSortable?: boolean;
   onSort?: (a, b) => number;
+  // isNonRender is a flag that when true,
+  // does not render the column or cell in table.
+  // Use case: when a column combines two
+  // fields but still needs both field to be searchable.
+  isNonRender?: boolean;
 };
 
 export type PaginationConfig = {
@@ -75,4 +87,8 @@ export type TableColumn<T> = TableColumnWithKey<T> | TableColumnWithAltKey<T>;
 export type LabelDescription = {
   name: string;
   value: string;
+};
+
+export type CustomSort = SortType & {
+  onSort(s: SortType): void;
 };

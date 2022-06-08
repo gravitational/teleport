@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import Ctx from 'teleport/teleportContext';
 
-export type NavGroup = 'team' | 'activity' | 'clusters';
+export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
 type FeatureFlags = {
   audit: boolean;

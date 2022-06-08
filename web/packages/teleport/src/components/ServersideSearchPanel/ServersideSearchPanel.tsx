@@ -70,7 +70,7 @@ export function ServersideSearchPanel({
             </InputSearch>
           </Box>
           <Tooltip>
-            <TooltipContents />
+            <PredicateDoc />
           </Tooltip>
         </Flex>
         <Flex>
@@ -81,7 +81,7 @@ export function ServersideSearchPanel({
   );
 }
 
-const TooltipContents = () => (
+export const PredicateDoc = () => (
   <>
     <Text typography="paragraph2">
       Advanced search allows you to perform more sophisticated searches using

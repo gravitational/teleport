@@ -39,6 +39,7 @@ export default function generateResourcePath(
     .replace(':startKey?', params.startKey || '')
     .replace(':query?', processedParams.query || '')
     .replace(':search?', processedParams.search || '')
+    .replace(':searchAsRoles?', processedParams.searchAsRoles || '')
     .replace(':sort?', processedParams.sort || '');
 
   return output;

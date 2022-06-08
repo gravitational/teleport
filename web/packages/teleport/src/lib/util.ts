@@ -24,3 +24,11 @@ export const openNewTab = (url: string) => {
   element.click();
   document.body.removeChild(element);
 };
+
+export function pluralize(num: number, word: string) {
+  if (num > 1) {
+    return `${word}s`;
+  }
+
+  return word;
+}

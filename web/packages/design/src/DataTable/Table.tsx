@@ -26,17 +26,30 @@ export function Table<T>({
   className,
   style,
   serversideProps,
+  customSort,
 }: State<T>) {
   const renderHeaders = () => {
-    const headers = columns.map(column => {
+    const headers = columns.flatMap(column => {
+      if (column.isNonRender) {
+        return []; // does not include this column.
+      }
+
       const headerText = column.headerText || '';
+
+      let dir;
+      if (customSort) {
+        dir = customSort.fieldName == column.key ? customSort.dir : null;
+      } else {
+        dir = state.sort?.key === column.key ? state.sort?.dir : null;
+      }
+
       const $cell = column.isSortable ? (
         <SortHeaderCell<T>
           column={column}
           serversideProps={serversideProps}
           text={headerText}
           onClick={() => onSort(column)}
-          dir={state.sort.key === column.key ? state.sort.dir : null}
+          dir={dir}
         />
       ) : (
         <th style={{ cursor: 'default' }}>{headerText}</th>
@@ -63,7 +76,11 @@ export function Table<T>({
       return <LoadingIndicator colSpan={columns.length} />;
     }
     data.map((item, rowIdx) => {
-      const cells = columns.map((column, columnIdx) => {
+      const cells = columns.flatMap((column, columnIdx) => {
+        if (column.isNonRender) {
+          return []; // does not include this column.
+        }
+
         const $cell = column.render ? (
           column.render(item)
         ) : (
