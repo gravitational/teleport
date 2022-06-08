@@ -5,6 +5,10 @@ state: draft
 
 # RFD 65 - Distributed Tracing
 
+# Required Approvers
+* Engineering: @zmb3 && (@fspmarshall || @espadolini)
+* Product: (@klizhentas || @xinding33)
+
 ## What
 
 Add distributed tracing to Teleport by leveraging [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-go)
@@ -91,7 +95,7 @@ The same trace tree viewed with its relation to time:
 
 In order to properly correlate various **Spans** to the appropriate **Trace** the **SpanContext** must be propagated.
 While this is especially true for spans that cross different service boundaries, it is also necessary for relating spans
-within a service as well. OpenTelemetry achieves this by embedding the **SpanContext** into the `context.Context`. At
+within a service as well. OpenTelemetry achieves this by embedding the **SpanContext** into Go's `context.Context`. At
 service boundaries a number of standard propagation mechanisms (W3C Trace Context, W3C Baggage, B3, Jaeger) can be used
 to forward the **SpanContext**. For more details on OpenTelemetry Propagators see https://opentelemetry.io/docs/reference/specification/context/api-propagators/.
 
@@ -176,10 +180,11 @@ then forward them the backend in a format that the backend supports.
 ##### Tracing Configuration
 ```yaml
 tracing:
+  enabled: true
   # the url of the exporter to send spans to - can be http/https/grpc
   exporter_url: "http://localhost:14268/api/traces"
-  # the number of spans to sample per 100
-  sampling_rate_per_hundred: 10
+  # the number of spans to sample per million
+  sampling_rate_per_million: 10
 ```
 
 Teleport would consume the above configuration to create a [`TracerProvider`](https://pkg.go.dev/go.opentelemetry.io/otel/trace#TracerProvider)
