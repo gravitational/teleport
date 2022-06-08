@@ -2139,7 +2139,8 @@ type TerminalServiceClient interface {
 	// RemoveGateway removes a gateway
 	RemoveGateway(ctx context.Context, in *RemoveGatewayRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// RestartGateway stops a gateway and starts a new with identical parameters, keeping the
-	// original URI.
+	// original URI. A temporary workaround until it's possible to refresh certs in a running
+	// database proxy.
 	RestartGateway(ctx context.Context, in *RestartGatewayRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// GetAuthSettings returns cluster auth settigns
 	GetAuthSettings(ctx context.Context, in *GetAuthSettingsRequest, opts ...grpc.CallOption) (*AuthSettings, error)
@@ -2339,7 +2340,8 @@ type TerminalServiceServer interface {
 	// RemoveGateway removes a gateway
 	RemoveGateway(context.Context, *RemoveGatewayRequest) (*EmptyResponse, error)
 	// RestartGateway stops a gateway and starts a new with identical parameters, keeping the
-	// original URI.
+	// original URI. A temporary workaround until it's possible to refresh certs in a running
+	// database proxy.
 	RestartGateway(context.Context, *RestartGatewayRequest) (*EmptyResponse, error)
 	// GetAuthSettings returns cluster auth settigns
 	GetAuthSettings(context.Context, *GetAuthSettingsRequest) (*AuthSettings, error)

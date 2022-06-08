@@ -54,7 +54,8 @@ service TerminalService {
     // RemoveGateway removes a gateway
     rpc RemoveGateway(RemoveGatewayRequest) returns (EmptyResponse);
     // RestartGateway stops a gateway and starts a new with identical parameters, keeping the
-    // original URI.
+    // original URI. A temporary workaround until it's possible to refresh certs in a running
+    // database proxy.
     rpc RestartGateway(RestartGatewayRequest) returns (EmptyResponse);
     // GetAuthSettings returns cluster auth settigns
     rpc GetAuthSettings(GetAuthSettingsRequest) returns (AuthSettings);
