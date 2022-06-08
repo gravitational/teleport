@@ -26,31 +26,31 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// AppRequestContext contains common context parameters for an App request.
-type AppRequestContext struct {
+// SessionContext contains common context parameters for an App session.
+type SessionContext struct {
 	// Identity is the requested identity.
 	Identity *tlsca.Identity
 	// App is the requested identity.
 	App types.Application
-	// Emitter is the audit log emitter
+	// Emitter is the audit log emitter.
 	Emitter events.Emitter
 }
 
-// WithAppRequestContext adds provided app request context.
-func WithAppRequestContext(r *http.Request, requestCtx *AppRequestContext) *http.Request {
+// WithSessionContext adds session context to provided request.
+func WithSessionContext(r *http.Request, requestCtx *SessionContext) *http.Request {
 	return r.WithContext(context.WithValue(
 		r.Context(),
-		contextKeyAppRequstContext,
+		contextKeySessionContext,
 		requestCtx,
 	))
 }
 
-// GetAppRequestContext retrieves the App request context.
-func GetAppRequestContext(r *http.Request) (*AppRequestContext, error) {
-	requestCtxValue := r.Context().Value(contextKeyAppRequstContext)
-	requestCtx, ok := requestCtxValue.(*AppRequestContext)
+// GetSessionContext retrieves the session context from a request.
+func GetSessionContext(r *http.Request) (*SessionContext, error) {
+	requestCtxValue := r.Context().Value(contextKeySessionContext)
+	requestCtx, ok := requestCtxValue.(*SessionContext)
 	if !ok {
-		return nil, trace.BadParameter("failed to get app request context")
+		return nil, trace.BadParameter("failed to get session context")
 	}
 	return requestCtx, nil
 }
@@ -58,6 +58,6 @@ func GetAppRequestContext(r *http.Request) (*AppRequestContext, error) {
 type contextKey string
 
 const (
-	// contextKeyAppRequstContext is the context key for the App request context.
-	contextKeyAppRequstContext contextKey = "app-request-context"
+	// contextKeySessionContext is the context key for the session context.
+	contextKeySessionContext contextKey = "app-session-context"
 )

@@ -33,7 +33,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -125,14 +129,29 @@ func TestAWSSignerHandler(t *testing.T) {
 				require.Equal(t, tc.wantAuthCredKeyID, awsAuthHeader.KeyID)
 				require.Equal(t, tc.wantAuthCredService, awsAuthHeader.Service)
 			}
+
 			suite := createSuite(t, handler)
 
 			s3Client := s3.New(tc.awsClientSession, &aws.Config{
-				Endpoint: &suite.URL,
+				Endpoint: &suite.server.URL,
 			})
 			resp, err := s3Client.ListBuckets(&s3.ListBucketsInput{})
 			for _, check := range tc.checks {
 				check(t, resp, err)
+			}
+
+			// Validate audit event.
+			if err == nil {
+				require.Len(t, suite.emitter.C(), 1)
+
+				event := <-suite.emitter.C()
+				appSessionEvent, ok := event.(*events.AppSessionRequest)
+				require.True(t, ok)
+				require.Equal(t, tc.wantHost, appSessionEvent.AWSHost)
+				require.Equal(t, tc.wantAuthCredService, appSessionEvent.AWSService)
+				require.Equal(t, tc.wantAuthCredRegion, appSessionEvent.AWSRegion)
+			} else {
+				require.Len(t, suite.emitter.C(), 0)
 			}
 		})
 	}
@@ -142,7 +161,14 @@ func staticAWSCredentials(client.ConfigProvider, *tlsca.Identity) *credentials.C
 	return credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
 }
 
-func createSuite(t *testing.T, handler http.HandlerFunc) *httptest.Server {
+type suite struct {
+	server   *httptest.Server
+	identity tlsca.Identity
+	app      types.Application
+	emitter  *eventstest.ChannelEmitter
+}
+
+func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
 	awsAPIMock := httptest.NewUnstartedServer(handler)
 	awsAPIMock.StartTLS()
 	t.Cleanup(func() {
@@ -160,6 +186,21 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 		},
 	}
 
+	user := auth.LocalUser{Username: "user"}
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "awsconsole",
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "test.local",
+	})
+	require.NoError(t, err)
+
+	s := &suite{
+		identity: user.Identity,
+		app:      app,
+		emitter:  eventstest.NewChannelEmitter(1),
+	}
+
 	svc, err := NewSigningService(SigningServiceConfig{
 		getSigningCredentials: staticAWSCredentials,
 		Client:                client,
@@ -169,17 +210,19 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		user := auth.LocalUser{Username: "user"}
-		identity := user.GetIdentity()
-		request = common.WithAppRequestContext(request, &common.AppRequestContext{
-			Identity: &identity,
+		request = common.WithSessionContext(request, &common.SessionContext{
+			Identity: &s.identity,
+			App:      app,
+			Emitter:  s.emitter,
 		})
 
 		svc.ServeHTTP(writer, request)
 	})
-	server := httptest.NewServer(mux)
+
+	s.server = httptest.NewServer(mux)
 	t.Cleanup(func() {
-		server.Close()
+		s.server.Close()
 	})
-	return server
+
+	return s
 }

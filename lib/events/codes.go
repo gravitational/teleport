@@ -114,9 +114,6 @@ const (
 	// SessionConnectCode is the session connect event code.
 	SessionConnectCode = "T2010I"
 
-	// AppSessionAWSRequestCode is the AWS application request/response code.
-	AppSessionAWSRequestCode = "T2011I"
-
 	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
 	// DatabaseSessionStartFailureCode is the database session start failure event code.

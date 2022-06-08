@@ -139,7 +139,7 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 // 5) Sign HTTP request.
 // 6) Forward the signed HTTP request to the AWS API.
 func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
-	requestCtx, err := common.GetAppRequestContext(req)
+	sessionCtx, err := common.GetSessionContext(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,7 +147,7 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, requestCtx.Identity)
+	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, sessionCtx.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -156,37 +156,39 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitAuditEvent(req.Context(), signedReq, resp, requestCtx, resolvedEndpoint); err != nil {
+	if err := s.emitAuditEvent(req.Context(), signedReq, resp, sessionCtx, resolvedEndpoint); err != nil {
 		s.Log.WithError(err).Warn("Failed to emit audit event.")
 	}
 	return resp, nil
 }
 
 // emitAuditEvent writes the request and response to audit stream.
-func (s *SigningService) emitAuditEvent(ctx context.Context, req *http.Request, resp *http.Response, requestCtx *common.AppRequestContext, endpoint *endpoints.ResolvedEndpoint) error {
-	if requestCtx.Emitter == nil {
+func (s *SigningService) emitAuditEvent(ctx context.Context, req *http.Request, resp *http.Response, sessionCtx *common.SessionContext, endpoint *endpoints.ResolvedEndpoint) error {
+	if sessionCtx.Emitter == nil {
 		return trace.BadParameter("missing audit emitter")
 	}
 
-	event := &apievents.AppSessionAWSRequest{
+	event := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
-			Type: events.AppSessionAWSRequestEvent,
-			Code: events.AppSessionAWSRequestCode,
+			Type: events.AppSessionRequestEvent,
+			Code: events.AppSessionRequestCode,
 		},
-		Host:       req.Host,
 		Method:     req.Method,
 		Path:       req.URL.Path,
 		RawQuery:   req.URL.RawQuery,
 		StatusCode: uint32(resp.StatusCode),
 		AppMetadata: apievents.AppMetadata{
-			AppURI:        requestCtx.App.GetURI(),
-			AppPublicAddr: requestCtx.App.GetPublicAddr(),
-			AppName:       requestCtx.App.GetName(),
+			AppURI:        sessionCtx.App.GetURI(),
+			AppPublicAddr: sessionCtx.App.GetPublicAddr(),
+			AppName:       sessionCtx.App.GetName(),
 		},
-		Service: endpoint.SigningName,
-		Region:  endpoint.SigningRegion,
+		AWSRequestMetadata: apievents.AWSRequestMetadata{
+			AWSRegion:  endpoint.SigningRegion,
+			AWSService: endpoint.SigningName,
+			AWSHost:    req.Host,
+		},
 	}
-	return trace.Wrap(requestCtx.Emitter.EmitAuditEvent(ctx, event))
+	return trace.Wrap(sessionCtx.Emitter.EmitAuditEvent(ctx, event))
 }
 
 func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {

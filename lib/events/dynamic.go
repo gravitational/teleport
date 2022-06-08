@@ -149,8 +149,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
 		e = &events.AppSessionRequest{}
-	case AppSessionAWSRequestEvent:
-		e = &events.AppSessionAWSRequest{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:

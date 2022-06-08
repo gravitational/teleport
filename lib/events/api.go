@@ -388,8 +388,6 @@ const (
 
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
-	// AppSessionAWSRequestEvent is an AWS HTTP(s) request and response.
-	AppSessionAWSRequestEvent = "app.session.aws.request"
 
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
