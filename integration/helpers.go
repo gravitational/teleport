@@ -2007,6 +2007,10 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 
 	require.NoError(t, root.Start())
 	require.NoError(t, leaf.Start())
+
+	t.Cleanup(func() { root.StopAll() })
+	t.Cleanup(func() { leaf.StopAll() })
+
 	require.NoError(t, trustedCluster.CheckAndSetDefaults())
 	tryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
 	waitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
