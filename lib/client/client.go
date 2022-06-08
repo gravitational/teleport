@@ -1637,8 +1637,8 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			NodeName:       nodeName(nodeAddr.Addr),
 			RouteToCluster: nodeAddr.Cluster,
 		},
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, c, proxyAddr, nil /* opts */)
+		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return proxy.teleportClient.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
 		},
 	)
 	if err != nil {
