@@ -26,11 +26,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create database client: %v.", err)
 	}
-	defer client.Disconnect(ctx)
 	err = client.Connect(ctx)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v.", err)
 	}
+	
+	defer client.Disconnect(ctx)
+
+	log.Printf("Successfully connected to MongoDB.")
 
 	// List databases to test connectivity.
 	databases, err := client.ListDatabaseNames(ctx, bson.M{})
@@ -39,5 +42,4 @@ func main() {
 	}
 	log.Println(databases)
 
-	log.Printf("Successfully connected to MongoDB.")
 }
