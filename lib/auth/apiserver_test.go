@@ -117,6 +117,7 @@ func TestUpsertServer(t *testing.T) {
 			require.NoError(t, err)
 			req := httptest.NewRequest(http.MethodPost, "http://localhost", bytes.NewReader(body))
 			req.RemoteAddr = remoteAddr
+			req.Header.Add("Content-Type", "application/json")
 
 			_, err = new(APIServer).upsertServer(s, tt.role, req, httprouter.Params{httprouter.Param{Key: "namespace", Value: apidefaults.Namespace}})
 			tt.assertErr(t, err)
