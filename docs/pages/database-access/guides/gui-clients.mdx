@@ -377,8 +377,8 @@ Switch to "Advanced" tab and set any value (e.g., "teleport") as `account` and a
 ![JetBrains Advanced](../../../img/database-access/guides/snowflake/jetbrains-advanced.png)
 
 <Admonition type="note">
-  Password and account name are being ignored as Teleport uses the values provided in the Database Agent configuration.
-Setting "SSL" to `off` only disables encryption on your local machine. The connection to Snowflake is encrypted by Teleport.
+  Teleport ignores the provided password and the account name as internally it uses values from the Database Agent configuration.
+  Setting "SSL" to `off` only disables encryption on your local machine. The connection to Snowflake is encrypted by Teleport.
 </Admonition>
 
 Now you can click "Test Connection" to check your configuration.
@@ -413,7 +413,7 @@ Next click on "Driver properties" tab and set `account` to any value (e.g., "tel
 ![DBeaver Driver](../../../img/database-access/guides/snowflake/dbeaver-driver.png)
 
 <Admonition type="note">
-  Password and account name are being ignored as Teleport uses the values provided in the Database Agent configuration.
+  Teleport ignores the provided password and the account name as internally it uses values from the Database Agent configuration.
   SSL set to `off` disables only encryption on local machine. Connection to Snowflake is encrypted by Teleport.
 </Admonition>
 
