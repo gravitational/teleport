@@ -80,7 +80,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI, peerClien
 		peerClient:       peerClient,
 	}
 
-	// Start periodic functions for the the local cluster in the background.
+	// Start periodic functions for the local cluster in the background.
 	go s.periodicFunctions()
 
 	return s, nil

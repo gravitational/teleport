@@ -478,6 +478,8 @@ type UserCredsRequest struct {
 	Username string
 	// RouteToCluster is an optional cluster to route creds to
 	RouteToCluster string
+	// SourceIP is an optional source IP to use in SSH certs
+	SourceIP string
 }
 
 // GenerateUserCreds generates key to be used by client
@@ -488,7 +490,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	}
 	a := req.Process.GetAuthServer()
 	sshCert, x509Cert, err := a.GenerateUserTestCerts(
-		pub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster)
+		pub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1312,6 +1314,8 @@ type ClientConfig struct {
 	Labels map[string]string
 	// Interactive launches with the terminal attached if true
 	Interactive bool
+	// Source IP to used in generated SSH cert
+	SourceIP string
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1399,6 +1403,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  i.Process,
 		Username: cfg.Login,
+		SourceIP: cfg.SourceIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
