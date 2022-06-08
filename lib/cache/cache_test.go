@@ -718,19 +718,16 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	ctx := context.Background()
 
 	for i := 0; i < nodeCount; i++ {
-		func() {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-			_, err := p.presenceS.UpsertNode(ctx, server)
-			require.NoError(b, err)
-			timeout := time.NewTimer(time.Millisecond * 200)
-			defer timeout.Stop()
-			select {
-			case event := <-p.eventsC:
-				require.Equal(b, EventProcessed, event.Type)
-			case <-timeout.C:
-				b.Fatalf("timeout waiting for event, iteration=%d", i)
-			}
-		}()
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
 	}
 
 	b.ResetTimer()
@@ -758,25 +755,22 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 
 	count := 100000
 	for i := 0; i < count; i++ {
-		func() {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-			// Set some static and dynamic labels.
-			server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
-			server.Spec.CmdLabels = map[string]types.CommandLabelV2{
-				"version": {Result: "v8"},
-				"time":    {Result: "now"},
-			}
-			_, err := p.presenceS.UpsertNode(ctx, server)
-			require.NoError(b, err)
-			timeout := time.NewTimer(time.Millisecond * 200)
-			defer timeout.Stop()
-			select {
-			case event := <-p.eventsC:
-				require.Equal(b, EventProcessed, event.Type)
-			case <-timeout.C:
-				b.Fatalf("timeout waiting for event, iteration=%d", i)
-			}
-		}()
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		// Set some static and dynamic labels.
+		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
+		server.Spec.CmdLabels = map[string]types.CommandLabelV2{
+			"version": {Result: "v8"},
+			"time":    {Result: "now"},
+		}
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
 	}
 
 	b.ResetTimer()

@@ -17,8 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 
@@ -60,6 +58,11 @@ func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWith
 	return false
 }
 
+// ResourceSeenKey is used as a key for a map that keeps track
+// of unique resource names and address. Currently "addr"
+// only applies to resource Application.
+type ResourceSeenKey struct{ name, addr string }
+
 // MatchResourceByFilters returns true if all filter values given matched against the resource.
 //
 // If no filters were provided, we will treat that as a match.
@@ -71,16 +74,16 @@ func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWith
 // it filters out the non-matched clusters on the kube service and the kube service
 // is modified in place with only the matched clusters. Deduplication for resource `KubeService`
 // is not provided but is provided for kind `KubernetesCluster`.
-func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[string]struct{}) (bool, error) {
+func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
-	resourceKey := ""
+	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
 	case types.KindNode, types.KindWindowsDesktop, types.KindKubernetesCluster:
 		specResource = resource
-		resourceKey = specResource.GetName()
+		resourceKey.name = specResource.GetName()
 
 	case types.KindKubeService:
 		if seenMap != nil {
@@ -95,7 +98,8 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 		specResource = server.GetApp()
 		app := server.GetApp()
-		resourceKey = fmt.Sprintf("%s%s", app.GetName(), app.GetPublicAddr())
+		resourceKey.name = app.GetName()
+		resourceKey.addr = app.GetPublicAddr()
 
 	case types.KindDatabaseServer:
 		server, ok := resource.(types.DatabaseServer)
@@ -103,7 +107,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
 		specResource = server.GetDatabase()
-		resourceKey = specResource.GetName()
+		resourceKey.name = specResource.GetName()
 
 	default:
 		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)

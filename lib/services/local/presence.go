@@ -1649,7 +1649,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 	}
 
 	// Iterate and filter every resource, deduplicating while matching.
-	seenResourceMap := make(map[string]struct{})
+	seenResourceMap := make(map[services.ResourceSeenKey]struct{})
 	for _, resource := range resources {
 		switch match, err := services.MatchResourceByFilters(resource, filter, seenResourceMap); {
 		case err != nil:
