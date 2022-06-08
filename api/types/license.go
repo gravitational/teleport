@@ -291,12 +291,12 @@ func (c *LicenseV3) SetSupportsDesktopAccess(value Bool) {
 
 // GetSupportsModeratedSessions returns database access support flag
 func (c *LicenseV3) GetSupportsModeratedSessions() Bool {
-	return c.Spec.SupportsDesktopAccess
+	return c.Spec.SupportsModeratedSessions
 }
 
 // SetSupportsModeratedSessions sets database access support flag
 func (c *LicenseV3) SetSupportsModeratedSessions(value Bool) {
-	c.Spec.SupportsDesktopAccess = value
+	c.Spec.SupportsModeratedSessions = value
 }
 
 // String represents a human readable version of license enabled features
