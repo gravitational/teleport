@@ -742,6 +742,63 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	}
 }
 
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
+BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
+*/
+func BenchmarkListResourcesWithSort(b *testing.B) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	count := 100000
+	for i := 0; i < count; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+			// Set some static and dynamic labels.
+			server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
+			server.Spec.CmdLabels = map[string]types.CommandLabelV2{
+				"version": {Result: "v8"},
+				"time":    {Result: "now"},
+			}
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(b, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(b, EventProcessed, event.Type)
+			case <-timeout.C:
+				b.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	b.ResetTimer()
+
+	limit := int32(count)
+	for n := 0; n < b.N; n++ {
+		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    apidefaults.Namespace,
+			SortBy: types.SortBy{
+				IsDesc: true,
+				Field:  types.ResourceSpecHostname,
+			},
+			// Predicate is the more expensive filter.
+			PredicateExpression: `search("mac", "frontend") && labels.version == "v8"`,
+			Limit:               limit,
+		})
+		require.NoError(b, err)
+		require.Len(b, resp.Resources, count)
+	}
+}
+
 // TestListResources_NodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
 func TestListResources_NodesTTLVariant(t *testing.T) {
