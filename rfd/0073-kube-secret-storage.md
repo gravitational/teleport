@@ -8,8 +8,8 @@ state: draft
 
 ## Required Approvers
 
-Engineering @r0mant 
-Product:  @klizhentas && @xinding33 
+Engineering: @r0mant 
+Product: @klizhentas || @xinding33 
 
 
 ## What
