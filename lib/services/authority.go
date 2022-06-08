@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -303,8 +304,8 @@ func (c *UserCertParams) CheckAndSetDefaults() error {
 	if c.CASigner == nil {
 		return trace.BadParameter("CASigner is required")
 	}
-	if c.TTL < defaults.MinCertDuration {
-		c.TTL = defaults.MinCertDuration
+	if c.TTL < apidefaults.MinCertDuration {
+		c.TTL = apidefaults.MinCertDuration
 	}
 	if len(c.AllowedLogins) == 0 {
 		return trace.BadParameter("AllowedLogins are required")
