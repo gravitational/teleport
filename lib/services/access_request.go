@@ -32,6 +32,8 @@ import (
 	"github.com/vulcand/predicate"
 )
 
+const maxAccessRequestReasonSize = 4096
+
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
 	if err := ar.CheckAndSetDefaults(); err != nil {
@@ -39,6 +41,12 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	}
 	if uuid.Parse(ar.GetName()) == nil {
 		return trace.BadParameter("invalid access request id %q", ar.GetName())
+	}
+	if len(ar.GetRequestReason()) > maxAccessRequestReasonSize {
+		return trace.BadParameter("access request reason is too long, max %v bytes", maxAccessRequestReasonSize)
+	}
+	if len(ar.GetResolveReason()) > maxAccessRequestReasonSize {
+		return trace.BadParameter("access request resolve reason is too long, max %v bytes", maxAccessRequestReasonSize)
 	}
 	return nil
 }
