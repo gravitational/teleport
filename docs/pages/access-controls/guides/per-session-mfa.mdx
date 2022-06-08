@@ -246,6 +246,11 @@ $ tsh ssh prod3.example.com
 # jerry@prod3.example.com >
 ```
 
+<Admonition title="Tip" type="tip">
+If you are using `tsh` in a constrained environment, you can tell it to use
+OTP by doing `tsh --mfa-mode=otp ssh prod3.example.com`.
+</Admonition>
+
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA
 even when logging into `dev1.example.com`.
 
