@@ -1069,3 +1069,25 @@ and non interactive tsh bench loads.
 - Verify tsh runs on:
   - [ ] Windows 10
   - [ ] MacOS
+
+## Machine ID
+
+### SSH
+
+With a default Teleport instance configured with a SSH node:
+
+- [ ] Verify you are able to create a new bot user with `tctl bots add robot --roles=access`. Follow the instructions provided in the output to start `tbot`
+- [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
+- [ ] Verify that after the renewal period (default 20m, but this can be reduced via configuration), that newly generated certificates are placed in the destination directory
+- [ ] Verify that sending both `SIGUSR1` and `SIGHUP` to a running tbot process causes a renewal and new certificates to be generated
+
+Ensure the above tests are completed for both:
+
+- [ ] Directly connecting to the auth server
+- [ ] Connecting to the auth server via the proxy reverse tunnel
+
+### DB Access
+
+With a default Postgres DB instance, a Teleport instance configured with DB access and a bot user configured:
+
+- [ ] Verify you are able to connect to and interact with a database using `tbot db` while `tbot start` is running
