@@ -90,8 +90,6 @@ type integrationTestSuite struct {
 }
 
 func newSuite(t *testing.T) *integrationTestSuite {
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
-
 	suite := &integrationTestSuite{}
 
 	var err error
