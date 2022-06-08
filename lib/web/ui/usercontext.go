@@ -111,26 +111,6 @@ type UserContext struct {
 	AccessCapabilities AccessCapabilities `json:"accessCapabilities"`
 }
 
-func getLogins(roleSet services.RoleSet) []string {
-	allowed := []string{}
-	denied := []string{}
-	for _, role := range roleSet {
-		denied = append(denied, role.GetLogins(types.Deny)...)
-		allowed = append(allowed, role.GetLogins(types.Allow)...)
-	}
-
-	allowed = apiutils.Deduplicate(allowed)
-	denied = apiutils.Deduplicate(denied)
-	userLogins := []string{}
-	for _, login := range allowed {
-		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
-			userLogins = append(userLogins, login)
-		}
-	}
-
-	return userLogins
-}
-
 func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
 	allowed := []string{}
 	denied := []string{}
