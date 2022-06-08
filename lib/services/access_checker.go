@@ -166,6 +166,10 @@ type AccessChecker interface {
 
 	// SessionRecordingMode returns the recording mode for a specific service.
 	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
+
+	// HostUsers returns host user information matching a server or nil if
+	// a role disallows host user creation
+	HostUsers(types.Server) (*HostUsersInfo, error)
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
