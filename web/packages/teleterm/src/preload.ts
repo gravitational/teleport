@@ -4,14 +4,14 @@ import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import createLoggerService from 'teleterm/services/logger';
 import PreloadLogger from 'teleterm/logger';
 import { ElectronGlobals } from './types';
-import { createPtyService } from 'teleterm/services/pty';
+import { createPtyService } from 'teleterm/services/pty/ptyService';
 
 const mainProcessClient = createMainProcessClient();
 const runtimeSettings = mainProcessClient.getRuntimeSettings();
 const loggerService = createLoggerService({
   dev: runtimeSettings.dev,
   dir: runtimeSettings.userDataDir,
-  name: "renderer"
+  name: 'renderer',
 });
 
 PreloadLogger.init(loggerService);

@@ -1,6 +1,11 @@
 import { PtyProcessOptions, IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { PtyEventsStreamHandler } from './ptyHost/ptyEventsStreamHandler';
 
+export enum PtyProcessCreationStatus {
+  Ok = 'Ok',
+  ResolveShellEnvTimeout = 'ResolveShellEnvTimeout',
+}
+
 export interface PtyHostClient {
   createPtyProcess(ptyOptions: PtyProcessOptions): Promise<string>;
 
@@ -10,7 +15,12 @@ export interface PtyHostClient {
 }
 
 export type PtyServiceClient = {
-  createPtyProcess: (cmd: PtyCommand) => Promise<IPtyProcess>;
+  createPtyProcess: (
+    cmd: PtyCommand
+  ) => Promise<{
+    process: IPtyProcess;
+    creationStatus: PtyProcessCreationStatus;
+  }>;
 };
 
 export type ShellCommand = PtyCommandBase & {

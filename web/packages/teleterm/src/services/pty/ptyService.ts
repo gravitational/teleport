@@ -13,10 +13,17 @@ export function createPtyService(
 
   return {
     createPtyProcess: async command => {
-      const ptyOptions = await buildPtyOptions(runtimeSettings, command);
-      const ptyId = await ptyHostClient.createPtyProcess(ptyOptions);
+      const { processOptions, creationStatus } = await buildPtyOptions(
+        runtimeSettings,
+        command
+      );
+      const ptyId = await ptyHostClient.createPtyProcess(processOptions);
 
-      return createPtyProcess(ptyHostClient, ptyId); // Electron's context bridge doesn't allow to return a class here
+      // Electron's context bridge doesn't allow to return a class here
+      return {
+        process: createPtyProcess(ptyHostClient, ptyId),
+        creationStatus,
+      };
     },
   };
 }

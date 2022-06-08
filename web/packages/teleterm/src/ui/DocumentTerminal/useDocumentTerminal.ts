@@ -24,7 +24,7 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
 import { getClusterName } from 'teleterm/ui/utils';
-import { PtyCommand } from 'teleterm/services/pty';
+import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
 
 export default function useDocumentTerminal(doc: Doc) {
   const ctx = useAppContext();
@@ -52,13 +52,11 @@ async function initState(
   const rootCluster = ctx.clustersService.findRootClusterByResource(clusterUri);
   const cluster = ctx.clustersService.findCluster(clusterUri);
   const cmd = createCmd(doc, rootCluster.proxyHost, cluster.actualName);
-  let ptyProcess: IPtyProcess;
-  try {
-    ptyProcess = await ctx.terminalsService.createPtyProcess(cmd);
-  } catch (e) {
-    ctx.notificationsService.notifyError(e.message);
+  const ptyProcess = await createPtyProcess(ctx, cmd);
+  if (!ptyProcess) {
     return;
   }
+
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();
 
   const refreshTitle = async () => {
@@ -108,6 +106,28 @@ async function initState(
     refreshTitle,
     openContextMenu,
   };
+}
+
+async function createPtyProcess(
+  ctx: IAppContext,
+  cmd: PtyCommand
+): Promise<IPtyProcess> {
+  try {
+    const { process, creationStatus } =
+      await ctx.terminalsService.createPtyProcess(cmd);
+
+    if (creationStatus === PtyProcessCreationStatus.ResolveShellEnvTimeout) {
+      ctx.notificationsService.notifyWarning({
+        title: 'Could not source environment variables for shell session',
+        description:
+          "In order to source the environment variables, a new temporary shell session is opened and then immediately closed, but it didn't close within 10 seconds. " +
+          'This most likely means that your shell startup took longer to execute or that your shell waits for an input during startup. \nPlease check your startup files.',
+      });
+    }
+    return process;
+  } catch (e) {
+    ctx.notificationsService.notifyError(e.message);
+  }
 }
 
 function createCmd(

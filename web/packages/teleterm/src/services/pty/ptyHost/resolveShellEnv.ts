@@ -46,9 +46,11 @@ import { spawn } from 'child_process';
 import { memoize } from 'lodash';
 
 const logger = new Logger('resolveShellEnv()');
-const resolveShellMaxTime = 8000; // 8s
+const resolveShellMaxTime = 10_000; // 10s
 
 export const resolveShellEnvCached = memoize(resolveShellEnv);
+
+export class ResolveShellEnvTimeoutError extends Error {}
 
 async function resolveShellEnv(
   shell: string
@@ -104,11 +106,7 @@ async function resolveUnixShellEnv(
     abortSignal.onabort = () => {
       child.kill();
       logger.warn('Reading shell env timed out');
-      reject(
-        new Error(
-          'Unable to resolve shell environment. Please review shell configuration.'
-        )
-      );
+      reject(new ResolveShellEnvTimeoutError());
     };
 
     child.on('error', err => {

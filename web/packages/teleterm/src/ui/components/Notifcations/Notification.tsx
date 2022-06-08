@@ -31,7 +31,7 @@ const notificationConfig: Record<
   },
 };
 
-const autoRemoveDurationMs = 5000;
+const autoRemoveDurationMs = 10_000; // 10s
 
 export function Notification(props: NotificationProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -169,6 +169,7 @@ function getRenderedContent(
 const textCss = css`
   line-height: 20px;
   overflow-wrap: break-word;
+  white-space: pre-line;
 `;
 
 const shortTextCss = css`
