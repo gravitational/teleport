@@ -688,18 +688,6 @@ func (l kubeListings) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
-func formatKubeLabels(cluster *types.KubernetesCluster) string {
-	labels := make([]string, 0, len(cluster.StaticLabels)+len(cluster.DynamicLabels))
-	for key, value := range cluster.StaticLabels {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value))
-	}
-	for key, value := range cluster.DynamicLabels {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value.Result))
-	}
-	sort.Strings(labels)
-	return strings.Join(labels, " ")
-}
-
 func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.UserHost = c.labels
