@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 	"unicode"
@@ -990,6 +991,12 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	}
 	if fc.SSH.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
+	}
+	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
+		cfg.SSH.DisableCreateHostUser = true
+		if runtime.GOOS != constants.LinuxOS {
+			log.Warnln("Disabling host user creation as this feature is only available on Linux")
+		}
 	}
 	if fc.SSH.PAM != nil {
 		cfg.SSH.PAM = fc.SSH.PAM.Parse()

@@ -1191,7 +1191,7 @@ $ tctl auth export [<flags>]
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--keys` | none | none | if set, will print private keys |
-| `--fingerprint` | none | **string** e.g. `SHA265:<fingerprint>` | filter authority by fingerprint |
+| `--fingerprint` | none | **string** e.g. `SHA256:<fingerprint>` | filter authority by fingerprint |
 | `--compat` | none | version number | export certificates compatible with specific version of Teleport |
 | `--type` | none | `user, host` or `tls` | certificate type |
 
@@ -1231,14 +1231,19 @@ $ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags
 | `--user` | none | existing user | Teleport user name |
 | `--host` | none | auth host | Teleport host name |
 | `-o, --out` | none | filepath | identity output |
+| `--overwrite` | none | none | When specified, write new identity files, even if they already exist |
 | `--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` | identity format |
-| `--identity` | `file` | `file` | identity format |
+| `--identity` | none | `file` | Identity file to use for logging in to the Auth Service |
 | `--auth-server` | none | auth host & port | Remote Teleport host name |
 | `--ttl` | `12h` | relative duration like `5s`, `2m`, or `3h` | TTL (time to live) for the generated certificate |
 | `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag |
-| `--proxy` | `""` | Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file |
+| `--proxy` | `""` | Address of the Teleport Proxy Service | When --format is set to `kubernetes`, this address will be set as the cluster address in the generated kubeconfig file |
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
 | `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
+| `--app-name` | `""` | application name | Generate a certificate for accessing the specified web application |
+| `--db-service` | `""` | database service name | Generate a certificate for accessing the specified database service |
+| `--db-user` | `""` | database user | When `--db-service` is specified, encode this database user in the certificate |
+| `--db-name` | `""` | database name | When `--db-service` is specified, encode this database name in the certificate |
 
 #### Global flags
 
