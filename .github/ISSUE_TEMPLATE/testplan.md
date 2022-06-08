@@ -1092,7 +1092,7 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 
 - [ ] Verify you are able to connect to and interact with a database using `tbot db` while `tbot start` is running
 
-## Connect
+## Teleport Connect
 
 - Shell 
   - [ ] Verify that shell is pinned to correct cluster (for root clusters and leaf clusters)
