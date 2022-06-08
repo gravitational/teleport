@@ -126,6 +126,8 @@ type AgentPoolConfig struct {
 	// This means the tunnel strategy should be ignored and tls routing is determined
 	// by the remote cluster.
 	IsRemoteCluster bool
+	// DisableCreateHostUser disables host user creation on a node.
+	DisableCreateHostUser bool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -655,10 +657,9 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	tlsRoutingEnabled := false
 
 	ping, err := webclient.Find(&webclient.Config{
-		Context:         ctx,
-		ProxyAddr:       addr.Addr,
-		Insecure:        lib.IsInsecureDevMode(),
-		IgnoreHTTPProxy: true,
+		Context:   ctx,
+		ProxyAddr: addr.Addr,
+		Insecure:  lib.IsInsecureDevMode(),
 	})
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel

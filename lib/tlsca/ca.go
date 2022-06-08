@@ -401,20 +401,16 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	subject := pkix.Name{
-		CommonName: id.Username,
-	}
-	subject.Organization = append([]string{}, id.Groups...)
-	subject.OrganizationalUnit = append([]string{}, id.Usage...)
-	subject.Locality = append([]string{}, id.Principals...)
+		CommonName:         id.Username,
+		Organization:       append([]string{}, id.Groups...),
+		OrganizationalUnit: append([]string{}, id.Usage...),
+		Locality:           append([]string{}, id.Principals...),
 
-	// DELETE IN (5.0.0)
-	// Groups are marshaled to both ASN1 extension
-	// and old Province section, for backwards-compatibility,
-	// however begin migration to ASN1 extensions in the future
-	// for this and other properties
-	subject.Province = append([]string{}, id.KubernetesGroups...)
-	subject.StreetAddress = []string{id.RouteToCluster}
-	subject.PostalCode = []string{string(rawTraits)}
+		// TODO: create ASN.1 extensions for traits and RouteToCluster
+		// and move away from using StreetAddress and PostalCode
+		StreetAddress: []string{id.RouteToCluster},
+		PostalCode:    []string{string(rawTraits)},
+	}
 
 	for i := range id.KubernetesUsers {
 		kubeUser := id.KubernetesUsers[i]
@@ -765,9 +761,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		}
 	}
 
-	// DELETE IN(5.0.0): This logic is using Province field
+	// DELETE IN 11.0.0: This logic is using Province field
 	// from subject in case if Kubernetes groups were not populated
-	// from ASN1 extension, after 5.0 Province field will be ignored
+	// from ASN1 extension, after 5.0 Province field will be ignored,
+	// and after 10.0.0 Province field is never populated
 	if len(id.KubernetesGroups) == 0 {
 		id.KubernetesGroups = subject.Province
 	}

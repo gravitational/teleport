@@ -82,6 +82,7 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -776,7 +777,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
 		if err == nil {
 			if ec2Hostname != "" {
-				cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
+				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
 				cfg.Hostname = ec2Hostname
 			}
 		} else if !trace.IsNotFound(err) {
@@ -2024,6 +2025,8 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		storagePresence := local.NewPresenceService(process.storage)
+
 		s, err = regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -2053,6 +2056,8 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetLockWatcher(lockWatcher),
 			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 			regular.SetConnectedProxyGetter(proxyGetter),
+			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
+			regular.SetStoragePresenceService(storagePresence),
 		)
 		if err != nil {
 			return trace.Wrap(err)

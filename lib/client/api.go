@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -709,11 +710,11 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	if err == nil {
 		return nil
 	}
-	// Assume that failed handshake is a result of expired credentials,
-	// retry the login procedure
-	if !utils.IsHandshakeFailedError(err) && !utils.IsCertExpiredError(err) && !trace.IsBadParameter(err) && !trace.IsTrustError(err) {
+
+	if !IsErrorResolvableWithRelogin(err) {
 		return trace.Wrap(err)
 	}
+
 	// Don't try to login when using an identity file.
 	if tc.SkipLocalAuth {
 		return trace.Wrap(err)
@@ -736,6 +737,12 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	return fn()
+}
+
+func IsErrorResolvableWithRelogin(err error) bool {
+	// Assume that failed handshake is a result of expired credentials.
+	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) ||
+		trace.IsBadParameter(err) || trace.IsTrustError(err)
 }
 
 // ProfileOptions contains fields needed to initialize a profile beyond those
@@ -2205,6 +2212,34 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	return servers, nil
 }
 
+// ListNodesWithFiltersAllClusters returns a map of all nodes in all clusters connected to this proxy.
+func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (map[string][]types.Server, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	clusters, err := proxyClient.GetSites(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make(map[string][]types.Server, len(clusters))
+	for _, cluster := range clusters {
+		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		}, cluster.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[cluster.Name] = s
+	}
+	return servers, nil
+}
+
 // ListAppServersWithFilters returns a list of application servers.
 func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -2231,6 +2266,39 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	return servers, nil
 }
 
+// listAppServersWithFiltersAllClusters returns a map of all app servers in all clusters connected to this proxy.
+func (tc *TeleportClient) listAppServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.AppServer, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	filter := customFilter
+	if customFilter == nil {
+		filter = &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		}
+	}
+
+	clusters, err := proxyClient.GetSites(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make(map[string][]types.AppServer, len(clusters))
+	for _, cluster := range clusters {
+		s, err := proxyClient.FindAppServersByFiltersForCluster(ctx, *filter, cluster.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[cluster.Name] = s
+	}
+	return servers, nil
+}
+
 // ListApps returns all registered applications.
 func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Application, error) {
 	servers, err := tc.ListAppServersWithFilters(ctx, customFilter)
@@ -2242,6 +2310,23 @@ func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.List
 		apps = append(apps, server.GetApp())
 	}
 	return types.DeduplicateApps(apps), nil
+}
+
+// ListAppsAllClusters returns all registered applications across all clusters.
+func (tc *TeleportClient) ListAppsAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Application, error) {
+	serversByCluster, err := tc.listAppServersWithFiltersAllClusters(ctx, customFilter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters := make(map[string][]types.Application, len(serversByCluster))
+	for cluster, servers := range serversByCluster {
+		var apps []types.Application
+		for _, server := range servers {
+			apps = append(apps, server.GetApp())
+		}
+		clusters[cluster] = types.DeduplicateApps(apps)
+	}
+	return clusters, nil
 }
 
 // CreateAppSession creates a new application access session.
@@ -2290,6 +2375,39 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	return servers, nil
 }
 
+// listDatabaseServersWithFilters returns all registered database proxy servers across all clusters.
+func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.DatabaseServer, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	filter := customFilter
+	if customFilter == nil {
+		filter = &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		}
+	}
+
+	clusters, err := proxyClient.GetSites(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make(map[string][]types.DatabaseServer, len(clusters))
+	for _, cluster := range clusters {
+		s, err := proxyClient.FindDatabaseServersByFiltersForCluster(ctx, *filter, cluster.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[cluster.Name] = s
+	}
+	return servers, nil
+}
+
 // ListDatabases returns all registered databases.
 func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Database, error) {
 	servers, err := tc.ListDatabaseServersWithFilters(ctx, customFilter)
@@ -2303,6 +2421,23 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 	return types.DeduplicateDatabases(databases), nil
 }
 
+// ListDatabasesAllClusters returns all registered databases across all clusters.
+func (tc *TeleportClient) ListDatabasesAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Database, error) {
+	serversByCluster, err := tc.listDatabaseServersWithFiltersAllClusters(ctx, customFilter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters := make(map[string][]types.Database, len(serversByCluster))
+	for cluster, servers := range serversByCluster {
+		var databases []types.Database
+		for _, server := range servers {
+			databases = append(databases, server.GetDatabase())
+		}
+		clusters[cluster] = types.DeduplicateDatabases(databases)
+	}
+	return clusters, nil
+}
+
 // ListAllNodes is the same as ListNodes except that it ignores labels.
 func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -2314,6 +2449,33 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	return proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
 		Namespace: tc.Namespace,
 	})
+}
+
+// ListKubeClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
+func (tc *TeleportClient) ListKubeClustersWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]*types.KubernetesCluster, error) {
+	pc, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters, err := pc.GetSites(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeClusters := make(map[string][]*types.KubernetesCluster, 0)
+	for _, cluster := range clusters {
+		ac, err := pc.ConnectToCluster(ctx, cluster.Name, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		kc, err := kubeutils.ListKubeClustersWithFilters(ctx, ac, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		kubeClusters[cluster.Name] = kc
+	}
+
+	return kubeClusters, nil
 }
 
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
@@ -2355,7 +2517,7 @@ func (tc *TeleportClient) runCommandOnNodes(
 
 // runCommand executes a given bash command on an established NodeClient.
 func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient, command []string) error {
-	nodeSession, err := newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+	nodeSession, err := newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2397,7 +2559,7 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 		env[key] = value
 	}
 
-	nodeSession, err := newSession(nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+	nodeSession, err := newSession(nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3522,46 +3684,6 @@ func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) 
 func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err error) {
 	return prompt.Password(
 		ctx, tc.Stderr, prompt.Stdin(), fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
-}
-
-// DELETE IN: 4.1.0
-//
-// useLegacyID returns true if an old style (UUIDv1) session ID should be
-// generated because the client is talking with a older server.
-func (tc *TeleportClient) useLegacyID(nodeClient *NodeClient) bool {
-	_, err := tc.getServerVersion(nodeClient)
-	return trace.IsNotFound(err)
-}
-
-type serverResponse struct {
-	version string
-	err     error
-}
-
-// getServerVersion makes a SSH global request to the server to request the
-// version.
-func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, error) {
-	responseCh := make(chan serverResponse)
-
-	go func() {
-		ok, payload, err := nodeClient.Client.SendRequest(teleport.VersionRequest, true, nil)
-		if err != nil {
-			responseCh <- serverResponse{err: trace.NotFound(err.Error())}
-		} else if !ok {
-			responseCh <- serverResponse{err: trace.NotFound("server does not support version request")}
-		}
-		responseCh <- serverResponse{version: string(payload)}
-	}()
-
-	select {
-	case resp := <-responseCh:
-		if resp.err != nil {
-			return "", trace.Wrap(resp.err)
-		}
-		return resp.version, nil
-	case <-time.After(500 * time.Millisecond):
-		return "", trace.NotFound("timed out waiting for server response")
-	}
 }
 
 // loadTLS returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set

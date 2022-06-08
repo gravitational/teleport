@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -97,14 +98,15 @@ func (c *touchIDLsCommand) run(cf *CLIConf) error {
 		if cmp := strings.Compare(i1.User, i2.User); cmp != 0 {
 			return cmp < 0
 		}
-		return i1.CredentialID < i2.CredentialID
+		return i1.CreateTime.Before(i2.CreateTime)
 	})
 
-	t := asciitable.MakeTable([]string{"RPID", "User", "Credential ID"})
+	t := asciitable.MakeTable([]string{"RPID", "User", "Create Time", "Credential ID"})
 	for _, info := range infos {
 		t.AddRow([]string{
 			info.RPID,
 			info.User,
+			info.CreateTime.Format(time.RFC3339),
 			info.CredentialID,
 		})
 	}
