@@ -298,10 +298,6 @@ var (
 	// ResyncInterval is how often tunnels are resynced.
 	ResyncInterval = 5 * time.Second
 
-	// AuthServersRefreshPeriod is a period for clients to refresh their
-	// their stored list of auth servers
-	AuthServersRefreshPeriod = 30 * time.Second
-
 	// TerminalResizePeriod is how long tsh waits before updating the size of the
 	// terminal window.
 	TerminalResizePeriod = 2 * time.Second
