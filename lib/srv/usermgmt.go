@@ -34,8 +34,10 @@ import (
 
 // NewHostUsers initialize a new HostUsers object
 func NewHostUsers(ctx context.Context, storage *local.PresenceService) (HostUsers, error) {
-	backend, err := newHostUsersBackend()
-	if err != nil {
+	// newHostUsersBackend statically returns a valid backend or an error,
+	// resulting in a staticcheck linter error on darwin
+	backend, err := newHostUsersBackend() //nolint:staticcheck
+	if err != nil {                       //nolint:staticcheck
 		return nil, trace.Wrap(err)
 	}
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
