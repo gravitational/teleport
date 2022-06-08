@@ -95,7 +95,6 @@ func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
 	user, err := s.a.createGithubUser(context.Background(), &createUserParams{
 		connectorName: "github",
 		username:      "foo@example.com",
-		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
 	}, true)
@@ -110,7 +109,6 @@ func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
 	_, err = s.a.createGithubUser(context.Background(), &createUserParams{
 		connectorName: "github",
 		username:      "foo",
-		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
 	}, false)

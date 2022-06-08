@@ -71,7 +71,6 @@ func TestCreateSAMLUser(t *testing.T) {
 	user, err := a.createSAMLUser(&createUserParams{
 		connectorName: "samlService",
 		username:      "foo@example.com",
-		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
 	}, true)
@@ -86,7 +85,6 @@ func TestCreateSAMLUser(t *testing.T) {
 	_, err = a.createSAMLUser(&createUserParams{
 		connectorName: "samlService",
 		username:      "foo@example.com",
-		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
 	}, false)
