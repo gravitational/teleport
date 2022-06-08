@@ -1695,20 +1695,8 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 // clobber your system agent.
 func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
-	sockDir, err := ioutil.TempDir("", "int-test")
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	sockPath := filepath.Join(sockDir, "agent.sock")
-
-	uid, err := strconv.Atoi(me.Uid)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(me.Gid)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
+	sockDirName := "int-test"
+	sockName := "agent.sock"
 
 	// transform the key and certificate bytes into something the agent can understand
 	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(certificateBytes)
@@ -1737,13 +1725,13 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	})
 
 	// start the SSH agent
-	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
+	err = teleAgent.ListenUnixSocket(sockDirName, sockName, me)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
 	go teleAgent.Serve()
 
-	return teleAgent, sockDir, sockPath, nil
+	return teleAgent, teleAgent.Dir, teleAgent.Path, nil
 }
 
 func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {

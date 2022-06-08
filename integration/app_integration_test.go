@@ -1288,6 +1288,7 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 		Value: p.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
+	req.Header.Add("Content-Type", "application/json")
 
 	statusCode, body, err := p.sendRequest(req, nil)
 	return statusCode, []byte(body), trace.Wrap(err)
