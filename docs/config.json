@@ -638,8 +638,8 @@
               "slug": "/machine-id/guides/jenkins/"
             },
             {
-              "title": "Machine ID with Web Apps",
-              "slug": "/machine-id/guides/webapps/"
+              "title": "Machine ID with Databases",
+              "slug": "/machine-id/guides/databases/"
             }
           ]
         }

@@ -1,10 +1,10 @@
 ---
-title: Machine ID with Web Apps
-description: Protecting your web applications with Machine ID
+title: Machine ID with Databases
+description: Protecting your databases with Machine ID
 ---
 
-In this guide, we will demonstrate how to use Machine ID with web applications
-to protect your database.
+In this guide, we will demonstrate how to use Machine ID protect and access a
+database from a custom application.
 
 You may already be using Teleport Database Access to protect your database
 when humans access it. Machine ID can be used to protect your data when
@@ -14,7 +14,7 @@ identity that can be rotated, audited, and controlled with all the familiar
 Teleport access controls.
 
 <Figure align="left" bordered caption="Machine ID and Database Access Deployment">
-  ![Machine ID and Database Access Deployment](../../../img/machine-id/machine-id-webapps.png)
+  ![Machine ID and Database Access Deployment](../../../img/machine-id/machine-id-database-app.png)
 </Figure>
 
 ## Prerequisites
@@ -37,7 +37,7 @@ desired client system.
 
 ## Step 1/3. Create a Machine ID bot and assign permissions
 
-In the example below, you will create a bot user `webapp` and assign
+In the example below, you will create a bot user `app` and assign
 this bot user the `machine-id-db` role.
 
 First, create a role for Machine ID can use to access your database:
@@ -61,10 +61,11 @@ spec:
 This role allows Machine ID bots to do two things:
  1. Access the database `example` on any database server (due to the `'*': '*'`
     label selector) as the user `alice`. You may restrict access to the bot
-    using a more specific label selector; see the [](../../docs/database-access/)
+    using a more specific label selector; see the [Database Access RBAC 
+    guide](../../database-access/rbac.mdx) for more info.
  2. Discover information about databases in Teleport.
 
-Write this to `role.yaml` and run the follow to create the role in Teleport:
+Write this to `role.yaml` and run the following to create the role in Teleport:
 
 ```code
 $ tctl create -f role.yaml
@@ -76,7 +77,7 @@ With the role created, create a new bot and allow it to assume the new role.
 On your client machine, log in to Teleport using `tsh` before using `tctl`.
 
 ```code
-$ tctl bots add webapp --roles=machine-id-db
+$ tctl bots add app --roles=machine-id-db
 ```
 </Details>
 <Details scope={["oss","enterprise"]} scopeOnly={true}>
@@ -84,7 +85,7 @@ Connect to the Teleport Auth Server and use `tctl` to examine what roles exist o
 your system.
 
 ```code
-$ tctl bots add webapp --roles=machine-id-db
+$ tctl bots add app --roles=machine-id-db
 ```
 </Details>
 
@@ -150,9 +151,9 @@ on disk. You will use this to ensure only your application has access to the
 short-lived certificates Machine ID uses.
 
 We'll work with the assumption you will be running Machine ID as the Linux user
-`teleport` and your web application as the Linux user `webapp`. Create and
-initialize the destination directory by running this `tbot init` command either
-as `root` or as the `teleport` user:
+`teleport` and your application as the Linux user `app`. Create and initialize
+the destination directory by running this `tbot init` command either as `root`
+or as the `teleport` user:
 
 ```code
 $ tbot init \
@@ -160,7 +161,7 @@ $ tbot init \
     --init-dir=/opt/machine-id \
     --bot-user=teleport \
     --owner=teleport:teleport \
-    --reader-user=webapp
+    --reader-user=app
 ```
 
 <Admonition type="note" title="`tbot init` Note">
@@ -278,7 +279,7 @@ these sample Go programs to test connectivity to your database.
   </TabItem>
 </Tabs>
 
-You are all set. You have provided your web application with short-lived
+You are all set. You have provided your application with short-lived
 certificates tied to a machine identity that can be used to access your
 database that can be rotated, audited, and controlled with all the familiar
 Teleport access controls.
