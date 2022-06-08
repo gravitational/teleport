@@ -283,11 +283,10 @@ Current limitations for this feature are:
 - WebAuthn hardware devices aren't currently supported in `tsh` on Windows.
 - Only `tsh ssh` supports per-session MFA authentication for SSH (OpenSSH `ssh`
   does not).
-- Only `kubectl` supports per-session U2F authentication for Kubernetes.
+- Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
 - Application access clients don't support per-session MFA
   authentication yet, although cluster and role configuration applies to them.
   If you enable per-session MFA checks cluster-wide, you will not be able to
   use Application access. We're working on integrating per-session
   MFA checks for these clients.
-- For Desktop Access, only WebAuthn devices are supported. Teleport does not
-  support U2F devices for Desktop Access MFA.
+- For Desktop Access, only WebAuthn devices are supported.
