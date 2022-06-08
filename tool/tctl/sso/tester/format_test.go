@@ -88,6 +88,7 @@ options:
   desktop_clipboard: null
   desktop_directory_sharing: null
   forward_agent: false
+  pin_source_ip: false
   record_session: null
 `,
 		},
