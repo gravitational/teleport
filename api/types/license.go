@@ -279,22 +279,22 @@ func (c *LicenseV3) SetSupportsDatabaseAccess(value Bool) {
 	c.Spec.SupportsDatabaseAccess = value
 }
 
-// GetSupportsDesktopAccess returns database access support flag
+// GetSupportsDesktopAccess returns desktop access support flag
 func (c *LicenseV3) GetSupportsDesktopAccess() Bool {
 	return c.Spec.SupportsDesktopAccess
 }
 
-// SetSupportsDesktopAccess sets database access support flag
+// SetSupportsDesktopAccess sets desktop access support flag
 func (c *LicenseV3) SetSupportsDesktopAccess(value Bool) {
 	c.Spec.SupportsDesktopAccess = value
 }
 
-// GetSupportsModeratedSessions returns database access support flag
+// GetSupportsModeratedSessions returns moderated sessions support flag
 func (c *LicenseV3) GetSupportsModeratedSessions() Bool {
 	return c.Spec.SupportsModeratedSessions
 }
 
-// SetSupportsModeratedSessions sets database access support flag
+// SetSupportsModeratedSessions sets moderated sessions support flag
 func (c *LicenseV3) SetSupportsModeratedSessions(value Bool) {
 	c.Spec.SupportsModeratedSessions = value
 }
