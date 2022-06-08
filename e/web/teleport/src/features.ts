@@ -3,10 +3,11 @@ import * as OSS from 'teleport/features';
 import { Feature } from 'teleport/types';
 import Ctx from 'teleport/teleportContext';
 import cfg from 'e-teleport/config';
-import Workflow from 'e-teleport/Workflow';
+import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
 import AuthConnectors from 'e-teleport/AuthConnectors';
 import Billing from 'e-teleport/Billing';
 import AccountE from 'e-teleport/Account';
+
 class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   route = {
     title: 'Auth Connectors',
@@ -16,14 +17,13 @@ class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   };
 }
 
-class FeatureWorkflow extends Feature {
-  topNavTitle = 'Activity';
+class FeatureReviewAccessRequests extends Feature {
+  topNavTitle = 'Access Requests';
 
   route = {
-    group: 'activity',
-    title: 'Access Requests',
-    path: cfg.getAccessRequestRoute(),
-    component: Workflow,
+    title: 'Review Requests',
+    path: cfg.routes.requests,
+    component: ReviewRequests,
   };
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -33,11 +33,39 @@ class FeatureWorkflow extends Feature {
 
   register(ctx: Ctx) {
     ctx.storeNav.addSideItem({
-      group: 'activity',
-      title: 'Access Requests',
-      Icon: Icons.EqualizerVertical,
+      group: 'accessrequests',
+      title: 'Review Requests',
+      Icon: Icons.ListAddCheck,
       getLink() {
         return cfg.getAccessRequestRoute();
+      },
+    });
+
+    ctx.features.push(this);
+  }
+}
+
+class FeatureNewAccessRequest extends Feature {
+  topNavTitle = '';
+
+  route = {
+    title: 'New Request',
+    path: cfg.routes.requestNew,
+    component: NewRequest,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  isAvailable(ctx: Ctx): boolean {
+    return true; // TODO(isaiah)
+  }
+
+  register(ctx: Ctx) {
+    ctx.storeNav.addSideItem({
+      group: 'accessrequests',
+      title: 'New Request',
+      Icon: Icons.Add,
+      getLink(clusterId: string) {
+        return cfg.getNewAccessRequestRoute(clusterId);
       },
     });
 
@@ -86,6 +114,8 @@ export default function getFeatures() {
     new OSS.FeatureKubes(),
     new OSS.FeatureDatabases(),
     new OSS.FeatureDesktops(),
+    new FeatureNewAccessRequest(),
+    new FeatureReviewAccessRequests(),
     new OSS.FeatureSessions(),
     new OSS.FeatureRecordings(),
     new OSS.FeatureAudit(),
@@ -96,7 +126,6 @@ export default function getFeatures() {
     new OSS.FeatureTrust(),
     new OSS.FeatureHelpAndSupport(),
     new FeatureAccount(),
-    new FeatureWorkflow(),
     new FeatureBilling(),
   ];
 }

@@ -1,3 +1,4 @@
-import Workflow from './Workflow';
+import { NewRequest } from './NewRequest';
+import { ReviewRequests } from './ReviewRequests';
 
-export default Workflow;
+export { NewRequest, ReviewRequests };

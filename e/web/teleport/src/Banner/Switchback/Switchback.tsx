@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Flex, Text, Box } from 'design';
+import { pluralize } from 'teleport/lib/util';
 import useTeleport from 'e-teleport/useTeleportE';
 import useSwitchback, { State } from './useSwitchback';
 import ErrorAlert from './ErrorAlert';
@@ -59,14 +60,6 @@ export function Switchback({
       </Flex>
     </Flex>
   );
-}
-
-function pluralize(num: number, word: string) {
-  if (num > 1) {
-    return `${word}s`;
-  }
-
-  return word;
 }
 
 function getDurationText(hrs: number, mins: number, secs: number) {

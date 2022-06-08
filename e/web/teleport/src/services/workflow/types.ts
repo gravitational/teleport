@@ -20,6 +20,7 @@ export interface AccessRequest {
   reviewers: AccessRequestReviewer[];
   reviews: AccessRequestReview[];
   thresholdNames: string[];
+  resourceIds: ResourceId[];
 }
 
 export interface AccessRequestReview {
@@ -35,9 +36,29 @@ export interface AccessRequestReviewer {
   state: RequestState;
 }
 
+// ResourceID is a unique identifier for a teleport resource.
+export type ResourceId = {
+  // kind is the resource kind.
+  kind: ResourceIdKind;
+  // name is the name of the specific resource.
+  name: string;
+  // clusterName is the name of cluster.
+  clusterName: string;
+};
+
+// ResourceIdKind consts are the same resource constants defined in the backend
+// and is expected in the request for search based access requests.
+export type ResourceIdKind =
+  | 'node'
+  | 'app'
+  | 'db'
+  | 'kube_cluster'
+  | 'windows_desktop';
+
 export interface CreateAccessRequest {
   reason?: string;
   roles?: string[];
+  resourceIds?: ResourceId[];
   suggestedReviewers?: string[];
 }
 

@@ -6,6 +6,7 @@ import {
   AccessRequestFilter,
   CreateAccessRequest,
   UpdateAccessRequest,
+  AccessRequest,
 } from './types';
 
 class WorkflowService {
@@ -13,7 +14,7 @@ class WorkflowService {
     return api.get(cfg.getAccessRequestUrl(requestId)).then(makeAccessRequest);
   }
 
-  fetchAccessRequests(filter: AccessRequestFilter) {
+  fetchAccessRequests(filter: AccessRequestFilter): Promise<AccessRequest[]> {
     return api.get(cfg.getAccessRequestFilterUrl(filter)).then(requests => {
       if (!requests) {
         return [];

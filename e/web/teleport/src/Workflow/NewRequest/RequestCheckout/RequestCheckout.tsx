@@ -1,0 +1,370 @@
+import React, { useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import styled from 'styled-components';
+import {
+  Box,
+  Flex,
+  ButtonText,
+  ButtonPrimary,
+  Image,
+  Text,
+  LabelInput,
+  Alert,
+} from 'design';
+import { ArrowBack, Trash } from 'design/Icon';
+import Table, { Cell } from 'design/DataTable';
+import Validation, { useRule, Validator } from 'shared/components/Validation';
+import { Option } from 'shared/components/Select';
+import { pluralize } from 'teleport/lib/util';
+import cfg from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
+import shieldCheck from './shield-check.png';
+import { SelectReviewers } from './SelectReviewers';
+import { State, useRequestCheckout } from './useRequestCheckout';
+import { State as NewRequestState } from '../useNewRequest';
+
+type CreateOption = Option & {
+  isDisabled?: boolean;
+  isSelected?: boolean;
+};
+
+export default function Container(props: Props) {
+  const { selectedResource, addedResources, reset } = props;
+  const ctx = useTeleportE();
+  const state = useRequestCheckout({
+    ctx,
+    selectedResource,
+    addedResources,
+    reset,
+  });
+
+  return <RequestCheckout {...state} {...props} />;
+}
+
+export function RequestCheckout({
+  toggleResource,
+  onClose,
+  transitionState,
+  reset,
+  data,
+  attempt,
+  createRequest,
+  clearAttempt,
+  reviewers,
+  requireReason,
+  numRequestedResources,
+}: RequestCheckoutProps) {
+  const [reason, setReason] = useState('');
+  const ref = useRef<HTMLDivElement>();
+
+  const [selectedReviewers, setSelectedReviewers] = useState<CreateOption[]>(
+    []
+  );
+
+  function updateReason(reason: string) {
+    setReason(reason);
+  }
+
+  function handleOnSubmit(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    createRequest(
+      reason,
+      selectedReviewers.map(r => r.value)
+    );
+  }
+
+  // Listeners are attached to enable overflow on the parent container after
+  // transitioning ends (entered) or starts (exits). Enables vertical scrolling
+  // when content gets too big.
+  //
+  // Overflow is initially hidden to prevent
+  // brief flashing of horizontal scroll bar resulting from positioning
+  // the container off screen to the right for the slide affect.
+  React.useEffect(() => {
+    function applyOverflowAutoStyle(e: TransitionEvent) {
+      if (e.propertyName === 'right') {
+        ref.current.style.overflow = `auto`;
+        // There will only ever be one 'end right' transition invoked event, so we remove it
+        // afterwards, and listen for the 'start right' transition which is only invoked
+        // when user exits this component.
+        window.removeEventListener('transitionend', applyOverflowAutoStyle);
+        window.addEventListener('transitionstart', applyOverflowHiddenStyle);
+      }
+    }
+
+    function applyOverflowHiddenStyle(e: TransitionEvent) {
+      if (e.propertyName === 'right') {
+        ref.current.style.overflow = `hidden`;
+      }
+    }
+
+    window.addEventListener('transitionend', applyOverflowAutoStyle);
+
+    return () => {
+      window.removeEventListener('transitionend', applyOverflowAutoStyle);
+      window.removeEventListener('transitionstart', applyOverflowHiddenStyle);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      css={`
+        position: absolute;
+        width: 100vw;
+        height: 100vh;
+        top: 0;
+        left: 0;
+        overflow: hidden;
+      `}
+    >
+      <Dimmer className={transitionState} />
+      <SidePanel state={transitionState} className={transitionState}>
+        {attempt.status === 'success' ? (
+          <Box>
+            <Box mt={2} mb={7} textAlign="center">
+              <Text typography="h4" color="light" bold>
+                Resources Requested Successfully
+              </Text>
+              <Text typography="subtitle1" color="text.secondary">
+                You've successfully requested {numRequestedResources}{' '}
+                {pluralize(numRequestedResources, 'resource')}
+              </Text>
+            </Box>
+            <Flex justifyContent="center" mb={3}>
+              <Image src={shieldCheck} width="250px" height="179px" />
+            </Flex>
+          </Box>
+        ) : (
+          <Flex mb={3} alignItems="center">
+            <ArrowBack
+              fontSize={25}
+              mr={3}
+              onClick={onClose}
+              style={{ cursor: 'pointer' }}
+            />
+            <Box>
+              <Text typography="h4" color="light" bold>
+                {data.length} {pluralize(data.length, 'Resource')} Selected
+              </Text>
+            </Box>
+          </Flex>
+        )}
+        {attempt.status === 'success' ? (
+          <Box textAlign="center">
+            <ButtonPrimary
+              as={Link}
+              mt={5}
+              mb={3}
+              width="100%"
+              size="large"
+              to={cfg.getAccessRequestRoute()}
+            >
+              Back to Listings
+            </ButtonPrimary>
+            <ButtonText
+              onClick={() => {
+                reset();
+                onClose();
+              }}
+            >
+              Make Another Request
+            </ButtonText>
+          </Box>
+        ) : (
+          <>
+            {attempt.status === 'failed' && (
+              <Alert kind="danger" children={attempt.statusText} />
+            )}
+            <StyledTable
+              data={data}
+              columns={[
+                {
+                  key: 'kind',
+                  headerText: 'Resource Kind',
+                },
+                {
+                  key: 'name',
+                  headerText: 'Resource Name',
+                },
+                {
+                  altKey: 'delete-btn',
+                  render: resource => (
+                    <Cell align="right">
+                      <Trash
+                        fontSize={13}
+                        borderRadius={2}
+                        p={2}
+                        onClick={() => {
+                          clearAttempt();
+                          toggleResource(
+                            resource.kind,
+                            resource.id,
+                            resource.name
+                          );
+                        }}
+                        disabled={attempt.status === 'processing'}
+                        css={`
+                          cursor: pointer;
+                          background-color: #2e3860;
+                          border-radius: 2px;
+                          :hover {
+                            background-color: #414b70;
+                          }
+                        `}
+                      />
+                    </Cell>
+                  ),
+                },
+              ]}
+              emptyText="No resources are selected"
+            />
+            <Box mt={6} mb={1}>
+              <SelectReviewers
+                reviewers={reviewers}
+                selectedReviewers={selectedReviewers}
+                setSelectedReviewers={setSelectedReviewers}
+              />
+            </Box>
+            <Validation>
+              {({ validator }) => (
+                <>
+                  <TextBox
+                    reason={reason}
+                    updateReason={updateReason}
+                    requireReason={requireReason}
+                  />
+                  <ButtonPrimary
+                    mt={4}
+                    width="100%"
+                    size="large"
+                    onClick={() => handleOnSubmit(validator)}
+                    disabled={
+                      data.length === 0 || attempt.status === 'processing'
+                    }
+                  >
+                    Submit Request
+                  </ButtonPrimary>
+                </>
+              )}
+            </Validation>
+          </>
+        )}
+      </SidePanel>
+    </div>
+  );
+}
+
+function TextBox({
+  reason,
+  updateReason,
+  requireReason,
+}: {
+  reason: string;
+  updateReason(reason: string): void;
+  requireReason: boolean;
+}) {
+  const { valid, message } = useRule(requireText(reason, requireReason));
+  const hasError = !valid;
+  const labelText = hasError ? message : 'Request Reason';
+
+  const optionalText = requireReason ? '' : ' (optional)';
+  const placeholder = `Describe your request...${optionalText}`;
+
+  return (
+    <Box mt={7}>
+      <LabelInput hasError={hasError}>{labelText}</LabelInput>
+      <Box
+        as="textarea"
+        height="80px"
+        width="100%"
+        borderRadius={2}
+        p={2}
+        color={'text.primary'}
+        border={hasError ? '2px solid' : '1px solid'}
+        borderColor={hasError ? 'error.dark' : 'primary.light'}
+        style={{ outline: 'none' }}
+        placeholder={placeholder}
+        value={reason}
+        onChange={e => updateReason(e.target.value)}
+        css={`
+          background: ${({ theme }) => theme.colors.primary.main};
+          ::placeholder {
+            color: ${({ theme }) => theme.colors.text.secondary};
+          }
+        `}
+      />
+    </Box>
+  );
+}
+
+const requireText = (value: string, requireReason: boolean) => () => {
+  if (requireReason && (!value || value.trim().length === 0)) {
+    return {
+      valid: false,
+      message: 'Reason Required',
+    };
+  }
+  return { valid: true };
+};
+
+const SidePanel = styled(Box)`
+  position: absolute;
+  z-index: 11;
+  top: 0px;
+  right: 0px;
+  background: ${({ theme }) => theme.colors.primary.dark};
+  min-height: 100%;
+  width: 500px;
+  padding: 20px;
+
+  &.entering {
+    right: -500px;
+  }
+  &.entered {
+    right: 0px;
+    transition: right 300ms ease-out;
+  }
+  &.exiting {
+    right: -500px;
+    transition: right 300ms ease-out;
+  }
+  &.exited {
+    right: -500px;
+  }
+`;
+
+const Dimmer = styled(Box)`
+  background: #000;
+  opacity: 0.5;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+`;
+
+const StyledTable = styled(Table)`
+  & > tbody > tr > td {
+    vertical-align: middle;
+  }
+` as typeof Table;
+
+type Props = {
+  onClose(): void;
+  selectedResource: NewRequestState['selectedResource'];
+  toggleResource: NewRequestState['addOrRemoveResource'];
+  addedResources: NewRequestState['addedResources'];
+  reset: NewRequestState['clearAddedResources'];
+  transitionState: 'entering' | 'entered' | 'exiting' | 'exited';
+};
+
+export type RequestCheckoutProps = Omit<
+  Props,
+  'addedResources' | 'selectedResource'
+> &
+  State;

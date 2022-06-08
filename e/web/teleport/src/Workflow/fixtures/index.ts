@@ -1,7 +1,44 @@
 import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
 import { AccessRequest } from 'e-teleport/services/workflow';
 
-export const requestPending: AccessRequest = {
+export const requestSearchPending: AccessRequest = {
+  id: '461ff4bb-62f1-53b5-84ae-731022261a12',
+  state: 'PENDING',
+  user: 'Sam',
+  expires: new Date(0),
+  expiresDuration: '35 minutes',
+  created: new Date('12-4-2020'),
+  createdDuration: '1 minute ago',
+  roles: ['test'],
+  requestReason:
+    'Testing long message format. I am requesting access for the developer role that i will be using to \
+    commit fixes for our production application. I will need access for the \
+    rest of the day to complete my changes.',
+  resolveReason: '',
+  reviews: [],
+  reviewers: [
+    { name: 'alice', state: 'PENDING' },
+    { name: 'bob', state: 'PENDING' },
+  ],
+  thresholdNames: ['Default', 'Poplar', 'Admin'],
+  resourceIds: [
+    { kind: 'app', name: 'app-name', clusterName: 'cluster-name' },
+    { kind: 'db', name: 'db-name', clusterName: 'cluster-name' },
+    { kind: 'node', name: 'node-name', clusterName: 'cluster-name' },
+    {
+      kind: 'kube_cluster',
+      name: 'kube-cluster-name',
+      clusterName: 'cluster-name',
+    },
+    {
+      kind: 'windows_desktop',
+      name: 'windows-desktop-name',
+      clusterName: 'cluster-name',
+    },
+  ],
+};
+
+export const requestRolePending: AccessRequest = {
   id: '461ff4bb-62f1-53b5-84ae-731022261a12',
   state: 'PENDING',
   user: 'Sam',
@@ -21,9 +58,10 @@ export const requestPending: AccessRequest = {
     { name: 'bob', state: 'PENDING' },
   ],
   thresholdNames: ['Default', 'Poplar', 'Admin'],
+  resourceIds: [],
 };
 
-export const requestDenied: AccessRequest = {
+export const requestRoleDenied: AccessRequest = {
   id: '3ce23da9-6b85-5fce-9bf3-5fb826120cb2',
   state: 'DENIED',
   user: 'Sam',
@@ -48,9 +86,10 @@ export const requestDenied: AccessRequest = {
     { name: 'bob', state: 'PENDING' },
   ],
   thresholdNames: ['Default'],
+  resourceIds: [],
 };
 
-export const requestApproved: AccessRequest = {
+export const requestRoleApproved: AccessRequest = {
   id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
   state: 'APPROVED',
   user: 'Sam',
@@ -84,17 +123,22 @@ export const requestApproved: AccessRequest = {
     { name: 'test-long-user-name@testing.com', state: 'APPROVED' },
   ],
   thresholdNames: ['Default'],
+  resourceIds: [],
 };
 
-export const requestEmpty: AccessRequest = {
-  ...requestApproved,
+export const requestRoleEmpty: AccessRequest = {
+  ...requestRoleApproved,
   reviews: [],
   reviewers: [],
   roles: ['empty-values'],
   id: 'ffc11a95-e8af-581c-ba82-47c429c841e8',
 };
 
-export const requests = [requestPending, requestDenied, requestApproved];
+export const requests = [
+  requestRolePending,
+  requestRoleDenied,
+  requestRoleApproved,
+];
 
 export class MockedWorkflowService {
   requests = [];
@@ -109,7 +153,7 @@ export class MockedWorkflowService {
   };
 
   fetchAccessRequest = () => {
-    return Promise.resolve(requestPending);
+    return Promise.resolve(requestRolePending);
   };
 
   createAccessRequest = () => {
@@ -117,13 +161,13 @@ export class MockedWorkflowService {
   };
 
   applyPermission = () => Promise.resolve(null);
-  submitAccessRequestReview = () => Promise.resolve(requestApproved);
+  submitAccessRequestReview = () => Promise.resolve(requestRoleApproved);
   deleteAccessRequest = () => Promise.resolve();
 }
 
 export class MockedStoreAccessRequests extends StoreAccessRequests {
   getAssumedRequests = () => ({
-    [requestApproved.id]: requestApproved,
+    [requestRoleApproved.id]: requestRoleApproved,
   });
 
   isAssumed = () => false;

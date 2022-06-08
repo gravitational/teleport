@@ -1,0 +1,3265 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`loaded approved role based request state 1`] = `
+.c1 {
+  box-sizing: border-box;
+  max-width: 860px;
+  min-width: 515px;
+  margin-right: 32px;
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+.c9 {
+  box-sizing: border-box;
+}
+
+.c14 {
+  box-sizing: border-box;
+  padding: 24px;
+  padding-top: 0px;
+  background-color: #222C59;
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.c17 {
+  box-sizing: border-box;
+  margin-left: 16px;
+  margin-right: 8px;
+  padding: 3px;
+  background-color: #2C3A73;
+  border-radius: 50%;
+}
+
+.c21 {
+  box-sizing: border-box;
+  margin-left: 16px;
+  margin-right: 8px;
+  padding: 3px;
+  background-color: #00bfa5;
+  border-radius: 50%;
+}
+
+.c23 {
+  box-sizing: border-box;
+  margin-top: 16px;
+  border: 1px solid;
+  border-color: #111B48;
+}
+
+.c26 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #2C3A73;
+}
+
+.c28 {
+  box-sizing: border-box;
+  min-width: 120px;
+  flex: 0 1 260px;
+}
+
+.c35 {
+  box-sizing: border-box;
+  margin-left: 4px;
+  margin-top: 16px;
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  margin-left: 16px;
+  width: 60px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c13:active {
+  opacity: 0.24;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c27 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 24px;
+}
+
+.c27:active {
+  opacity: 0.56;
+}
+
+.c27:hover,
+.c27:focus {
+  background: #651FFF;
+}
+
+.c27:active {
+  background: #354AA4;
+}
+
+.c27:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c18 {
+  display: inline-block;
+  transition: color .3s;
+  color: rgba(255,255,255,0.24);
+  font-size: 26px;
+}
+
+.c22 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+  font-size: 26px;
+}
+
+.c10 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: #00bfa5;
+  color: #FFFFFF;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c33 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #00bfa5;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c34 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #ff9100;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c25 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c30 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c32 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c36 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c0 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c2 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #2C3A73;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  display: flex;
+}
+
+.c3 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.c11 {
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap-reverse;
+}
+
+.c16 {
+  box-sizing: border-box;
+  padding-top: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.c19 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+}
+
+.c24 {
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background-color: #111B48;
+  display: flex;
+  align-items: baseline;
+}
+
+.c29 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid;
+  border-color: #1C254D;
+  display: flex;
+}
+
+.c31 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background-color: #1C254D;
+  border: 1px solid;
+  border-radius: 2px;
+  border-color: #222C59;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c15 {
+  position: absolute;
+  height: calc(100% - 24px);
+  width: 2px;
+  top: 0;
+  left: 55px;
+  border-left: 2px solid #2C3A73;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+      width="100%"
+    >
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          <span
+            class="c4"
+            color="light"
+            font-size="0"
+            font-weight="bold"
+            kind="success"
+            style="font-weight: bold;"
+          >
+            APPROVED
+          </span>
+          <div
+            class="c5"
+          >
+            <div
+              class="c6"
+            >
+              <div
+                class="c7"
+                style="max-width: 120px;"
+                title="Sam"
+              >
+                Sam
+              </div>
+              <div
+                class="c8"
+                style="flex-shrink: 0; white-space: nowrap;"
+              >
+                is requesting roles:
+              </div>
+            </div>
+            <div
+              class="c9"
+            >
+              <div
+                class="c10"
+                kind="secondary"
+              >
+                admin
+              </div>
+              <div
+                class="c10"
+                kind="secondary"
+              >
+                kaco
+              </div>
+              <div
+                class="c10"
+                kind="secondary"
+              >
+                ziuzzow
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c11"
+        >
+          <div
+            class="c12"
+            style="white-space: nowrap;"
+          >
+            (expires in 
+            24 hours
+            )
+          </div>
+          <button
+            class="c13"
+            kind="border"
+            width="60px"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      <div
+        class="c14"
+        style="position: relative;"
+      >
+        <div
+          class="c15"
+        />
+        <div
+          class="c16"
+          style="position: relative;"
+        >
+          <div
+            class="c17"
+            style="display: flex;"
+          >
+            <span
+              class="c18 icon icon-chevron-down-circle "
+              color="text.placeholder"
+              font-size="8"
+            />
+          </div>
+          <div
+            class="c19"
+          >
+            <div
+              class="c20"
+              style="flex: 1 1 0px;"
+            >
+              Sam
+            </div>
+            <div
+              class="c12"
+            >
+              submitted
+               this request 
+              2 hours ago
+            </div>
+          </div>
+        </div>
+        <div
+          class="c9"
+        >
+          <div
+            class="c16"
+            style="position: relative;"
+          >
+            <div
+              class="c21"
+              style="display: flex;"
+            >
+              <span
+                class="c22 icon icon-checkmark-circle "
+                color="light"
+                font-size="8"
+              />
+            </div>
+            <div
+              class="c19"
+            >
+              <div
+                class="c20"
+                style="flex: 1 1 0px;"
+              >
+                alice
+              </div>
+              <div
+                class="c12"
+              >
+                approved
+                 this request 
+                26 hours ago
+              </div>
+            </div>
+          </div>
+          <div
+            class="c23"
+            style="position: relative;"
+          >
+            <div
+              class="c24"
+            >
+              <div
+                class="c20"
+              >
+                alice
+              </div>
+              <div
+                class="c25"
+              >
+                26 hours ago
+              </div>
+            </div>
+            <div
+              class="c26"
+            >
+              Approving for developer role not admin. Admins access is not needed for this request.
+            </div>
+          </div>
+          <div
+            class="c16"
+            style="position: relative;"
+          >
+            <div
+              class="c21"
+              style="display: flex;"
+            >
+              <span
+                class="c22 icon icon-checkmark-circle "
+                color="light"
+                font-size="8"
+              />
+            </div>
+            <div
+              class="c19"
+            >
+              <div
+                class="c20"
+                style="flex: 1 1 0px;"
+              >
+                test-long-user-name@testing.com
+              </div>
+              <div
+                class="c12"
+              >
+                approved
+                 this request 
+                1 minute ago
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+      <button
+        class="c27"
+        kind="primary"
+      >
+        assume roles
+      </button>
+    </div>
+    <div
+      class="c28"
+    >
+      <div
+        class="c29"
+      >
+        <div
+          class="c30"
+        >
+          Reviewers
+        </div>
+      </div>
+      <div
+        class="c31"
+      >
+        <div
+          class="c32"
+          style="white-space: nowrap; max-width: 200px;"
+          title="alice"
+        >
+          alice
+        </div>
+        <span
+          class="c33"
+          color="light"
+          font-size="0"
+          font-weight="bold"
+          kind="success"
+          style="min-height: 10px; min-width: 10px;"
+          width="10px"
+        />
+      </div>
+      <div
+        class="c31"
+      >
+        <div
+          class="c32"
+          style="white-space: nowrap; max-width: 200px;"
+          title="bob"
+        >
+          bob
+        </div>
+        <span
+          class="c34"
+          color="light"
+          font-size="0"
+          font-weight="bold"
+          kind="warning"
+          style="min-height: 10px; min-width: 10px;"
+          width="10px"
+        />
+      </div>
+      <div
+        class="c31"
+      >
+        <div
+          class="c32"
+          style="white-space: nowrap; max-width: 200px;"
+          title="test-long-user-name@testing.com"
+        >
+          test-long-user-name@testing.com
+        </div>
+        <span
+          class="c33"
+          color="light"
+          font-size="0"
+          font-weight="bold"
+          kind="success"
+          style="min-height: 10px; min-width: 10px;"
+          width="10px"
+        />
+      </div>
+      <div
+        class="c35"
+      >
+        <div
+          class="c36"
+          color="text.secondary"
+        >
+          Thresholds: 
+          Default
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`loaded denied role based request state 1`] = `
+.c1 {
+  box-sizing: border-box;
+  max-width: 860px;
+  min-width: 515px;
+  margin-right: 32px;
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+.c9 {
+  box-sizing: border-box;
+}
+
+.c14 {
+  box-sizing: border-box;
+  padding: 24px;
+  padding-top: 0px;
+  background-color: #222C59;
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.c17 {
+  box-sizing: border-box;
+  margin-left: 16px;
+  margin-right: 8px;
+  padding: 3px;
+  background-color: #2C3A73;
+  border-radius: 50%;
+}
+
+.c21 {
+  box-sizing: border-box;
+  margin-top: 16px;
+  border: 1px solid;
+  border-color: #111B48;
+}
+
+.c24 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #2C3A73;
+}
+
+.c25 {
+  box-sizing: border-box;
+  margin-left: 16px;
+  margin-right: 8px;
+  padding: 3px;
+  background-color: #f50057;
+  border-radius: 50%;
+}
+
+.c27 {
+  box-sizing: border-box;
+  min-width: 120px;
+  flex: 0 1 260px;
+}
+
+.c34 {
+  box-sizing: border-box;
+  margin-left: 4px;
+  margin-top: 16px;
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  margin-left: 16px;
+  width: 60px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c13:active {
+  opacity: 0.24;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c18 {
+  display: inline-block;
+  transition: color .3s;
+  color: rgba(255,255,255,0.24);
+  font-size: 26px;
+}
+
+.c26 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+  font-size: 26px;
+}
+
+.c10 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: #f50057;
+  color: #FFFFFF;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c32 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #f50057;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c33 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #ff9100;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c29 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c31 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c35 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c0 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c2 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #2C3A73;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  display: flex;
+}
+
+.c3 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.c11 {
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap-reverse;
+}
+
+.c16 {
+  box-sizing: border-box;
+  padding-top: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.c19 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+}
+
+.c22 {
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background-color: #111B48;
+  display: flex;
+  align-items: baseline;
+}
+
+.c28 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid;
+  border-color: #1C254D;
+  display: flex;
+}
+
+.c30 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background-color: #1C254D;
+  border: 1px solid;
+  border-radius: 2px;
+  border-color: #222C59;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c15 {
+  position: absolute;
+  height: calc(100% - 24px);
+  width: 2px;
+  top: 0;
+  left: 55px;
+  border-left: 2px solid #2C3A73;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+      width="100%"
+    >
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          <span
+            class="c4"
+            color="light"
+            font-size="0"
+            font-weight="bold"
+            kind="danger"
+            style="font-weight: bold;"
+          >
+            DENIED
+          </span>
+          <div
+            class="c5"
+          >
+            <div
+              class="c6"
+            >
+              <div
+                class="c7"
+                style="max-width: 120px;"
+                title="Sam"
+              >
+                Sam
+              </div>
+              <div
+                class="c8"
+                style="flex-shrink: 0; white-space: nowrap;"
+              >
+                is requesting roles:
+              </div>
+            </div>
+            <div
+              class="c9"
+            >
+              <div
+                class="c10"
+                kind="secondary"
+              >
+                admin
+              </div>
+              <div
+                class="c10"
+                kind="secondary"
+              >
+                ruhh
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c11"
+        >
+          <div
+            class="c12"
+            style="white-space: nowrap;"
+          >
+            (expires in 
+            20 hours
+            )
+          </div>
+          <button
+            class="c13"
+            kind="border"
+            width="60px"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      <div
+        class="c14"
+        style="position: relative;"
+      >
+        <div
+          class="c15"
+        />
+        <div
+          class="c16"
+          style="position: relative;"
+        >
+          <div
+            class="c17"
+            style="display: flex;"
+          >
+            <span
+              class="c18 icon icon-chevron-down-circle "
+              color="text.placeholder"
+              font-size="8"
+            />
+          </div>
+          <div
+            class="c19"
+          >
+            <div
+              class="c20"
+              style="flex: 1 1 0px;"
+            >
+              Sam
+            </div>
+            <div
+              class="c12"
+            >
+              submitted
+               this request 
+              35 minutes ago
+            </div>
+          </div>
+        </div>
+        <div
+          class="c21"
+          style="position: relative;"
+        >
+          <div
+            class="c22"
+          >
+            <div
+              class="c20"
+            >
+              Sam
+            </div>
+            <div
+              class="c23"
+            >
+              35 minutes ago
+            </div>
+          </div>
+          <div
+            class="c24"
+          >
+            Some short request reason
+          </div>
+        </div>
+        <div
+          class="c9"
+        >
+          <div
+            class="c16"
+            style="position: relative;"
+          >
+            <div
+              class="c25"
+              style="display: flex;"
+            >
+              <span
+                class="c26 icon icon-cross-circle "
+                color="light"
+                font-size="8"
+              />
+            </div>
+            <div
+              class="c19"
+            >
+              <div
+                class="c20"
+                style="flex: 1 1 0px;"
+              >
+                alice
+              </div>
+              <div
+                class="c12"
+              >
+                denied
+                 this request 
+                26 hours ago
+              </div>
+            </div>
+          </div>
+          <div
+            class="c21"
+            style="position: relative;"
+          >
+            <div
+              class="c22"
+            >
+              <div
+                class="c20"
+              >
+                alice
+              </div>
+              <div
+                class="c23"
+              >
+                26 hours ago
+              </div>
+            </div>
+            <div
+              class="c24"
+            >
+              Not today
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c27"
+    >
+      <div
+        class="c28"
+      >
+        <div
+          class="c29"
+        >
+          Reviewers
+        </div>
+      </div>
+      <div
+        class="c30"
+      >
+        <div
+          class="c31"
+          style="white-space: nowrap; max-width: 200px;"
+          title="alice"
+        >
+          alice
+        </div>
+        <span
+          class="c32"
+          color="light"
+          font-size="0"
+          font-weight="bold"
+          kind="danger"
+          style="min-height: 10px; min-width: 10px;"
+          width="10px"
+        />
+      </div>
+      <div
+        class="c30"
+      >
+        <div
+          class="c31"
+          style="white-space: nowrap; max-width: 200px;"
+          title="bob"
+        >
+          bob
+        </div>
+        <span
+          class="c33"
+          color="light"
+          font-size="0"
+          font-weight="bold"
+          kind="warning"
+          style="min-height: 10px; min-width: 10px;"
+          width="10px"
+        />
+      </div>
+      <div
+        class="c34"
+      >
+        <div
+          class="c35"
+          color="text.secondary"
+        >
+          Thresholds: 
+          Default
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`loaded pending role based request state 1`] = `
+.c1 {
+  box-sizing: border-box;
+  max-width: 860px;
+  min-width: 515px;
+  margin-right: 32px;
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+.c9 {
+  box-sizing: border-box;
+}
+
+.c14 {
+  box-sizing: border-box;
+  padding: 24px;
+  padding-top: 0px;
+  background-color: #222C59;
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.c17 {
+  box-sizing: border-box;
+  margin-left: 16px;
+  margin-right: 8px;
+  padding: 3px;
+  background-color: #2C3A73;
+  border-radius: 50%;
+}
+
+.c21 {
+  box-sizing: border-box;
+  margin-top: 16px;
+  border: 1px solid;
+  border-color: #111B48;
+}
+
+.c24 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #2C3A73;
+}
+
+.c25 {
+  box-sizing: border-box;
+  margin-top: 48px;
+  border: 1px solid;
+  border-color: #111B48;
+}
+
+.c26 {
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background-color: #111B48;
+}
+
+.c28 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 200px;
+}
+
+.c31 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c32 {
+  box-sizing: border-box;
+  max-width: 500px;
+  padding: 8px;
+  height: 150px;
+  width: 100%;
+  border-radius: 4px;
+}
+
+.c34 {
+  box-sizing: border-box;
+  min-width: 120px;
+  flex: 0 1 260px;
+}
+
+.c40 {
+  box-sizing: border-box;
+  margin-left: 4px;
+  margin-top: 16px;
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  margin-left: 16px;
+  width: 60px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c13:active {
+  opacity: 0.24;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c33 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c33:active {
+  opacity: 0.56;
+}
+
+.c33:hover,
+.c33:focus {
+  background: #651FFF;
+}
+
+.c33:active {
+  background: #354AA4;
+}
+
+.c33:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c18 {
+  display: inline-block;
+  transition: color .3s;
+  color: rgba(255,255,255,0.24);
+  font-size: 26px;
+}
+
+.c10 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c29 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: #ff9100;
+  color: #FFFFFF;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c39 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #ff9100;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c27 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c36 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c38 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c41 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c0 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c2 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #2C3A73;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  display: flex;
+}
+
+.c3 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.c11 {
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap-reverse;
+}
+
+.c16 {
+  box-sizing: border-box;
+  padding-top: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.c19 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+}
+
+.c22 {
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background-color: #111B48;
+  display: flex;
+  align-items: baseline;
+}
+
+.c35 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid;
+  border-color: #1C254D;
+  display: flex;
+}
+
+.c37 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background-color: #1C254D;
+  border: 1px solid;
+  border-radius: 2px;
+  border-color: #222C59;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c30 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c30 .react-select__control,
+.c30 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c30 .react-select__control:hover,
+.c30 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c30 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c30 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c30 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c30 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c30 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c30 .react-select__indicator-separator {
+  display: none;
+}
+
+.c30 .react-select__loading-indicator {
+  display: none;
+}
+
+.c30 .react-select--is-disabled .react-select__single-value,
+.c30 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c30 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c15 {
+  position: absolute;
+  height: calc(100% - 24px);
+  width: 2px;
+  top: 0;
+  left: 55px;
+  border-left: 2px solid #2C3A73;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+      width="100%"
+    >
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          <span
+            class="c4"
+            color="light"
+            font-size="0"
+            font-weight="bold"
+            kind="warning"
+            style="font-weight: bold;"
+          >
+            PENDING
+          </span>
+          <div
+            class="c5"
+          >
+            <div
+              class="c6"
+            >
+              <div
+                class="c7"
+                style="max-width: 120px;"
+                title="Sam"
+              >
+                Sam
+              </div>
+              <div
+                class="c8"
+                style="flex-shrink: 0; white-space: nowrap;"
+              >
+                is requesting roles:
+              </div>
+            </div>
+            <div
+              class="c9"
+            >
+              <div
+                class="c10"
+                kind="secondary"
+              >
+                admin
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c11"
+        >
+          <div
+            class="c12"
+            style="white-space: nowrap;"
+          >
+            (expires in 
+            35 minutes
+            )
+          </div>
+          <button
+            class="c13"
+            kind="border"
+            width="60px"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      <div
+        class="c14"
+        style="position: relative;"
+      >
+        <div
+          class="c15"
+        />
+        <div
+          class="c16"
+          style="position: relative;"
+        >
+          <div
+            class="c17"
+            style="display: flex;"
+          >
+            <span
+              class="c18 icon icon-chevron-down-circle "
+              color="text.placeholder"
+              font-size="8"
+            />
+          </div>
+          <div
+            class="c19"
+          >
+            <div
+              class="c20"
+              style="flex: 1 1 0px;"
+            >
+              Sam
+            </div>
+            <div
+              class="c12"
+            >
+              submitted
+               this request 
+              1 minute ago
+            </div>
+          </div>
+        </div>
+        <div
+          class="c21"
+          style="position: relative;"
+        >
+          <div
+            class="c22"
+          >
+            <div
+              class="c20"
+            >
+              Sam
+            </div>
+            <div
+              class="c23"
+            >
+              1 minute ago
+            </div>
+          </div>
+          <div
+            class="c24"
+          >
+            Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
+          </div>
+        </div>
+        <div
+          class="c25"
+          style="position: relative;"
+        >
+          <div
+            class="c26"
+          >
+            <div
+              class="c27"
+            >
+              loggedInUsername
+               - add a review
+            </div>
+          </div>
+          <div
+            class="c24"
+          >
+            <div
+              class="c28"
+              width="200px"
+            >
+              <label
+                class="c29"
+                font-size="0"
+              >
+                Request Status
+              </label>
+              <div
+                class="c30"
+              >
+                <div
+                  class="react-select-container css-2b097c-container"
+                >
+                  <div
+                    class="react-select__control css-yk16xz-control"
+                  >
+                    <div
+                      class="react-select__value-container css-g1d714-ValueContainer"
+                    >
+                      <div
+                        class="react-select__placeholder css-1wa3eu0-placeholder"
+                      >
+                        Choose status
+                      </div>
+                      <input
+                        aria-autocomplete="list"
+                        class="css-62g3xt-dummyInput"
+                        id="react-select-2-input"
+                        readonly=""
+                        tabindex="0"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                    >
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
+                        aria-hidden="true"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="c31"
+            >
+              <label
+                class="c29"
+                font-size="0"
+              >
+                Message
+              </label>
+              <textarea
+                class="c32"
+                height="150px"
+                placeholder="Optional message..."
+                style="outline: none; font-family: theme.font;"
+                width="100%"
+              />
+            </div>
+            <button
+              class="c33"
+              kind="primary"
+            >
+              Submit Review
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c34"
+    >
+      <div
+        class="c35"
+      >
+        <div
+          class="c36"
+        >
+          Reviewers
+        </div>
+      </div>
+      <div
+        class="c37"
+      >
+        <div
+          class="c38"
+          style="white-space: nowrap; max-width: 200px;"
+          title="alice"
+        >
+          alice
+        </div>
+        <span
+          class="c39"
+          color="light"
+          font-size="0"
+          font-weight="bold"
+          kind="warning"
+          style="min-height: 10px; min-width: 10px;"
+          width="10px"
+        />
+      </div>
+      <div
+        class="c37"
+      >
+        <div
+          class="c38"
+          style="white-space: nowrap; max-width: 200px;"
+          title="bob"
+        >
+          bob
+        </div>
+        <span
+          class="c39"
+          color="light"
+          font-size="0"
+          font-weight="bold"
+          kind="warning"
+          style="min-height: 10px; min-width: 10px;"
+          width="10px"
+        />
+      </div>
+      <div
+        class="c40"
+      >
+        <div
+          class="c41"
+          color="text.secondary"
+        >
+          Thresholds: 
+          Default, Poplar, Admin
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`loaded pending search based request state 1`] = `
+.c1 {
+  box-sizing: border-box;
+  max-width: 860px;
+  min-width: 515px;
+  margin-right: 32px;
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+.c9 {
+  box-sizing: border-box;
+}
+
+.c14 {
+  box-sizing: border-box;
+  padding: 24px;
+  padding-top: 0px;
+  background-color: #222C59;
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.c17 {
+  box-sizing: border-box;
+  margin-left: 16px;
+  margin-right: 8px;
+  padding: 3px;
+  background-color: #2C3A73;
+  border-radius: 50%;
+}
+
+.c22 {
+  box-sizing: border-box;
+  margin-top: 16px;
+  border: 1px solid;
+  border-color: #111B48;
+}
+
+.c25 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #2C3A73;
+}
+
+.c29 {
+  box-sizing: border-box;
+  margin-top: 48px;
+  border: 1px solid;
+  border-color: #111B48;
+}
+
+.c30 {
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background-color: #111B48;
+}
+
+.c32 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 200px;
+}
+
+.c35 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c36 {
+  box-sizing: border-box;
+  max-width: 500px;
+  padding: 8px;
+  height: 150px;
+  width: 100%;
+  border-radius: 4px;
+}
+
+.c38 {
+  box-sizing: border-box;
+  min-width: 120px;
+  flex: 0 1 260px;
+}
+
+.c44 {
+  box-sizing: border-box;
+  margin-left: 4px;
+  margin-top: 16px;
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  margin-left: 16px;
+  width: 60px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c13:active {
+  opacity: 0.24;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c37 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c37:active {
+  opacity: 0.56;
+}
+
+.c37:hover,
+.c37:focus {
+  background: #651FFF;
+}
+
+.c37:active {
+  background: #354AA4;
+}
+
+.c37:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c19 {
+  display: inline-block;
+  transition: color .3s;
+  color: rgba(255,255,255,0.24);
+  font-size: 26px;
+}
+
+.c10 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c33 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: #ff9100;
+  color: #FFFFFF;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c43 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #ff9100;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c24 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 24px;
+  margin: 0px;
+}
+
+.c31 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c40 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-right: 8px;
+}
+
+.c42 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c45 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c0 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c2 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #2C3A73;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  display: flex;
+}
+
+.c3 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.c11 {
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap-reverse;
+}
+
+.c16 {
+  box-sizing: border-box;
+  padding-top: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.c20 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+}
+
+.c23 {
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background-color: #111B48;
+  display: flex;
+  align-items: baseline;
+}
+
+.c39 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid;
+  border-color: #1C254D;
+  display: flex;
+}
+
+.c41 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background-color: #1C254D;
+  border: 1px solid;
+  border-radius: 2px;
+  border-color: #222C59;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c34 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c34 .react-select__control,
+.c34 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c34 .react-select__control:hover,
+.c34 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c34 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c34 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c34 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c34 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c34 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c34 .react-select__indicator-separator {
+  display: none;
+}
+
+.c34 .react-select__loading-indicator {
+  display: none;
+}
+
+.c34 .react-select--is-disabled .react-select__single-value,
+.c34 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c34 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c27 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c27 > thead > tr > th,
+.c27 > tbody > tr > th,
+.c27 > tfoot > tr > th,
+.c27 > thead > tr > td,
+.c27 > tbody > tr > td,
+.c27 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c27 > thead > tr > th:first-child,
+.c27 > tbody > tr > th:first-child,
+.c27 > tfoot > tr > th:first-child,
+.c27 > thead > tr > td:first-child,
+.c27 > tbody > tr > td:first-child,
+.c27 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c27 > thead > tr > th:last-child,
+.c27 > tbody > tr > th:last-child,
+.c27 > tfoot > tr > th:last-child,
+.c27 > thead > tr > td:last-child,
+.c27 > tbody > tr > td:last-child,
+.c27 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c27 > tbody > tr > td {
+  vertical-align: baseline;
+}
+
+.c27 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c27 > thead > tr > th .c18 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c27 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c27 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c27 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c15 {
+  position: absolute;
+  height: calc(100% - 24px);
+  width: 2px;
+  top: 0;
+  left: 55px;
+  border-left: 2px solid #2C3A73;
+}
+
+.c28 {
+  width: 90%;
+}
+
+.c28 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c26 {
+  box-sizing: border-box;
+  padding-bottom: 16px;
+  padding-left: 16px;
+  padding-right: 0px;
+  padding-top: 0px;
+  background-color: #2C3A73;
+  margin: 0 auto;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+      width="100%"
+    >
+      <div
+        class="c2"
+      >
+        <div
+          class="c3"
+        >
+          <span
+            class="c4"
+            color="light"
+            font-size="0"
+            font-weight="bold"
+            kind="warning"
+            style="font-weight: bold;"
+          >
+            PENDING
+          </span>
+          <div
+            class="c5"
+          >
+            <div
+              class="c6"
+            >
+              <div
+                class="c7"
+                style="max-width: 120px;"
+                title="Sam"
+              >
+                Sam
+              </div>
+              <div
+                class="c8"
+                style="flex-shrink: 0; white-space: nowrap;"
+              >
+                is requesting roles:
+              </div>
+            </div>
+            <div
+              class="c9"
+            >
+              <div
+                class="c10"
+                kind="secondary"
+              >
+                test
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c11"
+        >
+          <div
+            class="c12"
+            style="white-space: nowrap;"
+          >
+            (expires in 
+            35 minutes
+            )
+          </div>
+          <button
+            class="c13"
+            kind="border"
+            width="60px"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      <div
+        class="c14"
+        style="position: relative;"
+      >
+        <div
+          class="c15"
+        />
+        <div
+          class="c16"
+          style="position: relative;"
+        >
+          <div
+            class="c17"
+            style="display: flex;"
+          >
+            <span
+              class="c18 c19 icon icon-chevron-down-circle "
+              color="text.placeholder"
+              font-size="8"
+            />
+          </div>
+          <div
+            class="c20"
+          >
+            <div
+              class="c21"
+              style="flex: 1 1 0px;"
+            >
+              Sam
+            </div>
+            <div
+              class="c12"
+            >
+              submitted
+               this request 
+              1 minute ago
+            </div>
+          </div>
+        </div>
+        <div
+          class="c22"
+          style="position: relative;"
+        >
+          <div
+            class="c23"
+          >
+            <div
+              class="c21"
+            >
+              Sam
+            </div>
+            <div
+              class="c24"
+            >
+              1 minute ago
+            </div>
+          </div>
+          <div
+            class="c25"
+          >
+            Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
+          </div>
+          <div
+            class="c26"
+          >
+            <table
+              class="c27 c28"
+            >
+              <thead>
+                <tr>
+                  <th
+                    style="cursor: default;"
+                  >
+                    Cluster Name
+                  </th>
+                  <th
+                    style="cursor: default;"
+                  >
+                    Requested Resource Kind
+                  </th>
+                  <th
+                    style="cursor: default;"
+                  >
+                    Requested Resource Name
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    cluster-name
+                  </td>
+                  <td>
+                    app
+                  </td>
+                  <td>
+                    app-name
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    cluster-name
+                  </td>
+                  <td>
+                    db
+                  </td>
+                  <td>
+                    db-name
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    cluster-name
+                  </td>
+                  <td>
+                    node
+                  </td>
+                  <td>
+                    node-name
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    cluster-name
+                  </td>
+                  <td>
+                    kube_cluster
+                  </td>
+                  <td>
+                    kube-cluster-name
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    cluster-name
+                  </td>
+                  <td>
+                    windows_desktop
+                  </td>
+                  <td>
+                    windows-desktop-name
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div
+          class="c29"
+          style="position: relative;"
+        >
+          <div
+            class="c30"
+          >
+            <div
+              class="c31"
+            >
+              loggedInUsername
+               - add a review
+            </div>
+          </div>
+          <div
+            class="c25"
+          >
+            <div
+              class="c32"
+              width="200px"
+            >
+              <label
+                class="c33"
+                font-size="0"
+              >
+                Request Status
+              </label>
+              <div
+                class="c34"
+              >
+                <div
+                  class="react-select-container css-2b097c-container"
+                >
+                  <div
+                    class="react-select__control css-yk16xz-control"
+                  >
+                    <div
+                      class="react-select__value-container css-g1d714-ValueContainer"
+                    >
+                      <div
+                        class="react-select__placeholder css-1wa3eu0-placeholder"
+                      >
+                        Choose status
+                      </div>
+                      <input
+                        aria-autocomplete="list"
+                        class="css-62g3xt-dummyInput"
+                        id="react-select-3-input"
+                        readonly=""
+                        tabindex="0"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                    >
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
+                        aria-hidden="true"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="c35"
+            >
+              <label
+                class="c33"
+                font-size="0"
+              >
+                Message
+              </label>
+              <textarea
+                class="c36"
+                height="150px"
+                placeholder="Optional message..."
+                style="outline: none; font-family: theme.font;"
+                width="100%"
+              />
+            </div>
+            <button
+              class="c37"
+              kind="primary"
+            >
+              Submit Review
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c38"
+    >
+      <div
+        class="c39"
+      >
+        <div
+          class="c40"
+        >
+          Reviewers
+        </div>
+      </div>
+      <div
+        class="c41"
+      >
+        <div
+          class="c42"
+          style="white-space: nowrap; max-width: 200px;"
+          title="alice"
+        >
+          alice
+        </div>
+        <span
+          class="c43"
+          color="light"
+          font-size="0"
+          font-weight="bold"
+          kind="warning"
+          style="min-height: 10px; min-width: 10px;"
+          width="10px"
+        />
+      </div>
+      <div
+        class="c41"
+      >
+        <div
+          class="c42"
+          style="white-space: nowrap; max-width: 200px;"
+          title="bob"
+        >
+          bob
+        </div>
+        <span
+          class="c43"
+          color="light"
+          font-size="0"
+          font-weight="bold"
+          kind="warning"
+          style="min-height: 10px; min-width: 10px;"
+          width="10px"
+        />
+      </div>
+      <div
+        class="c44"
+      >
+        <div
+          class="c45"
+          color="text.secondary"
+        >
+          Thresholds: 
+          Default, Poplar, Admin
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

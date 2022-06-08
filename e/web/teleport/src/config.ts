@@ -7,7 +7,7 @@ const cfg = {
 
   routes: {
     requests: '/web/requests/:requestId?',
-    requestNew: '/web/requests/new',
+    requestNew: '/web/cluster/:clusterId/requests/new',
 
     billing: '/web/billing',
     billingUsage: '/web/billing/usage',
@@ -30,6 +30,7 @@ const cfg = {
   api: {
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
     accessRequestFilterPath: '/v1/enterprise/accessrequest?user=:user?',
+
     authConnectorsListPath: '/v1/enterprise/authconnectors',
     samlConnectorsPath: '/v1/enterprise/saml/:name?',
     oidcConnectorsPath: '/v1/enterprise/oidc/:name?',
@@ -48,6 +49,10 @@ const cfg = {
 
   getAccessRequestRoute(requestId?: string) {
     return generatePath(cfg.routes.requests, { requestId });
+  },
+
+  getNewAccessRequestRoute(clusterId: string) {
+    return generatePath(cfg.routes.requestNew, { clusterId });
   },
 
   getAccessRequestUrl(requestId?: string) {
