@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -14,8 +15,14 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Create client and connect to MongoDB.
-	client, err := mongo.NewClient(options.Client().ApplyURI("<MONGODB_URI>"))
+	// Create client and connect to MongoDB. Make sure to modify the host,
+	// port, and certificate paths.
+	uri := fmt.Sprintf(
+		"mongodb://localhost:1234/?tlsCAFile=%s&tlsCertificateKeyFile=%s",
+		"/opt/machine-id/mongo.cas",
+		"/opt/machine-id/mongo.crt",
+	)
+	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
 		log.Fatalf("Failed to create database client: %v.", err)
 	}
