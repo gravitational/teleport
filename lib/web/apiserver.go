@@ -1064,15 +1064,14 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
-		services.OIDCAuthRequest{
-			CSRFToken:         req.csrfToken,
-			ConnectorID:       req.connectorID,
-			CreateWebSession:  true,
-			ClientRedirectURL: req.clientRedirectURL,
-			CheckUser:         true,
-			ProxyAddress:      r.Host,
-		})
+	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
+		CSRFToken:         req.csrfToken,
+		ConnectorID:       req.connectorID,
+		CreateWebSession:  true,
+		ClientRedirectURL: req.clientRedirectURL,
+		CheckUser:         true,
+		ProxyAddress:      r.Host,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
 		return client.LoginFailedRedirectURL
@@ -1091,13 +1090,12 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
-		services.GithubAuthRequest{
-			CSRFToken:         req.csrfToken,
-			ConnectorID:       req.connectorID,
-			CreateWebSession:  true,
-			ClientRedirectURL: req.clientRedirectURL,
-		})
+	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
+		CSRFToken:         req.csrfToken,
+		ConnectorID:       req.connectorID,
+		CreateWebSession:  true,
+		ClientRedirectURL: req.clientRedirectURL,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
 		return client.LoginFailedRedirectURL
@@ -1122,16 +1120,15 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
-	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
-		services.GithubAuthRequest{
-			ConnectorID:       req.ConnectorID,
-			PublicKey:         req.PublicKey,
-			CertTTL:           req.CertTTL,
-			ClientRedirectURL: req.RedirectURL,
-			Compatibility:     req.Compatibility,
-			RouteToCluster:    req.RouteToCluster,
-			KubernetesCluster: req.KubernetesCluster,
-		})
+	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		PublicKey:         req.PublicKey,
+		CertTTL:           types.Duration(req.CertTTL),
+		ClientRedirectURL: req.RedirectURL,
+		Compatibility:     req.Compatibility,
+		RouteToCluster:    req.RouteToCluster,
+		KubernetesCluster: req.KubernetesCluster,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
@@ -1223,18 +1220,17 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
-		services.OIDCAuthRequest{
-			ConnectorID:       req.ConnectorID,
-			ClientRedirectURL: req.RedirectURL,
-			PublicKey:         req.PublicKey,
-			CertTTL:           req.CertTTL,
-			CheckUser:         true,
-			Compatibility:     req.Compatibility,
-			RouteToCluster:    req.RouteToCluster,
-			KubernetesCluster: req.KubernetesCluster,
-			ProxyAddress:      r.Host,
-		})
+	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		ClientRedirectURL: req.RedirectURL,
+		PublicKey:         req.PublicKey,
+		CertTTL:           types.Duration(req.CertTTL),
+		CheckUser:         true,
+		Compatibility:     req.Compatibility,
+		RouteToCluster:    req.RouteToCluster,
+		KubernetesCluster: req.KubernetesCluster,
+		ProxyAddress:      r.Host,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)

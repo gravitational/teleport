@@ -84,6 +84,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
+	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -366,11 +367,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
 	case exec.FullCommand():
-		err = onExec()
+		srv.RunAndExit(teleport.ExecSubCommand)
 	case forward.FullCommand():
-		err = onForward()
+		srv.RunAndExit(teleport.ForwardSubCommand)
 	case checkHomeDir.FullCommand():
-		err = onCheckHome()
+		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
+	case park.FullCommand():
+		srv.RunAndExit(teleport.ParkSubCommand)
 	case ver.FullCommand():
 		utils.PrintVersion()
 	case dbConfigureCreate.FullCommand():
@@ -631,28 +634,6 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	}
 
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
-}
-
-// onExec is a subcommand used to re-execute Teleport for execution. Used for
-// "exec" or "shell" requests over a "session" channel on Teleport nodes.
-func onExec() error {
-	srv.RunAndExit(teleport.ExecSubCommand)
-	return nil
-}
-
-// onForward is a subcommand used to re-execute Teleport for port forwarding.
-// Used with "direct-tcpip" channel on Teleport nodes.
-func onForward() error {
-	srv.RunAndExit(teleport.ForwardSubCommand)
-	return nil
-}
-
-// onCheckHome is a subcommand used to re-execute Teleport to check for the
-// existence of the user's home dir. This is needed in cases where the user's
-// home dir isn't visible to the parent process's user.
-func onCheckHome() error {
-	srv.RunAndExit(teleport.CheckHomeDirSubCommand)
-	return nil
 }
 
 type StdReadWriter struct {
