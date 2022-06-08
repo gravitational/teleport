@@ -834,9 +834,15 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) error
 	_, err = b.svc.PutItemWithContext(ctx, &input)
 	err = convertError(err)
 	if err != nil {
+		// The conditional expression will fail for items that already exist.
+		// This is not an issue.
+		if mode == modeCreate && trace.IsCompareFailed(err) {
+			b.Debugf("Attempted to create a pre-existing key %q", item.Key)
+			return nil
+		}
 		log.Infof("GH1720: Create input: %v", input)
 		log.Infof("GH1720: Create Error: %v", err)
-    log.Infof("GH1720: Create item: %v", item)
+		log.Infof("GH1720: Create item: %v", item)
 		return trace.Wrap(err)
 	}
 	return nil
