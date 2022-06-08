@@ -522,18 +522,6 @@ func UintSliceSubset(a []uint16, b []uint16) error {
 	return nil
 }
 
-// ChooseRandomString returns a random string from the given slice.
-func ChooseRandomString(slice []string) string {
-	switch len(slice) {
-	case 0:
-		return ""
-	case 1:
-		return slice[0]
-	default:
-		return slice[rand.Intn(len(slice))]
-	}
-}
-
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
 func RemoveFromSlice(slice []string, values ...string) []string {
 	output := make([]string, 0, len(slice))
@@ -552,6 +540,17 @@ func RemoveFromSlice(slice []string, values ...string) []string {
 	}
 
 	return output
+}
+
+// ChooseRandomString returns a random string from the given slice.
+func ChooseRandomString(slice []string) string {
+	if len(slice) == 0 {
+		return ""
+	}
+	if len(slice) == 1 {
+		return slice[0]
+	}
+	return slice[rand.Intn(len(slice))]
 }
 
 // CheckCertificateFormatFlag checks if the certificate format is valid.
