@@ -655,10 +655,9 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	tlsRoutingEnabled := false
 
 	ping, err := webclient.Find(&webclient.Config{
-		Context:         ctx,
-		ProxyAddr:       addr.Addr,
-		Insecure:        lib.IsInsecureDevMode(),
-		IgnoreHTTPProxy: true,
+		Context:   ctx,
+		ProxyAddr: addr.Addr,
+		Insecure:  lib.IsInsecureDevMode(),
 	})
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel

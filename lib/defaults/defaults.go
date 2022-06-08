@@ -438,9 +438,6 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued certificate
-	MinCertDuration = time.Minute
-
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
