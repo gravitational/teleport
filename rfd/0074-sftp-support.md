@@ -5,6 +5,11 @@ state: draft
 
 # RFD 74 - SFTP Support
 
+## Required Approvers
+
+- Engineering: `@r0mant && @jakule`
+- Product: `@klizhentas || @xinding33f`
+
 ## What
 
 Add SFTP support to `tsh` and Teleport Node and Proxy services. This will
@@ -34,15 +39,34 @@ When an SFTP request is first received on an SSH connection, the Teleport daemon
 will be re-executed as the logon user of the SSH connection. This will require
 adding a hidden `sftp` sub command to the `teleport` binary. The parent process will
 create 2 anonymous pipes and pass them to the child (`teleport sftp`) so the child
-can access the SFTP connection.
+can access the SFTP connection. The `enable_file_copying` option will be added to
+the `ssh_server` yaml config to control whether scp and sftp will be enabled or not
+for per node.
 
 The second stage will be adding SFTP protocol support to `tsh scp` sub command, and
 ensuring SFTP trasfers work on the web UI. `tsh scp` will continue to use the scp/rcp
-protocol by default, but the SFTP protocol can be optionally enabled with a flag.
+protocol by default for backwards compatibility, but the SFTP protocol can be
+optionally enabled with the `-s` flag.
 
-The third and final stage will be making the SFTP protcol be used by default for
-`tsh scp`, and adding a flag to optionally using the scp/rcp protocol instead
-for backwards compatibility.
+The third and final stage will be making the SFTP protocol be used by default for
+`tsh scp`, and adding the `-O` flag to allow optional usage of thee scp/rcp protocol
+for backwards compatibility. This stage will take place in a future major release
+(11?) and will be documented as a potentially breaking change.
+
+Both the `-s` and `-O` flags are what OpenSSH uses to allow the user to choose
+what protocol to use, and the deprecation process of making SFTP optional then
+default is what OpenSSH did as well.
+
+A potential fourth stage would be adding the `tsh sftp` sub command which would
+be very similar in behavior to OpenSSH's `sftp` command. This will only be done
+if users express a need for it.
+
+#### Roles
+
+A role option `allow_file_copying` will be added that will define if file
+copying via scp/rcp or sftp protocols will be allowed. If a user has multiple
+roles that have different values for `allow_file_copying`, then file copying
+will be disabled (the most restrictive option).
 
 ### Security
 
@@ -53,9 +77,6 @@ processes with attacker-controlled arguments like the scp/rcp protocol does.
 As mentioned above, Teleport Node services will re-execute themselves as the
 SSH login user to handle SFTP connections. This will ensure users can only
 access and modify files they are allowed to.
-
-Two role options will be added to control whether users can use scp and/or
-SFTP.
 
 ### UX
 
@@ -74,8 +95,10 @@ SFTP due to role constraints.
 Examples of `tsh scp` with SFTP enabled:
 
 ```bash
-tsh sftp ~/Downloads/notes.txt user@cluster.host:/home/user/Documents
-tsh sftp user@cluster.host:/home/user/Documents/notes.txt ~/Downloads/notes.txt
+# explicitly use sftp protocol
+tsh scp -s ~/Downloads/notes.txt user@cluster.host:/home/user/Documents
+# explicitly use scp/rcp protocol
+tsh scp -O user@cluster.host:/home/user/Documents/notes.txt ~/Downloads/notes.txt
 ```
 
 ### Future Work
