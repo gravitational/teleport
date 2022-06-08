@@ -951,7 +951,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
-	SetTestTimeouts(100 * time.Millisecond)
 	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
