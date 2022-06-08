@@ -26,6 +26,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	log "github.com/sirupsen/logrus"
 )
 
 // Label describes label for webapp
@@ -118,7 +119,11 @@ func getServerLogins(server types.Server, roleSet services.RoleSet) []string {
 
 		// add only logins related to that server
 		isAllowed, _, err := services.MatchLabels(role.GetNodeLabels(types.Allow), server.GetAllLabels())
-		if !isAllowed || err != nil {
+		if err != nil {
+			log.Warnf("err matching allow labels for roles %+v: %s", server.GetAllLabels(), err.Error())
+			continue
+		}
+		if !isAllowed {
 			continue
 		}
 
