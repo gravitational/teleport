@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,32 +41,32 @@ func TestGetProxyAddress(t *testing.T) {
 	}{
 		{
 			info:       "valid, can be raw host:port",
-			env:        []env{{name: "http_proxy", val: "proxy:1234"}},
+			env:        []env{{name: "http_proxy", val: "%vproxy:1234"}},
 			proxyAddr:  "proxy:1234",
 			targetAddr: "192.168.1.1:3030",
 		},
 		{
 			info:       "valid, raw host:port works for https",
-			env:        []env{{name: "HTTPS_PROXY", val: "proxy:1234"}},
+			env:        []env{{name: "HTTPS_PROXY", val: "%vproxy:1234"}},
 			proxyAddr:  "proxy:1234",
 			targetAddr: "192.168.1.1:3030",
 		},
 		{
 			info:       "valid, correct full url",
-			env:        []env{{name: "https_proxy", val: "https://proxy:1234"}},
+			env:        []env{{name: "https_proxy", val: "https://%vproxy:1234"}},
 			proxyAddr:  "proxy:1234",
 			targetAddr: "192.168.1.1:3030",
 		},
 		{
 			info:       "valid, http endpoint can be set in https_proxy",
-			env:        []env{{name: "https_proxy", val: "http://proxy:1234"}},
+			env:        []env{{name: "https_proxy", val: "http://%vproxy:1234"}},
 			proxyAddr:  "proxy:1234",
 			targetAddr: "192.168.1.1:3030",
 		},
 		{
 			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches domain",
 			env: []env{
-				{name: "https_proxy", val: "http://proxy:1234"},
+				{name: "https_proxy", val: "http://%vproxy:1234"},
 				{name: "no_proxy", val: "proxy"}},
 			proxyAddr:  "",
 			targetAddr: "proxy:1234",
@@ -73,7 +74,7 @@ func TestGetProxyAddress(t *testing.T) {
 		{
 			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches ip",
 			env: []env{
-				{name: "https_proxy", val: "http://proxy:1234"},
+				{name: "https_proxy", val: "http://%vproxy:1234"},
 				{name: "no_proxy", val: "192.168.1.1"}},
 			proxyAddr:  "",
 			targetAddr: "192.168.1.1:1234",
@@ -81,7 +82,7 @@ func TestGetProxyAddress(t *testing.T) {
 		{
 			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches subdomain",
 			env: []env{
-				{name: "https_proxy", val: "http://proxy:1234"},
+				{name: "https_proxy", val: "http://%vproxy:1234"},
 				{name: "no_proxy", val: ".example.com"}},
 			proxyAddr:  "",
 			targetAddr: "bla.example.com:1234",
@@ -89,7 +90,7 @@ func TestGetProxyAddress(t *testing.T) {
 		{
 			info: "valid, no_proxy blocks matching port",
 			env: []env{
-				{name: "https_proxy", val: "proxy:9999"},
+				{name: "https_proxy", val: "%vproxy:9999"},
 				{name: "no_proxy", val: "example.com:1234"},
 			},
 			proxyAddr:  "",
@@ -98,7 +99,7 @@ func TestGetProxyAddress(t *testing.T) {
 		{
 			info: "valid, no_proxy matches host but not port",
 			env: []env{
-				{name: "https_proxy", val: "proxy:9999"},
+				{name: "https_proxy", val: "%vproxy:9999"},
 				{name: "no_proxy", val: "example.com:1234"},
 			},
 			proxyAddr:  "proxy:9999",
@@ -109,7 +110,11 @@ func TestGetProxyAddress(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("%v: %v", i, tt.info), func(t *testing.T) {
 			for _, env := range tt.env {
-				t.Setenv(env.name, env.val)
+				if strings.EqualFold(env.name, "http_proxy") || strings.EqualFold(env.name, "https_proxy") {
+					t.Setenv(env.name, fmt.Sprintf(env.val, "")) // test without user:pass@addr form
+				} else {
+					t.Setenv(env.name, env.val)
+				}
 			}
 			p := GetProxyURL(tt.targetAddr)
 			if tt.proxyAddr == "" {
@@ -117,6 +122,30 @@ func TestGetProxyAddress(t *testing.T) {
 			} else {
 				require.NotNil(t, p)
 				require.Equal(t, tt.proxyAddr, p.Host)
+				require.Nil(t, p.User)
+			}
+
+			// now reconstruct the env var with user:pass@host, set the env again, and test parsing that
+			expectedUser := "alice"
+			expectedPassword := "password"
+			creds := fmt.Sprintf("%v:%v@", expectedUser, expectedPassword)
+			for _, env := range tt.env {
+				if strings.EqualFold(env.name, "http_proxy") || strings.EqualFold(env.name, "https_proxy") {
+					t.Setenv(env.name, fmt.Sprintf(env.val, creds)) // test with user:pass@ injected into addr
+				} else {
+					t.Setenv(env.name, env.val)
+				}
+				p := GetProxyURL(tt.targetAddr)
+				if tt.proxyAddr == "" {
+					require.Nil(t, p)
+				} else {
+					require.NotNil(t, p)
+					require.Equal(t, tt.proxyAddr, p.Host)
+					require.NotNil(t, p.User)
+					require.Equal(t, expectedUser, p.User.Username())
+					password, _ := p.User.Password()
+					require.Equal(t, expectedPassword, password)
+				}
 			}
 		})
 	}
