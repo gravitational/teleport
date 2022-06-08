@@ -188,13 +188,17 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -222,13 +226,17 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -291,15 +299,19 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(17 * time.Minute),
 						DisconnectExpiredCert:   types.NewBool(true),
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -377,16 +389,20 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						ForwardAgent:            types.NewBool(true),
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						ForwardAgent:      types.NewBool(true),
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(0),
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -451,16 +467,20 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						ForwardAgent:            types.NewBool(true),
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						ForwardAgent:      types.NewBool(true),
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(0),
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
@@ -4179,6 +4199,288 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 
 			require.ElementsMatch(t, tc.wantUsers, gotUsers)
 			require.ElementsMatch(t, tc.wantGroups, gotGroups)
+		})
+	}
+}
+
+func TestSessionRecordingMode(t *testing.T) {
+	tests := map[string]struct {
+		service      constants.SessionRecordingService
+		expectedMode constants.SessionRecordingMode
+		rolesOptions []types.RoleOptions
+	}{
+		"service-specific option": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+		"service-specific multiple roles": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+		"strict service-specific multiple roles": {
+			expectedMode: constants.SessionRecordingModeStrict,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeStrict}},
+			},
+		},
+		"strict default multiple roles": {
+			expectedMode: constants.SessionRecordingModeStrict,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+			},
+		},
+		"default multiple roles": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			roles := make([]types.Role, len(test.rolesOptions))
+			for i := range roles {
+				roles[i] = &types.RoleV5{
+					Spec: types.RoleSpecV5{Options: test.rolesOptions[i]},
+				}
+			}
+
+			roleSet := RoleSet(roles)
+			require.Equal(t, test.expectedMode, roleSet.SessionRecordingMode(test.service))
+		})
+	}
+}
+
+func TestHostUsers_getGroups(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		test   string
+		groups []string
+		roles  RoleSet
+		server types.Server
+	}{
+		{
+			test:   "test exact match, one group, one role",
+			groups: []string{"group"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostGroups: []string{"group"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:   "test deny on group entry",
+			groups: []string{"group"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostGroups: []string{"group", "groupdel"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Deny: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostGroups: []string{"groupdel"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:   "multiple roles, one no match",
+			groups: []string{"group1", "group2"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostGroups: []string{"group1"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						HostGroups: []string{"group2"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"fail": []string{"abc"}},
+						HostGroups: []string{"notpresentgroup"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.test, func(t *testing.T) {
+			info, err := tc.roles.HostUsers(tc.server)
+			require.NoError(t, err)
+			require.Equal(t, tc.groups, info.Groups)
+		})
+	}
+}
+
+func TestHostUsers_CanCreateHostUser(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		test      string
+		canCreate bool
+		roles     RoleSet
+		server    types.Server
+	}{
+		{
+			test:      "test exact match, one role, can create",
+			canCreate: true,
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:      "test two roles, 1 exact match, one can create",
+			canCreate: false,
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(false),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:      "test three roles, 2 exact match, both can create",
+			canCreate: true,
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(false),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"unmatched": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.test, func(t *testing.T) {
+			info, err := tc.roles.HostUsers(tc.server)
+			require.Equal(t, tc.canCreate, err == nil && info != nil)
 		})
 	}
 }

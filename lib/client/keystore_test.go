@@ -255,7 +255,6 @@ func TestProxySSHConfig(t *testing.T) {
 
 	hostCert, err := s.keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: hostPub,
 		HostID:        "127.0.0.1",
 		NodeName:      "127.0.0.1",
@@ -465,7 +464,6 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 
 	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              idx.Username,
 		AllowedLogins:         allowedLogins,
