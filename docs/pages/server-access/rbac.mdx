@@ -1,0 +1,147 @@
+---
+title: Server Access Controls
+description: Role-based access control (RBAC) for Teleport Server Access.
+---
+
+# Server Access Role-Based Access Control
+
+Role-based access control (or RBAC, for short) allows administrators to set up
+granular access policies for servers connected to Teleport.
+
+An example of a policy could be, *"server administrators have access to
+everything, QA team and engineers have full access to staging servers, and
+engineers can gain temporary access to the production server in case of
+emergency"*.
+
+For a more general description of Teleport roles and examples see [RBAC](../access-controls/introduction.mdx), as
+this section focuses on configuring RBAC for Server Access.
+
+## Role configuration
+
+Teleport's "role" resource provides the following instruments for restricting
+server access:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: developer
+spec:
+  # SSH options used for user sessions
+  options:
+    # max_session_ttl defines the TTL (time to live) of SSH certificates
+    # issued to the users with this role.
+    max_session_ttl: 30h0m0s
+    # forward_agent controls whether SSH agent forwarding is allowed
+    forward_agent: true
+
+    # port_forwarding controls whether TCP port forwarding is allowed
+    port_forwarding: true
+
+  allow:
+    # Label selectors for server instances this role has access to.
+    #
+    # These will be matched against the static/dynamic labels set on the
+    # ssh service.
+    node_labels:
+      environment: ["dev", "stage"]
+
+    # logins array defines the OS logins a user is allowed to use.
+    # A few special variables are supported here (see below)
+    logins: ["ubuntu", "debian"]
+
+  deny:
+    logins: ["root"]
+```
+
+<Admonition
+  type="note"
+  title="Deny Rules"
+>
+  Deny rules will match greedily. In the example above, any attempt to use `root`
+  even if specified in another role is denied.
+</Admonition>
+
+
+## Template variables
+
+Similar to other role fields, server fields support templating variables.
+
+The `{{external.xyz}}` variables are replaced with values from external [SSO](../enterprise/sso.mdx)
+providers. For OIDC, they will be expanded with a value of an "xyz" claim; for
+SAML — with an "xyz" assertion value.
+
+For example, here is what a role may look like if you want to assign allowed
+logins from the user's Okta `serverusers` and matching node environment values
+from `environments` assertion:
+
+```yaml
+spec:
+  allow:
+    logins: ["{{external.serverusers}}"]
+    node_labels:
+      environment: ["{{external.environments}}"]
+```
+
+The `{{internal.logins}}` variable subsitutes at the root cluster and permits sharing
+allowed logins with leaf clusters. They will be replaced
+with the respective properties of a remote user connecting from a root cluster.
+
+For example, suppose a user in the root cluster has the following role:
+
+```yaml
+spec:
+  allow:
+    logins: ["ec2-user"]
+```
+
+The role on the leaf cluster can be set up to use the user's allowed logins:
+
+```yaml
+spec:
+  allow:
+    logins: ["{{internal.logins}}"]
+```
+
+## Optional Settings
+
+Here are additional Server Access Role options that can apply
+
+
+```yaml
+spec:
+  options:
+    # port_forwarding controls whether TCP port forwarding is allowed
+    port_forwarding: true
+
+    # client_idle_timeout determines if SSH sessions to cluster nodes are forcefully
+    # terminated after no activity from a client (idle client). it overrides the
+    # global cluster setting. examples: "30m", "1h" or "1h30m"
+    client_idle_timeout: never
+
+    # Determines if the clients will be forcefully disconnected when their
+    # certificates expire in the middle of an active SSH session.
+    # It overrides the global cluster setting.
+    disconnect_expired_cert: no
+
+    # Optional: max_connections Per-user limit of concurrent sessions within a
+    # cluster.
+    max_connections: 2
+
+    # Optional: max_sessions total number of session channels that can be established
+    # across a single connection. 10 will match OpenSSH default behavior.
+    max_sessions: 10
+
+    # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
+    permit_x11_forwarding: true
+
+    # Specify a list of names and associated values to be included in user SSH keys.
+    # The key type can only be "ssh" and the mode can only be "extension".
+    # The name and value fields can be arbitrary strings and the value field
+    # supports variable interpolation.
+    cert_extensions:
+     - type: ssh
+       mode: extension
+       name: login@github.com
+       value: "{{ external.github_login }}"
+```

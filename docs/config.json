@@ -345,6 +345,10 @@
               "slug": "/server-access/guides/vscode/"
             }
           ]
+        },
+        {
+          "title": "Access Controls",
+          "slug": "/server-access/rbac/"
         }
       ]
     },
