@@ -240,7 +240,7 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	site := teleport.GetSiteAPI(Site)
 	require.NotNil(t, site)
 
-	for _, ip := range []string{"1.2.3.4/32", "1843:4545::12/256"} {
+	for _, ip := range []string{"1.2.3.4/32", "1843:4545::12/128"} {
 		cl, err := teleport.NewClient(ClientConfig{
 			Login:    suite.me.Username,
 			Cluster:  Site,
