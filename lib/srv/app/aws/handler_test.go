@@ -163,12 +163,22 @@ func staticAWSCredentials(client.ConfigProvider, *tlsca.Identity) *credentials.C
 
 type suite struct {
 	server   *httptest.Server
-	identity tlsca.Identity
+	identity *tlsca.Identity
 	app      types.Application
 	emitter  *eventstest.ChannelEmitter
 }
 
 func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
+	emitter := eventstest.NewChannelEmitter(1)
+	user := auth.LocalUser{Username: "user"}
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "awsconsole",
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "test.local",
+	})
+	require.NoError(t, err)
+
 	awsAPIMock := httptest.NewUnstartedServer(handler)
 	awsAPIMock.StartTLS()
 	t.Cleanup(func() {
@@ -186,21 +196,6 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
 		},
 	}
 
-	user := auth.LocalUser{Username: "user"}
-	app, err := types.NewAppV3(types.Metadata{
-		Name: "awsconsole",
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL,
-		PublicAddr: "test.local",
-	})
-	require.NoError(t, err)
-
-	s := &suite{
-		identity: user.Identity,
-		app:      app,
-		emitter:  eventstest.NewChannelEmitter(1),
-	}
-
 	svc, err := NewSigningService(SigningServiceConfig{
 		getSigningCredentials: staticAWSCredentials,
 		Client:                client,
@@ -211,18 +206,23 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		request = common.WithSessionContext(request, &common.SessionContext{
-			Identity: &s.identity,
+			Identity: &user.Identity,
 			App:      app,
-			Emitter:  s.emitter,
+			Emitter:  emitter,
 		})
 
 		svc.ServeHTTP(writer, request)
 	})
 
-	s.server = httptest.NewServer(mux)
+	server := httptest.NewServer(mux)
 	t.Cleanup(func() {
-		s.server.Close()
+		server.Close()
 	})
 
-	return s
+	return &suite{
+		identity: &user.Identity,
+		app:      app,
+		emitter:  emitter,
+		server:   server,
+	}
 }

@@ -162,12 +162,8 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// emitAuditEvent writes the request and response to audit stream.
+// emitAuditEvent writes details of the AWS request to audit stream.
 func (s *SigningService) emitAuditEvent(ctx context.Context, req *http.Request, resp *http.Response, sessionCtx *common.SessionContext, endpoint *endpoints.ResolvedEndpoint) error {
-	if sessionCtx.Emitter == nil {
-		return trace.BadParameter("missing audit emitter")
-	}
-
 	event := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
 			Type: events.AppSessionRequestEvent,

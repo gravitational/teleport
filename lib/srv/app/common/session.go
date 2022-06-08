@@ -20,10 +20,11 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 // SessionContext contains common context parameters for an App session.
@@ -37,22 +38,22 @@ type SessionContext struct {
 }
 
 // WithSessionContext adds session context to provided request.
-func WithSessionContext(r *http.Request, requestCtx *SessionContext) *http.Request {
+func WithSessionContext(r *http.Request, sessionCtx *SessionContext) *http.Request {
 	return r.WithContext(context.WithValue(
 		r.Context(),
 		contextKeySessionContext,
-		requestCtx,
+		sessionCtx,
 	))
 }
 
 // GetSessionContext retrieves the session context from a request.
 func GetSessionContext(r *http.Request) (*SessionContext, error) {
-	requestCtxValue := r.Context().Value(contextKeySessionContext)
-	requestCtx, ok := requestCtxValue.(*SessionContext)
+	sessionCtxValue := r.Context().Value(contextKeySessionContext)
+	sessionCtx, ok := sessionCtxValue.(*SessionContext)
 	if !ok {
 		return nil, trace.BadParameter("failed to get session context")
 	}
-	return requestCtx, nil
+	return sessionCtx, nil
 }
 
 type contextKey string
