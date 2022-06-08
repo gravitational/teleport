@@ -1,3 +1,6 @@
+// This example program demonstrates how to connect to a MongoDB database
+// using certificates issued by Teleport Machine ID.
+
 package main
 
 import (
@@ -30,7 +33,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v.", err)
 	}
-	
+
 	defer client.Disconnect(ctx)
 
 	log.Printf("Successfully connected to MongoDB.")
