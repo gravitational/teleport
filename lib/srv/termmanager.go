@@ -243,8 +243,13 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				}
 			}
 
-			g.incoming <- buf[:n]
 			g.mu.Lock()
+
+			if g.on {
+				g.mu.Unlock()
+				g.incoming <- buf[:n]
+				g.mu.Lock()
+			}
 			if g.isClosed() || g.readerState[name] {
 				g.mu.Unlock()
 				return
