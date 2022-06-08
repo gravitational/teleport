@@ -465,7 +465,11 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 
 	sourceIP := ""
 	if checker.PinSourceIP() {
-		host, err := utils.Host(req.ClientMetadata.RemoteAddr)
+		md := req.ClientMetadata
+		if md == nil {
+			return nil, trace.Errorf("source IP pinning is enabled but client metadata is nil")
+		}
+		host, err := utils.Host(md.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
