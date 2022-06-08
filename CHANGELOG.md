@@ -1,5 +1,25 @@
 # Changelog
 
+## 7.3.23
+
+This release of Teleport contains multiple security and bug fixes.
+
+## Escalation attack in agent forwarding
+
+When setting up agent forwarding on the node, Teleport did not handle unix socket creation in a secure manner.
+
+This could have given a potential attacker an opportunity to get Teleport to change arbitrary file permissions to the attacker’s user.
+
+## Websockets CSRF
+
+When handling websocket requests, Teleport did not verify that the provided Bearer token was generated for the correct user.
+
+This could have allowed a malicious low privileged Teleport user to use a social engineering attack to gain higher privileged access on the same Teleport cluster.
+
+## Other fixes
+
+* Fixed issue with `tsh ssh` printing extra error upon exit when last command was unsuccessful. [#12902](https://github.com/gravitational/teleport/pull/12902)
+
 ## 7.3.21
 
 This release of Teleport contains multiple bug fixes and stability improvements.
