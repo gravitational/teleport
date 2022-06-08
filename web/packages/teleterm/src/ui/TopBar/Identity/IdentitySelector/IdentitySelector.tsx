@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { UserIcon } from './UserIcon';
 import { PamIcon } from './PamIcon';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
+import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 interface IdentitySelectorProps {
   isOpened: boolean;
@@ -20,7 +21,7 @@ export const IdentitySelector = forwardRef<
 >((props, ref) => {
   const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
   const isSelected = props.userName && props.clusterName;
-  const selectorText = isSelected && `${props.userName}@${props.clusterName}`;
+  const selectorText = isSelected && getUserWithClusterName(props);
   const Icon = props.isOpened ? SortAsc : SortDesc;
 
   return (

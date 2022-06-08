@@ -4,6 +4,7 @@ import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArro
 import { ButtonIcon, Flex, Label, Text } from 'design';
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 import { ExitRight } from 'design/Icon';
+import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 interface IdentityListItemProps {
   index: number;
@@ -24,9 +25,7 @@ export function IdentityListItem(props: IdentityListItemProps) {
     onRun: props.onSelect,
   });
 
-  const title = props.userName
-    ? `${props.userName}@${props.clusterName}`
-    : props.clusterName;
+  const userWithClusterName = getUserWithClusterName(props);
 
   return (
     <ListItem
@@ -45,8 +44,8 @@ export function IdentityListItem(props: IdentityListItemProps) {
     >
       <Flex justifyContent="space-between" alignItems="center" width="100%">
         {props.isSyncing && <LinearProgress />}
-        <Text typography="body1" title={title}>
-          {title}
+        <Text typography="body1" title={userWithClusterName}>
+          {userWithClusterName}
         </Text>
         <Flex alignItems="center">
           {props.isSelected ? (
