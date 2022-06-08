@@ -126,6 +126,8 @@ type AgentPoolConfig struct {
 	// This means the tunnel strategy should be ignored and tls routing is determined
 	// by the remote cluster.
 	IsRemoteCluster bool
+	// DisableCreateHostUser disables host user creation on a node.
+	DisableCreateHostUser bool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
