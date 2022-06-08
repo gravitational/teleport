@@ -719,6 +719,10 @@
               "slug": "/access-controls/guides/locking/"
             },
             {
+              "title": "Passwordless",
+              "slug": "/access-controls/guides/passwordless/"
+            },
+            {
               "title": "Second Factor - WebAuthn",
               "slug": "/access-controls/guides/webauthn/"
             },
