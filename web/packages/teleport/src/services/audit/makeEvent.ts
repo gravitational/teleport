@@ -41,6 +41,12 @@ export const formatters: Formatters = {
     desc: 'Access Request Deleted',
     format: ({ id }) => `Access request [${id}] has been deleted`,
   },
+  [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: {
+    type: 'access_request.search',
+    desc: 'Resource Access Request Search',
+    format: ({ user, resource_type, search_as_roles }) =>
+      `User [${user}] searched for resource type [${resource_type}] with role(s) [${search_as_roles}]`,
+  },
   [eventCodes.SESSION_COMMAND]: {
     type: 'session.command',
     desc: 'Session Command',
@@ -313,7 +319,8 @@ export const formatters: Formatters = {
   [eventCodes.USER_SSO_TEST_FLOW_LOGIN]: {
     type: 'user.login',
     desc: 'SSO Test Flow Login',
-    format: ({ user }) => `SSO Test Flow: user [${user}] successfully logged in`,
+    format: ({ user }) =>
+      `SSO Test Flow: user [${user}] successfully logged in`,
   },
   [eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE]: {
     type: 'user.login',
@@ -544,7 +551,7 @@ export const formatters: Formatters = {
   [eventCodes.SQLSERVER_RPC_REQUEST]: {
     type: 'db.session.sqlserver.rpc_request""',
     desc: 'SQLServer RPC Request',
-    format: ({ user, db_service, db_name, proc_name}) =>
+    format: ({ user, db_service, db_name, proc_name }) =>
       `User [${user}] has send RPC Request [${proc_name}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MFA_DEVICE_ADD]: {

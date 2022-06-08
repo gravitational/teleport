@@ -30,20 +30,21 @@ export const eventGroupTypes = {
  * eventCodes is a map of event codes.
  *
  * After defining an event code:
- *  1: Define fields from JSON response in `RawEvents` object
- *  2: Define formatter in `makeEvent` file which defines *events types and
+ *  1: Define fields from JSON response in `RawEvents` object (in this file)
+ *  2: Define formatter in `makeEvent.ts` file which defines *events types and
  *     defines short and long event definitions
  *  * Some events can have same event "type" but have unique "code".
  *    These duplicated event types needs to be defined in `eventGroupTypes` object
- *  3: Define icons for events under `EventTypeCell` file
- *  4: Add an actual JSON event to the fixtures file in `src/Audit` directory to
- *     be used for display and test in storybook.
+ *  3: Define icons for events under `EventTypeCell.tsx` file
+ *  4: Add an actual JSON event to the fixtures file in `src/Audit/fixtures/index.ts`.
+ *  5: Check fixture is rendered in storybook, then update snapshot for `Audit.story.test.tsx`
  */
 export const eventCodes = {
   ACCESS_REQUEST_CREATED: 'T5000I',
   ACCESS_REQUEST_REVIEWED: 'T5002I',
   ACCESS_REQUEST_UPDATED: 'T5001I',
   ACCESS_REQUEST_DELETED: 'T5003I',
+  ACCESS_REQUEST_RESOURCE_SEARCH: 'T5004I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
   AUTH_ATTEMPT_FAILURE: 'T3007W',
@@ -80,7 +81,7 @@ export const eventCodes = {
   MYSQL_PROCESS_KILL: 'TMY11I',
   MYSQL_DEBUG: 'TMY12I',
   MYSQL_REFRESH: 'TMY13I',
-  SQLSERVER_RPC_REQUEST:  "TMS00I",
+  SQLSERVER_RPC_REQUEST: 'TMS00I',
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
   DESKTOP_SESSION_ENDED: 'TDP01I',
@@ -162,6 +163,10 @@ export type RawEvents = {
   >;
   [eventCodes.ACCESS_REQUEST_DELETED]: RawEventAccess<
     typeof eventCodes.ACCESS_REQUEST_DELETED
+  >;
+  [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: RawEvent<
+    typeof eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH,
+    { resource_type: string; search_as_roles: string }
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
@@ -360,7 +365,9 @@ export type RawEvents = {
       error: string;
     }
   >;
-  [eventCodes.USER_SSO_TEST_FLOW_LOGIN]: RawEvent<typeof eventCodes.USER_SSO_TEST_FLOW_LOGIN>;
+  [eventCodes.USER_SSO_TEST_FLOW_LOGIN]: RawEvent<
+    typeof eventCodes.USER_SSO_TEST_FLOW_LOGIN
+  >;
   [eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE]: RawEvent<
     typeof eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE,
     {

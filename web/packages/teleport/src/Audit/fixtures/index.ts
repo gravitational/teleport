@@ -19,6 +19,18 @@ import { makeEvent } from 'teleport/services/audit';
 // events contains sample JSON's of all supported event types
 export const events = [
   {
+    cluster_name: 'im-a-cluster-name',
+    code: 'T5004I',
+    ei: 0,
+    event: 'access_request.search',
+    namespace: 'default',
+    resource_type: 'db_server',
+    search_as_roles: ['admin'],
+    time: '2022-06-08T15:10:35.368Z',
+    uid: 'b13d61-b97-475f-86ef-1fedf',
+    user: 'foo',
+  },
+  {
     code: 'T1004I',
     uid: 'b121fc4c-e419-56a2-a760-19cd746c0650',
     time: '2020-06-05T16:24:05Z',
@@ -921,21 +933,23 @@ export const events = [
     user: 'alice@example.com',
   },
   {
-    cluster_name: "im-a-cluster-name",
-    code: "TMS00I",
-    db_name: "master",
-    db_protocol: "sqlserver",
-    db_service: "sqlserver02",
-    db_uri: "localhost:1433",
-    db_user: "sqlserver",
+    cluster_name: 'im-a-cluster-name',
+    code: 'TMS00I',
+    db_name: 'master',
+    db_protocol: 'sqlserver',
+    db_service: 'sqlserver02',
+    db_uri: 'localhost:1433',
+    db_user: 'sqlserver',
     ei: 7,
     event: 'db.session.sqlserver.rpc_request',
-    parameters: ['SELECT\ndtb.collation_name AS [Collation],\ndtb.name AS [DatabaseName2]\nFROM\nmaster.sys.databases AS dtb\nWHERE\n(dtb.name=@_msparam_0)'],
-    procname: "Sp_ExecuteSql",
+    parameters: [
+      'SELECT\ndtb.collation_name AS [Collation],\ndtb.name AS [DatabaseName2]\nFROM\nmaster.sys.databases AS dtb\nWHERE\n(dtb.name=@_msparam_0)',
+    ],
+    procname: 'Sp_ExecuteSql',
     sid: '6b37d89b-0d9c-4681-976b-ba12588a1bcd',
     time: '2022-06-02T08:29:17.693Z',
     uid: 'a29dfad1-5a71-4c48-b4e0-10d1d857a23c',
-    user: 'alice'
+    user: 'alice',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -947,7 +961,8 @@ export const events = [
     db_user: 'sqlserver',
     ei: 50,
     event: 'db.session.malformed_packet',
-    payload: 'AwEAkAAAAgByAGEAbQBfADEAIABuAHYAYQByAGMAaABhAHIAKAA0ADAAMAAwACkAC0AAXwBtAHMAcABhAHIAYQBtAF8AMAAA50AfCQTQADQWAHMAcAB0AF8AbQBvAG4AaQB0AG8AcgALQABfAG0AcwBwAGEAcgBhAG0AXwAxAADnQB8JBNAANAYAZABiAG8A',
+    payload:
+      'AwEAkAAAAgByAGEAbQBfADEAIABuAHYAYQByAGMAaABhAHIAKAA0ADAAMAAwACkAC0AAXwBtAHMAcABhAHIAYQBtAF8AMAAA50AfCQTQADQWAHMAcAB0AF8AbQBvAG4AaQB0AG8AcgALQABfAG0AcwBwAGEAcgBhAG0AXwAxAADnQB8JBNAANAYAZABiAG8A',
     sid: '3ed38c42-eef0-419b-b893-f2f10990f117',
     time: '2022-06-02T08:46:33.825Z',
     uid: '503e310d-8d88-4bea-bbbb-a1b35456a03a',

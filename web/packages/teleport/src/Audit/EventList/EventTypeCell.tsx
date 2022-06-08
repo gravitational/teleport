@@ -65,6 +65,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.ACCESS_REQUEST_UPDATED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_REVIEWED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_DELETED]: Icons.Info,
+  [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: Icons.Info,
   [eventCodes.USER_LOCAL_LOGIN]: Icons.Info,
   [eventCodes.USER_LOCAL_LOGINFAILURE]: Icons.Info,
   [eventCodes.USER_SSO_LOGIN]: Icons.Info,
