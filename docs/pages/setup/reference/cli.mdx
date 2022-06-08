@@ -1233,11 +1233,11 @@ $ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags
 | `-o, --out` | none | filepath | identity output |
 | `--overwrite` | none | none | When specified, write new identity files, even if they already exist |
 | `--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` | identity format |
-| `--identity` | none | `file` | Identity file to use for logging in to the auth server |
+| `--identity` | none | `file` | Identity file to use for logging in to the Auth Service |
 | `--auth-server` | none | auth host & port | Remote Teleport host name |
 | `--ttl` | `12h` | relative duration like `5s`, `2m`, or `3h` | TTL (time to live) for the generated certificate |
 | `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag |
-| `--proxy` | `""` | Address of the teleport proxy. | When --format is set to `kubernetes`, this address will be set as cluster address in the generated kubeconfig file |
+| `--proxy` | `""` | Address of the Teleport Proxy Service | When --format is set to `kubernetes`, this address will be set as the cluster address in the generated kubeconfig file |
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
 | `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
 | `--app-name` | `""` | application name | Generate a certificate for accessing the specified web application |
