@@ -135,7 +135,7 @@ func Test_formatJSON(t *testing.T) {
         "desktop_clipboard": null,
         "desktop_directory_sharing": null,
         "create_host_user": null,
-		"pin_source_ip": false
+        "pin_source_ip": false
     },
     "allow": {
         "logins": [
