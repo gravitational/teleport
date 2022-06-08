@@ -54,11 +54,11 @@ spec:
   # Callback URL that will be called after successful authentication
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
   # Mapping of org/team memberships onto allowed logins and roles
-  teams_to_logins:
+  teams_to_roles:
     - organization: octocats # GitHub organization name
       team: admins # GitHub team name within that organization
       # Maps octocats/admins to the "access" Teleport role
-      logins:
+      roles:
         - access
 ```
 
