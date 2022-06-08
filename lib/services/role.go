@@ -626,6 +626,9 @@ type AccessChecker interface {
 	// RoleNames returns a list of role names
 	RoleNames() []string
 
+	// Roles returns the list underlying roles this AccessChecker is based on.
+	Roles() []types.Role
+
 	// CheckAccess checks access to the specified resource.
 	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
@@ -718,6 +721,9 @@ type AccessChecker interface {
 
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
+
+	// GetAllLogins returns all valid unix logins for the AccessChecker.
+	GetAllLogins() []string
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1046,6 +1052,11 @@ func (set RoleSet) RoleNames() []string {
 	return out
 }
 
+// Roles returns the list underlying roles this RoleSet is based on.
+func (set RoleSet) Roles() []types.Role {
+	return append([]types.Role{}, set...)
+}
+
 // HasRole checks if the role set has the role
 func (set RoleSet) HasRole(role string) bool {
 	for _, r := range set {
@@ -1288,6 +1299,12 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	}
 
 	return logins, nil
+}
+
+// GetAllLogins returns all valid unix logins for the RoleSet.
+func (set RoleSet) GetAllLogins() []string {
+	logins, _ := set.GetLoginsForTTL(0)
+	return logins
 }
 
 // GetLoginsForTTL collects all logins that are valid for the given TTL.  The matchedTTL

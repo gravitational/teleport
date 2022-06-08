@@ -1,5 +1,45 @@
 # Changelog
 
+## 9.3.4
+
+This release of Teleport contains multiple security, bug fixes and improvements.
+
+### Escalation attack in agent forwarding
+
+When setting up agent forwarding on the node, Teleport did not handle unix socket creation in a secure manner.
+
+This could have given a potential attacker an opportunity to get Teleport to change arbitrary file permissions to the attacker’s user.
+
+### Websockets CSRF
+
+When handling websocket requests, Teleport did not verify that the provided Bearer token was generated for the correct user.
+
+This could have allowed a malicious low privileged Teleport user to use a social engineering attack to gain higher privileged access on the same Teleport cluster.
+
+### Denial of service in access requests
+
+When accepting an access request, Teleport did not enforce the maximum request reason size.
+
+This could allow a malicious actor to mount a DoS attack by creating an access request with a very large request reason.
+
+### Auth bypass in moderated sessions
+
+When initializing a moderated session, Teleport did not discard participant’s input prior to the moderator joining.
+
+This could prevent a moderator from being able to interrupt a malicious command executed by a participant.
+
+### Other fixes
+
+* Fixed issue with stdin hijacking when per-session MFA is enabled. [#13212](https://github.com/gravitational/teleport/pull/13212)
+* Added support for automatic tags import when running on AWS EC2. [#12593](https://github.com/gravitational/teleport/pull/12593)
+* Added ability to use multiple redirect URLs in OIDC connectors. [#13046](https://github.com/gravitational/teleport/pull/13046)
+* Fixed issue with ANSI escape sequences being broken when using `tsh` on Windows. [#13221](https://github.com/gravitational/teleport/pull/13221)
+* Fixed issue with `tsh ssh` printing extra error upon exit if last command was unsuccessful. [#12903](https://github.com/gravitational/teleport/pull/12903)
+* Added support for Proxy Protocol v2 in MySQL proxy. [#12993](https://github.com/gravitational/teleport/pull/12993)
+* Upgraded to Go `v1.17.11`. [#13104](https://github.com/gravitational/teleport/pull/13104)
+* Added Windows desktops labeling based on their LDAP attributes. [#13238](https://github.com/gravitational/teleport/pull/13238)
+* Improved performance when listing resources for users with many roles. [#13263](https://github.com/gravitational/teleport/pull/13263)
+
 ## 9.3.2
 
 This release of Teleport contains two bug fixes.
