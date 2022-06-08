@@ -188,6 +188,7 @@ func TestUserInfoBadStatus(t *testing.T) {
 }
 
 func TestSSODiagnostic(t *testing.T) {
+	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
@@ -219,15 +220,15 @@ func TestSSODiagnostic(t *testing.T) {
 		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	}
 
-	oidcRequest := services.OIDCAuthRequest{
+	oidcRequest := types.OIDCAuthRequest{
 		ConnectorID:   "-sso-test-okta",
 		Type:          constants.OIDC,
-		CertTTL:       defaults.OIDCAuthRequestTTL,
+		CertTTL:       types.Duration(defaults.OIDCAuthRequestTTL),
 		SSOTestFlow:   true,
 		ConnectorSpec: &spec,
 	}
 
-	request, err := s.a.CreateOIDCAuthRequest(oidcRequest)
+	request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
 	require.NoError(t, err)
 	require.NotNil(t, request)
 
@@ -248,7 +249,7 @@ func TestSSODiagnostic(t *testing.T) {
 		return cc, nil
 	}
 
-	resp, err := s.a.ValidateOIDCAuthCallback(context.Background(), values)
+	resp, err := s.a.ValidateOIDCAuthCallback(ctx, values)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.Equal(t, &OIDCAuthResponse{
@@ -262,7 +263,7 @@ func TestSSODiagnostic(t *testing.T) {
 
 	diagCtx := ssoDiagContext{}
 
-	resp, err = s.a.validateOIDCAuthCallback(context.Background(), &diagCtx, values)
+	resp, err = s.a.validateOIDCAuthCallback(ctx, &diagCtx, values)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.Equal(t, &OIDCAuthResponse{
@@ -347,7 +348,7 @@ func TestPingProvider(t *testing.T) {
 	err = s.a.Identity.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 
-	for _, req := range []services.OIDCAuthRequest{
+	for _, req := range []types.OIDCAuthRequest{
 		{
 			ConnectorID: "test-connector",
 		}, {
