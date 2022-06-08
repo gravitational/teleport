@@ -489,7 +489,6 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 	diagCtx.info.CreateUserParams = &types.CreateUserParams{
 		ConnectorName: params.connectorName,
 		Username:      params.username,
-		Logins:        params.logins,
 		KubeGroups:    params.kubeGroups,
 		KubeUsers:     params.kubeUsers,
 		Roles:         params.roles,
