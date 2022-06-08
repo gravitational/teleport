@@ -188,10 +188,13 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
@@ -222,10 +225,13 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
@@ -291,10 +297,13 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(17 * time.Minute),
 						DisconnectExpiredCert:   types.NewBool(true),
 						BPF:                     apidefaults.EnhancedEvents(),
@@ -377,11 +386,14 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						ForwardAgent:            types.NewBool(true),
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						ForwardAgent:      types.NewBool(true),
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(0),
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),
@@ -451,11 +463,14 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						ForwardAgent:            types.NewBool(true),
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						ForwardAgent:      types.NewBool(true),
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(0),
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),
@@ -4179,6 +4194,70 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 
 			require.ElementsMatch(t, tc.wantUsers, gotUsers)
 			require.ElementsMatch(t, tc.wantGroups, gotGroups)
+		})
+	}
+}
+
+func TestSessionRecordingMode(t *testing.T) {
+	tests := map[string]struct {
+		service      constants.SessionRecordingService
+		expectedMode constants.SessionRecordingMode
+		rolesOptions []types.RoleOptions
+	}{
+		"service-specific option": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+		"service-specific multiple roles": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+		"strict service-specific multiple roles": {
+			expectedMode: constants.SessionRecordingModeStrict,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeStrict}},
+			},
+		},
+		"strict default multiple roles": {
+			expectedMode: constants.SessionRecordingModeStrict,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+			},
+		},
+		"default multiple roles": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			roles := make([]types.Role, len(test.rolesOptions))
+			for i := range roles {
+				roles[i] = &types.RoleV5{
+					Spec: types.RoleSpecV5{Options: test.rolesOptions[i]},
+				}
+			}
+
+			roleSet := RoleSet(roles)
+			require.Equal(t, test.expectedMode, roleSet.SessionRecordingMode(test.service))
 		})
 	}
 }

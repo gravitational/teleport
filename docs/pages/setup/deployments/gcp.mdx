@@ -52,7 +52,7 @@ tool across clouds.
 ### Which Services can I use Teleport with?
 
 You can use Teleport for all the services that you would SSH into. This guide is
-focused on Google Compute Engine. 
+focused on Google Compute Engine.
 
 We plan on expanding our guide to eventually include using Teleport with Google Kubernetes Engine (GKE).
 
@@ -78,7 +78,7 @@ Optional:
 - Management Tools: Cloud Deployment Manager
 - Stackdriver Logging
 
-We recommend setting up Teleport in High Availability mode. In High Availability mode Firestore 
+We recommend setting up Teleport in High Availability mode. In High Availability mode Firestore
 stores the state of the system and Google Cloud Storage stores the audit logs.
 
 ![GCP Intro Image](../../../img/gcp/gcp-teleport.svg)
@@ -174,9 +174,6 @@ teleport:
   nodename: teleport-auth-server
   data_dir: /var/lib/teleport
   pid_file: /run/teleport.pid
-  auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
-  auth_servers:
-  - 0.0.0.0:3025
   connection_limits:
     max_connections: 15000
     max_users: 250
@@ -192,10 +189,14 @@ teleport:
     audit_events_uri: 'firestore://events?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds.json'
     audit_sessions_uri: 'gs://teleport-session-storage-2?projectID=example_Teleport-Project-Name&credentialsPath=/var/lib/teleport/gcs_creds.json'
 auth_service:
-  enabled: yes
-  auth_service:
-    tokens:
-    - "proxy,node:EXAMPLE-CLUSTER-JOIN-TOKEN"
+  enabled: true
+  tokens:
+    - "proxy:EXAMPLE-PROXY-JOIN-TOKEN"
+    - "node:EXAMPLE-NODE-JOIN-TOKEN"
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
 ```
 
 **2. Setup Proxy**
@@ -203,18 +204,26 @@ auth_service:
 Save the following configuration file as `/etc/teleport.yaml` on the Proxy Server:
 
 ```yaml
+# enable multiplexing all traffic on TCP port 443
+version: v2
 teleport:
-  auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
+  auth_token: EXAMPLE-PROXY-JOIN-TOKEN
   # We recommend using a TCP load balancer pointed to the auth servers when
   # setting up in High Availability mode.
   auth_servers: [ "auth.example.com:3025" ]
-  # enable ssh service and disable auth and proxy:
+# enable proxy service, disable auth and ssh
 ssh_service:
-  enabled: true
+  enabled: false
 auth_service:
   enabled: false
 proxy_service:
-  enabled: false
+  enabled: true
+  web_listen_addr: 0.0.0.0:443
+  public_addr: teleport.example.com:443
+  # automatically get an ACME certificate for teleport.example.com (works for a single proxy)
+  acme:
+    enabled: true
+    email: example@email.com
 ```
 
 **3. Setup Teleport Nodes**
@@ -223,11 +232,11 @@ Save the following configuration file as `/etc/teleport.yaml` on the node:
 
 ```yaml
 teleport:
-  auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
-  # We recommend using a TCP load balancer pointed to the auth servers when
-  # setting up in High Availability mode.
-  auth_servers: [ "auth.example.com:3025" ]
-  # enable ssh service and disable auth and proxy:
+  auth_token: EXAMPLE-NODE-JOIN-TOKEN
+  # Nodes and other agents can be joined to the cluster via the proxy's public adress.
+  # This will establish a reverse tunnel between the proxy and the node which is used for all traffic.
+  auth_servers: [ "teleport.example.com:443" ]
+# enable ssh service and disable auth and proxy
 ssh_service:
   enabled: true
 auth_service:
