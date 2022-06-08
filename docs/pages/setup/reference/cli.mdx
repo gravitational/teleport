@@ -154,6 +154,7 @@ information about the cluster.
 | `--cert-format` | `file` | `file` or `openssh` | SSH certificate format |
 | `--insecure` | none | none | Do not verify server's certificate and host name. Use only in test environments |
 | `--auth` | `local` | any defined [authentication connector](./authentication.mdx) | Specify the type of authentication connector to use. |
+| `--mfa-mode` | auto | `auto` or `otp` | Preferred MFA method for `tsh`. Useful to force `otp` in constrained environments. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
@@ -713,11 +714,11 @@ cluster. This can be done in three ways:
 Service signs an identity file when a user runs `tctl auth sign` or
 `tsh login --out=<output-path>`, and the user can include the path to the
 identity file in the `--identity` flag when running `tctl` commands.
-  
+
 When using the `--identity` flag, the user must provide the `--auth-server` flag
 with the address of an Auth Service or Proxy Service so `tctl` knows which
 cluster to authenticate to.
-  
+
 ### On the same host as the Teleport Auth Service
 
 If there is a Teleport configuration file on the host where `tctl` is run,
@@ -767,7 +768,7 @@ cluster. This can be done in two ways:
 Service signs an identity file when a user runs `tctl auth sign` or
 `tsh login --out=<output-path>`, and the user can include the path to the
 identity file in the `--identity` flag when running `tctl` commands.
-  
+
 When using the `--identity` flag, the user must alo provide the `--auth-server`
 flag with the address of an Auth Service or Proxy Service so `tctl` knows which
 cluster to authenticate to.
