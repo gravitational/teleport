@@ -17,11 +17,15 @@ limitations under the License.
 package httplib
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
 
@@ -76,4 +80,60 @@ func (h *testHandler) postSessionChunkNamespace(w http.ResponseWriter, r *http.R
 	h.capturedNamespace = p.ByName("namespace")
 	h.capturedID = p.ByName("id")
 	return "ok", nil
+}
+
+func TestReadJSON_ContentType(t *testing.T) {
+	t.Parallel()
+
+	type TestJSON struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+
+	testCases := []struct {
+		name        string
+		contentType string
+		wantErr     bool
+	}{
+		{
+			name:        "empty value",
+			contentType: "",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid type",
+			contentType: "multipart/form-data",
+			wantErr:     true,
+		},
+		{
+			name:        "just type/subtype",
+			contentType: "application/json",
+		},
+		{
+			name:        "type/subtype with params",
+			contentType: "application/json; charset=utf-8",
+		},
+	}
+
+	body := TestJSON{Name: "foo", Age: 60}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			payloadBuf := new(bytes.Buffer)
+			require.NoError(t, json.NewEncoder(payloadBuf).Encode(body))
+
+			httpReq, err := http.NewRequest("", "", payloadBuf)
+			require.NoError(t, err)
+			httpReq.Header.Add("Content-Type", tc.contentType)
+
+			output := TestJSON{}
+			err = ReadJSON(httpReq, &output)
+			if tc.wantErr {
+				require.True(t, strings.Contains(err.Error(), "invalid request"))
+				require.Empty(t, output)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, body, output)
+			}
+		})
+	}
 }
