@@ -18,9 +18,12 @@ package tbot
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // See https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/rotate.go#L135
@@ -37,10 +40,11 @@ import (
 // - Update Servers -> Standby: So we can stop trusting the old CA.
 
 func (b *Bot) caRotationLoop(ctx context.Context) error {
-	for ctx.Err() != nil {
+	// TODO: Throw error if more than X consecutive errors in time window.
+	for ctx.Err() == nil {
 		err := b.watchCARotations(ctx)
 		if err != nil {
-			return trace.Wrap(err)
+			b.log.WithError(err).Warnf("Error occurred whilst watching CA rotations, retrying...")
 		}
 	}
 
@@ -48,10 +52,16 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 }
 
 func (b *Bot) watchCARotations(ctx context.Context) error {
+	clusterName := b.ident().ClusterName
 	b.log.Debugf("Attempting to establish watch for CA events")
 	watcher, err := b.client().NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
+			Filter: types.CertAuthorityFilter{
+				types.HostCA:     clusterName,
+				types.UserCA:     clusterName,
+				types.DatabaseCA: clusterName,
+			}.IntoMap(),
 		}},
 	})
 	if err != nil {
@@ -62,35 +72,18 @@ func (b *Bot) watchCARotations(ctx context.Context) error {
 	for {
 		select {
 		case event := <-watcher.Events():
-			b.log.Debugf("Received event: %+v", event)
+			// OpInit is a special case omitted by the Watcher when the
+			// connection succeeds.
 			if event.Type == types.OpInit {
 				b.log.Infof("Started watching for CA rotations")
 				continue
 			}
-			if event.Type != types.OpPut {
-				b.log.Debugf("Ignoring CA event due to type: %s", event.Type)
+
+			ignoreReason := filterCAEvent(b.log, event, clusterName)
+			if ignoreReason != "" {
+				b.log.Debugf("Ignoring CA event: %s", ignoreReason)
 				continue
 			}
-			ca, ok := event.Resource.(types.CertAuthority)
-			if !ok {
-				// TODO: Determine if we should take more drastic action here.
-				// Realistically, if other event types are being delivered,
-				// there's probably been some element of developer error. We
-				// could hypothetically panic here.
-				b.log.Debugf(
-					"Skipping unexpected event type: %v for %v",
-					event.Type, event.Resource.GetName(),
-				)
-				continue
-			}
-
-			phase := ca.GetRotation().Phase
-			if phase == "init" || phase == "update_servers" {
-				b.log.Debug("Skipping due to phase: %s", phase)
-			}
-			b.log.Debugf("CA: %+v", ca)
-
-			// TODO: Fetch the CA so we can determine if we need to rotate.
 
 			// We need to debounce here, as multiple events will be received if
 			// the user is rotating multiple CAs at once.
@@ -103,12 +96,46 @@ func (b *Bot) watchCARotations(ctx context.Context) error {
 			}
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
-				b.log.WithError(err).Warnf("error watching for CA rotations")
-				// return trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 			return nil
 		case <-ctx.Done():
 			return nil
 		}
 	}
+}
+
+// filterCAEvent returns a reason why an event should be ignored or an empty
+// string is a renewal is needed.
+func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string) string {
+	if event.Type != types.OpPut {
+		return "type not PUT"
+	}
+	ca, ok := event.Resource.(types.CertAuthority)
+	if !ok {
+		return fmt.Sprintf("event resource was not CertAuthority (%T)", event.Resource)
+	}
+	log.Debugf("Filtering CA: %+v %s %s", ca, ca.GetKind(), ca.GetSubKind())
+
+	// We want to update for all phases but init and update_servers
+	phase := ca.GetRotation().Phase
+	if utils.SliceContainsStr([]string{"init", "update_servers"}, phase) {
+		return fmt.Sprintf("skipping due to phase: %s", phase)
+	}
+
+	// Skip anything not from our cluster
+	if ca.GetClusterName() != clusterName {
+		return fmt.Sprintf(
+			"skipping due to cluster name of CA: was %s, expected %s",
+			ca.GetClusterName(),
+			clusterName,
+		)
+	}
+
+	// We want to skip anything that is not host, user, db
+	if utils.SliceContainsStr([]string{"host", "user", "db"}, ca.GetSubKind()) {
+		return fmt.Sprintf("skipping due to CA kind: %s", ca.GetSubKind())
+	}
+
+	return ""
 }
