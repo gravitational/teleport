@@ -429,3 +429,10 @@ var RequestableResourceKinds = []string{
 	KindApp,
 	KindWindowsDesktop,
 }
+
+const (
+	// TeleportServiceGroup is a default group that users of the
+	// teleport automated user provisioning system get added to so
+	// already existing users are not deleted
+	TeleportServiceGroup = "teleport-system"
+)
