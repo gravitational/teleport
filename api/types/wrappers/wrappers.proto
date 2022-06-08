@@ -31,3 +31,10 @@ message LabelValues {
     map<string, StringValues> Values = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "labels" ];
 }
+
+// CustomType is a json protobuf representation of a Go struct. This is
+// useful when defining customtypes for use with the (gogoproto.customtype) extension.
+message CustomType {
+    // Bytes is the marshalled json data of a struct.
+    bytes Bytes = 1 [ (gogoproto.jsontag) = "json" ];
+}

@@ -192,11 +192,6 @@ type Config struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
 
-	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
-	// algorithm that the server uses for signing user and host certificates.
-	// If omitted, the default will be used.
-	CASignatureAlgorithm *string
-
 	// DiagnosticAddr is an address for diagnostic and healthz endpoint service
 	DiagnosticAddr utils.NetAddr
 
@@ -859,6 +854,10 @@ func (d *Database) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
 		}
+	} else if d.Protocol == defaults.ProtocolSnowflake {
+		if !strings.Contains(d.URI, defaults.SnowflakeURL) {
+			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
+		}
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
@@ -1108,6 +1107,12 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// LabelAttributes are LDAP attributes to apply to hosts discovered
+	// via LDAP. Teleport labels hosts by prefixing the attribute with
+	// "ldap/" - for example, a value of "location" here would result in
+	// discovered desktops having a label with key "ldap/location" and
+	// the value being the value of the "location" attribute.
+	LabelAttributes []string `yaml:"label_attributes"`
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.

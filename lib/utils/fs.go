@@ -24,6 +24,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// OpenFileWithFlagsFunc defines a function used to open files providing options.
+type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.File, error)
+
 // EnsureLocalPath makes sure the path exists, or, if omitted results in the subpath in
 // default gravity config directory, e.g.
 //

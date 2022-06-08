@@ -1,11 +1,11 @@
 etcd/certs/*.pem
 
 teleport/oidc.yaml
-k8s/certificate.yaml
+k8s/*certificate*.yaml
 
 k8s/secrets/**
 !k8s/secrets/Makefile
-**/*-gen.yaml
+**/*-gen*.yaml
 
 **/profiles/**
 
@@ -13,3 +13,5 @@ k8s/secrets/**
 **/.terraform.lock*
 **/terraform.tfstate*
 **/terraform.tfvars
+
+.secrets
