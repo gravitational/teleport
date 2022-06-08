@@ -76,8 +76,6 @@ type userACL struct {
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
 	Desktops access `json:"desktops"`
-	// SSHLogins defines access to servers.
-	SSHLogins []string `json:"sshLogins"`
 	// WindowsLogins defines access to logins on windows desktop servers.
 	WindowsLogins []string `json:"windowsLogins"`
 	// AccessRequests defines access to access requests.
@@ -221,7 +219,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
-	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
 	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
@@ -239,7 +236,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		ActiveSessions:          activeSessionAccess,
 		Roles:                   roleAccess,
 		Events:                  eventAccess,
-		SSHLogins:               logins,
 		WindowsLogins:           windowsLogins,
 		Users:                   userAccess,
 		Tokens:                  tokenAccess,
