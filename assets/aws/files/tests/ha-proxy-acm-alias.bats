@@ -89,10 +89,11 @@ load fixtures/common
     echo "${PROXY_BLOCK?}" | grep -E "^  mysql_listen_addr: " | grep -q "0.0.0.0:3036"
 }
 
-@test "[${TEST_SUITE?}] proxy_service.postgres_listen_addr is set correctly" {
+@test "[${TEST_SUITE?}] proxy_service.postgres_listen_addr is not set" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${PROXY_BLOCK?}"
-    echo "${PROXY_BLOCK?}" | grep -E "^  postgres_listen_addr: " | grep -q "0.0.0.0:5432"
+    # this test inverts the regular behaviour of grep -q, so only succeeds if the line _isn't_ present
+    echo "${PROXY_BLOCK?}" | { ! grep -qE "^  postgres_listen_addr: "; }
 }
 
 @test "[${TEST_SUITE?}] proxy_service.kubernetes.public_addr is set correctly" {

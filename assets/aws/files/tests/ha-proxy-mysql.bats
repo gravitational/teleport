@@ -70,7 +70,7 @@ load fixtures/common
 @test "[${TEST_SUITE?}] proxy_service.mysql_public_addr is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${PROXY_BLOCK?}"
-    echo "${PROXY_BLOCK?}" | grep -E "^  mysql_public_addr:" | grep -q "${TELEPORT_PROXY_SERVER_LB?}:3036"
+    echo "${PROXY_BLOCK?}" | grep -E "^  mysql_public_addr:" | grep -q "${TELEPORT_DOMAIN_NAME?}:3036"
 }
 
 @test "[${TEST_SUITE?}] proxy_service.listen_addr is set correctly" {
