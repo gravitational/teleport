@@ -91,7 +91,7 @@ variable "allowed_ssh_ingress_cidr_blocks" {
   default = ["0.0.0.0/0"]
 }
 
-//CIDR blocks allowed for ingress for all Teleport ports 
+// CIDR blocks allowed for ingress for all Teleport ports 
 variable "allowed_ingress_cidr_blocks" {
   type = list
   default = ["0.0.0.0/0"]
