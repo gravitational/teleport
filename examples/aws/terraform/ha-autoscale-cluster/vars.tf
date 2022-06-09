@@ -212,7 +212,7 @@ variable "allowed_monitor_ingress_cidr_blocks" {
   default = ["0.0.0.0/0"]
 }
 
-//CIDR blocks allowed for egress from Teleport Monitor
+// CIDR blocks allowed for egress from Teleport Monitor
 variable "allowed_monitor_egress_cidr_blocks" {
   type = list
   default = ["0.0.0.0/0"]
