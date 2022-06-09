@@ -1245,7 +1245,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		// Extract kube clusters into its own list.
-		clusters := []types.KubeCluster{}
+		var clusters []types.KubeCluster
 		for _, svc := range kubeservices {
 			for _, legacyCluster := range svc.GetKubernetesClusters() {
 				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster(svc.GetNamespace(), legacyCluster)

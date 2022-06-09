@@ -775,21 +775,27 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 
 	b.ResetTimer()
 
-	limit := int32(count)
-	for n := 0; n < b.N; n++ {
-		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindNode,
-			Namespace:    apidefaults.Namespace,
-			SortBy: types.SortBy{
-				IsDesc: true,
-				Field:  types.ResourceSpecHostname,
-			},
-			// Predicate is the more expensive filter.
-			PredicateExpression: `search("mac", "frontend") && labels.version == "v8"`,
-			Limit:               limit,
-		})
-		require.NoError(b, err)
-		require.Len(b, resp.Resources, count)
+	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
+		for _, totalCount := range []bool{true, false} {
+			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
+				for n := 0; n < b.N; n++ {
+					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+						ResourceType: types.KindNode,
+						Namespace:    apidefaults.Namespace,
+						SortBy: types.SortBy{
+							IsDesc: true,
+							Field:  types.ResourceSpecHostname,
+						},
+						// Predicate is the more expensive filter.
+						PredicateExpression: `search("mac", "frontend") && labels.version == "v8"`,
+						Limit:               limit,
+						NeedTotalCount:      totalCount,
+					})
+					require.NoError(b, err)
+					require.Len(b, resp.Resources, int(limit))
+				}
+			})
+		}
 	}
 }
 
