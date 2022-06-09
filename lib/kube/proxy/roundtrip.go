@@ -65,10 +65,6 @@ type SpdyRoundTripper struct {
 	// dialWithContext is the function used connect to remote address
 	dialWithContext func(context context.Context, network, address string) (net.Conn, error)
 
-	// followRedirects indicates if the round tripper should examine responses for redirects and
-	// follow them.
-	followRedirects bool
-
 	// ctx is a context for this round tripper
 	ctx context.Context
 
@@ -94,7 +90,7 @@ type roundTripperConfig struct {
 // NewSpdyRoundTripperWithDialer creates a new SpdyRoundTripper that will use
 // the specified tlsConfig. This function is mostly meant for unit tests.
 func NewSpdyRoundTripperWithDialer(cfg roundTripperConfig) *SpdyRoundTripper {
-	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, followRedirects: cfg.followRedirects, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx, pingPeriod: cfg.pingPeriod}
+	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx, pingPeriod: cfg.pingPeriod}
 }
 
 // TLSClientConfig implements pkg/util/net.TLSClientConfigHolder for proper TLS checking during
@@ -170,13 +166,9 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		err         error
 	)
 
-	if s.followRedirects {
-		conn, rawResponse, err = utilnet.ConnectWithRedirects(req.Method, req.URL, header, req.Body, s, false)
-	} else {
-		clone := utilnet.CloneRequest(req)
-		clone.Header = header
-		conn, err = s.Dial(clone)
-	}
+	clone := utilnet.CloneRequest(req)
+	clone.Header = header
+	conn, err = s.Dial(clone)
 	if err != nil {
 		return nil, err
 	}
