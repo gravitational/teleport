@@ -79,6 +79,10 @@ const (
 	// implemented.
 	WindowsDesktopListenPort = 3028
 
+	// ProxyPeeringListenPort is the default port proxies will listen on when
+	// proxy peering is enabled.
+	ProxyPeeringListenPort = 3021
+
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
 
@@ -627,6 +631,10 @@ func ReverseTunnelListenAddr() *utils.NetAddr {
 // MetricsServiceListenAddr returns the default listening address for the metrics service
 func MetricsServiceListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, MetricsListenPort)
+}
+
+func ProxyPeeringListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, ProxyPeeringListenPort)
 }
 
 func makeAddr(host string, port int16) *utils.NetAddr {

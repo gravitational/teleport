@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -902,6 +903,71 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		return nil, trace.Wrap(err)
 	}
 	return clt, nil
+}
+
+// NewTracingClient connects to the auth server of the given cluster via proxy.
+// It returns a connected and authenticated tracing.Client that will export spans
+// to the auth server, where they will be forwarded onto the configured exporter.
+func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName string) (*tracing.Client, error) {
+	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return proxy.dialAuthServer(ctx, clusterName)
+	})
+
+	switch {
+	case proxy.teleportClient.TLSRoutingEnabled:
+		tlsConfig, err := proxy.loadTLS(clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clt, err := client.NewTracingClient(ctx, client.Config{
+			Addrs:            []string{proxy.teleportClient.WebProxyAddr},
+			DialInBackground: true,
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+			ALPNSNIAuthDialClusterName: clusterName,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	case proxy.teleportClient.SkipLocalAuth:
+		clt, err := client.NewTracingClient(ctx, client.Config{
+			Dialer:           dialer,
+			DialInBackground: true,
+			Credentials: []client.Credentials{
+				client.LoadTLS(proxy.teleportClient.TLS),
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	default:
+		tlsKey, err := proxy.localAgent().GetCoreKey()
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
+		}
+
+		tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{clusterName})
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to generate client TLS config")
+		}
+		tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
+
+		clt, err := client.NewTracingClient(ctx, client.Config{
+			Dialer:           dialer,
+			DialInBackground: true,
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	}
 }
 
 // nodeName removes the port number from the hostname, if present

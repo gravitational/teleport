@@ -375,6 +375,17 @@ const (
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )
 
+type TunnelStrategyType string
+
+const (
+	// AgentMesh requires agents to create a reverse tunnel to
+	// every proxy server.
+	AgentMesh TunnelStrategyType = "agent_mesh"
+	// ProxyPeering requires agents to create a reverse tunnel to a configured
+	// number of proxy servers and enables proxy to proxy communication.
+	ProxyPeering TunnelStrategyType = "proxy_peering"
+)
+
 const (
 	// ResourceMetadataName refers to a resource metadata field named "name".
 	ResourceMetadataName = "name"

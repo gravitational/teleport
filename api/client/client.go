@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -82,7 +83,7 @@ type Client struct {
 	callOpts []grpc.CallOption
 }
 
-// New creates a new API client with an open connection to a Teleport server.
+// New creates a new Client with an open connection to a Teleport server.
 //
 // New will try to open a connection with all combinations of addresses and credentials.
 // The first successful connection to a server will be used, or an aggregated error will
@@ -104,6 +105,18 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 		return connectInBackground(ctx, cfg)
 	}
 	return connect(ctx, cfg)
+}
+
+// NewTracingClient creates a new tracing.Client that will forward spans to the
+// connected Teleport server. See New for details on how the connection it
+// established.
+func NewTracingClient(ctx context.Context, cfg Config) (*tracing.Client, error) {
+	clt, err := New(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tracing.NewClient(clt.GetConnection()), nil
 }
 
 // newClient constructs a new client.
