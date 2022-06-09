@@ -462,12 +462,6 @@ func (b *Bot) renew(
 		return trace.Wrap(err)
 	}
 
-	// Attempt a request to make sure our client works.
-	// TODO: consider a retry/backoff loop.
-	if _, err := newClient.Ping(ctx); err != nil {
-		return trace.Wrap(err, "unable to communicate with auth server")
-	}
-
 	b.setClient(newClient)
 	b.setIdent(newIdentity)
 	b.log.Debug("Auth client now using renewed credentials.")
