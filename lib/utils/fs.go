@@ -64,17 +64,6 @@ func MkdirAll(targetDirectory string, mode os.FileMode) error {
 	return nil
 }
 
-// RemoveDirCloser removes directory and all it's contents
-// when Close is called
-type RemoveDirCloser struct {
-	Path string
-}
-
-// Close removes directory and all it's contents
-func (r *RemoveDirCloser) Close() error {
-	return trace.ConvertSystemError(os.RemoveAll(r.Path))
-}
-
 // IsDir is a helper function to quickly check if a given path is a valid directory
 func IsDir(path string) bool {
 	fi, err := os.Stat(path)

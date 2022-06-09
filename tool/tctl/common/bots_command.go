@@ -81,16 +81,16 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun attempts to run subcommands.
-func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.botsList.FullCommand():
-		err = c.ListBots(client)
+		err = c.ListBots(ctx, client)
 	case c.botsAdd.FullCommand():
-		err = c.AddBot(client)
+		err = c.AddBot(ctx, client)
 	case c.botsRemove.FullCommand():
-		err = c.RemoveBot(client)
+		err = c.RemoveBot(ctx, client)
 	case c.botsLock.FullCommand():
-		err = c.LockBot(client)
+		err = c.LockBot(ctx, client)
 	default:
 		return false, nil
 	}
@@ -100,9 +100,9 @@ func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
-func (c *BotsCommand) ListBots(client auth.ClientI) error {
+func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 	// TODO: consider adding a custom column for impersonator roles, locks, ??
-	users, err := client.GetBotUsers(context.Background())
+	users, err := client.GetBotUsers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,8 +178,8 @@ Please note:
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(client auth.ClientI) error {
-	response, err := client.CreateBot(context.Background(), &proto.CreateBotRequest{
+func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+	response, err := client.CreateBot(ctx, &proto.CreateBotRequest{
 		Name:    c.botName,
 		TTL:     proto.Duration(c.tokenTTL),
 		Roles:   splitRoles(c.botRoles),
@@ -241,8 +241,8 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 	})
 }
 
-func (c *BotsCommand) RemoveBot(client auth.ClientI) error {
-	if err := client.DeleteBot(context.Background(), c.botName); err != nil {
+func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error {
+	if err := client.DeleteBot(ctx, c.botName); err != nil {
 		return trace.WrapWithMessage(err, "error deleting bot")
 	}
 
@@ -251,7 +251,7 @@ func (c *BotsCommand) RemoveBot(client auth.ClientI) error {
 	return nil
 }
 
-func (c *BotsCommand) LockBot(client auth.ClientI) error {
+func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
@@ -283,7 +283,7 @@ func (c *BotsCommand) LockBot(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	if err := client.UpsertLock(context.Background(), lock); err != nil {
+	if err := client.UpsertLock(ctx, lock); err != nil {
 		return trace.Wrap(err)
 	}
 
