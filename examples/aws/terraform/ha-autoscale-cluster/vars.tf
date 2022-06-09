@@ -175,7 +175,7 @@ variable "use_acm" {
   default = "false"
 }
 
-//CIDR blocks allows to connect to the bastion SSH port
+// CIDR blocks allowed to connect to the bastion SSH port
 variable "allowed_bastion_ssh_ingress_cidr_blocks" {
   type = list
   default = ["0.0.0.0/0"]
