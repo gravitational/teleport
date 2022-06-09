@@ -8,7 +8,7 @@ state: draft
 ## Required Approvers
 
 - Engineering: `@r0mant && @jakule`
-- Product: `@klizhentas || @xinding33f`
+- Product: `@klizhentas || @xinding33`
 
 ## What
 
