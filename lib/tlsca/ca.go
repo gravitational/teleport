@@ -19,6 +19,7 @@ package tlsca
 import (
 	"crypto"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -73,6 +74,27 @@ func FromKeys(certPEM, keyPEM []byte) (*CertAuthority, error) {
 		}
 	}
 	return ca, nil
+}
+
+// FromTLSCertificate returns a CertAuthority with the given TLS certificate.
+func FromTLSCertificate(ca tls.Certificate) (*CertAuthority, error) {
+	if len(ca.Certificate) == 0 {
+		return nil, trace.BadParameter("invalid certificate length")
+	}
+	cert, err := x509.ParseCertificate(ca.Certificate[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer, ok := ca.PrivateKey.(crypto.Signer)
+	if !ok {
+		return nil, trace.BadParameter("failed to convert private key to signer")
+	}
+
+	return &CertAuthority{
+		Cert:   cert,
+		Signer: signer,
+	}, nil
 }
 
 // CertAuthority is X.509 certificate authority
@@ -379,20 +401,16 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	subject := pkix.Name{
-		CommonName: id.Username,
-	}
-	subject.Organization = append([]string{}, id.Groups...)
-	subject.OrganizationalUnit = append([]string{}, id.Usage...)
-	subject.Locality = append([]string{}, id.Principals...)
+		CommonName:         id.Username,
+		Organization:       append([]string{}, id.Groups...),
+		OrganizationalUnit: append([]string{}, id.Usage...),
+		Locality:           append([]string{}, id.Principals...),
 
-	// DELETE IN (5.0.0)
-	// Groups are marshaled to both ASN1 extension
-	// and old Province section, for backwards-compatibility,
-	// however begin migration to ASN1 extensions in the future
-	// for this and other properties
-	subject.Province = append([]string{}, id.KubernetesGroups...)
-	subject.StreetAddress = []string{id.RouteToCluster}
-	subject.PostalCode = []string{string(rawTraits)}
+		// TODO: create ASN.1 extensions for traits and RouteToCluster
+		// and move away from using StreetAddress and PostalCode
+		StreetAddress: []string{id.RouteToCluster},
+		PostalCode:    []string{string(rawTraits)},
+	}
 
 	for i := range id.KubernetesUsers {
 		kubeUser := id.KubernetesUsers[i]
@@ -743,9 +761,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		}
 	}
 
-	// DELETE IN(5.0.0): This logic is using Province field
+	// DELETE IN 11.0.0: This logic is using Province field
 	// from subject in case if Kubernetes groups were not populated
-	// from ASN1 extension, after 5.0 Province field will be ignored
+	// from ASN1 extension, after 5.0 Province field will be ignored,
+	// and after 10.0.0 Province field is never populated
 	if len(id.KubernetesGroups) == 0 {
 		id.KubernetesGroups = subject.Province
 	}

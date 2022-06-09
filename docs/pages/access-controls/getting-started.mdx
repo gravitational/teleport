@@ -80,11 +80,11 @@ users within your SSO solution to Teleport roles.
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
-      teams_to_logins:
+      teams_to_roles:
         - organization: octocats # GitHub organization name
           team: admin            # GitHub team name within that organization
           # map github admin team to Teleport's "access" role
-          logins: ["access"]
+          roles: ["access"]
     ```
 
     Create the `github` resource:

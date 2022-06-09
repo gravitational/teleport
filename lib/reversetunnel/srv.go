@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -212,6 +213,13 @@ type Config struct {
 
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
+
+	// CircuitBreakerConfig configures the auth client circuit breaker
+	CircuitBreakerConfig breaker.Config
+
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -657,6 +665,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		log:              s.log,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
+		authServers:      s.LocalAuthAddresses,
 		channel:          channel,
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,

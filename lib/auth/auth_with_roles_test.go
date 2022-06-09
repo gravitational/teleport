@@ -358,8 +358,8 @@ func TestSAMLAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
-	reqNormal := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
-	reqTest := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
+	reqNormal := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
+	reqTest := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
 		Audience:                 "test",
 		ServiceProviderIssuer:    "test",
@@ -376,7 +376,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.SAMLAuthRequest
+		request            types.SAMLAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -441,7 +441,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateSAMLAuthRequest(tt.request)
+			request, err := client.CreateSAMLAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -534,8 +534,8 @@ func TestOIDCAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertOIDCConnector(context.Background(), conn)
 	require.NoError(t, err)
 
-	reqNormal := services.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
-	reqTest := services.OIDCAuthRequest{
+	reqNormal := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
+	reqTest := types.OIDCAuthRequest{
 		ConnectorID: conn.GetName(),
 		Type:        constants.OIDC,
 		SSOTestFlow: true,
@@ -558,7 +558,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.OIDCAuthRequest
+		request            types.OIDCAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -623,7 +623,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateOIDCAuthRequest(tt.request)
+			request, err := client.CreateOIDCAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -714,8 +714,8 @@ func TestGithubAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertGithubConnector(context.Background(), conn)
 	require.NoError(t, err)
 
-	reqNormal := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
-	reqTest := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
+	reqNormal := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
+	reqTest := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
 		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
@@ -732,7 +732,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.GithubAuthRequest
+		request            types.GithubAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -797,7 +797,7 @@ func TestGithubAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateGithubAuthRequest(tt.request)
+			request, err := client.CreateGithubAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -1393,67 +1393,6 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 			return s.ResetSessionRecordingConfig(ctx)
 		},
 	})
-}
-
-// TestListNodes users can retrieve nodes with the appropriate permissions.
-func TestListNodes(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	// Create test nodes.
-	for i := 0; i < 10; i++ {
-		name := uuid.New().String()
-		node, err := types.NewServerWithLabels(
-			name,
-			types.KindNode,
-			types.ServerSpecV2{},
-			map[string]string{"name": name},
-		)
-		require.NoError(t, err)
-
-		_, err = srv.Auth().UpsertNode(ctx, node)
-		require.NoError(t, err)
-	}
-
-	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
-	require.NoError(t, err)
-
-	// create user, role, and client
-	username := "user"
-	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
-	require.NoError(t, err)
-	identity := TestUser(user.GetName())
-	clt, err := srv.NewClient(identity)
-	require.NoError(t, err)
-
-	// permit user to list all nodes
-	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-
-	// listing nodes 0-4 should list first 5 nodes
-	nodes, _, err := clt.ListNodes(ctx, proto.ListNodesRequest{
-		Namespace: defaults.Namespace,
-		Limit:     5,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 5, len(nodes))
-	expectedNodes := testNodes[:5]
-	require.Empty(t, cmp.Diff(expectedNodes, nodes))
-
-	// remove permission for third node
-	role.SetNodeLabels(types.Deny, types.Labels{"name": {testNodes[3].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-
-	// listing nodes 0-4 should skip the third node and add the fifth to the end.
-	nodes, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-		Namespace: defaults.Namespace,
-		Limit:     5,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 5, len(nodes))
-	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
-	require.Empty(t, cmp.Diff(expectedNodes, nodes))
 }
 
 // TestGetAndList_Nodes users can retrieve nodes with various filters

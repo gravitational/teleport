@@ -16,9 +16,11 @@ package events
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/stretchr/testify/require"
@@ -58,4 +60,123 @@ func TestStreamerCompleteEmpty(t *testing.T) {
 		t.Fatal("Timeout waiting for emitter to complete")
 	case <-doneC:
 	}
+}
+
+// TestNewSliceErrors guarantees that if an error on the `newSlice` process
+// happens, the streamer will be canceled and the error will be returned in
+// future `EmitAuditEvent` calls.
+func TestNewSliceErrors(t *testing.T) {
+	ctx := context.Background()
+	expectedErr := errors.New("test upload error")
+	streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+		Uploader: &mockUploader{reserveUploadPartError: expectedErr},
+	})
+	require.NoError(t, err)
+
+	events := GenerateTestSession(SessionParams{PrintEvents: 1})
+	sid := session.ID(events[0].(SessionMetadataGetter).GetSessionID())
+
+	_, err = streamer.CreateAuditStream(ctx, sid)
+	require.Error(t, err)
+	require.ErrorIs(t, err, expectedErr)
+}
+
+// TestNewStreamErrors when creating a new stream, it will also initialize
+// the current sliceWriter. If there is any error on this, it should be
+// returned.
+func TestNewStreamErrors(t *testing.T) {
+	ctx := context.Background()
+	expectedErr := errors.New("test upload error")
+
+	t.Run("CreateAuditStream", func(t *testing.T) {
+		for _, tt := range []struct {
+			desc        string
+			uploader    *mockUploader
+			expectedErr error
+		}{
+			{
+				desc:     "CreateUploadError",
+				uploader: &mockUploader{createUploadError: expectedErr},
+			},
+			{
+				desc:     "ReserveUploadPartError",
+				uploader: &mockUploader{reserveUploadPartError: expectedErr},
+			},
+		} {
+			t.Run(tt.desc, func(t *testing.T) {
+				streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+					Uploader: tt.uploader,
+				})
+				require.NoError(t, err)
+
+				events := GenerateTestSession(SessionParams{PrintEvents: 1})
+				sid := session.ID(events[0].(SessionMetadataGetter).GetSessionID())
+
+				_, err = streamer.CreateAuditStream(ctx, sid)
+				require.Error(t, err)
+				require.ErrorIs(t, err, expectedErr)
+			})
+		}
+	})
+
+	t.Run("ResumeAuditStream", func(t *testing.T) {
+		for _, tt := range []struct {
+			desc        string
+			uploader    *mockUploader
+			expectedErr error
+		}{
+			{
+				desc:     "ListPartsError",
+				uploader: &mockUploader{listPartsError: expectedErr},
+			},
+			{
+				desc:     "ReserveUploadPartError",
+				uploader: &mockUploader{reserveUploadPartError: expectedErr},
+			},
+		} {
+			t.Run(tt.desc, func(t *testing.T) {
+				streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+					Uploader: tt.uploader,
+				})
+				require.NoError(t, err)
+
+				events := GenerateTestSession(SessionParams{PrintEvents: 1})
+				sid := session.ID(events[0].(SessionMetadataGetter).GetSessionID())
+
+				_, err = streamer.ResumeAuditStream(ctx, sid, uuid.New().String())
+				require.Error(t, err)
+				require.ErrorIs(t, err, expectedErr)
+			})
+		}
+	})
+}
+
+type mockUploader struct {
+	MultipartUploader
+	createUploadError      error
+	reserveUploadPartError error
+	listPartsError         error
+}
+
+func (m *mockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*StreamUpload, error) {
+	if m.createUploadError != nil {
+		return nil, m.createUploadError
+	}
+
+	return &StreamUpload{
+		ID:        uuid.New().String(),
+		SessionID: sessionID,
+	}, nil
+}
+
+func (m *mockUploader) ReserveUploadPart(_ context.Context, _ StreamUpload, _ int64) error {
+	return m.reserveUploadPartError
+}
+
+func (m *mockUploader) ListParts(_ context.Context, _ StreamUpload) ([]StreamPart, error) {
+	if m.listPartsError != nil {
+		return nil, m.listPartsError
+	}
+
+	return []StreamPart{}, nil
 }
