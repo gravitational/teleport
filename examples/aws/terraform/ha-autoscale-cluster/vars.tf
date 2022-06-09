@@ -224,7 +224,7 @@ variable "allowed_node_egress_cidr_blocks" {
   default = ["0.0.0.0/0"]
 }
 
-//Internet gateway destination CIDR Block
+// Internet gateway destination CIDR Block
 variable "internet_gateway_dest_cidr_block" {
   type = string
   default = "0.0.0.0/0"
