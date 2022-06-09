@@ -54,12 +54,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var validCASigAlgos = []string{
-	ssh.KeyAlgoRSA,
-	ssh.KeyAlgoRSASHA256,
-	ssh.KeyAlgoRSASHA512,
-}
-
 // FileConfig structre represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
 //
@@ -167,6 +161,9 @@ type SampleFlags struct {
 	AppURI string
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
+	// a single value or a list.
+	CAPin string
 	// JoinMethod is the method that will be used to join the cluster, either "token", "iam" or "ec2"
 	JoinMethod string
 }
@@ -208,6 +205,8 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
 	}
+
+	g.CAPin = strings.Split(flags.CAPin, ",")
 
 	roles := roleMapFromFlags(flags)
 
@@ -426,9 +425,6 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
-	if conf.CASignatureAlgorithm != nil && !apiutils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
-		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", *conf.CASignatureAlgorithm, validCASigAlgos)
-	}
 
 	return nil
 }
@@ -543,9 +539,7 @@ type Global struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
 
-	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
-	// algorithm that the server uses for signing user and host certificates.
-	// If omitted, the default will be used.
+	// CASignatureAlgorithm is ignored but ketp for config backwards compat
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
@@ -657,16 +651,6 @@ type Auth struct {
 	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
-
-	// TrustedClustersFile is a file path to a file containing public CA keys
-	// of clusters we trust. One key per line, those starting with '#' are comments
-	// Deprecated: Remove in Teleport 2.4.1.
-	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
-
-	// DynamicConfig determines when file configuration is pushed to the backend. Setting
-	// it here overrides defaults.
-	// Deprecated: Remove in Teleport 2.4.1.
-	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
 
 	// PublicAddr sets SSH host principals and TLS DNS names to auth
 	// server certificates
@@ -991,6 +975,10 @@ type SSH struct {
 
 	// X11 is used to configure X11 forwarding settings
 	X11 *X11 `yaml:"x11,omitempty"`
+
+	// DisableCreateHostUser disables automatic user provisioning on this
+	// SSH node.
+	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.

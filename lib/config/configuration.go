@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 	"unicode"
@@ -345,7 +346,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
 	if fc.CASignatureAlgorithm != nil {
-		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
+		log.Warn("ca_signing_algo config option is deprecated and will be removed in a future release, Teleport defaults to rsa-sha2-512.")
 	}
 
 	// Read in how nodes will validate the CA. A single empty string in the file
@@ -991,6 +992,12 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
+		cfg.SSH.DisableCreateHostUser = true
+		if runtime.GOOS != constants.LinuxOS {
+			log.Warnln("Disabling host user creation as this feature is only available on Linux")
+		}
+	}
 	if fc.SSH.PAM != nil {
 		cfg.SSH.PAM = fc.SSH.PAM.Parse()
 
@@ -1368,6 +1375,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
+
+	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
+		if !types.IsValidLabelKey(attributeName) {
+			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+		}
+	}
+
 	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
 
 	var err error
@@ -1493,8 +1507,6 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
 			}},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

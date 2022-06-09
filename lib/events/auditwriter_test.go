@@ -19,6 +19,7 @@ package events
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"math/rand"
 	"testing"
@@ -286,6 +287,35 @@ func TestAuditWriter(t *testing.T) {
 		for _, event := range emittedEvents {
 			require.Equal(t, event.GetClusterName(), "cluster")
 		}
+	})
+
+	t.Run("NonRecoverable", func(t *testing.T) {
+		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
+			return NewCallbackStreamer(CallbackStreamerConfig{
+				Inner: streamer,
+				OnEmitAuditEvent: func(_ context.Context, _ session.ID, _ apievents.AuditEvent) error {
+					// Returns an unrecoverable error.
+					return errors.New(uploaderReservePartErrorMessage)
+				},
+			})
+		})
+
+		// First event will not fail since it is processed in the goroutine.
+		events := GenerateTestSession(SessionParams{SessionID: string(test.sid)})
+		require.NoError(t, test.writer.EmitAuditEvent(test.ctx, events[1]))
+
+		// Subsequent events will fail.
+		err := test.writer.EmitAuditEvent(test.ctx, events[1])
+		require.Error(t, err)
+
+		require.Eventually(t, func() bool {
+			select {
+			case <-test.writer.Done():
+				return true
+			default:
+				return false
+			}
+		}, 300*time.Millisecond, 100*time.Millisecond)
 	})
 }
 

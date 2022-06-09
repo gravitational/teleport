@@ -109,8 +109,8 @@ teleport:
         token_name:  "token-name"
 
     # Optional CA pin of the auth server. This enables a more secure way of
-    # adding new nodes to a cluster. See "Adding Nodes to the Cluster"
-    # (https://goteleport.com/docs/admin-guide/#adding-nodes-to-the-cluster).
+    # adding new nodes to a cluster. See "Adding Nodes to your Cluster"
+    # (https://goteleport.com/docs/setup/admin/adding-nodes).
     ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
     # When running in multi-homed or NATed environments Teleport nodes need
@@ -163,10 +163,10 @@ teleport:
           extra_fields: [level, timestamp, component, caller]
 
     # Configuration for the storage back-end used for the cluster state and the
-    # audit log. Several back-end types are supported. See the "High
-    # Availability" section of the Admin Manual
-    # (https://goteleport.com/docs/admin-guide/#high-availability) to learn how
-    # to configure DynamoDB, S3, etcd, and other highly available back-ends.
+    # audit log. Several back-end types are supported.
+    # See the "Storage backends" (https://goteleport.com/docs/setup/reference/backends)
+    # section of the documentation to learn how to configure
+    # DynamoDB, S3, etcd, and other highly available back-ends.
     storage:
         # By default teleport uses the `data_dir` directory on a local
         # filesystem
@@ -182,9 +182,9 @@ teleport:
         audit_events_uri: ['dynamodb://events_table_name', 'firestore://events_table_name', 'file:///var/lib/teleport/log', 'stdout://']
 
         # Use this setting to configure teleport to store the recorded sessions
-        # in an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using
-        # Amazon S3" for more information
-        # (https://goteleport.com/docs/admin-guide/#using-amazon-s3).
+        # in an AWS S3 bucket or use GCP Storage with 'gs://'.
+        # See the S3 section on "Storage backends" for more information
+        # (https://goteleport.com/docs/setup/reference/backends/#s3).
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
         # DynamoDB Specific Section:
@@ -209,11 +209,6 @@ teleport:
         write_min_capacity: int
         write_max_capacity: int
         write_target_value: float
-
-    # CA Signing algorithm used for OpenSSH Certificates
-    # Defaults to rsa-sha2-512 in 4.3 and above.
-    # valid values are: ssh-rsa, rsa-sha2-256, rsa-sha2-512; ssh-rsa is SHA1
-    ca_signature_algo: "rsa-sha2-512"
 
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
@@ -273,7 +268,7 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github'
         # for OSS, plus 'oidc' and 'saml' for Enterprise.
-        # Only local authentication (Teleport's own user DB) & Github is
+        # Only local authentication (Teleport's own user DB) & GitHub is
         # supported in the open source version
         type: local
 
@@ -509,16 +504,16 @@ ssh_service:
     # bypassing a Teleport proxy.
     public_addr: node.example.com:3022
 
-    # See explanation of labels in "Labeling Nodes and Applications" section
-    # (https://goteleport.com/docs/admin-guide/#labeling-nodes-and-applications).
+    # See the explanation of labels in the "Labels" page
+    # (https://goteleport.com/docs/setup/admin/labels).
     labels:
         role: leader
         type: postgres
 
     # List of the commands to periodically execute. Their output will be used
     # as node labels.
-    # See "Labeling Nodes" section for more information and more examples
-    # (https://goteleport.com/docs/admin-guide/#labeling-nodes-and-applications).
+    # See the "Labels" page for more information and more examples
+    # (https://goteleport.com/docs/setup/admin/labels).
     commands:
     # this command will add a label 'arch=x86_64' to a node
     - name: arch

@@ -107,6 +107,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 			// When a connection is released a new can be established
 			t.Run("reconnect one", func(t *testing.T) {
 				// Get one open connection.
+				require.GreaterOrEqual(t, len(connsClosers), 1)
 				oneConn := connsClosers[len(connsClosers)-1]
 				connsClosers = connsClosers[:len(connsClosers)-1]
 

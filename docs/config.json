@@ -61,7 +61,7 @@
           "slug": "/setup/admin/",
           "entries": [
             {
-              "title": "Github SSO",
+              "title": "GitHub SSO",
               "slug": "/setup/admin/github-sso/"
             },
             {
@@ -1001,9 +1001,6 @@
     },
     "mongodb": {
       "min_version": "3.6"
-    },
-    "mysql": {
-      "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
       "version": "9.0.4",

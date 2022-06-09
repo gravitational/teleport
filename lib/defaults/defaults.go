@@ -30,8 +30,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
-
-	"golang.org/x/crypto/ssh"
 )
 
 // Default port numbers used by all teleport tools
@@ -300,10 +298,6 @@ var (
 	// ResyncInterval is how often tunnels are resynced.
 	ResyncInterval = 5 * time.Second
 
-	// AuthServersRefreshPeriod is a period for clients to refresh their
-	// their stored list of auth servers
-	AuthServersRefreshPeriod = 30 * time.Second
-
 	// TerminalResizePeriod is how long tsh waits before updating the size of the
 	// terminal window.
 	TerminalResizePeriod = 2 * time.Second
@@ -378,10 +372,6 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
-	// CASignatureAlgorithm is the default signing algorithm to use when
-	// creating new SSH CAs.
-	CASignatureAlgorithm = ssh.KeyAlgoRSASHA512
-
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
@@ -444,9 +434,6 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued certificate
-	MinCertDuration = time.Minute
-
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
@@ -494,6 +481,8 @@ const (
 	ProtocolCockroachDB = "cockroachdb"
 	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
 	ProtocolSQLServer = "sqlserver"
+	// ProtocolSnowflake is the Snowflake REST database protocol.
+	ProtocolSnowflake = "snowflake"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -503,6 +492,7 @@ var DatabaseProtocols = []string{
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
 	ProtocolRedis,
+	ProtocolSnowflake,
 	ProtocolSQLServer,
 }
 
@@ -583,6 +573,11 @@ const (
 	SelfSignedPubPath = "webproxy_pub.pem"
 	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
 	SelfSignedCertPath = "webproxy_cert.pem"
+)
+
+const (
+	// SnowflakeURL is the Snowflake URL used for address validation.
+	SnowflakeURL = "snowflakecomputing.com"
 )
 
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
