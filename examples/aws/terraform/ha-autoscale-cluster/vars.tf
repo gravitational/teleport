@@ -230,7 +230,7 @@ variable "internet_gateway_dest_cidr_block" {
   default = "0.0.0.0/0"
 }
 
-//Route allows for Auth Servers Destination CIDR Block
+// Route allowed for Auth Servers Destination CIDR Block
 variable "auth_aws_route_dest_cidr_block" {
   type = string
   default = "0.0.0.0/0"
