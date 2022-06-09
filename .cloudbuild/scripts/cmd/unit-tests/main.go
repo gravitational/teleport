@@ -25,14 +25,15 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/customflag"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // main is just a stub that prints out an error message and sets a nonzero exit
@@ -106,7 +107,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	return args, nil
 }
 
-// run parses the command line, performs the highlevel docs change check
+// run parses the command line, performs the high level docs change check
 // and creates the marker file if necessary
 func run() error {
 	args, err := parseCommandLine()
@@ -140,8 +141,7 @@ func run() error {
 		return trace.Wrap(err, "Failed analyzing code")
 	}
 
-	hasOnlyDocChanges := ch.Docs && (!ch.Code)
-	if hasOnlyDocChanges {
+	if !ch.Code {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}

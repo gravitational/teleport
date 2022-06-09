@@ -143,6 +143,7 @@ type transport struct {
 	log          logrus.FieldLogger
 	closeContext context.Context
 	authClient   auth.ProxyAccessPoint
+	authServers  []string
 	channel      ssh.Channel
 	requestCh    <-chan *ssh.Request
 
@@ -210,19 +211,14 @@ func (p *transport) start() {
 	switch dreq.Address {
 	// Connect to an Auth Server.
 	case RemoteAuthServer:
-		authServers, err := p.authClient.GetAuthServers()
-		if err != nil {
-			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
+		if len(p.authServers) <= 0 {
+			p.log.Errorf("connection rejected: no auth servers configured")
+			p.reply(req, false, []byte("no auth servers configured"))
+
 			return
 		}
-		if len(authServers) == 0 {
-			p.log.Warn("No auth servers registered in the cluster.")
-			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
-			return
-		}
-		for _, as := range authServers {
-			servers = append(servers, as.GetAddr())
-		}
+
+		servers = p.authServers
 	// Connect to the Kubernetes proxy.
 	case LocalKubernetes:
 		switch p.component {
@@ -306,6 +302,9 @@ func (p *transport) start() {
 	// Dial was successful.
 	if err := req.Reply(true, []byte("Connected.")); err != nil {
 		p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
+		if err := conn.Close(); err != nil {
+			p.log.Errorf("Failed closing connection: %v", err)
+		}
 		return
 	}
 	p.log.Debugf("Successfully dialed to %v %q, start proxying.", dreq.Address, dreq.ServerID)
@@ -390,7 +389,7 @@ func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bo
 
 		errTun := err
 		p.log.Debugf("Attempting to dial directly %v.", servers)
-		conn, err = p.directDial(servers, r.ServerID)
+		conn, err = p.directDial(servers)
 		if err != nil {
 			return nil, false, trace.ConnectionProblem(err, "failed dialing through tunnel (%v) or directly (%v)", errTun, err)
 		}
@@ -438,12 +437,19 @@ func (p *transport) reply(req *ssh.Request, ok bool, msg []byte) {
 	}
 }
 
-// directDial attempst to directly dial to the target host.
-func (p *transport) directDial(servers []string, serverID string) (net.Conn, error) {
-	var errors []error
+// directDial attempts to directly dial to the target host.
+func (p *transport) directDial(servers []string) (net.Conn, error) {
+	if len(servers) <= 0 {
+		return nil, trace.BadParameter("no servers to dial")
+	}
 
+	var errors []error
 	for _, addr := range servers {
-		conn, err := net.Dial("tcp", addr)
+		dialer := net.Dialer{
+			Timeout: apidefaults.DefaultDialTimeout,
+		}
+
+		conn, err := dialer.DialContext(p.closeContext, "tcp", addr)
 		if err == nil {
 			return conn, nil
 		}
