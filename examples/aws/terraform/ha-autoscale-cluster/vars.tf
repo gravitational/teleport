@@ -194,7 +194,7 @@ variable "allowed_proxy_ingress_cidr_blocks" {
   default = ["0.0.0.0/0"]
 }
 
-//CIDR blocks allowed for egress from Teleport Proxies
+// CIDR blocks allowed for egress from Teleport Proxies
 variable "allowed_proxy_egress_cidr_blocks" {
   type = list
   default = ["0.0.0.0/0"]
