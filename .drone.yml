@@ -5102,7 +5102,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:133
+# Generated at dronegen/misc.go:145
 ################################################
 
 kind: pipeline
@@ -5130,7 +5130,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:157
+# Generated at dronegen/misc.go:169
 ################################################
 
 kind: pipeline
@@ -5159,10 +5159,16 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p /go/src/github.com/gravitational/teleport
-  - cd /go/src/github.com/gravitational/teleport
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout "${DRONE_TAG}"
+- name: Check if tag is prerelease
+  image: golang:1.17-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -5185,7 +5191,7 @@ steps:
   - chown -R root:root $GNUPGHOME
   - apt update
   - apt install aptly tree -y
-  - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -local-bucket-path "$BUCKET_CACHE_PATH"
@@ -5608,6 +5614,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 8ba01d8a4566bb36fc2375c5a6eb4e5ea9d6f5d638c0be44028397b3c1720668
+hmac: 5acd82e991fc974378ec84b0265df412875f0c349000a6c92720b39287639ac8
 
 ...

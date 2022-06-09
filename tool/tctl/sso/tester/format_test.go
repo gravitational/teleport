@@ -89,6 +89,7 @@ options:
   desktop_clipboard: null
   desktop_directory_sharing: null
   forward_agent: false
+  pin_source_ip: false
   record_session: null
 `,
 		},
@@ -133,7 +134,8 @@ func Test_formatJSON(t *testing.T) {
         "record_session": null,
         "desktop_clipboard": null,
         "desktop_directory_sharing": null,
-        "create_host_user": null
+        "create_host_user": null,
+        "pin_source_ip": false
     },
     "allow": {
         "logins": [
