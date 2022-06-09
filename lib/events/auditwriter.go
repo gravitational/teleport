@@ -589,10 +589,10 @@ func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 			case <-a.cfg.Context.Done():
 				return nil, trace.ConnectionProblem(a.closeCtx.Err(), "operation has been canceled")
 			}
-		}
-
-		if isUnrecoverableError(err) {
-			return nil, trace.ConnectionProblem(err, "stream cannot be recovered")
+		} else {
+			if isUnrecoverableError(err) {
+				return nil, trace.ConnectionProblem(err, "stream cannot be recovered")
+			}
 		}
 
 		select {
