@@ -88,12 +88,6 @@ func TestBufferedKept(t *testing.T) {
 	require.Equal(t, m.buffer, kept)
 }
 
-type funcReader func(p []byte) (n int, err error)
-
-func (f funcReader) Read(p []byte) (n int, err error) {
-	return f(p)
-}
-
 func TestNoReadWhenOff(t *testing.T) {
 	m := NewTermManager()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
