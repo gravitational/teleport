@@ -23,138 +23,128 @@ import (
 )
 
 func TestLicenseSettersAndGetters(t *testing.T) {
-	license := LicenseV3{}
-
-	l := func() License {
-		return &license
-	}
-
-	reset := func() {
-		license = LicenseV3{}
-		fv := Bool(false)
-		// Manually disble application access because it will be set
-		// to true by default if the value is unset.
-		license.Spec.SupportsApplicationAccess = &fv
-	}
-
 	tt := []struct {
 		name        string
-		setter      func(Bool)
-		getter      func() Bool
-		unsetValues [](func() Bool)
+		setter      func(License, Bool)
+		getter      func(License) Bool
+		unsetValues [](func(License) Bool)
 	}{
 		{
 			name:   "Set ReportsUsage",
-			setter: l().SetReportsUsage,
-			getter: l().GetReportsUsage,
-			unsetValues: []func() Bool{
-				l().GetCloud,
-				l().GetSupportsKubernetes,
-				l().GetSupportsApplicationAccess,
-				l().GetSupportsDatabaseAccess,
-				l().GetSupportsDesktopAccess,
-				l().GetSupportsModeratedSessions,
+			setter: License.SetReportsUsage,
+			getter: License.GetReportsUsage,
+			unsetValues: []func(License) Bool{
+				License.GetCloud,
+				License.GetSupportsKubernetes,
+				License.GetSupportsApplicationAccess,
+				License.GetSupportsDatabaseAccess,
+				License.GetSupportsDesktopAccess,
+				License.GetSupportsModeratedSessions,
 			},
 		},
 		{
 			name:   "Set Cloud",
-			setter: l().SetCloud,
-			getter: l().GetCloud,
-			unsetValues: []func() Bool{
-				l().GetReportsUsage,
-				l().GetSupportsKubernetes,
-				l().GetSupportsApplicationAccess,
-				l().GetSupportsDatabaseAccess,
-				l().GetSupportsDesktopAccess,
-				l().GetSupportsModeratedSessions,
+			setter: License.SetCloud,
+			getter: License.GetCloud,
+			unsetValues: []func(License) Bool{
+				License.GetReportsUsage,
+				License.GetSupportsKubernetes,
+				License.GetSupportsApplicationAccess,
+				License.GetSupportsDatabaseAccess,
+				License.GetSupportsDesktopAccess,
+				License.GetSupportsModeratedSessions,
 			},
 		},
 		{
 			name:   "Set Kubernetes Support",
-			setter: l().SetSupportsKubernetes,
-			getter: l().GetSupportsKubernetes,
-			unsetValues: []func() Bool{
-				l().GetReportsUsage,
-				l().GetCloud,
-				l().GetSupportsApplicationAccess,
-				l().GetSupportsDatabaseAccess,
-				l().GetSupportsDesktopAccess,
-				l().GetSupportsModeratedSessions,
+			setter: License.SetSupportsKubernetes,
+			getter: License.GetSupportsKubernetes,
+			unsetValues: []func(License) Bool{
+				License.GetReportsUsage,
+				License.GetCloud,
+				License.GetSupportsApplicationAccess,
+				License.GetSupportsDatabaseAccess,
+				License.GetSupportsDesktopAccess,
+				License.GetSupportsModeratedSessions,
 			},
 		},
 		{
 			name:   "Set Application Access Support",
-			setter: l().SetSupportsApplicationAccess,
-			getter: l().GetSupportsApplicationAccess,
-			unsetValues: []func() Bool{
-				l().GetReportsUsage,
-				l().GetCloud,
-				l().GetSupportsKubernetes,
-				l().GetSupportsDatabaseAccess,
-				l().GetSupportsDesktopAccess,
-				l().GetSupportsModeratedSessions,
+			setter: License.SetSupportsApplicationAccess,
+			getter: License.GetSupportsApplicationAccess,
+			unsetValues: []func(License) Bool{
+				License.GetReportsUsage,
+				License.GetCloud,
+				License.GetSupportsKubernetes,
+				License.GetSupportsDatabaseAccess,
+				License.GetSupportsDesktopAccess,
+				License.GetSupportsModeratedSessions,
 			},
 		},
 		{
 			name:   "Set Database Access Support",
-			setter: l().SetSupportsDatabaseAccess,
-			getter: l().GetSupportsDatabaseAccess,
-			unsetValues: []func() Bool{
-				l().GetReportsUsage,
-				l().GetCloud,
-				l().GetSupportsKubernetes,
-				l().GetSupportsApplicationAccess,
-				l().GetSupportsDesktopAccess,
-				l().GetSupportsModeratedSessions,
+			setter: License.SetSupportsDatabaseAccess,
+			getter: License.GetSupportsDatabaseAccess,
+			unsetValues: []func(License) Bool{
+				License.GetReportsUsage,
+				License.GetCloud,
+				License.GetSupportsKubernetes,
+				License.GetSupportsApplicationAccess,
+				License.GetSupportsDesktopAccess,
+				License.GetSupportsModeratedSessions,
 			},
 		},
 		{
 			name:   "Set Desktop Access Support",
-			setter: l().SetSupportsDesktopAccess,
-			getter: l().GetSupportsDesktopAccess,
-			unsetValues: []func() Bool{
-				l().GetReportsUsage,
-				l().GetCloud,
-				l().GetSupportsKubernetes,
-				l().GetSupportsApplicationAccess,
-				l().GetSupportsDatabaseAccess,
-				l().GetSupportsModeratedSessions,
+			setter: License.SetSupportsDesktopAccess,
+			getter: License.GetSupportsDesktopAccess,
+			unsetValues: []func(License) Bool{
+				License.GetReportsUsage,
+				License.GetCloud,
+				License.GetSupportsKubernetes,
+				License.GetSupportsApplicationAccess,
+				License.GetSupportsDatabaseAccess,
+				License.GetSupportsModeratedSessions,
 			},
 		},
 		{
 			name:   "Set Moderated Sessions Support",
-			setter: l().SetSupportsModeratedSessions,
-			getter: l().GetSupportsModeratedSessions,
-			unsetValues: []func() Bool{
-				l().GetReportsUsage,
-				l().GetCloud,
-				l().GetSupportsKubernetes,
-				l().GetSupportsApplicationAccess,
-				l().GetSupportsDatabaseAccess,
-				l().GetSupportsDesktopAccess,
+			setter: License.SetSupportsModeratedSessions,
+			getter: License.GetSupportsModeratedSessions,
+			unsetValues: []func(License) Bool{
+				License.GetReportsUsage,
+				License.GetCloud,
+				License.GetSupportsKubernetes,
+				License.GetSupportsApplicationAccess,
+				License.GetSupportsDatabaseAccess,
+				License.GetSupportsDesktopAccess,
 			},
 		},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			reset()
-			tc.setter(true)
-			require.True(t, bool(tc.getter()))
+			license := &LicenseV3{
+				Spec: LicenseSpecV3{
+					SupportsApplicationAccess: NewBoolP(false),
+				},
+			}
+			tc.setter(license, true)
+			require.True(t, bool(tc.getter(license)))
 			for _, unset := range tc.unsetValues {
-				require.False(t, bool(unset()))
+				require.False(t, bool(unset(license)))
 			}
 		})
 	}
 
 	// Manually test Application Access.
 	// If unset application access is set to true by default.
-	license = LicenseV3{}
-	require.True(t, bool(l().GetSupportsApplicationAccess()))
-	require.False(t, bool(l().GetReportsUsage()))
-	require.False(t, bool(l().GetCloud()))
-	require.False(t, bool(l().GetSupportsKubernetes()))
-	require.False(t, bool(l().GetSupportsDatabaseAccess()))
-	require.False(t, bool(l().GetSupportsDesktopAccess()))
-	require.False(t, bool(l().GetSupportsModeratedSessions()))
+	license := &LicenseV3{}
+	require.True(t, bool(license.GetSupportsApplicationAccess()))
+	require.False(t, bool(license.GetReportsUsage()))
+	require.False(t, bool(license.GetCloud()))
+	require.False(t, bool(license.GetSupportsKubernetes()))
+	require.False(t, bool(license.GetSupportsDatabaseAccess()))
+	require.False(t, bool(license.GetSupportsDesktopAccess()))
+	require.False(t, bool(license.GetSupportsModeratedSessions()))
 }
