@@ -5,10 +5,14 @@ description: AWS IAM policies for Teleport database access.
 
 ## Auto-discovery
 With the appropriate IAM permissions, Teleport automatically discovers and
-configures IAM policies for Amazon RDS, Redshift and ElastiCache.
+configures IAM policies for Amazon RDS and Redshift. Teleport also requires
+permission to update database configurations, for example, to enable IAM
+authentication on RDS databases.
 
-Teleport may also require permission to update database configurations, for
-example, to enable IAM authentication on RDS databases.
+For Amazon ElastiCache, Teleport requires permission to automatically discover
+the Redis clusters. Teleport also requires permission to automatically discover
+and modify any Teleport-managed ElastiCache users and permission to manage the
+passwords in AWS Secrets Manager.
 
 You can generate and manage the permissions with the [`teleport db configure
 bootstrap`](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
@@ -29,7 +33,7 @@ policies for each discovery type are shown below.
   Use this policy if you're connecting to RDS instances and your Teleport
   database agent runs as an IAM user (for example, uses an AWS credentials file).
 
-  Replace `{account-id}` with your AWS Account ID.
+  Replace `{account-id}` with your AWS Account ID:
   ```json
   {
       "Version": "2012-10-17",
@@ -60,7 +64,7 @@ policies for each discovery type are shown below.
   database agent runs as an IAM role (for example, on an EC2 instance with
   an attached IAM role).
 
-  Replace `{account-id}` with your AWS Account ID.
+  Replace `{account-id}` with your AWS Account ID:
   ```json
   {
       "Version": "2012-10-17",
@@ -90,7 +94,7 @@ policies for each discovery type are shown below.
   Use this policy if you're connecting to Aurora clusters and your Teleport
   database agent runs as an IAM user (for example, uses an AWS credentials file).
 
-  Replace `{account-id}` with your AWS Account ID.
+  Replace `{account-id}` with your AWS Account ID:
   ```json
   {
       "Version": "2012-10-17",
@@ -121,7 +125,7 @@ policies for each discovery type are shown below.
   database agent runs as an IAM role (for example, on an EC2 instance with
   an attached IAM role).
 
-  Replace `{account-id}` with your AWS Account ID.
+  Replace `{account-id}` with your AWS Account ID:
   ```json
   {
       "Version": "2012-10-17",
@@ -156,7 +160,7 @@ policies for each discovery type are shown below.
   Use this permission boundary if your Teleport database agent runs as an IAM
   user (for example, it uses an AWS credentials file).
 
-  Replace `{account-id}` with your AWS Account ID.
+  Replace `{account-id}` with your AWS Account ID:
   ```json
   {
       "Version": "2012-10-17",
@@ -186,7 +190,7 @@ policies for each discovery type are shown below.
   Use this permission boundary if your Teleport database agent runs as an IAM
   role (for example, on an EC2 instance with an attached IAM role).
 
-  Replace `{account-id}` with your AWS Account ID.
+  Replace `{account-id}` with your AWS Account ID:
   ```json
   {
       "Version": "2012-10-17",
@@ -217,10 +221,10 @@ policies for each discovery type are shown below.
 ### ElastiCache
 
 In addition to database discovery, Teleport requires permissions to modify user
-passwords and save passwords in AWS Secrets Manager, if any ElastiCache users
+passwords, and save passwords in AWS Secrets Manager, if any ElastiCache users
 are tagged to be managed by Teleport.
 
-Replace `{account-id}` with your AWS Account ID.
+Replace `{account-id}` with your AWS Account ID:
 
 ```json
 {
@@ -359,7 +363,7 @@ If any ElastiCache users are tagged to be managed by Teleport, below are the
 IAM permissions required for managing the ElastiCache users. Otherwise, no
 additional IAM permissions are required.
 
-Replace `{account-id}` with your AWS Account ID.
+Replace `{account-id}` with your AWS Account ID:
 
 ```json
 {
@@ -399,7 +403,7 @@ Replace `{account-id}` with your AWS Account ID.
 If any custom key prefix or KMS key ID is used in the static configuration, add
 the following to the IAM policy.
 
-Replace `{account-id}`, `{my-prefix}` and `{my-kms-id}` accordingly.
+Replace `{account-id}`, `{my-prefix}` and `{my-kms-id}` accordingly:
 
 ```
 {

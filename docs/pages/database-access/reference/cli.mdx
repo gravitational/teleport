@@ -103,9 +103,9 @@ $ teleport db configure create \
 | - | - |
 | `--proxy` | Teleport Proxy Service address to connect to. Default: `0.0.0.0:3080`. |
 | `--token` | Invitation token to register with the Auth Service. Default: none. |
-| `--rds-discovery` | List of AWS regions the agent will discover for RDS/Aurora instances. |
-| `--redshift-discovery` | List of AWS regions the agent will discover for Redshift instances. |
-| `--elasticache-discovery` | List of AWS regions the agent will discover for ElastiCache Redis clusters. |
+| `--rds-discovery` | List of AWS regions in which the agent will discover RDS/Aurora instances. |
+| `--redshift-discovery` | List of AWS regions in which the agent will discover Redshift instances. |
+| `--elasticache-discovery` | List of AWS regions in which the agent will discover ElastiCache Redis clusters. |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
 | `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver]`. |

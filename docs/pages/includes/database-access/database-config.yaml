@@ -54,23 +54,23 @@ db_service:
       # When this option is set the Database Agent doesn't try to check the MySQL server version.
       server_version: 8.0.28
 
-    # Optional AWS configuration for AWS hosted databases. AWS region and
-    # service specific configurations can usually be auto-detected from the
+    # Optional AWS configuration for AWS hosted databases. AWS region- and
+    # service-specific configurations can usually be auto-detected from the
     # endpoint.
     aws:
       # Region the database is deployed in.
       region: "us-east-1"
-      # Redshift specific configuration.
+      # Redshift-specific configuration.
       redshift:
         # Redshift cluster identifier.
         cluster_id: "redshift-cluster-1"
-      # RDS specific configuration.
+      # RDS-specific configuration.
       rds:
         # RDS instance identifier.
         instance_id: "rds-instance-1"
         # RDS Aurora cluster identifier.
         cluster_id: "aurora-cluster-1"
-      # ElastiCache specific configuration.
+      # ElastiCache-specific configuration.
       elasticache:
         # ElastiCache replication group identifier.
         replication_group_id: "elasticache-replication-group-1"
@@ -78,7 +78,7 @@ db_service:
       # Optional AWS Secrets Manager configuration for managing ElastiCache
       # users.
       #
-      # IMPORTANT: please make sure databases sharing the same ElastiCache
+      # IMPORTANT: please make sure databases sharing the same Teleport-managed
       # users have the same secret_store configuration. The configuration
       # should also be consistent across all Database Services in High
       # Availability (HA) mode.
