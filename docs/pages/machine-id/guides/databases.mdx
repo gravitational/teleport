@@ -3,8 +3,8 @@ title: Machine ID with Databases
 description: Protecting your databases with Machine ID
 ---
 
-In this guide, we will demonstrate how to use Machine ID protect and access a
-database from a custom application.
+In this guide, we will demonstrate how to use Machine ID to access a database
+protected by Teleport from a custom application.
 
 You may already be using Teleport Database Access to protect your database
 when humans access it. Machine ID can be used to protect your data when
@@ -74,15 +74,15 @@ $ tctl create -f role.yaml
 With the role created, create a new bot and allow it to assume the new role.
 
 <Details scope={["cloud"]} scopeOnly={true}>
-On your client machine, log in to Teleport using `tsh` before using `tctl`.
+On your client machine, log in to Teleport using `tsh` before using `tctl` to
+create the bot:
 
 ```code
 $ tctl bots add app --roles=machine-id-db
 ```
 </Details>
 <Details scope={["oss","enterprise"]} scopeOnly={true}>
-Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
-your system.
+Connect to the Teleport Auth Server and use `tctl` to create the bot:
 
 ```code
 $ tctl bots add app --roles=machine-id-db
@@ -237,9 +237,9 @@ your database client and server is never unencrypted, even over localhost.
 
 The standard TLS credentials may be found in your configured destination
 directory which in this example is `/opt/machine-id`. The certificate may be
-found at `/opt/machine-id/tlscert` along with the CA at
-`/opt/machine-id/teleport-database-ca.crt`. These are compatible with most
-database clients.
+found at `/opt/machine-id/tlscert` along with the private key
+`/opt/machine-id/key` and CA at `/opt/machine-id/teleport-database-ca.crt`.
+These are compatible with most database clients.
 
 Certain databases may require specially-formatted certificates; where
 supported, `tbot` provides configuration templates you may configure via the
