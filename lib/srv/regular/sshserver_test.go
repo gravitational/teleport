@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -596,7 +597,9 @@ func TestOpenExecSessionSetsSession(t *testing.T) {
 // TestAgentForward tests agent forwarding via unix sockets
 func TestAgentForward(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
 
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(f.user)
@@ -606,6 +609,13 @@ func TestAgentForward(t *testing.T) {
 	roleOptions.ForwardAgent = types.NewBool(true)
 	role.SetOptions(roleOptions)
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession()
