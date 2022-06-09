@@ -632,7 +632,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
 
-	// won't request to non-existant node
+	// won't request to non-existent node
 	err = Run(context.Background(), []string{
 		"ssh",
 		"--insecure",
