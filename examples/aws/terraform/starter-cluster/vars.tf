@@ -85,7 +85,7 @@ variable "use_acm" {
   type = string
 }
 
-//CIDR blocks allows to connect to the SSH port
+// CIDR blocks allowed to connect to the SSH port
 variable "allowed_ssh_ingress_cidr_blocks" {
   type = list
   default = ["0.0.0.0/0"]
