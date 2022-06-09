@@ -82,8 +82,8 @@ variable "enable_mysql_listener" {
   default = false
 }
 
-//whether to enable the postgres listener
-//adds security group setting, maps load balancer to port and adds to teleport config
+// whether to enable the postgres listener
+// adds security group setting, maps load balancer to port and adds to teleport config
 variable "enable_postgres_listener" {
   type    = bool
   default = false
