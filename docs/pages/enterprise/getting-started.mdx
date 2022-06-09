@@ -27,8 +27,8 @@ There are three types of services Teleport can run:
 - **Proxy Service** routes client connection requests to the appropriate agent
   and serves a Web UI that can also be used to access resources.
 - **Agents** provide access to resources including SSH servers, Kubernetes
-  clusters, web applications and databases. 
-  
+  clusters, web applications and databases.
+
 In this guide, we will highlight the Teleport SSH Service. The SSH Service is
 similar to the `sshd` daemon you may be familiar with. SSH Service instances are
 called **Teleport Nodes**. When a Teleport Node receives a connection request,
@@ -92,7 +92,7 @@ and save it as `/var/lib/teleport/license.pem` on the auth server.
 ### Systemd Unit File
 
 Next, download the systemd service unit file from [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd)
-on Github and save it as `/etc/systemd/system/teleport.service` on both servers.
+on GitHub and save it as `/etc/systemd/system/teleport.service` on both servers.
 
 ```bsh
 # run this on both servers:
@@ -347,7 +347,7 @@ configuring SSO providers:
 - [Okta](sso/okta.mdx)
 - [Active Directory](sso/adfs.mdx)
 - [One Login](sso/one-login.mdx)
-- [Github](../setup/admin/github-sso.mdx)
+- [GitHub](../setup/admin/github-sso.mdx)
 
 Any SAML-compliant provider can be configured with Teleport by following the
 same steps.  There are Teleport Enterprise customers who are using Oracle IDM,
@@ -382,7 +382,7 @@ We currently only offer Docker images for `x86_64` architectures.
 The easiest way to start Teleport Enterprise quickly is to use `docker-compose` with our [`teleport-ent-quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/teleport-ent-quickstart.yml) file:
 
 ```code
-# download the quickstart file from our Github repo
+# download the quickstart file from our GitHub repo
 $ curl -Lso teleport-ent-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/master/docker/teleport-ent-quickstart.yml
 
 # start teleport quickstart using docker-compose

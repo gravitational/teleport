@@ -58,7 +58,7 @@ configuration files.
 ### Teleport resources
 
 Teleport uses YAML resources for roles, Trusted Clusters, local users, and authentication connectors.
-These could be created via `tctl` or the Web UI. 
+These could be created via `tctl` or the Web UI.
 
 You should back up your dynamic resource configurations to ensure that you can restore them in case of an outage.
 
@@ -103,7 +103,7 @@ Using `tctl get all --with-secrets` will retrieve the below items:
 - Certificate Authorities
 - Trusted Clusters
 - Connectors:
-  - Github
+  - GitHub
   - SAML
   - OIDC
 - Roles
@@ -152,7 +152,7 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
   - Any Node whose invite token is defined in the Auth Service's configuration
     file will be able to join automatically, but Nodes that were added
     dynamically will need to be re-invited.
-    
+
 </TabItem>
 <TabItem scope={["oss"]} label="Open Source">
 
@@ -212,7 +212,7 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
   - Any Node whose invite token is defined in the Auth Service's configuration
     file will be able to join automatically, but Nodes that were added
     dynamically will need to be re-invited.
-    
+
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 

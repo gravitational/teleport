@@ -900,9 +900,8 @@ type appTestOptions struct {
 	rootAppServersCount int
 	leafAppServersCount int
 
-	rootConfig          func(config *service.Config)
-	leafConfig          func(config *service.Config)
-	skipSettingTimeouts bool
+	rootConfig func(config *service.Config)
+	leafConfig func(config *service.Config)
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -920,10 +919,6 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
 	lib.SetInsecureDevMode(true)
-
-	if !opts.skipSettingTimeouts {
-		SetTestTimeouts(time.Millisecond * time.Duration(500))
-	}
 
 	p := &pack{
 		rootAppName:        "app-01",
@@ -1292,6 +1287,7 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 		Value: p.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
+	req.Header.Add("Content-Type", "application/json")
 
 	statusCode, body, err := p.sendRequest(req, nil)
 	return statusCode, []byte(body), trace.Wrap(err)

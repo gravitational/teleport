@@ -519,6 +519,20 @@ func TestReviewThresholds(t *testing.T) {
 	}
 }
 
+// TestMaxLength tests that we reject too large access requests.
+func TestMaxLength(t *testing.T) {
+	req, err := types.NewAccessRequest("some-id", "dave", "dictator", "never")
+	require.NoError(t, err)
+
+	var s []byte
+	for i := 0; i <= maxAccessRequestReasonSize; i++ {
+		s = append(s, 'a')
+	}
+
+	req.SetRequestReason(string(s))
+	require.Error(t, ValidateAccessRequest(req))
+}
+
 // TestThresholdReviewFilter verifies basic filter syntax.
 func TestThresholdReviewFilter(t *testing.T) {
 
