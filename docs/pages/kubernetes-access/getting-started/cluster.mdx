@@ -286,11 +286,11 @@ In this step, we will set up the GitHub Single Sign-On connector for the OSS ver
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
-      teams_to_logins:
+      teams_to_roles:
         - organization: octocats # GitHub organization name
           team: admin            # GitHub team name within that organization
           # map GitHub's "admin" team to Teleport's "access" role
-          logins: ["access"]
+          roles: ["access"]
     ```
   </TabItem>
 
