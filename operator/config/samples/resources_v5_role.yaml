@@ -1,0 +1,6 @@
+apiVersion: resources.teleport.dev/v5
+kind: Role
+metadata:
+  name: role-sample
+spec:
+  # TODO(user): Add fields here

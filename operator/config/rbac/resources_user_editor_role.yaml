@@ -1,0 +1,24 @@
+# permissions for end users to edit users.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: user-editor-role
+rules:
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - users/status
+  verbs:
+  - get

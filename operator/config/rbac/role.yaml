@@ -1,0 +1,59 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - roles/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - roles/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - users/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - users/status
+  verbs:
+  - get
+  - patch
+  - update
