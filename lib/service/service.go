@@ -3103,6 +3103,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				NodeWatcher:          nodeWatcher,
 				CertAuthorityWatcher: caWatcher,
 				CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+				LocalAuthAddresses:   utils.NetAddrsToStrings(process.Config.AuthServers),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3299,6 +3300,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
 		Log:                 rcWatchLog,
+		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServers),
 	})
 	if err != nil {
 		return trace.Wrap(err)
