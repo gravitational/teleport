@@ -43,8 +43,8 @@ variable "enable_mongodb_listener" {
   default = false
 }
 
-//whether to enable the mysql listener
-//adds security group setting, maps load balancer to port and adds to teleport config
+// whether to enable the mysql listener
+// adds security group setting, maps load balancer to port and adds to teleport config
 variable "enable_mysql_listener" {
   type    = bool
   default = false
