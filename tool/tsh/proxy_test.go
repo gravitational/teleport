@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
@@ -375,22 +376,8 @@ func createAgent(t *testing.T) string {
 	user, err := user.Current()
 	require.NoError(t, err)
 
-	// Create own tmp dir instead of using t.TmpDir
-	// because  net.Listen("unix", path) has dir path length limitation and
-	// the t.TmpDir calls creates tmp dir with test name.
-	sockDir, err := ioutil.TempDir("", "test")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		os.RemoveAll(sockDir)
-	})
-
-	sockPath := filepath.Join(sockDir, "agent.sock")
-	t.Setenv("SSH_AUTH_SOCK", sockPath)
-
-	uid, err := strconv.Atoi(user.Uid)
-	require.NoError(t, err)
-	gid, err := strconv.Atoi(user.Gid)
-	require.NoError(t, err)
+	sockDir := "test"
+	sockName := "agent.sock"
 
 	keyring := agent.NewKeyring()
 	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
@@ -398,14 +385,16 @@ func createAgent(t *testing.T) string {
 	})
 
 	// Start the SSH agent.
-	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
+	err = teleAgent.ListenUnixSocket(sockDir, sockName, user)
 	require.NoError(t, err)
 	go teleAgent.Serve()
 	t.Cleanup(func() {
 		teleAgent.Close()
 	})
 
-	return sockPath
+	t.Setenv(teleport.SSHAuthSock, teleAgent.Path)
+
+	return teleAgent.Path
 }
 
 func mustLogin(t *testing.T, s *suite) {
