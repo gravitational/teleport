@@ -1388,13 +1388,13 @@ The command is designed to be used in conjunction with `tctl sso configure` fami
 $ tctl sso configure ... | tctl sso test
 ```
 
-The pipeline may also utilise `tee` to capture the connector generated with `tctl sso configure`. This will save the connector in `connector.yaml`:
+The pipeline may also utilize `tee` to capture the connector generated with `tctl sso configure`. This will save the connector in `connector.yaml`:
 
 ```code
 $ tctl sso configure ... | tee connector.yaml | tctl sso test
 ```
 
-You can test existing auth connector by combining the command with `tctl get`:
+You can test an existing auth connector by combining the command with `tctl get`:
 
 ```bsh
 $ tctl get saml/your-connector-name --with-secrets | tctl sso test
@@ -1404,12 +1404,12 @@ $ tctl get saml/your-connector-name --with-secrets | tctl sso test
   type="note"
   title="Important"
 >
-  Make sure to include `--with-secrets` flag, or the exported auth connector will not be testeable.
+  Make sure to include `--with-secrets` flag, or the exported auth connector will not be testable.
 </Admonition>
 
 ### tctl sso configure github
 
-Configure Github auth connector.
+Configure GitHub auth connector.
 
 Required params `--id` and `--secret` come from the [Github OAuth app](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app).
 
