@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -541,10 +542,9 @@ func (b *Bot) renew(
 	return nil
 }
 
-func (b *Bot) renewLoop(ctx context.Context) error {
-	// TODO: failures here should probably not just end the renewal loop, there
-	// should be some retry / back-off logic.
+const renewalRetryLimit = 5
 
+func (b *Bot) renewLoop(ctx context.Context) error {
 	// TODO: what should this interval be? should it be user configurable?
 	// Also, must be < the validity period.
 	// TODO: validate that cert is actually renewable.
@@ -572,8 +572,31 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	ticker := time.NewTicker(b.cfg.RenewalInterval)
 	defer ticker.Stop()
 	for {
-		err := b.renew(ctx, botDestination)
+		var err error
+		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
+			err = b.renew(ctx, botDestination)
+			if err == nil {
+				break
+			}
+
+			if attempt != renewalRetryLimit {
+				// exponentially back off, starting at 1 second.
+				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
+				b.log.WithError(err).Warnf(
+					"Renewal attempt %d of %d failed. Retrying after %s.",
+					attempt,
+					renewalRetryLimit,
+					backoffTime,
+				)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoffTime):
+				}
+			}
+		}
 		if err != nil {
+			b.log.Warnf("All %d retry attempts exhausted.", renewalRetryLimit)
 			return trace.Wrap(err)
 		}
 
