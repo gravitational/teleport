@@ -200,7 +200,7 @@ variable "allowed_proxy_egress_cidr_blocks" {
   default = ["0.0.0.0/0"]
 }
 
-//CIDR blocks allowed for egress from Teleport Auth servers
+// CIDR blocks allowed for egress from Teleport Auth servers
 variable "allowed_auth_egress_cidr_blocks" {
   type = list
   default = ["0.0.0.0/0"]
