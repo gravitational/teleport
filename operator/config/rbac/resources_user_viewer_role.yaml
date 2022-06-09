@@ -1,0 +1,20 @@
+# permissions for end users to view users.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: user-viewer-role
+rules:
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - users
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - resources.teleport.dev
+  resources:
+  - users/status
+  verbs:
+  - get
