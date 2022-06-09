@@ -121,31 +121,46 @@ const SsoList = ({ attempt, authProviders, onLoginWithSso }: Props) => {
   );
 };
 
-const Passwordless = ({ onLoginWithWebauthn, attempt }: Props) => (
-  <Box px={5} pt={2} data-testid="passwordless" pb={1}>
-    <StyledPaswordlessBtn
-      mt={3}
-      py={2}
-      px={3}
-      width="100%"
-      onClick={() => onLoginWithWebauthn()}
-      disabled={attempt.isProcessing}
-    >
-      <Flex alignItems="center" justifyContent="space-between">
-        <Flex alignItems="center">
-          <Key mr={3} fontSize={16} />
-          <Box>
-            <Text typography="h6">Passwordless</Text>
-            <Text fontSize={1} color="text.secondary">
-              Follow the prompt from your browser
-            </Text>
-          </Box>
+const Passwordless = ({ onLoginWithWebauthn, attempt }: Props) => {
+  // Firefox currently does not support passwordless and when
+  // logging in, it will return an ambigugous error.
+  // We display a soft warning because firefox may provide
+  // support in the near future: https://github.com/gravitational/webapps/pull/876
+  const isFirefox = window.navigator?.userAgent
+    ?.toLowerCase()
+    .includes('firefox');
+  return (
+    <Box px={5} pt={2} data-testid="passwordless" pb={1}>
+      {isFirefox && (
+        <Alerts.Info mt={3}>
+          Firefox may not support passwordless login. Please try Chrome or
+          Safari.
+        </Alerts.Info>
+      )}
+      <StyledPaswordlessBtn
+        mt={3}
+        py={2}
+        px={3}
+        width="100%"
+        onClick={() => onLoginWithWebauthn()}
+        disabled={attempt.isProcessing}
+      >
+        <Flex alignItems="center" justifyContent="space-between">
+          <Flex alignItems="center">
+            <Key mr={3} fontSize={16} />
+            <Box>
+              <Text typography="h6">Passwordless</Text>
+              <Text fontSize={1} color="text.secondary">
+                Follow the prompt from your browser
+              </Text>
+            </Box>
+          </Flex>
+          <ArrowForward fontSize={16} />
         </Flex>
-        <ArrowForward fontSize={16} />
-      </Flex>
-    </StyledPaswordlessBtn>
-  </Box>
-);
+      </StyledPaswordlessBtn>
+    </Box>
+  );
+};
 
 const LocalForm = ({
   isRecoveryEnabled,

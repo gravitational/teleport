@@ -61,14 +61,13 @@ export function Apps(props: State) {
     onLabelClick,
   } = props;
 
-  const hasNoApps =
-    attempt.status === 'success' && results.apps.length === 0 && isSearchEmpty;
+  const hasNoApps = results.apps.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Applications</FeatureHeaderTitle>
-        {!hasNoApps && (
+        {attempt.status === 'success' && !hasNoApps && (
           <AgentButtonAdd
             agent="application"
             beginsWithVowel={true}
@@ -105,7 +104,7 @@ export function Apps(props: State) {
           onLabelClick={onLabelClick}
         />
       )}
-      {hasNoApps && (
+      {attempt.status === 'success' && hasNoApps && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

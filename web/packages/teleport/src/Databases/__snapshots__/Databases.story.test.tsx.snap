@@ -293,7 +293,7 @@ exports[`empty state for enterprise, can create 1`] = `
 `;
 
 exports[`failed 1`] = `
-.c4 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -310,62 +310,17 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c4 a {
+.c3 a {
   color: #FFFFFF;
 }
 
-.c8 {
+.c7 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 100%;
 }
 
-.c3 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 240px;
-}
-
-.c3:active {
-  opacity: 0.56;
-}
-
-.c3:hover,
-.c3:focus {
-  background: #651FFF;
-}
-
-.c3:active {
-  background: #354AA4;
-}
-
-.c3:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c24 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -393,40 +348,40 @@ exports[`failed 1`] = `
   padding: 0px 16px;
 }
 
-.c24:active {
+.c23:active {
   opacity: 0.56;
 }
 
-.c24:hover,
-.c24:focus {
+.c23:hover,
+.c23:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c24:active {
+.c23:active {
   opacity: 0.24;
 }
 
-.c24:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c19 {
+.c18 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c29 {
+.c28 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c17 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -435,7 +390,7 @@ exports[`failed 1`] = `
   margin: 0px;
 }
 
-.c21 {
+.c20 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -446,7 +401,7 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -454,25 +409,25 @@ exports[`failed 1`] = `
   justify-content: space-between;
 }
 
-.c7 {
+.c6 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
 }
 
-.c20 {
+.c19 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c26 {
+.c25 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c27 {
+.c26 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
@@ -520,7 +475,7 @@ exports[`failed 1`] = `
   padding-bottom: 24px;
 }
 
-.c22 {
+.c21 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -529,39 +484,39 @@ exports[`failed 1`] = `
   width: 100%;
 }
 
-.c22 > thead > tr > th,
-.c22 > tbody > tr > th,
-.c22 > tfoot > tr > th,
-.c22 > thead > tr > td,
-.c22 > tbody > tr > td,
-.c22 > tfoot > tr > td {
+.c21 > thead > tr > th,
+.c21 > tbody > tr > th,
+.c21 > tfoot > tr > th,
+.c21 > thead > tr > td,
+.c21 > tbody > tr > td,
+.c21 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c22 > thead > tr > th:first-child,
-.c22 > tbody > tr > th:first-child,
-.c22 > tfoot > tr > th:first-child,
-.c22 > thead > tr > td:first-child,
-.c22 > tbody > tr > td:first-child,
-.c22 > tfoot > tr > td:first-child {
+.c21 > thead > tr > th:first-child,
+.c21 > tbody > tr > th:first-child,
+.c21 > tfoot > tr > th:first-child,
+.c21 > thead > tr > td:first-child,
+.c21 > tbody > tr > td:first-child,
+.c21 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c22 > thead > tr > th:last-child,
-.c22 > tbody > tr > th:last-child,
-.c22 > tfoot > tr > th:last-child,
-.c22 > thead > tr > td:last-child,
-.c22 > tbody > tr > td:last-child,
-.c22 > tfoot > tr > td:last-child {
+.c21 > thead > tr > th:last-child,
+.c21 > tbody > tr > th:last-child,
+.c21 > tfoot > tr > th:last-child,
+.c21 > thead > tr > td:last-child,
+.c21 > tbody > tr > td:last-child,
+.c21 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c22 > tbody > tr > td {
+.c21 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c22 > thead > tr > th {
+.c21 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -575,26 +530,26 @@ exports[`failed 1`] = `
   white-space: nowrap;
 }
 
-.c22 > thead > tr > th .c18 {
+.c21 > thead > tr > th .c17 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c22 > tbody > tr > td {
+.c21 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c22 tbody tr {
+.c21 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c22 tbody tr:hover {
+.c21 tbody tr:hover {
   background-color: rgb(37,49,98);
 }
 
-.c5 {
+.c4 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -606,7 +561,7 @@ exports[`failed 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c25 {
+.c24 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -618,7 +573,7 @@ exports[`failed 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c23 {
+.c22 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -636,32 +591,32 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
-.c28 {
+.c27 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c28 .c18 {
+.c27 .c17 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c28:hover .c18,
-.c28:focus .c18 {
+.c27:hover .c17,
+.c27:focus .c17 {
   opacity: 1;
 }
 
-.c28:disabled {
+.c27:disabled {
   cursor: default;
 }
 
-.c28:disabled .c18 {
+.c27:disabled .c17 {
   opacity: 0.1;
 }
 
-.c11 {
+.c10 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -672,7 +627,7 @@ exports[`failed 1`] = `
   border-radius: 200px;
 }
 
-.c9 {
+.c8 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -682,7 +637,7 @@ exports[`failed 1`] = `
   background: #111B48;
 }
 
-.c10 {
+.c9 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -697,27 +652,27 @@ exports[`failed 1`] = `
   padding-right: 184px;
 }
 
-.c10:hover,
-.c10:focus,
-.c10:active {
+.c9:hover,
+.c9:focus,
+.c9:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c10::placeholder {
+.c9::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
 
-.c13 {
+.c12 {
   position: relative;
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c16 {
+.c15 {
   width: 32px;
   height: 12px;
   border-radius: 12px;
@@ -725,7 +680,7 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
-.c16:before {
+.c15:before {
   content: '';
   position: absolute;
   top: 50%;
@@ -736,21 +691,21 @@ exports[`failed 1`] = `
   background: #651FFF;
 }
 
-.c14 {
+.c13 {
   opacity: 0;
   position: absolute;
   cursor: pointer;
 }
 
-.c14:checked + .c15 {
+.c13:checked + .c14 {
   background: #512FC9;
 }
 
-.c14:checked + .c15:before {
+.c13:checked + .c14:before {
   transform: translate(16px,-50%);
 }
 
-.c12 {
+.c11 {
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -770,17 +725,9 @@ exports[`failed 1`] = `
     >
       Databases
     </div>
-    <button
-      class="c3"
-      kind="primary"
-      title=""
-      width="240px"
-    >
-      Add Database
-    </button>
   </div>
   <div
-    class="c4"
+    class="c3"
     kind="danger"
   >
     <div>
@@ -788,47 +735,47 @@ exports[`failed 1`] = `
     </div>
   </div>
   <form
-    class="c5"
+    class="c4"
   >
     <div
-      class="c6"
+      class="c5"
       width="100%"
     >
       <div
-        class="c7"
+        class="c6"
         style="width: 70%;"
       >
         <div
-          class="c8"
+          class="c7"
           width="100%"
         >
           <div
-            class="c9"
+            class="c8"
           >
             <input
-              class="c10"
+              class="c9"
               placeholder="SEARCH..."
               value=""
             />
             <div
-              class="c11"
+              class="c10"
             >
               <div
-                class="c12"
+                class="c11"
               >
                 <label
-                  class="c13"
+                  class="c12"
                 >
                   <input
-                    class="c14"
+                    class="c13"
                     type="checkbox"
                   />
                   <div
-                    class="c15 c16"
+                    class="c14 c15"
                   />
                 </label>
                 <div
-                  class="c17"
+                  class="c16"
                 >
                   Advanced
                 </div>
@@ -840,17 +787,17 @@ exports[`failed 1`] = `
           style="line-height: 0px;"
         >
           <span
-            class="c18 c19 icon icon-info_outline "
+            class="c17 c18 icon icon-info_outline "
             color="light"
             style="cursor: pointer; font-size: 20px;"
           />
         </div>
       </div>
       <div
-        class="c20"
+        class="c19"
       >
         <div
-          class="c21"
+          class="c20"
           color="primary.contrastText"
         >
           SHOWING 
@@ -871,7 +818,7 @@ exports[`failed 1`] = `
     </div>
   </form>
   <table
-    class="c22"
+    class="c21"
   >
     <thead>
       <tr>
@@ -879,7 +826,7 @@ exports[`failed 1`] = `
           <a>
             Name
             <span
-              class="c18 c19 icon icon-chevron-up "
+              class="c17 c18 icon icon-chevron-up "
               color="light"
             />
           </a>
@@ -888,7 +835,7 @@ exports[`failed 1`] = `
           <a>
             Description
             <span
-              class="c18 c19 icon icon-chevrons-expand-vertical "
+              class="c17 c18 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
@@ -897,7 +844,7 @@ exports[`failed 1`] = `
           <a>
             Type
             <span
-              class="c18 c19 icon icon-chevrons-expand-vertical "
+              class="c17 c18 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
@@ -925,13 +872,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c23"
+            class="c22"
             kind="secondary"
           >
             cluster: root
           </div>
           <div
-            class="c23"
+            class="c22"
             kind="secondary"
           >
             env: aws
@@ -941,7 +888,7 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c24"
+            class="c23"
             kind="border"
           >
             Connect
@@ -960,13 +907,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c23"
+            class="c22"
             kind="secondary"
           >
             cluster: root
           </div>
           <div
-            class="c23"
+            class="c22"
             kind="secondary"
           >
             env: gcp
@@ -976,7 +923,7 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c24"
+            class="c23"
             kind="border"
           >
             Connect
@@ -995,13 +942,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c23"
+            class="c22"
             kind="secondary"
           >
             cluster: root
           </div>
           <div
-            class="c23"
+            class="c22"
             kind="secondary"
           >
             env: aws
@@ -1011,7 +958,7 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c24"
+            class="c23"
             kind="border"
           >
             Connect
@@ -1021,36 +968,36 @@ exports[`failed 1`] = `
     </tbody>
   </table>
   <nav
-    class="c25"
+    class="c24"
   >
     <div
-      class="c26"
+      class="c25"
       width="100%"
     >
       <div
-        class="c27"
+        class="c26"
       />
       <div
-        class="c20"
+        class="c19"
       >
         <button
-          class="c28"
+          class="c27"
           disabled=""
           title="Previous page"
         >
           <span
-            class="c18 c29 icon icon-arrow-left-circle "
+            class="c17 c28 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c28"
+          class="c27"
           disabled=""
           title="Next page"
         >
           <span
-            class="c18 c29 icon icon-arrow-right-circle "
+            class="c17 c28 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />

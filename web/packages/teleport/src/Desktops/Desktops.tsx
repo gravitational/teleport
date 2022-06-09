@@ -61,16 +61,13 @@ export function Desktops(props: State) {
     onLabelClick,
   } = props;
 
-  const hasNoDesktops =
-    attempt.status === 'success' &&
-    results.desktops.length === 0 &&
-    isSearchEmpty;
+  const hasNoDesktops = results.desktops.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Desktops</FeatureHeaderTitle>
-        {!hasNoDesktops && (
+        {attempt.status === 'success' && !hasNoDesktops && (
           <ButtonPrimary
             as="a"
             width="240px"
@@ -113,7 +110,7 @@ export function Desktops(props: State) {
           onLabelClick={onLabelClick}
         />
       )}
-      {hasNoDesktops && (
+      {attempt.status === 'success' && hasNoDesktops && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

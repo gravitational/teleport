@@ -71,6 +71,7 @@ export function AddDevice({
   onClose,
   qrCode,
   auth2faType,
+  isPasswordlessEnabled,
 }: State) {
   const [otpToken, setOtpToken] = useState('');
   const [deviceName, setDeviceName] = useState('');
@@ -207,7 +208,7 @@ export function AddDevice({
                   readonly={addDeviceAttempt.status === 'processing'}
                 />
               )}
-              {mfaOption.value === 'webauthn' && (
+              {mfaOption.value === 'webauthn' && isPasswordlessEnabled && (
                 <FieldSelect
                   width="50%"
                   label="Allow Passwordless Login?"

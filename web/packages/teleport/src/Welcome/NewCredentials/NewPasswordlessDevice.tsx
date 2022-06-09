@@ -16,7 +16,7 @@
 
 import React, { useState } from 'react';
 import { Text, Box, ButtonPrimary, ButtonText } from 'design';
-import { Danger } from 'design/Alert';
+import { Danger, Info } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -55,6 +55,15 @@ export function NewPasswordlessDevice(props: Props & SliderProps<LoginFlow>) {
     switchFlow('local', applyNextAnimation);
   }
 
+  // Firefox currently does not support passwordless and when
+  // registering, users will 'soft lock' where firefox prompts
+  // but when touching the device, it does not do anything.
+  // We display a soft warning because firefox may provide
+  // support in the near future: https://github.com/gravitational/webapps/pull/876
+  const isFirefox = window.navigator?.userAgent
+    ?.toLowerCase()
+    .includes('firefox');
+
   return (
     <Validation>
       {({ validator }) => (
@@ -64,6 +73,12 @@ export function NewPasswordlessDevice(props: Props & SliderProps<LoginFlow>) {
           </Text>
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
+          )}
+          {isFirefox && (
+            <Info mt={3}>
+              Firefox may not support passwordless register. Please try Chrome
+              or Safari.
+            </Info>
           )}
           <FieldInput
             rule={requiredField('Device name is required')}

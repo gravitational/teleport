@@ -64,14 +64,13 @@ export function Kubes(props: State) {
 
   const [showAddKube, setShowAddKube] = useState(false);
 
-  const hasNoKubes =
-    attempt.status === 'success' && results.kubes.length === 0 && isSearchEmpty;
+  const hasNoKubes = results.kubes.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Kubernetes</FeatureHeaderTitle>
-        {!hasNoKubes && (
+        {attempt.status === 'success' && !hasNoKubes && (
           <AgentButtonAdd
             onClick={() => setShowAddKube(true)}
             agent="kubernetes"
@@ -113,7 +112,7 @@ export function Kubes(props: State) {
           />
         </>
       )}
-      {hasNoKubes && (
+      {attempt.status === 'success' && hasNoKubes && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

@@ -293,7 +293,7 @@ exports[`empty state 1`] = `
 `;
 
 exports[`failed 1`] = `
-.c8 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -310,62 +310,17 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c8 a {
+.c3 a {
   color: #FFFFFF;
 }
 
-.c11 {
+.c7 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 100%;
 }
 
-.c7 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 240px;
-}
-
-.c7:active {
-  opacity: 0.56;
-}
-
-.c7:hover,
-.c7:focus {
-  background: #651FFF;
-}
-
-.c7:active {
-  background: #354AA4;
-}
-
-.c7:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c27 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -394,33 +349,33 @@ exports[`failed 1`] = `
   height: 24px;
 }
 
-.c27:active {
+.c23:active {
   opacity: 0.56;
 }
 
-.c27:hover,
-.c27:focus {
+.c23:hover,
+.c23:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c27:active {
+.c23:active {
   opacity: 0.24;
 }
 
-.c27:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c22 {
+.c18 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c28 {
+.c24 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -429,14 +384,14 @@ exports[`failed 1`] = `
   font-size: 14px;
 }
 
-.c33 {
+.c29 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c20 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -445,7 +400,7 @@ exports[`failed 1`] = `
   margin: 0px;
 }
 
-.c24 {
+.c20 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -456,13 +411,7 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-}
-
-.c10 {
+.c5 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -470,19 +419,25 @@ exports[`failed 1`] = `
   justify-content: space-between;
 }
 
-.c23 {
+.c6 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c19 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c30 {
+.c26 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c31 {
+.c27 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
@@ -530,65 +485,7 @@ exports[`failed 1`] = `
   padding-bottom: 24px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-right: 16px;
-  width: 280px;
-  display: flex;
-  align-items: center;
-  height: 32px;
-  border: 1px solid;
-  border-radius: 4px;
-  border-color: rgba(255,255,255,0.24);
-}
-
-.c5 {
-  opacity: 0.75;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 0 8px;
-  border-bottom-left-radius: 4px;
-  border-top-left-radius: 4px;
-}
-
-.c6 {
-  appearance: none;
-  border: none;
-  border-radius: 4px;
-  box-sizing: border-box;
-  border-bottom-left-radius: unset;
-  border-top-left-radius: unset;
-  display: block;
-  outline: none;
-  width: 100%;
-  height: 100%;
-  box-shadow: none;
-  padding-left: 8px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.87);
-  background-color: #222C59;
-}
-
-.c6::-ms-clear {
-  display: none;
-}
-
-.c6:read-only {
-  cursor: not-allowed;
-}
-
-.c6::placeholder {
-  opacity: 1;
-  color: rgba(255,255,255,0.24);
-  font-size: 12px;
-}
-
-.c6:hover,
-.c6:focus {
-  background: #2C3A73;
-}
-
-.c25 {
+.c21 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -597,39 +494,39 @@ exports[`failed 1`] = `
   width: 100%;
 }
 
-.c25 > thead > tr > th,
-.c25 > tbody > tr > th,
-.c25 > tfoot > tr > th,
-.c25 > thead > tr > td,
-.c25 > tbody > tr > td,
-.c25 > tfoot > tr > td {
+.c21 > thead > tr > th,
+.c21 > tbody > tr > th,
+.c21 > tfoot > tr > th,
+.c21 > thead > tr > td,
+.c21 > tbody > tr > td,
+.c21 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c25 > thead > tr > th:first-child,
-.c25 > tbody > tr > th:first-child,
-.c25 > tfoot > tr > th:first-child,
-.c25 > thead > tr > td:first-child,
-.c25 > tbody > tr > td:first-child,
-.c25 > tfoot > tr > td:first-child {
+.c21 > thead > tr > th:first-child,
+.c21 > tbody > tr > th:first-child,
+.c21 > tfoot > tr > th:first-child,
+.c21 > thead > tr > td:first-child,
+.c21 > tbody > tr > td:first-child,
+.c21 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c25 > thead > tr > th:last-child,
-.c25 > tbody > tr > th:last-child,
-.c25 > tfoot > tr > th:last-child,
-.c25 > thead > tr > td:last-child,
-.c25 > tbody > tr > td:last-child,
-.c25 > tfoot > tr > td:last-child {
+.c21 > thead > tr > th:last-child,
+.c21 > tbody > tr > th:last-child,
+.c21 > tfoot > tr > th:last-child,
+.c21 > thead > tr > td:last-child,
+.c21 > tbody > tr > td:last-child,
+.c21 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c25 > tbody > tr > td {
+.c21 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c25 > thead > tr > th {
+.c21 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -643,26 +540,26 @@ exports[`failed 1`] = `
   white-space: nowrap;
 }
 
-.c25 > thead > tr > th .c21 {
+.c21 > thead > tr > th .c17 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c25 > tbody > tr > td {
+.c21 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c25 tbody tr {
+.c21 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c25 tbody tr:hover {
+.c21 tbody tr:hover {
   background-color: rgb(37,49,98);
 }
 
-.c9 {
+.c4 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -674,7 +571,7 @@ exports[`failed 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c29 {
+.c25 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -686,7 +583,7 @@ exports[`failed 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c26 {
+.c22 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -704,32 +601,32 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
-.c32 {
+.c28 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c32 .c21 {
+.c28 .c17 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c32:hover .c21,
-.c32:focus .c21 {
+.c28:hover .c17,
+.c28:focus .c17 {
   opacity: 1;
 }
 
-.c32:disabled {
+.c28:disabled {
   cursor: default;
 }
 
-.c32:disabled .c21 {
+.c28:disabled .c17 {
   opacity: 0.1;
 }
 
-.c14 {
+.c10 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -740,7 +637,7 @@ exports[`failed 1`] = `
   border-radius: 200px;
 }
 
-.c12 {
+.c8 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -750,7 +647,7 @@ exports[`failed 1`] = `
   background: #111B48;
 }
 
-.c13 {
+.c9 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -765,27 +662,27 @@ exports[`failed 1`] = `
   padding-right: 184px;
 }
 
-.c13:hover,
-.c13:focus,
-.c13:active {
+.c9:hover,
+.c9:focus,
+.c9:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c13::placeholder {
+.c9::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
 
-.c16 {
+.c12 {
   position: relative;
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c19 {
+.c15 {
   width: 32px;
   height: 12px;
   border-radius: 12px;
@@ -793,7 +690,7 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
-.c19:before {
+.c15:before {
   content: '';
   position: absolute;
   top: 50%;
@@ -804,21 +701,21 @@ exports[`failed 1`] = `
   background: #651FFF;
 }
 
-.c17 {
+.c13 {
   opacity: 0;
   position: absolute;
   cursor: pointer;
 }
 
-.c17:checked + .c18 {
+.c13:checked + .c14 {
   background: #512FC9;
 }
 
-.c17:checked + .c18:before {
+.c13:checked + .c14:before {
   transform: translate(16px,-50%);
 }
 
-.c15 {
+.c11 {
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -838,37 +735,9 @@ exports[`failed 1`] = `
     >
       Servers
     </div>
-    <div
-      class="c3"
-    >
-      <div
-        class="c4"
-        width="280px"
-      >
-        <div
-          class="c5"
-        >
-          SSH:
-        </div>
-        <input
-          class="c6"
-          color="text.primary"
-          placeholder="login@host:port"
-        />
-      </div>
-      <button
-        class="c7"
-        kind="primary"
-        title=""
-        width="240px"
-      >
-        Add 
-        server
-      </button>
-    </div>
   </div>
   <div
-    class="c8"
+    class="c3"
     kind="danger"
   >
     <div>
@@ -876,47 +745,47 @@ exports[`failed 1`] = `
     </div>
   </div>
   <form
-    class="c9"
+    class="c4"
   >
     <div
-      class="c10"
+      class="c5"
       width="100%"
     >
       <div
-        class="c3"
+        class="c6"
         style="width: 70%;"
       >
         <div
-          class="c11"
+          class="c7"
           width="100%"
         >
           <div
-            class="c12"
+            class="c8"
           >
             <input
-              class="c13"
+              class="c9"
               placeholder="SEARCH..."
               value=""
             />
             <div
-              class="c14"
+              class="c10"
             >
               <div
-                class="c15"
+                class="c11"
               >
                 <label
-                  class="c16"
+                  class="c12"
                 >
                   <input
-                    class="c17"
+                    class="c13"
                     type="checkbox"
                   />
                   <div
-                    class="c18 c19"
+                    class="c14 c15"
                   />
                 </label>
                 <div
-                  class="c20"
+                  class="c16"
                 >
                   Advanced
                 </div>
@@ -928,17 +797,17 @@ exports[`failed 1`] = `
           style="line-height: 0px;"
         >
           <span
-            class="c21 c22 icon icon-info_outline "
+            class="c17 c18 icon icon-info_outline "
             color="light"
             style="cursor: pointer; font-size: 20px;"
           />
         </div>
       </div>
       <div
-        class="c23"
+        class="c19"
       >
         <div
-          class="c24"
+          class="c20"
           color="primary.contrastText"
         >
           SHOWING 
@@ -959,7 +828,7 @@ exports[`failed 1`] = `
     </div>
   </form>
   <table
-    class="c25"
+    class="c21"
   >
     <thead>
       <tr>
@@ -967,7 +836,7 @@ exports[`failed 1`] = `
           <a>
             Hostname
             <span
-              class="c21 c22 icon icon-chevron-up "
+              class="c17 c18 icon icon-chevron-up "
               color="light"
             />
           </a>
@@ -997,13 +866,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             cluster: one
           </div>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             kernel: 4.15.0-51-generic
@@ -1013,13 +882,13 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c27"
+            class="c23"
             height="24px"
             kind="border"
           >
             CONNECT
             <span
-              class="c21 c28 icon icon-caret-down "
+              class="c17 c24 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1035,13 +904,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             cluster: one
           </div>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             kernel: 4.15.0-51-generic
@@ -1051,13 +920,13 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c27"
+            class="c23"
             height="24px"
             kind="border"
           >
             CONNECT
             <span
-              class="c21 c28 icon icon-caret-down "
+              class="c17 c24 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1073,13 +942,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             cluster: one
           </div>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             kernel: 4.15.0-51-generic
@@ -1089,13 +958,13 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c27"
+            class="c23"
             height="24px"
             kind="border"
           >
             CONNECT
             <span
-              class="c21 c28 icon icon-caret-down "
+              class="c17 c24 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1111,13 +980,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             cluster: one
           </div>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             kernel: 4.15.0-51-generic
@@ -1127,13 +996,13 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c27"
+            class="c23"
             height="24px"
             kind="border"
           >
             CONNECT
             <span
-              class="c21 c28 icon icon-caret-down "
+              class="c17 c24 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1149,13 +1018,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             cluster: one
           </div>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             kernel: 4.15.0-51-generic
@@ -1165,13 +1034,13 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c27"
+            class="c23"
             height="24px"
             kind="border"
           >
             CONNECT
             <span
-              class="c21 c28 icon icon-caret-down "
+              class="c17 c24 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1192,13 +1061,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             cluster: one
           </div>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             kernel: 4.15.0-51-generic
@@ -1208,13 +1077,13 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c27"
+            class="c23"
             height="24px"
             kind="border"
           >
             CONNECT
             <span
-              class="c21 c28 icon icon-caret-down "
+              class="c17 c24 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1235,13 +1104,13 @@ exports[`failed 1`] = `
         </td>
         <td>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             cluster: one
           </div>
           <div
-            class="c26"
+            class="c22"
             kind="secondary"
           >
             kernel: 4.15.0-51-generic
@@ -1251,13 +1120,13 @@ exports[`failed 1`] = `
           align="right"
         >
           <button
-            class="c27"
+            class="c23"
             height="24px"
             kind="border"
           >
             CONNECT
             <span
-              class="c21 c28 icon icon-caret-down "
+              class="c17 c24 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1267,36 +1136,36 @@ exports[`failed 1`] = `
     </tbody>
   </table>
   <nav
-    class="c29"
+    class="c25"
   >
     <div
-      class="c30"
+      class="c26"
       width="100%"
     >
       <div
-        class="c31"
+        class="c27"
       />
       <div
-        class="c23"
+        class="c19"
       >
         <button
-          class="c32"
+          class="c28"
           disabled=""
           title="Previous page"
         >
           <span
-            class="c21 c33 icon icon-arrow-left-circle "
+            class="c17 c29 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c32"
+          class="c28"
           disabled=""
           title="Next page"
         >
           <span
-            class="c21 c33 icon icon-arrow-right-circle "
+            class="c17 c29 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />

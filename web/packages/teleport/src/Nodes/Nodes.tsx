@@ -75,14 +75,13 @@ export function Nodes(props: State) {
     startSshSession(login, serverId);
   }
 
-  const hasNoNodes =
-    attempt.status === 'success' && results.nodes.length === 0 && isSearchEmpty;
+  const hasNoNodes = results.nodes.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
-        {!hasNoNodes && (
+        {attempt.status === 'success' && !hasNoNodes && (
           <Flex alignItems="center">
             <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
             <AgentButtonAdd
@@ -126,7 +125,7 @@ export function Nodes(props: State) {
           />
         </>
       )}
-      {hasNoNodes && (
+      {attempt.status === 'success' && hasNoNodes && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

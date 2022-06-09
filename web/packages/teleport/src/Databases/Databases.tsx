@@ -65,16 +65,13 @@ export function Databases(props: State) {
     onLabelClick,
   } = props;
 
-  const hasNoDatabases =
-    attempt.status === 'success' &&
-    results.databases.length === 0 &&
-    isSearchEmpty;
+  const hasNoDatabases = results.databases.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
-        {!hasNoDatabases && (
+        {attempt.status === 'success' && !hasNoDatabases && (
           <ButtonAdd
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -114,7 +111,7 @@ export function Databases(props: State) {
           />
         </>
       )}
-      {hasNoDatabases && (
+      {attempt.status === 'success' && hasNoDatabases && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}

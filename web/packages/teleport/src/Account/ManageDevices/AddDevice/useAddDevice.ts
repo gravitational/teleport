@@ -80,6 +80,7 @@ export default function useAddDevice(
     clearAttempt,
     qrCode,
     auth2faType: cfg.getAuth2faType(),
+    isPasswordlessEnabled: cfg.isPasswordlessEnabled(),
   };
 }
 

@@ -30,8 +30,11 @@ export type PrimaryAuthType = 'local' | 'passwordless' | 'sso';
 // is preferred when more than one option can be available
 // and only one should be preferred.
 //
-// TODO(lisa) remove, currently does nothing.
-export type PreferredMfaType = 'webauthn' | '';
+// DELETE IN 11.0.0, preferredMfaType currently has no usage, other
+// than in teleterm, where we check if auth settings return
+// the deprecated `u2f` option (v9). Starting v10
+// 'u2f' will automatically be aliased to 'webauthn'.
+export type PreferredMfaType = 'webauthn' | 'u2f' | '';
 
 export type AuthProvider = {
   displayName?: string;
