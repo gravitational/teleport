@@ -1,0 +1,6 @@
+apiVersion: resources.teleport.dev/v2
+kind: User
+metadata:
+  name: user-sample
+spec:
+  # TODO(user): Add fields here
