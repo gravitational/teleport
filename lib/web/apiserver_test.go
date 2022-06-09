@@ -739,6 +739,28 @@ func TestPasswordChange(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestValidateBearerToken tests that the bearer token's user name
+// matches the user name on the cookie.
+func TestValidateBearerToken(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack1 := proxy.authPack(t, "user1")
+	pack2 := proxy.authPack(t, "user2")
+
+	// Swap pack1's session token with pack2's sessionToken
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	pack1.clt = proxy.newClient(t, roundtrip.BearerAuth(pack2.session.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(&proxy.webURL, pack1.cookies)
+
+	// Auth protected endpoint.
+	req := changePasswordReq{}
+	_, err = pack1.clt.PutJSON(context.Background(), pack1.clt.Endpoint("webapi", "users", "password"), req)
+	require.True(t, trace.IsAccessDenied(err))
+	require.True(t, strings.Contains(err.Error(), "bad bearer token"))
+}
+
 func TestWebSessionsBadInput(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)

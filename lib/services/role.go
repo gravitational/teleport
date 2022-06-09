@@ -990,6 +990,17 @@ func (set RoleSet) WithoutImplicit() (out RoleSet) {
 	return out
 }
 
+// PinSourceIP determines if the role set should use source IP pinning.
+// If one or more roles in the set requires IP pinning then it will be enabled.
+func (set RoleSet) PinSourceIP() bool {
+	for _, role := range set {
+		if role.GetOptions().PinSourceIP {
+			return true
+		}
+	}
+	return false
+}
+
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {

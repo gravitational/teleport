@@ -111,11 +111,21 @@ func (c *SessionContext) Invalidate() error {
 }
 
 func (c *SessionContext) validateBearerToken(ctx context.Context, token string) error {
-	_, err := c.parent.readBearerToken(ctx, types.GetWebTokenRequest{
+	fetchedToken, err := c.parent.readBearerToken(ctx, types.GetWebTokenRequest{
 		User:  c.user,
 		Token: token,
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if fetchedToken.GetUser() != c.user {
+		c.log.Warnf("Failed validating bearer token: the user[%s] in bearer token[%s] did not match the user[%s] for session[%s]",
+			fetchedToken.GetUser(), token, c.user, c.GetSessionID())
+		return trace.AccessDenied("access denied")
+	}
+
+	return nil
 }
 
 func (c *SessionContext) addRemoteClient(siteName string, remoteClient auth.ClientI) {
