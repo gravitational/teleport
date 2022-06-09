@@ -23,7 +23,7 @@ RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1o && \
     cd openssl && \
     ./config --release && \
     make && \
-    make install
+    make install_sw
 
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
@@ -69,6 +69,8 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
+    yum update -y && \
+    yum -y install centos-release-scl-rh && \
     yum install -y \
         git \
         cmake3 \
@@ -84,19 +86,37 @@ RUN yum groupinstall -y 'Development Tools' && \
         zlib-static \
         centos-release-scl \
         which \
+        scl-utils \
         devtoolset-11-gcc* \
         devtoolset-11-make && \
     yum clean all
 
-# Compile Clang from source as Centos 7 doesn't provide any packages.
-# LLVM_INCLUDE_BENCHMARKS must be off, otherwise comilations fails.
+# Compile Clang 10.0.1 from source. It is needed to create BPF files. Centos 7 doesn't provide it as a package unfortunately.
+# LLVM_INCLUDE_BENCHMARKS must be off, otherwise comilations fails, 
+# CLANG_BUILD_TOOLS must be on, it builds clang binary,
+# LLVM_BUILD_TOOLS must be on, it builds llvm-strip binary.
+# the rest is disabled to speedup the compilation.
 RUN git clone --branch llvmorg-10.0.1 --depth=1 https://github.com/llvm/llvm-project.git && \
     cd llvm-project/ && \
     mkdir build && cd build/ && \
-    scl enable devtoolset-11 'bash -c "cmake3 -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_BUILD_TYPE=Release -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_ENABLE_PROJECTS=clang -DLLVM_TOOL_LLI_BUILD=OFF -G \"Unix Makefiles\" ../llvm && \
+    scl enable devtoolset-11 'bash -c "cmake3 \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DLLVM_ENABLE_PROJECTS=clang \
+        -DLLVM_INCLUDE_TESTS=OFF \
+        -DLLVM_INCLUDE_GO_TESTS=OFF \
+        -DLLVM_INCLUDE_BENCHMARKS=OFF \
+        -DLLVM_TOOL_LLI_BUILD=OFF \
+        -DLLVM_ENABLE_BINDINGS=OFF \
+        -DLLVM_BUILD_UTILS=OFF \
+        -DLLVM_BUILD_TOOLS=ON \
+        -DCLANG_BUILD_TOOLS=ON \
+        -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
+        -DCLANG_ENABLE_ARCMT=OFF \
+        -G \"Unix Makefiles\" ../llvm && \
     make -j6 &&  \
-    make install && \
-    cd ../.. rm -rf llvm-project"'
+    make install"' && \
+    cd ../.. && \
+    rm -rf llvm-project
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
@@ -112,7 +132,7 @@ ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
-# Install libbpf - compile with a newer GCC. The default one is not able to compile it.
+# Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
