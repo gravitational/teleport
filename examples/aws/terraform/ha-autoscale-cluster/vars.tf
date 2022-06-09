@@ -182,7 +182,7 @@ variable "allowed_bastion_ssh_ingress_cidr_blocks" {
 }
 
 
-//CIDR blocks allowed for egress from bastion
+// CIDR blocks allowed for egress from bastion
 variable "allowed_bastion_ssh_egress_cidr_blocks" {
   type = list
   default = ["0.0.0.0/0"]
