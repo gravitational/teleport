@@ -128,6 +128,9 @@ type AgentPoolConfig struct {
 	IsRemoteCluster bool
 	// DisableCreateHostUser disables host user creation on a node.
 	DisableCreateHostUser bool
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -489,15 +492,16 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	agent, err := newAgent(agentConfig{
-		addr:          *addr,
-		keepAlive:     p.runtimeConfig.keepAliveInterval,
-		sshDialer:     dialer,
-		transporter:   p,
-		versionGetter: p,
-		tracker:       tracker,
-		lease:         lease,
-		clock:         p.Clock,
-		log:           p.log,
+		addr:               *addr,
+		keepAlive:          p.runtimeConfig.keepAliveInterval,
+		sshDialer:          dialer,
+		transporter:        p,
+		versionGetter:      p,
+		tracker:            tracker,
+		lease:              lease,
+		clock:              p.Clock,
+		log:                p.log,
+		localAuthAddresses: p.LocalAuthAddresses,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -551,6 +555,7 @@ func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests
 		channel:             channel,
 		requestCh:           requests,
 		log:                 p.log,
+		authServers:         p.LocalAuthAddresses,
 	}
 }
 

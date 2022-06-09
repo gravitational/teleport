@@ -525,6 +525,9 @@ type ProfileStatus struct {
 	// Extensions is a list of enabled SSH features for the certificate.
 	Extensions []string
 
+	// CriticalOptions is a map of SSH critical options for the certificate.
+	CriticalOptions map[string]string
+
 	// Cluster is a selected cluster
 	Cluster string
 
@@ -859,6 +862,7 @@ func profileFromKey(key *Key, opts ProfileOptions) (*ProfileStatus, error) {
 		Logins:             sshCert.ValidPrincipals,
 		ValidUntil:         validUntil,
 		Extensions:         extensions,
+		CriticalOptions:    sshCert.CriticalOptions,
 		Roles:              roles,
 		Cluster:            opts.SiteName,
 		Traits:             traits,
