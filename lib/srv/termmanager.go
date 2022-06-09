@@ -129,6 +129,7 @@ func (g *TermManager) Read(p []byte) (int, error) {
 	}
 
 	q := make(chan struct{})
+	defer close(q)
 	c := make(chan bool)
 	go func() {
 		g.readStateUpdate.L.Lock()
@@ -167,7 +168,6 @@ func (g *TermManager) Read(p []byte) (int, error) {
 		case on = <-c:
 			continue
 		case g.remaining = <-g.incoming:
-			close(q)
 			n := copy(p, g.remaining)
 			g.remaining = g.remaining[n:]
 			return n, nil
