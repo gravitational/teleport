@@ -226,7 +226,7 @@ func (s *remoteCommandProxy) sendStatus(err error) error {
 	}
 	// kubernetes client-go errorDecoderV4 parses the metav1.Status and returns the `fmt.Errorf(status.Message)` for every case except
 	// errors with reason =  NonZeroExitCodeReason for which it returns an exec.CodeExitError.
-	// This means when we forwarding an exec request to a remote cluster using the `Forwarder.remoteExec` function we only have access
+	// This means when forwarding an exec request to a remote cluster using the `Forwarder.remoteExec` function we only have access
 	// to the status.Message. This happens because the error is sent after the connection was upgraded to a bidirectional stream.
 	// This hack is here to recreate the forbidden message and return it back to the user terminal
 	if strings.Contains(err.Error(), "is forbidden:") {
