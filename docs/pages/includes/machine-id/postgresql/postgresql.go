@@ -8,18 +8,18 @@ import (
 	"fmt"
 	"log"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
 func main() {
 	// Open connection to database.
-	db, err := sql.Open("postgres", fmt.Sprint(
+	db, err := sql.Open("pgx", fmt.Sprint(
 		"host=localhost ",
 		"port=1234 ",
 		"dbname=example ",
 		"user=alice ",
 		"sslmode=verify-full ",
-		"sslrootcert=/opt/machine-id/teleport-host-ca.crt ",
+		"sslrootcert=/opt/machine-id/teleport-database-ca.crt ",
 		"sslkey=/opt/machine-id/key ",
 		"sslcert=/opt/machine-id/tlscert ",
 	))
