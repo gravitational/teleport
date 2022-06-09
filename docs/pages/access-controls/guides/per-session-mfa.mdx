@@ -41,6 +41,8 @@ their on-disk Teleport certificates.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
+(!docs/pages/includes/tctl.mdx!)
+
 - [WebAuthn configured](webauthn.mdx) on this cluster
 - Second factor hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
@@ -244,6 +246,11 @@ $ tsh ssh prod3.example.com
 
 # jerry@prod3.example.com >
 ```
+
+<Admonition title="Tip" type="tip">
+If you are using `tsh` in a constrained environment, you can tell it to use
+OTP by doing `tsh --mfa-mode=otp ssh prod3.example.com`.
+</Admonition>
 
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA
 even when logging into `dev1.example.com`.

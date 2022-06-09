@@ -159,28 +159,53 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 		solveOTP         func(context.Context) (string, error)
 		solveU2F         func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error)
 		solveWebauthn    func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
-		useStrongestAuth bool
+		allowStdinHijack bool
+		preferOTP        bool
 	}{
 		{
-			name:         "OK OTP device login",
+			name:         "OK OTP device login with hijack",
 			secondFactor: constants.SecondFactorOptional,
 			solveOTP:     solveOTP,
 			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
 				panic("unused")
 			},
-			solveWebauthn: promptWebauthnNoop,
+			solveWebauthn:    promptWebauthnNoop,
+			allowStdinHijack: true,
 		},
 		{
-			name:         "OK Webauthn device login",
+			name:         "OK Webauthn device login with hijack",
 			secondFactor: constants.SecondFactorOptional,
 			solveOTP:     promptOTPNoop,
 			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
 				panic("unused")
 			},
-			solveWebauthn: solveWebauthn,
+			solveWebauthn:    solveWebauthn,
+			allowStdinHijack: true,
 		},
 		{
-			name:         "Webauthn and UseStrongestAuth",
+			name:         "OK U2F device login with hijack",
+			secondFactor: constants.SecondFactorU2F,
+			solveOTP:     promptOTPNoop,
+			solveU2F:     solveU2F,
+			solveWebauthn: func(context.Context, string, *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+				panic("unused")
+			},
+			allowStdinHijack: true,
+		},
+		{
+			name:         "OTP preferred",
+			secondFactor: constants.SecondFactorOptional,
+			solveOTP:     solveOTP,
+			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+				panic("unused")
+			},
+			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+				panic("unused")
+			},
+			preferOTP: true,
+		},
+		{
+			name:         "Webauthn device login",
 			secondFactor: constants.SecondFactorOptional,
 			solveOTP: func(ctx context.Context) (string, error) {
 				panic("unused")
@@ -188,17 +213,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
 				panic("unused")
 			},
-			solveWebauthn:    solveWebauthn,
-			useStrongestAuth: true,
-		},
-		{
-			name:         "OK U2F device login",
-			secondFactor: constants.SecondFactorU2F,
-			solveOTP:     promptOTPNoop,
-			solveU2F:     solveU2F,
-			solveWebauthn: func(context.Context, string, *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
-				panic("unused")
-			},
+			solveWebauthn: solveWebauthn,
 		},
 	}
 	for _, test := range tests {
@@ -222,7 +237,8 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
-			tc.UseStrongestAuth = test.useStrongestAuth
+			tc.AllowStdinHijack = test.allowStdinHijack
+			tc.PreferOTP = test.preferOTP
 
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
