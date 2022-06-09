@@ -36,8 +36,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func DefaultConfig(t *testing.T) *config.FileConfig {
-	return &config.FileConfig{
+// from lib/service/listeners.go
+const (
+	listenerAuthSSH     = "auth"
+	listenerProxySSH    = "proxy:ssh"
+	listenerProxyWeb    = "proxy:web"
+	listenerProxyTunnel = "proxy:tunnel"
+)
+
+func DefaultConfig(t *testing.T) (*config.FileConfig, []service.FileDescriptor) {
+	var fds []service.FileDescriptor
+
+	fc := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
 		},
@@ -49,35 +59,53 @@ func DefaultConfig(t *testing.T) *config.FileConfig {
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: newListener(t, listenerProxySSH, &fds),
 			},
-			WebAddr:    mustGetFreeLocalListenerAddr(t),
-			TunAddr:    mustGetFreeLocalListenerAddr(t),
+			WebAddr:    newListener(t, listenerProxyWeb, &fds),
+			TunAddr:    newListener(t, listenerProxyTunnel, &fds),
 			PublicAddr: []string{"proxy.example.com"},
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: newListener(t, listenerAuthSSH, &fds),
 			},
 		},
 	}
+
+	return fc, fds
 }
 
-func mustGetFreeLocalListenerAddr(t *testing.T) string {
+func newListener(t *testing.T, ty string, fds *[]service.FileDescriptor) string {
+	t.Helper()
+
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer l.Close()
-	return l.Addr().String()
+	addr := l.Addr().String()
+
+	lf, err := l.(*net.TCPListener).File()
+	require.NoError(t, err)
+	t.Cleanup(func() { lf.Close() })
+
+	*fds = append(*fds, service.FileDescriptor{
+		Type:    ty,
+		Address: addr,
+		File:    lf,
+	})
+
+	return addr
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
-func MakeAndRunTestAuthServer(t *testing.T, fc *config.FileConfig) (auth *service.TeleportProcess) {
+func MakeAndRunTestAuthServer(t *testing.T, fc *config.FileConfig, fds []service.FileDescriptor) (auth *service.TeleportProcess) {
 	t.Helper()
 
 	var err error
 	cfg := service.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
+	cfg.FileDescriptors = fds
+	cfg.Log = utils.NewLoggerForTests()
 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
