@@ -4205,7 +4205,7 @@ func validateConfig(cfg *Config) error {
 	}
 
 	if cfg.Log == nil {
-		return trace.BadParameter("config: please supply logger")
+		cfg.Log = logrus.StandardLogger()
 	}
 
 	if len(cfg.AuthServers) == 0 {
