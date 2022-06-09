@@ -42,6 +42,12 @@ type Environment struct {
 	// Author is the author of the PR.
 	Author string
 
+	// Additions is the number of new lines added in the PR
+	Additions int
+
+	// Deletions is the number of lines removed in the PR
+	Deletions int
+
 	// UnsafeHead is the name of the branch the workflow is running in.
 	//
 	// UnsafeHead can be attacker controlled and should not be used in any
@@ -95,9 +101,16 @@ func New() (*Environment, error) {
 		Number:       event.PullRequest.Number,
 		RunID:        runID,
 		Author:       event.PullRequest.User.Login,
+		Additions:    event.PullRequest.Additions,
+		Deletions:    event.PullRequest.Deletions,
 		UnsafeHead:   event.PullRequest.UnsafeHead.UnsafeRef,
 		UnsafeBase:   event.PullRequest.UnsafeBase.UnsafeRef,
 	}, nil
+}
+
+// IsLargePR determines
+func (e *Environment) IsLargePR() bool {
+	return e.Additions-e.Deletions > 1500
 }
 
 func readEvent() (*Event, error) {

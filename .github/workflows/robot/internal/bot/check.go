@@ -50,7 +50,7 @@ func (b *Bot) Check(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		if err := b.c.Review.CheckInternal(b.c.Environment.Author, reviews, docs, code); err != nil {
+		if err := b.c.Review.CheckInternal(b.c.Environment.Author, reviews, docs, code, b.c.Environment.IsLargePR()); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
