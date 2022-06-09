@@ -1330,33 +1330,15 @@ $ tctl [<global-flags>] sso test [<filename>]
 >
   To use this command, you must have access to `github_request`, `oidc_request`, `saml_request` resources (depending on the type of connector being tested).
 
-  If you receive "permission denied" error, modify one of your roles to allow access to:
+  If you receive "permission denied" error, ensure that have access to resources:
 
 ```yaml
-   - resources:
-      - github_request
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
-    - resources:
-      - oidc_request
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
-    - resources:
-      - saml_request
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
+- resources: [github_request]
+  verbs: [list,create,read,update,delete]
+- resources: [oidc_request]
+  verbs: [list,create,read,update,delete]
+- resources: [saml_request]
+  verbs: [list,create,read,update,delete]
 ```
 </Admonition>
 
@@ -1413,10 +1395,10 @@ Configure GitHub auth connector.
 
 Required params `--id` and `--secret` come from the [Github OAuth app](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app).
 
-The flag `--teams-to-logins` can be provided multiple times to specify which Github Teams are assigned which roles.
+The flag `--teams-to-roles` can be provided multiple times to specify which Github Teams are assigned which roles.
 
 ```code
-$ tctl sso test --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-logins=... [<other-flags>]
+$ tctl sso test --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
 ```
 
 #### Arguments
@@ -1425,17 +1407,17 @@ This command accepts no arguments.
 
 #### Flags
 
-Mandatory flags: `--id`, `--secret`, `--teams-to-logins`.
+Mandatory flags: `--id`, `--secret`, `--teams-to-roles`.
 
 | Name                      | Default Value(s) | Allowed Value(s)           | Description                                             |
 |---------------------------|------------------|----------------------------|---------------------------------------------------------|
 | `-n`, `--name`            | `github`         | resource name              | Connector name.                                         |
-| `-r`, `--teams-to-logins` | none             | `org,team,role1,role2,...` | Sets teams-to-logins mapping. Repeatable.               |
+| `-r`, `--teams-to-roles`  | none             | `org,team,role1,role2,...` | Sets teams-to-roles mapping. Repeatable.                |
 | `--display`               | none             | display name               | Controls how this connector is displayed.               |
 | `--id`                    | none             | Github OAuth2 client id    | Github app client ID.                                   |
 | `--secret`                | none             | Github OAuth2 secret       | Github app client secret.                               |
 | `--redirect-url`          | none             | Valid callback URL.        | Authorization callback URL.                             |
-| `--ignore-missing-roles`  |                  |                            | Ignore missing roles referenced in `--teams-to-logins.` |
+| `--ignore-missing-roles`  |                  |                            | Ignore missing roles referenced in `--teams-to-roles`.  |
 
 #### Global flags
 
