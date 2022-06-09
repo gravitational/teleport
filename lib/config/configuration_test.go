@@ -25,6 +25,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -608,21 +609,6 @@ teleport:
 `,
 			outError: true,
 		},
-		{
-			desc: "change CA signature alg, valid",
-			inConfig: `
-teleport:
-  ca_signature_algo: ssh-rsa
-`,
-		},
-		{
-			desc: "invalid CA signature alg, not valid",
-			inConfig: `
-teleport:
-  ca_signature_algo: foobar
-`,
-			outError: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -696,6 +682,10 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "magadan", cfg.Auth.ClusterName.GetClusterName())
 	require.True(t, cfg.Auth.Preference.GetAllowLocalAuth())
 	require.Equal(t, "10.10.10.1", cfg.AdvertiseIP)
+	tunnelStrategyType, err := cfg.Auth.NetworkingConfig.GetTunnelStrategyType()
+	require.NoError(t, err)
+	require.Equal(t, types.AgentMesh, tunnelStrategyType)
+	require.Equal(t, types.DefaultAgentMeshTunnelStrategy(), cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy())
 
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
@@ -708,6 +698,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
 	require.Len(t, cfg.Proxy.MongoPublicAddrs, 1)
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
+	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddr.FullAddress())
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
@@ -915,6 +906,87 @@ func TestBackendDefaults(t *testing.T) {
      data_dir: /var/lib/teleport
 `)
 	require.False(t, cfg.Proxy.Kube.Enabled)
+}
+
+func TestTunnelStrategy(t *testing.T) {
+	tests := []struct {
+		desc           string
+		config         string
+		readErr        require.ErrorAssertionFunc
+		applyErr       require.ErrorAssertionFunc
+		tunnelStrategy interface{}
+	}{
+		{
+			desc: "Ensure default is used when no tunnel strategy is given",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+			}, "\n"),
+			readErr:        require.NoError,
+			applyErr:       require.NoError,
+			tunnelStrategy: types.DefaultAgentMeshTunnelStrategy(),
+		},
+		{
+			desc: "Ensure default parameters are used for proxy peering strategy",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  tunnel_strategy:",
+				"    type: proxy_peering",
+			}, "\n"),
+			readErr:        require.NoError,
+			applyErr:       require.NoError,
+			tunnelStrategy: types.DefaultProxyPeeringTunnelStrategy(),
+		},
+		{
+			desc: "Ensure proxy peering strategy parameters are set",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  tunnel_strategy:",
+				"    type: proxy_peering",
+				"    agent_connection_count: 2",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: require.NoError,
+			tunnelStrategy: &types.ProxyPeeringTunnelStrategy{
+				AgentConnectionCount: 2,
+			},
+		},
+		{
+			desc: "Ensure tunnel strategy cannot take unknown parameters",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  tunnel_strategy:",
+				"    type: agent_mesh",
+				"    agent_connection_count: 2",
+			}, "\n"),
+			readErr:        require.Error,
+			applyErr:       require.NoError,
+			tunnelStrategy: types.DefaultAgentMeshTunnelStrategy(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(bytes.NewBufferString(tc.config))
+			tc.readErr(t, err)
+
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+			tc.applyErr(t, err)
+
+			var actualStrategy interface{}
+			if cfg.Auth.NetworkingConfig == nil {
+			} else if s := cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy(); s != nil {
+				actualStrategy = s
+			} else if s := cfg.Auth.NetworkingConfig.GetProxyPeeringTunnelStrategy(); s != nil {
+				actualStrategy = s
+			}
+			require.Equal(t, tc.tunnelStrategy, actualStrategy)
+		})
+	}
 }
 
 // TestParseKey ensures that keys are parsed correctly if they are in
@@ -1613,6 +1685,13 @@ func TestWindowsDesktopService(t *testing.T) {
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: "g(-z]+ invalid regex", Labels: map[string]string{"key": "value"}},
 				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label key for LDAP attribute",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
 		{

@@ -26,7 +26,6 @@ import (
 	"net"
 	"os"
 	"os/user"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,6 +46,7 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -105,6 +105,7 @@ type Server struct {
 	proxyMode        bool
 	proxyTun         reversetunnel.Tunnel
 	proxyAccessPoint auth.ReadProxyAccessPoint
+	peerAddr         string
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
@@ -192,8 +193,20 @@ type Server struct {
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
 
+	// connectedProxyGetter gets the proxies teleport is connected to.
+	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
+
 	// nodeWatcher is the server's node watcher.
 	nodeWatcher *services.NodeWatcher
+
+	// createHostUser configures whether a host should allow host user
+	// creation
+	createHostUser bool
+
+	storage *local.PresenceService
+
+	// users is used to start the automatic user deletion loop
+	users srv.HostUsers
 }
 
 // GetClock returns server clock implementation
@@ -252,6 +265,18 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
 }
 
+// GetCreateHostUser determines whether users should be created on the
+// host automatically
+func (s *Server) GetCreateHostUser() bool {
+	return s.createHostUser
+}
+
+// GetHostUsers returns the HostUsers instance being used to manage
+// host user provisioning
+func (s *Server) GetHostUsers() srv.HostUsers {
+	return s.users
+}
+
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
 // and this is a Teleport node.
 func (s *Server) isAuditedAtProxy() bool {
@@ -285,6 +310,11 @@ func (s *Server) close() {
 	if s.dynamicLabels != nil {
 		s.dynamicLabels.Close()
 	}
+
+	if s.users != nil {
+		s.users.Shutdown()
+		s.users = nil
+	}
 }
 
 // Close closes listening socket and stops accepting connections
@@ -309,6 +339,10 @@ func (s *Server) Start() error {
 		go s.dynamicLabels.Start()
 	}
 
+	if s.users != nil {
+		go s.users.UserCleanup()
+	}
+
 	// If the server requested connections to it arrive over a reverse tunnel,
 	// don't call Start() which listens on a socket, return right away.
 	if s.useTunnel {
@@ -318,6 +352,7 @@ func (s *Server) Start() error {
 	if err := s.srv.Start(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Heartbeat should start only after s.srv.Start.
 	// If the server is configured to listen on port 0 (such as in tests),
 	// it'll only populate its actual listening address during s.srv.Start.
@@ -334,6 +369,11 @@ func (s *Server) Serve(l net.Listener) error {
 	// asynchronously keep them updated.
 	if s.dynamicLabels != nil {
 		go s.dynamicLabels.Start()
+	}
+	// if the server allows host user provisioning, this will start an
+	// automatic cleanup process for any temporary leftover users
+	if s.users != nil {
+		go s.users.UserCleanup()
 	}
 
 	if s.cloudLabels != nil {
@@ -402,7 +442,7 @@ func SetSessionServer(sessionServer rsession.Service) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -410,6 +450,7 @@ func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) Serve
 		s.proxyMode = true
 		s.proxyTun = tsrv
 		s.proxyAccessPoint = ap
+		s.peerAddr = peerAddr
 		return nil
 	}
 }
@@ -547,6 +588,22 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 	}
 }
 
+// SetCreateHostUser configures host user creation on a server
+func SetCreateHostUser(createUser bool) ServerOption {
+	return func(s *Server) error {
+		s.createHostUser = createUser
+		return nil
+	}
+}
+
+// SetStoragePresenceService configures host user creation on a server
+func SetStoragePresenceService(service *local.PresenceService) ServerOption {
+	return func(s *Server) error {
+		s.storage = service
+		return nil
+	}
+}
+
 // SetAllowTCPForwarding sets the TCP port forwarding mode that this server is
 // allowed to offer. The default value is SSHPortForwardingModeAll, i.e. port
 // forwarding is allowed.
@@ -577,6 +634,14 @@ func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
 func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	return func(s *Server) error {
 		s.x11 = xc
+		return nil
+	}
+}
+
+// SetConnectedProxyGetter sets the ConnectedProxyGetter.
+func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
+	return func(s *Server) error {
+		s.connectedProxyGetter = getter
 		return nil
 	}
 }
@@ -646,6 +711,10 @@ func New(addr utils.NetAddr,
 		return nil, trace.BadParameter("setup valid LockWatcher parameter using SetLockWatcher")
 	}
 
+	if s.connectedProxyGetter == nil {
+		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+
 	var component string
 	if s.proxyMode {
 		component = teleport.ComponentProxy
@@ -657,6 +726,14 @@ func New(addr utils.NetAddr,
 		trace.Component:       component,
 		trace.ComponentFields: logrus.Fields{},
 	})
+
+	if s.createHostUser {
+		users, err := srv.NewHostUsers(ctx, s.storage)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		s.users = users
+	}
 
 	s.reg, err = srv.NewSessionRegistry(srv.SessionRegistryConfig{
 		Srv:                   s,
@@ -726,7 +803,9 @@ func New(addr utils.NetAddr,
 		s.srv.Close()
 		return nil, trace.Wrap(err)
 	}
+
 	s.heartbeat = heartbeat
+
 	return s, nil
 }
 
@@ -734,8 +813,8 @@ func (s *Server) getNamespace() string {
 	return types.ProcessNamespace(s.namespace)
 }
 
-func (s *Server) tunnelWithRoles(ctx *srv.ServerContext) reversetunnel.Tunnel {
-	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.RoleSet, s.proxyAccessPoint)
+func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) reversetunnel.Tunnel {
+	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.AccessChecker, s.proxyAccessPoint)
 }
 
 // Context returns server shutdown context
@@ -857,6 +936,7 @@ func (s *Server) GetInfo() types.Server {
 			Hostname:  s.hostname,
 			UseTunnel: s.useTunnel,
 			Version:   teleport.Version,
+			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
 		},
 	}
 }
@@ -873,8 +953,10 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 			server.SetRotation(*rotation)
 		}
 	}
+
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
+	server.SetPeerAddr(s.peerAddr)
 	return server, nil
 }
 
@@ -886,42 +968,24 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	uid, err := strconv.Atoi(systemUser.Uid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(systemUser.Gid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	pid := os.Getpid()
 
-	// build the socket path and set permissions
-	socketDir, err := os.MkdirTemp(os.TempDir(), "teleport-")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	dirCloser := &utils.RemoveDirCloser{Path: socketDir}
-	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
-	if err := os.Chown(socketDir, uid, gid); err != nil {
-		if err := dirCloser.Close(); err != nil {
-			log.Warnf("failed to remove directory: %v", err)
-		}
-		return trace.ConvertSystemError(err)
-	}
+	socketDir := "teleport"
+	socketName := fmt.Sprintf("teleport-%v.socket", pid)
 
 	// start an agent server on a unix socket.  each incoming connection
 	// will result in a separate agent request.
 	agentServer := teleagent.NewServer(ctx.Parent().StartAgentChannel)
-	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
+	err = agentServer.ListenUnixSocket(socketDir, socketName, systemUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.Parent().SetEnv(teleport.SSHAuthSock, socketPath)
+
+	ctx.Parent().SetEnv(teleport.SSHAuthSock, agentServer.Path)
 	ctx.Parent().SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
 	ctx.Parent().AddCloser(agentServer)
-	ctx.Parent().AddCloser(dirCloser)
-	ctx.Debugf("Starting agent server for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, socketPath)
+	ctx.Debugf("Starting agent server for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, agentServer.Path)
 	go func() {
 		if err := agentServer.Serve(); err != nil {
 			ctx.Errorf("agent server for user %q stopped: %v", ctx.Identity.TeleportUser, err)
@@ -970,7 +1034,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
-	lockingMode := identityContext.RoleSet.LockingMode(authPref.GetLockingMode())
+	lockingMode := identityContext.AccessChecker.LockingMode(authPref.GetLockingMode())
 
 	event := &apievents.SessionReject{
 		Metadata: apievents.Metadata{
@@ -1006,7 +1070,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		return ctx, nil
 	}
 
-	maxConnections := identityContext.RoleSet.MaxConnections()
+	maxConnections := identityContext.AccessChecker.MaxConnections()
 	if maxConnections == 0 {
 		// concurrent session control is not active, nothing
 		// else needs to be done here.
@@ -1109,7 +1173,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
 		var decr func()
-		if max := identityContext.RoleSet.MaxSessions(); max != 0 {
+		if max := identityContext.AccessChecker.MaxSessions(); max != 0 {
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.

@@ -207,6 +207,8 @@ export
 
 TEST_LOG_DIR = ${abspath ./test-logs}
 
+CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+
 #
 # 'make all' builds all 3 executables and places them in the current directory.
 #
@@ -903,9 +905,11 @@ buildbox-grpc: GOGOPROTO_IMPORTMAP := $\
 	Mignoreme=ignoreme
 buildbox-grpc:
 	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
-	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
+	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
 		api/client/proto/authservice.proto \
+		api/client/proto/certs.proto \
 		api/client/proto/joinservice.proto \
+		api/client/proto/proxyservice.proto \
 		api/types/events/events.proto \
 		api/types/types.proto \
 		api/types/webauthn/webauthn.proto \
@@ -916,7 +920,7 @@ buildbox-grpc:
 
 	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		certs.proto authservice.proto joinservice.proto
+		authservice.proto certs.proto joinservice.proto proxyservice.proto
 
 	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
@@ -962,6 +966,9 @@ grpc-teleterm:
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc-teleterm
 buildbox-grpc-teleterm:
+	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
+		lib/teleterm/api/proto/**/*.proto
+
 	cd lib/teleterm && buf generate
 
 .PHONY: goinstall

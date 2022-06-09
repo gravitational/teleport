@@ -574,7 +574,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if cn.GetClusterName() != site.GetName() {
 		return nil, trace.BadParameter("endpoint only implemented for root cluster")
 	}
-	roleset, err := c.GetUserRoles()
+	accessChecker, err := c.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -597,7 +597,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
 
-	userContext, err := ui.NewUserContext(user, roleset, h.ClusterFeatures, desktopRecordingEnabled)
+	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -792,6 +792,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
+		ClusterName:      h.auth.clusterName,
 	}, nil
 }
 
@@ -804,6 +805,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
+		ClusterName:      h.auth.clusterName,
 	}, nil
 }
 
@@ -823,6 +825,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:         *proxyConfig,
 		ServerVersion: teleport.Version,
+		ClusterName:   h.auth.clusterName,
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
@@ -1061,15 +1064,14 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
-		services.OIDCAuthRequest{
-			CSRFToken:         req.csrfToken,
-			ConnectorID:       req.connectorID,
-			CreateWebSession:  true,
-			ClientRedirectURL: req.clientRedirectURL,
-			CheckUser:         true,
-			ProxyAddress:      r.Host,
-		})
+	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
+		CSRFToken:         req.csrfToken,
+		ConnectorID:       req.connectorID,
+		CreateWebSession:  true,
+		ClientRedirectURL: req.clientRedirectURL,
+		CheckUser:         true,
+		ProxyAddress:      r.Host,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
 		return client.LoginFailedRedirectURL
@@ -1088,13 +1090,12 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
-		services.GithubAuthRequest{
-			CSRFToken:         req.csrfToken,
-			ConnectorID:       req.connectorID,
-			CreateWebSession:  true,
-			ClientRedirectURL: req.clientRedirectURL,
-		})
+	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
+		CSRFToken:         req.csrfToken,
+		ConnectorID:       req.connectorID,
+		CreateWebSession:  true,
+		ClientRedirectURL: req.clientRedirectURL,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
 		return client.LoginFailedRedirectURL
@@ -1119,16 +1120,15 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
-	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
-		services.GithubAuthRequest{
-			ConnectorID:       req.ConnectorID,
-			PublicKey:         req.PublicKey,
-			CertTTL:           req.CertTTL,
-			ClientRedirectURL: req.RedirectURL,
-			Compatibility:     req.Compatibility,
-			RouteToCluster:    req.RouteToCluster,
-			KubernetesCluster: req.KubernetesCluster,
-		})
+	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		PublicKey:         req.PublicKey,
+		CertTTL:           types.Duration(req.CertTTL),
+		ClientRedirectURL: req.RedirectURL,
+		Compatibility:     req.Compatibility,
+		RouteToCluster:    req.RouteToCluster,
+		KubernetesCluster: req.KubernetesCluster,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
@@ -1220,18 +1220,17 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
-		services.OIDCAuthRequest{
-			ConnectorID:       req.ConnectorID,
-			ClientRedirectURL: req.RedirectURL,
-			PublicKey:         req.PublicKey,
-			CertTTL:           req.CertTTL,
-			CheckUser:         true,
-			Compatibility:     req.Compatibility,
-			RouteToCluster:    req.RouteToCluster,
-			KubernetesCluster: req.KubernetesCluster,
-			ProxyAddress:      r.Host,
-		})
+	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		ClientRedirectURL: req.RedirectURL,
+		PublicKey:         req.PublicKey,
+		CertTTL:           types.Duration(req.CertTTL),
+		CheckUser:         true,
+		Compatibility:     req.Compatibility,
+		RouteToCluster:    req.RouteToCluster,
+		KubernetesCluster: req.KubernetesCluster,
+		ProxyAddress:      r.Host,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
@@ -1454,11 +1453,11 @@ type CreateSessionResponse struct {
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
-	roleset, err := ctx.GetUserRoles()
+	accessChecker, err := ctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = roleset.CheckLoginDuration(0)
+	_, err = accessChecker.CheckLoginDuration(0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2712,12 +2711,12 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
 // of the given user.
 func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, error) {
-	roleset, err := ctx.GetUserRoles()
+	accessChecker, err := ctx.GetUserAccessChecker()
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get client roles.")
 		return nil, trace.Wrap(err)
 	}
-	return reversetunnel.NewTunnelWithRoles(h.cfg.Proxy, roleset, h.cfg.AccessPoint), nil
+	return reversetunnel.NewTunnelWithRoles(h.cfg.Proxy, accessChecker, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy

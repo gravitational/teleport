@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -61,7 +60,6 @@ func TestReadIdentity(t *testing.T) {
 
 	cert, err := a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
@@ -83,7 +81,6 @@ func TestReadIdentity(t *testing.T) {
 	expiryDate := clock.Now().Add(ttl)
 	bytes, err := a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
@@ -111,7 +108,6 @@ func TestBadIdentity(t *testing.T) {
 	// missing authority domain
 	cert, err := a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "id2",
 		NodeName:      "",
@@ -127,7 +123,6 @@ func TestBadIdentity(t *testing.T) {
 	// missing host uuid
 	cert, err = a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
@@ -143,7 +138,6 @@ func TestBadIdentity(t *testing.T) {
 	// unrecognized role
 	cert, err = a.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
@@ -445,51 +439,6 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
-}
-
-func TestCASigningAlg(t *testing.T) {
-	ctx := context.Background()
-	verifyCAs := func(auth *Server, alg string) {
-		hostCAs, err := auth.GetCertAuthorities(ctx, types.HostCA, false)
-		require.NoError(t, err)
-		for _, ca := range hostCAs {
-			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
-		}
-		userCAs, err := auth.GetCertAuthorities(ctx, types.UserCA, false)
-		require.NoError(t, err)
-		for _, ca := range userCAs {
-			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
-		}
-	}
-
-	// Start a new server without specifying a signing alg.
-	conf := setupConfig(t)
-	auth, err := Init(conf)
-	require.NoError(t, err)
-	defer auth.Close()
-	verifyCAs(auth, ssh.KeyAlgoRSASHA512)
-
-	require.NoError(t, auth.Close())
-
-	// Reset the auth server state.
-	conf.Backend, err = lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
-	require.NoError(t, err)
-	conf.DataDir = t.TempDir()
-
-	// Start a new server with non-default signing alg.
-	signingAlg := ssh.KeyAlgoRSA
-	conf.CASigningAlg = &signingAlg
-	auth, err = Init(conf)
-	require.NoError(t, err)
-	defer auth.Close()
-	verifyCAs(auth, ssh.KeyAlgoRSA)
-
-	// Start again, using a different alg. This should not change the existing
-	// CA.
-	signingAlg = ssh.KeyAlgoRSASHA256
-	auth, err = Init(conf)
-	require.NoError(t, err)
-	verifyCAs(auth, ssh.KeyAlgoRSA)
 }
 
 // TestPresets tests behavior of presets
