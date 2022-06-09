@@ -1118,3 +1118,26 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 - [ ] Verify that app doesn’t crash when there is no internet connection or some cluster is unavailable 
 - [ ] Verify that logs are collected for all processes
 - [ ] Verify that the login modal is displayed when a user tries to make a request after the certificate has expired
+
+## Host users creation
+
+[Host users creation docs](https://github.com/gravitational/teleport/pull/13056)
+[Host users creation RFD](https://github.com/gravitational/teleport/pull/11077)
+<!---
+TODO(lxea): replace links with actual docs once merged
+
+[Host users creation docs](../../docs/pages/server-access/guides/host-user-creation.mdx)
+[Host users creation RFD](../../rfd/0057-automatic-user-provisioning.md)
+-->
+
+- Verify host users creation functionality
+  - [ ] non-existing users are created automatically
+  - [ ] users are added to groups
+    - [ ] non existing configured groups are created
+	- [ ] created users are added to the `teleport-system` group
+  - [ ] users are cleaned up after their session ends
+	- [ ] cleanup occurs if a program was left running after session ends
+  - [ ] sudoers file creation is successful
+	- [ ] Invalid sudoers files are _not_ created
+  - [ ] existing host users are not modified
+  - [ ] setting `disable_create_host_user: true` stops user creation from occurring
