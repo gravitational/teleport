@@ -206,7 +206,7 @@ variable "allowed_auth_egress_cidr_blocks" {
   default = ["0.0.0.0/0"]
 }
 
-//CIDR blocks allowed for ingress for Teleport Monitor ports
+// CIDR blocks allowed for ingress for Teleport Monitor ports
 variable "allowed_monitor_ingress_cidr_blocks" {
   type = list
   default = ["0.0.0.0/0"]
