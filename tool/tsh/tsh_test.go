@@ -1768,7 +1768,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			pub, user.GetName(), time.Hour,
 			constants.CertificateFormatStandard,
-			"localhost",
+			"localhost", "",
 		)
 		require.NoError(t, err)
 
