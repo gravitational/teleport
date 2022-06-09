@@ -1055,11 +1055,13 @@ func TestPruneRequestRoles(t *testing.T) {
 	// set up test roles
 	roleDesc := map[string]types.RoleSpecV5{
 		"response-team": types.RoleSpecV5{
+			// By default has access to nothing, but can request many types of
+			// resources.
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{
-						"node-access",
 						"node-admins",
+						"node-access",
 						"kube-admins",
 						"db-admins",
 						"app-admins",
@@ -1084,7 +1086,7 @@ func TestPruneRequestRoles(t *testing.T) {
 				NodeLabels: types.Labels{
 					"owner": {"node-admins"},
 				},
-				Logins: []string{"root"},
+				Logins: []string{"{{internal.logins}}", "root"},
 			},
 		},
 		"kube-admins": types.RoleSpecV5{
@@ -1126,19 +1128,22 @@ func TestPruneRequestRoles(t *testing.T) {
 	}
 
 	user := g.user(t, "response-team")
+	g.users[user].SetTraits(map[string][]string{
+		"logins": []string{"responder"},
+	})
 
 	nodeDesc := []struct {
 		name   string
 		labels map[string]string
 	}{
 		{
-			name: "node1",
+			name: "admins-node",
 			labels: map[string]string{
 				"owner": "node-admins",
 			},
 		},
 		{
-			name: "node2",
+			name: "denied-node",
 		},
 	}
 	for _, desc := range nodeDesc {
@@ -1197,11 +1202,8 @@ func TestPruneRequestRoles(t *testing.T) {
 				{
 					ClusterName: clusterName,
 					Kind:        types.KindNode,
-					Name:        "node1",
+					Name:        "admins-node",
 				},
-			},
-			userTraits: map[string][]string{
-				"logins": {"user"},
 			},
 			// Without the login hint, all roles granting access will be
 			// requested.
@@ -1213,14 +1215,11 @@ func TestPruneRequestRoles(t *testing.T) {
 				{
 					ClusterName: clusterName,
 					Kind:        types.KindNode,
-					Name:        "node1",
+					Name:        "admins-node",
 				},
 			},
-			loginHint: "user",
-			userTraits: map[string][]string{
-				"logins": {"user"},
-			},
-			// With "user" login hint, only request node-access.
+			loginHint: "responder",
+			// With "responder" login hint, only request node-access.
 			expectRoles: []string{"node-access"},
 		},
 		{
@@ -1229,13 +1228,10 @@ func TestPruneRequestRoles(t *testing.T) {
 				{
 					ClusterName: clusterName,
 					Kind:        types.KindNode,
-					Name:        "node1",
+					Name:        "admins-node",
 				},
 			},
 			loginHint: "root",
-			userTraits: map[string][]string{
-				"logins": {"user"},
-			},
 			// With "root" login hint, request node-admins.
 			expectRoles: []string{"node-admins"},
 		},
@@ -1245,13 +1241,10 @@ func TestPruneRequestRoles(t *testing.T) {
 				{
 					ClusterName: clusterName,
 					Kind:        types.KindNode,
-					Name:        "node2",
+					Name:        "denied-node",
 				},
 			},
 			loginHint: "root",
-			userTraits: map[string][]string{
-				"logins": {"user"},
-			},
 			// No roles grant access with the desired login, return an error.
 			expectError: true,
 		},
@@ -1309,7 +1302,7 @@ func TestPruneRequestRoles(t *testing.T) {
 				{
 					ClusterName: clusterName,
 					Kind:        types.KindNode,
-					Name:        "node1",
+					Name:        "admins-node",
 				},
 				{
 					ClusterName: clusterName,
@@ -1341,7 +1334,7 @@ func TestPruneRequestRoles(t *testing.T) {
 				{
 					ClusterName: "leaf",
 					Kind:        types.KindNode,
-					Name:        "node1",
+					Name:        "admins-node",
 				},
 			},
 			// Request for foreign resource should request all available roles,
@@ -1359,7 +1352,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			err = ValidateAccessRequestForUser(ctx, g, req, ExpandVars(true))
 			require.NoError(t, err)
 
-			err = PruneResourceRequestRoles(ctx, req, g, clusterName, tc.userTraits)
+			err = PruneResourceRequestRoles(ctx, req, g, clusterName, g.users[user].GetTraits())
 			if tc.expectError {
 				require.Error(t, err)
 				return

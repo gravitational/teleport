@@ -1346,10 +1346,13 @@ func PruneResourceRequestRoles(
 		return trace.Wrap(err)
 	}
 
+	loginHint := req.GetLoginHint()
+
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
+		var rolesForResource []types.Role
 		for _, role := range allRoles {
-			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, req.GetLoginHint())
+			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1358,13 +1361,16 @@ func PruneResourceRequestRoles(
 				// unless it allows access to another resource.
 				continue
 			}
+			rolesForResource = append(rolesForResource, role)
+		}
+		if len(loginHint) > 0 {
+			// If we have a login hint, request the single role with the fewest
+			// allowed logins. All roles at this point have already matched the
+			// requested login and will include it.
+			rolesForResource = fewestLogins(rolesForResource)
+		}
+		for _, role := range rolesForResource {
 			necessaryRoles[role.GetName()] = struct{}{}
-			if apiutils.SliceContainsStr(role.GetLogins(types.Allow), req.GetLoginHint()) {
-				// This role definitely allows access to this resource with the
-				// login we want. No need to keep iterating the roles for this
-				// resource.
-				break
-			}
 		}
 	}
 	if len(necessaryRoles) == 0 {
@@ -1374,8 +1380,10 @@ func PruneResourceRequestRoles(
 		}
 		return trace.BadParameter(
 			`no roles configured in the "search_as_roles" for this user allow `+
-				`access to any of the requested resources. roles: %v resources: %s login: %q`,
-			req.GetRoles(), resourcesStr, req.GetLoginHint())
+				`access to any requested resources. The user may already have `+
+				`access to all requested resources with their existing roles. `+
+				`resources: %s roles: %v login: %q`,
+			resourcesStr, req.GetRoles(), loginHint)
 	}
 	prunedRoles := make([]string, 0, len(necessaryRoles))
 	for role := range necessaryRoles {
@@ -1383,6 +1391,31 @@ func PruneResourceRequestRoles(
 	}
 	req.SetRoles(prunedRoles)
 	return nil
+}
+
+func fewestLogins(roles []types.Role) []types.Role {
+	if len(roles) == 0 {
+		return roles
+	}
+	fewest := roles[0]
+	fewestCount := countAllowedLogins(fewest)
+	for _, role := range roles[1:] {
+		if countAllowedLogins(role) < fewestCount {
+			fewest = role
+		}
+	}
+	return []types.Role{fewest}
+}
+
+func countAllowedLogins(role types.Role) int {
+	allowed := make(map[string]struct{})
+	for _, a := range role.GetLogins(types.Allow) {
+		allowed[a] = struct{}{}
+	}
+	for _, d := range role.GetLogins(types.Deny) {
+		delete(allowed, d)
+	}
+	return len(allowed)
 }
 
 func roleAllowsResource(
