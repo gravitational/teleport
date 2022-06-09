@@ -654,7 +654,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		defer s.mu.Unlock()
 
 		for _, party := range s.parties {
-			if err := party.Client.sendStatus(err); err != nil {
+			if err := party.Client.sendStatus(errExec); err != nil {
 				s.forwarder.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
 			}
 		}
