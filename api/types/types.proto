@@ -1697,6 +1697,9 @@ message RoleOptions {
         (gogoproto.jsontag) = "create_host_user",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    // PinSourceIP forces the same client IP for certificate generation and usage
+    bool PinSourceIP = 21 [ (gogoproto.jsontag) = "pin_source_ip", (gogoproto.casttype) = "Bool" ];
 }
 
 message RecordSession {
@@ -1848,6 +1851,8 @@ message RoleConditions {
 
     // HostGroups is a list of groups for created users to be added to
     repeated string HostGroups = 21 [ (gogoproto.jsontag) = "host_groups,omitempty" ];
+    // HostSudoers is a list of entries to include in a users sudoer file
+    repeated string HostSudoers = 22 [ (gogoproto.jsontag) = "host_sudoers,omitempty" ];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
