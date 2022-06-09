@@ -18,19 +18,17 @@ package v5
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/gravitational/teleport/api/types"
 )
+
+const DescriptionKey = "description"
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // RoleSpec defines the desired state of Role
-type RoleSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Role. Edit role_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
+type RoleSpec types.RoleSpecV5
 
 // RoleStatus defines the observed state of Role
 type RoleStatus struct {
@@ -61,4 +59,44 @@ type RoleList struct {
 
 func init() {
 	SchemeBuilder.Register(&Role{}, &RoleList{})
+}
+
+func (r Role) ToTeleport() types.Role {
+	return &types.RoleV5{
+		Kind:    types.KindRole,
+		Version: types.V5,
+		Metadata: types.Metadata{
+			Name:        r.Name,
+			Labels:      r.Labels,
+			Description: r.Annotations[DescriptionKey],
+		},
+		Spec: types.RoleSpecV5(r.Spec),
+	}
+}
+
+func init() {
+	SchemeBuilder.Register(&Role{}, &RoleList{})
+}
+
+// Marshal serializes a spec into binary data.
+func (spec *RoleSpec) Marshal() ([]byte, error) {
+	return (*types.RoleSpecV5)(spec).Marshal()
+}
+
+// Unmarshal deserializes a spec from binary data.
+func (spec *RoleSpec) Unmarshal(data []byte) error {
+	return (*types.RoleSpecV5)(spec).Unmarshal(data)
+}
+
+// DeepCopyInto deep-copies one role spec into another.
+// Required to satisfy runtime.Object interface.
+func (spec *RoleSpec) DeepCopyInto(out *RoleSpec) {
+	data, err := spec.Marshal()
+	if err != nil {
+		panic(err)
+	}
+	*out = RoleSpec{}
+	if err = out.Unmarshal(data); err != nil {
+		panic(err)
+	}
 }
