@@ -86,9 +86,28 @@ help: ## Display this help.
 
 ##@ Development
 
+.PHONY: crdgen
+crdgen: ## Generate CRDs
+	make -C crdgen
+
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+# Generate CRDs for apis/resources (custom generation through protoc plugin).
+
+# The wrappers.proto file needed for this generator exist only inside the go mod cache,
+# so we retrieve the file path for the cached proto files with go mod tools.
+#	$(eval API_MOD_PATH := $(shell go mod download --json github.com/gravitational/teleport/api | jq -r .Dir))
+	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | jq -r .Dir))
+	$(eval CUSTOM_IMPORTS_TMP_DIR := $(shell mktemp -d))
+	mkdir -p $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/types/wrappers
+	cp ../api/types/wrappers/wrappers.proto $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/types/wrappers
+	protoc \
+		-I=../api/types \
+		-I=$(PROTOBUF_MOD_PATH) \
+		-I=$(CUSTOM_IMPORTS_TMP_DIR) \
+		--plugin=./crdgen/protoc-gen-crd \
+		--crd_out=:./config/crd/bases \
+		types.proto
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
