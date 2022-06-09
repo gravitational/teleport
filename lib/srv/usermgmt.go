@@ -34,12 +34,13 @@ import (
 )
 
 // NewHostUsers initialize a new HostUsers object
-func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) (HostUsers, error) {
+func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
 	// newHostUsersBackend statically returns a valid backend or an error,
 	// resulting in a staticcheck linter error on darwin
 	backend, err := newHostUsersBackend(uuid) //nolint:staticcheck
 	if err != nil {                           //nolint:staticcheck
-		return nil, trace.Wrap(err)
+		log.Warnf("Error making new HostUsersBackend: %s", err)
+		return nil
 	}
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	return &HostUserManagement{
@@ -48,7 +49,7 @@ func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid stri
 		cancel:    cancelFunc,
 		storage:   storage,
 		userGrace: time.Second * 30,
-	}, nil
+	}
 }
 
 type HostUsersBackend interface {

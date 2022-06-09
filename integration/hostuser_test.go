@@ -160,8 +160,7 @@ func TestRootHostUsers(t *testing.T) {
 	presence := local.NewPresenceService(bk)
 
 	t.Run("test create temporary user and close", func(t *testing.T) {
-		users, err := srv.NewHostUsers(context.Background(), presence, "host_uuid")
-		require.NoError(t, err)
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
 		_, closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups})
@@ -184,8 +183,7 @@ func TestRootHostUsers(t *testing.T) {
 			t.Skip("Visudo not found on path")
 		}
 		uuid := "host_uuid"
-		users, err := srv.NewHostUsers(context.Background(), presence, uuid)
-		require.NoError(t, err)
+		users := srv.NewHostUsers(context.Background(), presence, uuid)
 
 		sudoersPath := func(username, uuid string) string {
 			return fmt.Sprintf("/etc/sudoers.d/teleport-%s-%s", uuid, username)
@@ -220,8 +218,7 @@ func TestRootHostUsers(t *testing.T) {
 	})
 
 	t.Run("test delete all users in teleport service group", func(t *testing.T) {
-		users, err := srv.NewHostUsers(context.Background(), presence, "host_uuid")
-		require.NoError(t, err)
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 		users.SetHostUserDeletionGrace(0)
 
 		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
