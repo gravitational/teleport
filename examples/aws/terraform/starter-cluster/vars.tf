@@ -36,8 +36,8 @@ variable "add_wildcard_route53_record" {
   type = string
 }
 
-//whether to enable the mongodb listener
-//adds security group setting, maps load balancer to port and adds to teleport config
+// whether to enable the mongodb listener
+// adds security group setting, maps load balancer to port and adds to teleport config
 variable "enable_mongodb_listener" {
   type    = bool
   default = false
