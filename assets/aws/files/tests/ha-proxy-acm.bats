@@ -34,13 +34,6 @@ load fixtures/common
     echo "${PROXY_BLOCK?}" | grep -E "^  public_addr:" ${TELEPORT_CONFIG_PATH?} | grep -q "${TELEPORT_DOMAIN_NAME?}:443"
 }
 
-@test "[${TEST_SUITE?}] proxy_service.postgres_public_addr is not set" {
-    load ${TELEPORT_CONFD_DIR?}/conf
-    echo "${PROXY_BLOCK?}"
-    # this test inverts the regular behaviour of grep -q, so only succeeds if the line _isn't_ present
-    echo "${PROXY_BLOCK?}" | { ! grep -qE "^  postgres_public_addr: "; }
-}
-
 @test "[${TEST_SUITE?}] proxy_service.ssh_public_addr is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${PROXY_BLOCK?}"
