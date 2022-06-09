@@ -93,17 +93,8 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 
 // CreateUploaderDir creates directory for file uploader service
 func CreateUploaderDir(dir string) error {
-	// DELETE IN(5.1.0)
-	// this folder is no longer used past 5.0 upgrade
-	err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.SessionLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	err = os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 

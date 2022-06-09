@@ -435,7 +435,7 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
-	conf.ExtraProxyHeaders = []ExtraProxyHeaders{
+	conf.TshConfig.ExtraHeaders = []ExtraProxyHeaders{
 		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
 		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
 		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
@@ -1730,7 +1730,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			pub, user.GetName(), time.Hour,
 			constants.CertificateFormatStandard,
-			"localhost",
+			"localhost", "",
 		)
 		require.NoError(t, err)
 
