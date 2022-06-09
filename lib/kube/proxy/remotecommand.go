@@ -235,7 +235,6 @@ func (s *remoteCommandProxy) sendStatus(err error) error {
 				Status: metav1.StatusFailure,
 				Code:   http.StatusForbidden,
 				Reason: metav1.StatusReasonForbidden,
-
 				Message: err.Error(),
 			},
 		})
