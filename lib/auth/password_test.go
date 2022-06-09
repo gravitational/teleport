@@ -95,7 +95,7 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 func (s *PasswordSuite) TearDownTest(c *C) {
 }
 
-func (s *PasswordSuite) TestTiming(c *C) {
+func (s *PasswordSuite) TestPasswordTimingAttack(c *C) {
 	username := "foo"
 	password := "barbaz"
 
@@ -116,9 +116,13 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	// and reduce test flakiness.
 	wg := sync.WaitGroup{}
 	resCh := make(chan res)
-	for i := 0; i < 10; i++ {
+	// Create a barrier, so no more than 5 checks run at the same time.
+	syncChan := make(chan struct{}, 5)
+	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func() {
+			syncChan <- struct{}{}
+
 			defer wg.Done()
 			start := time.Now()
 			err := s.a.checkPasswordWOToken(username, []byte(password))
@@ -127,9 +131,12 @@ func (s *PasswordSuite) TestTiming(c *C) {
 				elapsed: time.Since(start),
 				err:     err,
 			}
+			<-syncChan
 		}()
 		wg.Add(1)
 		go func() {
+			syncChan <- struct{}{}
+
 			defer wg.Done()
 			start := time.Now()
 			err := s.a.checkPasswordWOToken("blah", []byte(password))
@@ -138,6 +145,7 @@ func (s *PasswordSuite) TestTiming(c *C) {
 				elapsed: time.Since(start),
 				err:     err,
 			}
+			<-syncChan
 		}()
 	}
 	go func() {
