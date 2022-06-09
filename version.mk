@@ -38,8 +38,7 @@ setver: helm-version
 # The weird -i usage is to make the sed commands work the same on both Linux and Mac. Test on both platforms if you change it.
 .PHONY:helm-version
 helm-version:
-	for CHART in teleport-cluster teleport-kube-agent; do \
-		sed -i'.bak' -e "s_^version:\ .*_version: \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
-		sed -i'.bak' -e "s_^appVersion:\ .*_appVersion: \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
+	for CHART in teleport-cluster teleport-kube-agent teleport-cluster/charts/teleport-operator; do \
+		sed -i'.bak' -e "s_^\\.version:\ .*_.version: \\&version \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
 		rm -f examples/chart/$${CHART}/Chart.yaml.bak; \
 	done
