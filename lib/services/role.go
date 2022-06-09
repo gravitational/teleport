@@ -875,6 +875,51 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 	return result
 }
 
+// EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
+func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult {
+	result := NewEnumerationResult()
+
+	// gather logins for checking from the roles, check wildcards.
+	var logins []string
+	for _, role := range set {
+		wildcardAllowed := false
+		wildcardDenied := false
+
+		for _, user := range role.GetLogins(types.Allow) {
+			if user == types.Wildcard {
+				wildcardAllowed = true
+			} else {
+				logins = append(logins, user)
+			}
+		}
+
+		for _, user := range role.GetLogins(types.Deny) {
+			if user == types.Wildcard {
+				wildcardDenied = true
+			} else {
+				logins = append(logins, user)
+			}
+		}
+
+		result.wildcardDenied = result.wildcardDenied || wildcardDenied
+
+		if err := NewRoleSet(role).checkAccess(server, AccessMFAParams{Verified: true}); err == nil {
+			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
+		}
+
+	}
+
+	logins = apiutils.Deduplicate(logins)
+
+	// check each individual user against the database.
+	for _, user := range logins {
+		err := set.checkAccess(server, AccessMFAParams{Verified: true}, NewLoginMatcher(user))
+		result.allowedDeniedMap[user] = err == nil
+	}
+
+	return result
+}
+
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
 func MatchNamespace(selectors []string, namespace string) (bool, string) {

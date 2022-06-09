@@ -23,10 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	log "github.com/sirupsen/logrus"
 )
 
 // Label describes label for webapp
@@ -93,7 +91,11 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 
 		sort.Sort(sortedLabels(uiLabels))
 
-		sshLogins := getServerLogins(server, userRoles)
+		serverLogins := userRoles.EnumerateServerLogins(server)
+		sshLogins := serverLogins.Allowed()
+		if sshLogins == nil {
+			sshLogins = []string{}
+		}
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
@@ -107,39 +109,6 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 	}
 
 	return uiServers
-}
-
-// getServerLogins returns the list of logins the role set has that is associated with this node
-func getServerLogins(server types.Server, roleSet services.RoleSet) []string {
-	allowed := []string{}
-	denied := []string{}
-	for _, role := range roleSet {
-		// remove any denied logins, even if they don't apply to that node's labels
-		denied = append(denied, role.GetLogins(types.Deny)...)
-
-		// add only logins related to that server
-		isAllowed, _, err := services.MatchLabels(role.GetNodeLabels(types.Allow), server.GetAllLabels())
-		if err != nil {
-			log.Warnf("err matching allow labels for roles %+v: %s", server.GetAllLabels(), err.Error())
-			continue
-		}
-		if !isAllowed {
-			continue
-		}
-
-		allowed = append(allowed, role.GetLogins(types.Allow)...)
-	}
-
-	allowed = apiutils.Deduplicate(allowed)
-	denied = apiutils.Deduplicate(denied)
-	serverLogins := []string{}
-	for _, login := range allowed {
-		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
-			serverLogins = append(serverLogins, login)
-		}
-	}
-
-	return serverLogins
 }
 
 // KubeCluster describes a kube cluster.
