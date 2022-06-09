@@ -589,10 +589,10 @@ func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 			case <-a.cfg.Context.Done():
 				return nil, trace.ConnectionProblem(a.closeCtx.Err(), "operation has been canceled")
 			}
-		} else {
-			if isUnrecoverableError(err) {
-				return nil, trace.ConnectionProblem(err, "stream cannot be recovered")
-			}
+		}
+
+		if isUnrecoverableError(err) {
+			return nil, trace.ConnectionProblem(err, "stream cannot be recovered")
 		}
 
 		select {
@@ -670,5 +670,5 @@ func diff(before, after time.Time) int64 {
 
 // isUnrecoverableError returns if the provided stream error is unrecoverable.
 func isUnrecoverableError(err error) bool {
-	return strings.Contains(err.Error(), uploaderReservePartErrorMessage)
+	return err != nil && strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }
