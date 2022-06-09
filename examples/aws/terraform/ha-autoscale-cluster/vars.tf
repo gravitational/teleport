@@ -188,7 +188,7 @@ variable "allowed_bastion_ssh_egress_cidr_blocks" {
   default = ["0.0.0.0/0"]
 }
 
-//CIDR blocks allowed for ingress for Teleport Proxy ports
+// CIDR blocks allowed for ingress for Teleport Proxy ports
 variable "allowed_proxy_ingress_cidr_blocks" {
   type = list
   default = ["0.0.0.0/0"]
