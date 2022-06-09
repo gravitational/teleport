@@ -142,8 +142,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
-	ctx := context.Background()
+func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case a.authGenerate.FullCommand():
 		err = a.GenerateKeys(ctx)
@@ -314,12 +313,12 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = ioutil.WriteFile(a.genPubPath, pubBytes, 0600)
+	err = ioutil.WriteFile(a.genPubPath, pubBytes, 0o600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = ioutil.WriteFile(a.genPrivPath, privBytes, 0600)
+	err = ioutil.WriteFile(a.genPrivPath, privBytes, 0o600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -625,7 +624,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		}
 		certUsage = proto.UserCertsRequest_App
 	case a.dbService != "":
-		server, err := getDatabaseServer(context.TODO(), clusterAPI, a.dbService)
+		server, err := getDatabaseServer(ctx, clusterAPI, a.dbService)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -701,7 +700,6 @@ func (a *AuthCommand) checkLeafCluster(clusterAPI auth.ClientI) error {
 	}
 
 	return trace.BadParameter("couldn't find leaf cluster named %q", a.leafCluster)
-
 }
 
 func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.ClientI) error {
