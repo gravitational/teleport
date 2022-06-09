@@ -20,7 +20,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -498,17 +497,9 @@ func TestMakeClient(t *testing.T) {
 // approveAllAccessRequests starts a loop which gets all pending AccessRequests
 // from access and approves them. It accepts a stop channel, which will stop the
 // loop and cancel all active requests when it is closed.
-func approveAllAccessRequests(access services.DynamicAccess, stop <-chan struct{}) (err error) {
+func approveAllAccessRequests(ctx context.Context, access services.DynamicAccess) (err error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
-
-	// Make a context that will be cancelled when the stop chan is closed, to
-	// pass to the requests.
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-stop
-		cancel()
-	}()
 
 	for {
 		select {
@@ -540,7 +531,10 @@ func approveAllAccessRequests(access services.DynamicAccess, stop <-chan struct{
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
+	t.Parallel()
 	tmpHomePath := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	requester, err := types.NewRole("requester", types.RoleSpecV5{
 		Allow: types.RoleConditions{
@@ -592,7 +586,7 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	hasNode := func(hostName string) func() bool {
 		return func() bool {
-			nodes, err := rootAuth.GetAuthServer().GetNodes(context.Background(), apidefaults.Namespace)
+			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
 			for _, node := range nodes {
 				if node.GetHostname() == hostName {
@@ -609,10 +603,9 @@ func TestSSHAccessRequest(t *testing.T) {
 	require.Eventually(t, hasNode(sshHostnameNoAccess), 10*time.Second, time.Second,
 		sshHostnameNoAccess+" never showed up")
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
-		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice",
@@ -623,20 +616,18 @@ func TestSSHAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// won't request access unless possible
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		"--debug",
 		fmt.Sprintf("%s@%s", user.Username, sshHostnameNoAccess),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
 
 	// won't request to non-existent node
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		"--debug",
 		fmt.Sprintf("%s@unknown", user.Username),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
@@ -644,24 +635,20 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	// approve all requests as they're created
 	errChan := make(chan error)
-	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
-	stop := make(chan struct{})
-	defer close(stop)
+	t.Cleanup(func() {
+		require.ErrorIs(t, <-errChan, context.Canceled, "unexpected error from approveAllAccessRequests")
+	})
 	go func() {
-		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
-		if !errors.Is(err, context.Canceled) {
-			// Kill auth so Run calls don't hang. Don't worry about the Close
-			// error, the test will already fail.
-			rootAuth.Close()
-		}
+		err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer())
+		// Cancel the context, so Run calls don't block
+		cancel()
 		errChan <- err
 	}()
 
 	// ssh with request, by hostname
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		"--debug",
 		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostname),
 		"echo", "test",
@@ -670,24 +657,22 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	// now that we have an approved access request, it should work without
 	// prompting for a request reason
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		"--debug",
 		fmt.Sprintf("%s@%s", user.Username, sshHostname),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// log out and back in with no access request
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"logout",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
-		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice",
@@ -698,10 +683,9 @@ func TestSSHAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// ssh with request, by host ID
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		"--debug",
 		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostID),
 		"echo", "test",
@@ -711,6 +695,8 @@ func TestSSHAccessRequest(t *testing.T) {
 
 func TestAccessRequestOnLeaf(t *testing.T) {
 	tmpHomePath := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
@@ -762,7 +748,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	leafAuth, _ := makeTestServers(t, withClusterName(t, "leafcluster"))
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -774,7 +760,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -783,7 +769,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -792,7 +778,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -803,20 +789,17 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 
 	// approve all requests as they're created
 	errChan := make(chan error)
-	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
-	stop := make(chan struct{})
-	defer close(stop)
+	t.Cleanup(func() {
+		require.ErrorIs(t, <-errChan, context.Canceled, "unexpected error from approveAllAccessRequests")
+	})
 	go func() {
-		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
-		if !errors.Is(err, context.Canceled) {
-			// Kill auth so Run calls don't hang. Don't worry about the Close
-			// error, the test will already fail.
-			rootAuth.Close()
-		}
+		err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer())
+		// Cancel the context, so Run calls don't block
+		cancel()
 		errChan <- err
 	}()
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"request",
 		"new",
 		"--insecure",
@@ -1608,6 +1591,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 
 	// Set up a test ssh service.
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "node"
 	cfg.DataDir = t.TempDir()
 
