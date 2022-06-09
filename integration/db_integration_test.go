@@ -951,7 +951,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
-	SetTestTimeouts(100 * time.Millisecond)
 	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
@@ -1302,4 +1301,54 @@ func containsDB(servers []types.DatabaseServer, name string) bool {
 		}
 	}
 	return false
+}
+
+// TestDatabaseAccessLargeQuery tests a scenario where a user connects
+// to a MySQL database running in a root cluster.
+func TestDatabaseAccessLargeQuery(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	// Connect to the database service in root cluster.
+	client, err := mysql.MakeTestClient(common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.mysqlService.Name,
+			Protocol:    pack.root.mysqlService.Protocol,
+			Username:    "root",
+		},
+	})
+	require.NoError(t, err)
+
+	now := time.Now()
+	query := fmt.Sprintf("select %s", strings.Repeat("A", 100*1024))
+	result, err := client.Execute(query)
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	ee := waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+	require.Len(t, ee, 1)
+
+	query = "select 1"
+	result, err = client.Execute(query)
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	require.Eventually(t, func() bool {
+		ee := waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+		return len(ee) == 2
+	}, time.Second*3, time.Millisecond*500)
+
+	// Disconnect.
+	err = client.Close()
+	require.NoError(t, err)
 }
