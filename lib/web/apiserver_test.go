@@ -296,12 +296,12 @@ func newWebSuite(t *testing.T) *WebSuite {
 		LocalAccessPoint:      s.proxyClient,
 		Emitter:               s.proxyClient,
 		NewCachingAccessPoint: noCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
+		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
@@ -3859,12 +3859,12 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		LocalAccessPoint:      client,
 		Emitter:               client,
 		NewCachingAccessPoint: noCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: authServer.ClusterName(), Client: client}},
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
+		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
