@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/certwatcher"
 	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -673,7 +674,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
-		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
+		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0o700)
 		if err != nil {
 			if errors.Is(err, fs.ErrPermission) {
 				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
@@ -968,7 +969,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -2213,7 +2214,7 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 	for i := 1; i < len(path); i++ {
 		dir := filepath.Join(path[:i+1]...)
 		log.Infof("Creating directory %v.", dir)
-		err := os.Mkdir(dir, 0755)
+		err := os.Mkdir(dir, 0o755)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
@@ -3687,16 +3688,27 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 	// the TLS handshake will fail.
 	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
 
+	// TODO: Potentially hoist this further out, I'm not sure this should really
+	// be instantiated here.
+	certWatcherCfg := certwatcher.Config{
+		Watch: true,
+	}
 	for _, pair := range process.Config.Proxy.KeyPairs {
-		process.Config.Log.Infof("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
-
-		certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+		certWatcherCfg.KeyPairPaths = append(
+			certWatcherCfg.KeyPairPaths,
+			certwatcher.KeyPairPath{
+				PrivateKey:  pair.PrivateKey,
+				Certificate: pair.Certificate,
+			},
+		)
+	}
+	cw := certwatcher.New(process.Config.Log, certWatcherCfg)
+	err := cw.Start(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
+	tlsConfig.GetCertificate = cw.GetCertificate
 	tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
 		tlsClone := tlsConfig.Clone()
 
@@ -4259,10 +4271,10 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err)
 	}
 
-	if err := os.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
+	if err := os.WriteFile(keyPath, creds.PrivateKey, 0o600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
-	if err := os.WriteFile(certPath, creds.Cert, 0600); err != nil {
+	if err := os.WriteFile(certPath, creds.Cert, 0o600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
 	return nil
