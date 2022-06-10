@@ -714,6 +714,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return nil
 	}
 
+	if utils.IsPredicateError(err) {
+		return trace.Wrap(utils.PredicateError{Err: err})
+	}
+
 	if !IsErrorResolvableWithRelogin(err) {
 		return trace.Wrap(err)
 	}

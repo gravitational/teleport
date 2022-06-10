@@ -54,9 +54,6 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	})
 	if err != nil {
-		if utils.IsPredicateError(err) {
-			return trace.Wrap(utils.PredicateError{Err: err})
-		}
 		return trace.Wrap(err)
 	}
 
