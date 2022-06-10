@@ -120,7 +120,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 
 		}
 
-		host, err := webclient.ExtractHost(tunnelAddr)
+		host, _, err := webclient.ParseHostPort(tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
