@@ -26,23 +26,26 @@ import (
 )
 
 func TestDialLocalAuthServerNoServers(t *testing.T) {
-	s := NewAuthProxyDialerService(nil, "", []string{})
+	s := NewAuthProxyDialerService(nil /* reverseTunnelServer */, "clustername", nil /* authServers */)
 	_, err := s.dialLocalAuthServer(context.Background())
 	require.Error(t, err, "dialLocalAuthServer expected to fail")
 	require.Equal(t, "empty auth servers list", err.Error())
 }
 
 func TestDialLocalAuthServerNoAvailableServers(t *testing.T) {
-	s := NewAuthProxyDialerService(nil, "", []string{"0.0.0.0:3025"})
+	s := NewAuthProxyDialerService(nil /* reverseTunnelServer */, "clustername", []string{"0.0.0.0:3025"})
 	_, err := s.dialLocalAuthServer(context.Background())
 	require.Error(t, err, "dialLocalAuthServer expected to fail")
-	require.Contains(t, err.Error(), "0.0.0.0:3025:")
+	var netErr *net.OpError
+	require.ErrorAs(t, err, &netErr)
+	require.Equal(t, "dial", netErr.Op)
+	require.Equal(t, "0.0.0.0:3025", netErr.Addr.String())
 }
 
 func TestDialLocalAuthServerAvailableServers(t *testing.T) {
 	socket, err := net.Listen("tcp", "127.0.0.1:")
 	require.NoError(t, err)
-	t.Cleanup(func() { socket.Close() })
+	t.Cleanup(func() { require.NoError(t, socket.Close()) })
 
 	authServers := make([]string, 1, 11)
 	authServers[0] = socket.Addr().String()
@@ -50,7 +53,7 @@ func TestDialLocalAuthServerAvailableServers(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		authServers = append(authServers, "0.0.0.0:3025")
 	}
-	s := NewAuthProxyDialerService(nil, "", authServers)
+	s := NewAuthProxyDialerService(nil /* reverseTunnelServer */, "clustername", authServers)
 	require.Eventually(t, func() bool {
 		conn, err := s.dialLocalAuthServer(context.Background())
 		if err != nil {

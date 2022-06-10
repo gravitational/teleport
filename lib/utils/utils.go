@@ -544,13 +544,14 @@ func RemoveFromSlice(slice []string, values ...string) []string {
 
 // ChooseRandomString returns a random string from the given slice.
 func ChooseRandomString(slice []string) string {
-	if len(slice) == 0 {
+	switch len(slice) {
+	case 0:
 		return ""
-	}
-	if len(slice) == 1 {
+	case 1:
 		return slice[0]
+	default:
+		return slice[rand.Intn(len(slice))]
 	}
-	return slice[rand.Intn(len(slice))]
 }
 
 // CheckCertificateFormatFlag checks if the certificate format is valid.
