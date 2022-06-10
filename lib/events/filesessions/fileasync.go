@@ -97,6 +97,7 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 			trace.Component: cfg.Component,
 		}),
 		closeC:    make(chan struct{}),
+		doneC:     make(chan struct{}),
 		auditLog:  cfg.AuditLog,
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
@@ -124,10 +125,12 @@ type Uploader struct {
 	eventsCh chan events.UploadEvent
 	auditLog events.IAuditLog
 	closeC   chan struct{}
+	doneC    chan struct{}
 }
 
 func (u *Uploader) Close() {
 	close(u.closeC)
+	<-u.doneC
 }
 
 func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
@@ -155,6 +158,19 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 
 // Serve runs the uploader until stopped
 func (u *Uploader) Serve(ctx context.Context) error {
+	defer close(u.doneC)
+
+	// Make an inner context and cancel it if the Uploader is closed.
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		select {
+		case <-u.closeC:
+			cancel()
+		case <-ctx.Done():
+		case <-u.doneC:
+		}
+	}()
+
 	backoff, err := utils.NewLinear(utils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
 		Max:   u.cfg.ScanPeriod * 100,

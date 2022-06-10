@@ -88,6 +88,7 @@ func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
 			trace.Component: teleport.Component(cfg.Component, "completer"),
 		}),
 		closeC: make(chan struct{}),
+		doneC:  make(chan struct{}),
 	}
 	return u, nil
 }
@@ -109,15 +110,30 @@ type UploadCompleter struct {
 	cfg    UploadCompleterConfig
 	log    *log.Entry
 	closeC chan struct{}
+	doneC  chan struct{}
 }
 
 // Close stops the UploadCompleter
 func (u *UploadCompleter) Close() {
 	close(u.closeC)
+	<-u.doneC
 }
 
 // Serve runs the upload completer until closed or until ctx is cancelled.
 func (u *UploadCompleter) Serve(ctx context.Context) error {
+	defer close(u.doneC)
+
+	// Make an inner context and cancel it if the UploadCompleter is closed.
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		select {
+		case <-u.closeC:
+			cancel()
+		case <-ctx.Done():
+		case <-u.doneC:
+		}
+	}()
+
 	periodic := interval.New(interval.Config{
 		Duration:      u.cfg.CheckPeriod,
 		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
@@ -131,8 +147,6 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 			if err := u.checkUploads(ctx); err != nil {
 				u.log.WithError(err).Warningf("Failed to check uploads.")
 			}
-		case <-u.closeC:
-			return nil
 		case <-ctx.Done():
 			return nil
 		}
