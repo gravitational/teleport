@@ -119,22 +119,22 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 
 	// We want to update for all phases but init and update_servers
 	phase := ca.GetRotation().Phase
-	if utils.SliceContainsStr([]string{"init", "update_servers"}, phase) {
-		return fmt.Sprintf("skipping due to phase: %s", phase)
+	if utils.SliceContainsStr([]string{"", "init", "update_servers"}, phase) {
+		return fmt.Sprintf("skipping due to phase '%s'", phase)
 	}
 
 	// Skip anything not from our cluster
 	if ca.GetClusterName() != clusterName {
 		return fmt.Sprintf(
-			"skipping due to cluster name of CA: was %s, expected %s",
+			"skipping due to cluster name of CA: was '%s', wanted '%s'",
 			ca.GetClusterName(),
 			clusterName,
 		)
 	}
 
 	// We want to skip anything that is not host, user, db
-	if utils.SliceContainsStr([]string{"host", "user", "db"}, ca.GetSubKind()) {
-		return fmt.Sprintf("skipping due to CA kind: %s", ca.GetSubKind())
+	if !utils.SliceContainsStr([]string{"host", "user", "db"}, ca.GetSubKind()) {
+		return fmt.Sprintf("skipping due to CA kind '%s'", ca.GetSubKind())
 	}
 
 	return ""
