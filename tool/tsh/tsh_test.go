@@ -645,6 +645,17 @@ func TestSSHAccessRequest(t *testing.T) {
 		errChan <- err
 	}()
 
+	// won't request if explicitly disabled
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
+		"--disable-access-request",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
 	// ssh with request, by hostname
 	err = Run(ctx, []string{
 		"ssh",

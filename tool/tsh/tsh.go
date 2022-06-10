@@ -346,6 +346,9 @@ type CLIConf struct {
 
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
 	TracingProvider oteltrace.TracerProvider
+
+	// disableAccessRequest disables automatic resource access requests.
+	disableAccessRequest bool
 }
 
 // Stdout returns the stdout writer.
@@ -514,6 +517,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
+	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
@@ -2381,7 +2385,8 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 
 func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
 	origErr := fn()
-	if !trace.IsAccessDenied(origErr) || tc.Host == "" {
+	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
+		// Return if --disable-access-request was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
