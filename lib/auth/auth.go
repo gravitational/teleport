@@ -1936,7 +1936,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequ
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
-	if err := services.ValidateAccessRequestForUser(a, req); err != nil {
+	if err := services.ValidateAccessRequestForUser(ctx, a, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2441,14 +2441,38 @@ func (a *Server) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 	return a.GetCache().NewWatcher(ctx, watch)
 }
 
-func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	err := services.ValidateAccessRequestForUser(a, req,
-		// if request is in state pending, variable expansion must be applied
-		services.ExpandVars(req.GetState().IsPending()),
-	)
+func (a *Server) pruneResourceRequestRoles(ctx context.Context, req types.AccessRequest) error {
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	user, err := a.GetUser(req.GetUser(), false /* withSecrets */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(services.PruneResourceRequestRoles(
+		ctx,
+		req,
+		a.GetCache(),
+		clusterName.GetClusterName(),
+		user.GetTraits(),
+	))
+}
+
+func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	if err := services.ValidateAccessRequestForUser(ctx, a, req,
+		// if request is in state pending, variable expansion must be applied
+		services.ExpandVars(req.GetState().IsPending()),
+	); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.pruneResourceRequestRoles(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
 	ttl, err := a.calculateMaxAccessTTL(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
