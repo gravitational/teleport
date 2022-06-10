@@ -393,17 +393,17 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes})
+	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes}, "")
 }
 
-func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
+func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
 	var eventsArr []apievents.AuditEvent
 	var estimatedSize int
 	checkpoint := startKey
 	left := limit
 
 	for {
-		gotEvents, withSize, withCheckpoint, err := l.searchEventsOnce(fromUTC, toUTC, namespace, left, order, checkpoint, filter, events.MaxEventBytesInResponse-estimatedSize)
+		gotEvents, withSize, withCheckpoint, err := l.searchEventsOnce(fromUTC, toUTC, namespace, left, order, checkpoint, filter, events.MaxEventBytesInResponse-estimatedSize, sessionID)
 		if nil != err {
 			return nil, "", trace.Wrap(err)
 		}
@@ -421,7 +421,7 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 	return eventsArr, checkpoint, nil
 }
 
-func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, spaceRemaining int) ([]apievents.AuditEvent, int, string, error) {
+func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, spaceRemaining int, sessionID string) ([]apievents.AuditEvent, int, string, error) {
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "Filter": filter, "Limit": limit, "StartKey": startKey})
 
 	var lastKey int64
@@ -464,6 +464,9 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 		Limit(limit)
 	if len(filter.eventTypes) > 0 {
 		query = query.Where(eventTypeDocProperty, "in", filter.eventTypes)
+	}
+	if sessionID != "" {
+		query = query.Where(sessionIDDocProperty, "==", sessionID)
 	}
 
 	start := time.Now()
@@ -553,7 +556,7 @@ func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order typ
 		}
 		filter.condition = condFn
 	}
-	return l.searchEventsWithFilter(fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter)
+	return l.searchEventsWithFilter(fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter, sessionID)
 }
 
 type searchEventsFilter struct {
