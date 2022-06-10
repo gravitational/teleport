@@ -911,7 +911,7 @@ func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult 
 
 	logins = apiutils.Deduplicate(logins)
 
-	// check each individual user against the database.
+	// check each individual user against the server.
 	for _, user := range logins {
 		err := set.checkAccess(server, AccessMFAParams{Verified: true}, NewLoginMatcher(user))
 		result.allowedDeniedMap[user] = err == nil
