@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
@@ -48,9 +49,13 @@ type GithubConnector interface {
 	GetTeamsToLogins() []TeamMapping
 	// SetTeamsToLogins sets the mapping of Github teams to allowed logins
 	SetTeamsToLogins([]TeamMapping)
+	// GetTeamsToRoles returns the mapping of Github teams to allowed roles
+	GetTeamsToRoles() []TeamRolesMapping
+	// SetTeamsToRoles sets the mapping of Github teams to allowed roles
+	SetTeamsToRoles([]TeamRolesMapping)
 	// MapClaims returns the list of allows logins based on the retrieved claims
 	// returns list of logins and kubernetes groups
-	MapClaims(GithubClaims) (logins []string, kubeGroups []string, kubeUsers []string)
+	MapClaims(GithubClaims) (roles []string, kubeGroups []string, kubeUsers []string)
 	// GetDisplay returns the connector display name
 	GetDisplay() string
 	// SetDisplay sets the connector display name
@@ -154,15 +159,25 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	// DELETE IN 11.0.0
+	if len(c.Spec.TeamsToLogins) > 0 {
+		log.Warn("GitHub connector field teams_to_logins is deprecated and will be removed in the next version. Please use teams_to_roles instead.")
+	}
+
 	// make sure claim mappings have either roles or a role template
 	for i, v := range c.Spec.TeamsToLogins {
 		if v.Team == "" {
 			return trace.BadParameter("team_to_logins mapping #%v is invalid, team is empty.", i+1)
 		}
 	}
+	for i, v := range c.Spec.TeamsToRoles {
+		if v.Team == "" {
+			return trace.BadParameter("team_to_roles mapping #%v is invalid, team is empty.", i+1)
+		}
+	}
 
-	if len(c.Spec.TeamsToLogins) == 0 {
-		return trace.BadParameter("team_to_logins mapping is invalid, no mappings defined.")
+	if len(c.Spec.TeamsToLogins)+len(c.Spec.TeamsToRoles) == 0 {
+		return trace.BadParameter("team_to_logins or team_to_roles mapping is invalid, no mappings defined.")
 	}
 
 	return nil
@@ -199,13 +214,27 @@ func (c *GithubConnectorV3) SetRedirectURL(redirectURL string) {
 }
 
 // GetTeamsToLogins returns the connector team membership mappings
+//
+// DEPRECATED: use GetTeamsToRoles instead
 func (c *GithubConnectorV3) GetTeamsToLogins() []TeamMapping {
 	return c.Spec.TeamsToLogins
 }
 
 // SetTeamsToLogins sets the connector team membership mappings
+//
+// DEPRECATED: use SetTeamsToRoles instead
 func (c *GithubConnectorV3) SetTeamsToLogins(teamsToLogins []TeamMapping) {
 	c.Spec.TeamsToLogins = teamsToLogins
+}
+
+// GetTeamsToRoles returns the mapping of Github teams to allowed roles
+func (c *GithubConnectorV3) GetTeamsToRoles() []TeamRolesMapping {
+	return c.Spec.TeamsToRoles
+}
+
+// SetTeamsToRoles sets the mapping of Github teams to allowed roles
+func (c *GithubConnectorV3) SetTeamsToRoles(m []TeamRolesMapping) {
+	c.Spec.TeamsToRoles = m
 }
 
 // GetDisplay returns the connector display name
@@ -221,7 +250,7 @@ func (c *GithubConnectorV3) SetDisplay(display string) {
 // MapClaims returns a list of logins based on the provided claims,
 // returns a list of logins and list of kubernetes groups
 func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, []string) {
-	var logins, kubeGroups, kubeUsers []string
+	var roles, kubeGroups, kubeUsers []string
 	for _, mapping := range c.GetTeamsToLogins() {
 		teams, ok := claims.OrganizationToTeams[mapping.Organization]
 		if !ok {
@@ -231,13 +260,26 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 		for _, team := range teams {
 			// see if the user belongs to this team
 			if team == mapping.Team {
-				logins = append(logins, mapping.Logins...)
+				roles = append(roles, mapping.Logins...)
 				kubeGroups = append(kubeGroups, mapping.KubeGroups...)
 				kubeUsers = append(kubeUsers, mapping.KubeUsers...)
 			}
 		}
 	}
-	return utils.Deduplicate(logins), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
+	for _, mapping := range c.GetTeamsToRoles() {
+		teams, ok := claims.OrganizationToTeams[mapping.Organization]
+		if !ok {
+			// the user does not belong to this organization
+			continue
+		}
+		for _, team := range teams {
+			// see if the user belongs to this team
+			if team == mapping.Team {
+				roles = append(roles, mapping.Roles...)
+			}
+		}
+	}
+	return utils.Deduplicate(roles), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
 }
 
 // SetExpiry sets expiry time for the object

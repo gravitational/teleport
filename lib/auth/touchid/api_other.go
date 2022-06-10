@@ -44,3 +44,7 @@ func (noopNative) ListCredentials() ([]CredentialInfo, error) {
 func (noopNative) DeleteCredential(credentialID string) error {
 	return ErrNotAvailable
 }
+
+func (noopNative) DeleteNonInteractive(credentialID string) error {
+	return ErrNotAvailable
+}

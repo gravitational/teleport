@@ -85,6 +85,7 @@ spec:
     - dummy
     organization: octocats
     team: dummy
+  teams_to_roles: null
 version: v3
 `
 	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{
@@ -135,6 +136,7 @@ spec:
     - network
     forward_agent: false
     max_session_ttl: 30h0m0s
+    pin_source_ip: false
     port_forwarding: true
     record_session:
       default: best_effort
