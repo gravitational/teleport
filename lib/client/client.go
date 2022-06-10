@@ -580,11 +580,21 @@ func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
 	return resp.IsBoring, trace.Wrap(err)
 }
 
-// FindServersByFilters returns list of the nodes which have filters matched.
+// FindNodesByFilters returns list of the nodes which have filters matched.
 func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
+	cluster, err := proxy.currentCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := proxy.FindNodesByFiltersForCluster(ctx, req, cluster.Name)
+	return servers, trace.Wrap(err)
+}
+
+// FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
+func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
 	req.ResourceType = types.KindNode
 
-	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	site, err := proxy.ClusterAccessPoint(ctx, cluster, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -602,10 +612,20 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 	return servers, nil
 }
 
-// FindAppServersByFilters returns a list of application servers which have filters matched.
+// FindAppServersByFilters returns a list of application servers in the current cluster which have filters matched.
 func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.AppServer, error) {
+	cluster, err := proxy.currentCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := proxy.FindAppServersByFiltersForCluster(ctx, req, cluster.Name)
+	return servers, trace.Wrap(err)
+}
+
+// FindAppServersByFiltersForCluster returns a list of application servers for a given cluster which have filters matched.
+func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.AppServer, error) {
 	req.ResourceType = types.KindAppServer
-	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	authClient, err := proxy.ClusterAccessPoint(ctx, cluster, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -689,8 +709,18 @@ func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.
 
 // FindDatabaseServersByFilters returns registered database proxy servers that match the provided filter.
 func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
+	cluster, err := proxy.currentCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := proxy.FindDatabaseServersByFiltersForCluster(ctx, req, cluster.Name)
+	return servers, trace.Wrap(err)
+}
+
+// FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the current cluster.
+func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
 	req.ResourceType = types.KindDatabaseServer
-	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	authClient, err := proxy.ClusterAccessPoint(ctx, cluster, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

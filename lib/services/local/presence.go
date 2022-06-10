@@ -1443,6 +1443,32 @@ func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) e
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
+// UpsertHostUserInteractionTime upserts a unix user's interaction time
+func (s *PresenceService) UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error {
+	val, err := utils.FastMarshal(loginTime.UTC())
+	if err != nil {
+		return err
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:   backend.Key(loginTimePrefix, name),
+		Value: val,
+	})
+	return trace.Wrap(err)
+}
+
+// GetHostUserInteractionTime retrieves a unix user's interaction time
+func (s *PresenceService) GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error) {
+	item, err := s.Get(ctx, backend.Key(loginTimePrefix, name))
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	var t time.Time
+	if err := utils.FastUnmarshal(item.Value, &t); err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	return t, nil
+}
+
 // ListResources returns a paginated list of resources.
 // It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
@@ -1709,4 +1735,5 @@ const (
 	semaphoresPrefix             = "semaphores"
 	kubeServicesPrefix           = "kubeServices"
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
+	loginTimePrefix              = "hostuser_interaction_time"
 )
