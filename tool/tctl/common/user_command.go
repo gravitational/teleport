@@ -101,18 +101,18 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
-func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (u *UserCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case u.userAdd.FullCommand():
-		err = u.Add(client)
+		err = u.Add(ctx, client)
 	case u.userUpdate.FullCommand():
-		err = u.Update(client)
+		err = u.Update(ctx, client)
 	case u.userList.FullCommand():
-		err = u.List(client)
+		err = u.List(ctx, client)
 	case u.userDelete.FullCommand():
-		err = u.Delete(client)
+		err = u.Delete(ctx, client)
 	case u.userResetPassword.FullCommand():
-		err = u.ResetPassword(client)
+		err = u.ResetPassword(ctx, client)
 	default:
 		return false, nil
 	}
@@ -120,13 +120,13 @@ func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 }
 
 // ResetPassword resets user password and generates a token to setup new password
-func (u *UserCommand) ResetPassword(client auth.ClientI) error {
+func (u *UserCommand) ResetPassword(ctx context.Context, client auth.ClientI) error {
 	req := auth.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
 		Type: auth.UserTokenTypeResetPassword,
 	}
-	token, err := client.CreateResetPasswordToken(context.TODO(), req)
+	token, err := client.CreateResetPasswordToken(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,6 @@ func (u *UserCommand) PrintResetPasswordToken(token types.UserToken, format stri
 		format,
 		"User %q has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
 	)
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -185,14 +184,14 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, format stri
 
 // Add implements `tctl users add` for the enterprise edition. Unlike the OSS
 // version, this one requires --roles flag to be set
-func (u *UserCommand) Add(client auth.ClientI) error {
+func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	u.createRoles = flattenSlice(u.createRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
 
 	// Validate roles (server does not do this yet).
 	for _, roleName := range u.createRoles {
-		if _, err := client.GetRole(context.TODO(), roleName); err != nil {
+		if _, err := client.GetRole(ctx, roleName); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -212,11 +211,11 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	user.SetTraits(traits)
 	user.SetRoles(u.createRoles)
 
-	if err := client.CreateUser(context.TODO(), user); err != nil {
+	if err := client.CreateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
 
-	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
+	token, err := client.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
 		Type: auth.UserTokenTypeResetPasswordInvite,
@@ -265,14 +264,14 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 }
 
 // Update updates existing user
-func (u *UserCommand) Update(client auth.ClientI) error {
+func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	user, err := client.GetUser(u.login, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	roles := flattenSlice([]string{u.updateRoles})
 	for _, role := range roles {
-		if _, err := client.GetRole(context.TODO(), role); err != nil {
+		if _, err := client.GetRole(ctx, role); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -285,7 +284,7 @@ func (u *UserCommand) Update(client auth.ClientI) error {
 }
 
 // List prints all existing user accounts
-func (u *UserCommand) List(client auth.ClientI) error {
+func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
 	users, err := client.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -314,9 +313,9 @@ func (u *UserCommand) List(client auth.ClientI) error {
 
 // Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
-func (u *UserCommand) Delete(client auth.ClientI) error {
+func (u *UserCommand) Delete(ctx context.Context, client auth.ClientI) error {
 	for _, l := range strings.Split(u.login, ",") {
-		if err := client.DeleteUser(context.TODO(), l); err != nil {
+		if err := client.DeleteUser(ctx, l); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("User %q has been deleted\n", l)
