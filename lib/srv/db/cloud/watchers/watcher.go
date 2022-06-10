@@ -161,6 +161,14 @@ func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (
 				}
 				result = append(result, fetcher)
 			}
+
+			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherElastiCache) {
+				fetcher, err := makeElastiCacheFetcher(clients, region, matcher.Tags)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, fetcher)
+			}
 		}
 	}
 	return result, nil
@@ -202,5 +210,18 @@ func makeRedshiftFetcher(clients common.CloudClients, region string, tags types.
 		Region:   region,
 		Labels:   tags,
 		Redshift: redshift,
+	})
+}
+
+// makeElastiCacheFetcher returns ElastiCache fetcher for the provided region and tags.
+func makeElastiCacheFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+	elastiCache, err := clients.GetAWSElastiCacheClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newElastiCacheFetcher(elastiCacheFetcherConfig{
+		Region:      region,
+		Labels:      tags,
+		ElastiCache: elastiCache,
 	})
 }

@@ -20,7 +20,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 )
@@ -365,5 +367,32 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 			return trace.BadParameter("need roles field in attributes_to_roles")
 		}
 	}
+	return nil
+}
+
+// Check returns nil if all parameters are great, err otherwise
+func (i *SAMLAuthRequest) Check() error {
+	if i.ConnectorID == "" {
+		return trace.BadParameter("ConnectorID: missing value")
+	}
+	if len(i.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
+		if err != nil {
+			return trace.BadParameter("PublicKey: bad key: %v", err)
+		}
+		if (i.CertTTL.Duration() > defaults.MaxCertDuration) || (i.CertTTL.Duration() < defaults.MinCertDuration) {
+			return trace.BadParameter("CertTTL: wrong certificate TTL")
+		}
+	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	}
+
 	return nil
 }

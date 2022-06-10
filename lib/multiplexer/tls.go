@@ -162,23 +162,12 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 
 	switch conn.ConnectionState().NegotiatedProtocol {
 	case http2.NextProtoTLS:
-		select {
-		case l.http2Listener.connC <- conn:
-		case <-l.context.Done():
-			conn.Close()
-			return
-		}
+		l.http2Listener.HandleConnection(l.context, conn)
 	case teleport.HTTPNextProtoTLS, "":
-		select {
-		case l.httpListener.connC <- conn:
-		case <-l.context.Done():
-			conn.Close()
-			return
-		}
+		l.httpListener.HandleConnection(l.context, conn)
 	default:
 		conn.Close()
 		l.log.WithError(err).Errorf("unsupported protocol: %v", conn.ConnectionState().NegotiatedProtocol)
-		return
 	}
 }
 

@@ -43,6 +43,8 @@ This guide will help you to:
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
+(!docs/pages/includes/tctl.mdx!)
+
 <Admonition type="note" title="Note">
   Redis `7.0` and RESP3 (REdis Serialization Protocol) are currently not supported.
 </Admonition>
@@ -93,7 +95,7 @@ address of your Teleport Cloud tenant:
 ```code
 $ teleport db start \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh \
+  --auth-server=mytenant.teleport.sh:443 \
   --name=example-redis \
   --protocol=redis \
   --uri=rediss://redis.example.com:6379?mode=cluster \

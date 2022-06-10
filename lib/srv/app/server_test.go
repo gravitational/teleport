@@ -247,7 +247,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	err = os.MkdirAll(filepath.Join(
 		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
 		events.StreamingLogsDir, defaults.Namespace,
-	), 0755)
+	), 0o755)
 	require.NoError(t, err)
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
@@ -538,7 +538,7 @@ func TestRequestAuditEvents(t *testing.T) {
 		expectedEvent,
 		searchEvents[0],
 		cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName"),
+		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
 		cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 	))
 }

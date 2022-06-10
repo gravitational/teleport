@@ -94,15 +94,15 @@ spec:
       "group": "api"
 ```
 
-<Details scope={["cloud"]} scopeOnly={true}>
+<ScopedBlock scope={["cloud"]}>
 On your client machine, log in to Teleport using `tsh` before using `tctl`.
 
 ```code
 $ tctl create -f api-workers.yaml
 $ tctl bots add jenkins --roles=api-workers
 ```
-</Details>
-<Details scope={["oss","enterprise"]} scopeOnly={true}>
+</ScopedBlock>
+<ScopedBlock scope={["oss","enterprise"]}>
 Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
 your system.
 
@@ -110,7 +110,7 @@ your system.
 $ tctl create -f api-workers.yaml
 $ tctl bots add jenkins --roles=api-workers
 ```
-</Details>
+</ScopedBlock>
 
 Machine ID allows you to use Linux Access Control Lists (ACLs) to control
 access to certificates on disk. You will use this to limit the access Jenkins
@@ -142,7 +142,7 @@ $ sudo tbot init \
 
 Next, you need to start Machine ID in the background of each Jenkins worker.
 
-<Details scope={["cloud"]} scopeOnly={true}>
+<ScopedBlock scope={["cloud"]}>
   First create a configuration file for Machine ID at `/etc/tbot.yaml`.
 
   ```yaml
@@ -157,8 +157,8 @@ Next, you need to start Machine ID in the background of each Jenkins worker.
   destinations:
     - directory: /opt/machine-id
   ```
-</Details>
-<Details scope={["oss","enterprise"]} scopeOnly={true}>
+</ScopedBlock>
+<ScopedBlock scope={["oss","enterprise"]}>
 First create a configuration file for Machine ID at `/etc/tbot.yaml`.
   ```yaml
   auth_server: "auth.example.com:3025"
@@ -172,7 +172,7 @@ First create a configuration file for Machine ID at `/etc/tbot.yaml`.
   destinations:
     - directory: /opt/machine-id
   ```
-</Details>
+</ScopedBlock>
 
 Next, create a systemd.unit file at `/etc/systemd/system/machine-id.service`.
 

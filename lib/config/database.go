@@ -34,6 +34,7 @@ var databaseConfigTemplateFuncs = template.FuncMap{
 }
 
 // databaseAgentConfigurationTemplate database configuration template.
+// TODO(greedy52) add documentation link to ElastiCache page.
 var databaseAgentConfigurationTemplate = template.Must(template.New("").Funcs(databaseConfigTemplateFuncs).Parse(`#
 # Teleport database agent configuration file.
 # Configuration reference: https://goteleport.com/docs/database-access/reference/configuration/
@@ -83,6 +84,18 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .RedshiftDiscoveryRegions }}
+    - {{ . }}
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
+  {{- if .ElastiCacheDiscoveryRegions }}
+  # ElastiCache databases auto-discovery.
+  - types: ["elasticache"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .ElastiCacheDiscoveryRegions }}
     - {{ . }}
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -162,6 +175,20 @@ db_service:
   #     redshift:
   #       # Redshift Cluster ID.
   #       cluster_id: redshift-cluster-example-1
+  # # ElastiCache database static configuration.
+  # - name: elasticache
+  #   description: AWS ElastiCache cluster configuration example.
+  #   protocol: redis
+  #   # Database connection endpoint. Must be reachable from Database service.
+  #   uri: master.redis-cluster-example.abcdef.usw1.cache.amazonaws.com:6379
+  #   # AWS specific configuration.
+  #   aws:
+  #     # Region the database is deployed in.
+  #     region: us-west-1
+  #     # ElastiCache specific configuration.
+  #     elasticache:
+  #       # ElastiCache replication group ID.
+  #       replication_group_id: redis-cluster-example
   # # Self-hosted static configuration.
   # - name: self-hosted
   #   description: Self-hosted database configuration.
@@ -205,13 +232,16 @@ type DatabaseSampleFlags struct {
 	AuthToken string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
-	// RDSDiscoveryRegions list of regions the RDS auto-discovery is
+	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
-	// RedshiftDiscoveryRegions list of regions the Redshift auto-discovery is
-	// configured.
+	// RedshiftDiscoveryRegions is a list of regions the Redshift
+	// auto-discovery is configured.
 	RedshiftDiscoveryRegions []string
-	// DatabaseProtocols list of database protocols supported.
+	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
+	// auto-discovery is configured.
+	ElastiCacheDiscoveryRegions []string
+	// DatabaseProtocols is a list of database protocols supported.
 	DatabaseProtocols []string
 }
 

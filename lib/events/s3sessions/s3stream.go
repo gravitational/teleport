@@ -196,6 +196,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			uploads = append(uploads, events.StreamUpload{
 				ID:        *upload.UploadId,
 				SessionID: h.fromPath(*upload.Key),
+				Initiated: *upload.Initiated,
 			})
 		}
 		if !*re.IsTruncated {
@@ -204,6 +205,11 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		keyMarker = re.KeyMarker
 		uploadIDMarker = re.UploadIdMarker
 	}
+
+	sort.Slice(uploads, func(i, j int) bool {
+		return uploads[i].Initiated.Before(uploads[j].Initiated)
+	})
+
 	return uploads, nil
 }
 
@@ -213,4 +219,9 @@ func (h *Handler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata 
 		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, sessionID),
 		SessionID: sessionID,
 	}
+}
+
+// ReserveUploadPart reserves an upload part.
+func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	return nil
 }

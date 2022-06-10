@@ -920,7 +920,15 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test github create event
-	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
@@ -945,7 +953,17 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test oidc create event
-	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{ClientID: "a"})
+	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
+		ClientID: "a",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "dummy",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+	})
 	require.NoError(t, err)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
@@ -1070,13 +1088,18 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	options := role.GetOptions()
 	options.CertExtensions = []*types.CertExtension{&extension}
 	role.SetOptions(options)
+	err = p.a.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	accessInfo, err := services.AccessInfoFromUser(user, p.a)
+	require.NoError(t, err)
 
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
 	certReq := certRequest{
 		user:      user,
-		checker:   services.NewRoleSet(role),
+		checker:   services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName()),
 		publicKey: pub,
 	}
 	certs, err := p.a.generateUserCert(certReq)
@@ -1096,7 +1119,9 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{})
+	require.NoError(t, err)
+	accessInfo, err := services.AccessInfoFromUser(user, p.a)
 	require.NoError(t, err)
 	mfaID := "test-mfa-id"
 	requestID := "test-access-request"
@@ -1105,7 +1130,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	require.NoError(t, err)
 	certReq := certRequest{
 		user:           user,
-		checker:        services.NewRoleSet(role),
+		checker:        services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName()),
 		mfaVerified:    mfaID,
 		publicKey:      pub,
 		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
@@ -1609,7 +1634,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
 				require.NoError(t, err)
 
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName())
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{

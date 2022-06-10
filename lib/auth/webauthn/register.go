@@ -228,20 +228,36 @@ func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIde
 	return wla.UserID, nil
 }
 
+// RegisterResponse represents fields needed to finish registering a new webautn device.
+type RegisterResponse struct {
+	// User is the device owner.
+	User string
+	// DeviceName is the name for the new device.
+	DeviceName string
+	// CreationResponse is the response from the new device.
+	CreationResponse *CredentialCreationResponse
+	// Passwordless is true if this is expected to be a passwordless registration.
+	// Callers may make certain concessions when processing passwordless
+	// registration (such as skipping password validation), this flag reflects that.
+	// The data stored in the Begin SessionData must match the passwordless flag,
+	// otherwise the registration is denied.
+	Passwordless bool
+}
+
 // Finish is the second and last step of the registration ceremony.
 // If successful, it returns the created MFADevice. Finish has the side effect
 // or writing the device to storage (using its Identity interface).
-func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, resp *CredentialCreationResponse) (*types.MFADevice, error) {
+func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*types.MFADevice, error) {
 	switch {
-	case user == "":
+	case req.User == "":
 		return nil, trace.BadParameter("user required")
-	case deviceName == "":
+	case req.DeviceName == "":
 		return nil, trace.BadParameter("device name required")
-	case resp == nil:
+	case req.CreationResponse == nil:
 		return nil, trace.BadParameter("credential creation response required")
 	}
 
-	parsedResp, err := parseCredentialCreationResponse(resp)
+	parsedResp, err := parseCredentialCreationResponse(req.CreationResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -255,13 +271,13 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 	// TODO(codingllama): Verify that the public key matches the allowed
 	//  credential params? It doesn't look like duo-labs/webauthn does that.
 
-	wla, err := f.Identity.GetWebauthnLocalAuth(ctx, user)
+	wla, err := f.Identity.GetWebauthnLocalAuth(ctx, req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u := newWebUser(user, wla.UserID, true /* credentialIDOnly */, nil /* devices */)
+	u := newWebUser(req.User, wla.UserID, true /* credentialIDOnly */, nil /* devices */)
 
-	sessionDataPB, err := f.Identity.GetWebauthnSessionData(ctx, user, scopeSession)
+	sessionDataPB, err := f.Identity.GetWebauthnSessionData(ctx, req.User, scopeSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -270,6 +286,9 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 	// Activate passwordless switches (resident key, user verification) if we
 	// required verification in the begin step.
 	passwordless := sessionData.UserVerification == protocol.VerificationRequired
+	if req.Passwordless && !passwordless {
+		return nil, trace.BadParameter("passwordless registration failed, requested CredentialCreation was for an MFA registration")
+	}
 
 	web, err := newWebAuthn(webAuthnParams{
 		cfg:                     f.Webauthn,
@@ -293,7 +312,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 		return nil, trace.Wrap(err)
 	}
 
-	newDevice := types.NewMFADevice(deviceName, uuid.NewString() /* id */, time.Now() /* addedAt */)
+	newDevice := types.NewMFADevice(req.DeviceName, uuid.NewString() /* id */, time.Now() /* addedAt */)
 	newDevice.Device = &types.MFADevice_Webauthn{
 		Webauthn: &types.WebauthnDevice{
 			CredentialId:      credential.ID,
@@ -301,21 +320,21 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 			AttestationType:   credential.AttestationType,
 			Aaguid:            credential.Authenticator.AAGUID,
 			SignatureCounter:  credential.Authenticator.SignCount,
-			AttestationObject: resp.AttestationResponse.AttestationObject,
-			ResidentKey:       passwordless,
+			AttestationObject: req.CreationResponse.AttestationResponse.AttestationObject,
+			ResidentKey:       req.Passwordless,
 		},
 	}
 	// We delegate a few checks to identity, including:
 	// * The validity of the created MFADevice
 	// * Uniqueness validation of the deviceName
 	// * Uniqueness validation of the Webauthn credential ID.
-	if err := f.Identity.UpsertMFADevice(ctx, user, newDevice); err != nil {
+	if err := f.Identity.UpsertMFADevice(ctx, req.User, newDevice); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Registration complete, remove the registration challenge we just used.
-	if err := f.Identity.DeleteWebauthnSessionData(ctx, user, scopeSession); err != nil {
-		log.Warnf("WebAuthn: failed to delete registration SessionData for user %v", user)
+	if err := f.Identity.DeleteWebauthnSessionData(ctx, req.User, scopeSession); err != nil {
+		log.Warnf("WebAuthn: failed to delete registration SessionData for user %v", req.User)
 	}
 
 	return newDevice, nil

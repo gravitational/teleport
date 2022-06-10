@@ -7,6 +7,18 @@
 
 #define SPECIAL_NO_RESPONSE 4294967295
 
+#define VERSION_MAJOR 1
+
+#define VERSION_MINOR 12
+
+#define SMARTCARD_CAPABILITY_VERSION_01 1
+
+#define GENERAL_CAPABILITY_VERSION_01 1
+
+#define GENERAL_CAPABILITY_VERSION_02 2
+
+#define SCARD_DEVICE_ID 1
+
 /**
  * The default maximum chunk size for virtual channel data.
  *
@@ -19,6 +31,11 @@
  * - https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a8593178-80c0-4b80-876c-cb77e62cecfc
  */
 #define CHANNEL_CHUNK_LEGNTH 1600
+
+typedef enum CGOErrCode {
+  ErrCodeSuccess = 0,
+  ErrCodeFailure = 1,
+} CGOErrCode;
 
 typedef enum CGOPointerButton {
   PointerButtonNone,
@@ -46,14 +63,9 @@ typedef enum CGOPointerWheel {
  */
 typedef struct Client Client;
 
-/**
- * CGOError is an alias for a C string pointer, for C API clarity.
- */
-typedef char *CGOError;
-
 typedef struct ClientOrError {
   struct Client *client;
-  CGOError err;
+  enum CGOErrCode err;
 } ClientOrError;
 
 /**
@@ -116,7 +128,8 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
                                  uint8_t *key_der,
                                  uint16_t screen_width,
                                  uint16_t screen_height,
-                                 bool allow_clipboard);
+                                 bool allow_clipboard,
+                                 bool allow_directory_sharing);
 
 /**
  * `update_clipboard` is called from Go, and caches data that was copied
@@ -126,7 +139,7 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
  *
  * `client_ptr` must be a valid pointer to a Client.
  */
-CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
+enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
@@ -137,28 +150,28 @@ CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len
  * `client_ptr` must be a valid pointer to a Client.
  * `handle_bitmap` *must not* free the memory of CGOBitmap.
  */
-CGOError read_rdp_output(struct Client *client_ptr);
+enum CGOErrCode read_rdp_output(struct Client *client_ptr);
 
 /**
  * # Safety
  *
  * client_ptr must be a valid pointer to a Client.
  */
-CGOError write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
+enum CGOErrCode write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
 
 /**
  * # Safety
  *
  * client_ptr must be a valid pointer to a Client.
  */
-CGOError write_rdp_keyboard(struct Client *client_ptr, struct CGOKeyboardEvent key);
+enum CGOErrCode write_rdp_keyboard(struct Client *client_ptr, struct CGOKeyboardEvent key);
 
 /**
  * # Safety
  *
  * client_ptr must be a valid pointer to a Client.
  */
-CGOError close_rdp(struct Client *client_ptr);
+enum CGOErrCode close_rdp(struct Client *client_ptr);
 
 /**
  * free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
@@ -176,8 +189,6 @@ void free_rdp(struct Client *client_ptr);
  */
 void free_rust_string(char *s);
 
-extern void free_go_string(char *s);
+extern enum CGOErrCode handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
-extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
-
-extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
+extern enum CGOErrCode handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);

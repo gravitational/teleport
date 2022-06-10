@@ -25,7 +25,7 @@ func checkTDR() error {
 		return fmt.Errorf("can't find tdr in $PATH: %w; get it from https://github.com/gravitational/tdr/", err)
 	}
 	if os.Getenv("DRONE_SERVER") == "" || os.Getenv("DRONE_TOKEN") == "" {
-		return fmt.Errorf("$DRONE_SERVER and/or $DRONE_TOKEN env vars not set; get them at https://drone.teleport.dev/account")
+		return fmt.Errorf("$DRONE_SERVER and/or $DRONE_TOKEN env vars not set; get them at https://drone.platform.teleport.sh/account")
 	}
 	return nil
 }

@@ -684,7 +684,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 		{
 			name: "add new WEBAUTHN device",
 			getRequest: func() *proto.CompleteAccountRecoveryRequest {
-				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedToken.GetName())
+				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -812,7 +812,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 				require.NotEmpty(t, devs)
 
 				// New register response.
-				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedToken.GetName())
+				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -989,7 +989,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
-				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedTokenID)
+				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedTokenID, proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -1350,7 +1350,7 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	}
 
 	// Insert a password, device, and recovery codes.
-	webDev, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetToken.GetName())
+	webDev, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1383,15 +1383,24 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	}, nil
 }
 
-func getMockedWebauthnAndRegisterRes(authSrv *Server, tokenID string) (*TestDevice, *proto.MFARegisterResponse, error) {
+func getMockedWebauthnAndRegisterRes(authSrv *Server, tokenID string, usage proto.DeviceUsage) (*TestDevice, *proto.MFARegisterResponse, error) {
 	res, err := authSrv.CreateRegisterChallenge(context.Background(), &proto.CreateRegisterChallengeRequest{
-		TokenID:    tokenID,
-		DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: usage,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	dev, regRes, err := NewTestDeviceFromChallenge(res)
+	var dev *TestDevice
+	var regRes *proto.MFARegisterResponse
+
+	if usage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS {
+		dev, regRes, err = NewTestDeviceFromChallenge(res, WithPasswordless())
+	} else {
+		dev, regRes, err = NewTestDeviceFromChallenge(res)
+	}
+
 	return dev, regRes, trace.Wrap(err)
 }
