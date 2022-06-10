@@ -788,7 +788,7 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 			return c.getAccessRequestsLegacy(ctx, filter)
 		}
 
-		return nil, trail.FromGRPC(err)
+		return nil, err
 	}
 	var reqs []types.AccessRequest
 	for {
