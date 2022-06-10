@@ -2904,10 +2904,11 @@ func TestEnumerateTestLogins(t *testing.T) {
 	}
 
 	tt := []struct {
-		name           string
-		server         types.Server
-		roleSet        RoleSet
-		expectedLogins []string
+		name                 string
+		server               types.Server
+		roleSet              RoleSet
+		expectedLogins       []string
+		expectedDeniedLogins []string
 	}{
 		{
 			name: "env dev login is added",
@@ -2930,16 +2931,18 @@ func TestEnumerateTestLogins(t *testing.T) {
 			server: makeTestServer(map[string]string{
 				"env": "prod",
 			}),
-			roleSet:        NewRoleSet(prodEnvRole, devEnvRole),
-			expectedLogins: []string{"produser"},
+			roleSet:              NewRoleSet(prodEnvRole, devEnvRole),
+			expectedLogins:       []string{"produser"},
+			expectedDeniedLogins: []string{"devuser"},
 		},
 		{
 			name: "logins from role not authorizeds are not added",
 			server: makeTestServer(map[string]string{
 				"env": "staging",
 			}),
-			roleSet:        NewRoleSet(devEnvRole, prodEnvRole),
-			expectedLogins: nil,
+			roleSet:              NewRoleSet(devEnvRole, prodEnvRole),
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"devuser", "produser"},
 		},
 		{
 			name: "role with wildcard get its logins",
@@ -3008,18 +3011,20 @@ func TestEnumerateTestLogins(t *testing.T) {
 					},
 				},
 			}),
-			expectedLogins: nil,
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"anyregionuser"},
 		},
 		{
 			name: "works with roles with multiple labels that role shouldn't access",
 			server: makeTestServer(map[string]string{
 				"env": "dev",
 			}),
-			roleSet:        NewRoleSet(roleWithMultipleLabels),
-			expectedLogins: nil,
+			roleSet:              NewRoleSet(roleWithMultipleLabels),
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"multiplelabelsuser"},
 		},
 		{
-			name: "works with roles with multiple labels that role shouldn access",
+			name: "works with roles with multiple labels that role shouldn't access",
 			server: makeTestServer(map[string]string{
 				"env":    "dev",
 				"region": "us-west-1",
@@ -3061,7 +3066,8 @@ func TestEnumerateTestLogins(t *testing.T) {
 					},
 				},
 			}),
-			expectedLogins: nil,
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"devuser"},
 		},
 		{
 			name: "works with denied roles of unrelated labels",
@@ -3079,13 +3085,18 @@ func TestEnumerateTestLogins(t *testing.T) {
 					},
 				},
 			}),
-			expectedLogins: nil,
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"devuser"},
 		},
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			logins := tc.roleSet.EnumerateServerLogins(tc.server)
 			require.Equal(t, tc.expectedLogins, logins.Allowed())
+			require.Equal(t, tc.expectedDeniedLogins, logins.Denied())
+			// wildcards are not allowed for logins
+			require.Equal(t, false, logins.wildcardAllowed)
+			require.Equal(t, false, logins.wildcardDenied)
 		})
 	}
 }
