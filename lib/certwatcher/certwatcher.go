@@ -127,11 +127,22 @@ func (cw *CertWatcher) GetCertificate(
 	cw.mu.RLock()
 	defer cw.mu.RUnlock()
 
-	// Logic as in crypto/tls getCertificate
+	// Certificate selection logic as in crypto/tls getCertificate
+	if len(cw.certificates) == 1 {
+		// There's only one choice, so no point doing any work.
+		return &cw.certificates[0], nil
+	}
+
 	for _, cert := range cw.certificates {
 		if err := clientHello.SupportsCertificate(&cert); err == nil {
 			return &cert, nil
 		}
 	}
+
+	if len(cw.certificates) > 1 {
+		// If no certificates are "supported", fallback to the first certificate
+		return &cw.certificates[0], nil
+	}
+
 	return nil, nil
 }
