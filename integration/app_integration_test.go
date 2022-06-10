@@ -37,6 +37,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -899,9 +900,8 @@ type appTestOptions struct {
 	rootAppServersCount int
 	leafAppServersCount int
 
-	rootConfig          func(config *service.Config)
-	leafConfig          func(config *service.Config)
-	skipSettingTimeouts bool
+	rootConfig func(config *service.Config)
+	leafConfig func(config *service.Config)
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -919,10 +919,6 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
 	lib.SetInsecureDevMode(true)
-
-	if !opts.skipSettingTimeouts {
-		SetTestTimeouts(time.Millisecond * time.Duration(500))
-	}
 
 	p := &pack{
 		rootAppName:        "app-01",
@@ -1086,6 +1082,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.Apps.Enabled = false
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -1101,6 +1098,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.SSH.Enabled = false
 	lcConf.Apps.Enabled = false
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1289,6 +1287,7 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 		Value: p.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
+	req.Header.Add("Content-Type", "application/json")
 
 	statusCode, body, err := p.sendRequest(req, nil)
 	return statusCode, []byte(body), trace.Wrap(err)
@@ -1538,6 +1537,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
+		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		raConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.rootAppName,
@@ -1608,6 +1608,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Proxy.Enabled = false
 		laConf.SSH.Enabled = false
 		laConf.Apps.Enabled = true
+		laConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		laConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.leafAppName,

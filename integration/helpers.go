@@ -36,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -211,7 +213,6 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      signer,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,
@@ -297,8 +298,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -319,8 +318,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{services.RoleNameForCertAuthority(s.SiteName)},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+		Roles: []string{services.RoleNameForCertAuthority(s.SiteName)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -336,8 +334,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles:      []string{},
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -411,6 +407,7 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 	tconf.Log = i.log
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -481,6 +478,8 @@ type UserCredsRequest struct {
 	Username string
 	// RouteToCluster is an optional cluster to route creds to
 	RouteToCluster string
+	// SourceIP is an optional source IP to use in SSH certs
+	SourceIP string
 }
 
 // GenerateUserCreds generates key to be used by client
@@ -491,7 +490,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	}
 	a := req.Process.GetAuthServer()
 	sshCert, x509Cert, err := a.GenerateUserTestCerts(
-		pub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster)
+		pub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -548,6 +547,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 					types.RoleTrustedCluster,
 					types.RoleApp,
 					types.RoleDatabase,
+					types.RoleKube,
 				},
 				Token: "token",
 			},
@@ -650,6 +650,8 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Keygen = testauthority.New()
 	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
 	i.Config = tconf
 	return tconf, nil
 }
@@ -670,7 +672,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		return trace.Wrap(err)
 	}
 	i.Config = tconf
-	i.Process, err = service.NewTeleport(tconf)
+	i.Process, err = service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -765,7 +767,7 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -809,7 +811,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf)
+	process, err := service.NewTeleport(conf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -861,7 +863,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
-			process, err := service.NewTeleport(cfg)
+			process, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err != nil {
 				results <- result{err: err, tmpDir: dataDir}
 			}
@@ -927,7 +929,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf)
+	process, err := service.NewTeleport(conf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -965,6 +967,55 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	log.Debugf("Teleport Database Server (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return process, client, nil
+}
+
+func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*service.TeleportProcess, error) {
+	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	i.tempDirs = append(i.tempDirs, dataDir)
+
+	conf.DataDir = dataDir
+	conf.AuthServers = []utils.NetAddr{
+		{
+			AddrNetwork: "tcp",
+			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+		},
+	}
+	conf.Token = "token"
+	conf.UploadEventsC = i.UploadEventsC
+	conf.Auth.Enabled = false
+	conf.Proxy.Enabled = false
+	conf.Apps.Enabled = false
+	conf.SSH.Enabled = false
+	conf.Databases.Enabled = false
+
+	conf.Kube.KubeconfigPath = filepath.Join(dataDir, "kube_config")
+	if err := enableKube(conf, clusterName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conf.Kube.ListenAddr = nil
+
+	process, err := service.NewTeleport(conf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	i.Nodes = append(i.Nodes, process)
+
+	expectedEvents := []string{
+		service.KubeIdentityEvent,
+		service.KubernetesReady,
+		service.TeleportReadyEvent,
+	}
+
+	receivedEvents, err := startAndWait(process, expectedEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Teleport Kube Server (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	return process, nil
 }
 
 // StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to
@@ -1010,10 +1061,11 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 			Addr:        Host,
 		},
 	}
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1097,10 +1149,11 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1149,7 +1202,7 @@ func (i *TeleInstance) Reset() (err error) {
 			return trace.Wrap(err)
 		}
 	}
-	i.Process, err = service.NewTeleport(i.Config)
+	i.Process, err = service.NewTeleport(i.Config, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1208,6 +1261,9 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Databases.Enabled {
 		expectedEvents = append(expectedEvents, service.DatabasesReady)
 	}
+	if i.Config.Kube.Enabled {
+		expectedEvents = append(expectedEvents, service.KubernetesReady)
+	}
 
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := startAndWait(i.Process, expectedEvents)
@@ -1258,6 +1314,8 @@ type ClientConfig struct {
 	Labels map[string]string
 	// Interactive launches with the terminal attached if true
 	Interactive bool
+	// Source IP to used in generated SSH cert
+	SourceIP string
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1345,6 +1403,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  i.Process,
 		Username: cfg.Login,
+		SourceIP: cfg.SourceIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1708,20 +1767,8 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 // clobber your system agent.
 func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
-	sockDir, err := os.MkdirTemp("", "int-test")
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	sockPath := filepath.Join(sockDir, "agent.sock")
-
-	uid, err := strconv.Atoi(me.Uid)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(me.Gid)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
+	sockDirName := "int-test"
+	sockName := "agent.sock"
 
 	// transform the key and certificate bytes into something the agent can understand
 	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(certificateBytes)
@@ -1750,13 +1797,13 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	})
 
 	// start the SSH agent
-	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
+	err = teleAgent.ListenUnixSocket(sockDirName, sockName, me)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
 	go teleAgent.Serve()
 
-	return teleAgent, sockDir, sockPath, nil
+	return teleAgent, teleAgent.Dir, teleAgent.Path, nil
 }
 
 func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
@@ -1780,21 +1827,30 @@ func fatalIf(err error) {
 }
 
 func enableKubernetesService(t *testing.T, config *service.Config) {
-	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
+	config.Kube.KubeconfigPath = filepath.Join(t.TempDir(), "kube_config")
+	require.NoError(t, enableKube(config, "teleport-cluster"))
+}
 
+func enableKube(config *service.Config, clusterName string) error {
+	kubeConfigPath := config.Kube.KubeconfigPath
+	if kubeConfigPath == "" {
+		return trace.BadParameter("missing kubeconfig path")
+	}
 	key, err := genUserKey()
-	require.NoError(t, err)
-
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
-		TeleportClusterName: "teleport-cluster",
+		TeleportClusterName: clusterName,
 		ClusterAddr:         "https://" + net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
 	})
-	require.NoError(t, err)
-
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	config.Kube.Enabled = true
-	config.Kube.KubeconfigPath = kubeConfigPath
 	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+	return nil
 }
 
 // getKubeClusters gets all kubernetes clusters accessible from a given auth server.
@@ -1880,4 +1936,132 @@ func getLocalIP() (string, error) {
 		}
 	}
 	return "", trace.NotFound("No non-loopback local IP address found")
+}
+
+func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *TeleInstance, *TeleInstance)) *client.TeleportClient {
+	ctx := context.Background()
+	username := suite.me.Username
+	name := "test"
+	rootName := fmt.Sprintf("root-%s", name)
+	leafName := fmt.Sprintf("leaf-%s", name)
+
+	// Create root and leaf clusters.
+	root := NewInstance(InstanceConfig{
+		ClusterName: rootName,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+		Ports:       standardPortsOrMuxSetup(false),
+	})
+	leaf := NewInstance(InstanceConfig{
+		ClusterName: leafName,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+		Ports:       standardPortsOrMuxSetup(false),
+	})
+
+	role, err := types.NewRoleV3("dev", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{username},
+		},
+	})
+	require.NoError(t, err)
+	root.AddUserWithRole(username, role)
+
+	makeConfig := func() (*testing.T, []*InstanceSecrets, *service.Config) {
+		tconf := suite.defaultServiceConfig()
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = false
+		return t, nil, tconf
+	}
+
+	oldInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(oldInsecure)
+
+	require.NoError(t, root.CreateEx(makeConfig()))
+	require.NoError(t, leaf.CreateEx(makeConfig()))
+	require.NoError(t, leaf.Process.GetAuthServer().UpsertRole(ctx, role))
+
+	// Connect leaf to root.
+	tcToken := "trusted-cluster-token"
+	tokenResource, err := types.NewProvisionToken(tcToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	require.NoError(t, err)
+	require.NoError(t, root.Process.GetAuthServer().UpsertToken(ctx, tokenResource))
+	trustedCluster := root.AsTrustedCluster(tcToken, types.RoleMap{
+		{Remote: "dev", Local: []string{"dev"}},
+	})
+
+	require.NoError(t, root.Start())
+	require.NoError(t, leaf.Start())
+
+	t.Cleanup(func() { root.StopAll() })
+	t.Cleanup(func() { leaf.StopAll() })
+
+	require.NoError(t, trustedCluster.CheckAndSetDefaults())
+	tryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
+
+	rootSSHPort := ports.PopInt()
+	rootProxySSHPort := ports.PopInt()
+	rootProxyWebPort := ports.PopInt()
+	require.NoError(t, root.StartNodeAndProxy("root-zero", rootSSHPort, rootProxyWebPort, rootProxySSHPort))
+	leafSSHPort := ports.PopInt()
+	leafProxySSHPort := ports.PopInt()
+	leafProxyWebPort := ports.PopInt()
+	require.NoError(t, leaf.StartNodeAndProxy("leaf-zero", leafSSHPort, leafProxyWebPort, leafProxySSHPort))
+
+	// Add any extra services.
+	if extraServices != nil {
+		extraServices(t, root, leaf)
+	}
+
+	require.Eventually(t, waitForClusters(root.Tunnel, 1), 10*time.Second, 1*time.Second)
+	require.Eventually(t, waitForClusters(leaf.Tunnel, 1), 10*time.Second, 1*time.Second)
+
+	// Create client.
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:        root.Process,
+		Username:       username,
+		RouteToCluster: rootName,
+	})
+	require.NoError(t, err)
+
+	tc, err := root.NewClientWithCreds(ClientConfig{
+		Login:   username,
+		Cluster: rootName,
+		Host:    Loopback,
+		Port:    rootProxySSHPort,
+	}, *creds)
+	require.NoError(t, err)
+
+	leafCAs, err := leaf.Secrets.GetCAs()
+	require.NoError(t, err)
+	for _, leafCA := range leafCAs {
+		require.NoError(t, tc.AddTrustedCA(leafCA))
+	}
+
+	return tc
+}
+
+// disabledIMDSClient is an EC2 instance metadata client that is always disabled. This is faster
+// than the default client when not testing instance metadata behavior.
+type disabledIMDSClient struct{}
+
+func (d *disabledIMDSClient) IsAvailable(ctx context.Context) bool {
+	return false
+}
+
+func (d *disabledIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (d *disabledIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
+	return "", nil
 }

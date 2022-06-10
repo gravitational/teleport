@@ -71,7 +71,6 @@ func TestCreateSAMLUser(t *testing.T) {
 	user, err := a.createSAMLUser(&createUserParams{
 		connectorName: "samlService",
 		username:      "foo@example.com",
-		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
 	}, true)
@@ -86,7 +85,6 @@ func TestCreateSAMLUser(t *testing.T) {
 	_, err = a.createSAMLUser(&createUserParams{
 		connectorName: "samlService",
 		username:      "foo@example.com",
-		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
 	}, false)
@@ -163,9 +161,10 @@ func TestEncryptedSAML(t *testing.T) {
 // parameters for Ping backends (PingOne, PingFederate, etc) when
 // `provider: ping` is set.
 func TestPingSAMLWorkaround(t *testing.T) {
+	ctx := context.Background()
 	// Create a Server instance for testing.
 	c := clockwork.NewFakeClockAt(time.Now())
-	b, err := lite.NewWithConfig(context.Background(), lite.Config{
+	b, err := lite.NewWithConfig(ctx, lite.Config{
 		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            c,
@@ -227,11 +226,11 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = a.UpsertSAMLConnector(context.Background(), connector)
+	err = a.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 
 	// Create an auth request that we can inspect.
-	req, err := a.CreateSAMLAuthRequest(services.SAMLAuthRequest{
+	req, err := a.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
 		ConnectorID: "ping",
 	})
 	require.NoError(t, err)
@@ -252,7 +251,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	ctx := context.Background()
 	// Create a Server instance for testing.
 	c := clockwork.NewFakeClockAt(time.Now())
-	b, err := lite.NewWithConfig(context.Background(), lite.Config{
+	b, err := lite.NewWithConfig(ctx, lite.Config{
 		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            c,
@@ -292,7 +291,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	}, nil, 10*365*24*time.Hour)
 	require.NoError(t, err)
 
-	request := services.SAMLAuthRequest{
+	request := types.SAMLAuthRequest{
 		ID:               "ABC",
 		ConnectorID:      "zzz",
 		CheckUser:        false,
@@ -348,7 +347,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	err = a.UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
-	request2 := services.SAMLAuthRequest{
+	request2 := types.SAMLAuthRequest{
 		ID:          "ABC",
 		ConnectorID: "foo",
 		SSOTestFlow: false,
@@ -477,7 +476,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	err = a.UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
-	err = a.Identity.CreateSAMLAuthRequest(services.SAMLAuthRequest{
+	err = a.Identity.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
 		ID:                "_4f256462-6c2d-466d-afc0-6ee36602b6f2",
 		ConnectorID:       "saml-test-conn",
 		SSOTestFlow:       true,

@@ -31,7 +31,7 @@ import (
 
 // SSOConfigureCommand implements common.CLICommand interface
 type SSOConfigureCommand struct {
-	config       *service.Config
+	Config       *service.Config
 	ConfigureCmd *kingpin.CmdClause
 	AuthCommands []*AuthKindCommand
 	Logger       *logrus.Entry
@@ -45,7 +45,7 @@ type AuthKindCommand struct {
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
 func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *service.Config) {
-	cmd.config = cfg
+	cmd.Config = cfg
 	cmd.Logger = cfg.Log.WithField(trace.Component, teleport.ComponentClient)
 
 	sso := app.Command("sso", "A family of commands for configuring and testing auth connectors (SSO).")
@@ -60,7 +60,7 @@ func (cmd *SSOConfigureCommand) TryRun(ctx context.Context, selectedCommand stri
 		if subCommand.Parsed {
 			// the default tctl logging behaviour is to ignore all logs, unless --debug is present.
 			// we want different behaviour: log messages as normal, but with compact format (no time, no caller info).
-			if !cmd.config.Debug {
+			if !cmd.Config.Debug {
 				formatter := utils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
 				formatter.FormatCaller = func() (caller string) { return "" }
 				cmd.Logger.Logger.SetFormatter(formatter)

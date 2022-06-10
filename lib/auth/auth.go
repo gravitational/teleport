@@ -180,7 +180,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		oidcClients:     make(map[string]*oidcClient),
 		samlProviders:   make(map[string]*samlProvider),
 		githubClients:   make(map[string]*githubClient),
-		caSigningAlg:    cfg.CASigningAlg,
 		cancelFunc:      cancelFunc,
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
@@ -338,9 +337,6 @@ type Server struct {
 
 	// cipherSuites is a list of ciphersuites that the auth server supports.
 	cipherSuites []uint16
-
-	// caSigningAlg is an SSH signing algorithm to use when generating new CAs.
-	caSigningAlg *string
 
 	// cache is a fast cache that allows auth server
 	// to use cache for most frequent operations,
@@ -673,7 +669,6 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	// create and sign!
 	return a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  sshutils.GetSigningAlgName(ca),
 		PublicHostKey: hostPublicKey,
 		HostID:        hostID,
 		NodeName:      nodeName,
@@ -739,9 +734,6 @@ type certRequest struct {
 	// activeRequests tracks privilege escalation requests applied
 	// during the construction of the certificate.
 	activeRequests services.RequestIDs
-	// requestedResourceIDs lists the resources to which access has been
-	// requested.
-	requestedResourceIDs []types.ResourceID
 	// appSessionID is the session ID of the application session.
 	appSessionID string
 	// appPublicAddr is the public address of the application.
@@ -769,6 +761,8 @@ type certRequest struct {
 	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
+	// sourceIP is an IP this certificate should be pinned to
+	sourceIP string
 	// disallowReissue flags that a cert should not be allowed to issue future
 	// certificates.
 	disallowReissue bool
@@ -814,15 +808,20 @@ func certRequestClientIP(ip string) certRequestOption {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
+func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, sourceIP string) ([]byte, []byte, error) {
 	user, err := a.Identity.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
 		ttl:            ttl,
@@ -831,6 +830,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		routeToCluster: routeToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
+		sourceIP:       sourceIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -863,10 +863,15 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	sessionID := req.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -916,10 +921,15 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -1050,14 +1060,13 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, "-teleport-internal-join")
 
-	requestedResourcesStr, err := services.ResourceIDsToString(req.requestedResourceIDs)
+	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	params := services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          sshutils.GetSigningAlgName(userCA),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
 		Impersonator:          req.impersonator,
@@ -1078,6 +1087,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Generation:            req.generation,
 		CertificateExtensions: req.checker.CertificateExtensions(),
 		AllowedResourceIDs:    requestedResourcesStr,
+		SourceIP:              req.sourceIP,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1158,7 +1168,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		DisallowReissue:    req.disallowReissue,
 		Renewable:          req.renewable,
 		Generation:         req.generation,
-		AllowedResourceIDs: requestedResourcesStr,
+		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1302,15 +1312,16 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 // PreAuthenticatedSignIn is for MFA authentication methods where the password
 // is already checked before issuing the second factor challenge
 func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (types.WebSession, error) {
-	roles, traits, err := services.ExtractFromIdentity(a, identity)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:           user,
-		Roles:          roles,
-		Traits:         traits,
-		AccessRequests: identity.ActiveRequests,
+		User:                 user,
+		Roles:                accessInfo.Roles,
+		Traits:               accessInfo.Traits,
+		AccessRequests:       identity.ActiveRequests,
+		RequestedResourceIDs: accessInfo.AllowedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1810,20 +1821,22 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	// consider absolute expiry time that may be set for this session
-	// by some external identity serivce, so we can not renew this session
-	// any more without extra logic for renewal with external OIDC provider
+	// by some external identity service, so we can not renew this session
+	// anymore without extra logic for renewal with external OIDC provider
 	expiresAt := prevSession.GetExpiryTime()
 	if !expiresAt.IsZero() && expiresAt.Before(a.clock.Now().UTC()) {
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	roles, traits, err := services.ExtractFromIdentity(a, identity)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	roles := accessInfo.Roles
+	traits := accessInfo.Traits
+	allowedResourceIDs := accessInfo.AllowedResourceIDs
 	accessRequests := identity.ActiveRequests
-	requestedResourceIDs := []types.ResourceID{}
+
 	if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
@@ -1833,7 +1846,14 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		roles = append(roles, accessRequest.GetRoles()...)
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
-		requestedResourceIDs = accessRequest.GetRequestedResourceIDs()
+
+		// There's not a consistent way to merge multiple search-based access
+		// requests, a user may be able to request access to different resources
+		// with different roles which should not overlap.
+		if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
+			return nil, trace.BadParameter("user is already logged in with a search-based access request, cannot issue another")
+		}
+		allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
@@ -1851,6 +1871,9 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
+
+		// Reset any search-based access requests
+		allowedResourceIDs = nil
 
 		// Calculate expiry time.
 		roleSet, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
@@ -1873,7 +1896,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		Traits:               traits,
 		SessionTTL:           sessionTTL,
 		AccessRequests:       accessRequests,
-		RequestedResourceIDs: requestedResourceIDs,
+		RequestedResourceIDs: allowedResourceIDs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2153,7 +2176,6 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	// generate host SSH certificate
 	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  sshutils.GetSigningAlgName(ca),
 		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
@@ -2312,10 +2334,20 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
+	roleSet, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessChecker(&services.AccessInfo{
+		Roles:              req.Roles,
+		Traits:             req.Traits,
+		RoleSet:            roleSet,
+		AllowedResourceIDs: req.RequestedResourceIDs,
+	}, clusterName.GetClusterName())
 
 	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
 	if err != nil {
@@ -2331,13 +2363,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:                 user,
-		ttl:                  sessionTTL,
-		publicKey:            pub,
-		checker:              checker,
-		traits:               req.Traits,
-		activeRequests:       services.RequestIDs{AccessRequests: req.AccessRequests},
-		requestedResourceIDs: req.RequestedResourceIDs,
+		user:           user,
+		ttl:            sessionTTL,
+		publicKey:      pub,
+		checker:        checker,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2452,7 +2483,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Expires: req.GetAccessExpiry(),
 		},
 		Roles:                req.GetRoles(),
-		RequestedResourceIDs: services.EventResourceIDs(req.GetRequestedResourceIDs()),
+		RequestedResourceIDs: types.EventResourceIDs(req.GetRequestedResourceIDs()),
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
@@ -2705,39 +2736,8 @@ func (a *Server) GetNamespaces() ([]types.Namespace, error) {
 }
 
 // GetNodes returns nodes from the cache
-func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	return a.GetCache().GetNodes(ctx, namespace, opts...)
-}
-
-// ListNodes lists nodes from the cache
-func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	return a.GetCache().ListNodes(ctx, req)
-}
-
-// NodePageFunc is a function to run on each page iterated over.
-type NodePageFunc func(next []types.Server) (stop bool, err error)
-
-// IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
-	for {
-		nextPage, nextKey, err := a.ListNodes(ctx, req)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		stop, err := f(nextPage)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
-		}
-
-		req.StartKey = nextKey
-	}
+func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	return a.GetCache().GetNodes(ctx, namespace)
 }
 
 // ResourcePageFunc is a function to run on each page iterated over.
@@ -3577,15 +3577,10 @@ func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sigAlg := defaults.CASignatureAlgorithm
-	if a.caSigningAlg != nil && *a.caSigningAlg != "" {
-		sigAlg = *a.caSigningAlg
-	}
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        caID.Type,
 		ClusterName: caID.DomainName,
 		ActiveKeys:  keySet,
-		SigningAlg:  sshutils.ParseSigningAlg(sigAlg),
 	})
 	if err != nil {
 		return trace.Wrap(err)
