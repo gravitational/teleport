@@ -376,9 +376,6 @@ func (e *exitCodeError) Error() string {
 }
 
 func main() {
-	// Allow prompt to restore terminal state on exit.
-	defer prompt.NotifyExit()
-
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
@@ -395,7 +392,10 @@ func main() {
 	default:
 		cmdLine = cmdLineOrig
 	}
-	if err := Run(ctx, cmdLine); err != nil {
+
+	err := Run(ctx, cmdLine)
+	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
+	if err != nil {
 		var exitError *exitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.code)

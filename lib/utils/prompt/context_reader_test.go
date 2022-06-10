@@ -155,13 +155,11 @@ func TestContextReader_ReadPassword(t *testing.T) {
 	t.Run("password read turned clean", func(t *testing.T) {
 		require.False(t, term.restoreCalled, "restoreCalled sanity check failed")
 
-		cancelCtx, cancel := context.WithCancel(ctx)
-		go func() {
-			time.Sleep(1 * time.Millisecond) // give ReadPassword time to block
-			cancel()
-		}()
+		// Give ReadPassword time to block.
+		cancelCtx, cancel := context.WithTimeout(ctx, 1*time.Millisecond)
+		defer cancel()
 		got, err := cr.ReadPassword(cancelCtx)
-		require.ErrorIs(t, err, context.Canceled, "ReadPassword returned unexpected error")
+		require.ErrorIs(t, err, context.DeadlineExceeded, "ReadPassword returned unexpected error")
 		require.Empty(t, got, "ReadPassword mismatch")
 
 		// Reclaim as clean read.
@@ -236,13 +234,11 @@ func TestNotifyExit_restoresTerminal(t *testing.T) {
 			cr.fd = int(devNull.Fd()) // arbitrary
 			SetStdin(cr)
 
-			ctx, cancel := context.WithCancel(ctx)
-			go func() {
-				time.Sleep(1 * time.Millisecond) // give the read time to block
-				cancel()
-			}()
+			// Give the read time to block.
+			ctx, cancel := context.WithTimeout(ctx, 1*time.Millisecond)
+			defer cancel()
 			err := test.doRead(ctx, cr)
-			require.ErrorIs(t, err, context.Canceled, "unexpected read error")
+			require.ErrorIs(t, err, context.DeadlineExceeded, "unexpected read error")
 
 			NotifyExit() // closes Stdin
 			assert.Equal(t, test.wantRestore, term.restoreCalled, "term.Restore mismatch")
