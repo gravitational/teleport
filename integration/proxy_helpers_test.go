@@ -524,7 +524,7 @@ func mustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
 		key.Pub, username, ttl,
 		constants.CertificateFormatStandard,
-		tc.Secrets.SiteName,
+		tc.Secrets.SiteName, "",
 	)
 	require.NoError(t, err)
 
