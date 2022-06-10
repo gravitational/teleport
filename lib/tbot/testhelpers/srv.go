@@ -37,6 +37,7 @@ import (
 )
 
 // from lib/service/listeners.go
+// TODO(espadolini): have the constants exported
 const (
 	listenerAuthSSH     = "auth"
 	listenerProxySSH    = "proxy:ssh"
@@ -44,6 +45,11 @@ const (
 	listenerProxyTunnel = "proxy:tunnel"
 )
 
+// DefaultConfig returns a FileConfig to be used in tests, with random listen
+// addresses that are tied to the listeners returned in the FileDescriptor
+// slice, which should be passed as exported file descriptors to NewTeleport;
+// this is to ensure that we keep the listening socket open, to prevent other
+// processes from using the same port before we're done with it.
 func DefaultConfig(t *testing.T) (*config.FileConfig, []service.FileDescriptor) {
 	var fds []service.FileDescriptor
 
@@ -76,6 +82,13 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []service.FileDescriptor) 
 	return fc, fds
 }
 
+// newListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// FileDescriptor slice (with the specified type) and returns its actual local
+// address as a string (for use in configuration). Takes a pointer to the slice
+// so that it's convenient to call in the middle of a FileConfig or Config
+// struct literal.
+// TODO(espadolini): move this to a more generic place so we can use the same
+// approach in other tests that spin up a TeleportProcess
 func newListener(t *testing.T, ty string, fds *[]service.FileDescriptor) string {
 	t.Helper()
 
@@ -84,8 +97,15 @@ func newListener(t *testing.T, ty string, fds *[]service.FileDescriptor) string 
 	defer l.Close()
 	addr := l.Addr().String()
 
+	// File() returns a dup of the listener's file descriptor as an *os.File, so
+	// the original net.Listener still needs to be closed.
 	lf, err := l.(*net.TCPListener).File()
 	require.NoError(t, err)
+	// If the file descriptor slice ends up being passed to a TeleportProcess
+	// that successfully starts, listeners will either get "imported" and used
+	// or discarded and closed, this is just an extra safety measure that closes
+	// the listener at the end of the test anyway (the finalizer would do that
+	// anyway, in principle).
 	t.Cleanup(func() { lf.Close() })
 
 	*fds = append(*fds, service.FileDescriptor{
