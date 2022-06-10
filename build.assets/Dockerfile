@@ -94,6 +94,7 @@ RUN apt-get update -y --fix-missing && \
         pkg-config \
         shellcheck \
         softhsm2 \
+        sudo \
         tree \
         unzip \
         zip \
