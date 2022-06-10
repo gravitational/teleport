@@ -3,7 +3,7 @@
 package api
 
 const (
-	Version = "9.3.4"
+	Version = "9.3.4-sqlserver-ssms"
 )
 
 // Gitref variable is automatically set to the output of git-describe
