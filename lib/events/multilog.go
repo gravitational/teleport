@@ -118,7 +118,7 @@ func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 // a query to be resumed.
 func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
-		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, "")
+		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 		if !trace.IsNotImplemented(err) {
 			return events, lastKey, err
 		}

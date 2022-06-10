@@ -4160,7 +4160,7 @@ func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit in
 	}
 
 	// TODO(codingllama): Refactor cond out of SearchSessionEvents and simplify signature.
-	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, "")
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
