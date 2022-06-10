@@ -18,7 +18,6 @@ package alpnproxyauth
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -108,7 +107,7 @@ func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context) (net.C
 	}
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return nil, trace.Wrap(fmt.Errorf("%s: %w", addr, err))
+		return nil, trace.Wrap(err)
 	}
 
 	return conn, nil
