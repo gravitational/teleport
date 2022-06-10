@@ -120,7 +120,7 @@ func (a *ServerWithRoles) action(namespace, resource string, verbs ...string) er
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
-	if hasLocalUserRole(a.context.Checker) && username == a.context.User.GetName() {
+	if hasLocalUserRole(a.context) && username == a.context.User.GetName() {
 		return nil
 	}
 	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
@@ -205,58 +205,57 @@ func (a *ServerWithRoles) serverAction() error {
 	return nil
 }
 
-// hasBuiltinRole checks that the attached checker is a BuiltinRoleSet
-// and whether any of the given roles match the role set.
+// hasBuiltinRole checks that the attached identity is a builtin role and
+// whether any of the given roles match the role set.
 func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 	for _, role := range roles {
-		if HasBuiltinRole(a.context.Checker, string(role)) {
+		if HasBuiltinRole(a.context, string(role)) {
 			return true
 		}
 	}
 	return false
 }
 
-// HasBuiltinRole checks the type of the role set returned and the name.
-// Returns true if role set is builtin and the name matches.
-func HasBuiltinRole(checker services.AccessChecker, name string) bool {
-	if _, ok := checker.(BuiltinRoleSet); !ok {
+// HasBuiltinRole checks if the identity is a builtin role with the matching
+// name.
+func HasBuiltinRole(authContext Context, name string) bool {
+	if _, ok := authContext.Identity.(BuiltinRole); !ok {
 		return false
 	}
-	if !checker.HasRole(name) {
+	if !authContext.Checker.HasRole(name) {
 		return false
 	}
 
 	return true
 }
 
-// HasRemoteBuiltinRole checks the type of the role set returned and the name.
-// Returns true if role set is remote builtin and the name matches.
-func HasRemoteBuiltinRole(checker services.AccessChecker, name string) bool {
-	if _, ok := checker.(RemoteBuiltinRoleSet); !ok {
+// HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
+// matching name.
+func HasRemoteBuiltinRole(authContext Context, name string) bool {
+	if _, ok := authContext.UnmappedIdentity.(RemoteBuiltinRole); !ok {
 		return false
 	}
-	if !checker.HasRole(name) {
+	if !authContext.Checker.HasRole(name) {
 		return false
 	}
 	return true
 }
 
-// hasRemoteBuiltinRole checks the type of the role set returned and the name.
-// Returns true if role set is remote builtin and the name matches.
+// hasRemoteBuiltinRole checks if the identity is a remote builtin role and the
+// name matches.
 func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
-	return HasRemoteBuiltinRole(a.context.Checker, name)
+	return HasRemoteBuiltinRole(a.context, name)
 }
 
-// hasRemoteUserRole checks if the type of the role set is a remote user or
-// not.
-func hasRemoteUserRole(checker services.AccessChecker) bool {
-	_, ok := checker.(RemoteUserRoleSet)
+// hasRemoteUserRole checks if the identity is a remote user or not.
+func hasRemoteUserRole(authContext Context) bool {
+	_, ok := authContext.UnmappedIdentity.(RemoteUser)
 	return ok
 }
 
-// hasLocalUserRole checks if the type of the role set is a local user or not.
-func hasLocalUserRole(checker services.AccessChecker) bool {
-	_, ok := checker.(LocalUserRoleSet)
+// hasLocalUserRole checks if the identity is a local user or not.
+func hasLocalUserRole(authContext Context) bool {
+	_, ok := authContext.UnmappedIdentity.(LocalUser)
 	return ok
 }
 
@@ -872,7 +871,7 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 		return nil, trace.Wrap(err)
 	}
 
-	checker, err := newNodeChecker(a.context.Checker, a.context.User, a.authServer)
+	checker, err := newNodeChecker(a.context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -900,7 +899,7 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 	}
 	elapsedFetch := time.Since(startFetch)
 
-	checker, err := newNodeChecker(a.context.Checker, a.context.User, a.authServer)
+	checker, err := newNodeChecker(a.context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1059,37 +1058,26 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 // nodeChecker is a resourceAccessChecker that checks for access to nodes
 type nodeChecker struct {
 	accessChecker services.AccessChecker
-	roleSet       services.RoleSet
 	builtinRole   bool
 }
 
-// newNodeChecker returns a new nodeChecker with the services.RoleSet already loaded for
-// the provided user if necessary. This prevents the need to load the role set each time
+// newNodeChecker returns a new nodeChecker that checks access to nodes with the
+//  provided user if necessary. This prevents the need to load the role set each time
 // a node is checked.
-func newNodeChecker(checker services.AccessChecker, user types.User, authServer *Server) (*nodeChecker, error) {
+func newNodeChecker(authContext Context) (*nodeChecker, error) {
 	// For certain built-in roles, continue to allow full access and return
 	// the full set of nodes to not break existing clusters during migration.
 	//
 	// In addition, allow proxy (and remote proxy) to access all nodes for its
 	// smart resolution address resolution. Once the smart resolution logic is
 	// moved to the auth server, this logic can be removed.
-	if HasBuiltinRole(checker, string(types.RoleAdmin)) ||
-		HasBuiltinRole(checker, string(types.RoleProxy)) ||
-		HasRemoteBuiltinRole(checker, string(types.RoleRemoteProxy)) {
-		return &nodeChecker{
-			accessChecker: checker,
-			builtinRole:   true,
-		}, nil
-	}
-
-	roleSet, err := services.FetchRoles(user.GetRoles(), authServer, user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	builtinRole := HasBuiltinRole(authContext, string(types.RoleAdmin)) ||
+		HasBuiltinRole(authContext, string(types.RoleProxy)) ||
+		HasRemoteBuiltinRole(authContext, string(types.RoleRemoteProxy))
 
 	return &nodeChecker{
-		accessChecker: checker,
-		roleSet:       roleSet,
+		accessChecker: authContext.Checker,
+		builtinRole:   builtinRole,
 	}, nil
 }
 
@@ -1104,12 +1092,11 @@ func (n *nodeChecker) CanAccess(resource types.Resource) error {
 		return nil
 	}
 
-	for _, role := range n.roleSet {
-		for _, login := range role.GetLogins(types.Allow) {
-			err := n.roleSet.CheckAccess(server, services.AccessMFAParams{Verified: true}, services.NewLoginMatcher(login))
-			if err == nil {
-				return nil
-			}
+	// Check if we can access the node with any of our possible logins.
+	for _, login := range n.accessChecker.GetAllLogins() {
+		err := n.accessChecker.CheckAccess(server, services.AccessMFAParams{Verified: true}, services.NewLoginMatcher(login))
+		if err == nil {
+			return nil
 		}
 	}
 
@@ -1118,7 +1105,15 @@ func (n *nodeChecker) CanAccess(resource types.Resource) error {
 
 // kubeChecker is a resourceAccessChecker that checks for access to kubernetes services
 type kubeChecker struct {
-	services.AccessChecker
+	checker   services.AccessChecker
+	localUser bool
+}
+
+func newKubeChecker(authContext Context) *kubeChecker {
+	return &kubeChecker{
+		checker:   authContext.Checker,
+		localUser: hasLocalUserRole(authContext),
+	}
 }
 
 // CanAccess checks if a user has access to kubernetes clusters defined
@@ -1132,19 +1127,18 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 
 	// Filter out agents that don't have support for moderated sessions access
 	// checking if the user has any roles that require it.
-	if hasLocalUserRole(k.AccessChecker) {
-		roles := k.AccessChecker.(LocalUserRoleSet)
+	if k.localUser {
+		roles := k.checker.Roles()
 		agentVersion, versionErr := semver.NewVersion(server.GetTeleportVersion())
 
 		hasK8SRequirePolicy := func() bool {
-			for _, role := range roles.RoleSet {
+			for _, role := range roles {
 				for _, policy := range role.GetSessionRequirePolicies() {
 					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
 						return true
 					}
 				}
 			}
-
 			return false
 		}
 
@@ -1160,7 +1154,7 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 			return trace.Wrap(err)
 		}
 
-		if err := k.CheckAccess(k8sV3, services.AccessMFAParams{Verified: true}); err != nil {
+		if err := k.checker.CheckAccess(k8sV3, services.AccessMFAParams{Verified: true}); err != nil {
 			if trace.IsAccessDenied(err) {
 				continue
 			}
@@ -1181,9 +1175,9 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindNode:
-		return newNodeChecker(a.context.Checker, a.context.User, a.authServer)
+		return newNodeChecker(a.context)
 	case types.KindKubeService:
-		return &kubeChecker{AccessChecker: a.context.Checker}, nil
+		return newKubeChecker(a.context), nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
@@ -1310,7 +1304,7 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 	realLabels := req.Labels
 	req.Labels = nil
 
-	checker, err := newNodeChecker(a.context.Checker, a.context.User, a.authServer)
+	checker, err := newNodeChecker(a.context)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3818,7 +3812,7 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 		return nil, trace.Wrap(err)
 	}
 
-	checker := kubeChecker{a.context.Checker}
+	checker := newKubeChecker(a.context)
 
 	for _, server := range servers {
 		err = checker.CanAccess(server)
@@ -3913,7 +3907,7 @@ func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto
 }
 
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	if !hasLocalUserRole(a.context.Checker) && !hasRemoteUserRole(a.context.Checker) {
+	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
