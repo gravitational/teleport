@@ -26,11 +26,13 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -591,7 +593,7 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 // SetCreateHostUser configures host user creation on a server
 func SetCreateHostUser(createUser bool) ServerOption {
 	return func(s *Server) error {
-		s.createHostUser = createUser
+		s.createHostUser = createUser && runtime.GOOS == constants.LinuxOS
 		return nil
 	}
 }
@@ -728,7 +730,7 @@ func New(addr utils.NetAddr,
 	})
 
 	if s.createHostUser {
-		users, err := srv.NewHostUsers(ctx, s.storage)
+		users := srv.NewHostUsers(ctx, s.storage, s.ID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

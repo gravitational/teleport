@@ -1851,6 +1851,8 @@ func TestApplyTraits(t *testing.T) {
 		outDBUsers       []string
 		inImpersonate    types.ImpersonateConditions
 		outImpersonate   types.ImpersonateConditions
+		inSudoers        []string
+		outSudoers       []string
 	}
 	var tests = []struct {
 		comment  string
@@ -2267,6 +2269,35 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
+		{
+			comment: "sudoers substitution roles",
+			inTraits: map[string][]string{
+				"users": {"alice", "bob"},
+			},
+			allow: rule{
+				inSudoers: []string{"{{external.users}} ALL=(ALL) ALL"},
+				outSudoers: []string{
+					"alice ALL=(ALL) ALL",
+					"bob ALL=(ALL) ALL",
+				},
+			},
+		},
+		{
+			comment: "sudoers substitution not found trait",
+			inTraits: map[string][]string{
+				"users": {"alice", "bob"},
+			},
+			allow: rule{
+				inSudoers: []string{
+					"{{external.hello}} ALL=(ALL) ALL",
+					"{{external.users}} ALL=(test) ALL",
+				},
+				outSudoers: []string{
+					"alice ALL=(test) ALL",
+					"bob ALL=(test) ALL",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2292,6 +2323,7 @@ func TestApplyTraits(t *testing.T) {
 						DatabaseNames:        tt.allow.inDBNames,
 						DatabaseUsers:        tt.allow.inDBUsers,
 						Impersonate:          &tt.allow.inImpersonate,
+						HostSudoers:          tt.allow.inSudoers,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -2306,6 +2338,7 @@ func TestApplyTraits(t *testing.T) {
 						DatabaseNames:        tt.deny.inDBNames,
 						DatabaseUsers:        tt.deny.inDBUsers,
 						Impersonate:          &tt.deny.inImpersonate,
+						HostSudoers:          tt.deny.outSudoers,
 					},
 				},
 			}
@@ -2331,6 +2364,7 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
 				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
 				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
+				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 			}
 		})
 	}
@@ -4645,6 +4679,155 @@ func TestHostUsers_getGroups(t *testing.T) {
 			info, err := tc.roles.HostUsers(tc.server)
 			require.NoError(t, err)
 			require.Equal(t, tc.groups, info.Groups)
+		})
+	}
+}
+
+func TestHostUsers_HostSudoers(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		test    string
+		sudoers []string
+		roles   RoleSet
+		server  types.Server
+	}{
+		{
+			test: "test exact match, one sudoer entry, one role",
+			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
+			roles: NewRoleSet(&types.RoleV5{
+
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:    "multiple roles, one not matching",
+			sudoers: []string{"sudoers entry 1", "sudoers entry 2"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"sudoers entry 1"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+						HostSudoers: []string{"sudoers entry 2"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{"fail": []string{"abc"}},
+						HostSudoers: []string{"not present sudoers entry"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:    "glob deny",
+			sudoers: nil,
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Deny: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"*"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test: "line deny",
+			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{
+							"%sudo	ALL=(ALL) ALL",
+							"removed entry"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Deny: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"removed entry"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.test, func(t *testing.T) {
+
+			info, err := tc.roles.HostUsers(tc.server)
+			require.NoError(t, err)
+			require.Equal(t, tc.sudoers, info.Sudoers)
 		})
 	}
 }
