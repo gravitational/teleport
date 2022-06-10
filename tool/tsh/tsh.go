@@ -2381,6 +2381,7 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.SetLoginHint(tc.HostLogin)
 	return req, nil
 }
 
