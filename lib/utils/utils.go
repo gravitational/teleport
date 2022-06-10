@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -550,6 +551,18 @@ func RemoveFromSlice(slice []string, values ...string) []string {
 	}
 
 	return output
+}
+
+// ChooseRandomString returns a random string from the given slice.
+func ChooseRandomString(slice []string) string {
+	switch len(slice) {
+	case 0:
+		return ""
+	case 1:
+		return slice[0]
+	default:
+		return slice[rand.Intn(len(slice))]
+	}
 }
 
 // CheckCertificateFormatFlag checks if the certificate format is valid.

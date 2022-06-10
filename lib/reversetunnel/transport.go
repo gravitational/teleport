@@ -197,8 +197,6 @@ func (p *transport) start() {
 		return
 	}
 
-	var servers []string
-
 	// Parse and extract the dial request from the client.
 	dreq := parseDialReq(req.Payload)
 	if err := dreq.CheckAndSetDefaults(); err != nil {
@@ -207,18 +205,22 @@ func (p *transport) start() {
 	}
 	p.log.Debugf("Received out-of-band proxy transport request for %v [%v].", dreq.Address, dreq.ServerID)
 
+	// directAddress will hold the address of the node to dial to, if we don't
+	// have a tunnel for it.
+	var directAddress string
+
 	// Handle special non-resolvable addresses first.
 	switch dreq.Address {
 	// Connect to an Auth Server.
 	case RemoteAuthServer:
-		if len(p.authServers) <= 0 {
+		if len(p.authServers) == 0 {
 			p.log.Errorf("connection rejected: no auth servers configured")
 			p.reply(req, false, []byte("no auth servers configured"))
 
 			return
 		}
 
-		servers = p.authServers
+		directAddress = utils.ChooseRandomString(p.authServers)
 	// Connect to the Kubernetes proxy.
 	case LocalKubernetes:
 		switch p.component {
@@ -252,7 +254,7 @@ func (p *transport) start() {
 				return
 			}
 			p.log.Debugf("Forwarding connection to %q", p.kubeDialAddr.Addr)
-			servers = append(servers, p.kubeDialAddr.Addr)
+			directAddress = p.kubeDialAddr.Addr
 		}
 
 	// LocalNode requests are for the single server running in the agent pool.
@@ -283,15 +285,16 @@ func (p *transport) start() {
 		// If this is a proxy and not an SSH node, try finding an inbound
 		// tunnel from the SSH node by dreq.ServerID. We'll need to forward
 		// dreq.Address as well.
-		fallthrough
+		directAddress = dreq.Address
 	default:
-		servers = append(servers, dreq.Address)
+		// Not a special address; could be empty.
+		directAddress = dreq.Address
 	}
 
 	// Get a connection to the target address. If a tunnel exists with matching
 	// search names, connection over the tunnel is returned. Otherwise a direct
 	// net.Dial is performed.
-	conn, useTunnel, err := p.getConn(servers, dreq)
+	conn, useTunnel, err := p.getConn(directAddress, dreq)
 	if err != nil {
 		errorMessage := fmt.Sprintf("connection rejected: %v", err)
 		fmt.Fprint(p.channel.Stderr(), errorMessage)
@@ -368,7 +371,7 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 // getConn checks if the local site holds a connection to the target host,
 // and if it does, attempts to dial through the tunnel. Otherwise directly
 // dials to host.
-func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bool, error) {
+func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, error) {
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
 	p.log.Debugf("Attempting to dial through tunnel with server ID %q.", r.ServerID)
@@ -388,13 +391,13 @@ func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bo
 		}
 
 		errTun := err
-		p.log.Debugf("Attempting to dial directly %v.", servers)
-		conn, err = p.directDial(servers)
+		p.log.Debugf("Attempting to dial directly %q.", addr)
+		conn, err = p.directDial(addr)
 		if err != nil {
 			return nil, false, trace.ConnectionProblem(err, "failed dialing through tunnel (%v) or directly (%v)", errTun, err)
 		}
 
-		p.log.Debugf("Returning direct dialed connection to %v.", servers)
+		p.log.Debugf("Returning direct dialed connection to %q.", addr)
 		return conn, false, nil
 	}
 
@@ -438,24 +441,18 @@ func (p *transport) reply(req *ssh.Request, ok bool, msg []byte) {
 }
 
 // directDial attempts to directly dial to the target host.
-func (p *transport) directDial(servers []string) (net.Conn, error) {
-	if len(servers) <= 0 {
-		return nil, trace.BadParameter("no servers to dial")
+func (p *transport) directDial(addr string) (net.Conn, error) {
+	if addr == "" {
+		return nil, trace.BadParameter("no address to dial")
 	}
 
-	var errors []error
-	for _, addr := range servers {
-		dialer := net.Dialer{
-			Timeout: apidefaults.DefaultDialTimeout,
-		}
-
-		conn, err := dialer.DialContext(p.closeContext, "tcp", addr)
-		if err == nil {
-			return conn, nil
-		}
-
-		errors = append(errors, err)
+	d := net.Dialer{
+		Timeout: apidefaults.DefaultDialTimeout,
+	}
+	conn, err := d.DialContext(p.closeContext, "tcp", addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return nil, trace.NewAggregate(errors...)
+	return conn, nil
 }
