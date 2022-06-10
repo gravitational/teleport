@@ -807,7 +807,7 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 
 // getAccessRequestsLegacy retrieves a list of all access requests matching the provided filter using the old access request API.
 //
-// DELETE IN: 11.0.0
+// DELETE IN: 11.0.0. Used for compatability with old auth servers that don't support the GetAccessRequestsV2 RPC.
 func (c *Client) getAccessRequestsLegacy(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	requests, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
 	if err != nil {
