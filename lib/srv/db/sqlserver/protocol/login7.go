@@ -61,6 +61,12 @@ func (p *Login7Packet) TypeFlags() uint8 {
 	return p.header.TypeFlags
 }
 
+// PacketSize return the packet size from the Login7 packet.
+// Packet size is used by a server to negation the size of max packet length.
+func (p *Login7Packet) PacketSize() uint16 {
+	return uint16(p.header.PacketSize)
+}
+
 // Login7Header contains options and offset/length pairs parsed from the Login7
 // packet sent by client.
 //
