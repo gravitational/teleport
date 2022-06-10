@@ -295,7 +295,7 @@ func (s *EventsSuite) SearchSessionEvensBySessionID(c *check.C) {
 	}()
 
 	select {
-	case <-time.Tick(time.Second * 10):
+	case <-time.After(time.Second * 10):
 		c.Fatalf("Search event query timeout")
 	case <-done:
 	}
