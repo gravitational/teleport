@@ -19,14 +19,14 @@ mod scard;
 use crate::errors::{
     invalid_data_error, not_implemented_error, try_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE,
 };
-use crate::vchan;
 use crate::util;
+use crate::vchan;
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
     SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
-    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest, SharedDirectoryWriteResponse,
-    SharedDirectoryListRequest, SharedDirectoryListResponse,
-    TdpErrCode,
+    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, SharedDirectoryListRequest,
+    SharedDirectoryListResponse, SharedDirectoryReadRequest, SharedDirectoryReadResponse,
+    SharedDirectoryWriteRequest, SharedDirectoryWriteResponse, TdpErrCode,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -44,7 +44,7 @@ use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::io::{Read, Write, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 
 pub use consts::CHANNEL_NAME;
 
@@ -288,6 +288,9 @@ impl Client {
             }
             MajorFunction::IRP_MJ_READ => self.process_irp_read(device_io_request, payload),
             MajorFunction::IRP_MJ_WRITE => self.process_irp_write(device_io_request, payload),
+            MajorFunction::IRP_MJ_SET_INFORMATION => {
+                self.process_irp_set_information(device_io_request, payload)
+            }
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
@@ -746,6 +749,21 @@ impl Client {
         }
     }
 
+    fn process_irp_set_information(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let rdp_req = ServerDriveSetInformationRequest::decode(device_io_request, payload)?;
+
+        // TODO(LKozlowski): handle it?
+        let resp = ClientDriveSetInformationResponse::new(&rdp_req, NTSTATUS::STATUS_SUCCESS);
+        debug!("replying with: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        Ok(resp)
+    }
+
     pub fn write_client_device_list_announce<S: Read + Write>(
         &mut self,
         req: ClientDeviceListAnnounce,
@@ -907,7 +925,6 @@ impl Client {
             )));
         }
     }
-
 
     fn prep_device_create_response(
         &mut self,
@@ -1237,9 +1254,11 @@ impl Client {
                       res: SharedDirectoryWriteResponse|
                       -> RdpResult<Vec<Vec<u8>>> {
                     match res.err_code {
-                        TdpErrCode::Nil => {
-                            cli.prep_write_response(rdp_req, NTSTATUS::STATUS_SUCCESS, res.bytes_written)
-                        }
+                        TdpErrCode::Nil => cli.prep_write_response(
+                            rdp_req,
+                            NTSTATUS::STATUS_SUCCESS,
+                            res.bytes_written,
+                        ),
                         _ => cli.prep_write_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, 0),
                     }
                 },
@@ -2971,16 +2990,12 @@ impl DeviceWriteRequest {
 pub struct DeviceWriteResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_WRITE.
     device_io_reply: DeviceIoResponse,
-    /// Number of bytes written in response to the write request. 
+    /// Number of bytes written in response to the write request.
     length: u32,
 }
 
 impl DeviceWriteResponse {
-    fn new(
-        device_read_request: &DeviceWriteRequest,
-        io_status: NTSTATUS,
-        length: u32,
-    ) -> Self {
+    fn new(device_read_request: &DeviceWriteRequest, io_status: NTSTATUS, length: u32) -> Self {
         let device_io_request = &device_read_request.device_io_request;
         Self {
             device_io_reply: DeviceIoResponse::new(
@@ -3001,6 +3016,86 @@ impl DeviceWriteResponse {
     }
 }
 
+/// 2.2.3.4.9 Client Drive Set Information Response (DR_DRIVE_SET_INFORMATION_RSP)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970
+#[derive(Debug)]
+#[allow(dead_code)]
+struct ClientDriveSetInformationResponse {
+    device_io_reply: DeviceIoResponse,
+    /// This field MUST be equal to the Length field in the Server Drive Set Information Request (section 2.2.3.3.9).
+    length: u32,
+}
+
+impl ClientDriveSetInformationResponse {
+    fn new(device_read_request: &ServerDriveSetInformationRequest, io_status: NTSTATUS) -> Self {
+        Self {
+            device_io_reply: DeviceIoResponse::new(
+                &device_read_request.device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            length: device_read_request.set_buffer.len() as u32,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_reply.encode()?);
+        w.write_u32::<LittleEndian>(self.length)?;
+        // 1 byte padding
+        w.write_u32::<LittleEndian>(0)?;
+        Ok(w)
+    }
+}
+
+/// 2.2.3.3.9 Server Drive Set Information Request (DR_DRIVE_SET_INFORMATION_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/b5d3104b-0e42-4cf8-9059-e9fe86615e5c
+#[derive(Debug)]
+#[allow(dead_code)]
+struct ServerDriveSetInformationRequest {
+    /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_SET_INFORMATION.
+    device_io_request: DeviceIoRequest,
+    file_information_class_level: FileInformationClassLevel,
+    /// TODO(LKozlowski): change to enum?
+    set_buffer: Vec<u8>,
+}
+
+impl ServerDriveSetInformationRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        let file_information_class_level =
+            FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
+                .ok_or_else(|| invalid_data_error("failed to read FileInformationClassLevel"))?;
+
+        let valid_levels = vec![
+            FileInformationClassLevel::FileBasicInformation,
+            FileInformationClassLevel::FileEndOfFileInformation,
+            FileInformationClassLevel::FileDispositionInformation,
+            FileInformationClassLevel::FileRenameInformation,
+            FileInformationClassLevel::FileAllocationInformation,
+        ];
+
+        if !valid_levels.contains(&file_information_class_level) {
+            return Err(invalid_data_error(&format!(
+                "read invalid FileInformationClassLevel: {:?}, expected one of {:?}",
+                file_information_class_level, valid_levels,
+            )));
+        }
+
+        let length = payload.read_u32::<LittleEndian>()?;
+
+        // There is a padding of 24 bytes between offset and write data so we
+        // must ignore it
+        payload.seek(SeekFrom::Current(24))?;
+
+        let mut set_buffer = vec![0; length as usize];
+        payload.read_exact(&mut set_buffer)?;
+
+        Ok(Self {
+            device_io_request,
+            file_information_class_level,
+            set_buffer,
+        })
+    }
+}
 
 /// 2.2.3.3.10 Server Drive Query Directory Request (DR_DRIVE_QUERY_DIRECTORY_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1
