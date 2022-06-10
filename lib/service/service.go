@@ -655,6 +655,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		return nil, trace.Wrap(err, "configuration error")
 	}
 
+	processID := fmt.Sprintf("%v", nextProcessID())
+	cfg.Log = utils.WrapLogger(cfg.Log.WithFields(logrus.Fields{
+		trace.Component: teleport.Component(teleport.ComponentProcess, processID),
+		"pid":           fmt.Sprintf("%v.%v", os.Getpid(), processID),
+	}))
+
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
 		if !modules.GetModules().IsBoringBinary() {
@@ -747,7 +753,6 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
-	processID := fmt.Sprintf("%v", nextProcessID())
 	supervisor := NewSupervisor(processID, cfg.Log)
 	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
@@ -818,6 +823,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		importedDescriptors: cfg.FileDescriptors,
 		storage:             storage,
 		id:                  processID,
+		log:                 cfg.Log,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
 		cloudLabels:         cloudLabels,
@@ -825,10 +831,6 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 
 	process.registerAppDepend()
-
-	process.log = cfg.Log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentProcess, process.id),
-	})
 
 	serviceStarted := false
 
@@ -3083,27 +3085,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				NewCachingAccessPoint:         process.newLocalCacheForRemoteProxy,
 				NewCachingAccessPointOldProxy: process.newLocalCacheForOldRemoteProxy,
 				Limiter:                       reverseTunnelLimiter,
-				DirectClusters: []reversetunnel.DirectCluster{
-					{
-						Name:   conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-						Client: conn.Client,
-					},
-				},
-				KeyGen:               cfg.Keygen,
-				Ciphers:              cfg.Ciphers,
-				KEXAlgorithms:        cfg.KEXAlgorithms,
-				MACAlgorithms:        cfg.MACAlgorithms,
-				DataDir:              process.Config.DataDir,
-				PollingPeriod:        process.Config.PollingPeriod,
-				FIPS:                 cfg.FIPS,
-				Emitter:              streamEmitter,
-				Log:                  process.log,
-				LockWatcher:          lockWatcher,
-				PeerClient:           peerClient,
-				NodeWatcher:          nodeWatcher,
-				CertAuthorityWatcher: caWatcher,
-				CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
-				LocalAuthAddresses:   utils.NetAddrsToStrings(process.Config.AuthServers),
+				KeyGen:                        cfg.Keygen,
+				Ciphers:                       cfg.Ciphers,
+				KEXAlgorithms:                 cfg.KEXAlgorithms,
+				MACAlgorithms:                 cfg.MACAlgorithms,
+				DataDir:                       process.Config.DataDir,
+				PollingPeriod:                 process.Config.PollingPeriod,
+				FIPS:                          cfg.FIPS,
+				Emitter:                       streamEmitter,
+				Log:                           process.log,
+				LockWatcher:                   lockWatcher,
+				PeerClient:                    peerClient,
+				NodeWatcher:                   nodeWatcher,
+				CertAuthorityWatcher:          caWatcher,
+				CircuitBreakerConfig:          process.Config.CircuitBreakerConfig,
+				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServers),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3295,7 +3291,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AuthClient:          conn.Client,
 		AccessPoint:         accessPoint,
 		HostSigner:          conn.ServerIdentity.KeySigner,
-		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+		LocalCluster:        clusterName,
 		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
@@ -3496,7 +3492,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
-		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServers))
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
 			HandlerWithConnInfo: authDialerService.HandleConnection,
@@ -4200,6 +4196,10 @@ func validateConfig(cfg *Config) error {
 
 	if cfg.Console == nil {
 		cfg.Console = io.Discard
+	}
+
+	if cfg.Log == nil {
+		cfg.Log = logrus.StandardLogger()
 	}
 
 	if len(cfg.AuthServers) == 0 {
