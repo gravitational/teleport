@@ -41,10 +41,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -2434,7 +2434,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	auxCAS, err := aux.Secrets.GetCAs()
 	require.NoError(t, err)
 	for _, auxCA := range auxCAS {
-		err = tc.AddTrustedCA(auxCA)
+		err = tc.AddTrustedCA(ctx, auxCA)
 		require.NoError(t, err)
 	}
 
@@ -6167,7 +6167,7 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 			proxy, err := cl.ConnectToProxy(ctx)
 			require.NoError(t, err)
 
-			userSite, err := proxy.ConnectToCluster(ctx, Site, false)
+			userSite, err := proxy.ConnectToCluster(ctx, Site)
 			require.NoError(t, err)
 
 			services, err := userSite.GetKubeServices(ctx)
@@ -6283,7 +6283,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	leafCAs, err := leaf.Secrets.GetCAs()
 	require.NoError(t, err)
 	for _, leafCA := range leafCAs {
-		require.NoError(t, tc.AddTrustedCA(leafCA))
+		require.NoError(t, tc.AddTrustedCA(context.Background(), leafCA))
 	}
 
 	return tc

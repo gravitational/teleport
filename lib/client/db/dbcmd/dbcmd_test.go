@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -95,6 +96,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -522,6 +524,7 @@ func TestGetConnectCommandNoAbsPathConvertsAbsolutePathToRelative(t *testing.T) 
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -560,6 +563,7 @@ func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
 
 	tc, err := client.NewClient(conf)
