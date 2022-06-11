@@ -489,6 +489,8 @@ type Config struct {
 	ALPNSNIAuthDialClusterName string
 	// IgnoreHTTPProxy disables support for HTTP proxying when true.
 	IgnoreHTTPProxy bool
+	// Context is the base context to use for dialing. If not provided context.Background is used
+	Context context.Context
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -505,6 +507,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.DialTimeout == 0 {
 		c.DialTimeout = defaults.DefaultDialTimeout
+	}
+
+	if c.Context == nil {
+		c.Context = context.Background()
 	}
 
 	c.DialOpts = append(c.DialOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
