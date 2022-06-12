@@ -369,7 +369,9 @@ func (c *AccessRequestCommand) Review(ctx context.Context, client auth.ClientI) 
 		RequestID: strings.Split(c.reqIDs, ",")[0],
 		Review: types.AccessReview{
 			Author:        c.user,
-			ProposedState: state,
+      ProposedState: state,
+			Created:       time.Now(),
+      Reason:        c.reason,
 		},
 	})
 	if err != nil {
