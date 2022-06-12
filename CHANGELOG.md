@@ -1,5 +1,34 @@
 # Changelog
 
+## 8.3.14
+
+This release of Teleport contains multiple security, bug fixes and improvements.
+
+### Escalation attack in agent forwarding
+
+When setting up agent forwarding on the node, Teleport did not handle unix socket creation in a secure manner.
+
+This could have given a potential attacker an opportunity to get Teleport to change arbitrary file permissions to the attacker’s user.
+
+### Websockets CSRF
+
+When handling websocket requests, Teleport did not verify that the provided Bearer token was generated for the correct user.
+
+This could have allowed a malicious low privileged Teleport user to use a social engineering attack to gain higher privileged access on the same Teleport cluster.
+
+### Denial of service in access requests
+
+When accepting an access request, Teleport did not enforce the maximum request reason size.
+
+This could allow a malicious actor to mount a DoS attack by creating an access request with a very large request reason.
+
+## Other fixes
+
+* Fixed issue with `tsh ssh` printing extra error upon exit when last command was unsuccessful. [#12904](https://github.com/gravitational/teleport/pull/12904)
+* Fixed issue with Kubernetes Access not working with clusters using public CAs. [#12873](https://github.com/gravitational/teleport/pull/12873)
+* Upgrade to Go `v1.17.11`. [#13107](https://github.com/gravitational/teleport/pull/13107)
+* Reduced glibc requirements by removing dependency on OpenSSL. [#12411](https://github.com/gravitational/teleport/pull/12411)
+
 ## 8.3.12
 
 This release of Teleport contains multiple improvements and bug fixes.
