@@ -21,12 +21,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // TestAuditPostgres verifies proper audit events are emitted for Postgres
@@ -176,6 +177,39 @@ func TestAuditRedis(t *testing.T) {
 		err := redisClient.Close()
 		require.NoError(t, err)
 		waitForEvent(t, testCtx, libevents.DatabaseSessionEndCode)
+	})
+}
+
+// TestAuditSQLServer verifies proper audit events are emitted for SQLServer
+// connections.
+func TestAuditSQLServer(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSQLServer("sqlserver"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "admin", "admin", []string{"admin"}, []string{types.Wildcard})
+
+	t.Run("access denied", func(t *testing.T) {
+		_, _, err := testCtx.sqlServerClient(ctx, "admin", "sqlserver", "invalid", "se")
+		require.Error(t, err)
+		waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+	})
+
+	t.Run("successful flow", func(t *testing.T) {
+		conn, proxy, err := testCtx.sqlServerClient(ctx, "admin", "sqlserver", "admin", "se")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, proxy.Close())
+		})
+
+		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+
+		err = conn.Ping(context.Background())
+		require.NoError(t, err)
+		requireEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+
+		require.NoError(t, conn.Close())
+		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
 	})
 }
 

@@ -56,16 +56,6 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 	return clusters, nil
 }
 
-// GetByName returns a cluster by name
-func (s *Storage) GetByName(clusterName string) (*Cluster, error) {
-	cluster, err := s.fromProfile(clusterName, "")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cluster, nil
-}
-
 // GetByURI returns a cluster by URI
 func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
 	URI := uri.New(clusterURI)
@@ -99,7 +89,11 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, er
 	clusterName := parseName(webProxyAddress)
 	for _, pname := range profiles {
 		if pname == clusterName {
-			return nil, trace.BadParameter("cluster %v already exists", clusterName)
+			cluster, err := s.fromProfile(clusterName, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return cluster, nil
 		}
 	}
 

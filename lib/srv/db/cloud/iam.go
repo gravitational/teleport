@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/jonboulle/clockwork"
 
@@ -259,7 +260,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	return configurator.teardownIAM(ctx)
 }
 
-// addTask add a task for processing.
+// addTask adds a task for processing.
 func (c *IAM) addTask(task iamTask) error {
 	select {
 	case c.tasks <- task:
@@ -273,22 +274,26 @@ func (c *IAM) addTask(task iamTask) error {
 // deleteOldPolicy removes old inline policies "teleport-<host-id>" for the
 // caller identity. DELETE IN 11.0.
 func (c *IAM) deleteOldPolicy(ctx context.Context) {
-	oldPolicyName := "teleport-" + c.cfg.HostID
-	newPolicyName, err := c.getPolicyName()
+	identity, err := c.getAWSIdentity(ctx)
 	if err != nil {
-		c.log.WithError(err).Errorf("Failed to get new policy name.")
+		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
+			c.log.Debug("No credentials provider. Skipping delete old policy.")
+			return
+		}
+		c.log.WithError(err).Error("Failed to get AWS identity.")
 		return
 	}
 
-	identity, err := c.getAWSIdentity(ctx)
+	oldPolicyName := "teleport-" + c.cfg.HostID
+	newPolicyName, err := c.getPolicyName()
 	if err != nil {
-		c.log.WithError(err).Errorf("Failed to get AWS identity.")
+		c.log.WithError(err).Error("Failed to get new policy name.")
 		return
 	}
 
 	iamClient, err := c.cfg.Clients.GetAWSIAMClient("")
 	if err != nil {
-		c.log.WithError(err).Errorf("Failed to get IAM client.")
+		c.log.WithError(err).Error("Failed to get IAM client.")
 		return
 	}
 

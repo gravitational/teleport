@@ -21,13 +21,15 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
@@ -191,6 +193,7 @@ func (s *APITestSuite) TestNew(c *check.C) {
 		KeysDir:   "/tmp",
 		Username:  "localuser",
 		SiteName:  "site",
+		Tracer:    tracing.NoopProvider().Tracer("test"),
 	}
 	err := conf.ParseProxyHost("proxy")
 	c.Assert(err, check.IsNil)
@@ -539,6 +542,7 @@ func TestNewClient_UseKeyPrincipals(t *testing.T) {
 		UseKeyPrincipals: true, // causes VALID to be returned, as key was used
 		Agent:            &mockAgent{ValidPrincipals: []string{"VALID"}},
 		AuthMethods:      []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+		Tracer:           tracing.NoopProvider().Tracer("test"),
 	}
 	client, err := NewClient(cfg)
 	require.NoError(t, err)

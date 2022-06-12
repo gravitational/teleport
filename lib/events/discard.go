@@ -35,10 +35,6 @@ func NewDiscardAuditLog() *DiscardAuditLog {
 	return &DiscardAuditLog{}
 }
 
-func (d *DiscardAuditLog) WaitForDelivery(context.Context) error {
-	return nil
-}
-
 func (d *DiscardAuditLog) Close() error {
 	return nil
 }
