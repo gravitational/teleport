@@ -2251,7 +2251,7 @@ func onListClusters(cf *CLIConf) error {
 		defer proxyClient.Close()
 
 		var rootErr, leafErr error
-		rootClusterName, rootErr = proxyClient.RootClusterName()
+		rootClusterName, rootErr = proxyClient.RootClusterName(cf.Context)
 		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
 		return trace.NewAggregate(rootErr, leafErr)
 	})
@@ -2677,6 +2677,10 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 	c.Host = cf.UserHost
+	if cf.TracingProvider == nil {
+		cf.TracingProvider = tracing.NoopProvider()
+	}
+	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
@@ -3358,7 +3362,7 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 	}
 	w.closers = append(w.closers, proxyClient)
 
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx, false)
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
