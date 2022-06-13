@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -31,9 +32,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/utils"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	resourcescontrollers "github.com/gravitational/teleport/operator/controllers/resources"
+	"github.com/gravitational/teleport/operator/sidecar"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -51,14 +55,13 @@ func init() {
 }
 
 func main() {
+	ctx := ctrl.SetupSignalHandler()
+
+	var err error
 	var metricsAddr string
-	var enableLeaderElection bool
 	var probeAddr string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -72,7 +75,7 @@ func main() {
 		MetricsBindAddress:     metricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
+		LeaderElection:         true,
 		LeaderElectionID:       "431e83f4.teleport.dev",
 	})
 	if err != nil {
@@ -80,16 +83,40 @@ func main() {
 		os.Exit(1)
 	}
 
+	var teleportClient *client.Client
+
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Step: 100 * time.Millisecond,
+		Max:  time.Second,
+	})
+	if err != nil {
+		setupLog.Error(err, "failed to setup retry")
+		os.Exit(1)
+	}
+	if err := retry.For(ctx, func() error {
+		teleportClient, err = sidecar.NewSidecarClient(ctx, sidecar.Options{})
+		if err != nil {
+			setupLog.Error(err, "failed to connect to teleport cluster, backing off")
+		}
+		return err
+	}); err != nil {
+		setupLog.Error(err, "failed to setup teleport client")
+		os.Exit(1)
+	}
+	setupLog.Info("connected to Teleport")
+
 	if err = (&resourcescontrollers.RoleReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		TeleportClient: teleportClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Role")
 		os.Exit(1)
 	}
 	if err = (&resourcescontrollers.UserReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		TeleportClient: teleportClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "User")
 		os.Exit(1)
@@ -106,7 +133,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
