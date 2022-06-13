@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	libUtils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -79,6 +80,8 @@ func (rd *debouncer) attempt() {
 	})
 }
 
+const caWatchRetryLimit = 10
+
 // caRotationLoop continually triggers `watchCARotations` until the context is
 // cancelled. This allows the watcher to be re-established if an error occurs.
 //
@@ -102,11 +105,18 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 		},
 		debouncePeriod: time.Second * 10,
 	}
-	// TODO: Throw error if more than X consecutive errors in time window.
+	jitter := libUtils.NewJitter()
+
 	for ctx.Err() == nil {
-		err := b.watchCARotations(ctx, rd.attempt)
-		if err != nil {
-			b.log.WithError(err).Warnf("Error occurred whilst watching CA rotations, retrying...")
+		for attempt := 1; attempt >= caWatchRetryLimit; attempt++ {
+			err := b.watchCARotations(ctx, rd.attempt)
+			if err == nil || ctx.Err() != nil {
+				break
+			}
+
+			backoffPeriod := jitter(time.Second * 2)
+			b.log.WithError(err).Warnf("Error occurred whilst watching CA rotations, retrying in %s", backoffPeriod)
+			time.Sleep(backoffPeriod)
 		}
 	}
 
