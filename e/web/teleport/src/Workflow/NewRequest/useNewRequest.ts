@@ -37,7 +37,6 @@ export function useNewRequest(ctx: Ctx) {
     // No need to fetch anything for roles, it
     // already comes in a list from user context fetch.
     if (selectedResource === 'role') return;
-    setAttempt({ status: 'processing' });
     fetch();
   }, [agentFilter, clusterId]);
 
@@ -103,7 +102,10 @@ export function useNewRequest(ctx: Ctx) {
       });
 
       // useEffect is used to use the latest changes
-      // and re-fetch.
+      // and re-fetch. We set the attempt here
+      // to prevent a brief re-rendering of the table
+      // with stale data before useEffect kicks in.
+      setAttempt({ status: 'processing' });
 
       return;
     }
@@ -140,6 +142,7 @@ export function useNewRequest(ctx: Ctx) {
   function fetch() {
     const cb = getAgentsFetchCallback(ctx, selectedResource);
     setFetchStatus('loading');
+    setAttempt({ status: 'processing' });
 
     cb(clusterId, {
       ...agentFilter,
