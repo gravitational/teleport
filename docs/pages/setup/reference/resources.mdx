@@ -265,10 +265,10 @@ spec:
       '*': '*'
       # a list of alternative options:
       'region': ['us-west-1', 'eu-central-1']
-      # regular expressions start with ^ and end with $
-      # Teleport uses golang regexp syntax.
-      # of the list example above can be expressed as:
-      'reg': '^us-west-1|eu-central-1$'
+      # Teleport uses Go's regular expression syntax, which you can read about here:
+      # https://github.com/google/re2/wiki/Syntax
+      # The list example above can be expressed as:
+      # 'region': '^us-west-1|eu-central-1$'
 
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
     # You can refer to a SAML/OIDC trait via the "external" property bag.
