@@ -90,6 +90,9 @@ type AgentConfig struct {
 	ReverseTunnelServer Server
 	// LocalClusterName is the name of the cluster this agent is running in.
 	LocalClusterName string
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 	// Component is the teleport component that this agent runs in.
 	// It's important for routing incoming requests for local services (like an
 	// IoT node or kubernetes service).
@@ -516,6 +519,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				log:                 a.log,
 				closeContext:        a.ctx,
 				authClient:          a.Client,
+				authServers:         a.LocalAuthAddresses,
 				kubeDialAddr:        a.KubeDialAddr,
 				channel:             ch,
 				requestCh:           req,

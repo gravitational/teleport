@@ -76,6 +76,9 @@ type AgentPoolConfig struct {
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
 	LocalCluster string
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 	// Clock is a clock used to get time, if not set,
 	// system clock is used
 	Clock clockwork.Clock
@@ -295,6 +298,7 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 		Server:               m.cfg.Server,
 		ReverseTunnelServer:  m.cfg.ReverseTunnelServer,
 		LocalClusterName:     m.cfg.LocalCluster,
+		LocalAuthAddresses:   m.cfg.LocalAuthAddresses,
 		Component:            m.cfg.Component,
 		Tracker:              m.proxyTracker,
 		Lease:                lease,
