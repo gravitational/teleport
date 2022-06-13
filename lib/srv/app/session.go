@@ -45,7 +45,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const sessionChunkCloseTimeout = 2 * time.Minute
+// sessionChunkCloseTimeout is the default timeout used for sessionChunk.closeTimeout
+const sessionChunkCloseTimeout = 1 * time.Hour
 
 var errSessionChunkAlreadyClosed = errors.New("session chunk already closed")
 
