@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package certwatcher
+package service
 
 import (
 	"context"
@@ -26,13 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO: Maybe reuse the type from service, and move this into lib/service ?
-type KeyPairPath struct {
-	Certificate string
-	PrivateKey  string
-}
-
-type Config struct {
+type CertWatcherConfig struct {
 	KeyPairPaths []KeyPairPath
 	// Watch defines whether or not the system should detect and load new
 	// certificates.
@@ -44,14 +38,14 @@ type Config struct {
 // without a full reload of Teleport.
 // TODO: Refine this comment
 type CertWatcher struct {
-	cfg Config
+	cfg CertWatcherConfig
 	log logrus.FieldLogger
 
 	mu           sync.RWMutex
 	certificates []tls.Certificate
 }
 
-func New(log logrus.FieldLogger, cfg Config) *CertWatcher {
+func NewCertWatcher(log logrus.FieldLogger, cfg CertWatcherConfig) *CertWatcher {
 	return &CertWatcher{
 		cfg: cfg,
 		log: log,

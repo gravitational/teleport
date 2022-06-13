@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/certwatcher"
 	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -3690,8 +3689,9 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 
 	// TODO: Potentially hoist this further out, I'm not sure this should really
 	// be instantiated here.
-	certWatcherCfg := certwatcher.Config{
-		Watch: true,
+	certWatcherCfg := CertWatcherConfig{
+		KeyPairPaths: cfg.Proxy.KeyPairs,
+		Watch:        true,
 	}
 	for _, pair := range process.Config.Proxy.KeyPairs {
 		certWatcherCfg.KeyPairPaths = append(
@@ -3702,7 +3702,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 			},
 		)
 	}
-	cw := certwatcher.New(process.Config.Log, certWatcherCfg)
+	cw := NewCertWatcher(process.Config.Log, certWatcherCfg)
 	err := cw.Start(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
