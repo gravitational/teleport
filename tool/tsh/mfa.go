@@ -28,23 +28,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
-
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
 const (
@@ -111,7 +111,7 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -312,7 +312,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(ctx, false)
+		aci, err := pc.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -567,7 +567,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
