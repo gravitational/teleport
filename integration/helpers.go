@@ -37,11 +37,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/breaker"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
-	"github.com/stretchr/testify/require"
-
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -56,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -64,11 +60,13 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 )
 
 const (
@@ -424,7 +422,7 @@ func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tc.AddTrustedCA(creds.HostCA)
+	err = tc.AddTrustedCA(context.Background(), creds.HostCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -477,6 +475,8 @@ type UserCredsRequest struct {
 	Username string
 	// RouteToCluster is an optional cluster to route creds to
 	RouteToCluster string
+	// SourceIP is an optional source IP to use in SSH certs
+	SourceIP string
 }
 
 // GenerateUserCreds generates key to be used by client
@@ -487,7 +487,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	}
 	a := req.Process.GetAuthServer()
 	sshCert, x509Cert, err := a.GenerateUserTestCerts(
-		pub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster)
+		pub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -544,6 +544,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 					types.RoleTrustedCluster,
 					types.RoleApp,
 					types.RoleDatabase,
+					types.RoleKube,
 				},
 				Token: "token",
 			},
@@ -965,6 +966,55 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	return process, client, nil
 }
 
+func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*service.TeleportProcess, error) {
+	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	i.tempDirs = append(i.tempDirs, dataDir)
+
+	conf.DataDir = dataDir
+	conf.AuthServers = []utils.NetAddr{
+		{
+			AddrNetwork: "tcp",
+			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+		},
+	}
+	conf.Token = "token"
+	conf.UploadEventsC = i.UploadEventsC
+	conf.Auth.Enabled = false
+	conf.Proxy.Enabled = false
+	conf.Apps.Enabled = false
+	conf.SSH.Enabled = false
+	conf.Databases.Enabled = false
+
+	conf.Kube.KubeconfigPath = filepath.Join(dataDir, "kube_config")
+	if err := enableKube(conf, clusterName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conf.Kube.ListenAddr = nil
+
+	process, err := service.NewTeleport(conf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	i.Nodes = append(i.Nodes, process)
+
+	expectedEvents := []string{
+		service.KubeIdentityEvent,
+		service.KubernetesReady,
+		service.TeleportReadyEvent,
+	}
+
+	receivedEvents, err := startAndWait(process, expectedEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Teleport Kube Server (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	return process, nil
+}
+
 // StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to
 // the cluster.
 func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, proxySSHPort int) error {
@@ -1208,6 +1258,9 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Databases.Enabled {
 		expectedEvents = append(expectedEvents, service.DatabasesReady)
 	}
+	if i.Config.Kube.Enabled {
+		expectedEvents = append(expectedEvents, service.KubernetesReady)
+	}
 
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := startAndWait(i.Process, expectedEvents)
@@ -1258,6 +1311,8 @@ type ClientConfig struct {
 	Labels map[string]string
 	// Interactive launches with the terminal attached if true
 	Interactive bool
+	// Source IP to used in generated SSH cert
+	SourceIP string
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1320,6 +1375,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		SSHProxyAddr:       sshProxyAddr,
 		Interactive:        cfg.Interactive,
 		TLSRoutingEnabled:  i.isSinglePortSetup,
+		Tracer:             tracing.NoopProvider().Tracer("test"),
 	}
 
 	// JumpHost turns on jump host mode
@@ -1345,6 +1401,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  i.Process,
 		Username: cfg.Login,
+		SourceIP: cfg.SourceIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1361,7 +1418,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 		return nil, trace.Wrap(err)
 	}
 	for _, ca := range cas {
-		err = tc.AddTrustedCA(ca)
+		err = tc.AddTrustedCA(context.Background(), ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1708,20 +1765,8 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 // clobber your system agent.
 func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
-	sockDir, err := os.MkdirTemp("", "int-test")
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	sockPath := filepath.Join(sockDir, "agent.sock")
-
-	uid, err := strconv.Atoi(me.Uid)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(me.Gid)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
+	sockDirName := "int-test"
+	sockName := "agent.sock"
 
 	// transform the key and certificate bytes into something the agent can understand
 	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(certificateBytes)
@@ -1750,13 +1795,13 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	})
 
 	// start the SSH agent
-	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0o600)
+	err = teleAgent.ListenUnixSocket(sockDirName, sockName, me)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
 	go teleAgent.Serve()
 
-	return teleAgent, sockDir, sockPath, nil
+	return teleAgent, teleAgent.Dir, teleAgent.Path, nil
 }
 
 func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
@@ -1780,21 +1825,30 @@ func fatalIf(err error) {
 }
 
 func enableKubernetesService(t *testing.T, config *service.Config) {
-	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
+	config.Kube.KubeconfigPath = filepath.Join(t.TempDir(), "kube_config")
+	require.NoError(t, enableKube(config, "teleport-cluster"))
+}
 
+func enableKube(config *service.Config, clusterName string) error {
+	kubeConfigPath := config.Kube.KubeconfigPath
+	if kubeConfigPath == "" {
+		return trace.BadParameter("missing kubeconfig path")
+	}
 	key, err := genUserKey()
-	require.NoError(t, err)
-
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
-		TeleportClusterName: "teleport-cluster",
+		TeleportClusterName: clusterName,
 		ClusterAddr:         "https://" + net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
 	})
-	require.NoError(t, err)
-
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	config.Kube.Enabled = true
-	config.Kube.KubeconfigPath = kubeConfigPath
 	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+	return nil
 }
 
 // getKubeClusters gets all kubernetes clusters accessible from a given auth server.
