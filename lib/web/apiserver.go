@@ -2077,6 +2077,34 @@ type siteSessionsGetResponse struct {
 	Sessions []session.Session `json:"sessions"`
 }
 
+func trackerToLegacySession(tracker types.SessionTracker, clusterName string) session.Session {
+	participants := tracker.GetParticipants()
+	parties := make([]session.Party, len(participants))
+
+	for j, participant := range participants {
+		parties[j] = session.Party{
+			ID:         session.ID(participant.ID),
+			User:       participant.User,
+			ServerID:   tracker.GetAddress(),
+			LastActive: participant.LastActive,
+		}
+	}
+
+	return session.Session{
+		ID:             session.ID(tracker.GetSessionID()),
+		Namespace:      apidefaults.Namespace,
+		Parties:        parties,
+		TerminalParams: session.TerminalParams{W: 80, H: 24},
+		Login:          tracker.GetLogin(),
+		Created:        tracker.GetCreated(),
+		LastActive:     tracker.GetLastActive(),
+		ServerID:       tracker.GetAddress(),
+		ServerHostname: tracker.GetHostname(),
+		ServerAddr:     tracker.GetAddress(),
+		ClusterName:    clusterName,
+	}
+}
+
 // siteSessionGet gets the list of site sessions filtered by creation time
 // and either they're active or not
 //
@@ -2091,25 +2119,34 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	sessions, err := clt.GetSessions(apidefaults.Namespace)
+	trackers, err := clt.GetActiveSessionTrackers(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN: 5.0.0
-	// Teleport Nodes < v4.3 does not set ClusterName, ServerHostname with new sessions,
-	// which 4.3 UI client relies on to create URL's and display node inform.
-	clusterName := p.ByName("site")
-	for i, session := range sessions {
-		if session.ClusterName == "" {
-			sessions[i].ClusterName = clusterName
+	if _, err := w.Write([]byte(`{"sessions": [`)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	encStream := json.NewEncoder(w)
+	for i, tracker := range trackers {
+		session := trackerToLegacySession(tracker, site.GetName())
+		if err := encStream.Encode(session); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		if session.ServerHostname == "" {
-			sessions[i].ServerHostname = session.ServerID
+
+		if i != len(trackers)-1 {
+			if _, err := w.Write([]byte(`,`)); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
-	return siteSessionsGetResponse{Sessions: sessions}, nil
+	if _, err := w.Write([]byte(`]}`)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
 }
 
 // siteSessionGet gets the list of site session by id
@@ -2132,22 +2169,12 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := clt.GetSession(apidefaults.Namespace, *sessionID)
+	tracker, err := clt.GetSessionTracker(r.Context(), string(*sessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN: 5.0.0
-	// Teleport Nodes < v4.3 does not set ClusterName, ServerHostname with new sessions,
-	// which 4.3 UI client relies on to create URL's and display node inform.
-	if sess.ClusterName == "" {
-		sess.ClusterName = p.ByName("site")
-	}
-	if sess.ServerHostname == "" {
-		sess.ServerHostname = sess.ServerID
-	}
-
-	return *sess, nil
+	return trackerToLegacySession(tracker, site.GetName()), nil
 }
 
 const maxStreamBytes = 5 * 1024 * 1024
