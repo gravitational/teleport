@@ -18,9 +18,28 @@ steps:
       - "go run ./cmd/checkout -w=/workspace"
 
   - name: gcr.io/cloud-builders/docker
-    id: build
+    id: type-check-and-lint
+    waitFor: ['checkout']
     args:
       - build
       - '--build-arg'
-      - NPM_SCRIPT=build
+      - NPM_SCRIPT=type-check-and-lint
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    id: build-teleport
+    waitFor: ['type-check-and-lint']
+    args:
+      - build
+      - '--build-arg'
+      - NPM_SCRIPT=build-teleport
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    id: build-term
+    waitFor: ['type-check-and-lint']
+    args:
+      - build
+      - '--build-arg'
+      - NPM_SCRIPT=build-and-package-term
       - .

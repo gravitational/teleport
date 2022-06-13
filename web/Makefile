@@ -10,7 +10,7 @@ COMMIT_URL = https://github.com/gravitational/webapps/commit/$(COMMIT)
 .PHONY: build
 build:
 	@if [ -d "packages/webapps.e/" ]; then \
-		$(MAKE) docker-build NPM_CMD=build FROM=dist/ TO=dist/; \
+		$(MAKE) docker-build NPM_CMD=build-teleport FROM=dist/ TO=dist/; \
 	else \
 		$(MAKE) docker-build NPM_CMD=build-oss FROM=dist/ TO=dist/; \
 	fi;
