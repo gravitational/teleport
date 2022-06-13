@@ -1314,15 +1314,18 @@ $ tctl auth rotate --type=host --grace-period=8h
 
 Perform an end-to-end test of an SSO authentication flow using the provided auth connector definition.
 
-The command supports all auth connector types: `github`, `oidc`, and `saml`. The latter two require Teleport Enterprise.
+The command supports all auth connector types: `github`, `oidc` and `saml`. The latter two require Teleport Enterprise.
+
+```code
+$ tctl [<global-flags>] sso test [<auth-connector.yaml>]
+```
 
 The testing consists of running a single end-to-end authentication request using the provided auth connector definition.
 Once the request is finished, the results will be printed to console along with context-specific diagnostic information.
-The test process may modify the list of configured auth connectors or result in new certificates being issued.
-
-```code
-$ tctl [<global-flags>] sso test [<filename>]
-```
+The test process is safe from side effects in that:
+- it will not change the list of configured auth connectors
+- the audit log will clearly state the login attempts as "test" ones
+- there will be no certificates issued for logged in user
 
 <Admonition
   type="note"
