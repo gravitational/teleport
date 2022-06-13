@@ -2124,29 +2124,14 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := w.Write([]byte(`{"sessions": [`)); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	encStream := json.NewEncoder(w)
-	for i, tracker := range trackers {
-		session := trackerToLegacySession(tracker, site.GetName())
-		if err := encStream.Encode(session); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if i != len(trackers)-1 {
-			if _, err := w.Write([]byte(`,`)); err != nil {
-				return nil, trace.Wrap(err)
-			}
+	var sessions []session.Session
+	for _, tracker := range trackers {
+		if tracker.GetSessionKind() == types.SSHSessionKind {
+			sessions = append(sessions, trackerToLegacySession(tracker, site.GetName()))
 		}
 	}
 
-	if _, err := w.Write([]byte(`]}`)); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return nil, nil
+	return siteSessionsGetResponse{sessions}, nil
 }
 
 // siteSessionGet gets the list of site session by id
