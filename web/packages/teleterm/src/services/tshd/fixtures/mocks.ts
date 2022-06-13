@@ -16,6 +16,7 @@ export class MockTshClient implements types.TshClient {
   getAuthSettings: (clusterUri: string) => Promise<types.AuthSettings>;
   ssoLogin: (clusterUri: string, pType: string, pName: string) => Promise<void>;
   removeGateway: (gatewayUri: string) => Promise<void>;
+  restartGateway: (gatewayUri: string) => Promise<void>;
   login: (
     params: types.LoginParams,
     abortSignal?: types.TshAbortSignal

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useAsync } from 'shared/hooks/useAsync';
@@ -88,10 +88,10 @@ export default function useGateway(doc: types.DocumentGateway) {
   }, [disconnectAttempt.status]);
 
   useEffect(() => {
-    if (rootCluster.connected) {
+    if (rootCluster.connected && !connected) {
       createGateway();
     }
-  }, [rootCluster.connected]);
+  }, [rootCluster.connected, connected]);
 
   return {
     doc,

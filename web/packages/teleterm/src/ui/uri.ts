@@ -112,6 +112,13 @@ export const routing = {
   isClusterApp(clusterUri: string, appUri: string) {
     return appUri.startsWith(`${clusterUri}/apps/`);
   },
+
+  belongsToProfile(clusterUri: string, resourceUri: string) {
+    const rootClusterUri = this.ensureRootClusterUri(clusterUri);
+    const resourceRootClusterUri = this.ensureRootClusterUri(resourceUri);
+
+    return resourceRootClusterUri === rootClusterUri;
+  },
 };
 
 export type Params = {

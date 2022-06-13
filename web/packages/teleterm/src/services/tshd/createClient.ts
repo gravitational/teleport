@@ -253,6 +253,19 @@ export default function createClient(addr: string) {
         });
       });
     },
+
+    async restartGateway(gatewayUri = '') {
+      const req = new api.RestartGatewayRequest().setGatewayUri(gatewayUri);
+      return new Promise<void>((resolve, reject) => {
+        tshd.restartGateway(req, err => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+    },
   };
 
   return client;
