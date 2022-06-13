@@ -209,6 +209,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
+	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -6479,4 +6480,39 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			require.ElementsMatch(t, test.expected, clusters)
 		})
 	}
+}
+
+func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() *service.Config {
+		tconf := suite.defaultServiceConfig()
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return tconf
+	}
+	main := suite.newTeleportWithConfig(t, nil, nil, mainConfig())
+
+	// Create a Teleport instance with a Node.
+	nodeConfig := func() *service.Config {
+		tconf := suite.defaultServiceConfig()
+		tconf.Hostname = Host
+		tconf.Token = "token"
+
+		tconf.Auth.Enabled = false
+		tconf.Proxy.Enabled = false
+		tconf.SSH.Enabled = true
+
+		return tconf
+	}
+	_, err := main.startNode(nodeConfig(), main.GetPortReverseTunnel())
+	require.NoError(t, err)
 }
