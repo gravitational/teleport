@@ -1312,9 +1312,9 @@ $ tctl auth rotate --type=host --grace-period=8h
 
 ### tctl sso test
 
-Perform an end-to-end test of SSO flow using provided auth connector definition.
+Perform an end-to-end test of an SSO authentication flow using the provided auth connector definition.
 
-The command supports all auth connector types: `github`, `oidc`, `saml`. The latter two require Teleport Enterprise.
+The command supports all auth connector types: `github`, `oidc`, and `saml`. The latter two require Teleport Enterprise.
 
 The testing consists of running a single end-to-end authentication request using the provided auth connector definition.
 Once the request is finished, the results will be printed to console along with context-specific diagnostic information.
@@ -1330,7 +1330,7 @@ $ tctl [<global-flags>] sso test [<filename>]
 >
   To use this command, you must have access to `github_request`, `oidc_request`, `saml_request` resources (depending on the type of connector being tested).
 
-  If you receive a "permission denied" error, ensure that have access to resources:
+  If you receive a "permission denied" error, ensure that you have access to the following resources in one of your Teleport roles:
 
 ```yaml
 - resources: [github_request]
@@ -1364,7 +1364,7 @@ Test the auth connector from `connector.yaml`:
 $ tctl sso test connector.yaml
 ```
 
-The command is designed to be used in conjunction with `tctl sso configure` family of commands:
+The command is designed to be used in conjunction with the `tctl sso configure` family of commands:
 
 ```code
 $ tctl sso configure ... | tctl sso test
