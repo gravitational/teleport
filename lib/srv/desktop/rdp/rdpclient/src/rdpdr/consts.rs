@@ -14,6 +14,8 @@
 
 pub const CHANNEL_NAME: &str = "rdpdr";
 
+pub const DIRECTORY_SHARE_CLIENT_NAME: &str = "teleport";
+
 // Each redirected device requires a unique ID.
 pub const SCARD_DEVICE_ID: u32 = 1;
 

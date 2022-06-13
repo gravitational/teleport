@@ -33,8 +33,8 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use consts::{
     CapabilityType, Component, DeviceType, FileInformationClassLevel,
     FileSystemInformationClassLevel, MajorFunction, MinorFunction, PacketId,
-    DRIVE_CAPABILITY_VERSION_02, GENERAL_CAPABILITY_VERSION_02, NTSTATUS, SCARD_DEVICE_ID,
-    SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
+    DIRECTORY_SHARE_CLIENT_NAME, DRIVE_CAPABILITY_VERSION_02, GENERAL_CAPABILITY_VERSION_02,
+    NTSTATUS, SCARD_DEVICE_ID, SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
@@ -141,7 +141,17 @@ impl Client {
             }
             let responses = match header.packet_id {
                 PacketId::PAKID_CORE_SERVER_ANNOUNCE => {
-                    self.handle_server_announce(&mut payload)?
+                    let client_name_request = ClientNameRequest::new(
+                        ClientNameRequestUnicodeFlag::Ascii,
+                        DIRECTORY_SHARE_CLIENT_NAME.to_string(),
+                    );
+                    let mut client_name_response = self.add_headers_and_chunkify(
+                        PacketId::PAKID_CORE_CLIENT_NAME,
+                        client_name_request.encode()?,
+                    )?;
+                    let mut resp = self.handle_server_announce(&mut payload)?;
+                    resp.append(&mut client_name_response);
+                    resp
                 }
                 PacketId::PAKID_CORE_SERVER_CAPABILITY => {
                     self.handle_server_capability(&mut payload)?
@@ -1813,6 +1823,50 @@ impl ServerDeviceAnnounceResponse {
             device_id: payload.read_u32::<LittleEndian>()?,
             result_code: payload.read_u32::<LittleEndian>()?,
         })
+    }
+}
+
+#[derive(Debug, Clone, ToPrimitive)]
+#[repr(u32)]
+#[allow(non_camel_case_types)]
+#[allow(dead_code)]
+enum ClientNameRequestUnicodeFlag {
+    Ascii = 0x0,
+    Unicode = 0x1,
+}
+
+/// 2.2.2.4 Client Name Request (DR_CORE_CLIENT_NAME_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/902497f1-3b1c-4aee-95f8-1668f9b7b7d2
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct ClientNameRequest {
+    unicode_flag: ClientNameRequestUnicodeFlag,
+    computer_name: String,
+}
+
+impl ClientNameRequest {
+    fn new(unicode_flag: ClientNameRequestUnicodeFlag, computer_name: String) -> Self {
+        Self {
+            unicode_flag,
+            computer_name,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.unicode_flag.clone() as u32)?;
+        // CodePage (4 bytes): A 32-bit unsigned integer that specifies the code page of the ComputerName field; it MUST be set to 0.
+        w.write_u32::<LittleEndian>(0x0)?;
+
+        let computer_name_data = match self.unicode_flag {
+            ClientNameRequestUnicodeFlag::Ascii => self.computer_name.as_bytes().to_vec(),
+            ClientNameRequestUnicodeFlag::Unicode => util::to_utf8(&self.computer_name),
+        };
+
+        // let computer_name_data = util::to_utf8(&self.computer_name);
+        w.write_u32::<LittleEndian>(computer_name_data.len() as u32)?;
+        w.extend_from_slice(&computer_name_data);
+        Ok(w)
     }
 }
 
