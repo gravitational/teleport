@@ -245,7 +245,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
 	}
 
-	rootCluster, err := client.RootClusterName()
+	rootCluster, err := client.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}

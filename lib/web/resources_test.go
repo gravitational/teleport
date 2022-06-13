@@ -136,6 +136,7 @@ spec:
     - network
     forward_agent: false
     max_session_ttl: 30h0m0s
+    pin_source_ip: false
     port_forwarding: true
     record_session:
       default: best_effort
@@ -389,6 +390,7 @@ func TestListResources(t *testing.T) {
 				PredicateExpression: `labels.env == "prod"`,
 				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
 				UseSearchAsRoles:    true,
+				NeedTotalCount:      true,
 			},
 		},
 		{

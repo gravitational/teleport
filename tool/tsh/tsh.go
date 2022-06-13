@@ -347,9 +347,8 @@ type CLIConf struct {
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
 	TracingProvider oteltrace.TracerProvider
 
-	// doRequest is set if access request should be automatically created on
-	// access denied errors.
-	doRequest bool
+	// disableAccessRequest disables automatic resource access requests.
+	disableAccessRequest bool
 }
 
 // Stdout returns the stdout writer.
@@ -393,7 +392,10 @@ func main() {
 	default:
 		cmdLine = cmdLineOrig
 	}
-	if err := Run(ctx, cmdLine); err != nil {
+
+	err := Run(ctx, cmdLine)
+	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
+	if err != nil {
 		var exitError *exitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.code)
@@ -517,8 +519,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
-	ssh.Flag("request", "Attempt to request access to host if access is denied").BoolVar(&cf.doRequest)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
+	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
@@ -2249,7 +2251,7 @@ func onListClusters(cf *CLIConf) error {
 		defer proxyClient.Close()
 
 		var rootErr, leafErr error
-		rootClusterName, rootErr = proxyClient.RootClusterName()
+		rootClusterName, rootErr = proxyClient.RootClusterName(cf.Context)
 		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
 		return trace.NewAggregate(rootErr, leafErr)
 	})
@@ -2338,8 +2340,8 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 	return string(out), trace.Wrap(err)
 }
 
-// accessRequestForSSH attempts to create a search-based access request for the
-// case where "tsh ssh" was attempted and access was denied
+// accessRequestForSSH attempts to create a resource access request for the case
+// where "tsh ssh" was attempted and access was denied
 func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.AccessRequest, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
@@ -2381,28 +2383,36 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.SetLoginHint(tc.HostLogin)
 	return req, nil
 }
 
 func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
 	origErr := fn()
-	if !cf.doRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
-		// Don't retry unless --request flag was set.
+	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
+		// Return if --disable-access-request was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
 	}
 
-	// Print and log the AccessDenied error first.
-	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
-	fmt.Fprintf(os.Stdout, "You do not currently have access to %s@%s, attempting to request access.\n\n", tc.HostLogin, tc.Host)
-
 	// Try to construct an access request for this node.
 	req, err := accessRequestForSSH(cf.Context, tc)
+	if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
+		// We can't request access to the node or it doesn't exist, return the
+		// original error but put this one in the debug log.
+		log.WithError(err).Debug("unable to request access to node")
+		return trace.Wrap(origErr)
+	}
 	if err != nil {
+		// Unexpected error, return it.
 		return trace.Wrap(err)
 	}
 	cf.RequestID = req.GetName()
+
+	// Print and log the original AccessDenied error.
+	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
+	fmt.Fprintf(os.Stdout, "You do not currently have access to %s@%s, attempting to request access.\n\n", tc.HostLogin, tc.Host)
 
 	requestReason := cf.RequestReason
 	if requestReason == "" {
@@ -2667,6 +2677,10 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 	c.Host = cf.UserHost
+	if cf.TracingProvider == nil {
+		cf.TracingProvider = tracing.NoopProvider()
+	}
+	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
@@ -3175,6 +3189,18 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
+	if debug {
+		first := true
+		for k, v := range p.CriticalOptions {
+			if first {
+				fmt.Printf("  Critical options:   %v: %v\n", k, v)
+			} else {
+				fmt.Printf("                      %v: %v\n", k, v)
+			}
+			first = false
+		}
+	}
+
 	fmt.Printf("\n")
 }
 
@@ -3336,7 +3362,7 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 	}
 	w.closers = append(w.closers, proxyClient)
 
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx, false)
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
