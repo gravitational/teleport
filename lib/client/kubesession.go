@@ -24,11 +24,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/remotecommand"
 )
@@ -166,7 +167,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 			return trace.Wrap(err)
 		}
 
-		auth, err := proxy.ConnectToCluster(ctx, s.meta.GetClusterName(), false)
+		auth, err := proxy.ConnectToCluster(ctx, s.meta.GetClusterName())
 		if err != nil {
 			return trace.Wrap(err)
 		}

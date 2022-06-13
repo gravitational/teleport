@@ -51,6 +51,7 @@ func (m *mockIMDSClient) GetTagValue(ctx context.Context, key string) (string, e
 func TestEC2LabelsSync(t *testing.T) {
 	ctx := context.Background()
 	tags := map[string]string{"a": "1", "b": "2"}
+	expectedTags := map[string]string{"aws/a": "1", "aws/b": "2"}
 	imdsClient := &mockIMDSClient{
 		tags: tags,
 	}
@@ -59,7 +60,7 @@ func TestEC2LabelsSync(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ec2Labels.Sync(ctx))
-	require.Equal(t, toAWSLabels(tags), ec2Labels.Get())
+	require.Equal(t, expectedTags, ec2Labels.Get())
 }
 
 func TestEC2LabelsAsync(t *testing.T) {
@@ -91,17 +92,32 @@ func TestEC2LabelsAsync(t *testing.T) {
 	initialTags := map[string]string{"a": "1", "b": "2"}
 	imdsClient.tags = initialTags
 	ec2Labels.Start(ctx)
-	require.Eventually(t, compareLabels(toAWSLabels(initialTags)), time.Second, 100*time.Microsecond)
+	require.Eventually(t, compareLabels(map[string]string{"aws/a": "1", "aws/b": "2"}), time.Second, 100*time.Microsecond)
 
 	// Check that tags are updated over time.
 	updatedTags := map[string]string{"a": "3", "c": "4"}
 	imdsClient.tags = updatedTags
 	clock.Advance(ec2LabelUpdatePeriod)
-	require.Eventually(t, compareLabels(toAWSLabels(updatedTags)), time.Second, 100*time.Millisecond)
+	require.Eventually(t, compareLabels(map[string]string{"aws/a": "3", "aws/c": "4"}), time.Second, 100*time.Millisecond)
 
 	// Check that service stops updating when closed.
 	cancel()
 	imdsClient.tags = map[string]string{"x": "8", "y": "9", "z": "10"}
 	clock.Advance(ec2LabelUpdatePeriod)
-	require.Eventually(t, compareLabels(toAWSLabels(updatedTags)), time.Second, 100*time.Millisecond)
+	require.Eventually(t, compareLabels(map[string]string{"aws/a": "3", "aws/c": "4"}), time.Second, 100*time.Millisecond)
+}
+
+func TestEC2LabelsValidKey(t *testing.T) {
+	ctx := context.Background()
+	tags := map[string]string{"good-label": "1", "bad-l@bel": "2"}
+	expectedTags := map[string]string{"aws/good-label": "1"}
+	imdsClient := &mockIMDSClient{
+		tags: tags,
+	}
+	ec2Labels, err := New(ctx, &Config{
+		Client: imdsClient,
+	})
+	require.NoError(t, err)
+	require.NoError(t, ec2Labels.Sync(ctx))
+	require.Equal(t, expectedTags, ec2Labels.Get())
 }

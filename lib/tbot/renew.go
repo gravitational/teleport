@@ -190,7 +190,7 @@ func (b *Bot) generateIdentity(
 
 	// The root CA included with the returned user certs will only contain the
 	// Teleport User CA. We'll also need the host CA for future API calls.
-	localCA, err := client.GetClusterCACert()
+	localCA, err := client.GetClusterCACert(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,6 +304,8 @@ func (b *Bot) generateImpersonatedIdentity(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		defer impClient.Close()
 
 		route, err := b.getRouteToDatabase(ctx, impClient, destCfg.Database)
 		if err != nil {
@@ -463,9 +465,9 @@ func (b *Bot) renew(
 		return trace.Wrap(err, "unable to communicate with auth server")
 	}
 
-	b.log.Debug("Auth client now using renewed credentials.")
 	b.setClient(newClient)
 	b.setIdent(newIdentity)
+	b.log.Debug("Auth client now using renewed credentials.")
 
 	// Now that we're sure the new creds work, persist them.
 	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {

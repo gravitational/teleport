@@ -86,7 +86,7 @@ TF_VAR_license_path ?="/path/to/license"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?="gravitational-teleport-ami-ent-9.3.0"
+TF_VAR_ami_name ?="gravitational-teleport-ami-ent-9.3.4"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?="example.com"
@@ -94,6 +94,19 @@ TF_VAR_route53_zone ?="example.com"
 # Subdomain to set up in the zone above, e.g. cluster.example.com
 # This will be used for users connecting to Teleport proxy
 TF_VAR_route53_domain ?="cluster.example.com"
+
+# Set to true to add a wildcard subdomain entry to point to the proxy, e.g. *.cluster.example.com
+# This is used to enable Teleport Application Access
+TF_VAR_add_wildcard_route53_record ?= true
+
+# Enable adding MongoDB listeners in Teleport proxy, load balancer ports and security groups
+TF_VAR_enable_mongodb_listener ?= true
+
+# Enable adding MySQL listeners in Teleport proxy, load balancer ports and security groups
+TF_VAR_enable_mysql_listener ?= true
+
+# Enable adding Postgres listeners in Teleport proxy, load balancer ports and security groups
+TF_VAR_enable_postgres_listener ?= true
 
 # Bucket name to store encrypted LetsEncrypt certificates.
 TF_VAR_s3_bucket_name ?="teleport.example.com"

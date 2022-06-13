@@ -57,14 +57,22 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, err
 
 // GetDatabases returns databases
 func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
-	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
+	var dbservers []types.DatabaseServer
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
 
-	dbservers, err := proxyClient.FindDatabaseServersByFilters(ctx, proto.ListResourcesRequest{
-		Namespace: defaults.Namespace,
+		dbservers, err = proxyClient.FindDatabaseServersByFilters(ctx, proto.ListResourcesRequest{
+			Namespace: defaults.Namespace,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -97,32 +105,39 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 		return trace.BadParameter("please provide the database user name using --db-user flag")
 	}
 
-	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	err := addMetadataToRetryableError(ctx, func() error {
+		// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
+		err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+			RouteToCluster: c.clusterClient.SiteName,
+			AccessRequests: c.status.ActiveRequests.AccessRequests,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	// Fetch the certs for the database.
-	err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		RouteToDatabase: proto.RouteToDatabase{
-			ServiceName: db.GetName(),
-			Protocol:    db.GetProtocol(),
-			Username:    user,
-			Database:    dbName,
-		},
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		// Fetch the certs for the database.
+		err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+			RouteToCluster: c.clusterClient.SiteName,
+			RouteToDatabase: proto.RouteToDatabase{
+				ServiceName: db.GetName(),
+				Protocol:    db.GetProtocol(),
+				Username:    user,
+				Database:    dbName,
+			},
+			AccessRequests: c.status.ActiveRequests.AccessRequests,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Update the database-specific connection profile file.
-	err = dbprofile.Add(c.clusterClient, tlsca.RouteToDatabase{
+	err = dbprofile.Add(ctx, c.clusterClient, tlsca.RouteToDatabase{
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
 		Username:    user,
@@ -137,7 +152,13 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
-	roleSet, err := services.FetchRoles(c.status.Roles, c.clusterClient, c.status.Traits)
+	var roleSet services.RoleSet
+	var err error
+
+	err = addMetadataToRetryableError(ctx, func() error {
+		roleSet, err = services.FetchRoles(c.status.Roles, c.clusterClient, c.status.Traits)
+		return err
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

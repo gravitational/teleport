@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
@@ -116,6 +117,8 @@ type RegisterParams struct {
 	// ec2IdentityDocument is used for Simplified Node Joining to prove the
 	// identity of a joining EC2 instance.
 	ec2IdentityDocument []byte
+	// CircuitBreakerConfig defines how the circuit breaker should behave.
+	CircuitBreakerConfig breaker.Config
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -344,6 +347,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -382,6 +386,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,7 +395,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 
 	// Fetch the root CA from the Auth Server. The NOP role has access to the
 	// GetClusterCACert endpoint.
-	localCA, err := authClient.GetClusterCACert()
+	localCA, err := authClient.GetClusterCACert(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -432,6 +437,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

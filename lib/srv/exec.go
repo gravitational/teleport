@@ -363,6 +363,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
 	serverMeta := apievents.ServerMetadata{
 		ServerID:        ctx.srv.HostUUID(),
+		ServerHostname:  ctx.srv.GetInfo().GetHostname(),
 		ServerNamespace: ctx.srv.GetNamespace(),
 	}
 

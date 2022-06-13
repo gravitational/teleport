@@ -201,7 +201,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert()
+	localCAResponse, err := client.GetClusterCACert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

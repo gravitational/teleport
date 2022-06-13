@@ -45,7 +45,7 @@ import (
 
 // getOIDCConnectorAndClient returns the associated oidc connector
 // and client for the given oidc auth request.
-func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
+func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request types.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
 	// stateless test flow
 	if request.SSOTestFlow {
 		if request.ConnectorSpec == nil {
@@ -255,9 +255,9 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 	return nil
 }
 
-func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
+func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	connector, client, err := a.getOIDCConnectorAndClient(ctx, req)
@@ -295,7 +295,7 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 
 	log.Debugf("OIDC redirect URL: %v.", req.RedirectURL)
 
-	err = a.Identity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
+	err = a.Identity.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -489,7 +489,6 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 	diagCtx.info.CreateUserParams = &types.CreateUserParams{
 		ConnectorName: params.connectorName,
 		Username:      params.username,
-		Logins:        params.logins,
 		KubeGroups:    params.kubeGroups,
 		KubeUsers:     params.kubeUsers,
 		Roles:         params.roles,
@@ -579,13 +578,13 @@ type OIDCAuthResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req services.OIDCAuthRequest `json:"req"`
+	Req types.OIDCAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
 }
 
-func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*createUserParams, error) {
 	var err error
 
 	p := createUserParams{
@@ -622,7 +621,7 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL.Duration())
 
 	return &p, nil
 }

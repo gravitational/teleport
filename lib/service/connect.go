@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"context"
 	"crypto/tls"
 	"path/filepath"
 	"strings"
@@ -428,6 +429,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
+			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -928,10 +930,12 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		return nil, trace.Wrap(err)
 	}
 	clt, err := auth.NewClient(apiclient.Config{
-		Dialer: dialer,
+		Context: process.ExitContext(),
+		Dialer:  dialer,
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -939,7 +943,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 
 	// Check connectivity to cluster. If the request fails, unwrap the error to
 	// get the underlying error.
-	_, err = clt.GetLocalClusterName()
+	_, err = clt.GetDomainName(context.TODO())
 	if err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
@@ -969,19 +973,19 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 	}
 
 	clt, err := auth.NewClient(apiclient.Config{
-		Addrs: utils.NetAddrsToStrings(authServers),
+		Context: process.ExitContext(),
+		Addrs:   utils.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
-		DialOpts: dialOpts,
-		// Deliberately ignore HTTP proxies for backwards compatibility.
-		IgnoreHTTPProxy: true,
+		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+		DialOpts:             dialOpts,
 	}, cltParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := clt.GetLocalClusterName(); err != nil {
+	if _, err := clt.GetDomainName(context.TODO()); err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close direct Auth Server client.")
 		}
