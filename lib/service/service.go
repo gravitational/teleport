@@ -2666,16 +2666,18 @@ func (process *TeleportProcess) initProxy() error {
 }
 
 type proxyListeners struct {
-	mux           *multiplexer.Mux
-	tls           *multiplexer.WebListener
-	ssh           net.Listener
-	web           net.Listener
-	reverseTunnel net.Listener
-	kube          net.Listener
-	db            dbListeners
-	alpn          net.Listener
-	proxy         net.Listener
-	grpc          net.Listener
+	mux                            *multiplexer.Mux
+	tls                            *multiplexer.WebListener
+	ssh                            net.Listener
+	web                            net.Listener
+	reverseTunnel                  net.Listener
+	kube                           net.Listener
+	db                             dbListeners
+	alpn                           net.Listener
+	proxy                          net.Listener
+	grpc                           net.Listener
+	minimalReverseTunnelWebEnabled bool
+	mux2                           *multiplexer.Mux
 }
 
 // dbListeners groups database access listeners.
@@ -2862,11 +2864,22 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	default:
 		process.log.Debug("Setup Proxy: Proxy and reverse tunnel are listening on separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel && !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
-			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+			listeners.minimalReverseTunnelWebEnabled = true
+			listener, err := process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
-				listeners.Close()
 				return nil, trace.Wrap(err)
 			}
+			listeners.mux2, err = multiplexer.New(multiplexer.Config{
+				EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+				Listener:            listener,
+				ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
+			})
+			if err != nil {
+				listener.Close()
+				return nil, trace.Wrap(err)
+			}
+			listeners.reverseTunnel = listeners.mux2.SSH()
+			go listeners.mux2.Serve()
 		}
 		if !cfg.Proxy.DisableWebService && !cfg.Proxy.WebAddr.IsEmpty() {
 			listener, err := process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
@@ -3133,6 +3146,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// Register web proxy server
 	var webServer *http.Server
 	var webHandler *web.APIHandler
+	var minimalWebServer *http.Server
+	var minimalWebHandler *web.APIHandler
+
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
@@ -3148,26 +3164,26 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			accessPoint:  accessPoint,
 		}
 
-		webHandler, err = web.NewHandler(
-			web.Config{
-				Proxy:            tsrv,
-				AuthServers:      cfg.AuthServers[0],
-				DomainName:       cfg.Hostname,
-				ProxyClient:      conn.Client,
-				ProxySSHAddr:     proxySSHAddr,
-				ProxyWebAddr:     cfg.Proxy.WebAddr,
-				ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
-				CipherSuites:     cfg.CipherSuites,
-				FIPS:             cfg.FIPS,
-				AccessPoint:      accessPoint,
-				Emitter:          streamEmitter,
-				PluginRegistry:   process.PluginRegistry,
-				HostUUID:         process.Config.HostUUID,
-				Context:          process.ExitContext(),
-				StaticFS:         fs,
-				ClusterFeatures:  process.getClusterFeatures(),
-				ProxySettings:    proxySettings,
-			})
+		webConfig := web.Config{
+			Proxy:            tsrv,
+			AuthServers:      cfg.AuthServers[0],
+			DomainName:       cfg.Hostname,
+			ProxyClient:      conn.Client,
+			ProxySSHAddr:     proxySSHAddr,
+			ProxyWebAddr:     cfg.Proxy.WebAddr,
+			ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
+			CipherSuites:     cfg.CipherSuites,
+			FIPS:             cfg.FIPS,
+			AccessPoint:      accessPoint,
+			Emitter:          streamEmitter,
+			PluginRegistry:   process.PluginRegistry,
+			HostUUID:         process.Config.HostUUID,
+			Context:          process.ExitContext(),
+			StaticFS:         fs,
+			ClusterFeatures:  process.getClusterFeatures(),
+			ProxySettings:    proxySettings,
+		}
+		webHandler, err = web.NewHandler(webConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3209,6 +3225,51 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			log.Info("Exited.")
 			return nil
 		})
+
+		if listeners.minimalReverseTunnelWebEnabled {
+			minimalListener, err := multiplexer.NewWebListener(multiplexer.WebListenerConfig{
+				Listener: tls.NewListener(listeners.mux2.TLS(), tlsConfigWeb),
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			process.RegisterCriticalFunc("proxy.reversetunnel.tls", func() error {
+				log.Infof("TLS multiplexer is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
+				if err := minimalListener.Serve(); !trace.IsConnectionProblem(err) {
+					log.WithError(err).Warn("TLS multiplexer error.")
+				}
+				log.Info("TLS multiplexer exited.")
+				return nil
+			})
+
+			minimalProxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			webConfig.MinimalReverseTunnelRoutesOnly = true
+			minimalWebHandler, err = web.NewHandler(webConfig)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			minimalProxyLimiter.WrapHandle(minimalWebHandler)
+			minimalWebServer = &http.Server{
+				Handler:           minimalProxyLimiter,
+				ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
+			}
+			process.RegisterCriticalFunc("proxy.reversetunnel.web", func() error {
+				utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "Minimal web proxy service %s:%s is starting on %v.",
+					teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+				log.Infof("Minimal web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+				defer minimalWebHandler.Close()
+				process.BroadcastEvent(Event{Name: ProxyWebServerReady, Payload: minimalWebHandler})
+				if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && err != http.ErrServerClosed {
+					log.Warningf("Error while serving web requests: %v", err)
+				}
+				log.Info("Exited.")
+				return nil
+			})
+		}
 	} else {
 		log.Info("Web UI is disabled.")
 	}
