@@ -146,6 +146,9 @@ type Config struct {
 	// AccessPoint caches values and can still return results during connection
 	// problems.
 	LocalAccessPoint auth.ProxyAccessPoint
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
 	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
@@ -629,6 +632,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		log:              s.log,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
+		authServers:      s.LocalAuthAddresses,
 		channel:          channel,
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,
