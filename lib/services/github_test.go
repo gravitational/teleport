@@ -82,33 +82,41 @@ func (g *GithubSuite) TestMapClaims(c *check.C) {
 				KubeGroups:   []string{"kube-devs"},
 			},
 		},
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "gravitational",
+				Team:         "admins",
+				Roles:        []string{"system"},
+			},
+		},
 	})
 	c.Assert(err, check.IsNil)
 
-	logins, kubeGroups, kubeUsers := connector.MapClaims(types.GithubClaims{
+	roles, kubeGroups, kubeUsers := connector.MapClaims(types.GithubClaims{
 		OrganizationToTeams: map[string][]string{
 			"gravitational": {"admins"},
 		},
 	})
-	c.Assert(logins, check.DeepEquals, []string{"admin", "dev"})
+	c.Assert(roles, check.DeepEquals, []string{"admin", "dev", "system"})
 	c.Assert(kubeGroups, check.DeepEquals, []string{"system:masters", "kube-devs"})
 	c.Assert(kubeUsers, check.DeepEquals, []string{"alice@example.com"})
 
-	logins, kubeGroups, kubeUsers = connector.MapClaims(types.GithubClaims{
+	roles, kubeGroups, kubeUsers = connector.MapClaims(types.GithubClaims{
 		OrganizationToTeams: map[string][]string{
 			"gravitational": {"devs"},
 		},
 	})
-	c.Assert(logins, check.DeepEquals, []string{"dev", "test"})
+
+	c.Assert(roles, check.DeepEquals, []string{"dev", "test"})
 	c.Assert(kubeGroups, check.DeepEquals, []string{"kube-devs"})
 	c.Assert(kubeUsers, check.DeepEquals, []string(nil))
 
-	logins, kubeGroups, kubeUsers = connector.MapClaims(types.GithubClaims{
+	roles, kubeGroups, kubeUsers = connector.MapClaims(types.GithubClaims{
 		OrganizationToTeams: map[string][]string{
 			"gravitational": {"admins", "devs"},
 		},
 	})
-	c.Assert(logins, check.DeepEquals, []string{"admin", "dev", "test"})
+	c.Assert(roles, check.DeepEquals, []string{"admin", "dev", "test", "system"})
 	c.Assert(kubeGroups, check.DeepEquals, []string{"system:masters", "kube-devs"})
 	c.Assert(kubeUsers, check.DeepEquals, []string{"alice@example.com"})
 }

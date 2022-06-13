@@ -104,6 +104,9 @@ type agentConfig struct {
 	clock clockwork.Clock
 	// log is an optional logger.
 	log logrus.FieldLogger
+	// localAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	localAuthAddresses []string
 }
 
 // checkAndSetDefaults ensures an agentConfig contains required parameters.

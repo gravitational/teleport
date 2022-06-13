@@ -25,7 +25,10 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
@@ -57,7 +60,12 @@ type nativeTID interface {
 	// Requires user interaction.
 	ListCredentials() ([]CredentialInfo, error)
 
+	// DeleteCredential deletes a credential.
+	// Requires user interaction.
 	DeleteCredential(credentialID string) error
+
+	// DeleteNonInteractive deletes a credential without user interaction.
+	DeleteNonInteractive(credentialID string) error
 }
 
 // DiagResult is the result from a Touch ID self diagnostics check.
@@ -79,6 +87,7 @@ type CredentialInfo struct {
 	RPID         string
 	User         string
 	PublicKey    *ecdsa.PublicKey
+	CreateTime   time.Time
 
 	// publicKeyRaw is used internally to return public key data from native
 	// register requests.
@@ -122,8 +131,48 @@ func Diag() (*DiagResult, error) {
 	return native.Diag()
 }
 
+// Registration represents an ongoing registration, with an already-created
+// Secure Enclave key.
+// The created key may be used as-is, but callers are encouraged to explicitly
+// Confirm or Rollback the registration.
+// Rollback assumes the server-side registration failed and removes the created
+// Secure Enclave key.
+// Confirm may replace equivalent keys with the new key, at the implementation's
+// discretion.
+type Registration struct {
+	CCR *wanlib.CredentialCreationResponse
+
+	credentialID string
+
+	// done is atomically set to 1 after either Rollback or Confirm are called.
+	done int32
+}
+
+// Confirm confirms the registration.
+// Keys equivalent to the current registration may be replaced by it, at the
+// implementation's discretion.
+func (r *Registration) Confirm() error {
+	// Set r.done to disallow rollbacks after Confirm is called.
+	atomic.StoreInt32(&r.done, 1)
+	return nil
+}
+
+// Rollback rolls back the registration, deleting the Secure Enclave key as a
+// result.
+func (r *Registration) Rollback() error {
+	if !atomic.CompareAndSwapInt32(&r.done, 0, 1) {
+		return nil
+	}
+
+	// Delete the newly-created credential.
+	return native.DeleteNonInteractive(r.credentialID)
+}
+
 // Register creates a new Secure Enclave-backed biometric credential.
-func Register(origin string, cc *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
+// Callers are encouraged to either explicitly Confirm or Rollback the returned
+// registration.
+// See Registration.
+func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, error) {
 	if !IsAvailable() {
 		return nil, ErrNotAvailable
 	}
@@ -231,7 +280,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*wanlib.CredentialC
 		return nil, trace.Wrap(err)
 	}
 
-	return &wanlib.CredentialCreationResponse{
+	ccr := &wanlib.CredentialCreationResponse{
 		PublicKeyCredential: wanlib.PublicKeyCredential{
 			Credential: wanlib.Credential{
 				ID:   credentialID,
@@ -245,6 +294,10 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*wanlib.CredentialC
 			},
 			AttestationObject: attObj,
 		},
+	}
+	return &Registration{
+		CCR:          ccr,
+		credentialID: credentialID,
 	}, nil
 }
 
@@ -373,6 +426,14 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return nil, "", ErrCredentialNotFound
 	}
 
+	// If everything else is equal, prefer newer credentials.
+	sort.Slice(infos, func(i, j int) bool {
+		i1 := infos[i]
+		i2 := infos[j]
+		// Sorted in descending order.
+		return i1.CreateTime.After(i2.CreateTime)
+	})
+
 	// Verify infos against allowed credentials, if any.
 	var cred *CredentialInfo
 	if len(assertion.Response.AllowedCredentials) > 0 {
@@ -390,6 +451,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 	if cred == nil {
 		return nil, "", ErrCredentialNotFound
 	}
+	log.Debugf("Using Touch ID credential %q", cred.CredentialID)
 
 	attData, err := makeAttestationData(protocol.AssertCeremony, origin, rpID, assertion.Response.Challenge, nil /* cred */)
 	if err != nil {

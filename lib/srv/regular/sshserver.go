@@ -26,12 +26,13 @@ import (
 	"net"
 	"os"
 	"os/user"
-	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -592,7 +593,7 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 // SetCreateHostUser configures host user creation on a server
 func SetCreateHostUser(createUser bool) ServerOption {
 	return func(s *Server) error {
-		s.createHostUser = createUser
+		s.createHostUser = createUser && runtime.GOOS == constants.LinuxOS
 		return nil
 	}
 }
@@ -729,7 +730,7 @@ func New(addr utils.NetAddr,
 	})
 
 	if s.createHostUser {
-		users, err := srv.NewHostUsers(ctx, s.storage)
+		users := srv.NewHostUsers(ctx, s.storage, s.ID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -969,42 +970,24 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	uid, err := strconv.Atoi(systemUser.Uid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(systemUser.Gid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	pid := os.Getpid()
 
-	// build the socket path and set permissions
-	socketDir, err := os.MkdirTemp(os.TempDir(), "teleport-")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	dirCloser := &utils.RemoveDirCloser{Path: socketDir}
-	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
-	if err := os.Chown(socketDir, uid, gid); err != nil {
-		if err := dirCloser.Close(); err != nil {
-			log.Warnf("failed to remove directory: %v", err)
-		}
-		return trace.ConvertSystemError(err)
-	}
+	socketDir := "teleport"
+	socketName := fmt.Sprintf("teleport-%v.socket", pid)
 
 	// start an agent server on a unix socket.  each incoming connection
 	// will result in a separate agent request.
 	agentServer := teleagent.NewServer(ctx.Parent().StartAgentChannel)
-	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
+	err = agentServer.ListenUnixSocket(socketDir, socketName, systemUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.Parent().SetEnv(teleport.SSHAuthSock, socketPath)
+
+	ctx.Parent().SetEnv(teleport.SSHAuthSock, agentServer.Path)
 	ctx.Parent().SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
 	ctx.Parent().AddCloser(agentServer)
-	ctx.Parent().AddCloser(dirCloser)
-	ctx.Debugf("Starting agent server for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, socketPath)
+	ctx.Debugf("Starting agent server for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, agentServer.Path)
 	go func() {
 		if err := agentServer.Serve(); err != nil {
 			ctx.Errorf("agent server for user %q stopped: %v", ctx.Identity.TeleportUser, err)

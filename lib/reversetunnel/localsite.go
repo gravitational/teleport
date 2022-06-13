@@ -42,7 +42,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func newlocalSite(srv *server, domainName string, client auth.ClientI, peerClient *proxy.Client) (*localSite, error) {
+func newlocalSite(srv *server, domainName string, authServers []string, client auth.ClientI, peerClient *proxy.Client) (*localSite, error) {
 	err := utils.RegisterPrometheusCollectors(localClusterCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,6 +68,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI, peerClien
 		accessPoint:      accessPoint,
 		certificateCache: certificateCache,
 		domainName:       domainName,
+		authServers:      authServers,
 		remoteConns:      make(map[connKey][]*remoteConn),
 		clock:            srv.Clock,
 		log: log.WithFields(log.Fields{
@@ -80,7 +81,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI, peerClien
 		peerClient:       peerClient,
 	}
 
-	// Start periodic functions for the the local cluster in the background.
+	// Start periodic functions for the local cluster in the background.
 	go s.periodicFunctions()
 
 	return s, nil
@@ -91,9 +92,10 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI, peerClien
 //
 // it implements RemoteSite interface
 type localSite struct {
-	log        log.FieldLogger
-	domainName string
-	srv        *server
+	log         log.FieldLogger
+	domainName  string
+	authServers []string
+	srv         *server
 
 	// client provides access to the Auth Server API of the local cluster.
 	client auth.ClientI
@@ -164,27 +166,18 @@ func (s *localSite) GetLastConnected() time.Time {
 	return s.clock.Now()
 }
 
-func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
-	// get list of local auth servers
-	authServers, err := s.client.GetAuthServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(authServers) < 1 {
+func (s *localSite) DialAuthServer() (net.Conn, error) {
+	if len(s.authServers) == 0 {
 		return nil, trace.ConnectionProblem(nil, "no auth servers available")
 	}
 
-	// try and dial to one of them, as soon as we are successful, return the net.Conn
-	for _, authServer := range authServers {
-		conn, err = net.DialTimeout("tcp", authServer.GetAddr(), apidefaults.DefaultDialTimeout)
-		if err == nil {
-			return conn, nil
-		}
+	addr := utils.ChooseRandomString(s.authServers)
+	conn, err := net.DialTimeout("tcp", addr, apidefaults.DefaultDialTimeout)
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
 	}
 
-	// return the last error
-	return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
+	return conn, nil
 }
 
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
