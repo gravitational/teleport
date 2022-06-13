@@ -207,16 +207,16 @@ func (s *sessionChunk) close(ctx context.Context) error {
 		if s.inflight == 0 {
 			break
 		} else if time.Now().After(deadline) {
-			s.log.Debugf("timeout expired, forcibly closing session chunk %s, inflight requests: %d", s.id, s.inflight)
+			s.log.Debugf("Timeout expired, forcibly closing session chunk %s, inflight requests: %d", s.id, s.inflight)
 			break
 		}
-		s.log.Debugf("inflight requests: %d, waiting to close session chunk %s", s.inflight, s.id)
+		s.log.Debugf("Inflight requests: %d, waiting to close session chunk %s", s.inflight, s.id)
 		s.inflightCond.Wait()
 	}
 	s.inflight = -1
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
-	s.log.Debugf("closed session chunk %s", s.id)
+	s.log.Debugf("Closed session chunk %s", s.id)
 	err := s.streamWriter.Close(ctx)
 	return trace.Wrap(err)
 }
