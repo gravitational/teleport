@@ -207,7 +207,7 @@ In Teleport, the `cluster` details are used to create the cluster config and the
 
 For each cluster to enroll, due to limitations described in the [EKS Discovery and IAM](#aws-eks-discovery-and-iam) section, Teleport cannot create access to itself, so the operator has to create the following resources for each cluster he pretends that Teleport enrolls.
 
-The first resource to be created is the `ClusterRole` that grants RBAC permissions to get pods and impersonate groups, users and service accounts.
+The first resource to be created is the `ClusterRole` that grants minimum RBAC permissions to get pods and impersonate groups, users and service accounts. It is possible to run map Teleport role into `system:masters` but for security reasons that is discouraged.
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -319,7 +319,7 @@ Teleport has a join method, IAM join, that allows Teleport agents and Proxies to
 
 The IAM join method is available to any Teleport agent running anywhere with access to IAM credentials, such as an EC2 instance that is part of an EKS cluster. This method allows any resource that fulfills the defined criteria to be able to join automatically into the Teleport cluster.
 
-To use this method, each agent requires access to `sts:GetCallerIdentity` to use the IAM method. If the operator didn't [block the pod access to IMDS][blockpodaccess] this is already true since the pods inherit the node IAM role, otherwise, it can be granted by IAM OICD Provider.
+To use this method, each agent requires access to `sts:GetCallerIdentity` to use the IAM method. If the operator didn't [block the pod access to IMDS][blockpodaccess], this is already true since the pods inherit the node IAM role, otherwise, it can be granted by IAM OICD Provider.
 
 To configure the IAM joining token method, the operator has to define the IAM token spec.
 
