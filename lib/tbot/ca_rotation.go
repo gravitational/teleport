@@ -19,6 +19,8 @@ package tbot
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -39,10 +41,70 @@ import (
 //   certificates issued by the old CA, and stop trusting the new CA.
 // - Update Servers -> Standby: So we can stop trusting the old CA.
 
+// debouncer accepts a duration, and a function. When `attempt` is called on
+// debouncer, it waits the duration, ignoring further attempts during this
+// period, before calling the provided function.
+//
+// This allows us to handle multiple events arriving within a short period, and
+// attempts to reduce the risk of the server going away during a renewal by
+// deferring the renewal until after the server-side elements of the rotation
+// have occurred.
+type debouncer struct {
+	mu    sync.Mutex
+	timer *time.Timer
+
+	// debouncePeriod is the amount of time that debouncer should wait from an
+	// initial trigger before triggering `f`, and in that time ignore further
+	// attempts.
+	debouncePeriod time.Duration
+
+	// f is the function that should be called by the debouncer.
+	f func()
+}
+
+func (rd *debouncer) attempt() {
+	rd.mu.Lock()
+	defer rd.mu.Unlock()
+
+	if rd.timer != nil {
+		return
+	}
+
+	rd.timer = time.AfterFunc(rd.debouncePeriod, func() {
+		rd.mu.Lock()
+		defer rd.mu.Unlock()
+		rd.timer = nil
+
+		rd.f()
+	})
+}
+
+// caRotationLoop continually triggers `watchCARotations` until the context is
+// cancelled. This allows the watcher to be re-established if an error occurs.
+//
+// caRotationLoop also manages debouncing the renewals across multiple watch
+// attempts.
 func (b *Bot) caRotationLoop(ctx context.Context) error {
+	rd := debouncer{
+		f: func() {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			select {
+			case b.reloadChan <- struct{}{}:
+				b.log.Infof("Renewal triggered due to CA rotation.")
+			default:
+				b.log.Debugf("Renewal already queued, ignoring reload request.")
+			}
+		},
+		debouncePeriod: time.Second * 10,
+	}
 	// TODO: Throw error if more than X consecutive errors in time window.
 	for ctx.Err() == nil {
-		err := b.watchCARotations(ctx)
+		err := b.watchCARotations(ctx, rd.attempt)
 		if err != nil {
 			b.log.WithError(err).Warnf("Error occurred whilst watching CA rotations, retrying...")
 		}
@@ -51,7 +113,10 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 	return nil
 }
 
-func (b *Bot) watchCARotations(ctx context.Context) error {
+// watchCARotations establishes a watcher for CA rotations in the cluster, and
+// attempts to trigger a renewal via the debounced reload channel when it
+// detects the entry into an important rotation phase.
+func (b *Bot) watchCARotations(ctx context.Context, queueReload func()) error {
 	clusterName := b.ident().ClusterName
 	b.log.Debugf("Attempting to establish watch for CA events")
 	watcher, err := b.client().NewWatcher(ctx, types.Watch{
@@ -87,13 +152,8 @@ func (b *Bot) watchCARotations(ctx context.Context) error {
 
 			// We need to debounce here, as multiple events will be received if
 			// the user is rotating multiple CAs at once.
-			b.log.Infof("CA Rotation step detected; attempting to force renewal.")
-			select {
-			case b.reloadChan <- struct{}{}:
-			default:
-				// TODO: Come up with a significantly less janky debounce method
-				b.log.Debugf("Renewal already in progress; ignoring event.")
-			}
+			b.log.Infof("CA Rotation step detected; queueing renewal.")
+			queueReload()
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
 				return trace.Wrap(err)
