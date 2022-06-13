@@ -121,33 +121,47 @@ numbers for each service.
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
-Teleport services listen on several ports. This table shows the default port
-numbers for each service. The Teleport Proxy Service is the host available at your
-Teleport Cloud tenant URL, e.g., `mytenant.teleport.sh`.
+Teleport Cloud allocates a different set of ports to each tenant. To see which
+ports are available for your Teleport Cloud tenant, run a command similar to the
+following, replacing `mytenant.teleport.sh` with your tenant domain:
 
-<Admonition
-  type="tip"
-  title="Note"
->
+```code
+$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
+```
 
-  To get a listing of the assigned ports for your Teleport Cloud tenant host,
-  use the following command:
+The output should resemble the following, including the unique ports assigned to
+your tenant:
 
-  ```code
-  $ curl https://mytenant.teleport.sh/webapi/ping | jq 
-  ```
+```json
+{
+  "kube": {
+    "enabled": true,
+    "public_addr": "mytenant.teleport.sh:11107",
+    "listen_addr": "0.0.0.0:3026"
+  },
+  "ssh": {
+    "listen_addr": "[::]:3023",
+    "tunnel_listen_addr": "0.0.0.0:3024",
+    "public_addr": "mytenant.teleport.sh:443",
+    "ssh_public_addr": "mytenant.teleport.sh:11105",
+    "ssh_tunnel_public_addr": "mytenant.teleport.sh:11106"
+  },
+  "db": {
+    "postgres_public_addr": "mytenant.teleport.sh:11109",
+    "mysql_listen_addr": "0.0.0.0:3036",
+    "mysql_public_addr": "mytenant.teleport.sh:11108"
+  },
+  "tls_routing_enabled": true
+}
+```
 
-</Admonition>
+This output also indicates whether TLS routing is enabled for your tenant. When
+TLS routing is enabled, connections to a Teleport service (e.g., the Teleport
+SSH Service) are routed through the Proxy Service's public web address, rather
+than through a port allocated to that service.
 
-| Port | Service | Description |
-| - | - | - |
-| 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
-| 3023 | Proxy | SSH port clients connect to. The Proxy Service will forward this connection to port `#3022` on the destination Node. |
-| 3024 | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. |
-| 3080 | Proxy | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
-| 3026 | Kubernetes | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
-| 3027 | Kubernetes | Kubernetes Service `kubernetes_service.listen_addr` |
-| 3028 | Desktop | Desktop Service `windows_desktop_service.listen_addr` |
-| 3036 | MySQL | MySQL port `proxy_service.mysql_addr` |
+In this case, you can see that TLS routing is enabled, and that the Proxy
+Service's public web address (`ssh.public_addr`) is `mytenant.teleport.sh:443`.
+
 </TabItem>
 </Tabs>
