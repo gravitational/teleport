@@ -164,3 +164,53 @@ func TestAppServerSorter(t *testing.T) {
 	servers := makeServers(testValsUnordered, "does-not-matter")
 	require.True(t, trace.IsNotImplemented(AppServers(servers).SortByCustom(sortBy)))
 }
+
+func TestAppIsAWSConsole(t *testing.T) {
+	tests := []struct {
+		name         string
+		uri          string
+		isAWSConsole bool
+	}{
+		{
+			name:         "AWS Standard",
+			uri:          "https://console.aws.amazon.com/ec2/v2/home",
+			isAWSConsole: true,
+		},
+		{
+			name:         "AWS China",
+			uri:          "https://console.amazonaws.cn/console/home",
+			isAWSConsole: true,
+		},
+		{
+			name:         "AWS GovCloud (US)",
+			uri:          "https://console.amazonaws-us-gov.com/console/home",
+			isAWSConsole: true,
+		},
+		{
+			name:         "Region based not supported yet",
+			uri:          "https://us-west-1.console.aws.amazon.com",
+			isAWSConsole: false,
+		},
+		{
+			name:         "Not an AWS Console URL",
+			uri:          "https://hello.world",
+			isAWSConsole: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{
+				Name: "TestApp",
+			}, AppSpecV3{
+				URI: test.uri,
+			})
+			require.NoError(t, err)
+			if test.isAWSConsole {
+				require.True(t, app.IsAWSConsole())
+			} else {
+				require.False(t, app.IsAWSConsole())
+			}
+		})
+	}
+}
