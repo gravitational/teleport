@@ -2861,27 +2861,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				HostSigners:                   []ssh.Signer{conn.ServerIdentity.KeySigner},
 				LocalAuthClient:               conn.Client,
 				LocalAccessPoint:              accessPoint,
+				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServers),
 				NewCachingAccessPoint:         process.newLocalCacheForRemoteProxy,
 				NewCachingAccessPointOldProxy: process.newLocalCacheForOldRemoteProxy,
 				Limiter:                       reverseTunnelLimiter,
-				DirectClusters: []reversetunnel.DirectCluster{
-					{
-						Name:   conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-						Client: conn.Client,
-					},
-				},
-				KeyGen:               cfg.Keygen,
-				Ciphers:              cfg.Ciphers,
-				KEXAlgorithms:        cfg.KEXAlgorithms,
-				MACAlgorithms:        cfg.MACAlgorithms,
-				DataDir:              process.Config.DataDir,
-				PollingPeriod:        process.Config.PollingPeriod,
-				FIPS:                 cfg.FIPS,
-				Emitter:              streamEmitter,
-				Log:                  process.log,
-				LockWatcher:          lockWatcher,
-				NodeWatcher:          nodeWatcher,
-				CertAuthorityWatcher: caWatcher,
+				KeyGen:                        cfg.Keygen,
+				Ciphers:                       cfg.Ciphers,
+				KEXAlgorithms:                 cfg.KEXAlgorithms,
+				MACAlgorithms:                 cfg.MACAlgorithms,
+				DataDir:                       process.Config.DataDir,
+				PollingPeriod:                 process.Config.PollingPeriod,
+				FIPS:                          cfg.FIPS,
+				Emitter:                       streamEmitter,
+				Log:                           process.log,
+				LockWatcher:                   lockWatcher,
+				NodeWatcher:                   nodeWatcher,
+				CertAuthorityWatcher:          caWatcher,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3042,6 +3037,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:         accessPoint,
 		HostSigner:          conn.ServerIdentity.KeySigner,
 		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServers),
 		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
@@ -3228,7 +3224,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
-		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServers))
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
 			HandlerWithConnInfo: authDialerService.HandleConnection,

@@ -29,7 +29,7 @@
           "slug": "/setup/admin/",
           "entries": [
             {
-              "title": "Github SSO",
+              "title": "GitHub SSO",
               "slug": "/setup/admin/github-sso/"
             },
             {
@@ -236,17 +236,17 @@
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
            "entries": [
-            { 
-              "title": "Local Demo Cluster", 
+            {
+              "title": "Local Demo Cluster",
               "slug": "/kubernetes-access/getting-started/local/"
             },
-            { 
-              "title": "Cluster", 
-              "slug": "/kubernetes-access/getting-started/cluster/" 
+            {
+              "title": "Cluster",
+              "slug": "/kubernetes-access/getting-started/cluster/"
             },
-            { 
-              "title": "Agent", 
-              "slug": "/kubernetes-access/getting-started/agent/" 
+            {
+              "title": "Agent",
+              "slug": "/kubernetes-access/getting-started/agent/"
             }
           ]
         },
@@ -479,7 +479,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
-      "version": "9.1.2", 
+      "version": "9.1.2",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
