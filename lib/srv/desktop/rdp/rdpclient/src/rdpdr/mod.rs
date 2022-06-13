@@ -379,12 +379,6 @@ impl Client {
                                 );
                             }
 
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L263
-                            // Note: the above line in FreeRDP will always evaluate to true:
-                            // - drive_file_init is called here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L362
-                            // - it is always passed a file where file->file_handle = INVALID_HANDLE_VALUE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L351
-                            // - None of the calls up to the line in question can have changed it
-
                             // The actual creation of files and error mapping badevice_io_request.completion_id happens here, for reference:
                             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L781
                             if rdp_req.create_disposition
@@ -672,6 +666,23 @@ impl Client {
     }
 }
 
+/// FileCacheObject is an in-memory representation of
+/// of a file or directory holding the metadata necessary
+/// for RDP drive redirection. They are stored in map indexed
+/// by their RDP FileId.
+///
+/// The lifecycle for a FileCacheObject is a function of the
+/// MajorFunction of RDP DeviceIoRequests:
+///
+/// | Sequence | MajorFunction | results in                                               |
+/// | -------- | ------------- | ---------------------------------------------------------|
+/// | 1        | IRP_MJ_CREATE | A new FileCacheObject is created and assigned a FileId   |
+/// | -------- | ------------- | ---------------------------------------------------------|
+/// | 2        | <other>       | The FCO is retrieved from the cache by the FileId in the |
+/// |          |               | DeviceIoRequest and metadata is used to craft a response |
+/// | -------- | ------------- | ---------------------------------------------------------|
+/// | 3        | IRP_MJ_CLOSE  | The FCO is deleted from the cache                        |
+/// | -------- | ------------- | ---------------------------------------------------------|
 #[allow(dead_code)]
 struct FileCacheObject {
     path: String,
