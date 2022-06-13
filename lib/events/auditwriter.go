@@ -670,5 +670,5 @@ func diff(before, after time.Time) int64 {
 
 // isUnrecoverableError returns if the provided stream error is unrecoverable.
 func isUnrecoverableError(err error) bool {
-	return strings.Contains(err.Error(), uploaderReservePartErrorMessage)
+	return err != nil && strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }

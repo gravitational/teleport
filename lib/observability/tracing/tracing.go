@@ -283,6 +283,11 @@ func NoopProvider() *Provider {
 	)}
 }
 
+// NoopTracer creates a new Tracer that never samples any spans.
+func NoopTracer(instrumentationName string) oteltrace.Tracer {
+	return NoopProvider().Tracer(instrumentationName)
+}
+
 // NewTraceProvider creates a new Provider that is configured per the provided Config.
 func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {

@@ -137,7 +137,7 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 	}
 
 	// Update the database-specific connection profile file.
-	err = dbprofile.Add(c.clusterClient, tlsca.RouteToDatabase{
+	err = dbprofile.Add(ctx, c.clusterClient, tlsca.RouteToDatabase{
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
 		Username:    user,
