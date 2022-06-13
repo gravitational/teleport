@@ -1466,22 +1466,14 @@ func TestActiveSessions(t *testing.T) {
 	err = waitForOutput(stream, "vinsong")
 	require.NoError(t, err)
 
-	// Make sure this session appears in the list of active sessions.
 	var sessResp *siteSessionsGetResponse
-	for i := 0; i < 10; i++ {
+	require.Eventually(t, func() bool {
 		// Get site nodes and make sure the node has our active party.
 		re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
 		require.NoError(t, err)
-
 		require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
-		require.Len(t, sessResp.Sessions, 1)
-
-		// Sessions do not appear momentarily as there's async heartbeat
-		// procedure.
-		time.Sleep(250 * time.Millisecond)
-	}
-
-	require.Len(t, sessResp.Sessions, 1)
+		return len(sessResp.Sessions) == 1
+	}, time.Second*5, 250*time.Millisecond)
 
 	sess := sessResp.Sessions[0]
 	require.Equal(t, sid, sess.ID)
