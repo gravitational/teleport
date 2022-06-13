@@ -1,5 +1,9 @@
 # Teleport
 
+**This branch is for a version of Teleport we no longer support. For the latest
+changes, please see our
+[main repository page](https://github.com/gravitational/teleport).**
+
 Teleport is an access plane for infrastructure:
 
 * [Clusters of Linux servers](https://goteleport.com/teleport/docs/quickstart/) via SSH or SSH-over-HTTPS in a browser
