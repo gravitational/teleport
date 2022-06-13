@@ -339,7 +339,7 @@ func (s *SessionTrackerV1) GetHostPolicySets() []*SessionTrackerPolicySet {
 
 // GetLastActive returns the time at which the session was last active (i.e used by any participant).
 func (s *SessionTrackerV1) GetLastActive() time.Time {
-	last := time.Unix(0, 0)
+	var last time.Time
 
 	for _, participant := range s.Spec.Participants {
 		if participant.LastActive.After(last) {
