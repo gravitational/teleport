@@ -96,8 +96,7 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
 # so we retrieve the file path for the cached proto files with go mod tools.
-#	$(eval API_MOD_PATH := $(shell go mod download --json github.com/gravitational/teleport/api | jq -r .Dir))
-	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | jq -r .Dir))
+	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
 	$(eval CUSTOM_IMPORTS_TMP_DIR := $(shell mktemp -d))
 	mkdir -p $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/types/wrappers
 	cp ../api/types/wrappers/wrappers.proto $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/types/wrappers
@@ -108,6 +107,7 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 		--plugin=./crdgen/protoc-gen-crd \
 		--crd_out=:./config/crd/bases \
 		types.proto
+	rm -rf $(CUSTOM_IMPORTS_TMP_DIR)
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -180,7 +180,7 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.8.0
+CONTROLLER_TOOLS_VERSION ?= v0.9.0
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
