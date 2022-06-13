@@ -50,7 +50,7 @@ $ docker version
 Let's use `docker-compose` to start Teleport demo lab - a configured local cluster:
 
 ```code
-# Download the quick start file from our Github repo
+# Download the quick start file from our GitHub repo
 $ curl -Lso teleport-lab.yml https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/docker/teleport-lab.yml
 # Start teleport demo lab using docker-compose
 $ docker-compose -f teleport-lab.yml up -d
@@ -114,9 +114,9 @@ You can see Teleport's nodes registered in the cluster using `tsh ls` command:
 ```code
 # From term container
 $ tsh ls
-# Node Name     Address        Labels                     
-# ------------- -------------- -------------------------- 
-# luna.teleport 127.0.0.1:3022 env=example, hostname=luna 
+# Node Name     Address        Labels
+# ------------- -------------- --------------------------
+# luna.teleport 127.0.0.1:3022 env=example, hostname=luna
 ```
 
 ## Step 3/3. Explore web UI
@@ -196,9 +196,9 @@ version: v5
 metadata:
   name: bot
 spec:
-  # SSH options used for user sessions 
+  # SSH options used for user sessions
   options:
-    # max_session_ttl defines the TTL (time to live) of SSH certificates 
+    # max_session_ttl defines the TTL (time to live) of SSH certificates
     # issued to the users with this role.
     max_session_ttl: 10h
 

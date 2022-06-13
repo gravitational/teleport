@@ -761,6 +761,8 @@ type certRequest struct {
 	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
+	// sourceIP is an IP this certificate should be pinned to
+	sourceIP string
 	// disallowReissue flags that a cert should not be allowed to issue future
 	// certificates.
 	disallowReissue bool
@@ -806,7 +808,7 @@ func certRequestClientIP(ip string) certRequestOption {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
+func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, sourceIP string) ([]byte, []byte, error) {
 	user, err := a.Identity.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -828,6 +830,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		routeToCluster: routeToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
+		sourceIP:       sourceIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1084,6 +1087,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Generation:            req.generation,
 		CertificateExtensions: req.checker.CertificateExtensions(),
 		AllowedResourceIDs:    requestedResourcesStr,
+		SourceIP:              req.sourceIP,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1932,7 +1936,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequ
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
-	if err := services.ValidateAccessRequestForUser(a, req); err != nil {
+	if err := services.ValidateAccessRequestForUser(ctx, a, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2437,14 +2441,38 @@ func (a *Server) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 	return a.GetCache().NewWatcher(ctx, watch)
 }
 
-func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	err := services.ValidateAccessRequestForUser(a, req,
-		// if request is in state pending, variable expansion must be applied
-		services.ExpandVars(req.GetState().IsPending()),
-	)
+func (a *Server) pruneResourceRequestRoles(ctx context.Context, req types.AccessRequest) error {
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	user, err := a.GetUser(req.GetUser(), false /* withSecrets */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(services.PruneResourceRequestRoles(
+		ctx,
+		req,
+		a.GetCache(),
+		clusterName.GetClusterName(),
+		user.GetTraits(),
+	))
+}
+
+func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	if err := services.ValidateAccessRequestForUser(ctx, a, req,
+		// if request is in state pending, variable expansion must be applied
+		services.ExpandVars(req.GetState().IsPending()),
+	); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.pruneResourceRequestRoles(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
 	ttl, err := a.calculateMaxAccessTTL(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
