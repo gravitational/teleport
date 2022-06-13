@@ -68,6 +68,8 @@ type TestAuthServerConfig struct {
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
 	// Streamer allows a test to set its own audit events streamer.
 	Streamer events.Streamer
+	// AuditLog allows a test to configure its own audit log.
+	AuditLog events.IAuditLog
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -208,16 +210,19 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	// Wrap backend in sanitizer like in production.
 	srv.Backend = backend.NewSanitizer(b)
 
-	localLog, err := events.NewAuditLog(events.AuditLogConfig{
-		DataDir:        cfg.Dir,
-		RecordSessions: true,
-		ServerID:       cfg.ClusterName,
-		UploadHandler:  events.NewMemoryUploader(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if cfg.AuditLog != nil {
+		srv.AuditLog = cfg.AuditLog
+	} else {
+		localLog, err := events.NewAuditLog(events.AuditLogConfig{
+			DataDir:       cfg.Dir,
+			ServerID:      cfg.ClusterName,
+			UploadHandler: events.NewMemoryUploader(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		srv.AuditLog = localLog
 	}
-	srv.AuditLog = localLog
 
 	srv.SessionServer, err = session.New(srv.Backend)
 	if err != nil {
@@ -235,7 +240,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		AuditLog:               srv.AuditLog,
 		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
-		Emitter:                localLog,
+		Emitter:                srv.AuditLog,
 	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
