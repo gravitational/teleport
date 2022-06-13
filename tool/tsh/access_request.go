@@ -312,7 +312,6 @@ func onRequestReview(cf *CLIConf) error {
 				Author:        cf.Username,
 				ProposedState: state,
 				Reason:        cf.ReviewReason,
-				Created:       time.Now(),
 			},
 		})
 		return trace.Wrap(err)

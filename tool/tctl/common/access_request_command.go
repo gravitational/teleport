@@ -370,8 +370,6 @@ func (c *AccessRequestCommand) Review(ctx context.Context, client auth.ClientI) 
 		Review: types.AccessReview{
 			Author:        c.user,
 			ProposedState: state,
-			Reason:        c.reason,
-			Created:       time.Now(),
 		},
 	})
 	if err != nil {
