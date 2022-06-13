@@ -829,7 +829,8 @@
         },
         {
           "title": "Getting Started",
-          "slug": "/cloud/getting-started/"
+          "slug": "/cloud/getting-started/",
+          "hideInScopes": ["oss", "enterprise"]
         },
         {
           "title": "Architecture",
@@ -837,7 +838,8 @@
         },
         {
           "title": "Downloads",
-          "slug": "/cloud/downloads/"
+          "slug": "/cloud/downloads/",
+          "hideInScopes": ["oss", "enterprise"]
         },
         {
           "title": "FAQ",
