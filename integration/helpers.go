@@ -1549,7 +1549,68 @@ func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 	return receivedEvents, nil
 }
 
-type proxyServer struct {
+type proxyBasicAuthHandler struct {
+	sync.Mutex
+	lastError error
+	authDB    map[string]string
+	proxyHandler
+}
+
+func (p *proxyBasicAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	auth := r.Header.Get("Proxy-Authorization")
+	if auth == "" {
+		err := trace.AccessDenied("missing Proxy-Authorization header")
+		p.SetError(err)
+		trace.WriteError(w, err)
+		return
+	}
+	user, password, ok := parseProxyAuth(auth)
+	if !ok {
+		err := trace.AccessDenied("bad Proxy-Authorization header")
+		p.SetError(err)
+		trace.WriteError(w, err)
+		return
+	}
+
+	if p.isAuthorized(user, password) {
+		p.SetError(nil)
+		p.proxyHandler.ServeHTTP(w, r)
+		return
+	}
+
+	err := trace.AccessDenied("bad credentials")
+	p.SetError(err)
+	trace.WriteError(w, err)
+}
+
+func (p *proxyBasicAuthHandler) SetError(err error) {
+	p.Lock()
+	defer p.Unlock()
+	p.lastError = err
+}
+
+func (p *proxyBasicAuthHandler) LastError() error {
+	p.Lock()
+	defer p.Unlock()
+	return p.lastError
+}
+
+func (p *proxyBasicAuthHandler) isAuthorized(user, pass string) bool {
+	expectedPass, ok := p.authDB[user]
+	return ok && pass == expectedPass
+}
+
+// parse "Proxy-Authorization" header by leveraging the stdlib basic auth parsing for "Authorization" header
+func parseProxyAuth(proxyAuth string) (user, password string, ok bool) {
+	fakeHeader := make(http.Header)
+	fakeHeader.Add("Authorization", proxyAuth)
+	fakeReq := &http.Request{
+		Header: fakeHeader,
+	}
+	return fakeReq.BasicAuth()
+}
+
+type proxyHandler struct {
 	sync.Mutex
 	count int
 }
@@ -1557,7 +1618,7 @@ type proxyServer struct {
 // ServeHTTP only accepts the CONNECT verb and will tunnel your connection to
 // the specified host. Also tracks the number of connections that it proxies for
 // debugging purposes.
-func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (p *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Validate http connect parameters.
 	if r.Method != http.MethodConnect {
 		trace.WriteError(w, trace.BadParameter("%v not supported", r.Method))
@@ -1616,7 +1677,7 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Count returns the number of connections that have been proxied.
-func (p *proxyServer) Count() int {
+func (p *proxyHandler) Count() int {
 	p.Lock()
 	defer p.Unlock()
 	return p.count

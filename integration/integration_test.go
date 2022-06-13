@@ -1677,8 +1677,8 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 
 func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time, proxyRecordMode string, execCountSiteA, execCountSiteB int) {
 	// start the http proxy, we need to make sure this was not used
-	ps := &proxyServer{}
-	ts := httptest.NewServer(ps)
+	ph := &proxyHandler{}
+	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
 	// clear out any proxy environment variables
@@ -1734,7 +1734,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	)
 
 	// make sure the direct dialer was used and not the proxy dialer
-	require.Zero(t, ps.Count())
+	require.Zero(t, ph.Count())
 
 	// if we got here, it means two sites are cross-connected. lets execute SSH commands
 	sshPort := a.GetPortSSHInt()
@@ -1845,7 +1845,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	defer tr.Stop()
 
 	// start the http proxy
-	ps := &proxyServer{}
+	ps := &proxyHandler{}
 	ts := httptest.NewServer(ps)
 	defer ts.Close()
 
