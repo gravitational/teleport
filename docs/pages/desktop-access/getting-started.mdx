@@ -30,7 +30,7 @@ This guide requires you to have:
 
   You can reuse an existing server running any other Teleport instance.
 
-## Step 1/6. Create a restrictive service account
+## Step 1/7. Create a restrictive service account
 
 Teleport requires a service account to connect to your Active Directory domain.
 We recommend creating a dedicated service account with restrictive permissions
@@ -86,7 +86,7 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 
 ```
 
-## Step 2/6. Prevent the service account from performing interactive logins
+## Step 2/7. Prevent the service account from performing interactive logins
 
 <Admonition type="note" title="gpupdate.exe">
   Throughout this step and the next one, you will be modifying GPOs, and
@@ -140,7 +140,7 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Local
   ![Deny Interactive Login](../../img/desktop-access/deny-interactive-login.png)
 </Figure>
 
-## Step 3/6: Configure a GPO to allow Teleport connections
+## Step 3/7. Configure a GPO to allow Teleport connections
 
 Next, we need to configure a GPO to allow Teleport desktop sessions. This
 includes telling your computers to trust Teleport's CA, allowing the
@@ -322,7 +322,71 @@ If you have not done so already, ensure your GPO is updated by opening a PowerSh
 gpupdate.exe /force
 ```
 
-## Step 4/6. Export your LDAP CA certificate
+## Step 4/7. Configure a certificate for RDP connections
+
+<Admonition type="note" title="Secure Cipher Suites">
+  Teleport's RDP client supports only secure algorithms
+  for making TLS connections, so we have to configure our Domain Controller 
+  to support those cipher suites as well.
+  This step is only *necessary* for Windows Server 2012 R2 Domain Controller as it does not support
+  secure algorithms by default. If it does not apply to you, you can skip this step and go to the [next step](#step-57-export-your-ldap-ca-certificate).
+</Admonition>
+
+In this step we'll create a new certificate template that uses elliptic curve cryptography, and then configure our GPO
+to use the newly created template to issue certificates used for Remote Desktop connections.
+
+### Create a certificate template
+
+In this section, we will create a certificate template that uses elliptic curve P-384 and uses SHA384 as the signature algorithm.
+
+
+1. Open the Microsoft Management Console (MMC)
+
+```text
+Start > Control Panel > Administrative Tools > Certificate Authority
+```
+
+2. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
+3. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
+4. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
+5. In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
+6. Go to the `General` tab and change `Template display name` to `RemoteDesktopAccess`. Make sure `Template name` is also `RemoteDesktopAccess`.
+7. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`, then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
+8. Next, in the `Extensions` tab select `Application Polices` and click the `Edit` button.
+9. Remove all entries from the list.
+10. Go to the `Security` tab, select `Domain Controllers` and give the group `Read` and `Enroll` permissions.
+11. Finally, create a template by clicking `OK`.
+12. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
+
+```text
+New > Certificate Template to Issue
+```
+Select `RemoteDesktopAccess` and click `OK`.
+
+### Update GPO to use a new certificate template
+
+In the group policy editor for `Teleport Access Policy`, select:
+
+```
+Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
+```
+
+Right-click on `Server authentication certificate template`, `Edit`, then select `Enabled` and fill `Certificate Template Name` with `RemoteDesktopAccess`.
+
+<Figure align="left" bordered caption="RDP Certificate Template">
+  ![RDP Certificate Template](../../img/desktop-access/rdp-certificate-template.png)
+</Figure>
+
+
+### Ensure your GPO is updated
+
+If you have not done so already, ensure your GPO is updated by opening a PowerShell prompt and running:
+
+```powershell
+gpupdate.exe /force
+```
+
+## Step 5/7. Export your LDAP CA certificate
 
 Teleport connects to your Domain Controller via LDAPS. This means that you must
 let Teleport know that the certificate sent by your Domain Controller during the
@@ -351,7 +415,7 @@ Now transfer the exported file to the system where you're running Teleport. You
 can either add this certificate to your system's trusted repository or provide
 the filepath to the `der_ca_file` configuration variable.
 
-## Step 5/6. Configure Teleport
+## Step 6/7. Configure Teleport
 
 <Admonition type="note" title="Teleport CA">
   Prior to v8.0, the Teleport CA was not compatible with Windows logins. If
@@ -414,7 +478,7 @@ windows_desktop_service:
 
 After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 
-## Step 6/6. Log in using Teleport
+## Step 7/7. Log in using Teleport
 
 ### Create a Teleport user/role for Windows Desktop Access
 

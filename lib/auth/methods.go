@@ -44,6 +44,15 @@ type AuthenticateUserRequest struct {
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
+	// ClientMetadata includes forwarded information about a client
+	ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
+}
+
+// ForwardedClientMetadata can be used by the proxy web API to forward information about
+// the client to the auth service for logging purposes.
+type ForwardedClientMetadata struct {
+	UserAgent  string `json:"user_agent,omitempty"`
+	RemoteAddr string `json:"remote_addr,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -106,6 +115,10 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	if mfaDev != nil {
 		m := mfaDeviceEventMetadata(mfaDev)
 		event.MFADevice = &m
+	}
+	if req.ClientMetadata != nil {
+		event.RemoteAddr = req.ClientMetadata.RemoteAddr
+		event.UserAgent = req.ClientMetadata.UserAgent
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode

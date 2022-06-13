@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
@@ -93,7 +94,7 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 			return nil, trace.Wrap(err)
 		}
 
-		sconn, err := sshConnect(conn, ssh, dialTimeout, addr)
+		sconn, err := sshConnect(ctx, conn, ssh, dialTimeout, addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -133,7 +134,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 			return nil, trace.Wrap(err)
 		}
 
-		sconn, err := sshConnect(tlsConn, ssh, dialTimeout, tunnelAddr)
+		sconn, err := sshConnect(ctx, tlsConn, ssh, dialTimeout, tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -142,9 +143,9 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 }
 
 // sshConnect upgrades the underling connection to ssh and connects to the Auth service.
-func sshConnect(conn net.Conn, ssh ssh.ClientConfig, dialTimeout time.Duration, addr string) (net.Conn, error) {
+func sshConnect(ctx context.Context, conn net.Conn, ssh ssh.ClientConfig, dialTimeout time.Duration, addr string) (net.Conn, error) {
 	ssh.Timeout = dialTimeout
-	sconn, err := sshutils.NewClientConnWithDeadline(conn, addr, &ssh)
+	sconn, err := tracessh.NewClientConnWithDeadline(ctx, conn, addr, &ssh)
 	if err != nil {
 		return nil, trace.NewAggregate(err, conn.Close())
 	}
