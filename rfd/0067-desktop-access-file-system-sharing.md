@@ -3,6 +3,11 @@ authors: Isaiah Becker-Mayer (isaiah@goteleport.com)
 state: draft
 ---
 
+## Required Approvers
+
+- Engineering: @zmb3 && (@probakowski || @LKozlowski)
+- Product: (@klizhentas || @xinding33)
+
 # Desktop Access File System Sharing
 
 ## Introduction
@@ -565,3 +570,11 @@ be enforced by the Windows Desktop Service itself: whenever we recieve an RDP me
 
 For example, if we recieve an `IRP_MJ_WRITE`, at the point where would ordinarily send a `Shared Directory Write Request` to our client (the browser), we will instead send the Windows machine an RDP `Device I/O Response` with `IoStatus`
 set to `STATUS_ACCESS_DENIED`. Realistically this situation might happen if the user is sharing a directory in read-only mode, opens a file in Notepad, changes it and then tries to save it.
+
+## UX
+
+The UX for this feature is discussed in [RFD 0058](https://github.com/gravitational/teleport/blob/master/rfd/0058-desktop-file-transfer.md) and may be expounded upon further in a future RFD.
+
+## Security
+
+Security will be discussed in [a future RFD](https://github.com/gravitational/teleport/issues/13406).
