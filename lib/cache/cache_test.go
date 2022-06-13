@@ -718,19 +718,16 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	ctx := context.Background()
 
 	for i := 0; i < nodeCount; i++ {
-		func() {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-			_, err := p.presenceS.UpsertNode(ctx, server)
-			require.NoError(b, err)
-			timeout := time.NewTimer(time.Millisecond * 200)
-			defer timeout.Stop()
-			select {
-			case event := <-p.eventsC:
-				require.Equal(b, EventProcessed, event.Type)
-			case <-timeout.C:
-				b.Fatalf("timeout waiting for event, iteration=%d", i)
-			}
-		}()
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
 	}
 
 	b.ResetTimer()
@@ -739,6 +736,66 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(b, err)
 		require.Len(b, nodes, nodeCount)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
+BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
+*/
+func BenchmarkListResourcesWithSort(b *testing.B) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	count := 100000
+	for i := 0; i < count; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		// Set some static and dynamic labels.
+		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
+		server.Spec.CmdLabels = map[string]types.CommandLabelV2{
+			"version": {Result: "v8"},
+			"time":    {Result: "now"},
+		}
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
+	}
+
+	b.ResetTimer()
+
+	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
+		for _, totalCount := range []bool{true, false} {
+			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
+				for n := 0; n < b.N; n++ {
+					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+						ResourceType: types.KindNode,
+						Namespace:    apidefaults.Namespace,
+						SortBy: types.SortBy{
+							IsDesc: true,
+							Field:  types.ResourceSpecHostname,
+						},
+						// Predicate is the more expensive filter.
+						PredicateExpression: `search("mac", "frontend") && labels.version == "v8"`,
+						Limit:               limit,
+						NeedTotalCount:      totalCount,
+					})
+					require.NoError(b, err)
+					require.Len(b, resp.Resources, int(limit))
+				}
+			})
+		}
 	}
 }
 
