@@ -354,7 +354,7 @@ func (c *LicenseV3) String() string {
 		features = append(features, "supports moderated sessions")
 	}
 	if c.GetSupportsMachineID() {
-		features = append(features, "supports MachineID")
+		features = append(features, "supports Machine ID")
 	}
 	if c.GetSupportsResourceAccessRequests() {
 		features = append(features, "supports resource access requests")
