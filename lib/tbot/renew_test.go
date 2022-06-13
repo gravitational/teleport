@@ -36,15 +36,17 @@ import (
 func TestOnboardViaToken(t *testing.T) {
 	t.Parallel()
 
+	log := libutils.NewLoggerForTests()
+
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
 	// Make and join a new bot instance.
 	botParams := testhelpers.MakeBot(t, rootClient, "test")
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
-	b := New(botConfig, libutils.NewLoggerForTests(), nil)
+	b := New(botConfig, log, nil)
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
 
@@ -65,6 +67,7 @@ func TestOnboardViaToken(t *testing.T) {
 func TestDatabaseRequest(t *testing.T) {
 	t.Parallel()
 
+	log := libutils.NewLoggerForTests()
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
 	fc.Databases.Databases = []*libconfig.Database{
@@ -77,8 +80,8 @@ func TestDatabaseRequest(t *testing.T) {
 			},
 		},
 	}
-	_ = testhelpers.MakeAndRunTestAuthServer(t, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
 	// Wait for the database to become available. Sometimes this takes a bit
 	// of time in CI.
@@ -132,7 +135,7 @@ func TestDatabaseRequest(t *testing.T) {
 	}
 
 	// Onboard the bot.
-	b := New(botConfig, libutils.NewLoggerForTests(), nil)
+	b := New(botConfig, log, nil)
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
 

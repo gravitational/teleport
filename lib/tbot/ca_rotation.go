@@ -80,7 +80,7 @@ func (rd *debouncer) attempt() {
 	})
 }
 
-const caWatchRetryLimit = 10
+const caWatchRetryLimit = 15
 
 // caRotationLoop continually triggers `watchCARotations` until the context is
 // cancelled. This allows the watcher to be re-established if an error occurs.
@@ -108,7 +108,7 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 	jitter := libUtils.NewJitter()
 
 	for ctx.Err() == nil {
-		for attempt := 1; attempt >= caWatchRetryLimit; attempt++ {
+		for attempt := 1; attempt <= caWatchRetryLimit; attempt++ {
 			err := b.watchCARotations(ctx, rd.attempt)
 			if err == nil || ctx.Err() != nil {
 				break
@@ -189,7 +189,9 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 
 	// We want to update for all phases but init and update_servers
 	phase := ca.GetRotation().Phase
-	if utils.SliceContainsStr([]string{"", "init", "update_servers"}, phase) {
+	if utils.SliceContainsStr([]string{
+		"", types.RotationPhaseInit, types.RotationPhaseUpdateServers,
+	}, phase) {
 		return fmt.Sprintf("skipping due to phase '%s'", phase)
 	}
 
@@ -203,7 +205,11 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 	}
 
 	// We want to skip anything that is not host, user, db
-	if !utils.SliceContainsStr([]string{"host", "user", "db"}, ca.GetSubKind()) {
+	if !utils.SliceContainsStr([]string{
+		string(types.HostCA),
+		string(types.UserCA),
+		string(types.DatabaseCA),
+	}, ca.GetSubKind()) {
 		return fmt.Sprintf("skipping due to CA kind '%s'", ca.GetSubKind())
 	}
 
