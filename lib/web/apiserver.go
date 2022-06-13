@@ -2074,15 +2074,15 @@ type siteSessionsGetResponse struct {
 
 func trackerToLegacySession(tracker types.SessionTracker, clusterName string) session.Session {
 	participants := tracker.GetParticipants()
-	parties := make([]session.Party, len(participants))
+	parties := make([]session.Party, 0, len(participants))
 
-	for j, participant := range participants {
-		parties[j] = session.Party{
+	for _, participant := range participants {
+		parties = append(parties, session.Party{
 			ID:         session.ID(participant.ID),
 			User:       participant.User,
 			ServerID:   tracker.GetAddress(),
 			LastActive: participant.LastActive,
-		}
+		})
 	}
 
 	return session.Session{
