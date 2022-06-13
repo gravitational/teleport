@@ -1564,67 +1564,8 @@ func TestActiveSessions(t *testing.T) {
 	require.False(t, sess.LastActive.IsZero())
 	require.Equal(t, s.srvID, sess.ServerID)
 	require.Equal(t, s.node.GetInfo().GetHostname(), sess.ServerHostname)
-	require.Equal(t, s.node.GetInfo().GetAddr(), sess.ServerAddr)
+	require.Equal(t, s.srvID, sess.ServerAddr)
 	require.Equal(t, s.server.ClusterName(), sess.ClusterName)
-}
-
-// DELETE IN: 5.0.0
-// Tests the code snippet from apiserver.(*Handler).siteSessionGet/siteSessionsGet
-// that tests empty ClusterName and ServerHostname gets set.
-func TestEmptySessionClusterHostnameIsSet(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
-	nodeClient, err := s.server.NewClient(auth.TestBuiltin(types.RoleNode))
-	require.NoError(t, err)
-
-	// Create a session with empty ClusterName.
-	sess1 := session.Session{
-		ClusterName:    "",
-		ServerID:       string(session.NewID()),
-		ID:             session.NewID(),
-		Namespace:      apidefaults.Namespace,
-		Login:          "foo",
-		Created:        time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-		TerminalParams: session.TerminalParams{W: 100, H: 100},
-	}
-	err = nodeClient.CreateSession(sess1)
-	require.NoError(t, err)
-
-	// Retrieve the session with the empty ClusterName.
-	pack := s.authPack(t, "baz")
-	res, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions", sess1.ID.String()), url.Values{})
-	require.NoError(t, err)
-
-	// Test that empty ClusterName and ServerHostname got set.
-	var sessionResult *session.Session
-	err = json.Unmarshal(res.Bytes(), &sessionResult)
-	require.NoError(t, err)
-	require.Equal(t, s.server.ClusterName(), sessionResult.ClusterName)
-	require.Equal(t, sess1.ServerID, sessionResult.ServerHostname)
-
-	// Create another session to test sessions list.
-	sess2 := sess1
-	sess2.ID = session.NewID()
-	sess2.ServerID = string(session.NewID())
-	err = nodeClient.CreateSession(sess2)
-	require.NoError(t, err)
-
-	// Retrieve sessions list.
-	res, err = pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
-	require.NoError(t, err)
-
-	var sessionList *siteSessionsGetResponse
-	err = json.Unmarshal(res.Bytes(), &sessionList)
-	require.NoError(t, err)
-
-	s1 := sessionList.Sessions[0]
-	s2 := sessionList.Sessions[1]
-
-	require.Equal(t, s.server.ClusterName(), s1.ClusterName)
-	require.Equal(t, s.server.ClusterName(), s2.ClusterName)
-	require.Equal(t, s1.ServerID, s1.ServerHostname)
-	require.Equal(t, s2.ServerID, s2.ServerHostname)
 }
 
 func TestCloseConnectionsOnLogout(t *testing.T) {
