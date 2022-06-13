@@ -17,108 +17,84 @@ limitations under the License.
 package types
 
 import (
+	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestLicenseSettersAndGetters(t *testing.T) {
+	// All getters inspected in this test.
+	allFields := []func(License) Bool{
+		License.GetReportsUsage,
+		License.GetCloud,
+		License.GetSupportsKubernetes,
+		License.GetSupportsApplicationAccess,
+		License.GetSupportsDatabaseAccess,
+		License.GetSupportsDesktopAccess,
+		License.GetSupportsModeratedSessions,
+	}
+
+	// unsetFields returns a list of license fields getters minus
+	// the one passed as an argument.
+	unsetFields := func(getter func(License) Bool) []func(License) Bool {
+		var unsetFields []func(License) Bool
+		for _, fieldGetter := range allFields {
+			if fnName(fieldGetter) != fnName(getter) {
+				unsetFields = append(unsetFields, fieldGetter)
+			}
+		}
+		return unsetFields
+	}
+
 	tt := []struct {
 		name        string
 		setter      func(License, Bool)
 		getter      func(License) Bool
-		unsetValues [](func(License) Bool)
+		unsetFields [](func(License) Bool)
 	}{
 		{
-			name:   "Set ReportsUsage",
-			setter: License.SetReportsUsage,
-			getter: License.GetReportsUsage,
-			unsetValues: []func(License) Bool{
-				License.GetCloud,
-				License.GetSupportsKubernetes,
-				License.GetSupportsApplicationAccess,
-				License.GetSupportsDatabaseAccess,
-				License.GetSupportsDesktopAccess,
-				License.GetSupportsModeratedSessions,
-			},
+			name:        "Set ReportsUsage",
+			setter:      License.SetReportsUsage,
+			getter:      License.GetReportsUsage,
+			unsetFields: unsetFields(License.GetReportsUsage),
 		},
 		{
-			name:   "Set Cloud",
-			setter: License.SetCloud,
-			getter: License.GetCloud,
-			unsetValues: []func(License) Bool{
-				License.GetReportsUsage,
-				License.GetSupportsKubernetes,
-				License.GetSupportsApplicationAccess,
-				License.GetSupportsDatabaseAccess,
-				License.GetSupportsDesktopAccess,
-				License.GetSupportsModeratedSessions,
-			},
+			name:        "Set Cloud",
+			setter:      License.SetCloud,
+			getter:      License.GetCloud,
+			unsetFields: unsetFields(License.GetCloud),
 		},
 		{
-			name:   "Set Kubernetes Support",
-			setter: License.SetSupportsKubernetes,
-			getter: License.GetSupportsKubernetes,
-			unsetValues: []func(License) Bool{
-				License.GetReportsUsage,
-				License.GetCloud,
-				License.GetSupportsApplicationAccess,
-				License.GetSupportsDatabaseAccess,
-				License.GetSupportsDesktopAccess,
-				License.GetSupportsModeratedSessions,
-			},
+			name:        "Set Kubernetes Support",
+			setter:      License.SetSupportsKubernetes,
+			getter:      License.GetSupportsKubernetes,
+			unsetFields: unsetFields(License.GetSupportsKubernetes),
 		},
 		{
-			name:   "Set Application Access Support",
-			setter: License.SetSupportsApplicationAccess,
-			getter: License.GetSupportsApplicationAccess,
-			unsetValues: []func(License) Bool{
-				License.GetReportsUsage,
-				License.GetCloud,
-				License.GetSupportsKubernetes,
-				License.GetSupportsDatabaseAccess,
-				License.GetSupportsDesktopAccess,
-				License.GetSupportsModeratedSessions,
-			},
+			name:        "Set Application Access Support",
+			setter:      License.SetSupportsApplicationAccess,
+			getter:      License.GetSupportsApplicationAccess,
+			unsetFields: unsetFields(License.GetSupportsApplicationAccess),
 		},
 		{
-			name:   "Set Database Access Support",
-			setter: License.SetSupportsDatabaseAccess,
-			getter: License.GetSupportsDatabaseAccess,
-			unsetValues: []func(License) Bool{
-				License.GetReportsUsage,
-				License.GetCloud,
-				License.GetSupportsKubernetes,
-				License.GetSupportsApplicationAccess,
-				License.GetSupportsDesktopAccess,
-				License.GetSupportsModeratedSessions,
-			},
+			name:        "Set Database Access Support",
+			setter:      License.SetSupportsDatabaseAccess,
+			getter:      License.GetSupportsDatabaseAccess,
+			unsetFields: unsetFields(License.GetSupportsDatabaseAccess),
 		},
 		{
-			name:   "Set Desktop Access Support",
-			setter: License.SetSupportsDesktopAccess,
-			getter: License.GetSupportsDesktopAccess,
-			unsetValues: []func(License) Bool{
-				License.GetReportsUsage,
-				License.GetCloud,
-				License.GetSupportsKubernetes,
-				License.GetSupportsApplicationAccess,
-				License.GetSupportsDatabaseAccess,
-				License.GetSupportsModeratedSessions,
-			},
+			name:        "Set Desktop Access Support",
+			setter:      License.SetSupportsDesktopAccess,
+			getter:      License.GetSupportsDesktopAccess,
+			unsetFields: unsetFields(License.GetSupportsDesktopAccess),
 		},
 		{
-			name:   "Set Moderated Sessions Support",
-			setter: License.SetSupportsModeratedSessions,
-			getter: License.GetSupportsModeratedSessions,
-			unsetValues: []func(License) Bool{
-				License.GetReportsUsage,
-				License.GetCloud,
-				License.GetSupportsKubernetes,
-				License.GetSupportsApplicationAccess,
-				License.GetSupportsDatabaseAccess,
-				License.GetSupportsDesktopAccess,
-			},
+			name:        "Set Moderated Sessions Support",
+			setter:      License.SetSupportsModeratedSessions,
+			getter:      License.GetSupportsModeratedSessions,
+			unsetFields: unsetFields(License.GetSupportsModeratedSessions),
 		},
 	}
 
@@ -131,7 +107,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			}
 			tc.setter(license, true)
 			require.True(t, bool(tc.getter(license)))
-			for _, unset := range tc.unsetValues {
+			for _, unset := range tc.unsetFields {
 				require.False(t, bool(unset(license)))
 			}
 		})
@@ -147,4 +123,8 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	require.False(t, bool(license.GetSupportsDatabaseAccess()))
 	require.False(t, bool(license.GetSupportsDesktopAccess()))
 	require.False(t, bool(license.GetSupportsModeratedSessions()))
+}
+
+func fnName(i interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
