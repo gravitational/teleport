@@ -15,6 +15,8 @@
 package proxy
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -157,22 +159,15 @@ func TestCAChange(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, stream)
 
-	// rotate client ca
-	newClientCA := newSelfSignedCA(t)
-	client = setupClient(t, newClientCA, newServerCA, types.RoleProxy)
-
-	// new connection should fail because server tls config still references old
-	// ClientCAs.
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
-	require.NoError(t, err)
-	require.NotNil(t, conn)
-	stream, err = client.startStream(conn)
-	require.Error(t, err)
-	require.Nil(t, stream)
-
-	// new server with reference to new ClientCAs
-	require.NoError(t, server.Close())
-	server, _ = setupServer(t, "s1", newServerCA, newClientCA, types.RoleProxy)
+	// new connection should succeed because client tls config references new
+	// RootCAs.
+	client.config.getConfigForServer = func() (*tls.Config, error) {
+		config := client.config.TLSConfig.Clone()
+		rootCAs := x509.NewCertPool()
+		rootCAs.AddCert(newServerCA.Cert)
+		config.RootCAs = rootCAs
+		return config, nil
+	}
 
 	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
