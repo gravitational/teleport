@@ -2047,7 +2047,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	var sessions []session.Session
+	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
 		if tracker.GetSessionKind() == types.SSHSessionKind {
 			sessions = append(sessions, trackerToLegacySession(tracker, site.GetName()))
