@@ -35,6 +35,9 @@ func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, e
 
 // DialProxyWithDialer creates a connection to a server via an HTTP Proxy using a specified dialer.
 func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, dialer ContextDialer) (net.Conn, error) {
+	if proxyURL == nil {
+		return nil, trace.BadParameter("missing proxy url")
+	}
 	conn, err := dialer.DialContext(ctx, "tcp", proxyURL.Host)
 	if err != nil {
 		log.Warnf("Unable to dial to proxy: %v: %v.", proxyURL.Host, err)
@@ -42,13 +45,11 @@ func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, di
 	}
 
 	header := make(http.Header)
-	if proxyURL != nil && proxyURL.User != nil {
+	if proxyURL.User != nil {
 		// dont use User.String() because it performs url encoding (rfc 1738),
 		// which we don't want in our header
-		creds := proxyURL.User.Username()
-		if password, hasPass := proxyURL.User.Password(); hasPass {
-			creds += ":" + password
-		}
+		password, _ := proxyURL.User.Password()
+		creds := proxyURL.User.Username() + ":" + password
 		basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(creds))
 		header.Add("Proxy-Authorization", basicAuth)
 	}

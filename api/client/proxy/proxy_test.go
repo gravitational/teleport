@@ -34,39 +34,42 @@ func TestGetProxyAddress(t *testing.T) {
 		val  string
 	}
 	var tests = []struct {
-		info       string
-		env        []env
-		targetAddr string
-		proxyAddr  string
+		info           string
+		env            []env
+		targetAddr     string
+		proxyAddr      string
+		isRawProxyAddr bool
 	}{
 		{
-			info:       "valid, can be raw host:port",
-			env:        []env{{name: "http_proxy", val: "%vproxy:1234"}},
-			proxyAddr:  "proxy:1234",
-			targetAddr: "192.168.1.1:3030",
+			info:           "valid, can be raw host:port",
+			env:            []env{{name: "http_proxy", val: "proxy:1234"}},
+			isRawProxyAddr: true,
+			proxyAddr:      "proxy:1234",
+			targetAddr:     "192.168.1.1:3030",
 		},
 		{
-			info:       "valid, raw host:port works for https",
-			env:        []env{{name: "HTTPS_PROXY", val: "%vproxy:1234"}},
-			proxyAddr:  "proxy:1234",
-			targetAddr: "192.168.1.1:3030",
+			info:           "valid, raw host:port works for https",
+			env:            []env{{name: "HTTPS_PROXY", val: "proxy:1234"}},
+			isRawProxyAddr: true,
+			proxyAddr:      "proxy:1234",
+			targetAddr:     "192.168.1.1:3030",
 		},
 		{
 			info:       "valid, correct full url",
-			env:        []env{{name: "https_proxy", val: "https://%vproxy:1234"}},
+			env:        []env{{name: "https_proxy", val: "https://proxy:1234"}},
 			proxyAddr:  "proxy:1234",
 			targetAddr: "192.168.1.1:3030",
 		},
 		{
 			info:       "valid, http endpoint can be set in https_proxy",
-			env:        []env{{name: "https_proxy", val: "http://%vproxy:1234"}},
+			env:        []env{{name: "https_proxy", val: "http://proxy:1234"}},
 			proxyAddr:  "proxy:1234",
 			targetAddr: "192.168.1.1:3030",
 		},
 		{
 			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches domain",
 			env: []env{
-				{name: "https_proxy", val: "http://%vproxy:1234"},
+				{name: "https_proxy", val: "http://proxy:1234"},
 				{name: "no_proxy", val: "proxy"}},
 			proxyAddr:  "",
 			targetAddr: "proxy:1234",
@@ -74,7 +77,7 @@ func TestGetProxyAddress(t *testing.T) {
 		{
 			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches ip",
 			env: []env{
-				{name: "https_proxy", val: "http://%vproxy:1234"},
+				{name: "https_proxy", val: "http://proxy:1234"},
 				{name: "no_proxy", val: "192.168.1.1"}},
 			proxyAddr:  "",
 			targetAddr: "192.168.1.1:1234",
@@ -82,7 +85,7 @@ func TestGetProxyAddress(t *testing.T) {
 		{
 			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches subdomain",
 			env: []env{
-				{name: "https_proxy", val: "http://%vproxy:1234"},
+				{name: "https_proxy", val: "http://proxy:1234"},
 				{name: "no_proxy", val: ".example.com"}},
 			proxyAddr:  "",
 			targetAddr: "bla.example.com:1234",
@@ -90,31 +93,29 @@ func TestGetProxyAddress(t *testing.T) {
 		{
 			info: "valid, no_proxy blocks matching port",
 			env: []env{
-				{name: "https_proxy", val: "%vproxy:9999"},
+				{name: "https_proxy", val: "proxy:9999"},
 				{name: "no_proxy", val: "example.com:1234"},
 			},
-			proxyAddr:  "",
-			targetAddr: "example.com:1234",
+			isRawProxyAddr: true,
+			proxyAddr:      "",
+			targetAddr:     "example.com:1234",
 		},
 		{
 			info: "valid, no_proxy matches host but not port",
 			env: []env{
-				{name: "https_proxy", val: "%vproxy:9999"},
+				{name: "https_proxy", val: "proxy:9999"},
 				{name: "no_proxy", val: "example.com:1234"},
 			},
-			proxyAddr:  "proxy:9999",
-			targetAddr: "example.com:5678",
+			isRawProxyAddr: true,
+			proxyAddr:      "proxy:9999",
+			targetAddr:     "example.com:5678",
 		},
 	}
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("%v: %v", i, tt.info), func(t *testing.T) {
 			for _, env := range tt.env {
-				if strings.EqualFold(env.name, "http_proxy") || strings.EqualFold(env.name, "https_proxy") {
-					t.Setenv(env.name, fmt.Sprintf(env.val, "")) // test without user:pass@addr form
-				} else {
-					t.Setenv(env.name, env.val)
-				}
+				t.Setenv(env.name, env.val)
 			}
 			p := GetProxyURL(tt.targetAddr)
 			if tt.proxyAddr == "" {
@@ -128,10 +129,20 @@ func TestGetProxyAddress(t *testing.T) {
 			// now reconstruct the env var with user:pass@host, set the env again, and test parsing that
 			expectedUser := "alice"
 			expectedPassword := "password"
-			creds := fmt.Sprintf("%v:%v@", expectedUser, expectedPassword)
 			for _, env := range tt.env {
 				if strings.EqualFold(env.name, "http_proxy") || strings.EqualFold(env.name, "https_proxy") {
-					t.Setenv(env.name, fmt.Sprintf(env.val, creds)) // test with user:pass@ injected into addr
+					var val string
+					if tt.isRawProxyAddr {
+						// url.Parse will parse a raw host:port as scheme:opaque,
+						// so instead just prepend the user info to the raw host:port proxy addr
+						val = fmt.Sprintf("%v:%v@%v", expectedUser, expectedPassword, env.val)
+					} else {
+						u, _ := url.Parse(env.val)
+						u.User = url.UserPassword(expectedUser, expectedPassword)
+						val = u.String()
+					}
+					// test with user:pass@ injected into addr
+					t.Setenv(env.name, val)
 				} else {
 					t.Setenv(env.name, env.val)
 				}
