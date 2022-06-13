@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/semaphore"
 )
 
 func TestCTRLCPassthrough(t *testing.T) {
@@ -89,41 +88,44 @@ func TestBufferedKept(t *testing.T) {
 	require.Equal(t, m.buffer, kept)
 }
 
-type funcReader func(p []byte) (n int, err error)
-
-func (f funcReader) Read(p []byte) (n int, err error) {
-	return f(p)
-}
-
 func TestNoReadWhenOff(t *testing.T) {
+	t.Parallel()
 	m := NewTermManager()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
 
 	r, w := io.Pipe()
 	data := make([]byte, 90)
 	n, err := rand.Read(data)
 	require.NoError(t, err)
 
-	s := semaphore.NewWeighted(1)
-	require.NoError(t, s.Acquire(context.Background(), 1))
-	var fr funcReader = func(p []byte) (n int, err error) {
-		n, err = r.Read(p)
-		s.Release(1)
-		return
-	}
+	discarded := make(chan struct{})
+	m.onDiscard = func() { close(discarded) }
 
-	m.AddReader("reader", fr)
+	// add our data source to the multiplexer
+	m.AddReader("reader", r)
 
+	// write some data into our pipe, making it available to the multiplexer
 	_, err = w.Write(data[:n])
 	require.NoError(t, err)
 
-	require.NoError(t, s.Acquire(context.Background(), 1))
+	// wait for the multiplexer to read the data, it should be discarded which will close the discard channel
+	// and continue execution
+	select {
+	case <-discarded:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+
+	// enable the multiplexer, data should now flow through instead of being dropped
 	m.On()
 
+	// write 3 more bytes, these should be buffered until a reader picks them up
 	_, err = w.Write([]byte{1, 2, 3})
 	require.NoError(t, err)
 
+	// attempt to read the buffered data, this should succeed since the multiplexer should now allow dataflow
 	n, err = m.Read(data)
 	require.NoError(t, err)
-
 	require.Equal(t, []byte{1, 2, 3}, data[:n])
 }
