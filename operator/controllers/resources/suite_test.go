@@ -17,70 +17,164 @@ limitations under the License.
 package resources
 
 import (
+	"context"
+	"math/rand"
 	"path/filepath"
 	"testing"
+	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/google/uuid"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/stretchr/testify/require"
+	core "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrl "sigs.k8s.io/controller-runtime"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration"
+	"github.com/gravitational/teleport/integration/helpers"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	//+kubebuilder:scaffold:imports
 )
 
-// These tests use Ginkgo (BDD-style Go testing framework). Refer to
-// http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
-
-var cfg *rest.Config
-var k8sClient client.Client
-var testEnv *envtest.Environment
-
-func TestAPIs(t *testing.T) {
-	RegisterFailHandler(Fail)
-
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Controller Suite",
-		[]Reporter{printer.NewlineReporter{}})
+func fastEventually(t *testing.T, condition func() bool) {
+	require.Eventually(t, condition, time.Second, 100*time.Millisecond)
 }
 
-var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) *client.Client {
+	identityFilePath := integration.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
 
-	By("bootstrapping test environment")
-	testEnv = &envtest.Environment{
+	teleportClient, err := client.New(context.Background(), client.Config{
+		Addrs:       []string{teleportServer.GetAuthAddr()},
+		Credentials: []client.Credentials{client.LoadIdentityFile(identityFilePath)},
+	})
+	require.NoError(t, err)
+
+	return teleportClient
+}
+
+func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
+	teleportServer := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: "root.example.com",
+		HostID:      uuid.New().String(),
+		NodeName:    integration.Loopback,
+	})
+
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebInterface = true
+	rcConf.SSH.Enabled = true
+	rcConf.Version = "v2"
+
+	roleName := validRandomResourceName("role-")
+	unrestricted := []string{"list", "create", "read", "update", "delete"}
+	role, err := types.NewRole(roleName, types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule("role", unrestricted),
+				types.NewRule("user", unrestricted),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	operatorName := validRandomResourceName("operator-")
+	_ = teleportServer.AddUserWithRole(operatorName, role)
+
+	err = teleportServer.CreateEx(t, nil, rcConf)
+	require.NoError(t, err)
+
+	return teleportServer, operatorName
+}
+
+func startKubernetesOperator(t *testing.T, teleportClient *client.Client) kclient.Client {
+	testEnv := &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 	}
 
-	var err error
-	// cfg is defined in this file globally.
-	cfg, err = testEnv.Start()
-	Expect(err).NotTo(HaveOccurred())
-	Expect(cfg).NotTo(BeNil())
+	cfg, err := testEnv.Start()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
 
 	err = resourcesv5.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
+	require.NoError(t, err)
 
 	err = resourcesv2.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
+	require.NoError(t, err)
 
-	//+kubebuilder:scaffold:scheme
+	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme.Scheme})
+	require.NoError(t, err)
+	require.NotNil(t, k8sClient)
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
-	Expect(err).NotTo(HaveOccurred())
-	Expect(k8sClient).NotTo(BeNil())
+	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:             scheme.Scheme,
+		MetricsBindAddress: "0",
+	})
+	require.NoError(t, err)
 
-}, 60)
+	err = (&RoleReconciler{
+		Client:         k8sClient,
+		Scheme:         k8sManager.GetScheme(),
+		TeleportClient: teleportClient,
+	}).SetupWithManager(k8sManager)
+	require.NoError(t, err)
 
-var _ = AfterSuite(func() {
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
-})
+	err = (&UserReconciler{
+		Client:         k8sClient,
+		Scheme:         k8sManager.GetScheme(),
+		TeleportClient: teleportClient,
+	}).SetupWithManager(k8sManager)
+	require.NoError(t, err)
+
+	ctx, ctxTearDown := context.WithCancel(context.Background())
+	go func() {
+		err = k8sManager.Start(ctx)
+		require.NoError(t, err)
+	}()
+
+	t.Cleanup(func() {
+		ctxTearDown()
+		err = testEnv.Stop()
+		require.NoError(t, err)
+	})
+
+	return k8sClient
+}
+
+func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
+	ns := &core.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: validRandomResourceName("ns-")},
+	}
+
+	err := kc.Create(context.Background(), ns)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		deleteNamespaceForTest(t, kc, ns)
+	})
+
+	return ns
+}
+
+func deleteNamespaceForTest(t *testing.T, kc kclient.Client, ns *core.Namespace) {
+	err := kc.Delete(context.Background(), ns)
+	require.NoError(t, err)
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
+
+func validRandomResourceName(prefix string) string {
+	b := make([]rune, 5)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return prefix + string(b)
+}

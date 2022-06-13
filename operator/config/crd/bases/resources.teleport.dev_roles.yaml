@@ -87,6 +87,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  host_sudoers:
+                    description: HostSudoers is a list of entries to include in a
+                      users sudoer file
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   impersonate:
                     description: Impersonate specifies what users and roles this role
                       is allowed to impersonate by issuing certificates or other possible
@@ -436,6 +443,13 @@ spec:
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  host_sudoers:
+                    description: HostSudoers is a list of entries to include in a
+                      users sudoer file
                     items:
                       type: string
                     nullable: true

@@ -18,19 +18,22 @@ package resources
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
+	"github.com/gravitational/trace"
 )
 
 // RoleReconciler reconciles a Role object
 type RoleReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
+	kclient.Client
+	Scheme         *runtime.Scheme
+	TeleportClient *client.Client
 }
 
 //+kubebuilder:rbac:groups=resources.teleport.dev,resources=roles,verbs=get;list;watch;create;update;patch;delete
@@ -45,13 +48,13 @@ type RoleReconciler struct {
 // the user.
 //
 // For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.2/pkg/reconcile
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.0/pkg/reconcile
 func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
-
-	// TODO(user): your logic here
-
-	return ctrl.Result{}, nil
+	return ResourceBaseReconciler{
+		Client:         r.Client,
+		DeleteExternal: r.Delete,
+		UpsertExternal: r.Upsert,
+	}.Do(ctx, req, &resourcesv5.Role{})
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -59,4 +62,27 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&resourcesv5.Role{}).
 		Complete(r)
+}
+
+func (r *RoleReconciler) Delete(ctx context.Context, obj kclient.Object) error {
+	return r.TeleportClient.DeleteRole(ctx, obj.GetName())
+}
+
+func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
+	k8sResource, ok := obj.(*resourcesv5.Role)
+	if !ok {
+		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
+	}
+	teleportResource := k8sResource.ToTeleport()
+
+	_, err := r.TeleportClient.GetRole(ctx, teleportResource.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if trace.IsNotFound(err) {
+		if !hasOriginLabel(obj) {
+			return addOriginLabel(ctx, r.Client, obj)
+		}
+	}
+	return r.TeleportClient.UpsertRole(ctx, teleportResource)
 }
