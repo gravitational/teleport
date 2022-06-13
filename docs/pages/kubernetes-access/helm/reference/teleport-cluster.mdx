@@ -3,18 +3,10 @@ title: teleport-cluster Chart Reference
 description: Values that can be set using the teleport-cluster Helm chart
 ---
 
-The `teleport-cluster` Helm chart is used to deploy the Teleport Auth Service
-and Proxy Service, which is ideal for getting started with a self-hosted Teleport
-cluster on Kubernetes.
-
-<Notice scope={["cloud"]} type="warning">
-
-Teleport Cloud manages the Auth Service and Proxy Service for you. Use the
-`teleport-cluster` chart if you are interested in hosting Teleport yourself, or
-use the [`teleport-kube-agent`](./teleport-kube-agent.mdx) chart to deploy the
-Kubernetes Service, Application Service, or Database Service.
-
-</Notice>
+The `teleport-cluster` Helm chart deploys the `teleport` daemon on Kubernetes.
+You can use our preset configurations to deploy the Auth Service and Proxy
+Service, or a custom configuration to deploy agent services such as the Teleport
+Kubernetes Service or Database Service.
 
 You can
 [browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster).
@@ -1456,6 +1448,30 @@ will also be applied to `initContainers`.
   ```code
   $ --set resources.requests.cpu=1 \
   --set resources.requests.memory=2Gi
+  ```
+  </TabItem>
+</Tabs>
+
+## `securityContext`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+
+The `securityContext` applies to any pods created by the chart, including `initContainers`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  securityContext:
+    runAsUser: 99
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set securityContext.runAsUser=99
   ```
   </TabItem>
 </Tabs>

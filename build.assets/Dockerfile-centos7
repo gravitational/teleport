@@ -19,7 +19,7 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
 
 # Instal openssl.
 # Pulled from source because repository versions are too old.
-RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1n && \
+RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1o && \
     cd openssl && \
     ./config --release && \
     make && \
@@ -39,7 +39,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Install libfido2.
 # Depends on libcbor, openssl, zlib-devel and libudev.
 # Linked so `make build/tsh` finds the library where it expects it.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
     cd libfido2 && \
     cmake3 \
         -DBUILD_EXAMPLES=OFF \
@@ -125,7 +125,7 @@ COPY --from=libfido2 \
     /usr/local/lib64/libcrypto.a \
     /usr/local/lib64/libcrypto.so.1.1 \
     /usr/local/lib64/libfido2.a \
-    /usr/local/lib64/libfido2.so.1.10.0 \
+    /usr/local/lib64/libfido2.so.1.11.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.1.1 \
     /usr/local/lib64/libudev.a \
@@ -133,7 +133,7 @@ COPY --from=libfido2 \
 RUN cd /usr/local/lib64 && \
 # Re-create usual lib64 links.
     ln -s libcrypto.so.1.1 libcrypto.so && \
-    ln -s libfido2.so.1.10.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.11.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.1.1 libssl.so && \
 # Update ld.

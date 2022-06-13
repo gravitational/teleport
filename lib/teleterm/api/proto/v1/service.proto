@@ -53,6 +53,10 @@ service TerminalService {
     rpc RemoveCluster(RemoveClusterRequest) returns (EmptyResponse);
     // RemoveGateway removes a gateway
     rpc RemoveGateway(RemoveGatewayRequest) returns (EmptyResponse);
+    // RestartGateway stops a gateway and starts a new with identical parameters, keeping the
+    // original URI. A temporary workaround until it's possible to refresh certs in a running
+    // database proxy.
+    rpc RestartGateway(RestartGatewayRequest) returns (EmptyResponse);
     // GetAuthSettings returns cluster auth settigns
     rpc GetAuthSettings(GetAuthSettingsRequest) returns (AuthSettings);
     // GetCluster returns a cluster
@@ -78,10 +82,10 @@ message LoginRequest {
     string cluster_uri = 1;
 
     oneof params {
-      // local holds parameters for local logins
-      LocalParams local = 2;
-      // sso holds parameters for sso logins
-      SsoParams sso = 3;
+        // local holds parameters for local logins
+        LocalParams local = 2;
+        // sso holds parameters for sso logins
+        SsoParams sso = 3;
     }
 
     // LocalParams describes parameters for local user logins
@@ -135,6 +139,8 @@ message ListGatewaysRequest { repeated string cluster_ids = 1; }
 message ListGatewaysResponse { repeated Gateway gateways = 1; }
 
 message RemoveGatewayRequest { string gateway_uri = 1; }
+
+message RestartGatewayRequest { string gateway_uri = 1; }
 
 message ListServersRequest { string cluster_uri = 1; }
 

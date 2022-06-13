@@ -21,29 +21,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
-	"time"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
-
-// NewClientConnWithDeadline establishes new client connection with specified deadline
-func NewClientConnWithDeadline(conn net.Conn, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	if config.Timeout > 0 {
-		conn.SetReadDeadline(time.Now().Add(config.Timeout))
-	}
-	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
-	if err != nil {
-		return nil, err
-	}
-	if config.Timeout > 0 {
-		conn.SetReadDeadline(time.Time{})
-	}
-	return ssh.NewClient(c, chans, reqs), nil
-}
 
 // ConnectProxyTransport opens a channel over the remote tunnel and connects
 // to the requested host.

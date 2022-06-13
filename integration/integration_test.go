@@ -44,7 +44,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -55,15 +59,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/uuid"
@@ -87,8 +90,6 @@ type integrationTestSuite struct {
 }
 
 func newSuite(t *testing.T) *integrationTestSuite {
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
-
 	suite := &integrationTestSuite{}
 
 	var err error
@@ -189,7 +190,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
 	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
-	t.Run("RotateChangeSigningAlg", suite.bind(testRotateChangeSigningAlg))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
 	t.Run("RotateTrustedClusters", suite.bind(testRotateTrustedClusters))
@@ -206,6 +206,54 @@ func TestIntegrations(t *testing.T) {
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
+	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
+	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
+	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
+}
+
+// testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
+func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	tconf := suite.defaultServiceConfig()
+	tconf.Auth.Enabled = true
+	tconf.Proxy.Enabled = true
+	tconf.Proxy.DisableWebService = true
+	tconf.Proxy.DisableWebInterface = true
+	tconf.SSH.Enabled = true
+	tconf.SSH.DisableCreateHostUser = true
+
+	teleport := suite.newTeleportInstance()
+
+	role := services.NewImplicitRole()
+	ro := role.GetOptions()
+	ro.PinSourceIP = true
+	role.SetOptions(ro)
+	role.SetName("x")
+	teleport.AddUserWithRole(suite.me.Username, role)
+
+	require.NoError(t, teleport.CreateEx(t, nil, tconf))
+	require.NoError(t, teleport.Start())
+	defer teleport.StopAll()
+
+	site := teleport.GetSiteAPI(Site)
+	require.NotNil(t, site)
+
+	for _, ip := range []string{"1.2.3.4/32", "1843:4545::12/128"} {
+		cl, err := teleport.NewClient(ClientConfig{
+			Login:    suite.me.Username,
+			Cluster:  Site,
+			Host:     Host,
+			SourceIP: ip,
+		})
+		require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		err = cl.SSH(ctx, []string{}, false)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "ssh: unable to authenticate")
+	}
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -620,13 +668,13 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 }
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
-// it as an argument. Otherwise it will run tests as normal.
+// it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	SetTestTimeouts(100 * time.Millisecond)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand || os.Args[1] == teleport.CheckHomeDirSubCommand) {
+	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -849,6 +897,165 @@ func testInteractiveReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	defer teleport.StopAll()
 
 	verifySessionJoin(t, suite.me.Username, teleport)
+}
+
+func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtNode,
+	})
+	require.NoError(t, err)
+
+	// Enable session recording on node.
+	cfg := suite.defaultServiceConfig()
+	cfg.Auth.Enabled = true
+	cfg.Auth.SessionRecordingConfig = recConfig
+	cfg.Proxy.DisableWebService = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.Enabled = true
+	cfg.SSH.Enabled = true
+
+	teleport := suite.newTeleportWithConfig(t, nil, nil, cfg)
+	defer teleport.StopAll()
+
+	// startSession starts an interactive session, users must terminate the
+	// session by typing "exit" in the terminal.
+	startSession := func(username string) (*Terminal, chan error) {
+		term := NewTerminal(250)
+		errCh := make(chan error)
+
+		go func() {
+			cl, err := teleport.NewClient(ClientConfig{
+				Login:   username,
+				Cluster: Site,
+				Host:    Host,
+			})
+			if err != nil {
+				errCh <- trace.Wrap(err)
+				return
+			}
+			cl.Stdout = term
+			cl.Stdin = term
+
+			errCh <- cl.SSH(context.TODO(), []string{}, false)
+		}()
+
+		return term, errCh
+	}
+
+	waitSessionTermination := func(t *testing.T, errCh chan error, errorAssertion require.ErrorAssertionFunc) {
+		require.Eventually(t, func() bool {
+			select {
+			case err := <-errCh:
+				errorAssertion(t, err)
+				return true
+			default:
+				return false
+			}
+		}, 10*time.Second, 500*time.Millisecond)
+	}
+
+	// enableDiskFailure changes the OpenFileFunc on filesession package. The
+	// replace function will always return an error when called.
+	enableDiskFailure := func() {
+		filesessions.SetOpenFileFunc(func(path string, _ int, _ os.FileMode) (*os.File, error) {
+			return nil, fmt.Errorf("failed to open file %q", path)
+		})
+	}
+
+	// disableDiskFailure restore the OpenFileFunc.
+	disableDiskFailure := func() {
+		filesessions.SetOpenFileFunc(os.OpenFile)
+	}
+
+	for name, test := range map[string]struct {
+		recordingMode        constants.SessionRecordingMode
+		expectSessionFailure bool
+	}{
+		"BestEffortMode": {
+			recordingMode:        constants.SessionRecordingModeBestEffort,
+			expectSessionFailure: false,
+		},
+		"StrictMode": {
+			recordingMode:        constants.SessionRecordingModeStrict,
+			expectSessionFailure: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// Setup user and session recording mode.
+			username := suite.me.Username
+			role, err := types.NewRoleV3("devs", types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Logins: []string{username},
+				},
+				Options: types.RoleOptions{
+					RecordSession: &types.RecordSession{
+						SSH: test.recordingMode,
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.NoError(t, SetupUser(teleport.Process, username, []types.Role{role}))
+
+			t.Run("BeforeStartFailure", func(t *testing.T) {
+				// Enable disk failure.
+				enableDiskFailure()
+				defer disableDiskFailure()
+
+				// Start session.
+				term, errCh := startSession(username)
+				if test.expectSessionFailure {
+					waitSessionTermination(t, errCh, require.Error)
+					return
+				}
+
+				// Send stuff to the session.
+				term.Type("echo Hello\n\r")
+
+				// Guarantee the session hasn't stopped after typing.
+				select {
+				case <-errCh:
+					require.Fail(t, "session was closed before")
+				default:
+				}
+
+				// Wait for the session to terminate without error.
+				term.Type("exit\n\r")
+				waitSessionTermination(t, errCh, require.NoError)
+			})
+
+			t.Run("MidSessionFailure", func(t *testing.T) {
+				// Start session.
+				term, errCh := startSession(username)
+
+				// Guarantee the session started properly.
+				select {
+				case <-errCh:
+					require.Fail(t, "session was closed before")
+				default:
+				}
+
+				// Enable disk failure
+				enableDiskFailure()
+				defer disableDiskFailure()
+
+				// Send stuff to the session.
+				term.Type("echo Hello\n\r")
+
+				// Expect the session to fail
+				if test.expectSessionFailure {
+					waitSessionTermination(t, errCh, require.Error)
+					return
+				}
+
+				// Wait for the session to terminate without error.
+				term.Type("exit\n\r")
+				waitSessionTermination(t, errCh, require.NoError)
+			})
+		})
+	}
 }
 
 // TestCustomReverseTunnel tests that the SSH node falls back to configured
@@ -2227,7 +2434,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	auxCAS, err := aux.Secrets.GetCAs()
 	require.NoError(t, err)
 	for _, auxCA := range auxCAS {
-		err = tc.AddTrustedCA(auxCA)
+		err = tc.AddTrustedCA(ctx, auxCA)
 		require.NoError(t, err)
 	}
 
@@ -3030,22 +3237,30 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 }
 
-// waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
+// waitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
 func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
-	var lastCount int
-	var lastErr error
 	require.Eventually(t, func() bool {
 		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
-			lastErr = err
 			return false
 		}
-		lastCount = cluster.GetTunnelsCount()
-		return lastCount >= expectedCount
+		return cluster.GetTunnelsCount() >= expectedCount
 	},
 		30*time.Second,
 		time.Second,
-		"Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
+		"Active tunnel connections did not reach %v in the expected time frame", expectedCount,
+	)
+}
+
+// waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
+	require.Eventually(t, func() bool {
+		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
+	},
+		30*time.Second,
+		time.Second,
+		"Peer proxy connections did not reach %v in the expected time frame", expectedCount,
+	)
 }
 
 // waitForProxyCount waits a set time for the proxy count in clusterName to
@@ -3701,7 +3916,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err == nil {
 				serviceC <- svc
 			}
@@ -3832,7 +4047,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	// shut down the service
 	cancel()
 	// close the service without waiting for the connections to drain
-	svc.Close()
+	require.NoError(t, svc.Close())
 
 	select {
 	case err := <-runErrCh:
@@ -3865,7 +4080,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4009,7 +4224,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
+			svc, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
 			if err == nil {
 				serviceC <- svc
 			}
@@ -4097,17 +4312,6 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	require.NoError(t, err)
 
-	watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Clock:     tconf.Clock,
-			Client:    aux.GetSiteAPI(clusterAux),
-		},
-		Types: []types.CertAuthType{types.HostCA},
-	})
-	require.NoError(t, err)
-	t.Cleanup(watcher.Close)
-
 	// waitForPhase waits until aux cluster detects the rotation
 	waitForPhase := func(phase string) {
 		require.Eventually(t, func() bool {
@@ -4126,7 +4330,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 			}
 
 			return false
-		}, tconf.PollingPeriod*10, tconf.PollingPeriod/2, "failed to converge to phase %q", phase)
+		}, 30*time.Second, 250*time.Millisecond, "failed to converge to phase %q", phase)
 	}
 
 	waitForPhase(types.RotationPhaseInit)
@@ -4211,160 +4415,14 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-// TestRotateChangeSigningAlg tests the change of CA signing algorithm on
-// manual rotation.
-func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
-	ctx := context.Background()
-	// Start with an instance using default signing alg.
-	tconf := suite.rotationConfig(true)
-	teleport := suite.newTeleportInstance()
-	logins := []string{suite.me.Username}
-	for _, login := range logins {
-		teleport.AddUser(login, []string{login})
-	}
-	config, err := teleport.GenerateConfig(t, nil, tconf)
-	require.NoError(t, err)
-
-	serviceC := make(chan *service.TeleportProcess, 20)
-	runErrCh := make(chan error, 1)
-
-	restart := func(svc *service.TeleportProcess, cancel func()) (*service.TeleportProcess, func()) {
-		if svc != nil && cancel != nil {
-			// shut down the service
-			cancel()
-			// close the service without waiting for the connections to drain
-			err := svc.Close()
-			require.NoError(t, err)
-			err = svc.Wait()
-			require.NoError(t, err)
-
-			select {
-			case err := <-runErrCh:
-				require.NoError(t, err)
-			case <-time.After(20 * time.Second):
-				t.Fatalf("failed to shut down the server")
-			}
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
-				svc, err := service.NewTeleport(cfg)
-				if err == nil {
-					serviceC <- svc
-				}
-				return svc, err
-			})
-		}()
-
-		svc, err = waitForProcessStart(serviceC)
-		require.NoError(t, err)
-		return svc, cancel
-	}
-
-	assertSigningAlg := func(svc *service.TeleportProcess, alg string) {
-		hostCA, err := svc.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
-		require.NoError(t, err)
-		require.Equal(t, alg, sshutils.GetSigningAlgName(hostCA))
-
-		userCA, err := svc.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{Type: types.UserCA, DomainName: Site}, false)
-		require.NoError(t, err)
-		require.Equal(t, alg, sshutils.GetSigningAlgName(userCA))
-	}
-
-	rotate := func(svc *service.TeleportProcess, mode string) *service.TeleportProcess {
-		t.Logf("Rotation phase: %q.", types.RotationPhaseInit)
-		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-			TargetPhase: types.RotationPhaseInit,
-			Mode:        mode,
-		})
-		require.NoError(t, err)
-
-		// wait until service phase update to be broadcasted (init phase does not trigger reload)
-		err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
-		require.NoError(t, err)
-
-		t.Logf("Rotation phase: %q.", types.RotationPhaseUpdateClients)
-		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-			TargetPhase: types.RotationPhaseUpdateClients,
-			Mode:        mode,
-		})
-		require.NoError(t, err)
-
-		// wait until service reload
-		svc, err = waitForReload(serviceC, svc)
-		require.NoError(t, err)
-
-		t.Logf("Rotation phase: %q.", types.RotationPhaseUpdateServers)
-		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-			TargetPhase: types.RotationPhaseUpdateServers,
-			Mode:        mode,
-		})
-		require.NoError(t, err)
-
-		// wait until service reloaded
-		svc, err = waitForReload(serviceC, svc)
-		require.NoError(t, err)
-
-		t.Logf("rotation phase: %q", types.RotationPhaseStandby)
-		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-			TargetPhase: types.RotationPhaseStandby,
-			Mode:        mode,
-		})
-		require.NoError(t, err)
-
-		// wait until service reloaded
-		svc, err = waitForReload(serviceC, svc)
-		require.NoError(t, err)
-
-		return svc
-	}
-
-	// Start the instance.
-	svc, cancel := restart(nil, nil)
-
-	t.Log("default signature algorithm due to empty config value")
-	// Verify the default signing algorithm with config value empty.
-	assertSigningAlg(svc, defaults.CASignatureAlgorithm)
-
-	t.Log("change signature algorithm with custom config value and manual rotation")
-	// Change the signing algorithm in config file.
-	signingAlg := ssh.SigAlgoRSA
-	config.CASignatureAlgorithm = &signingAlg
-	svc, cancel = restart(svc, cancel)
-	// Do a manual rotation - this should change the signing algorithm.
-	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
-
-	t.Log("preserve signature algorithm with empty config value and manual rotation")
-	// Unset the config value.
-	config.CASignatureAlgorithm = nil
-	svc, cancel = restart(svc, cancel)
-
-	// Do a manual rotation - this should leave the signing algorithm
-	// unaffected because config value is not set.
-	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
-
-	// shut down the service
-	cancel()
-	// close the service without waiting for the connections to drain
-	svc.Close()
-
-	select {
-	case err := <-runErrCh:
-		require.NoError(t, err)
-	case <-time.After(20 * time.Second):
-		t.Fatalf("failed to shut down the server")
-	}
-}
-
 // rotationConfig sets up default config used for CA rotation tests
 func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.Config {
 	tconf := s.defaultServiceConfig()
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebService = disableWebService
 	tconf.Proxy.DisableWebInterface = true
+	tconf.Proxy.DisableDatabaseProxy = true
+	tconf.Proxy.DisableALPNSNIListener = true
 	tconf.PollingPeriod = time.Second
 	tconf.ClientTimeout = time.Second
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
@@ -4516,7 +4574,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
-		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
+		cl.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
 			err = s.WindowChange(48, 160)
 			if err != nil {
 				return true, trace.Wrap(err)
@@ -5716,6 +5774,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
 	cfg := service.MakeDefaultConfig()
 	cfg.Console = nil
 	cfg.Log = s.log
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return cfg
 }
 
@@ -5807,6 +5866,7 @@ func TestWebProxyInsecure(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	// DisableTLS flag should turn off TLS termination and multiplexing.
 	rcConf.Proxy.DisableTLS = true
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
@@ -5864,6 +5924,7 @@ func TestTraitsPropagation(t *testing.T) {
 	rcConf.SSH.Enabled = true
 	rcConf.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
 	rcConf.SSH.Labels = map[string]string{"env": "integration"}
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Make leaf cluster config.
 	lcConf := service.MakeDefaultConfig()
@@ -5875,6 +5936,7 @@ func TestTraitsPropagation(t *testing.T) {
 	lcConf.SSH.Enabled = true
 	lcConf.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
 	lcConf.SSH.Labels = map[string]string{"env": "integration"}
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Create identical user/role in both clusters.
 	me, err := user.Current()
@@ -6105,12 +6167,316 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 			proxy, err := cl.ConnectToProxy(ctx)
 			require.NoError(t, err)
 
-			userSite, err := proxy.ConnectToCluster(ctx, Site, false)
+			userSite, err := proxy.ConnectToCluster(ctx, Site)
 			require.NoError(t, err)
 
 			services, err := userSite.GetKubeServices(ctx)
 			require.NoError(t, err)
 			require.Len(t, services, testCase.wantsLen)
+		})
+	}
+}
+
+func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *TeleInstance, *TeleInstance)) *client.TeleportClient {
+	ctx := context.Background()
+	username := suite.me.Username
+	name := "test"
+	rootName := fmt.Sprintf("root-%s", name)
+	leafName := fmt.Sprintf("leaf-%s", name)
+
+	// Create root and leaf clusters.
+	root := NewInstance(InstanceConfig{
+		ClusterName: rootName,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+		Ports:       standardPortsOrMuxSetup(false),
+	})
+	leaf := NewInstance(InstanceConfig{
+		ClusterName: leafName,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+		Ports:       standardPortsOrMuxSetup(false),
+	})
+
+	role, err := types.NewRoleV3("dev", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{username},
+		},
+	})
+	require.NoError(t, err)
+	root.AddUserWithRole(username, role)
+
+	makeConfig := func() (*testing.T, []*InstanceSecrets, *service.Config) {
+		tconf := suite.defaultServiceConfig()
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = false
+		return t, nil, tconf
+	}
+
+	oldInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(oldInsecure)
+
+	require.NoError(t, root.CreateEx(makeConfig()))
+	require.NoError(t, leaf.CreateEx(makeConfig()))
+	require.NoError(t, leaf.Process.GetAuthServer().UpsertRole(ctx, role))
+
+	// Connect leaf to root.
+	tcToken := "trusted-cluster-token"
+	tokenResource, err := types.NewProvisionToken(tcToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	require.NoError(t, err)
+	require.NoError(t, root.Process.GetAuthServer().UpsertToken(ctx, tokenResource))
+	trustedCluster := root.AsTrustedCluster(tcToken, types.RoleMap{
+		{Remote: "dev", Local: []string{"dev"}},
+	})
+
+	require.NoError(t, root.Start())
+	require.NoError(t, leaf.Start())
+
+	t.Cleanup(func() { root.StopAll() })
+	t.Cleanup(func() { leaf.StopAll() })
+
+	require.NoError(t, trustedCluster.CheckAndSetDefaults())
+	tryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
+
+	rootSSHPort := ports.PopInt()
+	rootProxySSHPort := ports.PopInt()
+	rootProxyWebPort := ports.PopInt()
+	require.NoError(t, root.StartNodeAndProxy("root-zero", rootSSHPort, rootProxyWebPort, rootProxySSHPort))
+	leafSSHPort := ports.PopInt()
+	leafProxySSHPort := ports.PopInt()
+	leafProxyWebPort := ports.PopInt()
+	require.NoError(t, leaf.StartNodeAndProxy("leaf-zero", leafSSHPort, leafProxyWebPort, leafProxySSHPort))
+
+	// Add any extra services.
+	if extraServices != nil {
+		extraServices(t, root, leaf)
+	}
+
+	require.Eventually(t, waitForClusters(root.Tunnel, 1), 10*time.Second, 1*time.Second)
+	require.Eventually(t, waitForClusters(leaf.Tunnel, 1), 10*time.Second, 1*time.Second)
+
+	// Create client.
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:        root.Process,
+		Username:       username,
+		RouteToCluster: rootName,
+	})
+	require.NoError(t, err)
+
+	tc, err := root.NewClientWithCreds(ClientConfig{
+		Login:   username,
+		Cluster: rootName,
+		Host:    Loopback,
+		Port:    rootProxySSHPort,
+	}, *creds)
+	require.NoError(t, err)
+
+	leafCAs, err := leaf.Secrets.GetCAs()
+	require.NoError(t, err)
+	for _, leafCA := range leafCAs {
+		require.NoError(t, tc.AddTrustedCA(context.Background(), leafCA))
+	}
+
+	return tc
+}
+
+func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
+	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *TeleInstance) {
+		rootNodes := []string{"root-one", "root-two"}
+		leafNodes := []string{"leaf-one", "leaf-two"}
+
+		// Start a Teleport node that has SSH, Apps, Databases, and Kubernetes.
+		startNode := func(name string, i *TeleInstance) {
+			conf := suite.defaultServiceConfig()
+			conf.Auth.Enabled = false
+			conf.Proxy.Enabled = false
+
+			conf.DataDir = t.TempDir()
+			conf.Token = "token"
+			conf.UploadEventsC = i.UploadEventsC
+			conf.AuthServers = []utils.NetAddr{
+				*utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortWeb())),
+			}
+			conf.HostUUID = name
+			conf.Hostname = name
+			conf.SSH.Enabled = true
+			conf.CachePolicy = service.CachePolicy{
+				Enabled: true,
+			}
+			conf.SSH.Addr = utils.NetAddr{
+				Addr: fmt.Sprintf("%s:%d", Host, ports.PopInt()),
+			}
+			conf.Proxy.Enabled = false
+
+			conf.Apps.Enabled = true
+			conf.Apps.Apps = []service.App{
+				{
+					Name: name,
+					URI:  name,
+				},
+			}
+
+			conf.Databases.Enabled = true
+			conf.Databases.Databases = []service.Database{
+				{
+					Name:     name,
+					URI:      name,
+					Protocol: "postgres",
+				},
+			}
+
+			conf.Kube.KubeconfigPath = filepath.Join(conf.DataDir, "kube_config")
+			require.NoError(t, enableKube(conf, name))
+			conf.Kube.ListenAddr = nil
+			process, err := service.NewTeleport(conf)
+			require.NoError(t, err)
+			i.Nodes = append(i.Nodes, process)
+
+			expectedEvents := []string{
+				service.NodeSSHReady,
+				service.AppsReady,
+				service.DatabasesIdentityEvent,
+				service.DatabasesReady,
+				service.KubeIdentityEvent,
+				service.KubernetesReady,
+				service.TeleportReadyEvent,
+			}
+
+			receivedEvents, err := startAndWait(process, expectedEvents)
+			require.NoError(t, err)
+			log.Debugf("Teleport Kube Server (in instance %v) started: %v/%v events received.",
+				i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+		}
+
+		for _, node := range rootNodes {
+			startNode(node, root)
+		}
+		for _, node := range leafNodes {
+			startNode(node, leaf)
+		}
+	})
+
+	nodeTests := []struct {
+		name     string
+		search   string
+		expected []string
+	}{
+		{
+			name: "all nodes",
+			expected: []string{"root-zero", "root-one", "root-two",
+				"leaf-zero", "leaf-one", "leaf-two"},
+		},
+		{
+			name:     "leaf only",
+			search:   "leaf",
+			expected: []string{"leaf-zero", "leaf-one", "leaf-two"},
+		},
+		{
+			name:     "two only",
+			search:   "two",
+			expected: []string{"root-two", "leaf-two"},
+		},
+	}
+
+	for _, test := range nodeTests {
+		t.Run("node - "+test.name, func(t *testing.T) {
+			if test.search != "" {
+				tc.SearchKeywords = strings.Split(test.search, " ")
+			} else {
+				tc.SearchKeywords = nil
+			}
+			clusters, err := tc.ListNodesWithFiltersAllClusters(context.TODO())
+			require.NoError(t, err)
+			nodes := make([]string, 0)
+			for _, v := range clusters {
+				for _, node := range v {
+					nodes = append(nodes, node.GetHostname())
+				}
+			}
+
+			require.ElementsMatch(t, test.expected, nodes)
+		})
+	}
+
+	// Everything other than ssh nodes.
+	tests := []struct {
+		name     string
+		search   string
+		expected []string
+	}{
+		{
+			name: "all",
+			expected: []string{"root-one", "root-two",
+				"leaf-one", "leaf-two"},
+		},
+		{
+			name:     "leaf only",
+			search:   "leaf",
+			expected: []string{"leaf-one", "leaf-two"},
+		},
+		{
+			name:     "two only",
+			search:   "two",
+			expected: []string{"root-two", "leaf-two"},
+		},
+	}
+
+	for _, test := range tests {
+		if test.search != "" {
+			tc.SearchKeywords = strings.Split(test.search, " ")
+		} else {
+			tc.SearchKeywords = nil
+		}
+
+		t.Run("apps - "+test.name, func(t *testing.T) {
+			clusters, err := tc.ListAppsAllClusters(context.TODO(), nil)
+			require.NoError(t, err)
+			apps := make([]string, 0)
+			for _, v := range clusters {
+				for _, app := range v {
+					apps = append(apps, app.GetName())
+				}
+			}
+
+			require.ElementsMatch(t, test.expected, apps)
+		})
+
+		t.Run("databases - "+test.name, func(t *testing.T) {
+			clusters, err := tc.ListDatabasesAllClusters(context.TODO(), nil)
+			require.NoError(t, err)
+			databases := make([]string, 0)
+			for _, v := range clusters {
+				for _, db := range v {
+					databases = append(databases, db.GetName())
+				}
+			}
+
+			require.ElementsMatch(t, test.expected, databases)
+		})
+
+		t.Run("kube - "+test.name, func(t *testing.T) {
+			req := proto.ListResourcesRequest{}
+			if test.search != "" {
+				req.SearchKeywords = strings.Split(test.search, " ")
+			}
+			clusterMap, err := tc.ListKubeClustersWithFiltersAllClusters(context.TODO(), req)
+			require.NoError(t, err)
+			clusters := make([]string, 0)
+			for _, cl := range clusterMap {
+				for _, c := range cl {
+					clusters = append(clusters, c.Name)
+				}
+			}
+			require.ElementsMatch(t, test.expected, clusters)
 		})
 	}
 }

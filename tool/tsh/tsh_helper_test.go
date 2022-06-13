@@ -19,10 +19,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os/user"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/stretchr/testify/require"
 
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -39,6 +41,9 @@ type suite struct {
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
+	sshListenAddr := localListenerAddr()
+	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
+	require.NoError(t, err)
 	fileConfig := &config.FileConfig{
 		Version: "v1",
 		Global: config.Global{
@@ -54,10 +59,11 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: sshListenAddr,
 			},
-			WebAddr: localListenerAddr(),
-			TunAddr: localListenerAddr(),
+			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
+			WebAddr:       localListenerAddr(),
+			TunAddr:       localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -69,7 +75,8 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fileConfig, cfg)
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
@@ -138,6 +145,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
