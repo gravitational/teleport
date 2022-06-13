@@ -291,7 +291,7 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 
 	// set a review created time if not already set
 	if rev.Created.IsZero() {
-	  rev.Created = time.Now();
+		rev.Created = time.Now()
 	}
 
 	// set threshold indexes and store the review
