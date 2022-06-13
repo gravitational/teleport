@@ -23,6 +23,7 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -531,6 +532,18 @@ func UintSliceSubset(a []uint16, b []uint16) error {
 
 	}
 	return nil
+}
+
+// ChooseRandomString returns a random string from the given slice.
+func ChooseRandomString(slice []string) string {
+	switch len(slice) {
+	case 0:
+		return ""
+	case 1:
+		return slice[0]
+	default:
+		return slice[rand.Intn(len(slice))]
+	}
 }
 
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
