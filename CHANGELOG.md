@@ -1,5 +1,17 @@
 # Changelog
 
+## 9.3.5
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed backwards compatibility issue with fetching access requests from older servers. [#13428](https://github.com/gravitational/teleport/pull/13428)
+* Fixed issue with using Microsoft SQL Server Management Studio with Database Access. [#13337](https://github.com/gravitational/teleport/pull/13337)
+* Added support for `tsh proxy ssh -J` to improve interoperability with OpenSSH clients. [#13311](https://github.com/gravitational/teleport/pull/13311)
+* Added ability to provide security context in Helm charts. [#13286](https://github.com/gravitational/teleport/pull/13286)
+* Added Application and Database Access support to reference AWS Terraform deployment. [#13383](https://github.com/gravitational/teleport/pull/13383)
+* Improved reliability of dialing Auth Server through the Proxy. [#13399](https://github.com/gravitational/teleport/pull/13399)
+* Improved `kubectl exec` auditing by logging access denied attempts. [#12831](https://github.com/gravitational/teleport/pull/12831), [#13400](https://github.com/gravitational/teleport/pull/13400)
+
 ## 9.3.4
 
 This release of Teleport contains multiple security, bug fixes and improvements.
