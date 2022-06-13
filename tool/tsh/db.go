@@ -24,7 +24,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -35,11 +35,16 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 )
 
 // onListDatabases implements "tsh db ls" command.
 func onListDatabases(cf *CLIConf) error {
+	if cf.ListAll {
+		return trace.Wrap(listDatabasesAllClusters(cf))
+	}
 	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -61,7 +66,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	cluster, err := proxy.ConnectToCurrentCluster(cf.Context, false)
+	cluster, err := proxy.ConnectToCurrentCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -107,6 +112,99 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
+}
+
+type databaseListing struct {
+	Proxy    string           `json:"proxy"`
+	Cluster  string           `json:"cluster"`
+	roleSet  services.RoleSet `json:"-"`
+	Database types.Database   `json:"database"`
+}
+
+type databaseListings []databaseListing
+
+func (l databaseListings) Len() int {
+	return len(l)
+}
+
+func (l databaseListings) Less(i, j int) bool {
+	if l[i].Proxy != l[j].Proxy {
+		return l[i].Proxy < l[j].Proxy
+	}
+	if l[i].Cluster != l[j].Cluster {
+		return l[i].Cluster < l[j].Cluster
+	}
+	return l[i].Database.GetName() < l[j].Database.GetName()
+}
+
+func (l databaseListings) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
+func listDatabasesAllClusters(cf *CLIConf) error {
+	var dbListings databaseListings
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		proxy, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var errors []error
+		for clusterName, databases := range result {
+			cluster, err := proxy.ConnectToCluster(cf.Context, clusterName)
+			if err != nil {
+				errors = append(errors, err)
+				continue
+			}
+			roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
+			if err != nil {
+				errors = append(errors, err)
+				continue
+			}
+			for _, database := range databases {
+				dbListings = append(dbListings, databaseListing{
+					Proxy:    profile.ProxyURL.Host,
+					Cluster:  clusterName,
+					roleSet:  roleSet,
+					Database: database,
+				})
+			}
+		}
+		return trace.NewAggregate(errors...)
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sort.Sort(dbListings)
+
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var active []tlsca.RouteToDatabase
+	if profile != nil {
+		active = profile.Databases
+	}
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		printDatabasesWithClusters(cf.SiteName, dbListings, active, cf.Verbose)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeDatabasesAllClusters(dbListings, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
+	return nil
 }
 
 // onDatabaseLogin implements "tsh db login" command.
@@ -182,7 +280,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 		return trace.Wrap(err)
 	}
 	// Update the database-specific connection profile file.
-	err = dbprofile.Add(tc, db, *profile)
+	err = dbprofile.Add(cf.Context, tc, db, *profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -318,7 +416,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	rootCluster, err := tc.RootClusterName()
+	rootCluster, err := tc.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -711,7 +809,7 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName, true)
+	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
