@@ -652,7 +652,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	require.NoError(t, err)
 	defer rc.StopAll()
 
-	identityFilePath := mustCreateUserIdentityFile(t, rc, username, time.Hour)
+	identityFilePath := MustCreateUserIdentityFile(t, rc, username, time.Hour)
 
 	identity := client.LoadIdentityFile(identityFilePath)
 	require.NoError(t, err)
