@@ -1,5 +1,9 @@
 # Gravitational Teleport
 
+**This branch is for a version of Teleport we no longer support. For the latest
+changes, please see our
+[main repository page](https://github.com/gravitational/teleport).**
+
 Gravitational Teleport is a modern security gateway for remotely accessing:
 * Clusters of Linux servers via SSH or SSH-over-HTTPS in a browser.
 * Kubernetes clusters.
