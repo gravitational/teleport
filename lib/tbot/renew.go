@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	libUtils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -564,6 +565,7 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	}
 
 	ticker := time.NewTicker(b.cfg.RenewalInterval)
+	jitter := libUtils.NewJitter()
 	defer ticker.Stop()
 	for {
 		var err error
@@ -574,8 +576,9 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 			}
 
 			if attempt != renewalRetryLimit {
-				// exponentially back off, starting at 1 second.
+				// exponentially back off with jitter, starting at 1 second.
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
+				backoffTime = jitter(backoffTime)
 				b.log.WithError(err).Warnf(
 					"Renewal attempt %d of %d failed. Retrying after %s.",
 					attempt,
