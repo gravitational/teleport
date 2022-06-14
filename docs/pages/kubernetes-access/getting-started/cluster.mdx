@@ -269,12 +269,12 @@ $ KUBECONFIG=${HOME?}/teleport.yaml kubectl get -n teleport-cluster pods
 
 ## Step 3/3. SSO for Kubernetes
 
-We are going to setup Github connector for OSS and Okta for Enterprise version.
+We are going to setup GitHub connector for OSS and Okta for Enterprise version.
 
 <Tabs>
   <TabItem label="Open Source">
     Save the file below as `github.yaml` and update the fields. You will need to set up
-    [Github OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
+    [GitHub OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
     Any member with the team `admin` in the organization `octocats` will be able to assume a builtin role `access`.
 
     ```yaml
@@ -284,19 +284,19 @@ We are going to setup Github connector for OSS and Okta for Enterprise version.
       # connector name that will be used with `tsh --auth=github login`
       name: github
     spec:
-      # client ID of Github OAuth app
+      # client ID of GitHub OAuth app
       client_id: client-id
-      # client secret of Github OAuth app
+      # client secret of GitHub OAuth app
       client_secret: client-secret
       # This name will be shown on UI login screen
-      display: Github
+      display: GitHub
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
       teams_to_logins:
-        - organization: octocats # Github organization name
-          team: admin            # Github team name within that organization
-          # map Github's "admin" team to Teleport's "access" role
+        - organization: octocats # GitHub organization name
+          team: admin            # GitHub team name within that organization
+          # map GitHub's "admin" team to Teleport's "access" role
           logins: ["access"]
     ```
   </TabItem>
@@ -347,7 +347,7 @@ To create a connector, we are going to run Teleport's admin tool `tctl` from the
   </TabItem>
 </Tabs>
 
-Try `tsh login` with Github user. I am using a custom `KUBECONFIG` to prevent overwriting
+Try `tsh login` with GitHub user. I am using a custom `KUBECONFIG` to prevent overwriting
 the default one in case there is a problem.
 
 <Tabs>
