@@ -32,7 +32,6 @@ import (
 
 type sftpSubsys struct {
 	sftpCmd *exec.Cmd
-	ch      ssh.Channel
 	errCh   chan error
 	log     *logrus.Entry
 }
@@ -48,8 +47,6 @@ func newSftpSubsys() (*sftpSubsys, error) {
 }
 
 func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
-	s.ch = ch
-
 	err := req.Reply(true, nil)
 	if err != nil {
 		return trace.Wrap(err)
@@ -59,10 +56,12 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer chrr.Close()
 	chwr, chww, err := os.Pipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer chww.Close()
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -79,6 +78,7 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 	s.sftpCmd.Stdout = os.Stdout
 	s.sftpCmd.Stderr = os.Stderr
 
+	s.log.Debug("starting sftp process")
 	err = s.sftpCmd.Start()
 	if err != nil {
 		return trace.Wrap(err)
@@ -89,14 +89,16 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 	errCh := make(chan error, 2)
 	go func() {
 		defer chrw.Close()
+		defer ch.Close()
 
-		_, err := io.Copy(chrw, s.ch)
+		_, err := io.Copy(chrw, ch)
 		errCh <- err
 	}()
 	go func() {
 		defer chwr.Close()
+		defer ch.Close()
 
-		_, err := io.Copy(s.ch, chwr)
+		_, err := io.Copy(ch, chwr)
 		errCh <- err
 	}()
 
@@ -105,12 +107,14 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 
 func (s *sftpSubsys) Wait() error {
 	waitErr := s.sftpCmd.Wait()
-	closeErr := s.ch.Close()
+	s.log.Debug("sftp process finished")
 
-	inCopyErr := <-s.errCh
-	outCopyErr := <-s.errCh
+	copyErr1 := <-s.errCh
+	s.log.Debug("sftp pipe 1 closed")
+	copyErr2 := <-s.errCh
+	s.log.Debug("sftp pipe 2 closed")
 
-	copyErr := trace.NewAggregate(inCopyErr, outCopyErr)
+	copyErr := trace.NewAggregate(copyErr1, copyErr2)
 
-	return trace.NewAggregate(copyErr, waitErr, closeErr)
+	return trace.NewAggregate(copyErr, waitErr)
 }
