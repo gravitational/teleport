@@ -34,25 +34,22 @@ func TestGetProxyAddress(t *testing.T) {
 		val  string
 	}
 	var tests = []struct {
-		info           string
-		env            []env
-		targetAddr     string
-		proxyAddr      string
-		isRawProxyAddr bool
+		info       string
+		env        []env
+		targetAddr string
+		proxyAddr  string
 	}{
 		{
-			info:           "valid, can be raw host:port",
-			env:            []env{{name: "http_proxy", val: "proxy:1234"}},
-			isRawProxyAddr: true,
-			proxyAddr:      "proxy:1234",
-			targetAddr:     "192.168.1.1:3030",
+			info:       "valid, can be raw host:port",
+			env:        []env{{name: "http_proxy", val: "proxy:1234"}},
+			proxyAddr:  "proxy:1234",
+			targetAddr: "192.168.1.1:3030",
 		},
 		{
-			info:           "valid, raw host:port works for https",
-			env:            []env{{name: "HTTPS_PROXY", val: "proxy:1234"}},
-			isRawProxyAddr: true,
-			proxyAddr:      "proxy:1234",
-			targetAddr:     "192.168.1.1:3030",
+			info:       "valid, raw host:port works for https",
+			env:        []env{{name: "HTTPS_PROXY", val: "proxy:1234"}},
+			proxyAddr:  "proxy:1234",
+			targetAddr: "192.168.1.1:3030",
 		},
 		{
 			info:       "valid, correct full url",
@@ -96,9 +93,8 @@ func TestGetProxyAddress(t *testing.T) {
 				{name: "https_proxy", val: "proxy:9999"},
 				{name: "no_proxy", val: "example.com:1234"},
 			},
-			isRawProxyAddr: true,
-			proxyAddr:      "",
-			targetAddr:     "example.com:1234",
+			proxyAddr:  "",
+			targetAddr: "example.com:1234",
 		},
 		{
 			info: "valid, no_proxy matches host but not port",
@@ -106,60 +102,74 @@ func TestGetProxyAddress(t *testing.T) {
 				{name: "https_proxy", val: "proxy:9999"},
 				{name: "no_proxy", val: "example.com:1234"},
 			},
-			isRawProxyAddr: true,
-			proxyAddr:      "proxy:9999",
-			targetAddr:     "example.com:5678",
+			proxyAddr:  "proxy:9999",
+			targetAddr: "example.com:5678",
 		},
 	}
 
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("%v: %v", i, tt.info), func(t *testing.T) {
-			for _, env := range tt.env {
-				t.Setenv(env.name, env.val)
-			}
-			p := GetProxyURL(tt.targetAddr)
-			if tt.proxyAddr == "" {
-				require.Nil(t, p)
-			} else {
-				require.NotNil(t, p)
-				require.Equal(t, tt.proxyAddr, p.Host)
-				require.Nil(t, p.User)
-			}
+	// used to augment test cases with auth credentials
+	authTests := []struct {
+		info     string
+		user     string
+		password string
+	}{
+		{info: "no credentials", user: "", password: ""},
+		{info: "plain password", user: "alice", password: "password"},
+		{info: "special characters in password", user: "alice", password: " !@#$%^&*()_+-=[]{};:,.<>/?`~\"\\ abc123"},
+	}
 
-			// now reconstruct the env var with user:pass@host, set the env again, and test parsing that
-			expectedUser := "alice"
-			expectedPassword := "password"
-			for _, env := range tt.env {
-				if strings.EqualFold(env.name, "http_proxy") || strings.EqualFold(env.name, "https_proxy") {
-					var val string
-					if tt.isRawProxyAddr {
-						// url.Parse will parse a raw host:port as scheme:opaque,
-						// so instead just prepend the user info to the raw host:port proxy addr
-						val = fmt.Sprintf("%v:%v@%v", expectedUser, expectedPassword, env.val)
-					} else {
-						u, _ := url.Parse(env.val)
-						u.User = url.UserPassword(expectedUser, expectedPassword)
-						val = u.String()
+	for i, tt := range tests {
+		for j, authTest := range authTests {
+			t.Run(fmt.Sprintf("%v %v: %v with %v", i, j, tt.info, authTest.info), func(t *testing.T) {
+				for _, env := range tt.env {
+					switch strings.ToLower(env.name) {
+					case "http_proxy", "https_proxy":
+						// add auth test credentials into http(s)_proxy env vars
+						val, err := buildProxyAddr(env.val, authTest.user, authTest.password)
+						require.NoError(t, err)
+						t.Setenv(env.name, val)
+					case "no_proxy":
+						t.Setenv(env.name, env.val)
 					}
-					// test with user:pass@ injected into addr
-					t.Setenv(env.name, val)
-				} else {
-					t.Setenv(env.name, env.val)
 				}
 				p := GetProxyURL(tt.targetAddr)
+
+				// is a proxy expected?
 				if tt.proxyAddr == "" {
 					require.Nil(t, p)
-				} else {
-					require.NotNil(t, p)
-					require.Equal(t, tt.proxyAddr, p.Host)
-					require.NotNil(t, p.User)
-					require.Equal(t, expectedUser, p.User.Username())
-					password, _ := p.User.Password()
-					require.Equal(t, expectedPassword, password)
+					return
 				}
-			}
-		})
+				require.NotNil(t, p)
+				require.Equal(t, tt.proxyAddr, p.Host)
+
+				// are auth credentials expected?
+				if authTest.user == "" && authTest.password == "" {
+					require.Nil(t, p.User)
+					return
+				}
+				require.NotNil(t, p.User)
+				require.Equal(t, authTest.user, p.User.Username())
+				password, _ := p.User.Password()
+				require.Equal(t, authTest.password, password)
+			})
+		}
 	}
+}
+
+func buildProxyAddr(addr, user, pass string) (string, error) {
+	if user == "" && pass == "" {
+		return addr, nil
+	}
+	userInfo := url.UserPassword(user, pass)
+	if strings.HasPrefix(addr, "http") {
+		u, err := url.Parse(addr)
+		if err != nil {
+			return "", err
+		}
+		u.User = userInfo
+		return u.String(), nil
+	}
+	return fmt.Sprintf("%v@%v", userInfo.String(), addr), nil
 }
 
 func TestProxyAwareRoundTripper(t *testing.T) {
