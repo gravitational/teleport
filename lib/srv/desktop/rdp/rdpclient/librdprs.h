@@ -7,17 +7,19 @@
 
 #define SPECIAL_NO_RESPONSE 4294967295
 
+#define SCARD_DEVICE_ID 1
+
 #define VERSION_MAJOR 1
 
 #define VERSION_MINOR 12
 
 #define SMARTCARD_CAPABILITY_VERSION_01 1
 
+#define DRIVE_CAPABILITY_VERSION_02 2
+
 #define GENERAL_CAPABILITY_VERSION_01 1
 
 #define GENERAL_CAPABILITY_VERSION_02 2
-
-#define SCARD_DEVICE_ID 1
 
 /**
  * The default maximum chunk size for virtual channel data.
@@ -68,6 +70,11 @@ typedef struct ClientOrError {
   enum CGOErrCode err;
 } ClientOrError;
 
+typedef struct CGOSharedDirectoryAnnounce {
+  uint32_t directory_id;
+  char *name;
+} CGOSharedDirectoryAnnounce;
+
 /**
  * CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
  * PointerEvent is a mouse move or click update from the user.
@@ -107,6 +114,15 @@ typedef struct CGOBitmap {
   uintptr_t data_cap;
 } CGOBitmap;
 
+/**
+ * CGOSharedDirectoryAcknowledge is a CGO-compatible version of
+ * the TDP Shared Directory Knowledge message that we pass back to Go.
+ */
+typedef struct CGOSharedDirectoryAcknowledge {
+  uint32_t err;
+  uint32_t directory_id;
+} CGOSharedDirectoryAcknowledge;
+
 void init(void);
 
 /**
@@ -140,6 +156,17 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
  * `client_ptr` must be a valid pointer to a Client.
  */
 enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
+
+/**
+ * handle_tdp_sd_announce announces a new drive that's ready to be
+ * redirected over RDP.
+ *
+ * # Safety
+ *
+ * The caller must ensure that sd_announce.name points to a valid buffer.
+ */
+enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
+                                       struct CGOSharedDirectoryAnnounce sd_announce);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
@@ -192,3 +219,9 @@ void free_rust_string(char *s);
 extern enum CGOErrCode handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
 extern enum CGOErrCode handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
+
+/**
+ * Shared Directory Acknowledge
+ */
+extern enum CGOErrCode tdp_sd_acknowledge(uintptr_t client_ref,
+                                          struct CGOSharedDirectoryAcknowledge *ack);
