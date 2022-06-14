@@ -708,13 +708,9 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	stream, err := c.grpc.GetAccessRequestsV2(ctx, &filter, c.callOpts...)
 	if err != nil {
-		err := trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			return c.getAccessRequestsLegacy(ctx, filter)
-		}
-
-		return nil, err
+		return nil, trail.FromGRPC(err)
 	}
+
 	var reqs []types.AccessRequest
 	for {
 		req, err := stream.Recv()
