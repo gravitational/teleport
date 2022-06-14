@@ -108,7 +108,7 @@ func init() {
 }
 
 // Client is the RDP client.
-// It's lifecycle is:
+// Its lifecycle is:
 //
 // ```
 // rdpc := New()         // creates client
