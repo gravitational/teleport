@@ -46,16 +46,18 @@ type MessageType byte
 // For descriptions of each message type see:
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#message-types
 const (
-	TypeClientScreenSpec = MessageType(1)
-	TypePNGFrame         = MessageType(2)
-	TypeMouseMove        = MessageType(3)
-	TypeMouseButton      = MessageType(4)
-	TypeKeyboardButton   = MessageType(5)
-	TypeClipboardData    = MessageType(6)
-	TypeClientUsername   = MessageType(7)
-	TypeMouseWheel       = MessageType(8)
-	TypeError            = MessageType(9)
-	TypeMFA              = MessageType(10)
+	TypeClientScreenSpec           = MessageType(1)
+	TypePNGFrame                   = MessageType(2)
+	TypeMouseMove                  = MessageType(3)
+	TypeMouseButton                = MessageType(4)
+	TypeKeyboardButton             = MessageType(5)
+	TypeClipboardData              = MessageType(6)
+	TypeClientUsername             = MessageType(7)
+	TypeMouseWheel                 = MessageType(8)
+	TypeError                      = MessageType(9)
+	TypeMFA                        = MessageType(10)
+	TypeSharedDirectoryAnnounce    = MessageType(11)
+	TypeSharedDirectoryAcknowledge = MessageType(12)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -108,6 +110,10 @@ func decode(in peekReader) (Message, error) {
 		return decodeError(in)
 	case TypeMFA:
 		return DecodeMFA(in)
+	case TypeSharedDirectoryAnnounce:
+		return decodeSharedDirectoryAnnounce(in)
+	case TypeSharedDirectoryAcknowledge:
+		return decodeSharedDirectoryAcknowledge(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -607,6 +613,76 @@ func DecodeMFAChallenge(in peekReader) (*MFA, error) {
 		Type:                     mt,
 		MFAAuthenticateChallenge: req,
 	}, nil
+}
+
+type SharedDirectoryAnnounce struct {
+	DirectoryID uint32
+	Name        string
+}
+
+func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryAnnounce))
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	if err := encodeString(buf, s.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryAnnounce{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryAnnounce) {
+		return SharedDirectoryAnnounce{}, trace.BadParameter("got message type %v, expected SharedDirectoryAnnounce(%v)", t, TypeSharedDirectoryAnnounce)
+	}
+	var completionID, directoryID uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryAnnounce{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryID)
+	if err != nil {
+		return SharedDirectoryAnnounce{}, trace.Wrap(err)
+	}
+	name, err := decodeString(in, windowsMaxUsernameLength)
+	if err != nil {
+		return SharedDirectoryAnnounce{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryAnnounce{
+		DirectoryID: directoryID,
+		Name:        name,
+	}, nil
+}
+
+type SharedDirectoryAcknowledge struct {
+	Err         uint32
+	DirectoryID uint32
+}
+
+func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAcknowledge, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryAcknowledge{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryAcknowledge) {
+		return SharedDirectoryAcknowledge{}, trace.BadParameter("got message type %v, expected SharedDirectoryAcknowledge(%v)", t, TypeSharedDirectoryAnnounce)
+	}
+
+	var s SharedDirectoryAcknowledge
+	err = binary.Read(in, binary.BigEndian, &s)
+	return s, trace.Wrap(err)
+}
+
+func (s SharedDirectoryAcknowledge) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryAcknowledge))
+	binary.Write(buf, binary.BigEndian, s.Err)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	return buf.Bytes(), nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with

@@ -383,6 +383,18 @@ func (c *Client) start() {
 				} else {
 					c.cfg.Log.Warning("Recieved an empty clipboard message")
 				}
+			case tdp.SharedDirectoryAnnounce:
+				if c.cfg.AllowDirectorySharing {
+					driveName := C.CString(m.Name)
+					defer C.free(unsafe.Pointer(driveName))
+					if err := C.handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
+						directory_id: C.uint32_t(m.DirectoryID),
+						name:         driveName,
+					}); err != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("Device announce failed: %v", err)
+						return
+					}
+				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}
@@ -447,6 +459,26 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 	}
 	return C.ErrCodeSuccess
 }
+
+//export tdp_sd_acknowledge
+func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
+		Err:         uint32(ack.err),
+		DirectoryID: uint32(ack.directory_id),
+	})
+}
+
+// sharedDirectoryAcknowledge acknowledges that a `Shared Directory Announce` TDP message was processed.
+func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) C.CGOErrCode {
+	if c.cfg.AllowDirectorySharing {
+		if err := c.cfg.Conn.OutputMessage(ack); err != nil {
+			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+			return C.ErrCodeFailure
+		}
+	}
+	return C.ErrCodeSuccess
+}
+
 
 // close frees the memory of the cgo.Handle,
 // closes the RDP client connection,
