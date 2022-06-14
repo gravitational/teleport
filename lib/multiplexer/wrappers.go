@@ -84,7 +84,16 @@ func (c *Conn) Detect() (Protocol, error) {
 
 // ReadProxyLine reads proxy-line from the connection.
 func (c *Conn) ReadProxyLine() (*ProxyLine, error) {
-	proxyLine, err := ReadProxyLine(c.reader)
+	var proxyLine *ProxyLine
+	protocol, err := c.Detect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if protocol == ProtoProxyV2 {
+		proxyLine, err = ReadProxyLineV2(c.reader)
+	} else {
+		proxyLine, err = ReadProxyLine(c.reader)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
