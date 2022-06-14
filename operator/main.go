@@ -17,6 +17,8 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"embed"
 	"flag"
 	"os"
 	"time"
@@ -25,25 +27,32 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/utils"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	resourcescontrollers "github.com/gravitational/teleport/operator/controllers/resources"
+	"github.com/gravitational/teleport/operator/crd"
 	"github.com/gravitational/teleport/operator/sidecar"
+	"github.com/gravitational/trace"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+
+	//go:embed config/crd/bases/*.teleport.dev_*.yaml
+	crdFS embed.FS
 )
 
 func init() {
@@ -52,6 +61,8 @@ func init() {
 	utilruntime.Must(resourcesv5.AddToScheme(scheme))
 	utilruntime.Must(resourcesv2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
+
+	utilruntime.Must(apiextv1.AddToScheme(scheme))
 }
 
 func main() {
@@ -129,6 +140,20 @@ func main() {
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
+		os.Exit(1)
+	}
+
+	// Install CRDs
+	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+
+		setupLog.Info("installing CRDs")
+		if err := crd.Upsert(ctx, setupLog, crdFS, mgr.GetClient()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})); err != nil {
+		setupLog.Error(err, "unable to set up CRDs")
 		os.Exit(1)
 	}
 
