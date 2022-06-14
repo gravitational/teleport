@@ -6124,7 +6124,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		Ports:       standardPortsOrMuxSetup(false),
 	})
 
-	role, err := types.NewRoleV3("dev", types.RoleSpecV5{
+	role, err := types.NewRole("dev", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
