@@ -2082,15 +2082,16 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 			User:       participant.User,
 			ServerID:   tracker.GetAddress(),
 			LastActive: participant.LastActive,
+			// note: we don't populate the RemoteAddr field since it isn't used and we don't have an equivalent value
 		})
 	}
 
 	return session.Session{
-		ID:             session.ID(tracker.GetSessionID()),
-		Namespace:      apidefaults.Namespace,
-		Parties:        parties,
+		ID:        session.ID(tracker.GetSessionID()),
+		Namespace: apidefaults.Namespace,
+		Parties:   parties,
 		TerminalParams: session.TerminalParams{
-		        W: teleport.DefaultTerminalWidth,
+			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
 		},
 		Login:          tracker.GetLogin(),
@@ -2103,7 +2104,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 	}
 }
 
-// siteSessionGet gets the list of site sessions filtered by creation time
+// siteSessionsGet gets the list of site sessions filtered by creation time
 // and either they're active or not
 //
 // GET /v1/webapi/sites/:site/namespaces/:namespace/sessions
@@ -2155,6 +2156,10 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	tracker, err := clt.GetSessionTracker(r.Context(), string(*sessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if tracker.GetSessionKind() != types.SSHSessionKind {
+		return nil, trace.NotFound("session %v not found", sessionID)
 	}
 
 	return trackerToLegacySession(tracker, site.GetName()), nil
