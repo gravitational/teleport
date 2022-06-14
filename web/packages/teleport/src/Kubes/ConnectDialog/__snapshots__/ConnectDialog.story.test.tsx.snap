@@ -81,6 +81,7 @@ exports[`kube connect dialogue local 1`] = `
 
 .c13 {
   box-sizing: border-box;
+  margin-bottom: 4px;
 }
 
 .c9 {
@@ -275,7 +276,42 @@ exports[`kube connect dialogue local 1`] = `
             <span
               class="c8"
             >
-              *Step 2
+              Optional
+            </span>
+             
+            - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
+            <div
+              class="c9"
+            >
+              <div
+                class="c10"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c11"
+                >
+                  $
+                </div>
+                <div>
+                  export KUBECONFIG=\${HOME?}/teleport-kubeconfig.yaml
+                </div>
+              </div>
+              <button
+                class="c12"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+          <div
+            class="c7"
+          >
+            <span
+              class="c8"
+            >
+              Step 2
             </span>
              - Select the Kubernetes cluster
             <div
@@ -304,7 +340,7 @@ exports[`kube connect dialogue local 1`] = `
             </div>
           </div>
           <div
-            class="c7"
+            class="c13"
           >
             <span
               class="c8"
@@ -326,35 +362,6 @@ exports[`kube connect dialogue local 1`] = `
                 </div>
                 <div>
                   kubectl get pods
-                </div>
-              </div>
-              <button
-                class="c12"
-                kind="primary"
-                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c13"
-          >
-            * Note: To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command, before running Step 2:
-            <div
-              class="c9"
-            >
-              <div
-                class="c10"
-                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-              >
-                <div
-                  class="c11"
-                >
-                  $
-                </div>
-                <div>
-                  export KUBECONFIG=\${HOME?}/teleport-kubeconfig.yaml
                 </div>
               </div>
               <button
@@ -464,6 +471,7 @@ exports[`kube connect dialogue sso 1`] = `
 
 .c13 {
   box-sizing: border-box;
+  margin-bottom: 4px;
 }
 
 .c9 {
@@ -658,7 +666,42 @@ exports[`kube connect dialogue sso 1`] = `
             <span
               class="c8"
             >
-              *Step 2
+              Optional
+            </span>
+             
+            - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
+            <div
+              class="c9"
+            >
+              <div
+                class="c10"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c11"
+                >
+                  $
+                </div>
+                <div>
+                  export KUBECONFIG=\${HOME?}/teleport-kubeconfig.yaml
+                </div>
+              </div>
+              <button
+                class="c12"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+          <div
+            class="c7"
+          >
+            <span
+              class="c8"
+            >
+              Step 2
             </span>
              - Select the Kubernetes cluster
             <div
@@ -687,7 +730,7 @@ exports[`kube connect dialogue sso 1`] = `
             </div>
           </div>
           <div
-            class="c7"
+            class="c13"
           >
             <span
               class="c8"
@@ -709,35 +752,6 @@ exports[`kube connect dialogue sso 1`] = `
                 </div>
                 <div>
                   kubectl get pods
-                </div>
-              </div>
-              <button
-                class="c12"
-                kind="primary"
-                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c13"
-          >
-            * Note: To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command, before running Step 2:
-            <div
-              class="c9"
-            >
-              <div
-                class="c10"
-                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-              >
-                <div
-                  class="c11"
-                >
-                  $
-                </div>
-                <div>
-                  export KUBECONFIG=\${HOME?}/teleport-kubeconfig.yaml
                 </div>
               </div>
               <button
