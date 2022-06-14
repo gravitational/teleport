@@ -1122,7 +1122,11 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		return nil, trace.Wrap(err)
+		if err := proxy.sendStatus(err); err != nil {
+			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
+		}
+		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
+		return nil, nil
 	}
 
 	execEvent.Code = events.ExecCode
@@ -1245,7 +1249,12 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 	streamOptions := proxy.options()
 	if err = executor.Stream(streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		return nil, trace.Wrap(err)
+		// send the status back to the client when forwarding mode is enabled
+		if err := proxy.sendStatus(err); err != nil {
+			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
+		}
+		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
+		return nil, nil
 	}
 
 	return nil, nil

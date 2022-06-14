@@ -358,8 +358,8 @@ func TestSAMLAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
-	reqNormal := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
-	reqTest := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
+	reqNormal := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
+	reqTest := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
 		Audience:                 "test",
 		ServiceProviderIssuer:    "test",
@@ -376,7 +376,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.SAMLAuthRequest
+		request            types.SAMLAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -441,7 +441,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateSAMLAuthRequest(tt.request)
+			request, err := client.CreateSAMLAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -534,8 +534,8 @@ func TestOIDCAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertOIDCConnector(context.Background(), conn)
 	require.NoError(t, err)
 
-	reqNormal := services.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
-	reqTest := services.OIDCAuthRequest{
+	reqNormal := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
+	reqTest := types.OIDCAuthRequest{
 		ConnectorID: conn.GetName(),
 		Type:        constants.OIDC,
 		SSOTestFlow: true,
@@ -558,7 +558,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.OIDCAuthRequest
+		request            types.OIDCAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -623,7 +623,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateOIDCAuthRequest(tt.request)
+			request, err := client.CreateOIDCAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -714,8 +714,8 @@ func TestGithubAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertGithubConnector(context.Background(), conn)
 	require.NoError(t, err)
 
-	reqNormal := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
-	reqTest := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
+	reqNormal := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
+	reqTest := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
 		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
@@ -732,7 +732,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.GithubAuthRequest
+		request            types.GithubAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -797,7 +797,7 @@ func TestGithubAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateGithubAuthRequest(tt.request)
+			request, err := client.CreateGithubAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -2850,7 +2850,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 
 	testNames := []string{"a", "b", "c", "d"}
 
-	// Add some kube services.
+	// Add a kube service with 3 clusters.
 	kubeService, err := types.NewServer("bar", types.KindKubeService, types.ServerSpecV2{
 		KubernetesClusters: []*types.KubernetesCluster{{Name: "d"}, {Name: "b"}, {Name: "a"}},
 	})
@@ -2858,7 +2858,8 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	_, err = s.UpsertKubeServiceV2(ctx, kubeService)
 	require.NoError(t, err)
 
-	// Include a duplicate cluster name to test deduplicate.
+	// Add a kube service with 2 clusters.
+	// Includes a duplicate cluster name to test deduplicate.
 	kubeService, err = types.NewServer("foo", types.KindKubeService, types.ServerSpecV2{
 		KubernetesClusters: []*types.KubernetesCluster{{Name: "a"}, {Name: "c"}},
 	})
@@ -2881,7 +2882,8 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Resources, len(testNames))
 		require.Empty(t, res.NextKey)
-		require.Empty(t, res.TotalCount)
+		// There is 2 kube services, but 4 unique clusters.
+		require.Equal(t, 4, res.TotalCount)
 
 		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
 		require.NoError(t, err)
@@ -3033,4 +3035,171 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	sessions, err = srv.Auth().GetAppSessions(ctx)
 	require.NoError(t, err)
 	require.Len(t, sessions, 0)
+}
+
+func TestListResources_SortAndDeduplicate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create user, role, and client.
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// Permit user to get all resources.
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// Define some resource names for testing.
+	names := []string{"d", "b", "d", "a", "a", "b"}
+	uniqueNames := []string{"a", "b", "d"}
+
+	tests := []struct {
+		name            string
+		kind            string
+		insertResources func()
+		wantNames       []string
+	}{
+		{
+			name: "KindDatabaseServer",
+			kind: types.KindDatabaseServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					db, err := types.NewDatabaseServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.DatabaseServerSpecV3{
+						HostID:   "_",
+						Hostname: "_",
+						Database: &types.DatabaseV3{
+							Metadata: types.Metadata{
+								Name: names[i],
+							},
+							Spec: types.DatabaseSpecV3{
+								Protocol: "_",
+								URI:      "_",
+							},
+						},
+					})
+					require.NoError(t, err)
+					_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindAppServer",
+			kind: types.KindAppServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					server, err := types.NewAppServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.AppServerSpecV3{
+						HostID: "_",
+						App:    &types.AppV3{Metadata: types.Metadata{Name: names[i]}, Spec: types.AppSpecV3{URI: "_"}},
+					})
+					require.NoError(t, err)
+					_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindWindowsDesktop",
+			kind: types.KindWindowsDesktop,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					desktop, err := types.NewWindowsDesktopV3(names[i], nil, types.WindowsDesktopSpecV3{
+						Addr:   "_",
+						HostID: fmt.Sprintf("name-%v", i),
+					})
+					require.NoError(t, err)
+					require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
+				}
+			},
+		},
+		{
+			name: "KindKubernetesCluster",
+			kind: types.KindKubernetesCluster,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					server, err := types.NewServer(fmt.Sprintf("name-%v", i), types.KindKubeService, types.ServerSpecV2{
+						KubernetesClusters: []*types.KubernetesCluster{
+							// Test dedup inside this list as well as from each service.
+							{Name: names[i]},
+							{Name: names[i]},
+						},
+					})
+					require.NoError(t, err)
+					_, err = srv.Auth().UpsertKubeServiceV2(ctx, server)
+					require.NoError(t, err)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.insertResources()
+
+			// Fetch all resources
+			fetchedResources := make([]types.ResourceWithLabels, 0, len(uniqueNames))
+			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType:   tc.kind,
+				NeedTotalCount: true,
+				Limit:          2,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName, IsDesc: true},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 2)
+			require.Equal(t, len(uniqueNames), resp.TotalCount)
+			fetchedResources = append(fetchedResources, resp.Resources...)
+
+			resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType:   tc.kind,
+				NeedTotalCount: true,
+				StartKey:       resp.NextKey,
+				Limit:          2,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName, IsDesc: true},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 1)
+			require.Equal(t, len(uniqueNames), resp.TotalCount)
+			fetchedResources = append(fetchedResources, resp.Resources...)
+
+			r := types.ResourcesWithLabels(fetchedResources)
+			var extractedErr error
+			var extractedNames []string
+
+			switch tc.kind {
+			case types.KindDatabaseServer:
+				s, err := r.AsDatabaseServers()
+				require.NoError(t, err)
+				extractedNames, extractedErr = types.DatabaseServers(s).GetFieldVals(types.ResourceMetadataName)
+
+			case types.KindAppServer:
+				s, err := r.AsAppServers()
+				require.NoError(t, err)
+				extractedNames, extractedErr = types.AppServers(s).GetFieldVals(types.ResourceMetadataName)
+
+			case types.KindWindowsDesktop:
+				s, err := r.AsWindowsDesktops()
+				require.NoError(t, err)
+				extractedNames, extractedErr = types.WindowsDesktops(s).GetFieldVals(types.ResourceMetadataName)
+
+			default:
+				s, err := r.AsKubeClusters()
+				require.NoError(t, err)
+				require.Len(t, s, 3)
+				extractedNames, extractedErr = types.KubeClusters(s).GetFieldVals(types.ResourceMetadataName)
+			}
+
+			require.NoError(t, extractedErr)
+			require.ElementsMatch(t, uniqueNames, extractedNames)
+			require.IsDecreasing(t, extractedNames)
+		})
+	}
 }

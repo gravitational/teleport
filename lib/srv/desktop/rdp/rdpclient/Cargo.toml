@@ -13,12 +13,12 @@ byteorder = "1.4.3"
 env_logger = "0.9.0"
 iso7816 = "0.1.0"
 iso7816-tlv = "0.4.2"
-libc = "0.2.121"
-log = "0.4.16"
+libc = "0.2.126"
+log = "0.4.17"
 num-derive = "0.3.3"
-num-traits = "0.2.14"
+num-traits = "0.2.15"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
-rsa = { version = "0.6.1" }
+rsa = "0.6.1"
 rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "17ec446ecb73c58b77ac47c6fc8598153f673076" }
-uuid = { version = "0.8.2", features = ["v4"] }
+uuid = { version = "1.1.2", features = ["v4"] }

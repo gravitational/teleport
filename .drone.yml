@@ -554,6 +554,8 @@ steps:
   - echo HOME=$${HOME}
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+    print-version)
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
@@ -567,9 +569,10 @@ steps:
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
+  - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     ARCH: amd64
     GOCACHE: /tmp/push-build-darwin-amd64/go/cache
@@ -3008,6 +3011,8 @@ steps:
   - echo HOME=$${HOME}
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+    print-version)
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
@@ -3021,11 +3026,12 @@ steps:
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
+  - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     APPLE_PASSWORD:
       from_secret: APPLE_PASSWORD
@@ -5096,7 +5102,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:133
+# Generated at dronegen/misc.go:145
 ################################################
 
 kind: pipeline
@@ -5124,7 +5130,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:157
+# Generated at dronegen/misc.go:169
 ################################################
 
 kind: pipeline
@@ -5153,10 +5159,16 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p /go/src/github.com/gravitational/teleport
-  - cd /go/src/github.com/gravitational/teleport
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout "${DRONE_TAG}"
+- name: Check if tag is prerelease
+  image: golang:1.17-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -5179,7 +5191,7 @@ steps:
   - chown -R root:root $GNUPGHOME
   - apt update
   - apt install aptly tree -y
-  - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -local-bucket-path "$BUCKET_CACHE_PATH"
@@ -5602,6 +5614,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0f665f13b0e591f35ceb28f503ac0e81e219011914af7d27bcb1ced907ebd397
+hmac: 5acd82e991fc974378ec84b0265df412875f0c349000a6c92720b39287639ac8
 
 ...
