@@ -132,8 +132,8 @@ func (g *Gateway) LocalPortInt() int {
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
 type Gateway struct {
 	Config
-	// Set by the cluster when running clusters.Cluster.CreateGateway.
-	// We can't set here inside New as dbcmd.NewCmdBuilder needs info from the cluster.
+	// CLICommand is set by cluster.Cluster methods as dbcmd.NewCmdBuilder needs an instance of
+	// TeleportClient to build the command.
 	CLICommand string
 
 	localProxy *alpn.LocalProxy

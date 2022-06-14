@@ -244,6 +244,29 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 	return nil
 }
 
+// SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
+// s.gateways.
+func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, err := s.ResolveCluster(gateway.TargetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := cluster.SetGatewayTargetSubresourceName(gateway, targetSubresourceName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return gateway, nil
+}
+
 // ListKubes lists kubernetes clusters
 func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
 	cluster, err := s.ResolveCluster(uri)
@@ -264,6 +287,15 @@ func (s *Service) FindGateway(gatewayURI string) (*gateway.Gateway, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return gateway, nil
+}
+
+func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 	for _, gateway := range s.gateways {
 		if gateway.URI.String() == gatewayURI {
 			return gateway, nil

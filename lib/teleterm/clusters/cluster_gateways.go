@@ -19,7 +19,6 @@ package clusters
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -73,12 +72,28 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gw.CLICommand = strings.TrimSpace(fmt.Sprintf("%s %s", strings.Join(cliCommand.Env, " "), cliCommand.String()))
+
+	gw.CLICommand = *cliCommand
 
 	return gw, nil
 }
 
-func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
+// SetGatewayTargetSubresourceName sets the target subresource name and updates the CLI command, as
+// changes to the target subresource name might impact the command.
+func (c *Cluster) SetGatewayTargetSubresourceName(gateway *gateway.Gateway, targetSubresourceName string) error {
+	gateway.TargetSubresourceName = targetSubresourceName
+
+	cliCommand, err := buildCLICommand(c, gateway)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	gateway.CLICommand = *cliCommand
+
+	return nil
+}
+
+func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*string, error) {
 	routeToDb := tlsca.RouteToDatabase{
 		ServiceName: gw.TargetName,
 		Protocol:    gw.Protocol,
@@ -104,5 +119,7 @@ func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return cmd, nil
+	cmdString := strings.TrimSpace(fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()))
+
+	return &cmdString, nil
 }
