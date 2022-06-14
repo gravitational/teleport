@@ -746,8 +746,9 @@ func TestAccessRequestDowngrade(t *testing.T) {
 	proto.RegisterAuthServiceServer(m.grpc, m)
 	t.Cleanup(m.grpc.Stop)
 
+	remoteErr := make(chan error)
 	go func() {
-		assert.NoError(t, m.grpc.Serve(l))
+		remoteErr <- m.grpc.Serve(l)
 	}()
 
 	clt, err := m.NewClient(ctx)
@@ -756,4 +757,6 @@ func TestAccessRequestDowngrade(t *testing.T) {
 	items, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{})
 	require.NoError(t, err)
 	require.Len(t, items, 1)
+	m.grpc.Stop()
+	require.NoError(t, <-remoteErr)
 }
