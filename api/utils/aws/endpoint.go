@@ -354,7 +354,7 @@ func ParseMemoryDBEndpoint(endpoint string) (*RedisEndpointInfo, error) {
 	// clustercfg.my-memorydb.scwzlu.memorydb.ca-central-1.amazonaws.com
 	//
 	// Unlike RDS/Redshift endpoints, the service subdomain is before region.
-	// Unlike ElastiCache endpoints, memorydb uses full region name.
+	// Unlike ElastiCache endpoints, MemoryDB uses full region name.
 	endpointWithoutSuffix, err := removePartitionSuffix(endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -418,6 +418,7 @@ func isAWSServiceEndpoint(uri, serviceName string) bool {
 }
 
 func removeSchemaAndPort(endpoint string) (string, error) {
+	// Add a temporary schema to make a valid URL for url.Parse.
 	if !strings.Contains(endpoint, "://") {
 		endpoint = "schema://" + endpoint
 	}

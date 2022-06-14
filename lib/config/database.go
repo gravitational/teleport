@@ -202,7 +202,7 @@ db_service:
   #       # ElastiCache replication group ID.
   #       replication_group_id: redis-cluster-example
   # # MemoryDB database static configuration.
-  # - name: elasticache
+  # - name: memorydb
   #   description: AWS MemoryDB cluster configuration example.
   #   protocol: redis
   #   # Database connection endpoint. Must be reachable from Database service.
