@@ -4676,6 +4676,104 @@ volumes:
 - name: dockersock
   temp: {}
 
+# Temporary pipeline to test the publish flow for Teleport Operator
+---
+kind: pipeline
+type: kubernetes
+name: build-publish-operator
+
+environment:
+  BUILDBOX_VERSION: "teleport10"
+  RUNTIME: go1.17.9
+
+trigger:
+  branch:
+    - marco/operator
+  event:
+    - push
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+      GOCACHE: /go/cache
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/artifacts $GOCACHE
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build/push operator images
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOCACHE: /go/cache
+      GOPATH: /go
+      OS: linux
+      ARCH: amd64
+    settings:
+      docker_staging_username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      docker_staging_password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      docker_production_username:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      docker_production_password:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make bash
+      - chown -R $UID:$GID /go
+      - docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
+      # - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make publish-operator-ci
+      # reauthenticate with production credentials
+      - export VERSION=$(make print-version)
+      - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
+      - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
+      - docker logout quay.io
+      - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
+      - docker push quay.io/gravitational/teleport-operator:$${VERSION}
+      - docker logout quay.io
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
 ---
 kind: pipeline
 type: kubernetes
@@ -4749,6 +4847,7 @@ steps:
       - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
+      - make publish-operator-ci
 
   - name: Build/push FIPS Docker image
     image: docker
@@ -5306,11 +5405,13 @@ steps:
       - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
+      - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
       # retag images to production naming
       - echo "---> Tagging images for $${VERSION}"
       - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
       # reauthenticate with production credentials
       - docker logout quay.io
       - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
@@ -5319,6 +5420,7 @@ steps:
       - docker push quay.io/gravitational/teleport:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker push quay.io/gravitational/teleport-operator:$${VERSION}
 
   - name: Check out code
     image: docker:git
@@ -5614,6 +5716,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0b31aa60031631eb74ab6f6cc76917472d5b239ad2151d37b1b19b263fb5d1c4
+hmac: 038337b1c42b5556139aeb2c56dbff567d04953744c1fe6df63e1e6b677d0899
 
 ...

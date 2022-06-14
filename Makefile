@@ -15,6 +15,7 @@ VERSION=11.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
+DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -1003,6 +1004,15 @@ image-ci: clean docker-binaries
 publish-ci: image-ci
 	docker push $(DOCKER_IMAGE_CI):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
+
+# Docker image build for Teleport Operator
+.PHONY: image-operator-ci
+image-operator-ci:
+	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+
+.PHONY: publish-operator-ci
+publish-operator-ci: image-operator-ci
+	docker push $(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
 
 .PHONY: print-version
 print-version:
