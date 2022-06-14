@@ -106,6 +106,9 @@ const (
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
 
+	// SSHProxyListenPort is the default Teleport SSH proxy listen port.
+	SSHProxyListenPort = 3023
+
 	// ProxyWebListenPort is the default Teleport Proxy WebPort address.
 	ProxyWebListenPort = 3080
 

@@ -671,7 +671,7 @@ func (s *PresenceService) DeleteTunnelConnections(clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing cluster name")
 	}
-	startKey := backend.Key(tunnelConnectionsPrefix, clusterName)
+	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
 	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }

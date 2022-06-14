@@ -18,13 +18,19 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"regexp"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/trace"
 )
+
+// metadataReadLimit is the largest number of bytes that will be read from imds responses.
+const metadataReadLimit = 1_000_000
 
 // GetEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
 // from the IMDS for this EC2 instance.
@@ -83,4 +89,58 @@ func IsEC2NodeID(id string) bool {
 // the given Instance Identity Document.
 func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
 	return iid.AccountID + "-" + iid.InstanceID
+}
+
+// InstanceMetadataClient is a wrapper for an imds.Client.
+type InstanceMetadataClient struct {
+	c *imds.Client
+}
+
+// NewInstanceMetadataClient creates a new instance metadata client.
+func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &InstanceMetadataClient{
+		c: imds.NewFromConfig(cfg),
+	}, nil
+}
+
+// IsAvailable checks if instance metadata is available.
+func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
+	_, err := client.getMetadata(ctx, "")
+	return err == nil
+}
+
+// getMetadata gets the raw metadata from a specified path.
+func (client *InstanceMetadataClient) getMetadata(ctx context.Context, path string) (string, error) {
+	output, err := client.c.GetMetadata(ctx, &imds.GetMetadataInput{Path: path})
+	if err != nil {
+		return "", trace.Wrap(aws.ParseMetadataClientError(err))
+	}
+	defer output.Content.Close()
+	body, err := ReadAtMost(output.Content, metadataReadLimit)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(body), nil
+}
+
+// GetTagKeys gets all of the EC2 tag keys.
+func (client *InstanceMetadataClient) GetTagKeys(ctx context.Context) ([]string, error) {
+	body, err := client.getMetadata(ctx, "tags/instance")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return strings.Split(body, "\n"), nil
+}
+
+// GetTagValue gets the value for a specified tag key.
+func (client *InstanceMetadataClient) GetTagValue(ctx context.Context, key string) (string, error) {
+	body, err := client.getMetadata(ctx, fmt.Sprintf("tags/instance/%s", key))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return body, nil
 }

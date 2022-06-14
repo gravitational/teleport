@@ -600,6 +600,16 @@ func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
 	return user, nil
 }
 
+// GetCurrentUser returns current user as seen by the server.
+// Useful especially in the context of remote clusters which perform role and trait mapping.
+func (c *Client) GetCurrentUser(ctx context.Context) (types.User, error) {
+	currentUser, err := c.grpc.GetCurrentUser(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return currentUser, nil
+}
+
 // GetUsers returns a list of users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
@@ -736,14 +746,44 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	rsp, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
+	stream, err := c.grpc.GetAccessRequestsV2(ctx, &filter, c.callOpts...)
+	if err != nil {
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			return c.getAccessRequestsLegacy(ctx, filter)
+		}
+
+		return nil, err
+	}
+	var reqs []types.AccessRequest
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		reqs = append(reqs, req)
+	}
+
+	return reqs, nil
+}
+
+// getAccessRequestsLegacy retrieves a list of all access requests matching the provided filter using the old access request API.
+//
+// DELETE IN: 11.0.0. Used for compatibility with old auth servers that don't support the GetAccessRequestsV2 RPC.
+func (c *Client) getAccessRequestsLegacy(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	requests, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	reqs := make([]types.AccessRequest, 0, len(rsp.AccessRequests))
-	for _, req := range rsp.AccessRequests {
-		reqs = append(reqs, req)
+
+	reqs := make([]types.AccessRequest, len(requests.AccessRequests))
+	for i, request := range requests.AccessRequests {
+		reqs[i] = request
 	}
+
 	return reqs, nil
 }
 
@@ -1406,6 +1446,9 @@ func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets 
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+	// An old server would send RedirectURL instead of RedirectURLs
+	// DELETE IN 11.0.0
+	resp.CheckSetRedirectURL()
 	return resp, nil
 }
 
@@ -1418,6 +1461,9 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	}
 	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
 	for i, oidcConnector := range resp.OIDCConnectors {
+		// An old server would send RedirectURL instead of RedirectURLs
+		// DELETE IN 11.0.0
+		oidcConnector.CheckSetRedirectURL()
 		oidcConnectors[i] = oidcConnector
 	}
 	return oidcConnectors, nil
@@ -1429,6 +1475,9 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
+	// An old server would expect RedirectURL instead of RedirectURLs
+	// DELETE IN 11.0.0
+	connector.CheckSetRedirectURL()
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }

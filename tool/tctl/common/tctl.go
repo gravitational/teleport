@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"golang.org/x/crypto/ssh"
 
@@ -77,7 +79,7 @@ type CLICommand interface {
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
-	TryRun(selectedCommand string, c auth.ClientI) (match bool, err error)
+	TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
 // Run is the same as 'make'. It helps to share the code between different
@@ -133,7 +135,7 @@ func Run(commands []CLICommand) {
 		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
-	ver := app.Command("version", "Print cluster version")
+	ver := app.Command("version", "Print the version of your tctl binary")
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
@@ -160,7 +162,10 @@ func Run(commands []CLICommand) {
 		utils.FatalError(err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(
+		context.Background(), syscall.SIGTERM, syscall.SIGINT,
+	)
+	defer cancel()
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
@@ -173,7 +178,7 @@ func Run(commands []CLICommand) {
 	// execute whatever is selected:
 	var match bool
 	for _, c := range commands {
-		match, err = c.TryRun(selectedCmd, client)
+		match, err = c.TryRun(ctx, selectedCmd, client)
 		if err != nil {
 			utils.FatalError(err)
 		}
@@ -195,6 +200,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
 		log.Debugf("Debug logging has been enabled.")
 	}
+	cfg.Log = log.StandardLogger()
 
 	// If the config file path provided is not a blank string, load the file and apply its values
 	var fileConf *config.FileConfig
@@ -220,7 +226,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		// No config file or identity file.
 		// Try the extension loader.
 		log.Debug("No config file or identity file, loading auth config via extension.")
-		authConfig, err := loadConfigFromProfile(ccf, cfg)
+		authConfig, err := LoadConfigFromProfile(ccf, cfg)
 		if err == nil {
 			return authConfig, nil
 		}
@@ -314,8 +320,8 @@ func (m *sshTrustedHostKeyWrapper) GetKnownHostKeys(hostname string) ([]ssh.Publ
 	return trustedKeys, nil
 }
 
-// loadConfigFromProfile applies config from ~/.tsh/ profile if it's present
-func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+// LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
+func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	if ccf.IdentityFilePath != "" {
 		return nil, trace.NotFound("identity has been supplied, skip loading the config")
 	}
@@ -324,8 +330,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
-
-	profile, _, err := client.Status("", proxyAddr)
+	profile, _, err := client.Status(cfg.TeleportHome, proxyAddr)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)

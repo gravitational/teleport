@@ -771,6 +771,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
+		ClusterName:      h.auth.clusterName,
 	}, nil
 }
 
@@ -783,6 +784,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
+		ClusterName:      h.auth.clusterName,
 	}, nil
 }
 
@@ -802,6 +804,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:         *proxyConfig,
 		ServerVersion: teleport.Version,
+		ClusterName:   h.auth.clusterName,
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
@@ -1037,6 +1040,7 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 			CreateWebSession:  true,
 			ClientRedirectURL: req.clientRedirectURL,
 			CheckUser:         true,
+			ProxyAddress:      r.Host,
 		})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -1185,6 +1189,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			Compatibility:     req.Compatibility,
 			RouteToCluster:    req.RouteToCluster,
 			KubernetesCluster: req.KubernetesCluster,
+			ProxyAddress:      r.Host,
 		})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")

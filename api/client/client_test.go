@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
@@ -46,8 +47,8 @@ type mockServer struct {
 
 func newMockServer() *mockServer {
 	m := &mockServer{
-		grpc.NewServer(),
-		&proto.UnimplementedAuthServiceServer{},
+		grpc:                           grpc.NewServer(),
+		UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
 	}
 	proto.RegisterAuthServiceServer(m.grpc, m)
 	return m
@@ -613,4 +614,102 @@ func TestGetResources(t *testing.T) {
 			require.Empty(t, cmp.Diff(expectedResources, resources))
 		})
 	}
+}
+
+type mockOIDCConnectorServer struct {
+	*mockServer
+	connectors map[string]*types.OIDCConnectorV3
+}
+
+func newMockOIDCConnectorServer() *mockOIDCConnectorServer {
+	m := &mockOIDCConnectorServer{
+		&mockServer{
+			grpc:                           grpc.NewServer(),
+			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
+		},
+		make(map[string]*types.OIDCConnectorV3),
+	}
+	proto.RegisterAuthServiceServer(m.grpc, m)
+	return m
+}
+
+func startMockOIDCConnectorServer(t *testing.T) string {
+	l, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, l.Close()) })
+	go newMockOIDCConnectorServer().grpc.Serve(l)
+	return l.Addr().String()
+}
+
+func (m *mockOIDCConnectorServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error) {
+	conn, ok := m.connectors[req.Name]
+	if !ok {
+		return nil, trace.NotFound("not found")
+	}
+	return conn, nil
+}
+
+func (m *mockOIDCConnectorServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
+	var connectors []*types.OIDCConnectorV3
+	for _, conn := range m.connectors {
+		connectors = append(connectors, conn)
+	}
+	return &types.OIDCConnectorV3List{
+		OIDCConnectors: connectors,
+	}, nil
+}
+
+func (m *mockOIDCConnectorServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*empty.Empty, error) {
+	m.connectors[oidcConnector.Metadata.Name] = oidcConnector
+	return &empty.Empty{}, nil
+}
+
+// Test that client will perform properly with an old server
+// DELETE IN 11.0.0
+func TestSetOIDCRedirectURLBackwardsCompatibility(t *testing.T) {
+	ctx := context.Background()
+	addr := startMockOIDCConnectorServer(t)
+
+	// Create client
+	clt, err := New(ctx, Config{
+		Addrs: []string{addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+		},
+	})
+	require.NoError(t, err)
+
+	conn := &types.OIDCConnectorV3{
+		Metadata: types.Metadata{
+			Name: "one",
+		},
+	}
+
+	// Upsert should set "RedirectURL" on the provided connector if empty
+	conn.Spec.RedirectURLs = []string{"one.example.com"}
+	conn.Spec.RedirectURL = ""
+	err = clt.UpsertOIDCConnector(ctx, conn)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(conn.GetRedirectURLs()))
+	require.Equal(t, conn.GetRedirectURLs()[0], conn.Spec.RedirectURL)
+
+	// GetOIDCConnector should set "RedirectURLs" on the received connector if empty
+	conn.Spec.RedirectURLs = []string{}
+	conn.Spec.RedirectURL = "one.example.com"
+	connResp, err := clt.GetOIDCConnector(ctx, conn.GetName(), false)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(connResp.GetRedirectURLs()))
+	require.Equal(t, connResp.GetRedirectURLs()[0], "one.example.com")
+
+	// GetOIDCConnectors should set "RedirectURLs" on the received connectors if empty
+	conn.Spec.RedirectURLs = []string{}
+	conn.Spec.RedirectURL = "one.example.com"
+	connectorsResp, err := clt.GetOIDCConnectors(ctx, false)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(connectorsResp))
+	require.Equal(t, 1, len(connectorsResp[0].GetRedirectURLs()))
+	require.Equal(t, "one.example.com", connectorsResp[0].GetRedirectURLs()[0])
 }

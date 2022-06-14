@@ -109,7 +109,7 @@ endpoint.
   ```code
   $ teleport db start \
     --token=/tmp/token \
-    --auth-server=mytenant.teleport.sh \
+    --auth-server=mytenant.teleport.sh:443 \
     --name=azure-db \
     --protocol=postgres \
     --uri=example.postgres.database.azure.com:5321 \
@@ -122,7 +122,7 @@ endpoint.
   ```code
   $ teleport db start \
     --token=/tmp/token \
-    --auth-server=mytenant.teleport.sh \
+    --auth-server=mytenant.teleport.sh:443 \
     --name=azure-db \
     --protocol=mysql \
     --uri=example.mysql.database.azure.com:3306 \

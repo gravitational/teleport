@@ -297,8 +297,7 @@ func TestSessionAccessJoin(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			policy := testCase.host.GetSessionPolicySet()
 			evaluator := NewSessionAccessEvaluator([]*types.SessionTrackerPolicySet{&policy}, testCase.sessionKind)
-			result, err := evaluator.CanJoin(testCase.participant)
-			require.NoError(t, err)
+			result := evaluator.CanJoin(testCase.participant)
 			require.Equal(t, testCase.expected, len(result) > 0)
 		})
 	}

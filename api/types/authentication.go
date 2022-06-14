@@ -592,12 +592,12 @@ func validateU2FFacet(appIDDomain string, appIDScheme string, facet string) erro
 	// Naked non-https facets are only allowed for localhost domains when the appID has a scheme set.
 	isLocalhost := strings.HasSuffix(facetDomain, "localhost")
 	if appIDScheme != "" && !isLocalhost && facetScheme != "https" {
-		return trace.BadParameter("u2f configuration has an invalid facet %q, must be https", facet)
+		log.Warnf("u2f configuration has an invalid facet %q, must be https", facet)
 	}
 
 	// Check that the facet domain is a equal to the AppID domain or a subdomain of it.
 	if !strings.HasSuffix(facetDomain, appIDDomain) {
-		return trace.BadParameter("u2f configuration has a facet with a different domain than the app_id: %q", facet)
+		log.Warnf("u2f configuration has a facet with a different domain than the app_id: %q", facet)
 	}
 
 	return nil
