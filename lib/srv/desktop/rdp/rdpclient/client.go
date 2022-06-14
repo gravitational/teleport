@@ -111,14 +111,9 @@ func init() {
 // It's lifecycle is:
 //
 // ```
-// rdpc := New() // creates client and kicks off RDP connection
-// rdpc.Wait()   // waits for the duration of the connection
+// rdpc := New()         // creates client
+// rdpc.StartAndWait()   // starts rdp and waits for the duration of the connection
 // ```
-//
-// rdpc.Wait() typically takes care of calling rdpc.Cleanup().
-// However, if something fails between the call to New() and
-// rdpc.Wait(), the caller MUST call rdpc.Cleanup() to ensure
-// all memory is released.
 type Client struct {
 	cfg Config
 
@@ -166,11 +161,21 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	if err := c.readClientSize(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return c, nil
+}
+
+// StartAndWait starts the rdp client and blocks until the client disconnects,
+// then runs the cleanup.
+func (c *Client) StartAndWait(ctx context.Context) error {
 	if err := c.connect(ctx); err != nil {
-		return nil, trace.Wrap(err)
+		c.close()
+		return trace.Wrap(err)
 	}
 	c.start()
-	return c, nil
+	c.wg.Wait()
+	c.close()
+
+	return nil
 }
 
 func (c *Client) readClientUsername() error {
@@ -443,15 +448,10 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
-// Wait blocks until the client disconnects and runs the cleanup.
-func (c *Client) Wait() {
-	c.wg.Wait()
-	c.Cleanup()
-}
-
-// Cleanup frees the memory of the cgo.Handle, closes the RDP client connection,
+// close frees the memory of the cgo.Handle,
+// closes the RDP client connection,
 // and frees the Rust client.
-func (c *Client) Cleanup() {
+func (c *Client) close() {
 	c.cleanupOnce.Do(func() {
 		// Close the RDP client
 		if err := C.close_rdp(c.rustClient); err != C.ErrCodeSuccess {
