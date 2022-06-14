@@ -127,14 +127,9 @@ type Client struct {
 	username                  string
 
 	// handle allows the rust code to call back into the client.
-	// Once it is created with cgo.NewHandle(), the original caller
-	// MUST release it with a call to handle.Delete().
 	handle cgo.Handle
 
 	// RDP client on the Rust side.
-	// Once it is created by assigning this field to the result of C.connect_rdp(),
-	// the caller SHOULD end the RDP connection by passing it to C.close_rdp(),
-	// and the caller MUST free its memory by passing it to C.free_rdp().
 	rustClient *C.Client
 
 	// Synchronization point to prevent input messages from being forwarded
@@ -458,9 +453,6 @@ func (c *Client) Wait() {
 // and frees the Rust client.
 func (c *Client) Cleanup() {
 	c.cleanupOnce.Do(func() {
-		// Release the memory of the cgo.Handle
-		c.handle.Delete()
-
 		// Close the RDP client
 		if err := C.close_rdp(c.rustClient); err != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("failed to close the RDP client")
@@ -468,6 +460,9 @@ func (c *Client) Cleanup() {
 
 		// Let the Rust side free its data
 		C.free_rdp(c.rustClient)
+
+		// Release the memory of the cgo.Handle
+		c.handle.Delete()
 	})
 }
 
