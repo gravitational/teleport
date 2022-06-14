@@ -101,5 +101,10 @@ func getGithubDiagInfoFields(diag *types.SSODiagnosticInfo, debug bool) []string
 			true,
 			FormatYAML("[GitHub] Connector team to logins mapping", diag.GithubTeamsToLogins),
 		),
+		GetDiagMessage(
+			diag.GithubTeamsToRoles != nil,
+			true,
+			FormatYAML("[GitHub] Connector team to roles mapping", diag.GithubTeamsToRoles),
+		),
 	}
 }
