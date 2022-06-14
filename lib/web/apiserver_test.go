@@ -275,6 +275,16 @@ func newWebSuite(t *testing.T) *WebSuite {
 	})
 	require.NoError(t, err)
 
+	caWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	defer caWatcher.Close()
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    node.ID(),
 		Listener:              revTunListener,
@@ -283,12 +293,13 @@ func newWebSuite(t *testing.T) *WebSuite {
 		HostSigners:           []ssh.Signer{signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
+		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
 		Emitter:               s.proxyClient,
 		NewCachingAccessPoint: noCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		CertAuthorityWatcher:  caWatcher,
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
@@ -709,6 +720,28 @@ func TestPasswordChange(t *testing.T) {
 
 	_, err = pack.clt.PutJSON(context.Background(), pack.clt.Endpoint("webapi", "users", "password"), req)
 	require.NoError(t, err)
+}
+
+// TestValidateBearerToken tests that the bearer token's user name
+// matches the user name on the cookie.
+func TestValidateBearerToken(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack1 := proxy.authPack(t, "user1")
+	pack2 := proxy.authPack(t, "user2")
+
+	// Swap pack1's session token with pack2's sessionToken
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	pack1.clt = proxy.newClient(t, roundtrip.BearerAuth(pack2.session.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(&proxy.webURL, pack1.cookies)
+
+	// Auth protected endpoint.
+	req := changePasswordReq{}
+	_, err = pack1.clt.PutJSON(context.Background(), pack1.clt.Endpoint("webapi", "users", "password"), req)
+	require.True(t, trace.IsAccessDenied(err))
+	require.True(t, strings.Contains(err.Error(), "bad bearer token"))
 }
 
 func TestWebSessionsBadInput(t *testing.T) {
@@ -1962,7 +1995,7 @@ func TestMultipleConnectors(t *testing.T) {
 
 	// create two oidc connectors, one named "foo" and another named "bar"
 	oidcConnectorSpec := types.OIDCConnectorSpecV3{
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
 		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
 		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
 		IssuerURL:    "https://oidc.example.com",
@@ -3922,6 +3955,16 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyLockWatcher.Close)
 
+	proxyCAWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyLockWatcher.Close)
+
 	proxyNodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -3939,12 +3982,13 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostSigners:           hostSigners,
 		LocalAuthClient:       client,
 		LocalAccessPoint:      client,
+		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},
 		Emitter:               client,
 		NewCachingAccessPoint: noCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: authServer.ClusterName(), Client: client}},
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		CertAuthorityWatcher:  proxyCAWatcher,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })

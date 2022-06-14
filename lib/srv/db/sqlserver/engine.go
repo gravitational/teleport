@@ -70,7 +70,7 @@ func (e *Engine) SendError(err error) {
 }
 
 // HandleConnection authorizes the incoming client connection, connects to the
-// target SQL Server server and starts proxying messages between client/server.
+// target SQLServer server and starts proxying messages between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	// Pre-Login packet was handled on the Proxy. Now we expect the client to
 	// send us a Login7 packet that contains username/database information and
@@ -99,10 +99,18 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	// Start proxying packets between client and server.
-	err = e.proxy(ctx, serverConn)
-	if err != nil {
-		return trace.Wrap(err)
+	clientErrCh := make(chan error, 1)
+	serverErrCh := make(chan error, 1)
+	go e.receiveFromClient(e.clientConn, serverConn, clientErrCh)
+	go e.receiveFromServer(serverConn, e.clientConn, serverErrCh)
+
+	select {
+	case err := <-clientErrCh:
+		e.Log.WithError(err).Debug("Client done.")
+	case err := <-serverErrCh:
+		e.Log.WithError(err).Debug("Server done.")
+	case <-ctx.Done():
+		e.Log.Debug("Context canceled.")
 	}
 
 	return nil
@@ -149,33 +157,41 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	return nil
 }
 
-// proxy proxies all traffic between the client and server connections.
-func (e *Engine) proxy(ctx context.Context, serverConn io.ReadWriteCloser) error {
-	errCh := make(chan error, 2)
-
-	go func() {
-		defer serverConn.Close()
-		_, err := io.Copy(serverConn, e.clientConn)
-		errCh <- err
+// receiveFromClient relays protocol messages received from  SQL Server client
+// to SQL Server database.
+func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, clientErrCh chan<- error) {
+	defer func() {
+		serverConn.Close()
+		e.Log.Debug("Stop receiving from client.")
+		close(clientErrCh)
 	}()
-
-	go func() {
-		defer serverConn.Close()
-		_, err := io.Copy(e.clientConn, serverConn)
-		errCh <- err
-	}()
-
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errCh:
-			if err != nil && !utils.IsOKNetworkError(err) {
-				errs = append(errs, err)
+	for {
+		p, err := protocol.ReadPacket(clientConn)
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				e.Log.Debug("Client connection closed.")
+				return
 			}
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
+			e.Log.WithError(err).Error("Failed to read client packet.")
+			clientErrCh <- err
+			return
+		}
+
+		_, err = serverConn.Write(p.Bytes())
+		if err != nil {
+			e.Log.WithError(err).Error("Failed to write server packet.")
+			clientErrCh <- err
+			return
 		}
 	}
+}
 
-	return trace.NewAggregate(errs...)
+// receiveFromServer relays protocol messages received from SQLServer database
+// to SQLServer client.
+func (e *Engine) receiveFromServer(serverConn, clientConn io.ReadWriteCloser, serverErrCh chan<- error) {
+	defer clientConn.Close()
+	_, err := io.Copy(clientConn, serverConn)
+	if err != nil && !utils.IsOKNetworkError(err) {
+		serverErrCh <- trace.Wrap(err)
+	}
 }

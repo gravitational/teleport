@@ -430,7 +430,7 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
-	conf.ExtraProxyHeaders = []ExtraProxyHeaders{
+	conf.TshConfig.ExtraHeaders = []ExtraProxyHeaders{
 		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
 		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
 		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
@@ -1435,9 +1435,16 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
 	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV3{
-		IssuerURL:   "https://auth.example.com",
-		RedirectURL: "https://cluster.example.com",
-		ClientID:    "fake-client",
+		IssuerURL:    "https://auth.example.com",
+		RedirectURLs: []string{"https://cluster.example.com"},
+		ClientID:     "fake-client",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
 	})
 	require.NoError(t, err)
 	return connector

@@ -51,7 +51,7 @@ By default, it is stored in `/etc/teleport.yaml`.
   ```yaml
   auth_service:
     enabled: no
-  
+
   proxy_service:
     enabled: no
   ```
@@ -257,7 +257,7 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github'
         # for OSS, plus 'oidc' and 'saml' for Enterprise.
-        # Only local authentication (Teleport's own user DB) & Github is
+        # Only local authentication (Teleport's own user DB) & GitHub is
         # supported in the open source version
         type: local
 
@@ -347,6 +347,7 @@ auth_service:
             # app_id should always also be listed as a facet
             - https://localhost:3080
             - https://localhost
+            # localhost allows non-https facets as well
             - localhost:3080
             - localhost
 

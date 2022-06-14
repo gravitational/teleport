@@ -310,7 +310,8 @@ var (
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
-	lock          sync.RWMutex
+	lock sync.RWMutex
+	// oidcClients is a map from authID & proxyAddr -> oidcClient
 	oidcClients   map[string]*oidcClient
 	samlProviders map[string]*samlProvider
 	githubClients map[string]*githubClient
@@ -3799,9 +3800,13 @@ const (
 
 // oidcClient is internal structure that stores OIDC client and its config
 type oidcClient struct {
-	client *oidc.Client
-	config oidc.ClientConfig
-	cancel context.CancelFunc
+	client    *oidc.Client
+	connector types.OIDCConnector
+	// syncCtx controls the provider sync goroutine.
+	syncCtx    context.Context
+	syncCancel context.CancelFunc
+	// firstSync will be closed once the first provider sync succeeds
+	firstSync chan struct{}
 }
 
 // samlProvider is internal structure that stores SAML client and its config
@@ -3814,28 +3819,6 @@ type samlProvider struct {
 type githubClient struct {
 	client *oauth2.Client
 	config oauth2.Config
-}
-
-// oidcConfigsEqual returns true if the provided OIDC configs are equal
-func oidcConfigsEqual(a, b oidc.ClientConfig) bool {
-	if a.RedirectURL != b.RedirectURL {
-		return false
-	}
-	if a.Credentials.ID != b.Credentials.ID {
-		return false
-	}
-	if a.Credentials.Secret != b.Credentials.Secret {
-		return false
-	}
-	if len(a.Scope) != len(b.Scope) {
-		return false
-	}
-	for i := range a.Scope {
-		if a.Scope[i] != b.Scope[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // oauth2ConfigsEqual returns true if the provided OAuth2 configs are equal

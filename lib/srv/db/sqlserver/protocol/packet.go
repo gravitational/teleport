@@ -54,7 +54,13 @@ type Packet struct {
 	PacketHeader
 
 	// Data is the packet data bytes without header.
-	Data []byte
+	Data        []byte
+	headerBytes [8]byte
+}
+
+func (p Packet) Bytes() []byte {
+	return append(p.headerBytes[:], p.Data...)
+
 }
 
 // ReadPacket reads a single full packet from the reader.
@@ -78,6 +84,7 @@ func ReadPacket(r io.Reader) (*Packet, error) {
 	}
 
 	return &Packet{
+		headerBytes:  headerBytes,
 		PacketHeader: header,
 		Data:         dataBytes,
 	}, nil

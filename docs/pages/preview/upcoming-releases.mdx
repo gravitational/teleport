@@ -10,50 +10,70 @@ The teleport team delivers a new major release roughly every 3 months.
 
 ### Teleport 9.3
 
-Teleport 9.3 will add support for proxy peering to reduce network congestion,
-reduce latency, and allow for larger clusters. In addition Machine ID will add
-support for Database Access.
+Teleport 9.3 will add Database Access support to Machine ID.
 
 | Version     | Date            |
 |-------------|-----------------|
 | Release     | May 2022        |
 
+
 ### Teleport 10
 
-Teleport 10 will bring Machine ID to GA with support for Database Access.
-Server Access will add support for automatic user provisioning and IP-based
-restrictions. Database Access will add preview support for Snowflake and audit
-logging support for Microsoft SQL Server and Elasticache support for Redis.
+Teleport 10 will include a preview releases of Passwordless, Search-based Access
+Requests, a Kubernetes Operator, and automatic user provisioning and IP-based
+restrictions for Server Access.
 
-In addition, Teleport 10 will include preview releases of Passwordless and a
-Kubernetes Operator.
+In addition, preview support for Snowflake, audit logging support for Microsoft
+SQL Server, and Elasticache support for Redis will be added to Database Access.
 
-| Version     | Date             | Description                |
-|-------------|------------------|----------------------------|
-| Release     | June 27th, 2022  | Good to go for production. |
+Lastly, Teleport 10 will include support for proxy peering to reduce network
+congestion and latency.
+
+
+| Version     | Date            | Description                |
+|-------------|-----------------|----------------------------|
+| RC.1        | June 27th, 2022 | Suitable for testing.      |
+| Release     | July 1st, 2022  | Good to go for production. |
+
 
 ### Teleport 10.1
 
-Teleport 10.1 will bring Cassandra support to Database Access, file
-upload/download support to Desktop Access, and Kubernetes Access and CA
-rotation support to Machine ID.
+Teleport 10.1 will bring file upload/download support to Desktop Access,
+Kubernetes Access and CA rotation support to Machine ID, and MemoryDB support
+to Database Access.
+
+In addition, support for a notification-only automatic upgrade system will be
+added to Teleport.
 
 | Version     | Date       | Description                |
 |-------------|------------|----------------------------|
 | Release     | July 2022  | Good to go for production. |
 
+
 ### Teleport 10.2
 
-Teleport 10.2 will bring host certificate support to Machine ID and
-Elasticsearch support to Database Access.
+Teleport 10.2 will bring host certificate support to Machine ID, Elasticsearch
+support to Database Access, automatic configuration of AD to Desktop Access, TCP
+endpoint support to Application Access, and remove the need for a PVC to securely
+deploy Teleport within a Kubernetes cluster.
 
-| Version     | Date         | Description                |
-|-------------|--------------|----------------------------|
-| Release     | August 2022  | Good to go for production. |
+| Version     | Date               | Description                |
+|-------------|--------------------|----------------------------|
+| Release     | Early August 2022  | Good to go for production. |
+
+
+### Teleport 10.3
+
+Teleport 10 will bring Cassandra support to Database Access.
+
+| Version     | Date              | Description                |
+|-------------|-------------------|----------------------------|
+| Release     | Late August 2022  | Good to go for production. |
 
 ## Teleport Cloud
 
-The key areas of focus for Teleport Cloud in summer 2022 are:
+The key areas of focus for Teleport Cloud in Summer 2022 are:
+
 - Ensuring the best routing and latency experience
 - Stronger outbound communications on cloud health and infrastructure changes
 - UX where the cloud offering differs from the on-prem offering

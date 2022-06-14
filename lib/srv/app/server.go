@@ -87,6 +87,10 @@ type Config struct {
 	// Apps is a list of statically registered apps this agent proxies.
 	Apps types.Apps
 
+	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
+	// between all apps.
+	CloudLabels labels.Importer
+
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 
@@ -400,6 +404,9 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
+	if s.c.CloudLabels != nil {
+		s.c.CloudLabels.Apply(copy)
+	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -493,7 +500,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
@@ -626,6 +632,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer session.release()
 
 	// Forward request to the target application.
 	session.fwd.ServeHTTP(w, r)
@@ -687,10 +694,12 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 // getSession returns a request session used to proxy the request to the
 // target application. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
+// The in-flight request count is automatically incremented on the session.
+// The caller must call session.release() after finishing its use
 func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
-	// If a cached forwarder exists, return it right away.
 	session, err := s.cache.get(identity.RouteToApp.SessionID)
-	if err == nil {
+	// If a cached forwarder exists, return it right away.
+	if err == nil && session.acquire() == nil {
 		return session, nil
 	}
 

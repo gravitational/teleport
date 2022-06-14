@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -52,17 +53,110 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+	proxyParams, err := getSSHProxyParams(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName)
 
-	if tc.TLSRoutingEnabled {
-		return trace.Wrap(sshProxyWithTLSRouting(cf, tc, targetHost, targetPort))
+	if len(tc.JumpHosts) > 0 {
+		err := setupJumpHost(cf, tc, *proxyParams)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	return trace.Wrap(sshProxy(tc, targetHost, targetPort))
+	if proxyParams.tlsRouting {
+		return trace.Wrap(sshProxyWithTLSRouting(cf, tc, *proxyParams))
+	}
+
+	return trace.Wrap(sshProxy(tc, *proxyParams))
+}
+
+// getSSHProxyParams prepares parameters for establishing an SSH proxy.
+func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyParams, error) {
+	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Without jump hosts, we will be connecting to the current Teleport client
+	// proxy the user is logged into.
+	if len(tc.JumpHosts) == 0 {
+		proxyHost, proxyPort := tc.SSHProxyHostPort()
+		if tc.TLSRoutingEnabled {
+			proxyHost, proxyPort = tc.WebProxyHostPort()
+		}
+		return &sshProxyParams{
+			proxyHost:   proxyHost,
+			proxyPort:   strconv.Itoa(proxyPort),
+			targetHost:  cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName),
+			targetPort:  targetPort,
+			clusterName: tc.SiteName,
+			tlsRouting:  tc.TLSRoutingEnabled,
+		}, nil
+	}
+	// When jump host is specified, we will be connecting to the jump host's
+	// proxy directly. Call its ping endpoint to figure out the cluster details
+	// such as cluster name, SSH proxy address, etc.
+	ping, err := webclient.Find(&webclient.Config{
+		Context:   cf.Context,
+		ProxyAddr: tc.JumpHosts[0].Addr.Addr,
+		Insecure:  tc.InsecureSkipVerify,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshProxyHost, sshProxyPort, err := ping.Proxy.SSHProxyHostPort()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &sshProxyParams{
+		proxyHost:   sshProxyHost,
+		proxyPort:   sshProxyPort,
+		targetHost:  targetHost,
+		targetPort:  targetPort,
+		clusterName: ping.ClusterName,
+		tlsRouting:  ping.Proxy.TLSRoutingEnabled,
+	}, nil
+}
+
+// setupJumpHost configures the client for connecting to the jump host's proxy.
+func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams) error {
+	return tc.WithoutJumpHosts(func(tc *libclient.TeleportClient) error {
+		// Fetch certificate for the leaf cluster. This allows users to log
+		// in once into the root cluster and let the proxy handle fetching
+		// certificates for leaf clusters automatically.
+		err := tc.LoadKeyForClusterWithReissue(cf.Context, sp.clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Update known_hosts with the leaf proxy's CA certificate, otherwise
+		// users will be prompted to manually accept the key.
+		err = tc.UpdateKnownHosts(cf.Context, sp.proxyHost, sp.clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// We'll be connecting directly to the leaf cluster so make sure agent
+		// loads correct host CA.
+		tc.LocalAgent().UpdateCluster(sp.clusterName)
+		return nil
+	})
+}
+
+// sshProxyParams combines parameters for establishing an SSH proxy used
+// as a ProxyCommand for SSH clients.
+type sshProxyParams struct {
+	// proxyHost is the Teleport proxy host name.
+	proxyHost string
+	// proxyPort is the Teleport proxy port.
+	proxyPort string
+	// targetHost is the target SSH node host name.
+	targetHost string
+	// targetPort is the target SSH node port.
+	targetPort string
+	// clusterName is the cluster where the SSH node resides.
+	clusterName string
+	// tlsRouting is true if the Teleport proxy has TLS routing enabled.
+	tlsRouting bool
 }
 
 // cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
@@ -75,13 +169,8 @@ func cleanTargetHost(targetHost, proxyHost, siteName string) string {
 	return targetHost
 }
 
-func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort string) error {
-	address, err := utils.ParseAddr(tc.WebProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	pool, err := tc.LocalAgent().ClientCertPool(tc.SiteName)
+func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, params sshProxyParams) error {
+	pool, err := tc.LocalAgent().ClientCertPool(params.clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -90,15 +179,15 @@ func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHos
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:    tc.WebProxyAddr,
+		RemoteProxyAddr:    net.JoinHostPort(params.proxyHost, params.proxyPort),
 		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolProxySSH},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
-		SNI:                address.Host(),
+		SNI:                params.proxyHost,
 		SSHUser:            tc.HostLogin,
-		SSHUserHost:        fmt.Sprintf("%s:%s", targetHost, targetPort),
+		SSHUserHost:        fmt.Sprintf("%s:%s", params.targetHost, params.targetPort),
 		SSHHostKeyCallback: tc.HostKeyCallback,
-		SSHTrustedCluster:  cf.SiteName,
+		SSHTrustedCluster:  params.clusterName,
 		ClientTLSConfig:    tlsConfig,
 	})
 	if err != nil {
@@ -111,7 +200,7 @@ func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHos
 	return nil
 }
 
-func sshProxy(tc *libclient.TeleportClient, targetHost, targetPort string) error {
+func sshProxy(tc *libclient.TeleportClient, params sshProxyParams) error {
 	sshPath, err := getSSHPath()
 	if err != nil {
 		return trace.Wrap(err)
@@ -119,19 +208,20 @@ func sshProxy(tc *libclient.TeleportClient, targetHost, targetPort string) error
 	keysDir := profile.FullProfilePath(tc.Config.KeysDir)
 	knownHostsPath := keypaths.KnownHostsPath(keysDir)
 
-	sshHost, sshPort := tc.SSHProxyHostPort()
 	args := []string{
 		"-A",
 		"-o", fmt.Sprintf("UserKnownHostsFile=%s", knownHostsPath),
-		"-p", strconv.Itoa(sshPort),
-		sshHost,
+		"-p", params.proxyPort,
+		params.proxyHost,
 		"-s",
-		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, tc.SiteName),
+		fmt.Sprintf("proxy:%s:%s@%s", params.targetHost, params.targetPort, params.clusterName),
 	}
 
 	if tc.HostLogin != "" {
 		args = append([]string{"-l", tc.HostLogin}, args...)
 	}
+
+	log.Debugf("Executing proxy command: %v %v.", sshPath, strings.Join(args, " "))
 
 	child := exec.Command(sshPath, args...)
 	child.Stdin = os.Stdin
@@ -153,7 +243,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

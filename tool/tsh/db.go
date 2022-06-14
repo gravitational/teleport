@@ -69,12 +69,32 @@ func onListDatabases(cf *CLIConf) error {
 	defer cluster.Close()
 
 	// Retrieve profile to be able to show which databases user is logged into.
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
+	// get roles and traits. default to the set from profile, try to get up-to-date version from server point of view.
+	roles := profile.Roles
+	traits := profile.Traits
+
+	// GetCurrentUser() may not be implemented, fail gracefully.
+	user, err := cluster.GetCurrentUser(cf.Context)
+	if err == nil {
+		roles = user.GetRoles()
+		traits = user.GetTraits()
+	} else {
+		log.Debugf("Failed to fetch current user information: %v.", err)
+	}
+
+	// get the role definition for all roles of user.
+	// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
+	// example scenario when this may happen:
+	// 1. we have set of roles [foo bar] from profile.
+	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
+	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
+	// 4. services.FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
+	roleSet, err := services.FetchRoles(roles, cluster, traits)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
@@ -125,33 +145,40 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 		// ref: https://redis.io/commands/auth
 		db.Username = defaults.DefaultRedisUsername
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var key *client.Key
-	if err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
-			RouteToCluster: tc.SiteName,
-			RouteToDatabase: proto.RouteToDatabase{
-				ServiceName: db.ServiceName,
-				Protocol:    db.Protocol,
-				Username:    db.Username,
-				Database:    db.Database,
-			},
-			AccessRequests: profile.ActiveRequests.AccessRequests,
-		})
-		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-	if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
-		return trace.Wrap(err)
+	// Identity files themselves act as the database credentials (if any), so
+	// don't bother fetching new certs.
+	if profile.IsVirtual {
+		log.Info("Note: already logged in due to an identity file (`-i ...`); will only update database config files.")
+	} else {
+		var key *client.Key
+		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
+			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+				RouteToCluster: tc.SiteName,
+				RouteToDatabase: proto.RouteToDatabase{
+					ServiceName: db.ServiceName,
+					Protocol:    db.Protocol,
+					Username:    db.Username,
+					Database:    db.Database,
+				},
+				AccessRequests: profile.ActiveRequests.AccessRequests,
+			})
+			return trace.Wrap(err)
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+		if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Refresh the profile.
-	profile, err = client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err = client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -174,13 +201,17 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if profile.IsVirtual {
+		log.Info("Note: an identity file is in use (`-i ...`); will only update database config files.")
 	}
 
 	var logout []tlsca.RouteToDatabase
@@ -199,7 +230,7 @@ func onDatabaseLogout(cf *CLIConf) error {
 		}
 	}
 	for _, db := range logout {
-		if err := databaseLogout(tc, db); err != nil {
+		if err := databaseLogout(tc, db, profile.IsVirtual); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -211,16 +242,20 @@ func onDatabaseLogout(cf *CLIConf) error {
 	return nil
 }
 
-func databaseLogout(tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
+func databaseLogout(tc *client.TeleportClient, db tlsca.RouteToDatabase, virtual bool) error {
 	// First remove respective connection profile.
 	err := dbprofile.Delete(tc, db)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Then remove the certificate from the keystore.
-	err = tc.LogoutDatabase(db.ServiceName)
-	if err != nil {
-		return trace.Wrap(err)
+
+	// Then remove the certificate from the keystore, but only for real
+	// profiles.
+	if !virtual {
+		err = tc.LogoutDatabase(db.ServiceName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -276,7 +311,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -496,7 +531,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -692,10 +727,11 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 // If logged into multiple databases, returns an error unless one specified
 // explicitly via --db flag.
 func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	activeDatabases, err := profile.DatabasesForCluster(cf.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)

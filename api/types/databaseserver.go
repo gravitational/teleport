@@ -272,6 +272,16 @@ func (s *DatabaseServerV3) GetAllLabels() map[string]string {
 	return CombineLabels(staticLabels, s.Spec.DynamicLabels)
 }
 
+// GetStaticLabels returns the database server static labels.
+func (s *DatabaseServerV3) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the database server static labels.
+func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
+}
+
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return proto.Clone(s).(*DatabaseServerV3)

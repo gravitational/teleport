@@ -48,11 +48,19 @@ Add the following to your Teleport configuration file, which is stored in
       type: local
       second_factor: off
   ```
- 
+
 
 ### Dynamic resource
 
-Create a file called `cap.yaml` to define your `cluster_auth_preference`:
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` includes the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -84,7 +92,15 @@ $ tsh login --proxy=myinstance.teleport.sh
 $ tctl status
 ```
 
-Create a file called `cap.yaml` to define your `cluster_auth_preference`:
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` includes the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -128,7 +144,7 @@ spec:
 version: v2
 ```
 
-See [Github OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
+See [GitHub OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
 
 ### SAML
 
@@ -176,7 +192,7 @@ auth_service:
     type: github
 ```
 
-See [Github OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
+See [GitHub OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
 
 ### SAML
 
@@ -218,7 +234,7 @@ auth_service:
     type: github
 ```
 
-See [Github OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
+See [GitHub OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
 
 </TabItem>
-</Tabs> 
+</Tabs>
