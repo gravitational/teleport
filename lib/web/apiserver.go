@@ -2017,7 +2017,10 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		ID:             session.ID(tracker.GetSessionID()),
 		Namespace:      apidefaults.Namespace,
 		Parties:        parties,
-		TerminalParams: session.TerminalParams{W: 80, H: 24},
+		TerminalParams: session.TerminalParams{
+		        W: teleport.DefaultTerminalWidth,
+			H: teleport.DefaultTerminalHeight,
+		},
 		Login:          tracker.GetLogin(),
 		Created:        tracker.GetCreated(),
 		LastActive:     tracker.GetLastActive(),
