@@ -304,7 +304,9 @@ func TestWatcher(t *testing.T) {
 			go watcher.fetchAndSend()
 			select {
 			case databases := <-watcher.DatabasesC():
-				require.Equal(t, test.expectedDatabases, databases)
+				// makeFetchers function uses a map for matcher types so
+				// databases can come in random orders.
+				require.ElementsMatch(t, test.expectedDatabases, databases)
 			case <-time.After(time.Second):
 				t.Fatal("didn't receive databases after 1 second")
 			}
