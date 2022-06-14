@@ -22,56 +22,56 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func Test_teamsToRolesParser_Set(t *testing.T) {
+func Test_teamsToLoginsParser_Set(t *testing.T) {
 	tests := []struct {
 		name       string
-		parser     teamsToRolesParser
+		parser     teamsToLoginsParser
 		arg        string
 		wantErr    bool
-		wantParser teamsToRolesParser
+		wantParser teamsToLoginsParser
 	}{
 		{
 			name:   "one set of correct args",
-			parser: teamsToRolesParser{mappings: new([]types.TeamRolesMapping)},
+			parser: teamsToLoginsParser{mappings: new([]types.TeamMapping)},
 			arg:    "foo,bar,baz",
-			wantParser: teamsToRolesParser{mappings: &[]types.TeamRolesMapping{
+			wantParser: teamsToLoginsParser{mappings: &[]types.TeamMapping{
 				{
 					Organization: "foo",
 					Team:         "bar",
-					Roles:        []string{"baz"},
+					Logins:       []string{"baz"},
 				},
 			}},
 			wantErr: false,
 		},
 		{
 			name: "two sets of correct args",
-			parser: teamsToRolesParser{mappings: &[]types.TeamRolesMapping{
+			parser: teamsToLoginsParser{mappings: &[]types.TeamMapping{
 				{
 					Organization: "foo",
 					Team:         "bar",
-					Roles:        []string{"baz"},
+					Logins:       []string{"baz"},
 				},
 			}},
 			arg: "aaa,bbb,ccc,ddd",
-			wantParser: teamsToRolesParser{mappings: &[]types.TeamRolesMapping{
+			wantParser: teamsToLoginsParser{mappings: &[]types.TeamMapping{
 				{
 					Organization: "foo",
 					Team:         "bar",
-					Roles:        []string{"baz"},
+					Logins:       []string{"baz"},
 				},
 				{
 					Organization: "aaa",
 					Team:         "bbb",
-					Roles:        []string{"ccc", "ddd"},
+					Logins:       []string{"ccc", "ddd"},
 				},
 			}},
 			wantErr: false,
 		},
 		{
 			name:       "one set of incorrect args",
-			parser:     teamsToRolesParser{mappings: new([]types.TeamRolesMapping)},
+			parser:     teamsToLoginsParser{mappings: new([]types.TeamMapping)},
 			arg:        "abracadabra",
-			wantParser: teamsToRolesParser{mappings: new([]types.TeamRolesMapping)},
+			wantParser: teamsToLoginsParser{mappings: new([]types.TeamMapping)},
 			wantErr:    true,
 		},
 	}

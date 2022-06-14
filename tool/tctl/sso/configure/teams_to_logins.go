@@ -24,30 +24,30 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// teamsToRolesParser parsers 'name,value,role1,role2,...' values into types.AttributeMapping entries. Cumulative, can handle multiple entries.
-type teamsToRolesParser struct {
-	mappings *[]types.TeamRolesMapping
+// teamsToLoginsParser parsers 'name,value,role1,role2,...' values into types.AttributeMapping entries. Cumulative, can handle multiple entries.
+type teamsToLoginsParser struct {
+	mappings *[]types.TeamMapping
 }
 
-func (p *teamsToRolesParser) String() string {
+func (p *teamsToLoginsParser) String() string {
 	return fmt.Sprintf("%q", p.mappings)
 }
 
-func (p *teamsToRolesParser) Set(s string) error {
+func (p *teamsToLoginsParser) Set(s string) error {
 	splits := strings.Split(s, ",")
 
 	if len(splits) < 3 {
-		return trace.BadParameter("Too few elements separated with comma. use syntax: 'organization,team,role1,role2,...'.")
+		return trace.BadParameter("Too few elements separated with comma. use syntax: 'name,value,role1,role2,...'.")
 	}
 
-	org := splits[0]
-	team := splits[1]
+	name := splits[0]
+	value := splits[1]
 	roles := splits[2:]
 
-	mapping := types.TeamRolesMapping{
-		Organization: org,
-		Team:         team,
-		Roles:        roles,
+	mapping := types.TeamMapping{
+		Organization: name,
+		Team:         value,
+		Logins:       roles, // note: logins is legacy name, 'roles' is accurate now.
 	}
 
 	*p.mappings = append(*p.mappings, mapping)
@@ -56,11 +56,11 @@ func (p *teamsToRolesParser) Set(s string) error {
 }
 
 // IsCumulative returns true if flag is repeatable. This is checked by kingpin library.
-func (p *teamsToRolesParser) IsCumulative() bool {
+func (p *teamsToLoginsParser) IsCumulative() bool {
 	return true
 }
 
-// newTeamsToRolesParser returns a cumulative flag parser for []types.TeamMapping.
-func newTeamsToRolesParser(field *[]types.TeamRolesMapping) kingpin.Value {
-	return &teamsToRolesParser{mappings: field}
+// newTeamsToLoginsParser returns a cumulative flag parser for []types.TeamMapping.
+func newTeamsToLoginsParser(field *[]types.TeamMapping) kingpin.Value {
+	return &teamsToLoginsParser{mappings: field}
 }
