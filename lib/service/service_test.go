@@ -211,7 +211,7 @@ func TestServiceCheckPrincipals(t *testing.T) {
 		ServerIdentity: tlsServer.Identity,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		inPrincipals  []string
 		inDNS         []string
 		outRegenerate bool
@@ -712,4 +712,50 @@ func getFreePort() (string, error) {
 	defer l.Close()
 
 	return l.Addr().(*net.TCPAddr).String(), nil
+}
+
+func TestTeleportProcess_shouldInitDatabases(t *testing.T) {
+	tests := []struct {
+		name   string
+		config DatabasesConfig
+		want   bool
+	}{
+		{
+			name: "disabled",
+			config: DatabasesConfig{
+				Enabled: false,
+			},
+			want: false,
+		},
+		{
+			name: "enabled but no config",
+			config: DatabasesConfig{
+				Enabled: true,
+			},
+			want: false,
+		},
+		{
+			name: "enabled with config",
+			config: DatabasesConfig{
+				Enabled: true,
+				Databases: []Database{
+					{
+						Name: "foo",
+					},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &TeleportProcess{
+				Config: &Config{
+					Databases: tt.config,
+				},
+			}
+			require.Equal(t, tt.want, p.shouldInitDatabases())
+		})
+	}
 }
