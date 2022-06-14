@@ -37,26 +37,28 @@ service TerminalService {
     rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
     // ListDatabaseUsers lists allowed users for the given database based on the role set.
     rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
-    // ListGateways lists gateways
-    rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
     // ListServers lists servers
     rpc ListServers(ListServersRequest) returns (ListServersResponse);
     // ListKubes list kubes
     rpc ListKubes(ListKubesRequest) returns (ListKubesResponse);
     // ListApps list apps
     rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
-    // CreateGateway creates a gateway
-    rpc CreateGateway(CreateGatewayRequest) returns (Gateway);
     // AddCluster adds a cluster to profile
     rpc AddCluster(AddClusterRequest) returns (Cluster);
     // RemoveCluster removes a cluster from profile
     rpc RemoveCluster(RemoveClusterRequest) returns (EmptyResponse);
+
+    // ListGateways lists gateways
+    rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
+    // CreateGateway creates a gateway
+    rpc CreateGateway(CreateGatewayRequest) returns (Gateway);
     // RemoveGateway removes a gateway
     rpc RemoveGateway(RemoveGatewayRequest) returns (EmptyResponse);
     // RestartGateway stops a gateway and starts a new with identical parameters, keeping the
     // original URI. A temporary workaround until it's possible to refresh certs in a running
     // database proxy.
     rpc RestartGateway(RestartGatewayRequest) returns (EmptyResponse);
+
     // GetAuthSettings returns cluster auth settigns
     rpc GetAuthSettings(GetAuthSettingsRequest) returns (AuthSettings);
     // GetCluster returns a cluster
