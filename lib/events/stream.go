@@ -220,7 +220,7 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewProtoStream uploads session recordings to the protobuf format.
+// NewProtoStream uploads session recordings in the protobuf format.
 //
 // The individual session stream is represented by continuous globally
 // ordered sequence of events serialized to binary protobuf format.

@@ -1,3 +1,9 @@
+---
+name: Test Plan
+about: Manual test plan for Teleport major releases
+labels: testplan
+---
+
 ## Manual Testing Plan
 
 Below are the items that should be manually tested with each release of Teleport.
@@ -1091,3 +1097,53 @@ Ensure the above tests are completed for both:
 With a default Postgres DB instance, a Teleport instance configured with DB access and a bot user configured:
 
 - [ ] Verify you are able to connect to and interact with a database using `tbot db` while `tbot start` is running
+
+## Teleport Connect
+
+- Shell
+  - [ ] Verify that shell is pinned to correct cluster (for root clusters and leaf clusters)
+  - [ ] Verify that local shell is opened with the correct env vars
+  - [ ] Verify that working directory in the tab title is updated when you change the directory (only for local terminals)
+- State restoration
+  - [ ] Verify that app asks about restoring the previous tabs when launched
+  - [ ] Verify that app opens with the cluster that was active when you closed it previously
+  - [ ] Verify that app remembers size & position after restart
+  - [ ] Verify if [reopening a cluster that has no workspace assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575) works
+- Connections picker
+  - [ ] Verify that connections picker shows new connections when ssh & db tabs are opened
+  - [ ] Check if these connections are available after the app restart
+  - [ ] Check that these connections are removed when the cluster to which they belong is removed
+- Cluster resources (servers/databases)
+  - [ ] Verify that the app shows the same resources as WebUI
+  - [ ] Verify that search is working for the resources lists
+  - [ ] Verify that you can connect to these resources
+- [ ] Verify if adding a cluster adds it to the clusters list and activates automatically
+- [ ] Verify that state of the current workspace is preserved when you change it (by switching to another cluster) and return
+- [ ] Verify that autocomplete works in the command bar
+- [ ] Verify that the keyboard shortcuts work (opening connections list, cluster & porfile selectors, switching tabs, etc.)
+- [ ] Verify that app doesn’t crash when there is no internet connection or some cluster is unavailable
+- [ ] Verify that logs are collected for all processes
+- [ ] Verify that the login modal is displayed when a user tries to make a request after the certificate has expired
+
+## Host users creation
+
+[Host users creation docs](https://github.com/gravitational/teleport/pull/13056)
+[Host users creation RFD](https://github.com/gravitational/teleport/pull/11077)
+<!---
+TODO(lxea): replace links with actual docs once merged
+
+[Host users creation docs](../../docs/pages/server-access/guides/host-user-creation.mdx)
+[Host users creation RFD](../../rfd/0057-automatic-user-provisioning.md)
+-->
+
+- Verify host users creation functionality
+  - [ ] non-existing users are created automatically
+  - [ ] users are added to groups
+    - [ ] non existing configured groups are created
+	- [ ] created users are added to the `teleport-system` group
+  - [ ] users are cleaned up after their session ends
+	- [ ] cleanup occurs if a program was left running after session ends
+  - [ ] sudoers file creation is successful
+	- [ ] Invalid sudoers files are _not_ created
+  - [ ] existing host users are not modified
+  - [ ] setting `disable_create_host_user: true` stops user creation from occurring

@@ -1441,6 +1441,10 @@ message AccessRequestSpecV3 {
     // RequestedResourceIDs is a set of resources to which access is being requested.
     repeated ResourceID RequestedResourceIDs = 14
         [ (gogoproto.jsontag) = "resource_ids,omitempty", (gogoproto.nullable) = false ];
+
+    // LoginHint is used as a hint for search-based access requests to select
+    // roles based on the login the user is attempting.
+    string LoginHint = 15 [ (gogoproto.jsontag) = "login_hint,omitempty" ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -1693,6 +1697,9 @@ message RoleOptions {
         (gogoproto.jsontag) = "create_host_user",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    // PinSourceIP forces the same client IP for certificate generation and usage
+    bool PinSourceIP = 21 [ (gogoproto.jsontag) = "pin_source_ip", (gogoproto.casttype) = "Bool" ];
 }
 
 message RecordSession {
@@ -1844,6 +1851,8 @@ message RoleConditions {
 
     // HostGroups is a list of groups for created users to be added to
     repeated string HostGroups = 21 [ (gogoproto.jsontag) = "host_groups,omitempty" ];
+    // HostSudoers is a list of entries to include in a users sudoer file
+    repeated string HostSudoers = 22 [ (gogoproto.jsontag) = "host_sudoers,omitempty" ];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -2877,10 +2886,16 @@ message GithubConnectorSpecV3 {
     // RedirectURL is the authorization callback URL.
     string RedirectURL = 3 [ (gogoproto.jsontag) = "redirect_url" ];
     // TeamsToLogins maps Github team memberships onto allowed logins/roles.
+    //
+    // DELETE IN 11.0.0
+    // Deprecated: use GithubTeamsToRoles instead.
     repeated TeamMapping TeamsToLogins = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_logins" ];
     // Display is the connector display name.
     string Display = 5 [ (gogoproto.jsontag) = "display" ];
+    // TeamsToRoles maps Github team memberships onto allowed roles.
+    repeated TeamRolesMapping TeamsToRoles = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_roles" ];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -3052,8 +3067,12 @@ message SSODiagnosticInfo {
     repeated TeamMapping GithubTeamsToLogins = 31
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "github_teams_to_logins,omitempty" ];
 
+    // GithubTeamsToRoles is TeamRolesMapping mapping from Github connector used in the SSO flow.
+    repeated TeamRolesMapping GithubTeamsToRoles = 32
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "github_teams_to_roles,omitempty" ];
+
     // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
-    GithubTokenInfo GithubTokenInfo = 32 [ (gogoproto.jsontag) = "github_token_info,omitempty" ];
+    GithubTokenInfo GithubTokenInfo = 33 [ (gogoproto.jsontag) = "github_token_info,omitempty" ];
 }
 
 // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
@@ -3081,6 +3100,8 @@ message GithubClaims {
 }
 
 // TeamMapping represents a single team membership mapping.
+//
+// DELETE IN 11.0.0
 message TeamMapping {
     // Organization is a Github organization a user belongs to.
     string Organization = 1 [ (gogoproto.jsontag) = "organization" ];
@@ -3092,6 +3113,16 @@ message TeamMapping {
     repeated string KubeGroups = 4 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
     // KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
     repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
+}
+
+// TeamRolesMapping represents a single team membership mapping.
+message TeamRolesMapping {
+    // Organization is a Github organization a user belongs to.
+    string Organization = 1 [ (gogoproto.jsontag) = "organization" ];
+    // Team is a team within the organization a user belongs to.
+    string Team = 2 [ (gogoproto.jsontag) = "team" ];
+    // Roles is a list of allowed logins for this org/team.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
 }
 
 // TrustedClusterV2 represents a Trusted Cluster.
