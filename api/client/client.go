@@ -1842,6 +1842,14 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 	return trail.FromGRPC(err)
 }
 
+// GenerateToken generates a new auth token for the given service roles.
+// This token can be used by corresponding services to authenticate with
+// the Auth server and get a signed certificate and private key.
+func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	resp, err := c.grpc.GenerateToken(ctx, req, c.callOpts...)
+	return resp.Token, trail.FromGRPC(err)
+}
+
 // DeleteToken deletes a provision token by name.
 func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	if name == "" {
