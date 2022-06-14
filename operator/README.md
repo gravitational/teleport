@@ -1,94 +1,150 @@
-# operator
-// TODO(user): Add simple overview of use/purpose
+# Teleport Kubernetes Operator
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+This package implements [an operator for Kubernetes](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/).
+This operator is useful to manage Teleport resources e.g. users and roles from [Kubernetes custom resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
 
-## Getting Started
-You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
-**Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
+For more details, read the corresponding [RFD](https://github.com/gravitational/teleport-plugins/blob/master/rfd/0001-kubernetes-manager.md).
 
-### Running on the cluster
-1. Install Instances of Custom Resources:
+## Architecture
+Teleport Operator is a K8S operator based on `operator-sdk`.
+The operator lives right beside the Teleport server, using a sidecar approach.
 
-```sh
-kubectl apply -f config/samples/
+### Setup
+When the operator starts it:
+- grabs the leader lock, to ensure only one operator is acting upon the modifications
+- ensures the exclusive role and user exist
+- creates an identity file using that user
+- starts a new client, using that identity file and manages the resources
+- install the CRDs for the managed resources
+
+After this point, the operator will listen to modifications in the K8S cluster, and act upon
+
+### Reconciliation
+When something changes (either by a `kubectl apply` or from any other source), we start the reconciliation.
+
+First, we try to identify the operation type: deletion or creation/modification.
+
+If it's a deletion and we have our own finalizer, we remove the object in Teleport and remove the finalizer.
+K8S will auto-remove the object when it gets 0 finalizers.
+
+If it's a creation/modification:
+- we add the finalizer, if it's not there already
+- we lookup the object in Teleport side, and if it's not there, we set the Origin label to `kubernetes`
+- we either create or update the resource in Teleport
+
+The first two steps above may change the object's state in K8S. If they do, we update and finish the cycle - we'll receive another reconciliation request with the new state.
+
+### Diagram
+```
++--------------------------------------------------------+
+|                                                        |         +------+
+|                                                        |         |      |
+|     teleport                                           |         |      |
+| +---------------------------------+                    |         |      |
+| |                                 |                    |         +-+----+
+| |                                 |                    |           |
+| |                            +----+                    |           | kubectl apply -f
+| |  +-------------+           |gRPC|<--+                |           |
+| |  |/etc/teleport|           +----+   |                |           |
+| |  +^------------+                |   |                |           |
+| |   |                             |   |                |           |
+| |   |   +-----------------+       |   | Manage         |           |
+| |   |   |/var/lib/teleport|       |   | Resources      |           |
+| |   |   +^----------------+       |   |                |           |     K8S
+| |   |    |                        |   |                |      +----v----------------+
+| +---+----+------------------------+   |                |      |                     |
+|     |    |                            |                |      |    +--------------+ |
+|     |    |                            |                |      |    |              | |
+|     |    |   operator                 |                |      |    | Reconciler   | |
+| +---+----+----------------------------+--------+       |      |    | Loop         | |
+| |   |    |                            |        |       |      |    |              | |
+| |  ++----+----+                 +-----v----+   |       |      |    |              | |
+| |  |sidecar   <-----------------> teleport <---+-------+------+---->              | |
+| |  +----------+ Setup U&R       | operator |   |       |      |    |              | |
+| |             Create Identity   +----------+   |       |      |    |              | |
+| |                                              |       |      |    +--------------+ |
+| |                                              |       |      |                     |
+| +----------------------------------------------+       |      +---------------------+
+|                                                        |
+|                                                        |
+|                                                        |
++--------------------------------------------------------+
 ```
 
-2. Build and push your image to the location specified by `IMG`:
-	
-```sh
-make docker-build docker-push IMG=<some-registry>/operator:tag
-```
-	
-3. Deploy the controller to the cluster with the image specified by `IMG`:
+## Running
 
-```sh
-make deploy IMG=<some-registry>/operator:tag
-```
+### Requirementes
 
-### Uninstall CRDs
-To delete the CRDs from the cluster:
+#### K8S cluster
+You can use `minikube` if you don't have a cluster yet.
 
-```sh
-make uninstall
-```
+#### Operator's docker image
+You can obtain the docker image by pulling from `quay.io/gravitational/teleport`
 
-### Undeploy controller
-UnDeploy the controller to the cluster:
+#### HELM chart from Teleport with the operator
+We are re-using the Teleport Cluster Helm chart but modifying to start the operator using the image above.
 
-```sh
-make undeploy
-```
+This change is not in master, so you'll need to checkout the HELM charts from this branch
+`marco/plugins-teleport-operator-charts` (https://github.com/gravitational/teleport/pull/12144)
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+#### Other tools
+We also need the following tools: `helm`, `kubectl` and `docker`
 
-### How it works
-This project aims to follow the Kubernetes [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/)
+### Running the operator
 
-It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) 
-which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster 
+Start `minikube` with `minikube start`.
 
-### Test It Out
-1. Install the CRDs into the cluster:
+Set the `TELEPORT_PROJECT` to the full path to your teleport's project checked out at `marco/plugins-teleport-operator-charts`.
 
-```sh
-make install
+Install the helm chart:
+```bash
+$ helm upgrade --install --create-namespace -n teleport-cluster \
+	--set clusterName=teleport-cluster.teleport-cluster.svc.cluster.local \
+	--set teleportVersionOverride="9.3.5" \
+	--set operator=true \
+	teleport-cluster ${TELEPORT_PROJECT}/examples/chart/teleport-cluster
+
+$ kubectl config set-context --current --namespace teleport-cluster
+
 ```
 
-2. Run your controller (this will run in the foreground, so switch to a new terminal if you want to leave it running):
+Now let's wait for the deployment to finish:
+`kubectl wait --for=condition=available deployment/teleport-cluster --timeout=2m`
 
-```sh
-make run
+If it doesn't, check the errors.
+
+Now, we want access to two configuration tools using a Web UI: K8S UI and Teleport UI.
+
+First, let's create a tunnel using minikube: `minikube tunnel` (this command runs is foreground, open another terminal for the remaining commands).
+
+Now, let's create a new Teleport User and login in the web UI:
+```bash
+PROXY_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+kubectl exec $PROXY_POD teleport -- tctl users add --roles=access,editor teleoperator
+echo "open following url (replace the invite id) and configure the user"
+TP_CLUSTER_IP=$(kubectl get service teleport-cluster -o jsonpath='{ .status.loadBalancer.ingress[0].ip }')
+echo "https://${TP_CLUSTER_IP}/web/invite/<id>"
 ```
 
-**NOTE:** You can also run this in one step by running: `make install run`
+As for the K8S UI, you only need to run `minikube dashboard`.
 
-### Modifying the API definitions
-If you are editing the API definitions, generate the manifests such as CRs or CRDs using:
+After this, you should be able to manage users and roles using, for example, `kubectl`.
 
-```sh
-make manifests
+As an example, create the following file (`roles.yaml`) and then apply it:
+```yaml
+apiVersion: "resources.teleport.dev/v5"
+kind: Role
+metadata:
+  name: myrole
+spec:
+  allow:
+    logins: ["root"]
+    kubernetes_groups: ["edit"]
+    node_labels:
+      dev: ["dev", "dev2"]
+      type: [ "compute", "x" ]
 ```
 
-**NOTE:** Run `make --help` for more information on all potential `make` targets
+`$ kubcetl apply -f roles.yaml`
 
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+And now check if the role was created in Teleport and K8S (`teleport-cluster` namespace).
