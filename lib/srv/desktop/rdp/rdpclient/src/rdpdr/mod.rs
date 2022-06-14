@@ -2107,6 +2107,7 @@ impl ClientDriveQueryDirectoryResponse {
 /// (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/a69cc039-d288-4673-9598-772b6083f8bf).
 fn to_windows_time(tdp_time_ms: u64) -> i64 {
     // https://stackoverflow.com/a/5471380/6277051
+    // https://docs.microsoft.com/en-us/windows/win32/sysinfo/converting-a-time-t-value-to-a-file-time
     let tdp_time_sec = tdp_time_ms / 1000;
     ((tdp_time_sec * 10000000) + 116444736000000000) as i64
 }
@@ -2124,3 +2125,16 @@ type SharedDirectoryCreateResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryCreateResponse) -> RdpResult<Vec<Vec<u8>>>>;
 type SharedDirectoryDeleteResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_windows_time() {
+        // Cross checked against
+        // https://www.silisoftware.com/tools/date.php?inputdate=1655246166&inputformat=unix
+        assert_eq!(to_windows_time(1655246166 * 1000), 132997197660000000);
+        assert_eq!(to_windows_time(1000), 116444736010000000);
+    }
+}
