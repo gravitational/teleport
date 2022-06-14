@@ -2131,7 +2131,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		}
 	}
 
-	return siteSessionsGetResponse{sessions}, nil
+	return siteSessionsGetResponse{Sessions: sessions}, nil
 }
 
 // siteSessionGet gets the list of site session by id
