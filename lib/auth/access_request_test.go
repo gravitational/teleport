@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -40,7 +41,11 @@ import (
 )
 
 func TestAccessRequest(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			ResourceAccessRequests: true,
+		},
+	})
 	ctx := context.Background()
 
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{

@@ -985,6 +985,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if len(req.checker.GetAllowedResourceIDs()) > 0 && !modules.GetModules().Features().ResourceAccessRequests {
+		return nil, trace.AccessDenied("this Teleport cluster is not licensed for resource access requests, please contact the cluster administrator")
+	}
+
 	// Reject the cert request if there is a matching lock in force.
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
