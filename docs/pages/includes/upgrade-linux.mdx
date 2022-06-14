@@ -1,21 +1,15 @@
 <Details 
 title="Upgrading? Click here" 
-scope={["cloud"]}
-scopeOnly={true}
-opened={true}
+scopeOnly={false}
 >
 
-With the latest release of Teleport we have added new APT repos. These repos
+With the latest release of Teleport comes new APT repos. These repos
 allow for tigher control over what release channel and major version of
 Teleport you install. If you've previously installed Teleport via the APT
-repo at `https://deb.releases.teleport.dev/`, you can upgrade by deleting 
-the old APT source from your machines:
+repo at `https://deb.releases.teleport.dev/`, you can upgrade by
+re-running the Debian/Ubuntu (DEB) install instructions below.
 
-```code
-rm /etc/apt/sources.list.d/teleport.list
-```
-
-Not ready to upgrade? Not a problem. We will be maintaining the APT repo at 
-/etc/apt/sources.list.d/teleport.list for the foreseeable future.
+Don't want to upgrade? Not a problem. We'll be maintaining the APT repo at 
+`https://deb.releases.teleport.dev/` for the foreseeable future.
 
 </Details>
