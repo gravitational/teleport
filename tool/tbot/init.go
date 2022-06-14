@@ -27,9 +27,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/tool/tbot/botfs"
-	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 )
 
@@ -45,6 +45,11 @@ func getInitArtifacts(destination *config.DestinationConfig) (map[string]bool, e
 	// true = directory, false = regular file
 	toCreate := map[string]bool{}
 
+	destImpl, err := destination.GetDestination()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Collect all base artifacts and filter for the destination.
 	for _, artifact := range identity.GetArtifacts() {
 		if artifact.Matches(identity.DestinationKinds()...) {
@@ -59,7 +64,7 @@ func getInitArtifacts(destination *config.DestinationConfig) (map[string]bool, e
 			return nil, trace.Wrap(err)
 		}
 
-		for _, file := range template.Describe() {
+		for _, file := range template.Describe(destImpl) {
 			toCreate[file.Name] = file.IsDir
 		}
 	}

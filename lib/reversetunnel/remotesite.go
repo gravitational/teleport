@@ -23,6 +23,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
@@ -33,11 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // remoteSite is a remote site that established the inbound connection to
@@ -118,6 +118,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
 			},
+			CircuitBreakerConfig: s.srv.CircuitBreakerConfig,
 		})
 		if err != nil {
 			return nil, false, trace.Wrap(err)
@@ -264,6 +265,33 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	s.connections = append(s.connections, rconn)
 	s.lastUsed = 0
 	return rconn, nil
+}
+
+func (s *remoteSite) adviseReconnect(ctx context.Context) {
+	wg := &sync.WaitGroup{}
+
+	s.RLock()
+	for _, conn := range s.connections {
+		s.Debugf("Sending reconnect: %s", conn.nodeID)
+
+		wg.Add(1)
+		go func(conn *remoteConn) {
+			conn.adviseReconnect()
+			wg.Done()
+		}(conn)
+	}
+	s.RUnlock()
+
+	wait := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(wait)
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-wait:
+	}
 }
 
 func (s *remoteSite) GetStatus() string {

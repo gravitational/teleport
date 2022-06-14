@@ -141,6 +141,9 @@ type ForwarderConfig struct {
 	// DynamicLabels is map of dynamic labels associated with this cluster.
 	// Used for RBAC.
 	DynamicLabels *labels.Dynamic
+	// CloudLabels is a map of labels imported from a cloud provider associated with this
+	// cluster. Used for RBAC.
+	CloudLabels labels.Importer
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CheckImpersonationPermissions is an optional override of the default
@@ -1119,7 +1122,11 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		return nil, trace.Wrap(err)
+		if err := proxy.sendStatus(err); err != nil {
+			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
+		}
+		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
+		return nil, nil
 	}
 
 	execEvent.Code = events.ExecCode
@@ -1242,7 +1249,12 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 	streamOptions := proxy.options()
 	if err = executor.Stream(streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		return nil, trace.Wrap(err)
+		// send the status back to the client when forwarding mode is enabled
+		if err := proxy.sendStatus(err); err != nil {
+			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
+		}
+		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
+		return nil, nil
 	}
 
 	return nil, nil
@@ -1980,6 +1992,20 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+// getStaticLabels gets the labels that the forwarder should present as static,
+// which includes EC2 labels if available.
+func (f *Forwarder) getStaticLabels() map[string]string {
+	if f.cfg.CloudLabels == nil {
+		return f.cfg.StaticLabels
+	}
+	labels := f.cfg.CloudLabels.Get()
+	// Let static labels override ec2 labels.
+	for k, v := range f.cfg.StaticLabels {
+		labels[k] = v
+	}
+	return labels
+}
+
 func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
 	var dynLabels map[string]types.CommandLabelV2
 	if f.cfg.DynamicLabels != nil {
@@ -1990,7 +2016,7 @@ func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
 	for n := range f.creds {
 		res = append(res, &types.KubernetesCluster{
 			Name:          n,
-			StaticLabels:  f.cfg.StaticLabels,
+			StaticLabels:  f.getStaticLabels(),
 			DynamicLabels: dynLabels,
 		})
 	}

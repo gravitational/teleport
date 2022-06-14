@@ -81,9 +81,8 @@ impl Client {
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
-
-            allow_directory_sharing,
             active_device_ids: vec![],
+            allow_directory_sharing,
 
             tdp_sd_acknowledge,
             tdp_sd_info_request,

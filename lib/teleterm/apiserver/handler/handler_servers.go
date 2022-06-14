@@ -41,7 +41,7 @@ func (s *Handler) ListServers(ctx context.Context, req *api.ListServersRequest) 
 
 func newAPIServer(server clusters.Server) *api.Server {
 	apiLabels := APILabels{}
-	serverLabels := server.GetLabels()
+	serverLabels := server.GetStaticLabels()
 	for name, value := range serverLabels {
 		apiLabels = append(apiLabels, &api.Label{
 			Name:  name,

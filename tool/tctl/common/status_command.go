@@ -45,14 +45,19 @@ func (c *StatusCommand) Initialize(app *kingpin.Application, config *service.Con
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *StatusCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.status.FullCommand():
-		err = c.Status(context.Background(), client)
+		err = c.Status(ctx, client)
 	default:
 		return false, nil
 	}
 	return true, trace.Wrap(err)
+}
+
+type caFetchError struct {
+	caType  types.CertAuthType
+	message string
 }
 
 // Status is called to execute "status" CLI command.
@@ -64,19 +69,28 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 	serverVersion := pingRsp.ServerVersion
 	clusterName := pingRsp.ClusterName
 
-	var authorities []types.CertAuthority
+	var (
+		authorities     []types.CertAuthority
+		authFetchErrors []caFetchError
+	)
 
 	for _, caType := range types.CertAuthTypes {
 		ca, err := client.GetCertAuthorities(ctx, caType, false)
 		if err != nil {
-			return trace.Wrap(err)
+			// Collect all errors, so they can be displayed to the user.
+			fetchError := caFetchError{
+				caType:  caType,
+				message: err.Error(),
+			}
+			authFetchErrors = append(authFetchErrors, fetchError)
+		} else {
+			authorities = append(authorities, ca...)
 		}
-		authorities = append(authorities, ca...)
 	}
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert()
+	localCAResponse, err := client.GetClusterCACert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,16 +120,22 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 					"has been completed.")
 			}
 			if c.config.Debug {
-				table.AddRow([]string{info,
+				table.AddRow([]string{
+					info,
 					fmt.Sprintf("%v, update_servers: %v, complete: %v",
 						rotation.String(),
 						rotation.Schedule.UpdateServers.Format(constants.HumanDateFormatSeconds),
 						rotation.Schedule.Standby.Format(constants.HumanDateFormatSeconds),
-					)})
+					),
+				})
 			} else {
 				table.AddRow([]string{info, rotation.String()})
 			}
 
+		}
+		for _, ca := range authFetchErrors {
+			info := fmt.Sprintf("%v CA ", string(ca.caType))
+			table.AddRow([]string{info, ca.message})
 		}
 		for _, caPin := range caPins {
 			table.AddRow([]string{"CA pin", caPin})

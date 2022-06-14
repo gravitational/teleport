@@ -23,7 +23,7 @@ terraform {
   required_providers {
     teleport = {
       version = ">= (=teleport.version=)"
-      source  = "gravitational.com/teleport/teleport"
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
     }
   }
 }
@@ -31,18 +31,22 @@ terraform {
 
 The provider supports the following options:
 
-| Name                    | Type       | Description                                           | Environment Variable             |
-|-------------------------|------------|-------------------------------------------------------|----------------------------------|
-|                   `addr`|     string | Teleport auth or proxy address in "host:port" format. | `TF_TELEPORT_ADDR`               |
-|              `cert_path`|     string | Path to Teleport certificate file.                    | `TF_TELEPORT_CERT`               |
-|            `cert_base64`|     string | Teleport certificate as base64.                       | `TF_TELEPORT_CERT_BASE64`        |
-|     `identity_file_path`|     string | Path to Teleport identity file.                       | `TF_TELEPORT_IDENTITY_FILE_PATH` |
-|               `key_path`|     string | Path to Teleport key file.                            | `TF_TELEPORT_KEY`                |
-|             `key_base64`|     string | Teleport key as base64.                               | `TF_TELEPORT_KEY_BASE64`         |
-|            `profile_dir`|     string | Teleport profile path.                                | `TF_TELEPORT_PROFILE_PATH`       |
-|           `profile_name`|     string | Teleport profile name.                                | `TF_TELEPORT_PROFILE_NAME`       |
-|           `root_ca_path`|     string | Path to Teleport CA file.                             | `TF_TELEPORT_ROOT_CA`            |
-|         `root_ca_base64`|     string | Teleport CA as base64.                                | `TF_TELEPORT_ROOT_CA_BASE64`     |
+| Name                  | Type   | Description                                                                     | Environment Variable              |
+|-----------------------|--------|---------------------------------------------------------------------------------|-----------------------------------|
+| `addr`                | string | Teleport auth or proxy address in "host:port" format.                           | `TF_TELEPORT_ADDR`                |
+| `cert_path`           | string | Path to Teleport certificate file.                                              | `TF_TELEPORT_CERT`                |
+| `cert_base64`         | string | Teleport certificate as base64.                                                 | `TF_TELEPORT_CERT_BASE64`         |
+| `identity_file_path`  | string | Path to Teleport identity file.                                                 | `TF_TELEPORT_IDENTITY_FILE_PATH`  |
+| `key_path`            | string | Path to Teleport key file.                                                      | `TF_TELEPORT_KEY`                 |
+| `key_base64`          | string | Teleport key as base64.                                                         | `TF_TELEPORT_KEY_BASE64`          |
+| `profile_dir`         | string | Teleport profile path.                                                          | `TF_TELEPORT_PROFILE_PATH`        |
+| `profile_name`        | string | Teleport profile name.                                                          | `TF_TELEPORT_PROFILE_NAME`        |
+| `root_ca_path`        | string | Path to Teleport CA file.                                                       | `TF_TELEPORT_ROOT_CA`             |
+| `root_ca_base64`      | string | Teleport CA as base64.                                                          | `TF_TELEPORT_ROOT_CA_BASE64`      |
+| `retry_base_duration` | string | Base durantion between retries. [Format](https://pkg.go.dev/time#ParseDuration) | `TF_TELEPORT_RETRY_BASE_DURATION` |
+| `retry_cap_duration`  | string | Max duration between retries. [Format](https://pkg.go.dev/time#ParseDuration)   | `TF_TELEPORT_RETRY_CAP_DURATION`  |
+| `retry_max_tries`     | string | Max number of retries.                                                          | `TF_TELEPORT_RETRY_MAX_TRIES`     |
+
 
 You need to specify at least one of:
 
@@ -50,6 +54,8 @@ You need to specify at least one of:
 - `cert_base64`, `key_base64`,`root_ca_base64` and `addr` to connect using a base64-encoded key.
 - `identity_file_path` and `addr` to connect using identity file.
 - `profile_name` and `profile_dir` (both can be empty) and Teleport will try to connect using current profile from `~/.tsh`
+
+The `retry_*` values are used to retry the API calls to Teleport when the cache is stale.
 
 If more than one are provided, they will be tried in the order above until one succeeds.
 
@@ -85,7 +91,7 @@ Example:
 
 ```
 resource "teleport_user" "example" {
-  metadata {
+  metadata = {
     name        = "example"
     description = "Example Teleport User"
     expires     = "2022-10-12T07:20:50.3Z"
@@ -106,9 +112,9 @@ Spec contains parameters of a resource.
 |                 `traits`|         set | User traits                                                     |
 |             `traits.key`|      string | Trait name                                                      |
 |           `traits.value`| string list | Trait values                                                    |
-|      `github_identities`| object list | List of associated Github OAuth2 identities                     |
-| `github_identities.connector_id` | string | An id of registered Github connector, e.g. 'github.com'     |
-| `github_identities.username` | string | Github username                                                 |
+|      `github_identities`| object list | List of associated GitHub OAuth2 identities                     |
+| `github_identities.connector_id` | string | An id of registered GitHub connector, e.g. 'github.com'     |
+| `github_identities.username` | string | GitHub username                                                 |
 |      `oidc_identities`| object list | List of OpenID Connect identities                                 |
 | `oidc_identities.connector_id` | string | An id of registered OIDC connector, e.g. 'google-example.com' |
 | `oidc_identities.username` | string | OIDC username                                                     |
@@ -120,38 +126,46 @@ Example:
 
 ```
 resource "teleport_user" "example" {
-  spec {
+  metadata = {
+    name        = "example"
+  }
+  spec = {
     roles = ["example"]
 
-    oidc_identities {
-      connector_id = "oidc1.example.com"
-      username     = "example"
-    }
+    oidc_identities = [
+      {
+        connector_id = "oidc1.example.com"
+        username     = "example"
+      },
+      {
+        connector_id = "oidc2.example.com"
+        username     = "example"
+      }
+    ]
 
-    oidc_identities {
-      connector_id = "oidc2.example.com"
-      username     = "example"
-    }
-
-    traits {
-      key   = "trait1"
+    traits = {
+      key   = ["trait1"]
       value = ["example", "test"]
     }
 
-    traits {
-      key   = "trait2"
+    traits = {
+      key   = ["trait2"]
       value = ["foo", "bar"]
     }
 
-    github_identities {
-      connector_id = "github.com"
-      username     = "example"
-    }
+    github_identities = [
+      {
+        connector_id = "github.com"
+        username     = "example"
+      }
+    ]
 
-    saml_identities {
-      connector_id = "saml.example.com"
-      username     = "example"
-    }
+    saml_identities = [
+      {
+        connector_id = "saml.example.com"
+        username     = "example"
+      }
+    ]
   }
 }
 ```
@@ -175,7 +189,7 @@ Metadata specifies a resource name, description, labels and optional expiry date
 
 **version**
 
-`version` is an optional string that specifies the role version (default `v3`). 
+`version` is an optional string that specifies the role version (default `v3`).
 
 **spec**
 
@@ -194,19 +208,19 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 |           `app_labels.key`|      string | Application name                                                |
 |        `app_labels.values`| string list | List of labels                                                  |
 |           `cluster_labels`|         set | Cluster labels                                                  |
-|       `cluster_labels.key`|      string | Cluster name                                                    | 
+|       `cluster_labels.key`|      string | Cluster name                                                    |
 |    `cluster_labels.values`| string list | List of labels                                                  |
 |                `db_labels`|         set | Database labels                                                 |
-|            `db_labels.key`|      string | Database name                                                   | 
+|            `db_labels.key`|      string | Database name                                                   |
 |         `db_labels.values`| string list | List of labels                                                  |
 |        `kubernetes_labels`|         set | Kubernetes labels                                               |
 |    `kubernetes_labels.key`|      string | Kubernetes cluster name                                         |
 | `kubernetes_labels.values`| string list | List of labels                                                  |
 |              `node_labels`|         set | Node labels                                                     |
-|          `node_labels.key`|      string | Node name                                                       | 
+|          `node_labels.key`|      string | Node name                                                       |
 |       `node_labels.values`| string list | List of labels                                                  |
 |              `impersonate`|      object | Specifies whether users are allowed  to issue certificates for other users or groups |
-|        `impersonate.roles`| string list | list of roles this role is allowed to impersonate               | 
+|        `impersonate.roles`| string list | list of roles this role is allowed to impersonate               |
 |        `impersonate.users`| string list | List of users this role is allowed to impersonate               |
 |        `impersonate.where`|      string | Optional advanced matcher                                       |
 |                    `rules`|         set | List of rules and their access levels. Rules are a high level construct used for access control |
@@ -309,16 +323,14 @@ Spec contains parameters of a resource.
 
 | Name                                | Type        | Description                                                     |
 |-------------------------------------|-------------|-----------------------------------------------------------------|
-| `client_id`                         | string      | Github OAuth app client ID                                      |
-| `client_secret`                     | string      | Github OAuth app client secret                                  |
+| `client_id`                         | string      | GitHub OAuth app client ID                                      |
+| `client_secret`                     | string      | GitHub OAuth app client secret                                  |
 | `display`                           | string      | Connector display name                                          |
 | `redirect_url`                      | string      | Authorization callback URL                                      |
-| `teams_to_logins`                   | set         | Maps Github team memberships onto allowed logins/roles.
-| `teams_to_logins.kubernetes_groups` | string list | List of allowed kubernetes groups for this org/team             |
-| `teams_to_logins.kubernetes_users`  | string list | List of allowed kubernetes users to impersonate for this org/team |
-| `teams_to_logins.logins`            | string list | List of allowed logins for this org/team                        |
-| `teams_to_logins.organization`      | string      | Github organization a user belongs to                           |
-| `teams_to_logins.team`              | string      | Team within the organization a user belongs to                  |
+| `teams_to_roles`                    | set         | Maps GitHub team memberships onto allowed roles                 |
+| `teams_to_roles.roles`              | string list | List of allowed roles for this org/team                         |
+| `teams_to_roles.organization`       | string      | GitHub organization a user belongs to                           |
+| `teams_to_roles.team`               | string      | Team within the organization a user belongs to                  |
 
 ## teleport_oidc_connector
 
@@ -384,7 +396,7 @@ Spec contains parameters of a resource.
 | `acs`                        | string      | URL for assertion consumer service  on the service provider (Teleport's side) |
 | `audience`                   | string      | Audience uniquely identifies our service provider                             |
 | `cert`                       | string      | Cert is the identity provider certificate PEM. IDP signs `Response` responses using this certificate |
-| `display`                    | string      | Connector display name                                                        | 
+| `display`                    | string      | Connector display name                                                        |
 | `entity_descriptor`          | string      | XML with descriptor. It can be used to supply configuration  parameters in one XML file rather than supplying them in the individual elements. |
 | `entity_descriptor_url`      | string      | URL that supplies a configuration XML |
 | `issuer`                     | string      | Identity provider issuer |
