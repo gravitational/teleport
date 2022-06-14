@@ -108,8 +108,12 @@ func New() (*Environment, error) {
 	}, nil
 }
 
-// IsLargePR determines
+// IsLargePR determines whether this PR is considered large.
+// Large PRs require extra approval in order to merge.
 func (e *Environment) IsLargePR() bool {
+	// look at net-new lines of code rather than additions
+	// so that generated code like protobuf changes has a
+	// smaller impact
 	return e.Additions-e.Deletions > 1500
 }
 
