@@ -57,7 +57,7 @@ organization's Single Sign-On (SSO) provider.
 
 Users need to execute the following command login in the CLI or login using UI:
 
-```bsh
+```code
 # this command will automatically open the default web browser and take a user
 # through the login process with an SSO provider:
 $ tsh login --proxy=proxy.example.com --auth=github
@@ -218,7 +218,7 @@ as described in the [Resources Reference](../setup/reference/resources.mdx).
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:
 
-```bsh
+```code
 # use "okta" SAML connector:
 $ tsh --proxy=proxy.example.com login --auth=okta
 
