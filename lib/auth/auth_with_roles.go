@@ -1014,7 +1014,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			switch match, err := services.MatchResourceByFilters(resource, filter); {
+			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches  */); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case match:
@@ -1245,7 +1245,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		// Extract kube clusters into its own list.
-		clusters := []types.KubeCluster{}
+		var clusters []types.KubeCluster
 		for _, svc := range kubeservices {
 			for _, legacyCluster := range svc.GetKubernetesClusters() {
 				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster(svc.GetNamespace(), legacyCluster)
@@ -1256,7 +1256,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			}
 		}
 
-		sortedClusters := types.KubeClusters(types.DeduplicateKubeClusters(clusters))
+		sortedClusters := types.KubeClusters(clusters)
 		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
