@@ -90,9 +90,9 @@ func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
 		// TODO(ravicious): Pass the root cluster name here. GetActualName returns leaf name for leaf
 		// clusters.
 		//
-		// At this point it doesn't matter though, because this argument is used only for
-		// generating correct CA paths. But we use dbcmd.WithNoTLS here, which doesn't include CA paths
-		// in the returned CLI command.
+		// At this point it doesn't matter though because this argument is used only for
+		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
+		// included in the returned CLI command.
 		c.GetActualName(),
 		dbcmd.WithLogger(gw.Log),
 		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
