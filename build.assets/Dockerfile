@@ -166,11 +166,14 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
 ARG PROTOC_VER
 ARG GOGO_PROTO_TAG
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
+ENV PROTOC_NO_VENDOR true
+ENV PROTOC /usr/local/bin/protoc
 
 RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
      curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
+     chmod -R a+xr /usr/local/bin/protoc && \
      rm /tmp/${PROTOC_TARBALL})
 RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
