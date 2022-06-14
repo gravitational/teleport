@@ -608,7 +608,7 @@ func TestAccessRequestDowngrade(t *testing.T) {
 	t.Cleanup(m.grpc.Stop)
 
 	go func() {
-		require.NoError(t, m.grpc.Serve(l))
+		assert.NoError(t, m.grpc.Serve(l))
 	}()
 
 	clt, err := m.NewClient(ctx)
