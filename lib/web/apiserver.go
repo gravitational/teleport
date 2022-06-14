@@ -1872,13 +1872,13 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := ctx.GetUserAccessChecker()
+	userRoles, err := ctx.GetUserRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeServers(site.GetName(), servers, accessChecker.Roles()),
+		Items:      ui.MakeServers(site.GetName(), servers, userRoles),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
