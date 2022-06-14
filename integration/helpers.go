@@ -22,13 +22,11 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"runtime/debug"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/teleagent"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -165,12 +163,6 @@ func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	}
 
 	return nil
-}
-
-func fatalIf(err error) {
-	if err != nil {
-		log.Fatalf("%v at %v", string(debug.Stack()), err)
-	}
 }
 
 // getLocalIP gets the non-loopback IP address of this host.
