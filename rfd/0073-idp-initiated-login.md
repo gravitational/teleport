@@ -33,3 +33,7 @@ spec:
 Allowing IdP-initiated login flows comes with a set of security tradeoffs inherent to the use of SAML and the flow itself. In this configuration, Teleport becomes more prone to replay and CSRF attacks since Teleport cannot verify that the user started the login flow intentionally. This opens up attack vectors where an attacker can trick a legitimate user into unknowingly logging into the application with the identity of the attacker.
 
 Due to the security risks above, this feature should be opt-in using the configuration option above and not enabled by default. Since this can reduce usage friction, we should still offer the feature to those that want it.
+
+## References and Resources
+
+[Auth0: Configure SAML Identity Provider-Initiated Single Sign-On](https://auth0.com/docs/authenticate/protocols/saml/saml-sso-integrations/identity-provider-initiated-single-sign-on)
