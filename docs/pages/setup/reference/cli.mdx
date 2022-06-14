@@ -169,7 +169,7 @@ $ tsh help
 
 ### tsh version
 
-Prints client version:
+Print the version of your `tsh` binary:
 
 ```code
 $ tsh version
@@ -510,7 +510,7 @@ $ tsh login [<flags>] [<cluster>]
 
 #### Arguments
 
-- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../setup/admin/trustedclusters.mdx#introduction) for more information.
+- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../setup/admin/trustedclusters.mdx) for more information.
 
 #### Flags
 
@@ -560,7 +560,7 @@ $ tsh --ttl=1 login
 # Login using the local Teleport 'admin' user:
 $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
-# Login using Github as an SSO provider, assuming the Github connector is called "github"
+# Login using GitHub as an SSO provider, assuming the GitHub connector is called "github"
 $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 
 # Suppress the opening of the system default browser for external provider logins
@@ -690,7 +690,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined SAML, OIDC, or Github auth connector | okta |
+| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector | okta |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
 | TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
@@ -750,11 +750,11 @@ cluster. This can be done in three ways:
 Service signs an identity file when a user runs `tctl auth sign` or
 `tsh login --out=<output-path>`, and the user can include the path to the
 identity file in the `--identity` flag when running `tctl` commands.
-  
+
 When using the `--identity` flag, the user must provide the `--auth-server` flag
 with the address of an Auth Service or Proxy Service so `tctl` knows which
 cluster to authenticate to.
-  
+
 ### On the same host as the Teleport Auth Service
 
 If there is a Teleport configuration file on the host where `tctl` is run,
@@ -804,7 +804,7 @@ cluster. This can be done in two ways:
 Service signs an identity file when a user runs `tctl auth sign` or
 `tsh login --out=<output-path>`, and the user can include the path to the
 identity file in the `--identity` flag when running `tctl` commands.
-  
+
 When using the `--identity` flag, the user must alo provide the `--auth-server`
 flag with the address of an Auth Service or Proxy Service so `tctl` knows which
 cluster to authenticate to.
@@ -1191,7 +1191,7 @@ $ tctl auth export [<flags>]
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--keys` | none | none | if set, will print private keys |
-| `--fingerprint` | none | **string** e.g. `SHA265:<fingerprint>` | filter authority by fingerprint |
+| `--fingerprint` | none | **string** e.g. `SHA256:<fingerprint>` | filter authority by fingerprint |
 | `--compat` | none | version number | export certificates compatible with specific version of Teleport |
 | `--type` | none | `user, host` or `tls` | certificate type |
 
@@ -1231,14 +1231,19 @@ $ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags
 | `--user` | none | existing user | Teleport user name |
 | `--host` | none | auth host | Teleport host name |
 | `-o, --out` | none | filepath | identity output |
+| `--overwrite` | none | none | When specified, write new identity files, even if they already exist |
 | `--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` | identity format |
-| `--identity` | `file` | `file` | identity format |
+| `--identity` | none | `file` | Identity file to use for logging in to the Auth Service |
 | `--auth-server` | none | auth host & port | Remote Teleport host name |
 | `--ttl` | `12h` | relative duration like `5s`, `2m`, or `3h` | TTL (time to live) for the generated certificate |
 | `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag |
-| `--proxy` | `""` | Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file |
+| `--proxy` | `""` | Address of the Teleport Proxy Service | When --format is set to `kubernetes`, this address will be set as the cluster address in the generated kubeconfig file |
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
 | `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
+| `--app-name` | `""` | application name | Generate a certificate for accessing the specified web application |
+| `--db-service` | `""` | database service name | Generate a certificate for accessing the specified database service |
+| `--db-user` | `""` | database user | When `--db-service` is specified, encode this database user in the certificate |
+| `--db-name` | `""` | database name | When `--db-service` is specified, encode this database name in the certificate |
 
 #### Global flags
 
@@ -1468,7 +1473,7 @@ $ tctl top http://127.0.0.1:3000 5s
 
 ### tctl version
 
-Print cluster version:
+Print the version of your `tctl` binary:
 
 ```code
 tctl version

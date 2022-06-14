@@ -58,24 +58,37 @@ func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWith
 	return false
 }
 
-// MatchResourceByFilters returns true if all filter values given matched against the resource.
-// For resource KubeService, b/c of its 1-N relationhip with service-clusters,
-// it filters out the non-matched clusters on the kube service and the kube service
-// is modified in place with only the matched clusters.
-func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
-		return true, nil
-	}
+// ResourceSeenKey is used as a key for a map that keeps track
+// of unique resource names and address. Currently "addr"
+// only applies to resource Application.
+type ResourceSeenKey struct{ name, addr string }
 
+// MatchResourceByFilters returns true if all filter values given matched against the resource.
+//
+// If no filters were provided, we will treat that as a match.
+//
+// If a `seenMap` is provided, this will be treated as a request to filter out duplicate matches.
+// The map will be modified in place as it adds new keys. Seen keys will return match as false.
+//
+// Resource KubeService is handled differently b/c of its 1-N relationhip with service-clusters,
+// it filters out the non-matched clusters on the kube service and the kube service
+// is modified in place with only the matched clusters. Deduplication for resource `KubeService`
+// is not provided but is provided for kind `KubernetesCluster`.
+func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
+	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
 	case types.KindNode, types.KindWindowsDesktop, types.KindKubernetesCluster:
 		specResource = resource
+		resourceKey.name = specResource.GetName()
 
 	case types.KindKubeService:
+		if seenMap != nil {
+			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
+		}
 		return matchAndFilterKubeClusters(resource, filter)
 
 	case types.KindAppServer:
@@ -84,6 +97,9 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.BadParameter("expected types.AppServer, got %T", resource)
 		}
 		specResource = server.GetApp()
+		app := server.GetApp()
+		resourceKey.name = app.GetName()
+		resourceKey.addr = app.GetPublicAddr()
 
 	case types.KindDatabaseServer:
 		server, ok := resource.(types.DatabaseServer)
@@ -91,12 +107,35 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
 		specResource = server.GetDatabase()
+		resourceKey.name = specResource.GetName()
 
 	default:
 		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
 	}
 
-	return matchResourceByFilters(specResource, filter)
+	var match bool
+
+	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
+		match = true
+	}
+
+	if !match {
+		var err error
+		match, err = matchResourceByFilters(specResource, filter)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+	}
+
+	// Deduplicate matches.
+	if match && seenMap != nil {
+		if _, exists := seenMap[resourceKey]; exists {
+			return false, nil
+		}
+		seenMap[resourceKey] = struct{}{}
+	}
+
+	return match, nil
 }
 
 func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
@@ -132,6 +171,10 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 //     modified in place with only the matched clusters
 //  3) only returns true if the service contained any matched cluster
 func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
+	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
+		return true, nil
+	}
+
 	server, ok := resource.(types.Server)
 	if !ok {
 		return false, trace.BadParameter("expected types.Server, got %T", resource)

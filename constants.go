@@ -116,6 +116,9 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentProxyPeer is the proxy peering component of the proxy service
+	ComponentProxyPeer = "proxy:peer"
+
 	// ComponentApp is the application proxy service.
 	ComponentApp = "app:service"
 
@@ -445,7 +448,7 @@ const (
 	CertExtensionGeneration = "generation"
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
-	CertExtensionAllowedResources = "allowed-resources"
+	CertExtensionAllowedResources = "teleport-allowed-resources"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -736,6 +739,11 @@ const (
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
 	CheckHomeDirSubCommand = "checkhomedir"
+
+	// ParkSubCommand is the sub-command Teleport uses to re-exec itself as a
+	// specific UID to prevent the matching user from being deleted before
+	// spawning the intended child process.
+	ParkSubCommand = "park"
 )
 
 const (

@@ -156,6 +156,7 @@ proxy_service:
   enabled: yes
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
+  peer_listen_addr: peerhost:1234
   public_addr: web3:443
   postgres_public_addr: postgres.example:5432
   mysql_listen_addr: webhost:3336
