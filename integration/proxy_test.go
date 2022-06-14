@@ -19,7 +19,6 @@ package integration
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -855,8 +854,9 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	validPass := "open sesame"
 
 	// Create and start http_proxy server.
-	ph := &proxyBasicAuthHandler{authDB: map[string]string{validUser: validPass}}
-	ts := httptest.NewServer(ph)
+	ph := &proxyHandler{}
+	authorizer := NewProxyAuthorizer(ph, map[string]string{validUser: validPass})
+	ts := httptest.NewServer(authorizer)
 	defer ts.Close()
 
 	proxyURL, err := url.Parse(ts.URL)
@@ -868,24 +868,22 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	t.Setenv("http_proxy", proxyURL.Host)
 	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr))
 	require.Error(t, err)
-	require.ErrorIs(t, ph.LastError(), trace.AccessDenied("missing Proxy-Authorization header"))
+	require.ErrorIs(t, authorizer.LastError(), trace.AccessDenied("missing Proxy-Authorization header"))
 	require.Zero(t, ph.Count())
 
 	// proxy url is user:password@host with incorrect password
-	userPass := url.UserPassword(validUser, "incorrectPassword").String()
-	t.Setenv("http_proxy", fmt.Sprintf("%v@%v", userPass, proxyURL.Host))
+	t.Setenv("http_proxy", makeProxyAddr(validUser, "incorrectPassword", proxyURL.Host))
 	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
 	require.Error(t, err)
-	require.ErrorIs(t, ph.LastError(), trace.AccessDenied("bad credentials"))
+	require.ErrorIs(t, authorizer.LastError(), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
 
 	// proxy url is user:password@host with correct password
-	userPass = url.UserPassword(validUser, validPass).String()
-	t.Setenv("http_proxy", fmt.Sprintf("%v@%v", userPass, proxyURL.Host))
+	t.Setenv("http_proxy", makeProxyAddr(validUser, validPass, proxyURL.Host))
 	_, err = rc.StartNode(makeNodeConfig("third-root-node", rcProxyAddr))
 	require.NoError(t, err)
 	err = waitForNodeCount(ctx, rc, "root.example.com", 1)
 	require.NoError(t, err)
-	require.NoError(t, ph.LastError())
+	require.NoError(t, authorizer.LastError())
 	require.NotZero(t, ph.Count())
 }

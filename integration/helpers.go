@@ -25,6 +25,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -1547,14 +1548,18 @@ func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 	return receivedEvents, nil
 }
 
-type proxyBasicAuthHandler struct {
+type proxyAuthorizer struct {
+	next http.Handler
 	sync.Mutex
 	lastError error
 	authDB    map[string]string
-	proxyHandler
 }
 
-func (p *proxyBasicAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func NewProxyAuthorizer(handler http.Handler, authDB map[string]string) *proxyAuthorizer {
+	return &proxyAuthorizer{next: handler, authDB: authDB}
+}
+
+func (p *proxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	auth := r.Header.Get("Proxy-Authorization")
 	if auth == "" {
 		err := trace.AccessDenied("missing Proxy-Authorization header")
@@ -1572,7 +1577,7 @@ func (p *proxyBasicAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	if p.isAuthorized(user, password) {
 		p.SetError(nil)
-		p.proxyHandler.ServeHTTP(w, r)
+		p.next.ServeHTTP(w, r)
 		return
 	}
 
@@ -1581,19 +1586,21 @@ func (p *proxyBasicAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	trace.WriteError(w, err)
 }
 
-func (p *proxyBasicAuthHandler) SetError(err error) {
+func (p *proxyAuthorizer) SetError(err error) {
 	p.Lock()
 	defer p.Unlock()
 	p.lastError = err
 }
 
-func (p *proxyBasicAuthHandler) LastError() error {
+func (p *proxyAuthorizer) LastError() error {
 	p.Lock()
 	defer p.Unlock()
 	return p.lastError
 }
 
-func (p *proxyBasicAuthHandler) isAuthorized(user, pass string) bool {
+func (p *proxyAuthorizer) isAuthorized(user, pass string) bool {
+	p.Lock()
+	defer p.Unlock()
 	expectedPass, ok := p.authDB[user]
 	return ok && pass == expectedPass
 }
@@ -1606,6 +1613,11 @@ func parseProxyAuth(proxyAuth string) (user, password string, ok bool) {
 		Header: fakeHeader,
 	}
 	return fakeReq.BasicAuth()
+}
+
+func makeProxyAddr(user, pass, host string) string {
+	userPass := url.UserPassword(user, pass).String()
+	return fmt.Sprintf("%v@%v", userPass, host)
 }
 
 type proxyHandler struct {
@@ -1990,7 +2002,7 @@ func getLocalIP() (string, error) {
 		default:
 			continue
 		}
-		if !ip.IsLoopback() {
+		if !ip.IsLoopback() && ip.IsPrivate() {
 			return ip.String(), nil
 		}
 	}
