@@ -3,7 +3,7 @@ authors: Joel Wejdenstal <jwejdenstal@goteleport.com>
 state: draft
 ---
 
-# RFD 73 - IdP Initated SAML Login
+# RFD 73 - IdP-initated SAML Login
 
 ## What
 
@@ -15,17 +15,17 @@ This is a useful feature to reduce friction and make it easier for users to acce
 
 ## Details
 
-Add a new configurable field to SAML connectors called `idp_initiated` which defaults to false. If set to true, Teleport will accept the SAML assertion sent by the IdP even if it is not requested by Teleport. This allows you to configure the SAML callback in an IdP provider as usual and log in to Teleport directly from the IdP dashboard.
+Add a new configurable field to SAML connectors called `allow_idp_initiated` which defaults to false. If set to true, Teleport will accept the SAML assertion sent by the IdP even if it is not requested by Teleport. This allows you to configure the SAML callback in an IdP provider as usual and log in to Teleport directly from the IdP dashboard.
 
 ```
 kind: saml
 version: v2
 metadata:
- name: new_saml_connector
+  name: new_saml_connector
 spec:
- display: MyIdP
-+ idp_initiated: true
- # other fields
+  display: MyIdP
++ allow_idp_initiated: true
+  # other fields
 ```
 
 ### Security Considerations
