@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -1948,8 +1949,13 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return listResourcesGetResponse{
-		Items:      ui.MakeServers(site.GetName(), servers),
+		Items:      ui.MakeServers(site.GetName(), servers, accessChecker.Roles()),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
@@ -2788,6 +2794,7 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		DefaultPrincipal:  cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
+		Tracer:            tracing.NoopProvider().Tracer("test"),
 	}
 
 	return config, nil

@@ -501,6 +501,8 @@ type Config struct {
 	ALPNSNIAuthDialClusterName string
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	CircuitBreakerConfig breaker.Config
+	// Context is the base context to use for dialing. If not provided context.Background is used
+	Context context.Context
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -520,6 +522,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.CircuitBreakerConfig.Trip == nil || c.CircuitBreakerConfig.IsSuccessful == nil {
 		c.CircuitBreakerConfig = breaker.DefaultBreakerConfig(clockwork.NewRealClock())
+	}
+
+	if c.Context == nil {
+		c.Context = context.Background()
 	}
 
 	c.DialOpts = append(c.DialOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -783,7 +789,12 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	stream, err := c.grpc.GetAccessRequestsV2(ctx, &filter, c.callOpts...)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			return c.getAccessRequestsLegacy(ctx, filter)
+		}
+
+		return nil, err
 	}
 	var reqs []types.AccessRequest
 	for {
@@ -795,6 +806,23 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 			return nil, trail.FromGRPC(err)
 		}
 		reqs = append(reqs, req)
+	}
+
+	return reqs, nil
+}
+
+// getAccessRequestsLegacy retrieves a list of all access requests matching the provided filter using the old access request API.
+//
+// DELETE IN: 11.0.0. Used for compatibility with old auth servers that don't support the GetAccessRequestsV2 RPC.
+func (c *Client) getAccessRequestsLegacy(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	requests, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	reqs := make([]types.AccessRequest, len(requests.AccessRequests))
+	for i, request := range requests.AccessRequests {
+		reqs[i] = request
 	}
 
 	return reqs, nil

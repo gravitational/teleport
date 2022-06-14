@@ -2758,7 +2758,6 @@ func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourc
 				PredicateExpression:  req.PredicateExpression,
 				Labels:               req.Labels,
 				SearchKeywords:       req.SearchKeywords,
-				SortBy:               req.SortBy,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
