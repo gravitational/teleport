@@ -307,14 +307,8 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		return nil, trace.Wrap(err, "Failed to get Github connector and client.")
 	}
 	diagCtx.info.GithubTeamsToLogins = connector.GetTeamsToLogins()
-	logger.Debugf("Connector %q teams to logins: %v", connector.GetName(), connector.GetTeamsToLogins())
-
-	if len(connector.GetTeamsToLogins()) == 0 {
-		logger.Warnf("Github connector %q has empty teams_to_logins mapping, cannot populate claims.",
-			connector.GetName())
-		return nil, trace.BadParameter(
-			"connector %q has empty teams_to_logins mapping", connector.GetName())
-	}
+	diagCtx.info.GithubTeamsToRoles = connector.GetTeamsToRoles()
+	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
 
 	// exchange the authorization code received by the callback for an access token
 	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
