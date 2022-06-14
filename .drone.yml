@@ -5001,6 +5001,134 @@ volumes:
   temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/misc.go:145
+################################################
+
+kind: pipeline
+type: kubernetes
+name: migrate-apt-new-repos
+trigger:
+  event:
+    include:
+    - custom
+  repo:
+    include:
+    - non-existent-repository
+  branch:
+    include:
+    - non-existent-branch
+clone:
+  disable: true
+steps:
+- name: Placeholder
+  image: alpine:latest
+  commands:
+  - echo "This command, step, and pipeline never runs"
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/misc.go:169
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-apt-new-repos
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/teleport
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Check out code
+  image: alpine/git:latest
+  commands:
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout "${DRONE_TAG}"
+- name: Check if tag is prerelease
+  image: golang:1.17-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+- name: Download artifacts for "${DRONE_TAG}"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+- name: Publish debs to APT repos for "${DRONE_TAG}"
+  image: golang:1.18.1-bullseye
+  commands:
+  - mkdir -pv -m0700 $GNUPGHOME
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root $GNUPGHOME
+  - apt update
+  - apt install aptly tree -y
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="${DRONE_TAG}"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -local-bucket-path "$BUCKET_CACHE_PATH"
+    -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL" -aptly-root-dir
+    "$APTLY_ROOT_DIR" -artifact-path "$ARTIFACT_PATH" -log-level 4
+  - rm -rf "$BUCKET_CACHE_PATH"
+  - df -h "$APTLY_ROOT_DIR"
+  environment:
+    APT_S3_BUCKET:
+      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
+    APTLY_ROOT_DIR: /mnt/aptly
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: APT_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /tmp/bucket
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+  volumes:
+  - name: aptrepo
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+volumes:
+- name: aptrepo
+  claim:
+    name: drone-s3-aptrepo-pvc
+- name: tmpfs
+  temp:
+    medium: memory
+
+---
 kind: pipeline
 type: kubernetes
 name: promote-build
@@ -5388,6 +5516,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 1b23c22f0b0eb99b4b1df555b1aeb10db2b27f7719076196c776ed9fec87460c
+hmac: 5bc8cb78df6224ffc799331a7bb1668bbd738056e69bd42beafa920fe1b60a75
 
 ...
