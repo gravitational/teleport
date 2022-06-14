@@ -1222,6 +1222,8 @@ pub struct SharedDirectoryCreateResponse {
     pub err_code: TdpErrCode,
 }
 
+/// SharedDirectoryListResponse is sent by the TDP client to the server
+/// in response to a SharedDirectoryInfoRequest.
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct SharedDirectoryListResponse {
@@ -1261,6 +1263,8 @@ pub type SharedDirectoryDeleteRequest = SharedDirectoryInfoRequest;
 pub type CGOSharedDirectoryDeleteRequest = CGOSharedDirectoryInfoRequest;
 pub type SharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
 pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
+/// SharedDirectoryListRequest is sent by the TDP server to the client
+/// to request the contents of a directory.
 pub type SharedDirectoryListRequest = SharedDirectoryInfoRequest;
 pub type CGOSharedDirectoryListRequest = CGOSharedDirectoryInfoRequest;
 
