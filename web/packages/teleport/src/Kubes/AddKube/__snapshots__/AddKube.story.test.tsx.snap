@@ -183,6 +183,7 @@ exports[`render failed 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c19::-ms-clear {
@@ -204,7 +205,7 @@ exports[`render failed 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c9 {
@@ -445,16 +446,16 @@ exports[`render failed 1`] = `
                     font-size="0"
                   >
                     Namespace
+                    <input
+                      autocomplete="off"
+                      class="c19"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="teleport"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c19"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="teleport"
-                    type="text"
-                    value=""
-                  />
                 </div>
                 <div
                   class="c17"
@@ -471,16 +472,16 @@ exports[`render failed 1`] = `
                     >
                        - Name shown to Teleport users connecting to the cluster.
                     </span>
+                    <input
+                      autocomplete="off"
+                      class="c19"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="my-cluster"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c19"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="my-cluster"
-                    type="text"
-                    value=""
-                  />
                 </div>
                 <button
                   class="c20"
@@ -672,6 +673,7 @@ exports[`render loaded 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c18::-ms-clear {
@@ -693,7 +695,7 @@ exports[`render loaded 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c8 {
@@ -928,16 +930,16 @@ exports[`render loaded 1`] = `
                     font-size="0"
                   >
                     Namespace
+                    <input
+                      autocomplete="off"
+                      class="c18"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="teleport"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c18"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="teleport"
-                    type="text"
-                    value=""
-                  />
                 </div>
                 <div
                   class="c16"
@@ -954,16 +956,16 @@ exports[`render loaded 1`] = `
                     >
                        - Name shown to Teleport users connecting to the cluster.
                     </span>
+                    <input
+                      autocomplete="off"
+                      class="c18"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="my-cluster"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c18"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="my-cluster"
-                    type="text"
-                    value=""
-                  />
                 </div>
                 <button
                   class="c19"
@@ -1155,6 +1157,7 @@ exports[`render processing 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c18::-ms-clear {
@@ -1176,7 +1179,7 @@ exports[`render processing 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c8 {
@@ -1411,16 +1414,16 @@ exports[`render processing 1`] = `
                     font-size="0"
                   >
                     Namespace
+                    <input
+                      autocomplete="off"
+                      class="c18"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="teleport"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c18"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="teleport"
-                    type="text"
-                    value=""
-                  />
                 </div>
                 <div
                   class="c16"
@@ -1437,16 +1440,16 @@ exports[`render processing 1`] = `
                     >
                        - Name shown to Teleport users connecting to the cluster.
                     </span>
+                    <input
+                      autocomplete="off"
+                      class="c18"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="my-cluster"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c18"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="my-cluster"
-                    type="text"
-                    value=""
-                  />
                 </div>
                 <button
                   class="c19"
@@ -1643,6 +1646,7 @@ exports[`render with token generated 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c18::-ms-clear {
@@ -1664,7 +1668,7 @@ exports[`render with token generated 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c8 {
@@ -1918,16 +1922,16 @@ exports[`render with token generated 1`] = `
                     font-size="0"
                   >
                     Namespace
+                    <input
+                      autocomplete="off"
+                      class="c18"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="teleport"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c18"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="teleport"
-                    type="text"
-                    value=""
-                  />
                 </div>
                 <div
                   class="c16"
@@ -1944,16 +1948,16 @@ exports[`render with token generated 1`] = `
                     >
                        - Name shown to Teleport users connecting to the cluster.
                     </span>
+                    <input
+                      autocomplete="off"
+                      class="c18"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="my-cluster"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c18"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="my-cluster"
-                    type="text"
-                    value=""
-                  />
                 </div>
                 <button
                   class="c19"

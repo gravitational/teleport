@@ -1,5 +1,5 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,15 +15,20 @@ limitations under the License.
 */
 
 import React from 'react';
-import Input from '../Input';
+import { TextArea } from './TextArea';
 
 export default {
-  title: 'Design/Inputs',
+  title: 'Design/TextArea',
 };
 
-export const Inputs = () => (
+export const TextAreas = () => (
   <>
-    <Input mb={4} placeholder="Enter SomeText" />
-    <Input mb={4} hasError={true} defaultValue="This field has an error" />
+    <TextArea mb={4} placeholder="Enter Some long text" />
+    <TextArea mb={4} hasError={true} defaultValue="This field has an error" />
+    <TextArea
+      mb={4}
+      resizable={true}
+      defaultValue="This field is resizable vertically"
+    />
   </>
 );

@@ -113,6 +113,7 @@ exports[`render automatic tab 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c11::-ms-clear {
@@ -134,7 +135,7 @@ exports[`render automatic tab 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c6 {
@@ -292,16 +293,16 @@ exports[`render automatic tab 1`] = `
                 font-size="0"
               >
                 App Name
+                <input
+                  autocomplete="off"
+                  class="c11"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="jenkins"
+                  type="text"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c11"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="jenkins"
-                type="text"
-                value=""
-              />
             </div>
             <div
               class="c12"
@@ -312,16 +313,16 @@ exports[`render automatic tab 1`] = `
                 font-size="0"
               >
                 INTERNAL APPLICATION URL
+                <input
+                  autocomplete="off"
+                  class="c11"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="https://localhost:4000"
+                  type="text"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c11"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="https://localhost:4000"
-                type="text"
-                value=""
-              />
             </div>
           </div>
           <div
@@ -472,6 +473,7 @@ exports[`render automatic tab on created state 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c11::-ms-clear {
@@ -493,7 +495,7 @@ exports[`render automatic tab on created state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c6 {
@@ -651,16 +653,16 @@ exports[`render automatic tab on created state 1`] = `
                 font-size="0"
               >
                 App Name
+                <input
+                  autocomplete="off"
+                  class="c11"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="jenkins"
+                  type="text"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c11"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="jenkins"
-                type="text"
-                value=""
-              />
             </div>
             <div
               class="c12"
@@ -671,16 +673,16 @@ exports[`render automatic tab on created state 1`] = `
                 font-size="0"
               >
                 INTERNAL APPLICATION URL
+                <input
+                  autocomplete="off"
+                  class="c11"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="https://localhost:4000"
+                  type="text"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c11"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="https://localhost:4000"
-                type="text"
-                value=""
-              />
             </div>
           </div>
           <div
@@ -852,6 +854,7 @@ exports[`render failed automatic tab 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c11::-ms-clear {
@@ -873,7 +876,7 @@ exports[`render failed automatic tab 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c6 {
@@ -1031,16 +1034,16 @@ exports[`render failed automatic tab 1`] = `
                 font-size="0"
               >
                 App Name
+                <input
+                  autocomplete="off"
+                  class="c11"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="jenkins"
+                  type="text"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c11"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="jenkins"
-                type="text"
-                value=""
-              />
             </div>
             <div
               class="c12"
@@ -1051,16 +1054,16 @@ exports[`render failed automatic tab 1`] = `
                 font-size="0"
               >
                 INTERNAL APPLICATION URL
+                <input
+                  autocomplete="off"
+                  class="c11"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="https://localhost:4000"
+                  type="text"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c11"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="https://localhost:4000"
-                type="text"
-                value=""
-              />
             </div>
           </div>
           <div

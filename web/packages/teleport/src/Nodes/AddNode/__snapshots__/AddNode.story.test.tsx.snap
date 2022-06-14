@@ -782,6 +782,7 @@ exports[`render iam method after token generation 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c19::-ms-clear {
@@ -803,7 +804,7 @@ exports[`render iam method after token generation 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c15 {
@@ -1110,16 +1111,16 @@ exports[`render iam method after token generation 1`] = `
                     >
                        - nodes must match this AWS Account ID to join your Teleport cluster
                     </span>
+                    <input
+                      autocomplete="off"
+                      class="c19"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="111111111111"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c19"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="111111111111"
-                    type="text"
-                    value=""
-                  />
                 </div>
               </div>
               <div
@@ -1136,16 +1137,16 @@ exports[`render iam method after token generation 1`] = `
                   >
                      - nodes must match this AWS ARN to join your Teleport cluster
                   </span>
+                  <input
+                    autocomplete="off"
+                    class="c19"
+                    color="text.onLight"
+                    inputmode="text"
+                    placeholder="arn:aws:sts::111111111111:assumed-role/teleport-node-role/i-*"
+                    type="text"
+                    value=""
+                  />
                 </label>
-                <input
-                  autocomplete="off"
-                  class="c19"
-                  color="text.onLight"
-                  inputmode="text"
-                  placeholder="arn:aws:sts::111111111111:assumed-role/teleport-node-role/i-*"
-                  type="text"
-                  value=""
-                />
               </div>
             </div>
             <div
@@ -1365,6 +1366,7 @@ exports[`render iam method when failed 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c20::-ms-clear {
@@ -1386,7 +1388,7 @@ exports[`render iam method when failed 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c16 {
@@ -1682,16 +1684,16 @@ exports[`render iam method when failed 1`] = `
                     >
                        - nodes must match this AWS Account ID to join your Teleport cluster
                     </span>
+                    <input
+                      autocomplete="off"
+                      class="c20"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="111111111111"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c20"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="111111111111"
-                    type="text"
-                    value=""
-                  />
                 </div>
               </div>
               <div
@@ -1708,16 +1710,16 @@ exports[`render iam method when failed 1`] = `
                   >
                      - nodes must match this AWS ARN to join your Teleport cluster
                   </span>
+                  <input
+                    autocomplete="off"
+                    class="c20"
+                    color="text.onLight"
+                    inputmode="text"
+                    placeholder="arn:aws:sts::111111111111:assumed-role/teleport-node-role/i-*"
+                    type="text"
+                    value=""
+                  />
                 </label>
-                <input
-                  autocomplete="off"
-                  class="c20"
-                  color="text.onLight"
-                  inputmode="text"
-                  placeholder="arn:aws:sts::111111111111:assumed-role/teleport-node-role/i-*"
-                  type="text"
-                  value=""
-                />
               </div>
             </div>
             <div
@@ -1883,6 +1885,7 @@ exports[`render iam method while processing 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c19::-ms-clear {
@@ -1904,7 +1907,7 @@ exports[`render iam method while processing 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c15 {
@@ -2194,16 +2197,16 @@ exports[`render iam method while processing 1`] = `
                     >
                        - nodes must match this AWS Account ID to join your Teleport cluster
                     </span>
+                    <input
+                      autocomplete="off"
+                      class="c19"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="111111111111"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c19"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="111111111111"
-                    type="text"
-                    value=""
-                  />
                 </div>
               </div>
               <div
@@ -2220,16 +2223,16 @@ exports[`render iam method while processing 1`] = `
                   >
                      - nodes must match this AWS ARN to join your Teleport cluster
                   </span>
+                  <input
+                    autocomplete="off"
+                    class="c19"
+                    color="text.onLight"
+                    inputmode="text"
+                    placeholder="arn:aws:sts::111111111111:assumed-role/teleport-node-role/i-*"
+                    type="text"
+                    value=""
+                  />
                 </label>
-                <input
-                  autocomplete="off"
-                  class="c19"
-                  color="text.onLight"
-                  inputmode="text"
-                  placeholder="arn:aws:sts::111111111111:assumed-role/teleport-node-role/i-*"
-                  type="text"
-                  value=""
-                />
               </div>
             </div>
             <div
@@ -2396,6 +2399,7 @@ exports[`render iam method without a token generated yet 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c19::-ms-clear {
@@ -2417,7 +2421,7 @@ exports[`render iam method without a token generated yet 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c15 {
@@ -2707,16 +2711,16 @@ exports[`render iam method without a token generated yet 1`] = `
                     >
                        - nodes must match this AWS Account ID to join your Teleport cluster
                     </span>
+                    <input
+                      autocomplete="off"
+                      class="c19"
+                      color="text.onLight"
+                      inputmode="text"
+                      placeholder="111111111111"
+                      type="text"
+                      value=""
+                    />
                   </label>
-                  <input
-                    autocomplete="off"
-                    class="c19"
-                    color="text.onLight"
-                    inputmode="text"
-                    placeholder="111111111111"
-                    type="text"
-                    value=""
-                  />
                 </div>
               </div>
               <div
@@ -2733,16 +2737,16 @@ exports[`render iam method without a token generated yet 1`] = `
                   >
                      - nodes must match this AWS ARN to join your Teleport cluster
                   </span>
+                  <input
+                    autocomplete="off"
+                    class="c19"
+                    color="text.onLight"
+                    inputmode="text"
+                    placeholder="arn:aws:sts::111111111111:assumed-role/teleport-node-role/i-*"
+                    type="text"
+                    value=""
+                  />
                 </label>
-                <input
-                  autocomplete="off"
-                  class="c19"
-                  color="text.onLight"
-                  inputmode="text"
-                  placeholder="arn:aws:sts::111111111111:assumed-role/teleport-node-role/i-*"
-                  type="text"
-                  value=""
-                />
               </div>
             </div>
             <div

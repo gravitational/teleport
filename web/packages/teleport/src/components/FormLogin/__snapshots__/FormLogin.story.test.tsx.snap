@@ -90,6 +90,7 @@ exports[`auth2faType: off 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c7::-ms-clear {
@@ -111,7 +112,7 @@ exports[`auth2faType: off 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c1 {
@@ -214,16 +215,16 @@ exports[`auth2faType: off 1`] = `
               font-size="0"
             >
               Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.onLight"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
             </label>
-            <input
-              autocomplete="off"
-              class="c7"
-              color="text.onLight"
-              inputmode="text"
-              placeholder="Username"
-              type="text"
-              value=""
-            />
           </div>
           <div
             class="c5"
@@ -237,16 +238,16 @@ exports[`auth2faType: off 1`] = `
                 font-size="0"
               >
                 Password
+                <input
+                  autocomplete="off"
+                  class="c7"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="Password"
+                  type="password"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c7"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="Password"
-                type="password"
-                value=""
-              />
             </div>
           </div>
           <button
@@ -286,434 +287,6 @@ exports[`auth2faType: optional rendering 1`] = `
   margin-bottom: 0px;
   margin-right: 16px;
   width: 100%;
-}
-
-.c12 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
-  margin-bottom: 4px;
-  margin-top: 16px;
-  width: 100%;
-}
-
-.c12:active {
-  opacity: 0.56;
-}
-
-.c12:hover,
-.c12:focus {
-  background: #651FFF;
-}
-
-.c12:active {
-  background: #354AA4;
-}
-
-.c12:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c0 {
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
-  margin-top: 32px;
-  margin-bottom: 32px;
-  padding-bottom: 24px;
-  width: 464px;
-  background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
-  border-radius: 8px;
-}
-
-.c7 {
-  appearance: none;
-  border: none;
-  border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
-}
-
-.c7::-ms-clear {
-  display: none;
-}
-
-.c7::placeholder {
-  opacity: 0.4;
-}
-
-.c7:read-only {
-  cursor: not-allowed;
-}
-
-.c6 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c4 {
-  box-sizing: border-box;
-  padding-top: 16px;
-  padding-left: 32px;
-  padding-right: 32px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
-  display: flex;
-  justify-content: center;
-  flex-direction: column;
-}
-
-.c9 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: flex-end;
-}
-
-.c11 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
-  box-sizing: border-box;
-  border: none;
-  display: block;
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
-  margin-bottom: 0px;
-  border-radius: 4px;
-}
-
-.c11 .react-select__control,
-.c11 .react-select__control--is-focused {
-  min-height: 40px;
-  height: 40px;
-  background-color: transparent;
-  border-color: transparent;
-  border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
-  box-shadow: none;
-}
-
-.c11 .react-select__control:hover,
-.c11 .react-select__control--is-focused:hover {
-  border-color: transparent;
-  cursor: pointer;
-}
-
-.c11 .react-select__option:hover {
-  cursor: pointer;
-  background-color: #eceff1;
-}
-
-.c11 .react-select__option--is-focused {
-  background-color: #eceff1;
-}
-
-.c11 .react-select__option--is-selected {
-  background-color: #cfd8dc;
-  color: inherit;
-}
-
-.c11 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
-}
-
-.c11 .react-select__menu {
-  margin-top: 0px;
-}
-
-.c11 .react-select__indicator-separator {
-  display: none;
-}
-
-.c11 .react-select__loading-indicator {
-  display: none;
-}
-
-.c11 .react-select--is-disabled .react-select__single-value,
-.c11 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
-}
-
-.c11 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
-}
-
-.c3 .prev-slide-enter {
-  transform: translateX(-100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .prev-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .prev-slide-exit {
-  transform: translateX(100%);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-enter {
-  transform: translateX(100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .next-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-exit {
-  transform: translateX(-100%);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-<div
-  class="c0"
-  width="464"
->
-  <div
-    class="c1"
-    color="light"
-  >
-    Custom Title
-  </div>
-  <div
-    class="c2"
-    style="position: relative; height: auto; transition: height 500ms ease;"
-  >
-    <div
-      class="c3"
-    >
-      <div
-        class="c2"
-      >
-        <form
-          class="c4"
-          data-testid="userpassword"
-        >
-          <div
-            class="c5"
-          >
-            <label
-              class="c6"
-              font-size="0"
-            >
-              Username
-            </label>
-            <input
-              autocomplete="off"
-              class="c7"
-              color="text.onLight"
-              inputmode="text"
-              placeholder="Username"
-              type="text"
-              value=""
-            />
-          </div>
-          <div
-            class="c5"
-          >
-            <div
-              class="c8"
-              width="100%"
-            >
-              <label
-                class="c6"
-                font-size="0"
-              >
-                Password
-              </label>
-              <input
-                autocomplete="off"
-                class="c7"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="Password"
-                type="password"
-                value=""
-              />
-            </div>
-          </div>
-          <div
-            class="c5"
-          >
-            <div
-              class="c9"
-            >
-              <div
-                class="c10"
-                data-testid="mfa-select"
-                width="100%"
-              >
-                <label
-                  class="c6"
-                  font-size="0"
-                >
-                  Two-factor type
-                </label>
-                <div
-                  class="c11"
-                >
-                  <div
-                    class="react-select-container css-2b097c-container"
-                  >
-                    <div
-                      class="react-select__control css-yk16xz-control"
-                    >
-                      <div
-                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-                      >
-                        <div
-                          class="react-select__single-value css-1uccc91-singleValue"
-                        >
-                          Hardware Key
-                        </div>
-                        <input
-                          aria-autocomplete="list"
-                          class="css-62g3xt-dummyInput"
-                          id="react-select-4-input"
-                          readonly=""
-                          tabindex="0"
-                          value=""
-                        />
-                      </div>
-                      <div
-                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                      >
-                        <span
-                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                        />
-                        <div
-                          aria-hidden="true"
-                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                        >
-                          <svg
-                            aria-hidden="true"
-                            class="css-6q0nyr-Svg"
-                            focusable="false"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            width="20"
-                          >
-                            <path
-                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                            />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <button
-            class="c12"
-            kind="primary"
-            type="submit"
-            width="100%"
-          >
-            Sign In
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-`;
-
-exports[`auth2faType: otp rendering 1`] = `
-.c2 {
-  box-sizing: border-box;
-}
-
-.c5 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c8 {
-  box-sizing: border-box;
-  margin-bottom: 0px;
-  width: 100%;
-}
-
-.c10 {
-  box-sizing: border-box;
-  max-width: 50%;
-  margin-bottom: 0px;
-  margin-right: 16px;
-  width: 100%;
-}
-
-.c12 {
-  box-sizing: border-box;
-  margin-bottom: 0px;
-  width: 50%;
 }
 
 .c13 {
@@ -790,6 +363,7 @@ exports[`auth2faType: otp rendering 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c7::-ms-clear {
@@ -805,6 +379,16 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c11 {
   color: #FFFFFF;
   display: block;
   font-size: 11px;
@@ -844,7 +428,7 @@ exports[`auth2faType: otp rendering 1`] = `
   align-items: flex-end;
 }
 
-.c11 .react-select-container {
+.c12 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   border: none;
@@ -858,8 +442,8 @@ exports[`auth2faType: otp rendering 1`] = `
   border-radius: 4px;
 }
 
-.c11 .react-select__control,
-.c11 .react-select__control--is-focused {
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
   min-height: 40px;
   height: 40px;
   background-color: transparent;
@@ -870,48 +454,48 @@ exports[`auth2faType: otp rendering 1`] = `
   box-shadow: none;
 }
 
-.c11 .react-select__control:hover,
-.c11 .react-select__control--is-focused:hover {
+.c12 .react-select__control:hover,
+.c12 .react-select__control--is-focused:hover {
   border-color: transparent;
   cursor: pointer;
 }
 
-.c11 .react-select__option:hover {
+.c12 .react-select__option:hover {
   cursor: pointer;
   background-color: #eceff1;
 }
 
-.c11 .react-select__option--is-focused {
+.c12 .react-select__option--is-focused {
   background-color: #eceff1;
 }
 
-.c11 .react-select__option--is-selected {
+.c12 .react-select__option--is-selected {
   background-color: #cfd8dc;
   color: inherit;
 }
 
-.c11 .react-select__option--is-selected:hover {
+.c12 .react-select__option--is-selected:hover {
   background-color: #cfd8dc;
 }
 
-.c11 .react-select__menu {
+.c12 .react-select__menu {
   margin-top: 0px;
 }
 
-.c11 .react-select__indicator-separator {
+.c12 .react-select__indicator-separator {
   display: none;
 }
 
-.c11 .react-select__loading-indicator {
+.c12 .react-select__loading-indicator {
   display: none;
 }
 
-.c11 .react-select--is-disabled .react-select__single-value,
-.c11 .react-select--is-disabled .react-select__placeholder {
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder {
   color: rgba(0,0,0,0.24);
 }
 
-.c11 .react-select--is-disabled .react-select__indicator {
+.c12 .react-select--is-disabled .react-select__indicator {
   color: rgba(0,0,0,0.14);
 }
 
@@ -991,16 +575,16 @@ exports[`auth2faType: otp rendering 1`] = `
               font-size="0"
             >
               Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.onLight"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
             </label>
-            <input
-              autocomplete="off"
-              class="c7"
-              color="text.onLight"
-              inputmode="text"
-              placeholder="Username"
-              type="text"
-              value=""
-            />
           </div>
           <div
             class="c5"
@@ -1014,16 +598,16 @@ exports[`auth2faType: otp rendering 1`] = `
                 font-size="0"
               >
                 Password
+                <input
+                  autocomplete="off"
+                  class="c7"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="Password"
+                  type="password"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c7"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="Password"
-                type="password"
-                value=""
-              />
             </div>
           </div>
           <div
@@ -1038,13 +622,452 @@ exports[`auth2faType: otp rendering 1`] = `
                 width="100%"
               >
                 <label
-                  class="c6"
+                  class="c11"
                   font-size="0"
                 >
                   Two-factor type
                 </label>
                 <div
+                  class="c12"
+                >
+                  <div
+                    class="react-select-container css-2b097c-container"
+                  >
+                    <div
+                      class="react-select__control css-yk16xz-control"
+                    >
+                      <div
+                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                      >
+                        <div
+                          class="react-select__single-value css-1uccc91-singleValue"
+                        >
+                          Hardware Key
+                        </div>
+                        <input
+                          aria-autocomplete="list"
+                          class="css-62g3xt-dummyInput"
+                          id="react-select-4-input"
+                          readonly=""
+                          tabindex="0"
+                          value=""
+                        />
+                      </div>
+                      <div
+                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                      >
+                        <span
+                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                        />
+                        <div
+                          aria-hidden="true"
+                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            class="css-6q0nyr-Svg"
+                            focusable="false"
+                            height="20"
+                            viewBox="0 0 20 20"
+                            width="20"
+                          >
+                            <path
+                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button
+            class="c13"
+            kind="primary"
+            type="submit"
+            width="100%"
+          >
+            Sign In
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`auth2faType: otp rendering 1`] = `
+.c2 {
+  box-sizing: border-box;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 0px;
+  width: 100%;
+}
+
+.c10 {
+  box-sizing: border-box;
+  max-width: 50%;
+  margin-bottom: 0px;
+  margin-right: 16px;
+  width: 100%;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-bottom: 0px;
+  width: 50%;
+}
+
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-bottom: 4px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #651FFF;
+}
+
+.c14:active {
+  background: #354AA4;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 32px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  width: 464px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c7 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c7::-ms-clear {
+  display: none;
+}
+
+.c7::placeholder {
+  opacity: 0.4;
+}
+
+.c7:read-only {
+  cursor: not-allowed;
+}
+
+.c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c11 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c4 {
+  box-sizing: border-box;
+  padding-top: 16px;
+  padding-left: 32px;
+  padding-right: 32px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.c9 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+}
+
+.c12 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c12 .react-select__control:hover,
+.c12 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c12 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c12 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c12 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c12 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c12 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c12 .react-select__indicator-separator {
+  display: none;
+}
+
+.c12 .react-select__loading-indicator {
+  display: none;
+}
+
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+.c3 .prev-slide-enter {
+  transform: translateX(-100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .prev-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .prev-slide-exit {
+  transform: translateX(100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-enter {
+  transform: translateX(100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .next-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-exit {
+  transform: translateX(-100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+<div
+  class="c0"
+  width="464"
+>
+  <div
+    class="c1"
+    color="light"
+  >
+    Custom Title
+  </div>
+  <div
+    class="c2"
+    style="position: relative; height: auto; transition: height 500ms ease;"
+  >
+    <div
+      class="c3"
+    >
+      <div
+        class="c2"
+      >
+        <form
+          class="c4"
+          data-testid="userpassword"
+        >
+          <div
+            class="c5"
+          >
+            <label
+              class="c6"
+              font-size="0"
+            >
+              Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.onLight"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
+            </label>
+          </div>
+          <div
+            class="c5"
+          >
+            <div
+              class="c8"
+              width="100%"
+            >
+              <label
+                class="c6"
+                font-size="0"
+              >
+                Password
+                <input
+                  autocomplete="off"
+                  class="c7"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="Password"
+                  type="password"
+                  value=""
+                />
+              </label>
+            </div>
+          </div>
+          <div
+            class="c5"
+          >
+            <div
+              class="c9"
+            >
+              <div
+                class="c10"
+                data-testid="mfa-select"
+                width="100%"
+              >
+                <label
                   class="c11"
+                  font-size="0"
+                >
+                  Two-factor type
+                </label>
+                <div
+                  class="c12"
                 >
                   <div
                     class="react-select-container css-2b097c-container"
@@ -1098,7 +1121,7 @@ exports[`auth2faType: otp rendering 1`] = `
                 </div>
               </div>
               <div
-                class="c12"
+                class="c13"
                 width="50%"
               >
                 <label
@@ -1106,21 +1129,21 @@ exports[`auth2faType: otp rendering 1`] = `
                   font-size="0"
                 >
                   Authenticator code
+                  <input
+                    autocomplete="one-time-code"
+                    class="c7"
+                    color="text.onLight"
+                    inputmode="numeric"
+                    placeholder="123 456"
+                    type="text"
+                    value=""
+                  />
                 </label>
-                <input
-                  autocomplete="one-time-code"
-                  class="c7"
-                  color="text.onLight"
-                  inputmode="numeric"
-                  placeholder="123 456"
-                  type="text"
-                  value=""
-                />
               </div>
             </div>
           </div>
           <button
-            class="c13"
+            class="c14"
             kind="primary"
             type="submit"
             width="100%"
@@ -1158,7 +1181,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
   width: 100%;
 }
 
-.c12 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1187,20 +1210,20 @@ exports[`auth2faType: webauthn rendering 1`] = `
   width: 100%;
 }
 
-.c12:active {
+.c13:active {
   opacity: 0.56;
 }
 
-.c12:hover,
-.c12:focus {
+.c13:hover,
+.c13:focus {
   background: #651FFF;
 }
 
-.c12:active {
+.c13:active {
   background: #354AA4;
 }
 
-.c12:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -1232,6 +1255,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c7::-ms-clear {
@@ -1247,6 +1271,16 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c11 {
   color: #FFFFFF;
   display: block;
   font-size: 11px;
@@ -1286,7 +1320,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
   align-items: flex-end;
 }
 
-.c11 .react-select-container {
+.c12 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   border: none;
@@ -1300,8 +1334,8 @@ exports[`auth2faType: webauthn rendering 1`] = `
   border-radius: 4px;
 }
 
-.c11 .react-select__control,
-.c11 .react-select__control--is-focused {
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
   min-height: 40px;
   height: 40px;
   background-color: transparent;
@@ -1312,48 +1346,48 @@ exports[`auth2faType: webauthn rendering 1`] = `
   box-shadow: none;
 }
 
-.c11 .react-select__control:hover,
-.c11 .react-select__control--is-focused:hover {
+.c12 .react-select__control:hover,
+.c12 .react-select__control--is-focused:hover {
   border-color: transparent;
   cursor: pointer;
 }
 
-.c11 .react-select__option:hover {
+.c12 .react-select__option:hover {
   cursor: pointer;
   background-color: #eceff1;
 }
 
-.c11 .react-select__option--is-focused {
+.c12 .react-select__option--is-focused {
   background-color: #eceff1;
 }
 
-.c11 .react-select__option--is-selected {
+.c12 .react-select__option--is-selected {
   background-color: #cfd8dc;
   color: inherit;
 }
 
-.c11 .react-select__option--is-selected:hover {
+.c12 .react-select__option--is-selected:hover {
   background-color: #cfd8dc;
 }
 
-.c11 .react-select__menu {
+.c12 .react-select__menu {
   margin-top: 0px;
 }
 
-.c11 .react-select__indicator-separator {
+.c12 .react-select__indicator-separator {
   display: none;
 }
 
-.c11 .react-select__loading-indicator {
+.c12 .react-select__loading-indicator {
   display: none;
 }
 
-.c11 .react-select--is-disabled .react-select__single-value,
-.c11 .react-select--is-disabled .react-select__placeholder {
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder {
   color: rgba(0,0,0,0.24);
 }
 
-.c11 .react-select--is-disabled .react-select__indicator {
+.c12 .react-select--is-disabled .react-select__indicator {
   color: rgba(0,0,0,0.14);
 }
 
@@ -1433,16 +1467,16 @@ exports[`auth2faType: webauthn rendering 1`] = `
               font-size="0"
             >
               Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.onLight"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
             </label>
-            <input
-              autocomplete="off"
-              class="c7"
-              color="text.onLight"
-              inputmode="text"
-              placeholder="Username"
-              type="text"
-              value=""
-            />
           </div>
           <div
             class="c5"
@@ -1456,16 +1490,16 @@ exports[`auth2faType: webauthn rendering 1`] = `
                 font-size="0"
               >
                 Password
+                <input
+                  autocomplete="off"
+                  class="c7"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="Password"
+                  type="password"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c7"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="Password"
-                type="password"
-                value=""
-              />
             </div>
           </div>
           <div
@@ -1480,13 +1514,13 @@ exports[`auth2faType: webauthn rendering 1`] = `
                 width="100%"
               >
                 <label
-                  class="c6"
+                  class="c11"
                   font-size="0"
                 >
                   Two-factor type
                 </label>
                 <div
-                  class="c11"
+                  class="c12"
                 >
                   <div
                     class="react-select-container css-2b097c-container"
@@ -1542,7 +1576,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
             </div>
           </div>
           <button
-            class="c12"
+            class="c13"
             kind="primary"
             type="submit"
             width="100%"
@@ -1639,7 +1673,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c17 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1668,20 +1702,20 @@ exports[`cloud auth2faType: on rendering 1`] = `
   width: 100%;
 }
 
-.c17:active {
+.c18:active {
   opacity: 0.56;
 }
 
-.c17:hover,
-.c17:focus {
+.c18:hover,
+.c18:focus {
   background: #651FFF;
 }
 
-.c17:active {
+.c18:active {
   background: #354AA4;
 }
 
-.c17:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -1727,6 +1761,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c7::-ms-clear {
@@ -1742,6 +1777,16 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c16 {
   color: #FFFFFF;
   display: block;
   font-size: 11px;
@@ -1781,7 +1826,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
   align-items: flex-end;
 }
 
-.c16 .react-select-container {
+.c17 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   border: none;
@@ -1795,8 +1840,8 @@ exports[`cloud auth2faType: on rendering 1`] = `
   border-radius: 4px;
 }
 
-.c16 .react-select__control,
-.c16 .react-select__control--is-focused {
+.c17 .react-select__control,
+.c17 .react-select__control--is-focused {
   min-height: 40px;
   height: 40px;
   background-color: transparent;
@@ -1807,48 +1852,48 @@ exports[`cloud auth2faType: on rendering 1`] = `
   box-shadow: none;
 }
 
-.c16 .react-select__control:hover,
-.c16 .react-select__control--is-focused:hover {
+.c17 .react-select__control:hover,
+.c17 .react-select__control--is-focused:hover {
   border-color: transparent;
   cursor: pointer;
 }
 
-.c16 .react-select__option:hover {
+.c17 .react-select__option:hover {
   cursor: pointer;
   background-color: #eceff1;
 }
 
-.c16 .react-select__option--is-focused {
+.c17 .react-select__option--is-focused {
   background-color: #eceff1;
 }
 
-.c16 .react-select__option--is-selected {
+.c17 .react-select__option--is-selected {
   background-color: #cfd8dc;
   color: inherit;
 }
 
-.c16 .react-select__option--is-selected:hover {
+.c17 .react-select__option--is-selected:hover {
   background-color: #cfd8dc;
 }
 
-.c16 .react-select__menu {
+.c17 .react-select__menu {
   margin-top: 0px;
 }
 
-.c16 .react-select__indicator-separator {
+.c17 .react-select__indicator-separator {
   display: none;
 }
 
-.c16 .react-select__loading-indicator {
+.c17 .react-select__loading-indicator {
   display: none;
 }
 
-.c16 .react-select--is-disabled .react-select__single-value,
-.c16 .react-select--is-disabled .react-select__placeholder {
+.c17 .react-select--is-disabled .react-select__single-value,
+.c17 .react-select--is-disabled .react-select__placeholder {
   color: rgba(0,0,0,0.24);
 }
 
-.c16 .react-select--is-disabled .react-select__indicator {
+.c17 .react-select--is-disabled .react-select__indicator {
   color: rgba(0,0,0,0.14);
 }
 
@@ -1928,16 +1973,16 @@ exports[`cloud auth2faType: on rendering 1`] = `
               font-size="0"
             >
               Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.onLight"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
             </label>
-            <input
-              autocomplete="off"
-              class="c7"
-              color="text.onLight"
-              inputmode="text"
-              placeholder="Username"
-              type="text"
-              value=""
-            />
           </div>
           <div
             class="c8"
@@ -1951,16 +1996,16 @@ exports[`cloud auth2faType: on rendering 1`] = `
                 font-size="0"
               >
                 Password
+                <input
+                  autocomplete="off"
+                  class="c7"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="Password"
+                  type="password"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c7"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="Password"
-                type="password"
-                value=""
-              />
             </div>
             <div
               class="c10"
@@ -1986,13 +2031,13 @@ exports[`cloud auth2faType: on rendering 1`] = `
                 width="100%"
               >
                 <label
-                  class="c6"
+                  class="c16"
                   font-size="0"
                 >
                   Two-factor type
                 </label>
                 <div
-                  class="c16"
+                  class="c17"
                 >
                   <div
                     class="react-select-container css-2b097c-container"
@@ -2055,7 +2100,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
             </a>
           </div>
           <button
-            class="c17"
+            class="c18"
             kind="primary"
             type="submit"
             width="100%"
@@ -2268,6 +2313,7 @@ exports[`server error rendering 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c8::-ms-clear {
@@ -2289,7 +2335,7 @@ exports[`server error rendering 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c1 {
@@ -2398,16 +2444,16 @@ exports[`server error rendering 1`] = `
               font-size="0"
             >
               Username
+              <input
+                autocomplete="off"
+                class="c8"
+                color="text.onLight"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
             </label>
-            <input
-              autocomplete="off"
-              class="c8"
-              color="text.onLight"
-              inputmode="text"
-              placeholder="Username"
-              type="text"
-              value=""
-            />
           </div>
           <div
             class="c6"
@@ -2421,16 +2467,16 @@ exports[`server error rendering 1`] = `
                 font-size="0"
               >
                 Password
+                <input
+                  autocomplete="off"
+                  class="c8"
+                  color="text.onLight"
+                  inputmode="text"
+                  placeholder="Password"
+                  type="password"
+                  value=""
+                />
               </label>
-              <input
-                autocomplete="off"
-                class="c8"
-                color="text.onLight"
-                inputmode="text"
-                placeholder="Password"
-                type="password"
-                value=""
-              />
             </div>
           </div>
           <button

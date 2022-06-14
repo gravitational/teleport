@@ -86,26 +86,33 @@ export default function FieldInput({
     };
   }, [refocusIndicator]);
 
+  const $inputElement = (
+    <Input
+      mt={1}
+      ref={inputRef}
+      type={type}
+      hasError={hasError}
+      placeholder={placeholder}
+      value={value}
+      autoComplete={autoComplete}
+      onChange={onChange}
+      onKeyPress={onKeyPress}
+      readOnly={readonly}
+      inputMode={inputMode}
+    />
+  );
+
   return (
     <Box mb="4" {...styles}>
-      {label && (
-        <LabelInput hasError={hasError}>
+      {label ? (
+        <LabelInput mb={0} hasError={hasError}>
           {labelText}
           {labelTip && <LabelTip text={labelTip} />}
+          {$inputElement}
         </LabelInput>
+      ) : (
+        $inputElement
       )}
-      <Input
-        ref={inputRef}
-        type={type}
-        hasError={hasError}
-        placeholder={placeholder}
-        value={value}
-        autoComplete={autoComplete}
-        onChange={onChange}
-        onKeyPress={onKeyPress}
-        readOnly={readonly}
-        inputMode={inputMode}
-      />
     </Box>
   );
 }

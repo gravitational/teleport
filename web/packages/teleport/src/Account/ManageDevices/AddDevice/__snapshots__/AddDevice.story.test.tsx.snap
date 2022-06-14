@@ -21,7 +21,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   width: 100%;
 }
 
-.c18 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -49,25 +49,25 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   width: 45%;
 }
 
-.c18:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c18:hover,
-.c18:focus {
+.c19:hover,
+.c19:focus {
   background: #651FFF;
 }
 
-.c18:active {
+.c19:active {
   background: #354AA4;
 }
 
-.c18:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c19 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -94,21 +94,21 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   width: 30%;
 }
 
-.c19:active {
+.c20:active {
   opacity: 0.56;
 }
 
-.c19:hover,
-.c19:focus {
+.c20:hover,
+.c20:focus {
   background: #2C3A73;
 }
 
-.c19:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c16 {
+.c17 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -122,17 +122,18 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
-.c16::-ms-clear {
+.c17::-ms-clear {
   display: none;
 }
 
-.c16::placeholder {
+.c17::placeholder {
   opacity: 0.4;
 }
 
-.c16:read-only {
+.c17:read-only {
   cursor: not-allowed;
 }
 
@@ -144,6 +145,16 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c16 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c8 {
@@ -253,7 +264,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   flex-direction: column;
 }
 
-.c17 {
+.c18 {
   box-sizing: border-box;
 }
 
@@ -511,27 +522,27 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
           width="100%"
         >
           <label
-            class="c12"
+            class="c16"
             font-size="0"
           >
             Device name
+            <input
+              autocomplete="off"
+              class="c17"
+              color="text.onLight"
+              inputmode="text"
+              placeholder="Name"
+              type="text"
+              value=""
+            />
           </label>
-          <input
-            autocomplete="off"
-            class="c16"
-            color="text.onLight"
-            inputmode="text"
-            placeholder="Name"
-            type="text"
-            value=""
-          />
         </div>
       </div>
       <div
-        class="c17"
+        class="c18"
       >
         <button
-          class="c18"
+          class="c19"
           kind="primary"
           type="submit"
           width="45%"
@@ -539,7 +550,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
           Add device
         </button>
         <button
-          class="c19"
+          class="c20"
           kind="secondary"
           width="30%"
         >
@@ -595,7 +606,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   width: 100%;
 }
 
-.c19 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -623,25 +634,25 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   width: 45%;
 }
 
-.c19:active {
+.c20:active {
   opacity: 0.56;
 }
 
-.c19:hover,
-.c19:focus {
+.c20:hover,
+.c20:focus {
   background: #651FFF;
 }
 
-.c19:active {
+.c20:active {
   background: #354AA4;
 }
 
-.c19:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c20 {
+.c21 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -668,21 +679,21 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   width: 30%;
 }
 
-.c20:active {
+.c21:active {
   opacity: 0.56;
 }
 
-.c20:hover,
-.c20:focus {
+.c21:hover,
+.c21:focus {
   background: #2C3A73;
 }
 
-.c20:disabled {
+.c21:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c17 {
+.c18 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -696,17 +707,18 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
-.c17::-ms-clear {
+.c18::-ms-clear {
   display: none;
 }
 
-.c17::placeholder {
+.c18::placeholder {
   opacity: 0.4;
 }
 
-.c17:read-only {
+.c18:read-only {
   cursor: not-allowed;
 }
 
@@ -718,6 +730,16 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c17 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c9 {
@@ -827,7 +849,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   flex-direction: column;
 }
 
-.c18 {
+.c19 {
   box-sizing: border-box;
 }
 
@@ -1092,27 +1114,27 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
           width="100%"
         >
           <label
-            class="c13"
+            class="c17"
             font-size="0"
           >
             Device name
+            <input
+              autocomplete="off"
+              class="c18"
+              color="text.onLight"
+              inputmode="text"
+              placeholder="Name"
+              type="text"
+              value=""
+            />
           </label>
-          <input
-            autocomplete="off"
-            class="c17"
-            color="text.onLight"
-            inputmode="text"
-            placeholder="Name"
-            type="text"
-            value=""
-          />
         </div>
       </div>
       <div
-        class="c18"
+        class="c19"
       >
         <button
-          class="c19"
+          class="c20"
           kind="primary"
           type="submit"
           width="45%"
@@ -1120,7 +1142,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
           Add device
         </button>
         <button
-          class="c20"
+          class="c21"
           kind="secondary"
           width="30%"
         >
@@ -1170,13 +1192,13 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   width: 50%;
 }
 
-.c19 {
+.c20 {
   box-sizing: border-box;
   margin-bottom: 4px;
   width: 100%;
 }
 
-.c21 {
+.c22 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1204,25 +1226,25 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   width: 45%;
 }
 
-.c21:active {
+.c22:active {
   opacity: 0.56;
 }
 
-.c21:hover,
-.c21:focus {
+.c22:hover,
+.c22:focus {
   background: #651FFF;
 }
 
-.c21:active {
+.c22:active {
   background: #354AA4;
 }
 
-.c21:disabled {
+.c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c22 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1249,21 +1271,21 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   width: 30%;
 }
 
-.c22:active {
+.c23:active {
   opacity: 0.56;
 }
 
-.c22:hover,
-.c22:focus {
+.c23:hover,
+.c23:focus {
   background: #2C3A73;
 }
 
-.c22:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c18 {
+.c19 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -1277,17 +1299,18 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
-.c18::-ms-clear {
+.c19::-ms-clear {
   display: none;
 }
 
-.c18::placeholder {
+.c19::placeholder {
   opacity: 0.4;
 }
 
-.c18:read-only {
+.c19:read-only {
   cursor: not-allowed;
 }
 
@@ -1299,6 +1322,16 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c18 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c12 {
@@ -1427,7 +1460,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   flex-direction: column;
 }
 
-.c20 {
+.c21 {
   box-sizing: border-box;
 }
 
@@ -1644,48 +1677,48 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
             width="50%"
           >
             <label
-              class="c15"
+              class="c18"
               font-size="0"
             >
               Authenticator code
+              <input
+                autocomplete="one-time-code"
+                class="c19"
+                color="text.onLight"
+                inputmode="numeric"
+                placeholder="123 456"
+                type="text"
+                value=""
+              />
             </label>
-            <input
-              autocomplete="one-time-code"
-              class="c18"
-              color="text.onLight"
-              inputmode="numeric"
-              placeholder="123 456"
-              type="text"
-              value=""
-            />
           </div>
         </div>
         <div
-          class="c19"
+          class="c20"
           width="100%"
         >
           <label
-            class="c15"
+            class="c18"
             font-size="0"
           >
             Device name
+            <input
+              autocomplete="off"
+              class="c19"
+              color="text.onLight"
+              inputmode="text"
+              placeholder="Name"
+              type="text"
+              value=""
+            />
           </label>
-          <input
-            autocomplete="off"
-            class="c18"
-            color="text.onLight"
-            inputmode="text"
-            placeholder="Name"
-            type="text"
-            value=""
-          />
         </div>
       </div>
       <div
-        class="c20"
+        class="c21"
       >
         <button
-          class="c21"
+          class="c22"
           kind="primary"
           type="submit"
           width="45%"
@@ -1693,7 +1726,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
           Add device
         </button>
         <button
-          class="c22"
+          class="c23"
           kind="secondary"
           width="30%"
         >

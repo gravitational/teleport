@@ -1,5 +1,5 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,16 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import Input from '../Input';
-
-export default {
-  title: 'Design/Inputs',
-};
-
-export const Inputs = () => (
-  <>
-    <Input mb={4} placeholder="Enter SomeText" />
-    <Input mb={4} hasError={true} defaultValue="This field has an error" />
-  </>
-);
+export * from './TextArea';
