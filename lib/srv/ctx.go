@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -274,7 +275,7 @@ type ServerContext struct {
 
 	// RemoteClient holds a SSH client to a remote server. Only used by the
 	// recording proxy.
-	RemoteClient *ssh.Client
+	RemoteClient *tracessh.Client
 
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.

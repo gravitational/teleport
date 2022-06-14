@@ -18,7 +18,6 @@ package common
 
 import (
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/acme"
 
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -71,7 +70,8 @@ const (
 
 // SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = []Protocol{
-	acme.ALPNProto,
+	ProtocolHTTP2,
+	ProtocolHTTP,
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
@@ -79,8 +79,6 @@ var SupportedProtocols = []Protocol{
 	ProtocolSQLServer,
 	ProtocolProxySSH,
 	ProtocolReverseTunnel,
-	ProtocolHTTP,
-	ProtocolHTTP2,
 	ProtocolAuth,
 }
 

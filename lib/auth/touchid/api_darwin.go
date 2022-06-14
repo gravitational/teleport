@@ -38,6 +38,42 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	// rpIDUserMarker is the marker for labels containing RPID and username.
+	// The marker is useful to tell apart labels written by tsh from other entries
+	// (for example, a mysterious "iMessage Signing Key" shows up in some macs).
+	rpIDUserMarker = "t01/"
+
+	// rpID are domain names, so it's safe to assume they won't have spaces in them.
+	// https://www.w3.org/TR/webauthn-2/#relying-party-identifier
+	labelSeparator = " "
+)
+
+type parsedLabel struct {
+	rpID, user string
+}
+
+func makeLabel(rpID, user string) string {
+	return rpIDUserMarker + rpID + labelSeparator + user
+}
+
+func parseLabel(label string) (*parsedLabel, error) {
+	if !strings.HasPrefix(label, rpIDUserMarker) {
+		return nil, trace.BadParameter("label has unexpected prefix: %q", label)
+	}
+	l := label[len(rpIDUserMarker):]
+
+	idx := strings.Index(l, labelSeparator)
+	if idx == -1 {
+		return nil, trace.BadParameter("label separator not found: %q", label)
+	}
+
+	return &parsedLabel{
+		rpID: l[0:idx],
+		user: l[idx+1:],
+	}, nil
+}
+
 var native nativeTID = &touchIDImpl{}
 
 type touchIDImpl struct{}
@@ -83,24 +119,6 @@ func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialIn
 		CredentialID: credentialID,
 		publicKeyRaw: pubKeyRaw,
 	}, nil
-}
-
-// rpID are domain names, so it's safe to assume they won't have spaces in them.
-// https://www.w3.org/TR/webauthn-2/#relying-party-identifier
-const labelSeparator = " "
-
-func makeLabel(rpID, user string) string {
-	return rpID + labelSeparator + user
-}
-
-func splitLabel(label string) (string, string) {
-	idx := strings.Index(label, labelSeparator)
-	if idx == -1 {
-		return "", ""
-	}
-	rpID := label[0:idx]
-	user := label[idx+1:]
-	return rpID, user
 }
 
 func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, error) {
@@ -154,6 +172,11 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	defer C.free(unsafe.Pointer(errMsgC))
 
 	infos, res := readCredentialInfos(func(infosOut **C.CredentialInfo) C.int {
+		// ListCredentials lists all Keychain entries we have access to, without
+		// prefix-filtering labels, for example.
+		// Unexpected entries are removed via readCredentialInfos. This behavior is
+		// intentional, as it lets us glimpse into otherwise inaccessible Keychain
+		// contents.
 		return C.ListCredentials(reasonC, infosOut, &errMsgC)
 	})
 	if res < 0 {
@@ -198,9 +221,9 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 		credentialID := appLabel
 
 		// user@rpid
-		rpID, user := splitLabel(label)
-		if rpID == "" || user == "" {
-			log.Debugf("Skipping credential %q: unexpected label: %q", credentialID, label)
+		parsedLabel, err := parseLabel(label)
+		if err != nil {
+			log.Debugf("Skipping credential %q: %v", credentialID, err)
 			continue
 		}
 
@@ -222,8 +245,8 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 		infos = append(infos, CredentialInfo{
 			UserHandle:   userHandle,
 			CredentialID: credentialID,
-			RPID:         rpID,
-			User:         user,
+			RPID:         parsedLabel.rpID,
+			User:         parsedLabel.user,
 			publicKeyRaw: pubKeyRaw,
 		})
 	}

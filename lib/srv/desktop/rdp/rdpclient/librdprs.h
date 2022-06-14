@@ -202,7 +202,7 @@ enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint3
  *
  * # Safety
  *
- * The caller must ensure that drive_name points to a valid buffer.
+ * The caller must ensure that sd_announce.name points to a valid buffer.
  */
 enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
                                        struct CGOSharedDirectoryAnnounce sd_announce);

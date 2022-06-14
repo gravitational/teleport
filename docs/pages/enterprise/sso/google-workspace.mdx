@@ -5,9 +5,7 @@ h1: SSH Authentication with Google Workspace (G Suite)
 videoBanner: WTLWc6nnPfk
 ---
 
-## Google Workspace as SSO for SSH
-
-This guide will cover how to configure [Google Workspace](https://workspace.google.com/) to be a
+This guide will explain how to configure [Google Workspace](https://workspace.google.com/) to be a
 single sign-on (SSO) provider to issue SSH credentials to specific groups of users.
 When used in combination with role based access control (RBAC) it allows SSH administrators
 to define policies like:
@@ -16,14 +14,24 @@ to define policies like:
 - Developers must never SSH into production servers.
 - ... and many others.
 
-<Notice
-  type="warning"
+<ScopedBlock
   scope={["oss"]}
 >
 
   This guide requires Teleport Cloud or Teleport Enterprise.
 
-</Notice>
+  View this guide as the user of another Teleport edition:
+
+  <TileSet>
+  <Tile icon="cloud" title="Teleport Cloud" href="./google-workspace.mdx/?scope=cloud">
+  </Tile>
+  <Tile icon="building" title="Teleport Enterprise" href="./google-workspace.mdx/?scope=enterprise">
+  </Tile>
+  </TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud", "enterprise"]}>
 
 ## Prerequisites
 
@@ -346,3 +354,5 @@ automatically in a browser).
 - [Google Workspace Cloud Identity API](https://cloud.google.com/identity)
 - [Google Workspace Directory API](https://developers.google.com/admin-sdk/directory)
 - [How nested Google Workspace groups work](https://support.google.com/a/answer/167100?hl=en)
+
+</ScopedBlock>

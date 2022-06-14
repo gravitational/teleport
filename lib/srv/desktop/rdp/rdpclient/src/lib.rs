@@ -255,11 +255,11 @@ fn connect_rdp_inner(
             unsafe {
                 if tdp_sd_acknowledge(go_ref, &mut ack) != CGOErrCode::ErrCodeSuccess {
                     return Err(RdpError::TryError(String::from(
-                        "call to sd_info_request failed",
+                        "call to tdp_sd_acknowledge failed",
                     )));
                 }
+                Ok(())
             }
-            Ok(())
         },
     );
 
@@ -601,7 +601,7 @@ pub unsafe extern "C" fn update_clipboard(
 ///
 /// # Safety
 ///
-/// The caller must ensure that drive_name points to a valid buffer.
+/// The caller must ensure that sd_announce.name points to a valid buffer.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_announce(
     client_ptr: *mut Client,
@@ -966,12 +966,16 @@ pub enum CGOErrCode {
     ErrCodeFailure = 1,
 }
 
+/// CGOSharedDirectoryAnnounce is sent by the TDP client to the server
+/// to announce a new directory to be shared over TDP.
 #[repr(C)]
 pub struct CGOSharedDirectoryAnnounce {
     pub directory_id: u32,
     pub name: *const c_char,
 }
 
+/// SharedDirectoryAcknowledge is sent by the TDP server to the client
+/// to acknowledge that a SharedDirectoryAnnounce was received.
 #[derive(Debug)]
 #[repr(C)]
 pub struct SharedDirectoryAcknowledge {
@@ -981,6 +985,8 @@ pub struct SharedDirectoryAcknowledge {
 
 pub type CGOSharedDirectoryAcknowledge = SharedDirectoryAcknowledge;
 
+/// SharedDirectoryInfoRequest is sent from the TDP server to the client
+/// to request information about a file or directory at a given path.
 #[derive(Debug)]
 pub struct SharedDirectoryInfoRequest {
     completion_id: u32,
@@ -1005,6 +1011,8 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
     }
 }
 
+/// SharedDirectoryInfoResponse is sent by the TDP client to the server
+/// in response to a `Shared Directory Info Request`.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct SharedDirectoryInfoResponse {
@@ -1030,6 +1038,8 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
     }
 }
 
+/// FileSystemObject is a TDP structure containing the metadata
+/// of a file or directory.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct FileSystemObject {
@@ -1060,6 +1070,8 @@ impl From<CGOFileSystemObject> for FileSystemObject {
     }
 }
 
+/// SharedDirectoryCreateRequest is sent by the TDP server to
+/// the client to request the creation of a new file or directory.
 #[derive(Debug)]
 pub struct SharedDirectoryCreateRequest {
     completion_id: u32,
@@ -1076,6 +1088,8 @@ pub struct CGOSharedDirectoryCreateRequest {
     pub path: *const c_char,
 }
 
+/// SharedDirectoryCreateResponse is sent by the TDP client to the server
+/// to acknowledge a SharedDirectoryCreateRequest was received and executed.
 #[derive(Debug)]
 #[repr(C)]
 pub struct SharedDirectoryCreateResponse {
@@ -1085,6 +1099,8 @@ pub struct SharedDirectoryCreateResponse {
 
 type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
 
+/// SharedDirectoryDeleteRequest is sent by the TDP server to the client
+/// to request the deletion of a file or directory at path.
 #[derive(Debug)]
 pub struct SharedDirectoryDeleteRequest {
     completion_id: u32,
@@ -1099,6 +1115,8 @@ pub struct CGOSharedDirectoryDeleteRequest {
     pub path: *const c_char,
 }
 
+/// SharedDirectoryDeleteResponse is sent by the TDP client to the server
+/// to acknowledge a SharedDirectoryDeleteRequest was received and executed.
 pub type SharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
 pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
 

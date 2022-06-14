@@ -16,7 +16,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -41,17 +40,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ports contains tcp ports allocated for all integration tests.
-var ports utils.PortList
+func TestMain(m *testing.M) {
+	// Enable HSM feature.
+	// This is safe to do here, as all tests in this package require HSM to be
+	// enabled.
+	modules.SetModules(&modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			HSM: true,
+		},
+	})
 
-func init() {
-	// Allocate tcp ports for all HSM integration tests. Don't overlap with
-	// ports used by integration_test.go.
-	var err error
-	ports, err = utils.GetFreeTCPPorts(100, utils.PortStartingNumber+5000)
-	if err != nil {
-		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
-	}
+	os.Exit(m.Run())
 }
 
 type teleportService struct {
@@ -192,6 +192,13 @@ func (t *teleportService) waitForPhaseChange(ctx context.Context) error {
 	return nil
 }
 
+func (t *teleportService) AuthSSHAddr(testingT *testing.T) utils.NetAddr {
+	addr, err := t.process.AuthSSHAddr()
+	require.NoError(testingT, err)
+
+	return *addr
+}
+
 type TeleportServices []*teleportService
 
 func (s TeleportServices) forEach(f func(t *teleportService) error) error {
@@ -231,7 +238,7 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig backend.C
 	config.ClientTimeout = time.Second
 	config.ShutdownTimeout = time.Minute
 	config.DataDir = t.TempDir()
-	config.Auth.SSHAddr.Addr = net.JoinHostPort(hostName, ports.Pop())
+	config.Auth.SSHAddr.Addr = net.JoinHostPort(hostName, "0")
 	config.Auth.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -278,14 +285,14 @@ func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, l
 	config.PollingPeriod = 1 * time.Second
 	config.Token = "foo"
 	config.SSH.Enabled = true
-	config.SSH.Addr.Addr = net.JoinHostPort(hostName, ports.Pop())
+	config.SSH.Addr.Addr = net.JoinHostPort(hostName, "0")
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.DisableWebService = true
 	config.Proxy.DisableReverseTunnel = true
-	config.Proxy.SSHAddr.Addr = net.JoinHostPort(hostName, ports.Pop())
-	config.Proxy.WebAddr.Addr = net.JoinHostPort(hostName, ports.Pop())
+	config.Proxy.SSHAddr.Addr = net.JoinHostPort(hostName, "0")
+	config.Proxy.WebAddr.Addr = net.JoinHostPort(hostName, "0")
 	config.CachePolicy.Enabled = true
 	config.PollingPeriod = 500 * time.Millisecond
 	config.ClientTimeout = time.Second
@@ -311,16 +318,10 @@ func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, l
 
 // Tests a single CA rotation with a single HSM auth server
 func TestHSMRotation(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("SOFTHSM2_PATH") == "" {
 		t.Skip("Skipping test as SOFTHSM2_PATH is not set")
 	}
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			HSM: true,
-		},
-	})
 
 	// pick a conservative timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
@@ -349,7 +350,7 @@ func TestHSMRotation(t *testing.T) {
 
 	// start a proxy to make sure it can get creds at each stage of rotation
 	log.Debug("TestHSMRotation: starting proxy")
-	proxy := newTeleportService(newProxyConfig(ctx, t, authConfig.Auth.SSHAddr, log), "proxy")
+	proxy := newTeleportService(newProxyConfig(ctx, t, auth1.AuthSSHAddr(t), log), "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
 	t.Cleanup(func() {
 		require.NoError(t, proxy.process.Close())
@@ -395,16 +396,10 @@ func TestHSMRotation(t *testing.T) {
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
 		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
 	}
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			HSM: true,
-		},
-	})
 
 	// pick a conservative timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
@@ -446,8 +441,11 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	log.Debug("TestHSMDualAuthRotation: Starting load balancer")
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
-	authAddr := utils.MustParseAddr(net.JoinHostPort(hostName, ports.Pop()))
-	lb, err := utils.NewLoadBalancer(ctx, *authAddr, auth1Config.Auth.SSHAddr)
+	lb, err := utils.NewLoadBalancer(
+		ctx,
+		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		auth1.AuthSSHAddr(t),
+	)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -455,7 +453,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// start a proxy to make sure it can get creds at each stage of rotation
 	log.Debug("TestHSMDualAuthRotation: Starting proxy")
-	proxyConfig := newProxyConfig(ctx, t, *authAddr, log)
+	proxyConfig := newProxyConfig(ctx, t, utils.FromAddr(lb.Addr()), log)
 	proxy := newTeleportService(proxyConfig, "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
 	t.Cleanup(func() {
@@ -483,7 +481,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 		require.NoError(t, err)
 		tlsConfig, err := identity.TLSConfig(nil)
 		require.NoError(t, err)
-		authAddrs := []utils.NetAddr{auth2Config.Auth.SSHAddr}
+		authAddrs := []utils.NetAddr{auth2.AuthSSHAddr(t)}
 		clt, err := auth.NewClient(client.Config{
 			Addrs: utils.NetAddrsToStrings(authAddrs),
 			Credentials: []client.Credentials{
@@ -551,7 +549,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	}
 
 	// Safe to send traffic to new auth server now that a full rotation has been completed.
-	lb.AddBackend(auth2Config.Auth.SSHAddr)
+	lb.AddBackend(auth2.AuthSSHAddr(t))
 
 	// load balanced client shoud work with either backend
 	getAdminClient = func() *auth.Client {
@@ -708,16 +706,10 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 // Tests a dual-auth server migration from raw keys to HSM keys
 func TestHSMMigrate(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
 		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
 	}
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			HSM: true,
-		},
-	})
 
 	// pick a conservative timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
@@ -764,8 +756,12 @@ func TestHSMMigrate(t *testing.T) {
 	log.Debug("TestHSMMigrate: Starting load balancer")
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
-	authAddr := utils.MustParseAddr(net.JoinHostPort(hostName, ports.Pop()))
-	lb, err := utils.NewLoadBalancer(ctx, *authAddr, auth1Config.Auth.SSHAddr, auth2Config.Auth.SSHAddr)
+	lb, err := utils.NewLoadBalancer(
+		ctx,
+		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		auth1.AuthSSHAddr(t),
+		auth2.AuthSSHAddr(t),
+	)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -773,7 +769,7 @@ func TestHSMMigrate(t *testing.T) {
 
 	// start a proxy to make sure it can get creds at each stage of migration
 	log.Debug("TestHSMMigrate: Starting proxy")
-	proxyConfig := newProxyConfig(ctx, t, *authAddr, log)
+	proxyConfig := newProxyConfig(ctx, t, utils.FromAddr(lb.Addr()), log)
 	proxy := newTeleportService(proxyConfig, "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
 	t.Cleanup(func() {
@@ -788,7 +784,7 @@ func TestHSMMigrate(t *testing.T) {
 		require.NoError(t, err)
 		tlsConfig, err := identity.TLSConfig(nil)
 		require.NoError(t, err)
-		authAddrs := []utils.NetAddr{auth2Config.Auth.SSHAddr}
+		authAddrs := []utils.NetAddr{auth2.AuthSSHAddr(t)}
 		clt, err := auth.NewClient(client.Config{
 			Addrs: utils.NetAddrsToStrings(authAddrs),
 			Credentials: []client.Credentials{
@@ -807,7 +803,7 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, testClient(clt))
 
 	// Phase 1: migrate auth1 to HSM
-	lb.RemoveBackend(auth1Config.Auth.SSHAddr)
+	lb.RemoveBackend(auth1.AuthSSHAddr(t))
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
 	auth1Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
@@ -871,10 +867,10 @@ func TestHSMMigrate(t *testing.T) {
 	}
 
 	// Safe to send traffic to new auth1 again
-	lb.AddBackend(auth1Config.Auth.SSHAddr)
+	lb.AddBackend(auth1.AuthSSHAddr(t))
 
 	// Phase 2: migrate auth2 to HSM
-	lb.RemoveBackend(auth2Config.Auth.SSHAddr)
+	lb.RemoveBackend(auth2.AuthSSHAddr(t))
 	auth2.process.Close()
 	require.NoError(t, auth2.waitForShutdown(ctx))
 	auth2Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
@@ -899,6 +895,6 @@ func TestHSMMigrate(t *testing.T) {
 	}
 
 	// Safe to send traffic to new auth2 again
-	lb.AddBackend(auth2Config.Auth.SSHAddr)
+	lb.AddBackend(auth2.AuthSSHAddr(t))
 	require.NoError(t, testClient(clt))
 }

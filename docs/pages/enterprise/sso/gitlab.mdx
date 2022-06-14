@@ -15,12 +15,24 @@ like:
 - Only members of "ProductionKubernetes" can access production Kubernetes clusters
 - Developers must never SSH into production servers.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
+<ScopedBlock
+  scope={["oss"]}
 >
-  This guide requires a commercial edition of Teleport.
-</Admonition>
+
+  This guide requires Teleport Cloud or Teleport Enterprise.
+
+  View this guide as the user of another Teleport edition:
+
+  <TileSet>
+  <Tile icon="cloud" title="Teleport Cloud" href="./gitlab.mdx/?scope=cloud">
+  </Tile>
+  <Tile icon="building" title="Teleport Enterprise" href="./gitlab.mdx/?scope=enterprise">
+  </Tile>
+  </TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud", "enterprise"]}>
 
 ## Enable default OIDC authentication
 
@@ -179,3 +191,5 @@ automatically in a browser).
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+</ScopedBlock>

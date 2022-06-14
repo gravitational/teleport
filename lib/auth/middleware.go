@@ -598,7 +598,7 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 	// Perform the handshake if it hasn't been already. Before the handshake we
 	// won't have client certs available.
 	if !conn.ConnectionState().HandshakeComplete {
-		if err := conn.Handshake(); err != nil {
+		if err := conn.HandshakeContext(ctx); err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
