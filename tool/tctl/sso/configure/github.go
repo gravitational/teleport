@@ -133,14 +133,14 @@ func ResolveCallbackURL(logger *logrus.Entry, clt auth.ClientI, fieldName string
 func specCheckRoles(ctx context.Context, logger *logrus.Entry, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt auth.ClientI) error {
 	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
-		logger.WithError(err).Warn("unable to get roles list. Skipping teams-to-roles sanity checks.")
+		logger.WithError(err).Warn("Unable to get roles list. Skipping teams-to-roles sanity checks.")
 		return nil
 	}
 
-	roleMap := map[string]bool{}
-	var roleNames []string
+	roleMap := map[string]struct{}{}
+	roleNames := make([]string, 0, len(allRoles))
 	for _, role := range allRoles {
-		roleMap[role.GetName()] = true
+		roleMap[role.GetName()] = struct{}{}
 		roleNames = append(roleNames, role.GetName())
 	}
 
