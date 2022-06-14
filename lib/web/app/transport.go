@@ -240,6 +240,7 @@ func dialAppServer(proxyClient reversetunnel.Tunnel, identity *tlsca.Identity, s
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 		ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), identity.RouteToApp.ClusterName),
 		ConnType: types.AppTunnel,
+		ProxyIDs: server.GetProxyIDs(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

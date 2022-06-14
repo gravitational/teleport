@@ -22,51 +22,9 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// ValidateOIDCConnector validates the OIDC connector and sets default values
-func ValidateOIDCConnector(oc types.OIDCConnector) error {
-	if err := oc.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := url.Parse(oc.GetIssuerURL()); err != nil {
-		return trace.BadParameter("IssuerURL: bad url: '%v'", oc.GetIssuerURL())
-	}
-	if _, err := url.Parse(oc.GetRedirectURL()); err != nil {
-		return trace.BadParameter("RedirectURL: bad url: '%v'", oc.GetRedirectURL())
-	}
-
-	if oc.GetGoogleServiceAccountURI() != "" && oc.GetGoogleServiceAccount() != "" {
-		return trace.BadParameter("one of either google_service_account_uri or google_service_account is supported, not both")
-	}
-
-	if oc.GetGoogleServiceAccountURI() != "" {
-		uri, err := utils.ParseSessionsURI(oc.GetGoogleServiceAccountURI())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if uri.Scheme != teleport.SchemeFile {
-			return trace.BadParameter("only %v:// scheme is supported for google_service_account_uri", teleport.SchemeFile)
-		}
-		if oc.GetGoogleAdminEmail() == "" {
-			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
-		}
-	}
-	if oc.GetGoogleServiceAccount() != "" {
-		if oc.GetGoogleAdminEmail() == "" {
-			return trace.BadParameter("whenever google_service_account is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
-		}
-	}
-
-	if len(oc.GetClaimsToRoles()) == 0 {
-		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
-	}
-
-	return nil
-}
 
 // GetClaimNames returns a list of claim names from the claim values
 func GetClaimNames(claims jose.Claims) []string {
@@ -95,6 +53,52 @@ func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
 	return traits
 }
 
+// GetRedirectURL gets a redirect URL for the given connector. If the connector
+// has a redirect URL which matches the host of the given Proxy address, then
+// that one will be returned. Otherwise, the first URL in the list will be returned.
+func GetRedirectURL(conn types.OIDCConnector, proxyAddr string) (string, error) {
+	if len(conn.GetRedirectURLs()) == 0 {
+		return "", trace.BadParameter("No redirect URLs provided")
+	}
+
+	// If a specific proxyAddr wasn't provided in the oidc auth request,
+	// or there is only one redirect URL, use the first redirect URL.
+	if proxyAddr == "" || len(conn.GetRedirectURLs()) == 1 {
+		return conn.GetRedirectURLs()[0], nil
+	}
+
+	proxyNetAddr, err := utils.ParseAddr(proxyAddr)
+	if err != nil {
+		return "", trace.Wrap(err, "invalid proxy address %v", proxyAddr)
+	}
+
+	var matchingHostname string
+	for _, r := range conn.GetRedirectURLs() {
+		redirectURL, err := url.ParseRequestURI(r)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// If we have a direct host:port match, return it.
+		if proxyNetAddr.String() == redirectURL.Host {
+			return r, nil
+		}
+
+		// If we have a matching host, but not port,
+		// save it as the best match for now.
+		if matchingHostname == "" && proxyNetAddr.Host() == redirectURL.Hostname() {
+			matchingHostname = r
+		}
+	}
+
+	if matchingHostname != "" {
+		return matchingHostname, nil
+	}
+
+	// No match, default to the first redirect URL.
+	return conn.GetRedirectURLs()[0], nil
+}
+
 // UnmarshalOIDCConnector unmarshals the OIDCConnector resource from JSON.
 func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConnector, error) {
 	cfg, err := CollectOptions(opts)
@@ -113,7 +117,7 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 		if err := utils.FastUnmarshal(bytes, &c); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		if err := ValidateOIDCConnector(&c); err != nil {
+		if err := c.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if cfg.ID != 0 {
@@ -130,7 +134,7 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 
 // MarshalOIDCConnector marshals the OIDCConnector resource to JSON.
 func MarshalOIDCConnector(oidcConnector types.OIDCConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateOIDCConnector(oidcConnector); err != nil {
+	if err := oidcConnector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

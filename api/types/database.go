@@ -88,6 +88,12 @@ type Database interface {
 	GetIAMAction() string
 	// GetIAMResources returns AWS IAM resources that provide access to the database.
 	GetIAMResources() []string
+	// GetSecretStore returns secret store configurations.
+	GetSecretStore() SecretStore
+	// GetManagedUsers returns a list of database users that are managed by Teleport.
+	GetManagedUsers() []string
+	// SetManagedUsers sets a list of database users that are managed by Teleport.
+	SetManagedUsers(users []string)
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// IsRedshift returns true if this is a Redshift database.
@@ -535,6 +541,21 @@ func (d *DatabaseV3) GetIAMResources() []string {
 		}
 	}
 	return nil
+}
+
+// GetSecretStore returns secret store configurations.
+func (d *DatabaseV3) GetSecretStore() SecretStore {
+	return d.Spec.AWS.SecretStore
+}
+
+// GetManagedUsers returns a list of database users that are managed by Teleport.
+func (d *DatabaseV3) GetManagedUsers() []string {
+	return d.Status.ManagedUsers
+}
+
+// SetManagedUsers sets a list of database users that are managed by Teleport.
+func (d *DatabaseV3) SetManagedUsers(users []string) {
+	d.Status.ManagedUsers = users
 }
 
 // getRDSPolicy returns IAM policy document for this RDS database.
