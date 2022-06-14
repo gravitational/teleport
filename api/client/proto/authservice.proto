@@ -1729,6 +1729,28 @@ message GetClusterCACertResponse {
     bytes TLSCA = 1 [ (gogoproto.jsontag) = "tls_ca" ];
 }
 
+// GenerateTokenRequest is a request to generate auth token.
+message GenerateTokenRequest {
+    // Token sets the token value. If not set, it will be auto generated.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+    // Roles is a list of roles this token authenticates as.
+    repeated string Roles = 2 [
+        (gogoproto.jsontag) = "roles",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+    // TTL specifies how long the generated token will be valid for.
+    // Defaults to 30 minutes if not set.
+    int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 4 [ (gogoproto.jsontag) = "labels" ];
+}
+
+// GenerateTokenResponse contains a generated auth token.
+message GenerateTokenResponse {
+    // Token is the generated auth token.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+}
+
 // GetOIDCAuthRequestRequest is a request for GetOIDCAuthRequest.
 message GetOIDCAuthRequestRequest {
     // StateToken is an oidc auth request state token.
@@ -2104,6 +2126,8 @@ service AuthService {
     rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
     // UpsertToken upserts a token in a backend.
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // GenerateToken generates a new auth token.
+    rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 
