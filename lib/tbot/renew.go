@@ -178,7 +178,7 @@ func (b *Bot) generateIdentity(
 		// Make sure to specify this is an impersonated cert request. If unset,
 		// auth cannot differentiate renewable vs impersonated requests when
 		// len(roleRequests) == 0.
-		RoleRequestsOnly: true,
+		UseRoleRequests: true,
 	}
 
 	if configurator != nil {

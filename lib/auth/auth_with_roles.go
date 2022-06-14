@@ -1924,9 +1924,11 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 // user is allowed to assume the returned roles.
 func (a *ServerWithRoles) determineDesiredRolesAndTraits(req proto.UserCertsRequest, user types.User) ([]string, wrappers.Traits, error) {
 	if req.Username == a.context.User.GetName() {
-		// If RoleRequestsOnly is set, make sure we don't return unusable
+		// If UseRoleRequests is set, make sure we don't return unusable
 		// certs: an identity without roles can't be parsed.
-		if req.RoleRequestsOnly && len(req.RoleRequests) == 0 {
+		// DEPRECATED: consider making role requests without UseRoleRequests
+		// set an error in V11.
+		if req.UseRoleRequests && len(req.RoleRequests) == 0 {
 			return nil, nil, trace.BadParameter("at least one role request is required")
 		}
 
@@ -2006,7 +2008,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if len(req.AccessRequests) > 0 {
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
-		if req.RoleRequestsOnly || len(req.RoleRequests) > 0 {
+		if req.UseRoleRequests || len(req.RoleRequests) > 0 {
 			// Note: technically this should never be needed as all role
 			// impersonated certs should have the DisallowReissue set.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
@@ -2205,7 +2207,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
-	} else if req.RoleRequestsOnly || len(req.RoleRequests) > 0 {
+	} else if req.UseRoleRequests || len(req.RoleRequests) > 0 {
 		// Role impersonation uses the user's own name as the impersonator value.
 		certReq.impersonator = a.context.User.GetName()
 
@@ -2244,7 +2246,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if a.context.Identity.GetIdentity().Renewable &&
 		req.Username == a.context.User.GetName() &&
 		len(req.RoleRequests) == 0 &&
-		!req.RoleRequestsOnly &&
+		!req.UseRoleRequests &&
 		!certReq.disallowReissue {
 		certReq.renewable = true
 	}

@@ -265,9 +265,9 @@ message UserCertsRequest {
         (gogoproto.jsontag) = "route_to_windows_desktop,omitempty"
     ];
 
-    // RoleRequestsOnly is used to ensure a certificate request is intended to
+    // UseRoleRequests is used to ensure a certificate request is intended to
     // use role impersonation, even if the list of role requests is empty.
-    bool RoleRequestsOnly = 14 [ (gogoproto.jsontag) = "role_requests_only,omitempty" ];
+    bool UseRoleRequests = 14 [ (gogoproto.jsontag) = "use_role_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

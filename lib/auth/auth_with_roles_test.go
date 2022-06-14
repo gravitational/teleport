@@ -271,11 +271,11 @@ func TestBotNoRoles(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	// Create a new bot.
+	// Create a new bot without roles specified. This should fail.
 	_, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
 		Name: "test",
 	})
-	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
 }
 
 // TestSSOUserCanReissueCert makes sure that SSO user can reissue certificate
@@ -960,7 +960,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 		username         string
 		roles            []string
 		roleRequests     []string
-		roleRequestsOnly bool
+		useRoleRequests  bool
 		expectPrincipals []string
 		expectRoles      []string
 		expectError      func(error) bool
@@ -970,7 +970,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			username:         "alice",
 			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
 			roleRequests:     []string{accessFooRole.GetName(), accessBarRole.GetName()},
-			roleRequestsOnly: true,
+			useRoleRequests:  true,
 			expectPrincipals: []string{"foo", "bar"},
 		},
 		{
@@ -978,46 +978,46 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			username:         "bob",
 			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
 			roleRequests:     []string{accessFooRole.GetName()},
-			roleRequestsOnly: true,
+			useRoleRequests:  true,
 			expectPrincipals: []string{"foo"},
 		},
 		{
 			// Users not using role requests should keep their own roles
-			desc:             "requesting no roles",
-			username:         "charlie",
-			roles:            []string{emptyRole.GetName()},
-			roleRequests:     []string{},
-			roleRequestsOnly: false,
-			expectRoles:      []string{emptyRole.GetName()},
+			desc:            "requesting no roles",
+			username:        "charlie",
+			roles:           []string{emptyRole.GetName()},
+			roleRequests:    []string{},
+			useRoleRequests: false,
+			expectRoles:     []string{emptyRole.GetName()},
 		},
 		{
 			// An empty role request should fail when role requests are
 			// expected.
-			desc:             "requesting no roles with RoleRequestsOnly",
-			username:         "charlie",
-			roles:            []string{emptyRole.GetName()},
-			roleRequests:     []string{},
-			roleRequestsOnly: true,
+			desc:            "requesting no roles with UseRoleRequests",
+			username:        "charlie",
+			roles:           []string{emptyRole.GetName()},
+			roleRequests:    []string{},
+			useRoleRequests: true,
 			expectError: func(err error) bool {
 				return trace.IsBadParameter(err)
 			},
 		},
 		{
-			desc:             "requesting a disallowed role",
-			username:         "dave",
-			roles:            []string{emptyRole.GetName()},
-			roleRequests:     []string{accessFooRole.GetName()},
-			roleRequestsOnly: true,
+			desc:            "requesting a disallowed role",
+			username:        "dave",
+			roles:           []string{emptyRole.GetName()},
+			roleRequests:    []string{accessFooRole.GetName()},
+			useRoleRequests: true,
 			expectError: func(err error) bool {
 				return err != nil && trace.IsAccessDenied(err)
 			},
 		},
 		{
-			desc:             "requesting a nonexistent role",
-			username:         "erin",
-			roles:            []string{emptyRole.GetName()},
-			roleRequests:     []string{"doesnotexist"},
-			roleRequestsOnly: true,
+			desc:            "requesting a nonexistent role",
+			username:        "erin",
+			roles:           []string{emptyRole.GetName()},
+			roleRequests:    []string{"doesnotexist"},
+			useRoleRequests: true,
 			expectError: func(err error) bool {
 				return err != nil && trace.IsNotFound(err)
 			},
@@ -1027,25 +1027,25 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			username:         "frank",
 			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
 			roleRequests:     []string{accessFooRole.GetName()},
-			roleRequestsOnly: true,
+			useRoleRequests:  true,
 			expectPrincipals: []string{"foo"},
 		},
 		{
-			desc:             "requesting a denied role",
-			username:         "geoff",
-			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
-			roleRequests:     []string{accessBarRole.GetName()},
-			roleRequestsOnly: true,
+			desc:            "requesting a denied role",
+			username:        "geoff",
+			roles:           []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
+			roleRequests:    []string{accessBarRole.GetName()},
+			useRoleRequests: true,
 			expectError: func(err error) bool {
 				return err != nil && trace.IsAccessDenied(err)
 			},
 		},
 		{
-			desc:             "misusing a role intended for user impersonation",
-			username:         "helen",
-			roles:            []string{emptyRole.GetName(), dummyUserImpersonatorRole.GetName()},
-			roleRequests:     []string{dummyUserRole.GetName()},
-			roleRequestsOnly: true,
+			desc:            "misusing a role intended for user impersonation",
+			username:        "helen",
+			roles:           []string{emptyRole.GetName(), dummyUserImpersonatorRole.GetName()},
+			roleRequests:    []string{dummyUserRole.GetName()},
+			useRoleRequests: true,
 			expectError: func(err error) bool {
 				return err != nil && trace.IsAccessDenied(err)
 			},
@@ -1071,11 +1071,11 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey:        pub,
-				Username:         user.GetName(),
-				Expires:          time.Now().Add(time.Hour),
-				RoleRequests:     tt.roleRequests,
-				RoleRequestsOnly: tt.roleRequestsOnly,
+				PublicKey:       pub,
+				Username:        user.GetName(),
+				Expires:         time.Now().Add(time.Hour),
+				RoleRequests:    tt.roleRequests,
+				UseRoleRequests: tt.useRoleRequests,
 			})
 			if tt.expectError != nil {
 				require.True(t, tt.expectError(err), "error: %+v: %s", err, trace.DebugReport(err))
