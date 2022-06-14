@@ -26,7 +26,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"image"
 	"image/png"
 	"io"
@@ -64,12 +63,12 @@ const (
 	TypeSharedDirectoryCreateResponse = MessageType(16)
 	TypeSharedDirectoryDeleteRequest  = MessageType(17)
 	TypeSharedDirectoryDeleteResponse = MessageType(18)
-	TypeSharedDirectoryListRequest    = MessageType(25)
-	TypeSharedDirectoryListResponse   = MessageType(26)
 	TypeSharedDirectoryReadRequest    = MessageType(19)
 	TypeSharedDirectoryReadResponse   = MessageType(20)
 	TypeSharedDirectoryWriteRequest   = MessageType(21)
 	TypeSharedDirectoryWriteResponse  = MessageType(22)
+	TypeSharedDirectoryListRequest    = MessageType(25)
+	TypeSharedDirectoryListResponse   = MessageType(26)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -1115,6 +1114,8 @@ func decodeSharedDirectoryListResponse(in peekReader) (SharedDirectoryListRespon
 	}, nil
 }
 
+// SharedDirectoryReadRequest is a message sent by the server to the client to request
+// bytes to be read from the file at the path and starting at byte offset.
 type SharedDirectoryReadRequest struct {
 	CompletionID uint32
 	DirectoryID  uint32
@@ -1192,6 +1193,8 @@ func decodeSharedDirectoryReadRequest(in peekReader) (SharedDirectoryReadRequest
 	}, nil
 }
 
+// SharedDirectoryReadResponse is a message sent by the client to the server
+// in response to the SharedDirectoryReadRequest.
 type SharedDirectoryReadResponse struct {
 	CompletionID   uint32
 	ErrCode        uint32
@@ -1200,7 +1203,6 @@ type SharedDirectoryReadResponse struct {
 }
 
 func (s SharedDirectoryReadResponse) Encode() ([]byte, error) {
-	fmt.Println("SharedDirectoryReadResponse: Encode")
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryReadResponse))
 	binary.Write(buf, binary.BigEndian, s)
@@ -1246,34 +1248,8 @@ func decodeSharedDirectoryReadResponse(in peekReader) (SharedDirectoryReadRespon
 	}, nil
 }
 
-type SharedDirectoryWriteResponse struct {
-	CompletionID uint32
-	ErrCode      uint32
-	BytesWritten uint32
-}
-
-func (s SharedDirectoryWriteResponse) Encode() ([]byte, error) {
-	fmt.Println("SharedDirectoryWriteResponse: Encode")
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeSharedDirectoryWriteResponse))
-	binary.Write(buf, binary.BigEndian, s)
-	return buf.Bytes(), nil
-}
-
-func decodeSharedDirectoryWriteResponse(in peekReader) (SharedDirectoryWriteResponse, error) {
-	t, err := in.ReadByte()
-	if err != nil {
-		return SharedDirectoryWriteResponse{}, trace.Wrap(err)
-	}
-	if t != byte(TypeSharedDirectoryWriteResponse) {
-		return SharedDirectoryWriteResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryWriteResponse(%v)", t, TypeSharedDirectoryWriteResponse)
-	}
-
-	var res SharedDirectoryWriteResponse
-	err = binary.Read(in, binary.BigEndian, &res)
-	return res, err
-}
-
+// SharedDirectoryWriteRequest is a message sent by the server to the client to request
+// bytes to be written the file at the path and starting at byte offset.
 type SharedDirectoryWriteRequest struct {
 	CompletionID    uint32
 	DirectoryID     uint32
@@ -1295,7 +1271,7 @@ func (s SharedDirectoryWriteRequest) Encode() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	binary.Write(buf, binary.BigEndian, s.WriteDataLength)
-	if _, err := io.WriteString(buf, string(s.WriteData)); err != nil {
+	if _, err := buf.Write(s.WriteData); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return buf.Bytes(), nil
@@ -1359,6 +1335,35 @@ func decodeSharedDirectoryWriteRequest(in peekReader) (SharedDirectoryWriteReque
 		WriteData:       writeData,
 	}, nil
 
+}
+
+// SharedDirectoryWriteResponse is a message sent by the client to the server
+// in response to the SharedDirectoryWriteRequest.
+type SharedDirectoryWriteResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+	BytesWritten uint32
+}
+
+func (s SharedDirectoryWriteResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryWriteResponse))
+	binary.Write(buf, binary.BigEndian, s)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryWriteResponse(in peekReader) (SharedDirectoryWriteResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryWriteResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryWriteResponse) {
+		return SharedDirectoryWriteResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryWriteResponse(%v)", t, TypeSharedDirectoryWriteResponse)
+	}
+
+	var res SharedDirectoryWriteResponse
+	err = binary.Read(in, binary.BigEndian, &res)
+	return res, err
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
