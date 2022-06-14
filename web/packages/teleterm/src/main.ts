@@ -81,9 +81,21 @@ app.on('web-contents-created', (_, contents) => {
   contents.setWindowOpenHandler(details => {
     const url = new URL(details.url);
 
-    // Open links to documentation in the external browser.
+    function isUrlSafe(): boolean {
+      if (url.host === 'goteleport.com') {
+        return true;
+      }
+      if (
+        url.host === 'github.com' &&
+        url.pathname.startsWith('/gravitational/')
+      ) {
+        return true;
+      }
+    }
+
+    // Open links to documentation and GitHub issues in the external browser.
     // They need to have `target` set to `_blank`.
-    if (url.host === 'goteleport.com') {
+    if (isUrlSafe()) {
       shell.openExternal(url.toString());
     } else {
       logger.warn(

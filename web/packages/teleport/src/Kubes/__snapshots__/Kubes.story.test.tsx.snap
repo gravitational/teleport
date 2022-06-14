@@ -637,6 +637,7 @@ exports[`failed 1`] = `
   border-radius: 12px;
   background: #222C59;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .c15:before {
@@ -1336,6 +1337,7 @@ exports[`loaded 1`] = `
   border-radius: 12px;
   background: #222C59;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .c15:before {

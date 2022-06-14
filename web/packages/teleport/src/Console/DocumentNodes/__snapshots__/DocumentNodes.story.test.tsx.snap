@@ -373,6 +373,7 @@ exports[`render DocumentNodes 1`] = `
   border-radius: 12px;
   background: #03203C;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .c22:before {

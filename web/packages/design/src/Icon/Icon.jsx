@@ -72,6 +72,10 @@ export const CarrotRight = makeFontIcon('CarrotRight', 'icon-caret-right');
 export const CarrotSort = makeFontIcon('CarrotSort', 'icon-sort');
 export const CarrotUp = makeFontIcon('CarrotUp', 'icon-caret-up');
 export const Cash = makeFontIcon('Cash', 'icon-cash-dollar');
+export const ChatBubble = makeFontIcon(
+  'ChatBubble',
+  'icon-chat_bubble_outline'
+);
 export const ChevronCircleDown = makeFontIcon(
   'ChevronCircleDown',
   'icon-chevron-down-circle'

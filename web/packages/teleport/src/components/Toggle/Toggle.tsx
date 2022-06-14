@@ -14,14 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 import styled from 'styled-components';
 
-export default function Toggle({ isToggled, onToggle }: Props) {
+export default function Toggle({ isToggled, onToggle, children }: Props) {
   return (
     <StyledWrapper>
       <StyledInput checked={isToggled} onChange={() => onToggle()} />
       <StyledSlider />
+      {children}
     </StyledWrapper>
   );
 }
@@ -29,6 +30,7 @@ export default function Toggle({ isToggled, onToggle }: Props) {
 type Props = {
   isToggled: boolean;
   onToggle: () => void;
+  children?: ReactNode;
 };
 
 const StyledWrapper = styled.label`
@@ -44,6 +46,7 @@ const StyledSlider = styled.div`
   border-radius: 12px;
   background: ${props => props.theme.colors.primary.light};
   cursor: pointer;
+  flex-shrink: 0;
 
   &:before {
     content: '';
@@ -64,6 +67,7 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })`
 
   &:checked + ${StyledSlider} {
     background: ${props => props.theme.colors.secondary.main};
+
     &:before {
       transform: translate(16px, -50%);
     }
