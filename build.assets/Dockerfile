@@ -167,7 +167,7 @@ ARG PROTOC_VER
 ARG GOGO_PROTO_TAG
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 ENV PROTOC_NO_VENDOR true
-ENV PROTOC /usr/local/protoc
+ENV PROTOC /usr/local/include/google/protobuf/protoc
 
 RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
      curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
