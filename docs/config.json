@@ -18,7 +18,8 @@
           "entries": [
             {
               "title": "Linux Server",
-              "slug": "/getting-started/linux-server/"
+              "slug": "/getting-started/linux-server/",
+              "hideInScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Docker Compose",
@@ -26,7 +27,8 @@
             },
             {
               "title": "DigitalOcean",
-              "slug": "/getting-started/digitalocean/"
+              "slug": "/getting-started/digitalocean/",
+              "hideInScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -683,7 +685,8 @@
             },
             {
               "title": "Dual Authorization",
-              "slug": "/access-controls/guides/dual-authz/"
+              "slug": "/access-controls/guides/dual-authz/",
+              "hideInScopes": "oss"
             },
             {
               "title": "Impersonation",
@@ -691,7 +694,8 @@
             },
             {
               "title": "Moderated Sessions",
-              "slug": "/access-controls/guides/moderated-sessions/"
+              "slug": "/access-controls/guides/moderated-sessions/",
+              "hideInScopes": "oss"
             }
           ]
         },
@@ -825,7 +829,8 @@
         },
         {
           "title": "Getting Started",
-          "slug": "/cloud/getting-started/"
+          "slug": "/cloud/getting-started/",
+          "hideInScopes": ["oss", "enterprise"]
         },
         {
           "title": "Architecture",
@@ -833,7 +838,8 @@
         },
         {
           "title": "Downloads",
-          "slug": "/cloud/downloads/"
+          "slug": "/cloud/downloads/",
+          "hideInScopes": ["oss", "enterprise"]
         },
         {
           "title": "FAQ",

@@ -10,14 +10,14 @@ organization's Single Sign-On (SSO) provider.
 
 <ScopedBlock scope="oss">
 <TileSet>
-    <Tile 
+    <Tile
     icon="bolt"
     title="Use SSO with Teleport Cloud"
     href="./sso.mdx/?scope=cloud"
   >
     Learn how to use Teleport's SSO integrations in Teleport Cloud.
     </Tile>
-    <Tile 
+    <Tile
     icon="bolt"
     title="Use SSO with Teleport Enterprise"
     href="./sso.mdx/?scope=enterprise"
@@ -200,12 +200,12 @@ based on one of the following examples.
 
 
 You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
-the entity descriptor from your IDP. 
+the entity descriptor from your IDP.
 
 We recommend "pinning" the entity descriptor by including the XML rather than
 fetching from a URL.
 
-Create the connector: 
+Create the connector:
 
 ```code
 $ tctl create -f connector.yaml
@@ -312,7 +312,7 @@ SAML and OIDC types:
 
 | Provider | YAML | Example |
 | - | - | - |
-| Github | `display: Github` | ![github](../../img/teleport-sso/github@2x.png) |
+| GitHub | `display: GitHub` | ![github](../../img/teleport-sso/github@2x.png) |
 | Microsoft | `display: Microsoft` | ![microsoft](../../img/teleport-sso/microsoft@2x.png) |
 | Google | `display: Google` | ![google](../../img/teleport-sso/google@2x.png) |
 | BitBucket | `display: Bitbucket` | ![bitbucket](../../img/teleport-sso/bitbucket@2x.png) |
@@ -361,16 +361,16 @@ Example of a user being denied because the role `clusteradmin` wasn't set up:
 ### Teleport does not show the expected Nodes
 
 When Teleport's Auth Service receives a request to list Teleport Nodes,
-it only returns the Nodes that a user is authorized to access. 
+it only returns the Nodes that a user is authorized to access.
 
 A user's Teleport roles must grant the user explicit access to Nodes with a particular label
- before the user can view those Nodes. The Auth Service compares the user's 
-`traits.logins` with the `allow` and `deny` rules defined in each of the user's roles. 
-If the user's logins match a role's `allow` and `deny` rules, and a Node's labels match 
+ before the user can view those Nodes. The Auth Service compares the user's
+`traits.logins` with the `allow` and `deny` rules defined in each of the user's roles.
+If the user's logins match a role's `allow` and `deny` rules, and a Node's labels match
 the keys and values listed within a role's `node_labels` field, then the Auth Service will
 list the Node in response to the user's request.
 
-When configuring SSO, ensure that the identity provider is populating each user's 
+When configuring SSO, ensure that the identity provider is populating each user's
 traits correctly. For a user to see a Node in Teleport, the result of populating a
  template variable in a role's `allow.logins` must match at least one of a user's
  `traits.logins`.
