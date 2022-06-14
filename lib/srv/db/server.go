@@ -31,9 +31,11 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
+	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/utils"
@@ -44,6 +46,8 @@ import (
 	_ "github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
+	// Import to register Snowflake engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -85,6 +89,9 @@ type Config struct {
 	AWSMatchers []services.AWSMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
+	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
+	// between all databases.
+	CloudLabels labels.Importer
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 	// OnReconcile is called after each database resource reconciliation.
@@ -101,6 +108,10 @@ type Config struct {
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
 	CloudIAM *cloud.IAM
+	// ConnectedProxyGetter gets the proxies teleport is connected to.
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	// CloudUsers manage users for cloud hosted databases.
+	CloudUsers *users.Users
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -181,6 +192,19 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.Limiter == nil {
 		// Use default limiter if nothing is provided. Connection limiting will be disabled.
 		c.Limiter, err = limiter.NewLimiter(limiter.Config{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if c.ConnectedProxyGetter == nil {
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+
+	if c.CloudUsers == nil {
+		c.CloudUsers, err = users.NewUsers(users.Config{
+			Clients:    c.CloudClients,
+			UpdateMeta: c.CloudMeta.Update,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -326,6 +350,11 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	if err := s.startHeartbeat(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
+	// Setup managed users for database.
+	if err := s.cfg.CloudUsers.Setup(ctx, database); err != nil {
+		s.log.WithError(err).Warnf("Failed to setup users for %v.", database.GetName())
+	}
+
 	s.log.Debugf("Started %v.", database)
 	return nil
 }
@@ -529,8 +558,11 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
+	if s.cfg.CloudLabels != nil {
+		s.cfg.CloudLabels.Apply(copy)
+	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
-	return types.NewDatabaseServerV3(types.Metadata{
+	server, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:    copy.GetName(),
 		Expires: &expires,
 	}, types.DatabaseServerSpecV3{
@@ -539,7 +571,13 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		HostID:   s.cfg.HostID,
 		Rotation: s.getRotationState(),
 		Database: copy,
+		ProxyIDs: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
@@ -560,6 +598,9 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if err := s.cfg.CloudIAM.Start(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Start cloud users that will be monitoring cloud users.
+	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
@@ -795,6 +836,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Context:      s.closeContext,
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
+		Users:        s.cfg.CloudUsers,
 	})
 }
 

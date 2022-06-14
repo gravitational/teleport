@@ -18,6 +18,8 @@ package main
 
 import (
 	"github.com/gravitational/teleport/tool/tctl/common"
+	"github.com/gravitational/teleport/tool/tctl/sso/configure"
+	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
 
 func main() {
@@ -31,6 +33,8 @@ func main() {
 		&common.StatusCommand{},
 		&common.TopCommand{},
 		&common.AccessRequestCommand{},
+		&configure.SSOConfigureCommand{},
+		&tester.SSOTestCommand{},
 		&common.AppsCommand{},
 		&common.DBCommand{},
 		&common.KubeCommand{},

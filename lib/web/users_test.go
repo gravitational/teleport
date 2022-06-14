@@ -184,6 +184,7 @@ func newRequest(t *testing.T, body interface{}) *http.Request {
 
 	req, err := http.NewRequest("", "", bytes.NewBuffer(reqBody))
 	require.Nil(t, err)
+	req.Header.Add("Content-Type", "application/json")
 
 	return req
 }

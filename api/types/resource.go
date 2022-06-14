@@ -82,6 +82,10 @@ type ResourceWithLabels interface {
 	ResourceWithOrigin
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
+	// GetStaticLabels returns the resource's static labels.
+	GetStaticLabels() map[string]string
+	// SetStaticLabels sets the resource's static labels.
+	SetStaticLabels(sl map[string]string)
 	// MatchSearch goes through select field values of a resource
 	// and tries to match against the list of search values.
 	MatchSearch(searchValues []string) bool

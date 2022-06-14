@@ -79,7 +79,7 @@ configuration:
 <Tabs>
 <TabItem label="Static configuration">
 
-Update `teleport.yaml` on the Auth Server to contain:
+Update `teleport.yaml` on the Auth Server to include the following content:
 
 ```yaml
 auth_service:
@@ -91,7 +91,15 @@ auth_service:
 </TabItem>
 <TabItem label="Dynamic resources">
 
-Create a file called `cap.yaml` with the following content:
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` contains the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -114,7 +122,15 @@ $ tctl create -f cap.yaml
 </ScopedBlock>
 <ScopedBlock scope="cloud">
 
-Create a file called `cap.yaml` with the following content:
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` contains the following content:
 
 ```yaml
 kind: cluster_auth_preference

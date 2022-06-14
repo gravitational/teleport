@@ -292,6 +292,9 @@ type ProxyWatcherConfig struct {
 	ResourceWatcherConfig
 	// ProxyGetter is used to directly fetch the list of active proxies.
 	ProxyGetter
+	// ProxyDiffer is used to decide whether a put operation on an existing proxy should
+	// trigger a event.
+	ProxyDiffer func(old, new types.Server) bool
 	// ProxiesC is a channel used to report the current proxy set. It receives
 	// a fresh list at startup and subsequently a list of all known proxies
 	// whenever an addition or deletion is detected.
@@ -402,10 +405,9 @@ func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event
 			p.Log.Warningf("Unexpected type %T.", event.Resource)
 			return
 		}
-		_, known := p.current[server.GetName()]
+		current, exists := p.current[server.GetName()]
 		p.current[server.GetName()] = server
-		// Broadcast only creation of new proxies (not known before).
-		if !known {
+		if !exists || (p.ProxyDiffer != nil && p.ProxyDiffer(current, server)) {
 			p.broadcastUpdate(ctx)
 		}
 	default:
@@ -616,9 +618,11 @@ func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 // notifyStale is called when the maximum acceptable staleness (if specified)
 // is exceeded.
 func (p *lockCollector) notifyStale() {
-	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
+
+	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
+
 	// Do not clear p.current here, the most recent lock set may still be used
 	// with LockingModeBestEffort.
 	p.isStale = true
@@ -1196,8 +1200,6 @@ type Node interface {
 	GetHostname() string
 	// GetNamespace returns server namespace
 	GetNamespace() string
-	// GetLabels returns server's static label key pairs
-	GetLabels() map[string]string
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]types.CommandLabel
 	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.

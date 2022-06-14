@@ -137,11 +137,6 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 	}
 
 	key := backend.Key(windowsDesktopsPrefix, hostID, name)
-	// legacy behavior, we didn't have host IDs
-	// DELETE IN 10.0 (zmb3, lxea)
-	if hostID == "" {
-		key = backend.Key(windowsDesktopsPrefix, name)
-	}
 
 	err := s.Delete(ctx, key)
 	if err != nil {
@@ -199,7 +194,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 				continue
 			}
 
-			switch match, err := services.MatchResourceByFilters(desktop, filter); {
+			switch match, err := services.MatchResourceByFilters(desktop, filter, nil /* ignore dup matches */); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case match:
