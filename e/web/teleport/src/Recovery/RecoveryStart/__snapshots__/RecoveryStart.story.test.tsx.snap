@@ -82,6 +82,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c6::-ms-clear {
@@ -103,7 +104,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c1 {
@@ -154,15 +155,15 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
         font-size="0"
       >
         Username
+        <input
+          autocomplete="off"
+          class="c6"
+          color="text.onLight"
+          inputmode="text"
+          type="text"
+          value=""
+        />
       </label>
-      <input
-        autocomplete="off"
-        class="c6"
-        color="text.onLight"
-        inputmode="text"
-        type="text"
-        value=""
-      />
     </div>
     <div
       class="c4"
@@ -173,15 +174,15 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
         font-size="0"
       >
         Recovery Code (Use 1 Recovery Code)
+        <input
+          autocomplete="off"
+          class="c6"
+          color="text.onLight"
+          inputmode="text"
+          type="text"
+          value=""
+        />
       </label>
-      <input
-        autocomplete="off"
-        class="c6"
-        color="text.onLight"
-        inputmode="text"
-        type="text"
-        value=""
-      />
     </div>
     <button
       class="c7"
@@ -277,6 +278,7 @@ exports[`render correct form for clicking forgot password 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
 .c6::-ms-clear {
@@ -298,7 +300,7 @@ exports[`render correct form for clicking forgot password 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c1 {
@@ -349,15 +351,15 @@ exports[`render correct form for clicking forgot password 1`] = `
         font-size="0"
       >
         Username
+        <input
+          autocomplete="off"
+          class="c6"
+          color="text.onLight"
+          inputmode="text"
+          type="text"
+          value=""
+        />
       </label>
-      <input
-        autocomplete="off"
-        class="c6"
-        color="text.onLight"
-        inputmode="text"
-        type="text"
-        value=""
-      />
     </div>
     <div
       class="c4"
@@ -368,15 +370,15 @@ exports[`render correct form for clicking forgot password 1`] = `
         font-size="0"
       >
         Recovery Code (Use 1 Recovery Code)
+        <input
+          autocomplete="off"
+          class="c6"
+          color="text.onLight"
+          inputmode="text"
+          type="text"
+          value=""
+        />
       </label>
-      <input
-        autocomplete="off"
-        class="c6"
-        color="text.onLight"
-        inputmode="text"
-        type="text"
-        value=""
-      />
     </div>
     <button
       class="c7"

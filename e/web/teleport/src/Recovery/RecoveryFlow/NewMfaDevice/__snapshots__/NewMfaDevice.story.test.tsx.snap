@@ -20,13 +20,13 @@ exports[`render correct form to add TOTP device 1`] = `
   width: 50%;
 }
 
-.c15 {
+.c16 {
   box-sizing: border-box;
   margin-bottom: 24px;
   width: 100%;
 }
 
-.c16 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -54,20 +54,20 @@ exports[`render correct form to add TOTP device 1`] = `
   width: 100%;
 }
 
-.c16:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c17:hover,
+.c17:focus {
   background: #651FFF;
 }
 
-.c16:active {
+.c17:active {
   background: #354AA4;
 }
 
-.c16:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -82,7 +82,7 @@ exports[`render correct form to add TOTP device 1`] = `
   border-radius: 8px;
 }
 
-.c14 {
+.c15 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -96,17 +96,18 @@ exports[`render correct form to add TOTP device 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
-.c14::-ms-clear {
+.c15::-ms-clear {
   display: none;
 }
 
-.c14::placeholder {
+.c15::placeholder {
   opacity: 0.4;
 }
 
-.c14:read-only {
+.c15:read-only {
   cursor: not-allowed;
 }
 
@@ -118,6 +119,16 @@ exports[`render correct form to add TOTP device 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c14 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c8 {
@@ -385,44 +396,44 @@ exports[`render correct form to add TOTP device 1`] = `
         width="50%"
       >
         <label
-          class="c11"
+          class="c14"
           font-size="0"
         >
           Authenticator code
+          <input
+            autocomplete="one-time-code"
+            class="c15"
+            color="text.onLight"
+            inputmode="numeric"
+            placeholder="123 456"
+            type="text"
+            value=""
+          />
         </label>
-        <input
-          autocomplete="one-time-code"
-          class="c14"
-          color="text.onLight"
-          inputmode="numeric"
-          placeholder="123 456"
-          type="text"
-          value=""
-        />
       </div>
     </div>
     <div
-      class="c15"
+      class="c16"
       width="100%"
     >
       <label
-        class="c11"
+        class="c14"
         font-size="0"
       >
         Device name
+        <input
+          autocomplete="off"
+          class="c15"
+          color="text.onLight"
+          inputmode="text"
+          placeholder="Name"
+          type="text"
+          value=""
+        />
       </label>
-      <input
-        autocomplete="off"
-        class="c14"
-        color="text.onLight"
-        inputmode="text"
-        placeholder="Name"
-        type="text"
-        value=""
-      />
     </div>
     <button
-      class="c16"
+      class="c17"
       kind="primary"
       type="submit"
       width="100%"
@@ -453,7 +464,7 @@ exports[`render correct form to add Webauthn device 1`] = `
   width: 100%;
 }
 
-.c13 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -481,20 +492,20 @@ exports[`render correct form to add Webauthn device 1`] = `
   width: 100%;
 }
 
-.c13:active {
+.c14:active {
   opacity: 0.56;
 }
 
-.c13:hover,
-.c13:focus {
+.c14:hover,
+.c14:focus {
   background: #651FFF;
 }
 
-.c13:active {
+.c14:active {
   background: #354AA4;
 }
 
-.c13:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -509,7 +520,7 @@ exports[`render correct form to add Webauthn device 1`] = `
   border-radius: 8px;
 }
 
-.c12 {
+.c13 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -523,17 +534,18 @@ exports[`render correct form to add Webauthn device 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
-.c12::-ms-clear {
+.c13::-ms-clear {
   display: none;
 }
 
-.c12::placeholder {
+.c13::placeholder {
   opacity: 0.4;
 }
 
-.c12:read-only {
+.c13:read-only {
   cursor: not-allowed;
 }
 
@@ -545,6 +557,16 @@ exports[`render correct form to add Webauthn device 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c12 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c5 {
@@ -777,23 +799,23 @@ exports[`render correct form to add Webauthn device 1`] = `
       width="100%"
     >
       <label
-        class="c9"
+        class="c12"
         font-size="0"
       >
         Device name
+        <input
+          autocomplete="off"
+          class="c13"
+          color="text.onLight"
+          inputmode="text"
+          placeholder="Name"
+          type="text"
+          value=""
+        />
       </label>
-      <input
-        autocomplete="off"
-        class="c12"
-        color="text.onLight"
-        inputmode="text"
-        placeholder="Name"
-        type="text"
-        value=""
-      />
     </div>
     <button
-      class="c13"
+      class="c14"
       kind="primary"
       type="submit"
       width="100%"
@@ -824,7 +846,7 @@ exports[`render correct form to add with multi option 1`] = `
   width: 100%;
 }
 
-.c13 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -852,20 +874,20 @@ exports[`render correct form to add with multi option 1`] = `
   width: 100%;
 }
 
-.c13:active {
+.c14:active {
   opacity: 0.56;
 }
 
-.c13:hover,
-.c13:focus {
+.c14:hover,
+.c14:focus {
   background: #651FFF;
 }
 
-.c13:active {
+.c14:active {
   background: #354AA4;
 }
 
-.c13:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -880,7 +902,7 @@ exports[`render correct form to add with multi option 1`] = `
   border-radius: 8px;
 }
 
-.c12 {
+.c13 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -894,17 +916,18 @@ exports[`render correct form to add with multi option 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
-.c12::-ms-clear {
+.c13::-ms-clear {
   display: none;
 }
 
-.c12::placeholder {
+.c13::placeholder {
   opacity: 0.4;
 }
 
-.c12:read-only {
+.c13:read-only {
   cursor: not-allowed;
 }
 
@@ -916,6 +939,16 @@ exports[`render correct form to add with multi option 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c12 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c5 {
@@ -1148,23 +1181,23 @@ exports[`render correct form to add with multi option 1`] = `
       width="100%"
     >
       <label
-        class="c9"
+        class="c12"
         font-size="0"
       >
         Device name
+        <input
+          autocomplete="off"
+          class="c13"
+          color="text.onLight"
+          inputmode="text"
+          placeholder="Name"
+          type="text"
+          value=""
+        />
       </label>
-      <input
-        autocomplete="off"
-        class="c12"
-        color="text.onLight"
-        inputmode="text"
-        placeholder="Name"
-        type="text"
-        value=""
-      />
     </div>
     <button
-      class="c13"
+      class="c14"
       kind="primary"
       type="submit"
       width="100%"
@@ -1217,7 +1250,7 @@ exports[`render failed state for form to add with multi option 1`] = `
   width: 100%;
 }
 
-.c14 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1245,20 +1278,20 @@ exports[`render failed state for form to add with multi option 1`] = `
   width: 100%;
 }
 
-.c14:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c14:hover,
-.c14:focus {
+.c15:hover,
+.c15:focus {
   background: #651FFF;
 }
 
-.c14:active {
+.c15:active {
   background: #354AA4;
 }
 
-.c14:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -1273,7 +1306,7 @@ exports[`render failed state for form to add with multi option 1`] = `
   border-radius: 8px;
 }
 
-.c13 {
+.c14 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -1287,17 +1320,18 @@ exports[`render failed state for form to add with multi option 1`] = `
   width: 100%;
   color: #324148;
   background-color: #FFFFFF;
+  margin-top: 4px;
 }
 
-.c13::-ms-clear {
+.c14::-ms-clear {
   display: none;
 }
 
-.c13::placeholder {
+.c14::placeholder {
   opacity: 0.4;
 }
 
-.c13:read-only {
+.c14:read-only {
   cursor: not-allowed;
 }
 
@@ -1309,6 +1343,16 @@ exports[`render failed state for form to add with multi option 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c13 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c6 {
@@ -1548,23 +1592,23 @@ exports[`render failed state for form to add with multi option 1`] = `
       width="100%"
     >
       <label
-        class="c10"
+        class="c13"
         font-size="0"
       >
         Device name
+        <input
+          autocomplete="off"
+          class="c14"
+          color="text.onLight"
+          inputmode="text"
+          placeholder="Name"
+          type="text"
+          value=""
+        />
       </label>
-      <input
-        autocomplete="off"
-        class="c13"
-        color="text.onLight"
-        inputmode="text"
-        placeholder="Name"
-        type="text"
-        value=""
-      />
     </div>
     <button
-      class="c14"
+      class="c15"
       kind="primary"
       type="submit"
       width="100%"
