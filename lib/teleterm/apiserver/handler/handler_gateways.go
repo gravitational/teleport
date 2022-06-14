@@ -90,3 +90,16 @@ func (s *Handler) RestartGateway(ctx context.Context, req *api.RestartGatewayReq
 
 	return &api.EmptyResponse{}, nil
 }
+
+// SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
+// and returns the updated version of gateway.Gateway.
+//
+// In Connect this is used to update the db name of a db connection along with the CLI command.
+func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.SetGatewayTargetSubresourceNameRequest) (*api.Gateway, error) {
+	gateway, err := s.DaemonService.SetGatewayTargetSubresourceName(ctx, req.GatewayUri, req.TargetSubresourceName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newAPIGateway(gateway), nil
+}
