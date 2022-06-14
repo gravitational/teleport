@@ -1949,8 +1949,13 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return listResourcesGetResponse{
-		Items:      ui.MakeServers(site.GetName(), servers),
+		Items:      ui.MakeServers(site.GetName(), servers, accessChecker.Roles()),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
