@@ -85,7 +85,8 @@ RUN yum groupinstall -y 'Development Tools' && \
 # Use just created devtool image with newer GCC and Cmake
 FROM centos-devtoolset as clang10
 
-# Compile Clang 10.0.1 from source. It is needed to create BPF files. Centos 7 doesn't provide it as a package unfortunately.
+# Compile Clang 10.0.1 from source. It is needed to create BPF files. 
+# Centos 7 doesn't provide it as a package unfortunately.
 # LLVM_INCLUDE_BENCHMARKS must be off, otherwise comilations fails, 
 # CLANG_BUILD_TOOLS must be on, it builds clang binary,
 # LLVM_BUILD_TOOLS must be on, it builds llvm-strip binary.
@@ -119,7 +120,8 @@ FROM centos-devtoolset as libbpf
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
 # BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && \
+    curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
