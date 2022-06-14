@@ -722,7 +722,12 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 			break
 		}
 		if err != nil {
-			return nil, trail.FromGRPC(err)
+			err := trail.FromGRPC(err)
+			if trace.IsNotImplemented(err) {
+				return c.getAccessRequestsLegacy(ctx, filter)
+			}
+
+			return nil, err
 		}
 		reqs = append(reqs, req)
 	}
