@@ -871,17 +871,21 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}
 
+	// UpdateClientActivity before starting monitor to
+	// be doubly sure that the client isn't disconnected
+	// due to an idle timeout before its had the chance to
+	// call StartAndWait()
+	rdpc.UpdateClientActivity()
 	if err := srv.StartMonitor(monitorCfg); err != nil {
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
-		rdpc.Cleanup()
 		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
 	s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
-	rdpc.Wait()
+	err = rdpc.StartAndWait(ctx)
 	s.onSessionEnd(ctx, sw, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
