@@ -9523,6 +9523,14 @@ func (*PaginatedResource) XXX_OneofWrappers() []interface{} {
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
 // one type of resource can be retrieved per request.
+//
+// NOTE: There are two paths this request can take:
+//  1. ListResources: the more efficient path that retrieves resources by subset
+//  at a time defined by field 'Limit'. Does NOT de-duplicate matches.
+//  2. listResourcesWithSort: the less efficient path that retrieves all resources
+//  upfront by falling back to the traditional GetXXX calls. Used when sorting (SortBy),
+//  total count of resources (NeedTotalCount), or ResourceType `KindKubernetesCluster`
+//  is requested. Matches are de-duplicated.
 type ListResourcesRequest struct {
 	// ResourceType is the resource that is going to be retrieved.
 	ResourceType string `protobuf:"bytes,1,opt,name=ResourceType,proto3" json:"resource_type,omitempty"`
