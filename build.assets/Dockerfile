@@ -64,6 +64,7 @@ ARG BUILDARCH
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
+        cmake \
         apt-utils \
         build-essential \
         ca-certificates \
