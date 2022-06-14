@@ -112,7 +112,7 @@ func init() {
 //
 // ```
 // rdpc := New()         // creates client
-// rdpc.StartAndWait()   // starts rdp and waits for the duration of the connection
+// rdpc.Run()   // starts rdp and waits for the duration of the connection
 // ```
 type Client struct {
 	cfg Config
@@ -134,8 +134,8 @@ type Client struct {
 
 	// wg is used to wait for the input/output streaming
 	// goroutines to complete
-	wg          sync.WaitGroup
-	cleanupOnce sync.Once
+	wg        sync.WaitGroup
+	closeOnce sync.Once
 
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
@@ -164,16 +164,16 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return c, nil
 }
 
-// StartAndWait starts the rdp client and blocks until the client disconnects,
+// Run starts the rdp client and blocks until the client disconnects,
 // then runs the cleanup.
-func (c *Client) StartAndWait(ctx context.Context) error {
+func (c *Client) Run(ctx context.Context) error {
+	defer c.close()
+
 	if err := c.connect(ctx); err != nil {
-		c.close()
 		return trace.Wrap(err)
 	}
 	c.start()
 	c.wg.Wait()
-	c.close()
 
 	return nil
 }
@@ -452,7 +452,7 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 // closes the RDP client connection,
 // and frees the Rust client.
 func (c *Client) close() {
-	c.cleanupOnce.Do(func() {
+	c.closeOnce.Do(func() {
 		// Close the RDP client
 		if err := C.close_rdp(c.rustClient); err != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("failed to close the RDP client")
