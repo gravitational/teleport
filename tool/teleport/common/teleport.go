@@ -356,7 +356,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 			utils.FatalError(err)
 		}
 		if !options.InitOnly {
-			err = OnStart(conf)
+			err = OnStart(ccf, conf)
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
@@ -393,7 +393,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 }
 
 // OnStart is the handler for "start" CLI command
-func OnStart(config *service.Config) error {
+func OnStart(clf config.CommandLineFlags, config *service.Config) error {
 	config.Log.Infof("Teleport has been started with the configuration located at %q", clf.ConfigFile)
 	return service.Run(context.TODO(), *config, nil)
 }
