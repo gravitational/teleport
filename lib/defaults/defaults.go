@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -512,7 +513,10 @@ const (
 
 var (
 	// ConfigFilePath is default path to teleport config file
-	ConfigFilePath = "/etc/teleport.yaml"
+	ConfigDir = "/etc"
+
+	// ConfigFilePath is default path to teleport config file
+	ConfigFilePath = filepath.Join(ConfigDir, "teleport.yaml")
 
 	// DataDir is where all mutable data is stored (user keys, recorded sessions,
 	// registered SSH servers, etc):
@@ -733,7 +737,7 @@ func CheckPasswordLimiter() *limiter.Limiter {
 		MaxConnections:   LimiterMaxConnections,
 		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
 		Rates: []limiter.Rate{
-			limiter.Rate{
+			{
 				Period:  1 * time.Second,
 				Average: 10,
 				Burst:   10,

@@ -394,6 +394,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 // OnStart is the handler for "start" CLI command
 func OnStart(config *service.Config) error {
+	config.Log.Infof("Teleport has been started with the configuration located at %q", clf.ConfigFile)
 	return service.Run(context.TODO(), *config, nil)
 }
 
@@ -484,7 +485,7 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	if modules.GetModules().BuildType() != modules.BuildOSS {
-		flags.LicensePath = filepath.Join(defaults.DataDir, "license.pem")
+		flags.LicensePath = filepath.Join(flags.DataDir, "license.pem")
 	}
 
 	if flags.KeyFile != "" && !filepath.IsAbs(flags.KeyFile) {
@@ -533,11 +534,19 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	if configPath != "" {
-		if modules.GetModules().BuildType() == modules.BuildOSS {
-			fmt.Printf("Wrote config to file %q. Now you can start the server. Happy Teleporting!\n", configPath)
-		} else {
-			fmt.Printf("Wrote config to file %q. Add your license file to %v and start the server. Happy Teleporting!\n", configPath, flags.LicensePath)
+		fmt.Printf("A Teleport configuration file has been created at %q.\n", configPath)
+		if !strings.HasPrefix(configPath, defaults.ConfigDir) {
+			fmt.Printf("For production environments, we recommend storing your Teleport configuration file at %q.\n", defaults.ConfigFilePath)
 		}
+		if modules.GetModules().BuildType() != modules.BuildOSS {
+			fmt.Printf("Add your license file to %q and start the server.\n", flags.LicensePath)
+		}
+		fmt.Printf("To start a teleport node with this configuration file, run:\n\nteleport start --config=%q\n\n", configPath)
+
+		if strings.HasPrefix(flags.DataDir, defaults.DataDir) {
+			fmt.Printf("Note that root access is required when \"teleport configure\" is run without specifying \"--data-dir\", because Teleport will default to storing data at %q.\n\n", defaults.DataDir)
+		}
+		fmt.Printf("Happy Teleporting!\n")
 	}
 
 	return nil
@@ -637,8 +646,7 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
 }
 
-type StdReadWriter struct {
-}
+type StdReadWriter struct{}
 
 func (rw *StdReadWriter) Read(b []byte) (int, error) {
 	return os.Stdin.Read(b)
