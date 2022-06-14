@@ -406,7 +406,7 @@ fn connect_rdp_inner(
                             completion_id: req.completion_id,
                             directory_id: req.directory_id,
                             path: c_string.as_ptr(),
-                            path_length: req.path_length,
+                            path_length: req.path.len() as u32,
                             offset: req.offset,
                             length: req.length,
                         },
@@ -441,15 +441,15 @@ fn connect_rdp_inner(
                             directory_id: req.directory_id,
                             offset: req.offset,
                             path: c_string.as_ptr(),
-                            path_length: req.path_length,
-                            write_data_length: req.write_data_length,
-                            write_data: req.write_data,
+                            path_length: req.path.len() as u32,
+                            write_data_length: req.write_data.len() as u32,
+                            write_data: req.write_data.as_ptr() as *mut u8,
                         },
                     );
 
                     if err != CGOErrCode::ErrCodeSuccess {
                         return Err(RdpError::TryError(String::from(
-                            "call to tdp_sd_read_request failed",
+                            "call to tdp_sd_write_failed",
                         )));
                     }
                 }
@@ -1346,11 +1346,8 @@ pub struct SharedDirectoryWriteRequest {
     completion_id: u32,
     directory_id: u32,
     offset: u64,
-    path_length: u32,
     path: String,
-    // write_data: Vec<u8>,
-    write_data_length: u32,
-    write_data: *mut u8,
+    write_data: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -1370,7 +1367,6 @@ pub struct SharedDirectoryReadRequest {
     completion_id: u32,
     directory_id: u32,
     path: String,
-    path_length: u32,
     offset: u64,
     length: u32,
 }

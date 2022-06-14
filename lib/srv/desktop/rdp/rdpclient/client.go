@@ -469,7 +469,6 @@ func (c *Client) start() {
 				if c.cfg.AllowDirectorySharing {
 
 					var readData *C.uint8_t
-
 					if m.ReadDataLength > 0 {
 						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData[0]))
 					} else {
@@ -676,8 +675,9 @@ func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) 
 			c.cfg.Log.Errorf("failed to send SharedDirectoryReadRequest: %v", err)
 			return C.ErrCodeFailure
 		}
+		return C.ErrCodeSuccess
 	}
-	return C.ErrCodeSuccess
+	return C.ErrCodeFailure
 }
 
 //export tdp_sd_write_request
@@ -699,8 +699,9 @@ func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest
 			c.cfg.Log.Errorf("failed to send SharedDirectoryWriteRequest: %v", err)
 			return C.ErrCodeFailure
 		}
+		return C.ErrCodeSuccess
 	}
-	return C.ErrCodeSuccess
+	return C.ErrCodeFailure
 }
 
 // Wait blocks until the client disconnects and runs the cleanup.
