@@ -1,0 +1,10 @@
+# Ignore directories:
+packages/build
+packages/teleterm/src/services/tshd/v1/**
+packages/teleterm/src/sharedProcess/**
+
+# Ignore file types:
+packages/**/*.md
+packages/**/*.css
+packages/**/*.json
+packages/**/*.yaml
