@@ -73,7 +73,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gw.CLICommand = fmt.Sprintf("%s %s", strings.Join(cliCommand.Env, " "), cliCommand.String())
+	gw.CLICommand = strings.TrimSpace(fmt.Sprintf("%s %s", strings.Join(cliCommand.Env, " "), cliCommand.String()))
 
 	return gw, nil
 }
