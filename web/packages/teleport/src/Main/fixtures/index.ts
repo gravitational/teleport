@@ -26,7 +26,6 @@ const fullAccess: Access = {
 };
 
 export const fullAcl: Acl = {
-  sshLogins: ['dev', 'root'],
   windowsLogins: ['Administrator'],
   tokens: fullAccess,
   appServers: fullAccess,

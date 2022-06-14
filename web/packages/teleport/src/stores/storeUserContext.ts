@@ -37,10 +37,6 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.roles;
   }
 
-  getSshLogins() {
-    return this.state.acl.sshLogins;
-  }
-
   getWindowsLogins() {
     return this.state.acl.windowsLogins;
   }

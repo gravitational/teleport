@@ -22,6 +22,7 @@ export interface Node {
   labels: AgentLabel[];
   addr: string;
   tunnel: boolean;
+  sshLogins: string[];
 }
 
 export interface BashCommand {

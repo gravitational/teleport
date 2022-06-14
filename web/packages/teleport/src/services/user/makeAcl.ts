@@ -14,12 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import makeLogins from './makeLogins';
 import { Acl } from './types';
 
 export default function makeAcl(json): Acl {
   json = json || {};
-  const sshLogins = makeLogins(json.sshLogins);
   const windowsLogins = json.windowsLogins || [];
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
@@ -48,7 +46,6 @@ export default function makeAcl(json): Acl {
   const nodes = json.nodes || defaultAccess;
 
   return {
-    sshLogins,
     windowsLogins,
     authConnectors,
     trustedClusters,

@@ -19,7 +19,7 @@ import { useLocation } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import history from 'teleport/services/history';
-import { NodesResponse } from 'teleport/services/nodes';
+import type { Node, NodesResponse } from 'teleport/services/nodes';
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
@@ -27,6 +27,7 @@ import { useConsoleContext } from './../consoleContextProvider';
 import * as stores from './../stores';
 import labelClick from 'teleport/labelClick';
 import { AgentLabel } from 'teleport/services/agents';
+import { sortLogins } from 'teleport/Nodes/useNodes';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();
@@ -39,8 +40,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
     ...getResourceUrlQueryParams(search),
   });
 
-  const [results, setResults] = useState<NodesResponse & { logins: string[] }>({
-    logins: [],
+  const [results, setResults] = useState<NodesResponse>({
     nodes: [],
     startKey: '',
     totalCount: 0,
@@ -68,9 +68,8 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
     setAttempt({ status: 'processing' });
     consoleCtx
       .fetchNodes(clusterId, { ...params, limit: pageSize })
-      .then(({ logins, nodesRes }) => {
+      .then(({ nodesRes }) => {
         setResults({
-          logins,
           nodes: nodesRes.agents,
           startKey: nodesRes.startKey,
           totalCount: nodesRes.totalCount,
@@ -94,9 +93,8 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
         limit: pageSize,
         startKey: results.startKey,
       })
-      .then(({ logins, nodesRes }) => {
+      .then(({ nodesRes }) => {
         setResults({
-          logins,
           ...results,
           nodes: nodesRes.agents,
           startKey: nodesRes.startKey,
@@ -117,9 +115,8 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
         limit: pageSize,
         startKey: startKeys[startKeys.length - 3],
       })
-      .then(({ logins, nodesRes }) => {
+      .then(({ nodesRes }) => {
         setResults({
-          logins,
           ...results,
           nodes: nodesRes.agents,
           startKey: nodesRes.startKey,
@@ -156,10 +153,26 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   }
 
   function getNodeSshLogins(serverId: string) {
-    return results.logins.map(login => ({
-      login,
-      url: consoleCtx.getSshDocumentUrl({ serverId, login, clusterId }),
-    }));
+    const node = results.nodes.find(node => node.id == serverId);
+    return makeOptions(clusterId, node);
+  }
+
+  function makeOptions(clusterId: string, node: Node | undefined) {
+    const nodeLogins = node?.sshLogins || [];
+    const logins = sortLogins(nodeLogins);
+
+    return logins.map(login => {
+      const url = consoleCtx.getSshDocumentUrl({
+        clusterId,
+        serverId: node?.id || '',
+        login,
+      });
+
+      return {
+        login,
+        url,
+      };
+    });
   }
 
   const onLabelClick = (label: AgentLabel) =>

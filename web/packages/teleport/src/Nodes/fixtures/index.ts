@@ -19,6 +19,7 @@ import { Node } from 'teleport/services/nodes';
 export const nodes: Node[] = [
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '104',
     clusterId: 'one',
     hostname: 'fujedu',
@@ -36,6 +37,7 @@ export const nodes: Node[] = [
   },
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '170',
     clusterId: 'one',
     hostname: 'facuzguv',
@@ -53,6 +55,7 @@ export const nodes: Node[] = [
   },
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '192',
     clusterId: 'one',
     hostname: 'duzsevkig',
@@ -70,6 +73,7 @@ export const nodes: Node[] = [
   },
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '64',
     clusterId: 'one',
     hostname: 'kuhinur',
@@ -87,6 +91,7 @@ export const nodes: Node[] = [
   },
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '81',
     clusterId: 'one',
     hostname: 'zebpecda',
@@ -104,6 +109,7 @@ export const nodes: Node[] = [
   },
   {
     tunnel: true,
+    sshLogins: ['dev', 'root'],
     id: '81',
     clusterId: 'one',
     hostname: 'zebpecda',
@@ -121,6 +127,7 @@ export const nodes: Node[] = [
   },
   {
     tunnel: true,
+    sshLogins: ['dev', 'root'],
     id: '81',
     clusterId: 'one',
     hostname: 'zebpecda',

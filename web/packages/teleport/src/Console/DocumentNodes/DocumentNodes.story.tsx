@@ -97,6 +97,7 @@ const clusters = [
 const nodes: Node[] = [
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '104',
     clusterId: 'cluseter-1',
     hostname: 'fujedu',
@@ -114,6 +115,7 @@ const nodes: Node[] = [
   },
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '170',
     clusterId: 'cluseter-1',
     hostname: 'facuzguv',
@@ -131,6 +133,7 @@ const nodes: Node[] = [
   },
   {
     tunnel: true,
+    sshLogins: ['dev', 'root'],
     id: '192',
     clusterId: 'cluseter-1',
     hostname: 'duzsevkig',
@@ -148,6 +151,7 @@ const nodes: Node[] = [
   },
   {
     tunnel: true,
+    sshLogins: ['dev', 'root'],
     id: '64',
     clusterId: 'cluseter-1',
     hostname: 'kuhinur',
@@ -165,6 +169,7 @@ const nodes: Node[] = [
   },
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '81',
     clusterId: 'cluseter-1',
     hostname: 'zebpecda',
