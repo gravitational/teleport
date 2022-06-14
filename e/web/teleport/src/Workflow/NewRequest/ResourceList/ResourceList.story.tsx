@@ -77,6 +77,7 @@ const apps: App[] = [
 const nodes: Node[] = [
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '104',
     clusterId: 'one',
     hostname: 'fujedu',

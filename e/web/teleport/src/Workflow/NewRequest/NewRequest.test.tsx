@@ -121,6 +121,7 @@ const userContext = makeUserContext({
 const nodes = [
   {
     tunnel: false,
+    sshLogins: ['dev', 'root'],
     id: '1',
     clusterId: 'one',
     hostname: 'node1',
@@ -134,6 +135,7 @@ const nodes = [
   },
   {
     tunnel: true,
+    sshLogins: ['dev', 'root'],
     id: '2',
     clusterId: 'one',
     hostname: 'node2',
