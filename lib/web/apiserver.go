@@ -2033,7 +2033,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 }
 
 // siteSessionsGet gets the list of site sessions filtered by creation time
-// and either they're active or not
+// and whether they're active or not
 //
 // GET /v1/webapi/sites/:site/namespaces/:namespace/sessions
 //
