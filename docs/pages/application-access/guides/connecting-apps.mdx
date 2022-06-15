@@ -75,7 +75,7 @@ e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 `grafana.acme.com` if you configure the appropriate DNS entry to point to the
 Teleport proxy server for self-hosted Teleport instances.
 
-<Admonition type="tip" title="Application URI Domains and TLS for Self-Hosted" scope="oss,enterprise" scopeOnly>
+<Admonition type="tip" title="Application Domain Names and TLS" scope="oss,enterprise" scopeOnly>
 Subdomains (*.teleport.example.com) and any other FQDN used as application URIs should have their entries
 point at the proxy server.  TLS certificates for wildcard subdomains and any domains
 should be be installed in the proxy server. Teleport Cloud automatically manages allocating
