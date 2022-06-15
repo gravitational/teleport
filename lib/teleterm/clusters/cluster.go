@@ -48,6 +48,8 @@ type Cluster struct {
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
 	clock clockwork.Clock
+	// cliCommandProvider returns a CLI command for gateways that support CLI commands.
+	cliCommandProvider CLICommandProvider
 }
 
 // Connected indicates if connection to the cluster can be established
