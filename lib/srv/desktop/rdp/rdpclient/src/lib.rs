@@ -17,6 +17,7 @@ pub mod errors;
 pub mod piv;
 pub mod rdpdr;
 pub mod scard;
+pub mod util;
 pub mod vchan;
 
 #[macro_use]
@@ -408,7 +409,9 @@ pub unsafe extern "C" fn update_clipboard(
     let mut lock = client.rdp_client.lock().unwrap();
 
     match lock.cliprdr {
-        Some(ref mut clip) => match clip.update_clipboard(data) {
+        Some(ref mut clip) => match clip
+            .update_clipboard(String::from_utf8_lossy(&data).into_owned())
+        {
             Ok(messages) => {
                 for message in messages {
                     if let Err(e) = lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
