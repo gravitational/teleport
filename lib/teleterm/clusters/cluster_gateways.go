@@ -18,12 +18,8 @@ package clusters
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
-	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 )
@@ -68,7 +64,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	cliCommand, err := buildCLICommand(c, gw)
+	cliCommand, err := c.cliCommandProvider.GetCommand(c, gw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,7 +79,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 func (c *Cluster) SetGatewayTargetSubresourceName(gateway *gateway.Gateway, targetSubresourceName string) error {
 	gateway.TargetSubresourceName = targetSubresourceName
 
-	cliCommand, err := buildCLICommand(c, gateway)
+	cliCommand, err := c.cliCommandProvider.GetCommand(c, gateway)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -91,35 +87,4 @@ func (c *Cluster) SetGatewayTargetSubresourceName(gateway *gateway.Gateway, targ
 	gateway.CLICommand = *cliCommand
 
 	return nil
-}
-
-func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*string, error) {
-	routeToDb := tlsca.RouteToDatabase{
-		ServiceName: gw.TargetName,
-		Protocol:    gw.Protocol,
-		Username:    gw.TargetUser,
-		Database:    gw.TargetSubresourceName,
-	}
-
-	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb,
-		// TODO(ravicious): Pass the root cluster name here. GetActualName returns leaf name for leaf
-		// clusters.
-		//
-		// At this point it doesn't matter though because this argument is used only for
-		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
-		// included in the returned CLI command.
-		c.GetActualName(),
-		dbcmd.WithLogger(gw.Log),
-		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
-		dbcmd.WithNoTLS(),
-		dbcmd.WithTolerateMissingCLIClient(),
-	).GetConnectCommandNoAbsPath()
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cmdString := strings.TrimSpace(fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()))
-
-	return &cmdString, nil
 }
