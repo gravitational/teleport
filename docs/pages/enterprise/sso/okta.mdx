@@ -121,7 +121,7 @@ Now, create a SAML connector [resource](../../setup/reference/resources.mdx):
 
 Create the connector using `tctl` tool:
 
-```bsh
+```code
 $ tctl create okta-connector.yaml
 ```
 
@@ -154,7 +154,7 @@ spec:
 
 We'll use tctl to create this role on the auth server:
 
-```bsh
+```code
 $ tctl create dev.yaml
 ```
 
@@ -163,7 +163,7 @@ $ tctl create dev.yaml
 The Web UI will now contain a new button: "Login with Okta". The CLI is
 the same as before:
 
-```bsh
+```code
 $ tsh login --proxy=proxy.example.com --auth=okta
 ```
 
