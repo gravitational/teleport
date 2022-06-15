@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -59,7 +60,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.Token = tokenName
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
-	config.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
+	config.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
@@ -77,7 +78,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
 
-	proxyAddr := net.JoinHostPort(Host, ports.Pop())
+	proxyAddr := net.JoinHostPort(Host, helpers.NewPortStr())
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.WebAddr.Addr = proxyAddr
@@ -102,7 +103,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 
 	config := service.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
-	config.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
+	config.Auth.SSHAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "testcluster",
 	})
@@ -330,11 +331,11 @@ func TestEC2Labels(t *testing.T) {
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
 
 	appConf := service.App{
 		Name: "test-app",
@@ -352,7 +353,7 @@ func TestEC2Labels(t *testing.T) {
 	tconf.Databases.Enabled = true
 	tconf.Databases.Databases = []service.Database{dbConfig}
 
-	enableKubernetesService(t, tconf)
+	helpers.EnableKubernetesService(t, tconf)
 
 	imClient := &mockIMDSClient{
 		tags: map[string]string{
@@ -406,7 +407,7 @@ func TestEC2Labels(t *testing.T) {
 		database := databases[0].GetDatabase()
 		_, dbHasLabel := database.GetAllLabels()[tagName]
 
-		kubeClusters := getKubeClusters(t, authServer)
+		kubeClusters := helpers.GetKubeClusters(t, authServer)
 		require.Len(t, kubeClusters, 1)
 		kube := kubeClusters[0]
 		_, kubeHasLabel := kube.StaticLabels[tagName]
@@ -433,11 +434,11 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
 
 	imClient := &mockIMDSClient{
 		tags: map[string]string{
