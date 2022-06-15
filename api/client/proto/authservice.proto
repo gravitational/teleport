@@ -1530,6 +1530,14 @@ message PaginatedResource {
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
 // one type of resource can be retrieved per request.
+//
+// NOTE: There are two paths this request can take:
+//  1. ListResources: the more efficient path that retrieves resources by subset
+//  at a time defined by field 'Limit'. Does NOT de-duplicate matches.
+//  2. listResourcesWithSort: the less efficient path that retrieves all resources
+//  upfront by falling back to the traditional GetXXX calls. Used when sorting (SortBy),
+//  total count of resources (NeedTotalCount), or ResourceType `KindKubernetesCluster`
+//  is requested. Matches are de-duplicated.
 message ListResourcesRequest {
     // ResourceType is the resource that is going to be retrieved.
     // This only needs to be set explicitly for the `ListResources` rpc.
@@ -1723,6 +1731,28 @@ message GetDomainNameResponse {
 message GetClusterCACertResponse {
     // TLSCA is a PEM-encoded TLS certificate authority.
     bytes TLSCA = 1 [ (gogoproto.jsontag) = "tls_ca" ];
+}
+
+// GenerateTokenRequest is a request to generate auth token.
+message GenerateTokenRequest {
+    // Token sets the token value. If not set, it will be auto generated.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+    // Roles is a list of roles this token authenticates as.
+    repeated string Roles = 2 [
+        (gogoproto.jsontag) = "roles",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+    // TTL specifies how long the generated token will be valid for.
+    // Defaults to 30 minutes if not set.
+    int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 4 [ (gogoproto.jsontag) = "labels" ];
+}
+
+// GenerateTokenResponse contains a generated auth token.
+message GenerateTokenResponse {
+    // Token is the generated auth token.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
 }
 
 // GetOIDCAuthRequestRequest is a request for GetOIDCAuthRequest.
@@ -2100,6 +2130,8 @@ service AuthService {
     rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
     // UpsertToken upserts a token in a backend.
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // GenerateToken generates a new auth token.
+    rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 
