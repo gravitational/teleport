@@ -109,25 +109,42 @@ func (l *EC2) Sync(ctx context.Context) error {
 
 	tags, err := l.c.Client.GetTagKeys(ctx)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			l.c.Log.Warningf("could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
+	currentLabels := l.Get()
+	var errors []error
 	for _, t := range tags {
+		if !types.IsValidLabelKey(t) {
+			l.c.Log.Debugf("Skipping EC2 tag %q, not a valid label key.", t)
+			continue
+		}
+
+		key := toAWSLabel(t)
 		value, err := l.c.Client.GetTagValue(ctx, t)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		if types.IsValidLabelKey(t) {
-			m[toAWSLabel(t)] = value
+			errors = append(errors, err)
+			// If we know the key exists but GetTagValue failed, use the current value
+			// if it exists.
+			if currentValue, ok := currentLabels[key]; ok {
+				m[key] = currentValue
+			} else {
+				m[key] = ""
+			}
 		} else {
-			l.c.Log.Debugf("Skipping EC2 tag %q, not a valid label key.", t)
+			m[key] = value
 		}
+
 	}
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.labels = m
-	return nil
+	return trace.NewAggregate(errors...)
 }
 
 // Start will start a loop that continually keeps EC2 labels updated.
@@ -141,7 +158,7 @@ func (l *EC2) periodicUpdateLabels(ctx context.Context) {
 
 	for {
 		if err := l.Sync(ctx); err != nil {
-			l.c.Log.Errorf("Error fetching EC2 tags: %v", err)
+			l.c.Log.Warningf("Error fetching EC2 tags: %v", err)
 		}
 		select {
 		case <-ticker.Chan():
