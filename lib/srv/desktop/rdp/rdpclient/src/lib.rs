@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod cliprdr;
-pub mod errors;
-pub mod piv;
-pub mod rdpdr;
-pub mod util;
-pub mod vchan;
+mod cliprdr;
+mod errors;
+mod piv;
+mod rdpdr;
+mod util;
+mod vchan;
 
 #[macro_use]
 extern crate log;
@@ -251,12 +251,27 @@ fn connect_rdp_inner(
         KeyboardLayout::US,
         "rdp-rs",
     );
-    // Client for the "rdpdr" channel - smartcard emulation.
+
+    let tdp_sd_acknowledge = Box::new(move |ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
+        unsafe {
+            if tdp_sd_acknowledge(go_ref, &mut CGOSharedDirectoryAcknowledge::from(ack))
+                != CGOErrCode::ErrCodeSuccess
+            {
+                return Err(RdpError::TryError(String::from(
+                    "call to tdp_sd_acknowledge failed",
+                )));
+            }
+        }
+        Ok(())
+    });
+
+    // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(
         params.cert_der,
         params.key_der,
         pin,
         params.allow_directory_sharing,
+        tdp_sd_acknowledge,
     );
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -334,6 +349,14 @@ impl<S: Read + Write> RdpClient<S> {
                 "RDPCLIENT: This event can't be sent",
             ))),
         }
+    }
+
+    pub fn write_client_device_list_announce(
+        &mut self,
+        req: rdpdr::ClientDeviceListAnnounce,
+    ) -> RdpResult<()> {
+        self.rdpdr
+            .write_client_device_list_announce(req, &mut self.mcs)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -458,6 +481,38 @@ pub unsafe extern "C" fn update_clipboard(
     }
 }
 
+/// handle_tdp_sd_announce announces a new drive that's ready to be
+/// redirected over RDP.
+///
+/// # Safety
+///
+/// The caller must ensure that sd_announce.name points to a valid buffer.
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_sd_announce(
+    client_ptr: *mut Client,
+    sd_announce: CGOSharedDirectoryAnnounce,
+) -> CGOErrCode {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let drive_name = from_go_string(sd_announce.name);
+    let new_drive =
+        rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, drive_name);
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+    match rdp_client.write_client_device_list_announce(new_drive) {
+        Ok(()) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("failed to announce new drive: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
 /// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
 /// handle_bitmap.
 ///
@@ -521,7 +576,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
         match res {
             Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
             Err(e) => {
-                return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
+                return Some(format!("RDP read failed: {:?}", e));
             }
             _ => {}
         }
@@ -700,6 +755,8 @@ pub unsafe extern "C" fn free_rust_string(s: *mut c_char) {
 /// # Safety
 ///
 /// s must be a C-style null terminated string.
+/// s is copied here, and the caller is responsible for ensuring
+/// that the original memory is freed
 unsafe fn from_go_string(s: *mut c_char) -> String {
     CStr::from_ptr(s).to_string_lossy().into_owned()
 }
@@ -718,11 +775,43 @@ pub enum CGOErrCode {
     ErrCodeFailure = 1,
 }
 
+#[repr(C)]
+pub struct CGOSharedDirectoryAnnounce {
+    pub directory_id: u32,
+    pub name: *mut c_char,
+}
+
+pub struct SharedDirectoryAcknowledge {
+    pub err: u32,
+    pub directory_id: u32,
+}
+
+/// CGOSharedDirectoryAcknowledge is a CGO-compatible version of
+/// the TDP Shared Directory Knowledge message that we pass back to Go.
+#[repr(C)]
+pub struct CGOSharedDirectoryAcknowledge {
+    pub err: u32,
+    pub directory_id: u32,
+}
+
+impl From<SharedDirectoryAcknowledge> for CGOSharedDirectoryAcknowledge {
+    fn from(ack: SharedDirectoryAcknowledge) -> CGOSharedDirectoryAcknowledge {
+        CGOSharedDirectoryAcknowledge {
+            err: ack.err,
+            directory_id: ack.directory_id,
+        }
+    }
+}
+
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
     fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
+
+    /// Shared Directory Acknowledge
+    fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
+        -> CGOErrCode;
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.
