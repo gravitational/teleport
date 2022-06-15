@@ -714,11 +714,12 @@ impl Client {
             rdp_req.device_io_request.completion_id,
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
-                    if res.err_code == 0 {
-                        cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS)
+                    let resp = if res.err_code == 0 {
+                        NTSTATUS::STATUS_SUCCESS
                     } else {
-                        cli.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
-                    }
+                        NTSTATUS::STATUS_UNSUCCESSFUL
+                    };
+                    cli.prep_device_close_response(rdp_req, resp)
                 },
             ),
         );
