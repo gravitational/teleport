@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
@@ -80,7 +81,7 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 	s.sftpCmd.Stdout = os.Stdout
 	s.sftpCmd.Stderr = os.Stderr
 
-	s.log.Debug("starting sftp process")
+	s.log.Debug("starting SFTP process")
 	err = s.sftpCmd.Start()
 	if err != nil {
 		return trace.Wrap(err)
@@ -89,20 +90,20 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 	serverCtx.ExecRequest.Continue()
 
 	// Copy the SSH channel to and from the anonymous pipes
-	errCh := make(chan error, 2)
+	s.errCh = make(chan error, 2)
 	go func() {
 		defer chReadPipeIn.Close()
 		defer ch.Close()
 
 		_, err := io.Copy(chReadPipeIn, ch)
-		errCh <- err
+		s.errCh <- err
 	}()
 	go func() {
 		defer chWritePipeOut.Close()
 		defer ch.Close()
 
 		_, err := io.Copy(ch, chWritePipeOut)
-		errCh <- err
+		s.errCh <- err
 	}()
 
 	return nil
@@ -110,14 +111,16 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 
 func (s *sftpSubsys) Wait() error {
 	waitErr := s.sftpCmd.Wait()
-	s.log.Debug("sftp process finished")
+	s.log.Debug("SFTP process finished")
 
-	copyErr1 := <-s.errCh
-	s.log.Debug("sftp pipe 1 closed")
-	copyErr2 := <-s.errCh
-	s.log.Debug("sftp pipe 2 closed")
+	errs := []error{waitErr}
+	for i := 0; i < 2; i++ {
+		err := <-s.errCh
+		if err != nil && !utils.IsOKNetworkError(err) {
+			s.log.WithError(err).Warn("Connection problem.")
+			errs = append(errs, err)
+		}
+	}
 
-	copyErr := trace.NewAggregate(copyErr1, copyErr2)
-
-	return trace.NewAggregate(copyErr, waitErr)
+	return trace.NewAggregate(errs...)
 }
