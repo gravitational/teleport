@@ -363,7 +363,7 @@ impl Client {
                                 0,
                             );
                         }
-                    } else if res.err_code == TdpErrCode::DNE {
+                    } else if res.err_code == TdpErrCode::DoesNotExist {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L242
                         if rdp_req
                             .create_options

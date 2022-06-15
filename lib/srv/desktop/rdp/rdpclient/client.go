@@ -401,10 +401,6 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryCreateResponse:
 				if c.cfg.AllowDirectorySharing {
-					if err != nil {
-						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", err)
-						return
-					}
 					if errCode := C.handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
@@ -496,7 +492,6 @@ func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge
 	})
 }
 
-// sharedDirectoryAcknowledge acknowledges that a `Shared Directory Announce` TDP message was processed.
 func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(ack); err != nil {

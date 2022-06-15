@@ -69,11 +69,11 @@ typedef enum TdpErrCode {
   /**
    * resource does not exist
    */
-  DNE = 2,
+  DoesNotExist = 2,
   /**
    * resource already exists
    */
-  AE = 3,
+  AlreadyExists = 3,
 } TdpErrCode;
 
 /**

@@ -1095,9 +1095,9 @@ pub enum TdpErrCode {
     /// operation failed
     Failed = 1,
     /// resource does not exist
-    DNE = 2,
+    DoesNotExist = 2,
     /// resource already exists
-    AE = 3,
+    AlreadyExists = 3,
 }
 
 /// SharedDirectoryCreateRequest is sent by the TDP server to
