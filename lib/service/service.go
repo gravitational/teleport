@@ -2680,7 +2680,7 @@ type proxyListeners struct {
 	proxy                          net.Listener
 	grpc                           net.Listener
 	minimalReverseTunnelWebEnabled bool
-	mux2                           *multiplexer.Mux
+	reverseTunnelMux               *multiplexer.Mux
 }
 
 // dbListeners groups database access listeners.
@@ -2741,6 +2741,9 @@ func (l *proxyListeners) Close() {
 	}
 	if l.proxy != nil {
 		l.proxy.Close()
+	}
+	if l.reverseTunnelMux != nil {
+		l.reverseTunnelMux.Close()
 	}
 }
 
@@ -2867,22 +2870,30 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	default:
 		process.log.Debug("Setup Proxy: Proxy and reverse tunnel are listening on separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel && !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
-			listeners.minimalReverseTunnelWebEnabled = true
-			listener, err := process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
-			if err != nil {
-				return nil, trace.Wrap(err)
+			if cfg.Proxy.DisableWebService {
+				listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+				if err != nil {
+					listeners.Close()
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				listeners.minimalReverseTunnelWebEnabled = true
+				listener, err := process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				listeners.reverseTunnelMux, err = multiplexer.New(multiplexer.Config{
+					EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+					Listener:            listener,
+					ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+				})
+				if err != nil {
+					listener.Close()
+					return nil, trace.Wrap(err)
+				}
+				listeners.reverseTunnel = listeners.reverseTunnelMux.SSH()
+				go listeners.reverseTunnelMux.Serve()
 			}
-			listeners.mux2, err = multiplexer.New(multiplexer.Config{
-				EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-				Listener:            listener,
-				ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
-			})
-			if err != nil {
-				listener.Close()
-				return nil, trace.Wrap(err)
-			}
-			listeners.reverseTunnel = listeners.mux2.SSH()
-			go listeners.mux2.Serve()
 		}
 		if !cfg.Proxy.DisableWebService && !cfg.Proxy.WebAddr.IsEmpty() {
 			listener, err := process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
@@ -3224,21 +3235,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 
 		if listeners.minimalReverseTunnelWebEnabled {
-			minimalListener, err := multiplexer.NewWebListener(multiplexer.WebListenerConfig{
-				Listener: tls.NewListener(listeners.mux2.TLS(), tlsConfigWeb),
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			process.RegisterCriticalFunc("proxy.reversetunnel.tls", func() error {
-				log.Infof("TLS multiplexer is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
-				if err := minimalListener.Serve(); !trace.IsConnectionProblem(err) {
-					log.WithError(err).Warn("TLS multiplexer error.")
-				}
-				log.Info("TLS multiplexer exited.")
-				return nil
-			})
-
+			minimalListener := listeners.reverseTunnelMux.TLS()
 			minimalProxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 			if err != nil {
 				return trace.Wrap(err)
@@ -3249,6 +3246,24 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return trace.Wrap(err)
 			}
 			minimalProxyLimiter.WrapHandle(minimalWebHandler)
+
+			minimalTLSListener, err := multiplexer.NewWebListener(multiplexer.WebListenerConfig{
+				Listener: tls.NewListener(minimalListener, tlsConfigWeb),
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			minimalListener = minimalTLSListener.Web()
+
+			process.RegisterCriticalFunc("proxy.reversetunnel.tls", func() error {
+				log.Infof("TLS multiplexer is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
+				if err := minimalTLSListener.Serve(); !trace.IsConnectionProblem(err) {
+					log.WithError(err).Warn("TLS multiplexer error.")
+				}
+				log.Info("TLS multiplexer exited.")
+				return nil
+			})
+
 			minimalWebServer = &http.Server{
 				Handler:           minimalProxyLimiter,
 				ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
@@ -3260,7 +3275,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				log.Infof("Minimal web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 				defer minimalWebHandler.Close()
 				process.BroadcastEvent(Event{Name: ProxyWebServerReady, Payload: minimalWebHandler})
-				if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && err != http.ErrServerClosed {
+				if err := minimalWebServer.Serve(minimalListener); err != nil && err != http.ErrServerClosed {
 					log.Warningf("Error while serving web requests: %v", err)
 				}
 				log.Info("Exited.")
