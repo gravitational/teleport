@@ -33,6 +33,7 @@ import (
 
 type sftpSubsys struct {
 	sftpCmd *exec.Cmd
+	ch      ssh.Channel
 	errCh   chan error
 	log     *logrus.Entry
 }
@@ -48,6 +49,8 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 }
 
 func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
+	s.ch = ch
+
 	err := req.Reply(true, nil)
 	if err != nil {
 		return trace.Wrap(err)
@@ -93,16 +96,14 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 	s.errCh = make(chan error, 2)
 	go func() {
 		defer chReadPipeIn.Close()
-		defer ch.Close()
 
-		_, err := io.Copy(chReadPipeIn, ch)
+		_, err := io.Copy(chReadPipeIn, s.ch)
 		s.errCh <- err
 	}()
 	go func() {
 		defer chWritePipeOut.Close()
-		defer ch.Close()
 
-		_, err := io.Copy(ch, chWritePipeOut)
+		_, err := io.Copy(s.ch, chWritePipeOut)
 		s.errCh <- err
 	}()
 
@@ -121,6 +122,7 @@ func (s *sftpSubsys) Wait() error {
 			errs = append(errs, err)
 		}
 	}
+	errs = append(errs, s.ch.Close())
 
 	return trace.NewAggregate(errs...)
 }
