@@ -3,7 +3,17 @@ authors: Joel Wejdenstal <jwejdenstal@goteleport.com>
 state: draft
 ---
 
-# RFD 73 - IdP-initated SAML Login
+# RFD 73 - RFD 73 - IdP-initated Login Flows for SAML and OIDC
+
+## Terminology
+
+- SP: Service Provider (Teleport)
+
+- IdP: Identity Provider (Okta, Google, etc)
+
+- SAML: Security Assertion Markup Language 2.0
+
+- OIDC: OpenID Connect
 
 ## What
 
@@ -14,6 +24,18 @@ This RFD was spawned by https://github.com/gravitational/teleport/issues/2967. T
 This is a useful feature to reduce friction and make it easier for users to access Teleport via WebUI. Currently, one has to navigate to the Teleport WebUI and click the "Login" button. This isn't always optimal and we can reduce friction by allowing users to access Teleport WebUI directly from their SSO providers' landing page, such as the Okta dashboard.
 
 ## Details
+
+### SAML and OIDC
+
+SAML and OIDC are two different protocols that we support for SSO which have different authentication mechanisms. Modern versions of SAML have mechanisms for both SP-initiated and IdP-initiated login. OIDC on the other hand is based on OAuth2 and while it does have mechanisms for SP-initiated login, it lacks mechanisms for IdP-initiated login.
+
+OIDC does have a feature called Third Party Initiated Login that allows an initiator to bounce to the SP which sends you to the IdP and back. This can technically be employed to support IdP-initiated login, but I don't believe that OIDC is a good candidate for this feature. This is because to make IdP-initiated login useful, you need a base platform such as a dashboard (often run by the IdP) that can be used to send the user to the SP and initiate the login. Since SAML has a commonly used mechanism for IdP-initiated login, most IdP's have a feature like this for SAML.
+
+OIDC does not have a commonly used mechanism for IdP-initiated login. This has resulted in IdP support for this feature being scarce and limited. Furthermore, the Third Party Initiated Login feature of OIDC is not well specific as it is generally used to create a middleman IdP that sits between between a true SP and IdP. Therefore OIDC lacks the tooling and product support from IdP's to make this feature useful.
+
+For this reason, the rest of the RFD focuses purely on SAML and assumes that is the only connector we will support IdP-initiated login for.
+
+### Configuration
 
 Add a new configurable field to SAML connectors called `allow_idp_initiated` which defaults to false. If set to true, Teleport will accept the SAML assertion sent by the IdP even if it is not requested by Teleport. This allows you to configure the SAML callback in an IdP provider as usual and log in to Teleport directly from the IdP dashboard.
 
