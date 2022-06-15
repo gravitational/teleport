@@ -393,79 +393,90 @@ impl Client {
                         );
                     }
 
-                    // The actual creation of files and error mapping badevice_io_request.completion_id happens here, for reference:
+                    // The actual creation of files and error mapping in FreeRDP happens here, for reference:
                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L781
-                    if rdp_req.create_disposition == flags::CreateDisposition::FILE_SUPERSEDE {
-                        // If the file already exists, replace it with the given file. If it does not, create the given file.
-                    } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OPEN {
-                        // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
-                        if res.err_code == TdpErrCode::Nil {
-                            let file_id = cli.generate_file_id();
-                            cli.file_cache.insert(
-                                file_id,
-                                FileCacheObject::new(rdp_req.path.clone(), res.fso),
-                            );
-                            return cli.prep_device_create_response(
-                                &rdp_req,
-                                NTSTATUS::STATUS_SUCCESS,
-                                file_id,
-                            );
-                        } else {
-                            return cli.prep_device_create_response(
-                                &rdp_req,
-                                NTSTATUS::STATUS_NO_SUCH_FILE,
-                                0,
-                            );
+                    match rdp_req.create_disposition {
+                        flags::CreateDisposition::FILE_SUPERSEDE => {
+                            // If the file already exists, replace it with the given file. If it does not, create the given file.
                         }
-                    } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_CREATE {
-                        // If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
-                        if res.err_code == TdpErrCode::Nil {
-                            return cli.prep_device_create_response(
-                                &rdp_req,
-                                NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
-                                0,
-                            );
-                        } else {
-                            return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                        flags::CreateDisposition::FILE_OPEN => {
+                            // If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
+                            if res.err_code == TdpErrCode::Nil {
+                                let file_id = cli.generate_file_id();
+                                cli.file_cache.insert(
+                                    file_id,
+                                    FileCacheObject::new(rdp_req.path.clone(), res.fso),
+                                );
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_SUCCESS,
+                                    file_id,
+                                );
+                            } else {
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_NO_SUCH_FILE,
+                                    0,
+                                );
+                            }
                         }
-                    } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OPEN_IF {
-                        // If the file already exists, open it. If it does not, create the given file.
-                        if res.err_code == TdpErrCode::Nil {
-                            let file_id = cli.generate_file_id();
-                            cli.file_cache.insert(
-                                file_id,
-                                FileCacheObject::new(rdp_req.path.clone(), res.fso),
-                            );
-                            return cli.prep_device_create_response(
-                                &rdp_req,
-                                NTSTATUS::STATUS_SUCCESS,
-                                file_id,
-                            );
-                        } else {
-                            return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                        flags::CreateDisposition::FILE_CREATE => {
+                            // If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
+                            if res.err_code == TdpErrCode::Nil {
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
+                                    0,
+                                );
+                            } else {
+                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                            }
                         }
-                    } else if rdp_req.create_disposition == flags::CreateDisposition::FILE_OVERWRITE
-                    {
-                        // If the file already exists, open it and overwrite it. If it does not, fail the request.
-                        if res.err_code == TdpErrCode::Nil {
-                            return cli.tdp_sd_overwrite(rdp_req, res.fso);
-                        } else {
-                            return cli.prep_device_create_response(
-                                &rdp_req,
-                                NTSTATUS::STATUS_NO_SUCH_FILE,
-                                0,
-                            );
+                        flags::CreateDisposition::FILE_OPEN_IF => {
+                            // If the file already exists, open it. If it does not, create the given file.
+                            if res.err_code == TdpErrCode::Nil {
+                                let file_id = cli.generate_file_id();
+                                cli.file_cache.insert(
+                                    file_id,
+                                    FileCacheObject::new(rdp_req.path.clone(), res.fso),
+                                );
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_SUCCESS,
+                                    file_id,
+                                );
+                            } else {
+                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                            }
                         }
-                    } else if rdp_req.create_disposition
-                        == flags::CreateDisposition::FILE_OVERWRITE_IF
-                    {
-                        // If the file already exists, open it and overwrite it. If it does not, create the given file.
-                        if res.err_code == TdpErrCode::Nil {
-                            return cli.tdp_sd_overwrite(rdp_req, res.fso);
-                        } else {
-                            return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                        flags::CreateDisposition::FILE_OVERWRITE => {
+                            // If the file already exists, open it and overwrite it. If it does not, fail the request.
+                            if res.err_code == TdpErrCode::Nil {
+                                return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                            } else {
+                                return cli.prep_device_create_response(
+                                    &rdp_req,
+                                    NTSTATUS::STATUS_NO_SUCH_FILE,
+                                    0,
+                                );
+                            }
+                        }
+                        flags::CreateDisposition::FILE_OVERWRITE_IF => {
+                            // If the file already exists, open it and overwrite it. If it does not, create the given file.
+                            if res.err_code == TdpErrCode::Nil {
+                                return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                            } else {
+                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                            }
+                        }
+                        _ => {
+                            return Err(invalid_data_error(&format!(
+                                "received unknown CreateDisposition value for RDP {:?}",
+                                rdp_req
+                            )));
                         }
                     }
+
                     Ok(vec![])
                 },
             ),
