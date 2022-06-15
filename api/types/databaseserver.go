@@ -51,6 +51,8 @@ type DatabaseServer interface {
 	GetDatabase() Database
 	// SetDatabase sets the database this database server proxies.
 	SetDatabase(Database) error
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -188,6 +190,16 @@ func (s *DatabaseServerV3) SetDatabase(database Database) error {
 	}
 	s.Spec.Database = databaseV3
 	return nil
+}
+
+// GetProxyID returns a list of proxy ids this server is connected to.
+func (s *DatabaseServerV3) GetProxyIDs() []string {
+	return s.Spec.ProxyIDs
+}
+
+// SetProxyID sets the proxy ids this server is connected to.
+func (s *DatabaseServerV3) SetProxyIDs(proxyIDs []string) {
+	s.Spec.ProxyIDs = proxyIDs
 }
 
 // String returns the server string representation.

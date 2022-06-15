@@ -75,6 +75,15 @@ var (
 		"elasticache:DescribeUsers",
 		"elasticache:ModifyUser",
 	}
+	// memoryDBActions is a list of actions used for MemoryDB auto-discovery
+	// and metadata update.
+	memoryDBActions = []string{
+		"memorydb:ListTags",
+		"memorydb:DescribeClusters",
+		"memorydb:DescribeSubnetGroups",
+		"memorydb:DescribeUsers",
+		"memorydb:UpdateUser",
+	}
 	// secretsManagerActions is a list of actions used for SecretsManager.
 	secretsManagerActions = []string{
 		"secretsmanager:DescribeSecret",
@@ -382,7 +391,8 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 	rdsAutoDiscovery := isRDSAutoDiscoveryEnabled(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
 	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
-	requireSecretsManager := elastiCacheDatabases
+	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
+	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
 
 	if rdsAutoDiscovery {
 		statements = append(statements, buildRDSAutoDiscoveryStatements()...)
@@ -395,6 +405,9 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 	// ElastiCache does not require permissions to edit user/role IAM policy.
 	if elastiCacheDatabases {
 		statements = append(statements, buildElastiCacheStatements()...)
+	}
+	if memoryDBDatabases {
+		statements = append(statements, buildMemoryDBStatements()...)
 	}
 
 	if requireSecretsManager {
@@ -428,7 +441,8 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 	rdsAutoDiscovery := isRDSAutoDiscoveryEnabled(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
 	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
-	requireSecretsManager := elastiCacheDatabases
+	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
+	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
 
 	if rdsAutoDiscovery {
 		statements = append(statements, buildRDSAutoDiscoveryBoundaryStatements()...)
@@ -436,6 +450,9 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 
 	if redshiftDatabases {
 		statements = append(statements, buildRedshiftBoundaryStatements()...)
+	}
+	if memoryDBDatabases {
+		statements = append(statements, buildMemoryDBBoundaryStatements()...)
 	}
 
 	// ElastiCache does not require permissions to edit user/role IAM policy.
@@ -498,6 +515,17 @@ func hasElastiCacheDatabases(flags BootstrapFlags, fileConfig *config.FileConfig
 
 	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherElastiCache) ||
 		findEndpointIs(fileConfig, awsutils.IsElastiCacheEndpoint)
+}
+
+// hasMemoryDBDatabases checks if the agent needs permission for
+// ElastiCache databases.
+func hasMemoryDBDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+	if flags.ForceMemoryDBPermissions {
+		return true
+	}
+
+	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherMemoryDB) ||
+		findEndpointIs(fileConfig, awsutils.IsMemoryDBEndpoint)
 }
 
 // isAutoDiscoveryEnabledForMatcher returns true if provided AWS matcher type
@@ -610,6 +638,19 @@ func buildElastiCacheBoundaryStatements() []*awslib.Statement {
 	return buildElastiCacheStatements()
 }
 
+func buildMemoryDBStatements() []*awslib.Statement {
+	return []*awslib.Statement{
+		{
+			Effect:    awslib.EffectAllow,
+			Actions:   memoryDBActions,
+			Resources: []string{"*"},
+		},
+	}
+}
+func buildMemoryDBBoundaryStatements() []*awslib.Statement {
+	return buildMemoryDBStatements()
+}
+
 // buildSecretsManagerStatements returns IAM statements necessary for using AWS
 // Secrets Manager.
 func buildSecretsManagerStatements(fileConfig *config.FileConfig, target awslib.Identity) []*awslib.Statement {
@@ -628,7 +669,8 @@ func buildSecretsManagerStatements(fileConfig *config.FileConfig, target awslib.
 	addedSecretPrefixes := map[string]bool{}
 	addedKMSKeyIDs := map[string]bool{}
 	for _, database := range fileConfig.Databases.Databases {
-		if !aws.IsElastiCacheEndpoint(database.URI) {
+		if !aws.IsElastiCacheEndpoint(database.URI) &&
+			!aws.IsMemoryDBEndpoint(database.URI) {
 			continue
 		}
 

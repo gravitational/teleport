@@ -82,6 +82,16 @@ func tagBuildCommands(b buildType) []string {
 		),
 	)
 
+	// Build Teleport Connect on suported OS/arch
+	if b.hasTeleportConnect() {
+		commands = append(commands,
+			`cd /go/src/github.com/gravitational/webapps`,
+			`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
+			`cd -`,
+		)
+
+	}
+
 	if b.os == "windows" {
 		commands = append(commands,
 			`rm -f windows-signing-cert.pfx`,

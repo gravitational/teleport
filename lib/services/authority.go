@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -197,8 +198,6 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 type HostCertParams struct {
 	// CASigner is the signer that will sign the public key of the host with the CA private key.
 	CASigner ssh.Signer
-	// CASigningAlg is the signature algorithm used by the CA private key.
-	CASigningAlg string
 	// PublicHostKey is the public key of the host
 	PublicHostKey []byte
 	// HostID is used by Teleport to uniquely identify a node within a cluster
@@ -217,8 +216,8 @@ type HostCertParams struct {
 
 // Check checks parameters for errors
 func (c HostCertParams) Check() error {
-	if c.CASigner == nil || c.CASigningAlg == "" {
-		return trace.BadParameter("CASigner and CASigningAlg are required")
+	if c.CASigner == nil {
+		return trace.BadParameter("CASigner is required")
 	}
 	if c.HostID == "" && len(c.Principals) == 0 {
 		return trace.BadParameter("HostID [%q] or Principals [%q] are required",
@@ -253,8 +252,6 @@ type ChangePasswordReq struct {
 type UserCertParams struct {
 	// CASigner is the signer that will sign the public key of the user with the CA private key
 	CASigner ssh.Signer
-	// CASigningAlg is the signature algorithm used by the CA private key.
-	CASigningAlg string
 	// PublicUserKey is the public key of the user
 	PublicUserKey []byte
 	// TTL defines how long a certificate is valid for
@@ -289,6 +286,8 @@ type UserCertParams struct {
 	MFAVerified string
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
+	// SourceIP is an IP that certificate should be pinned to.
+	SourceIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
 	DisallowReissue bool
@@ -304,11 +303,11 @@ type UserCertParams struct {
 
 // CheckAndSetDefaults checks the user certificate parameters
 func (c *UserCertParams) CheckAndSetDefaults() error {
-	if c.CASigner == nil || c.CASigningAlg == "" {
-		return trace.BadParameter("CASigner and CASigningAlg are required")
+	if c.CASigner == nil {
+		return trace.BadParameter("CASigner is required")
 	}
-	if c.TTL < defaults.MinCertDuration {
-		c.TTL = defaults.MinCertDuration
+	if c.TTL < apidefaults.MinCertDuration {
+		c.TTL = apidefaults.MinCertDuration
 	}
 	if len(c.AllowedLogins) == 0 {
 		return trace.BadParameter("AllowedLogins are required")

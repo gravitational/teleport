@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/stretchr/testify/require"
@@ -1073,7 +1074,7 @@ func (s *TLSSuite) TestTokens(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	out, err := clt.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
+	out, err := clt.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Not(check.Equals), 0)
 }
@@ -1248,7 +1249,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(err, check.IsNil)
 
 	// Roles extracted from cert should contain the initial role and the role assigned with access request.
-	roles, _, err := services.ExtractFromCertificate(sshcert)
+	roles, err := services.ExtractRolesFromCert(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.HasLen, 2)
 
@@ -1289,7 +1290,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
 	c.Assert(err, check.IsNil)
 
-	roles, _, err = services.ExtractFromCertificate(sshcert)
+	roles, err = services.ExtractRolesFromCert(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.DeepEquals, []string{initialRole})
 
@@ -2246,6 +2247,7 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2273,6 +2275,7 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2298,11 +2301,11 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	ctx := context.Background()
 	// Generate a token to use.
-	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, GenerateTokenRequest{
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
 		Roles: types.SystemRoles{
 			types.RoleProxy,
 		},
-		TTL: time.Hour,
+		TTL: proto.Duration(time.Hour),
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2433,11 +2436,11 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 	ctx := context.Background()
 	// Generate a token to use.
-	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, GenerateTokenRequest{
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
 		Roles: types.SystemRoles{
 			types.RoleProxy,
 		},
-		TTL: time.Hour,
+		TTL: proto.Duration(time.Hour),
 	})
 	c.Assert(err, check.IsNil)
 

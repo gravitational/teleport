@@ -19,7 +19,7 @@ Enterprise Edition:
 
 <Tabs>
   <TabItem label="Open Source">
-    Github's `teams_to_logins` section maps users to roles based on users' teams.
+    GitHub's `teams_to_roles` section maps users to roles based on users' teams.
 
     ```yaml
     kind: github
@@ -28,20 +28,20 @@ Enterprise Edition:
       # Connector name that will be used with `tsh --auth=github login`
       name: github
     spec:
-      # Client ID of Github OAuth app
+      # Client ID of GitHub OAuth app
       client_id: client-id
-      # Client secret of Github OAuth app
+      # Client secret of GitHub OAuth app
       client_secret: client-secret
       # This name will be shown on UI login screen
-      display: Github
+      display: GitHub
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
-      teams_to_logins:
-        - organization: octocats # Github organization name
-          team: admin            # Github team name within that organization
+      teams_to_roles:
+        - organization: octocats # GitHub organization name
+          team: admin            # GitHub team name within that organization
           # keep this field as is for now
-          logins: ["admin"]
+          roles: ["admin"]
     ```
   </TabItem>
 
@@ -143,7 +143,7 @@ $ tctl create -f member.yaml
 Assign this role to a user in OIDC or SAML connector:
 
 <Tabs>
-  <TabItem label="Github (OSS)">
+  <TabItem label="GitHub (OSS)">
     ```yaml
     kind: github
     version: v3
@@ -151,21 +151,21 @@ Assign this role to a user in OIDC or SAML connector:
       # Connector name that will be used with `tsh --auth=github login`
       name: github
     spec:
-      # Client ID of Github OAuth app
+      # Client ID of GitHub OAuth app
       client_id: client-id
-      # Client secret of Github OAuth app
+      # Client secret of GitHub OAuth app
       client_secret: client-secret
       # This name will be shown on UI login screen
-      display: Github
+      display: GitHub
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to kubernetes groups
-      teams_to_logins:
-        - organization: octocats # Github organization name
-          team: admin            # Github team name within that organization
-          # List of Kubernetes groups this Github team is allowed to connect to
+      teams_to_roles:
+        - organization: octocats # GitHub organization name
+          team: admin            # GitHub team name within that organization
+          # List of Kubernetes groups this GitHub team is allowed to connect to
           # Keep this field as is for now
-          logins: ["admins"]
+          roles: ["admins"]
     ```
   </TabItem>
 
