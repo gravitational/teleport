@@ -110,7 +110,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 		return nil, trace.Wrap(err)
 	}
 
-	s.pipeInOut(stdout, mode)
+	s.pipeInOut(stdout, tc.EnableEscapeSequences, mode)
 	return s, nil
 }
 
@@ -185,7 +185,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 }
 
 // pipeInOut starts background tasks that copy input to and from the terminal.
-func (s *KubeSession) pipeInOut(stdout io.Writer, mode types.SessionParticipantMode) {
+func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mode types.SessionParticipantMode) {
 	go func() {
 		defer s.cancel()
 		_, err := io.Copy(stdout, s.stream)
@@ -199,7 +199,7 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, mode types.SessionParticipantM
 
 		switch mode {
 		case types.SessionPeerMode:
-			handlePeerControls(s.term, s.stream)
+			handlePeerControls(s.term, enableEscapeSequences, s.stream)
 		default:
 			handleNonPeerControls(mode, s.term, func() {
 				err := s.stream.ForceTerminate()

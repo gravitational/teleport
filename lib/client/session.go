@@ -643,9 +643,9 @@ func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Ter
 
 // handlePeerControls streams the terminal input to the remote shell's standard input.
 // Escape sequences for stopping the stream on the client side are supported via `escape.NewReader`.
-func handlePeerControls(term *terminal.Terminal, remoteStdin io.Writer) {
+func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, remoteStdin io.Writer) {
 	stdin := term.Stdin()
-	if term.IsAttached() {
+	if term.IsAttached() && enableEscapeSequences {
 		// escape.NewReader is used to enable manual disconnect sequences as those supported
 		// by tsh. These can be used to force a client disconnect since CTRL-C is merely passed
 		// to the other end and not interpreted as an exit request locally
@@ -697,7 +697,7 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, mode types.SessionPar
 	case types.SessionPeerMode:
 		// copy from the local input to the remote shell:
 		go func() {
-			handlePeerControls(ns.terminal, shell)
+			handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell)
 		}()
 	}
 }
