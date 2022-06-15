@@ -629,7 +629,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
-		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
+		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0o700)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -783,7 +783,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if cfg.Apps.Enabled {
 		eventMapping.In = append(eventMapping.In, AppsReady)
 	}
-	if cfg.Databases.Enabled {
+	if process.shouldInitDatabases() {
 		eventMapping.In = append(eventMapping.In, DatabasesReady)
 	}
 	if cfg.Metrics.Enabled {
@@ -836,7 +836,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp), process.log)
 	}
 
-	if cfg.Databases.Enabled {
+	if process.shouldInitDatabases() {
 		process.initDatabases()
 		serviceStarted = true
 	} else {
@@ -874,7 +874,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -2101,7 +2101,7 @@ func (process *TeleportProcess) initUploaderService(streamer events.Streamer, au
 		for i := 1; i < len(path); i++ {
 			dir := filepath.Join(path[:i+1]...)
 			log.Infof("Creating directory %v.", dir)
-			err := os.Mkdir(dir, 0755)
+			err := os.Mkdir(dir, 0o755)
 			err = trace.ConvertSystemError(err)
 			if err != nil {
 				if !trace.IsAlreadyExists(err) {
@@ -3923,10 +3923,10 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err)
 	}
 
-	if err := ioutil.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
+	if err := ioutil.WriteFile(keyPath, creds.PrivateKey, 0o600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
-	if err := ioutil.WriteFile(certPath, creds.Cert, 0600); err != nil {
+	if err := ioutil.WriteFile(certPath, creds.Cert, 0o600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
 	return nil
