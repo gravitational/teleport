@@ -30,7 +30,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -45,8 +44,6 @@ type UploaderConfig struct {
 	ScanDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
-	// Context is an optional context
-	Context context.Context
 	// ScanPeriod is a uploader dir scan period
 	ScanPeriod time.Duration
 	// ConcurrentUploads sets up how many parallel uploads to schedule
@@ -79,9 +76,6 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	if cfg.ScanPeriod <= 0 {
 		cfg.ScanPeriod = defaults.UploaderScanPeriod
 	}
-	if cfg.Context == nil {
-		cfg.Context = context.Background()
-	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
@@ -92,40 +86,20 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 }
 
 // NewUploader creates new disk based session logger
-func NewUploader(cfg UploaderConfig, sessionTracker services.SessionTrackerService) (*Uploader, error) {
+func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	handler, err := NewHandler(Config{
-		Directory: cfg.ScanDir,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	ctx, cancel := context.WithCancel(cfg.Context)
 	uploader := &Uploader{
 		cfg: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: cfg.Component,
 		}),
-		cancel:    cancel,
-		ctx:       ctx,
+		closeC:    make(chan struct{}),
 		auditLog:  cfg.AuditLog,
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
-	}
-
-	// upload completer scans for uploads that have been initiated, but not completed
-	// by the client (aborted or crashed) and completes them. It will be closed once
-	// the uploader context is closed.
-	err = events.StartNewUploadCompleter(uploader.ctx, events.UploadCompleterConfig{
-		Uploader:       handler,
-		AuditLog:       cfg.AuditLog,
-		SessionTracker: sessionTracker,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	return uploader, nil
@@ -139,9 +113,6 @@ func NewUploader(cfg UploaderConfig, sessionTracker services.SessionTrackerServi
 // It keeps checkpoints of the upload state and resumes
 // the upload that have been aborted.
 //
-// The uploader completes the sessions that have been
-// abandoned longer than the grace period.
-//
 // It marks corrupted session files to skip their processing.
 //
 type Uploader struct {
@@ -150,10 +121,13 @@ type Uploader struct {
 	cfg UploaderConfig
 	log *log.Entry
 
-	cancel   context.CancelFunc
-	ctx      context.Context
 	eventsCh chan events.UploadEvent
 	auditLog events.IAuditLog
+	closeC   chan struct{}
+}
+
+func (u *Uploader) Close() {
+	close(u.closeC)
 }
 
 func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
@@ -180,7 +154,7 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 }
 
 // Serve runs the uploader until stopped
-func (u *Uploader) Serve() error {
+func (u *Uploader) Serve(ctx context.Context) error {
 	backoff, err := utils.NewLinear(utils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
 		Max:   u.cfg.ScanPeriod * 100,
@@ -191,11 +165,13 @@ func (u *Uploader) Serve() error {
 	}
 	for {
 		select {
-		case <-u.ctx.Done():
+		case <-u.closeC:
 			return nil
+		case <-ctx.Done():
+			return nil
+		case event := <-u.eventsCh:
 			// Successful and failed upload events are used to speed up and
 			// slow down the scans and uploads.
-		case event := <-u.eventsCh:
 			switch {
 			case event.Error == nil:
 				backoff.ResetToDelay()
@@ -222,7 +198,7 @@ func (u *Uploader) Serve() error {
 		// Tick at scan period but slow down (and speeds up) on errors.
 		case <-backoff.After():
 			var failed bool
-			if _, err := u.Scan(); err != nil {
+			if _, err := u.Scan(ctx); err != nil {
 				if trace.Unwrap(err) != errContext {
 					failed = true
 					u.log.WithError(err).Warningf("Uploader scan failed.")
@@ -248,7 +224,7 @@ type ScanStats struct {
 }
 
 // Scan scans the streaming directory and uploads recordings
-func (u *Uploader) Scan() (*ScanStats, error) {
+func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 	files, err := os.ReadDir(u.cfg.ScanDir)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -264,7 +240,7 @@ func (u *Uploader) Scan() (*ScanStats, error) {
 			continue
 		}
 		stats.Scanned++
-		if err := u.startUpload(fi.Name()); err != nil {
+		if err := u.startUpload(ctx, fi.Name()); err != nil {
 			if trace.IsCompareFailed(err) {
 				u.log.Debugf("Scan is skipping recording %v that is locked by another process.", fi.Name())
 				continue
@@ -295,11 +271,6 @@ func (u *Uploader) checkpointFilePath(sid session.ID) string {
 // sessionErrorFilePath returns a path to checkpoint file for a session
 func (u *Uploader) sessionErrorFilePath(sid session.ID) string {
 	return filepath.Join(u.cfg.ScanDir, sid.String()+errorExt)
-}
-
-// Close closes all operations
-func (u *Uploader) Close() {
-	u.cancel()
 }
 
 type upload struct {
@@ -370,7 +341,7 @@ func (u *upload) removeFiles() error {
 	return trace.NewAggregate(errs...)
 }
 
-func (u *Uploader) startUpload(fileName string) error {
+func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 	sessionID, err := sessionIDFromPath(fileName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -416,7 +387,7 @@ func (u *Uploader) startUpload(fileName string) error {
 	}
 
 	start := time.Now()
-	if err := u.takeSemaphore(); err != nil {
+	if err := u.takeSemaphore(ctx); err != nil {
 		if err := upload.Close(); err != nil {
 			u.log.WithError(err).Warningf("Failed to close upload.")
 		}
@@ -426,7 +397,7 @@ func (u *Uploader) startUpload(fileName string) error {
 		u.log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
 	}
 	go func() {
-		if err := u.upload(upload); err != nil {
+		if err := u.upload(ctx, upload); err != nil {
 			u.log.WithError(err).Warningf("Upload failed.")
 			u.emitEvent(events.UploadEvent{
 				SessionID: string(upload.sessionID),
@@ -444,8 +415,8 @@ func (u *Uploader) startUpload(fileName string) error {
 	return nil
 }
 
-func (u *Uploader) upload(up *upload) error {
-	defer u.releaseSemaphore()
+func (u *Uploader) upload(ctx context.Context, up *upload) error {
+	defer u.releaseSemaphore(ctx)
 	defer func() {
 		if err := up.Close(); err != nil {
 			u.log.WithError(err).Warningf("Failed to close upload.")
@@ -458,12 +429,12 @@ func (u *Uploader) upload(up *upload) error {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		stream, err = u.cfg.Streamer.CreateAuditStream(u.ctx, up.sessionID)
+		stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		stream, err = u.cfg.Streamer.ResumeAuditStream(u.ctx, up.sessionID, status.UploadID)
+		stream, err = u.cfg.Streamer.ResumeAuditStream(ctx, up.sessionID, status.UploadID)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -472,7 +443,7 @@ func (u *Uploader) upload(up *upload) error {
 				"Upload for sesion %v, upload ID %v is not found starting a new upload from scratch.",
 				up.sessionID, status.UploadID)
 			status = nil
-			stream, err = u.cfg.Streamer.CreateAuditStream(u.ctx, up.sessionID)
+			stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -480,7 +451,7 @@ func (u *Uploader) upload(up *upload) error {
 	}
 
 	defer func() {
-		if err := stream.Close(u.ctx); err != nil {
+		if err := stream.Close(ctx); err != nil {
 			if trace.Unwrap(err) != io.EOF {
 				u.log.WithError(err).Debugf("Failed to close stream.")
 			}
@@ -491,16 +462,19 @@ func (u *Uploader) upload(up *upload) error {
 	// if it was successful get the first status update
 	// sent by the server after create.
 	select {
+	case <-u.closeC:
+		return trace.Errorf("operation has been cancelled, uploader is closed")
 	case <-stream.Status():
 	case <-time.After(defaults.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
-	case <-u.ctx.Done():
-		return trace.ConnectionProblem(u.ctx.Err(), "operation has been cancelled")
+	case <-ctx.Done():
+		return trace.ConnectionProblem(ctx.Err(), "operation has been cancelled")
+
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go u.monitorStreamStatus(u.ctx, up, stream, cancel)
+	go u.monitorStreamStatus(ctx, up, stream, cancel)
 
 	for {
 		event, err := up.reader.Read(ctx)
@@ -514,12 +488,12 @@ func (u *Uploader) upload(up *upload) error {
 		if status != nil && event.GetIndex() <= status.LastEventIndex {
 			continue
 		}
-		if err := stream.EmitAuditEvent(u.ctx, event); err != nil {
+		if err := stream.EmitAuditEvent(ctx, event); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	if err := stream.Complete(u.ctx); err != nil {
+	if err := stream.Complete(ctx); err != nil {
 		u.log.WithError(err).Error("Failed to complete upload.")
 		return trace.Wrap(err)
 	}
@@ -566,20 +540,20 @@ func (u *Uploader) monitorStreamStatus(ctx context.Context, up *upload, stream a
 
 var errContext = fmt.Errorf("context has closed")
 
-func (u *Uploader) takeSemaphore() error {
+func (u *Uploader) takeSemaphore(ctx context.Context) error {
 	select {
 	case u.semaphore <- struct{}{}:
 		return nil
-	case <-u.ctx.Done():
+	case <-ctx.Done():
 		return errContext
 	}
 }
 
-func (u *Uploader) releaseSemaphore() error {
+func (u *Uploader) releaseSemaphore(ctx context.Context) error {
 	select {
 	case <-u.semaphore:
 		return nil
-	case <-u.ctx.Done():
+	case <-ctx.Done():
 		return errContext
 	}
 }

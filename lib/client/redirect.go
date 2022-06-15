@@ -75,10 +75,18 @@ type Redirector struct {
 	context context.Context
 	// cancel broadcasts cancel
 	cancel context.CancelFunc
+	// RedirectorConfig allows customization of Redirector
+	RedirectorConfig
+}
+
+// RedirectorConfig allows customization of Redirector
+type RedirectorConfig struct {
+	// SSOLoginConsoleRequestFn allows customizing issuance of SSOLoginConsoleReq. Optional.
+	SSOLoginConsoleRequestFn func(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error)
 }
 
 // NewRedirector returns new local web server redirector
-func NewRedirector(ctx context.Context, login SSHLoginSSO) (*Redirector, error) {
+func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*Redirector, error) {
 	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,9 +99,9 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO) (*Redirector, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	context, cancel := context.WithCancel(ctx)
+	ctxCancel, cancel := context.WithCancel(ctx)
 	rd := &Redirector{
-		context:     context,
+		context:     ctxCancel,
 		cancel:      cancel,
 		proxyClient: clt,
 		proxyURL:    proxyURL,
@@ -103,6 +111,14 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO) (*Redirector, error) 
 		shortPath:   "/" + uuid.New().String(),
 		responseC:   make(chan *auth.SSHLoginResponse, 1),
 		errorC:      make(chan error, 1),
+	}
+
+	if config != nil {
+		rd.RedirectorConfig = *config
+	}
+
+	if rd.SSOLoginConsoleRequestFn == nil {
+		rd.SSOLoginConsoleRequestFn = rd.issueSSOLoginConsoleRequest
 	}
 
 	// callback is a callback URL communicated to the Teleport proxy,
@@ -145,7 +161,7 @@ func (rd *Redirector) Start() error {
 	query.Set("secret_key", rd.key.String())
 	u.RawQuery = query.Encode()
 
-	out, err := rd.proxyClient.PostJSON(rd.context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), SSOLoginConsoleReq{
+	req := SSOLoginConsoleReq{
 		RedirectURL:       u.String(),
 		PublicKey:         rd.PubKey,
 		CertTTL:           rd.TTL,
@@ -153,22 +169,35 @@ func (rd *Redirector) Start() error {
 		Compatibility:     rd.Compatibility,
 		RouteToCluster:    rd.RouteToCluster,
 		KubernetesCluster: rd.KubernetesCluster,
-	})
+	}
+
+	response, err := rd.SSOLoginConsoleRequestFn(req)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// notice late binding of the redirect URL here, it is referenced
+	// in the callback handler, but is known only after the request
+	// is sent to the Teleport Proxy, that's why
+	// redirectURL is a SyncString
+	rd.redirectURL.Set(response.RedirectURL)
+	return nil
+}
+
+// issueSSOLoginConsoleRequest is default implementation, but may be overridden via RedirectorConfig.IssueSSOLoginConsoleRequest.
+func (rd *Redirector) issueSSOLoginConsoleRequest(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error) {
+	out, err := rd.proxyClient.PostJSON(rd.context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var re *SSOLoginConsoleResponse
 	err = json.Unmarshal(out.Bytes(), &re)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	// notice late binding of the redirect URL here, it is referenced
-	// in the callback handler, but is known only after the request
-	// is sent to the Teleport Proxy, that's why
-	// redirectURL is a SyncString
-	rd.redirectURL.Set(re.RedirectURL)
-	return nil
+
+	return re, nil
 }
 
 // Done is called when redirector is closed
@@ -200,6 +229,11 @@ func (rd *Redirector) ErrorC() <-chan error {
 func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SSHLoginResponse, error) {
 	if r.URL.Path != "/callback" {
 		return nil, trace.NotFound("path not found")
+	}
+
+	if r.URL.Query().Has("err") {
+		err := r.URL.Query().Get("err")
+		return nil, trace.Errorf("identity provider callback failed with error: %v", err)
 	}
 
 	// Decrypt ciphertext to get login response.

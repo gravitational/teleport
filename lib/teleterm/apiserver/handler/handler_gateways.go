@@ -80,3 +80,13 @@ func newAPIGateway(gateway *gateway.Gateway) *api.Gateway {
 		CliCommand:            gateway.CLICommand,
 	}
 }
+
+// RestartGateway stops a gateway and starts a new with identical parameters, keeping the original
+// URI.
+func (s *Handler) RestartGateway(ctx context.Context, req *api.RestartGatewayRequest) (*api.EmptyResponse, error) {
+	if err := s.DaemonService.RestartGateway(ctx, req.GatewayUri); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.EmptyResponse{}, nil
+}

@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 	"unicode"
@@ -110,6 +111,10 @@ type CommandLineFlags struct {
 	// configuration.
 	FIPS bool
 
+	// SkipVersionCheck allows Teleport to connect to auth servers that
+	// have an earlier major version number.
+	SkipVersionCheck bool
+
 	// AppName is the name of the application to proxy.
 	AppName string
 
@@ -133,7 +138,7 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
-	// DatabaseAWSRDSClusterID is RDS instance identifier.
+	// DatabaseAWSRDSInstanceID is RDS instance identifier.
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
@@ -341,13 +346,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
 	if fc.CASignatureAlgorithm != nil {
-		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
+		log.Warn("ca_signing_algo config option is deprecated and will be removed in a future release, Teleport defaults to rsa-sha2-512.")
 	}
 
 	// Read in how nodes will validate the CA. A single empty string in the file
 	// conf should indicate no pins.
-	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
-		cfg.CAPins = fc.CAPin
+	if err = cfg.ApplyCAPins(fc.CAPin); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Set diagnostic address
@@ -429,6 +434,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.WindowsDesktop.Enabled() {
 		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Tracing.Enabled() {
+		if err := applyTracingConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -602,6 +612,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
+		TunnelStrategy:           fc.Auth.TunnelStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -637,14 +648,46 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Auth.CAKeyParams == nil {
 		return nil
 	}
-	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+
+	if fc.Auth.CAKeyParams.PKCS11.ModulePath != "" {
+		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.ModulePath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		const worldWritableBits = 0o002
+		if fi.Mode().Perm()&worldWritableBits != 0 {
+			return trace.Errorf(
+				"PKCS11 library (%s) must not be world-writable",
+				fc.Auth.CAKeyParams.PKCS11.ModulePath,
+			)
+		}
+
+		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+	}
+
 	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
 	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+
 	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
 	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
 		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
 		}
+
+		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		const worldReadableBits = 0o004
+		if fi.Mode().Perm()&worldReadableBits != 0 {
+			return trace.Errorf(
+				"HSM pin file (%s) must not be world-readable",
+				fc.Auth.CAKeyParams.PKCS11.PinPath,
+			)
+		}
+
 		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
 		if err != nil {
 			return trace.Wrap(err)
@@ -704,6 +747,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MongoAddr = *addr
+	}
+	if fc.Proxy.PeerAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerAddr, int(defaults.ProxyPeeringListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PeerAddr = *addr
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -808,7 +858,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -941,6 +991,12 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	}
 	if fc.SSH.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
+	}
+	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
+		cfg.SSH.DisableCreateHostUser = true
+		if runtime.GOOS != constants.LinuxOS {
+			log.Warnln("Disabling host user creation as this feature is only available on Linux")
+		}
 	}
 	if fc.SSH.PAM != nil {
 		cfg.SSH.PAM = fc.SSH.PAM.Parse()
@@ -1100,6 +1156,16 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
 					ClusterID:  database.AWS.RDS.ClusterID,
+				},
+				ElastiCache: service.DatabaseAWSElastiCache{
+					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
+				},
+				MemoryDB: service.DatabaseAWSMemoryDB{
+					ClusterName: database.AWS.MemoryDB.ClusterName,
+				},
+				SecretStore: service.DatabaseAWSSecretStore{
+					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
+					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
 				},
 			},
 			GCP: service.DatabaseGCP{
@@ -1312,6 +1378,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
+
+	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
+		if !types.IsValidLabelKey(attributeName) {
+			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+		}
+	}
+
 	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
 
 	var err error
@@ -1370,6 +1443,47 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
+// applyTracingConfig applies file configuration for the "tracing_service" section.
+func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
+	// Tracing is enabled.
+	cfg.Tracing.Enabled = true
+
+	if fc.Tracing.ExporterURL == "" {
+		return trace.BadParameter("tracing_service is enabled but no exporter_url is specified")
+	}
+
+	cfg.Tracing.ExporterURL = fc.Tracing.ExporterURL
+	cfg.Tracing.SamplingRate = float64(fc.Tracing.SamplingRatePerMillion) / 1_000_000.0
+
+	for _, p := range fc.Tracing.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(p.PrivateKey) {
+			return trace.NotFound("tracing_service private key does not exist: %s", p.PrivateKey)
+		}
+		if !utils.FileExists(p.Certificate) {
+			return trace.NotFound("tracing_service cert does not exist: %s", p.Certificate)
+		}
+
+		cfg.Tracing.KeyPairs = append(cfg.Tracing.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
+	}
+
+	for _, caCert := range fc.Tracing.CACerts {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(caCert) {
+			return trace.NotFound("tracing_service ca cert does not exist: %s", caCert)
+		}
+
+		cfg.Tracing.CACerts = append(cfg.Tracing.CACerts, caCert)
+	}
+
+	return nil
+}
+
 // parseAuthorizedKeys parses keys in the authorized_keys format and
 // returns a types.CertAuthority.
 func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
@@ -1396,8 +1510,6 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
 			}},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1752,6 +1864,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 	}
 
+	// apply --skip-version-check flag.
+	if clf.SkipVersionCheck {
+		cfg.SkipVersionCheck = clf.SkipVersionCheck
+	}
+
 	// Apply diagnostic address flag.
 	if clf.DiagnosticAddr != "" {
 		addr, err := utils.ParseAddr(clf.DiagnosticAddr)
@@ -1816,8 +1933,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if len(clf.CAPins) != 0 {
-		cfg.CAPins = clf.CAPins
+	if err = cfg.ApplyCAPins(clf.CAPins); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// apply --listen-ip flag:

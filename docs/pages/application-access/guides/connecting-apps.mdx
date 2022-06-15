@@ -119,7 +119,7 @@ a reverse tunnel.
 
 ### Application name
 
-An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
+An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
@@ -270,9 +270,11 @@ requests forwarded to a web application.
     headers:
     # Inject a static header.
     - "X-Custom-Header: example"
-    # Inject hedaers with internal/external user traits.
+    # Inject headers with internal/external user traits.
     - "X-Internal-Trait: {{internal.logins}}"
     - "X-External-Trait: {{external.env}}"
+    # Inject header with Teleport-signed JWT token.
+    - "Authorization: Bearer {{internal.jwt}}"
     # Override Host header.
     - "Host: dashboard.example.com"
 ```
@@ -285,6 +287,10 @@ Rewritten header values support the same templating variables as [role templates
 In the example above, `X-Internal-Trait` header will be populated with the value
 of internal user trait `logins` and `X-External-Trait` header will get the value
 of the user's external `env` trait coming from the identity provider.
+
+Additionally, the `{{internal.jwt}}` template variable will be replaced with
+a JWT token signed by Teleport that contains user identity information. See
+[Integrating with JWTs](../jwt/introduction.mdx) for more details.
 
 ## View applications in Teleport
 

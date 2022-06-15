@@ -29,26 +29,23 @@ type ProxyGetter interface {
 	GetProxies() ([]types.Server, error)
 }
 
+// NodesGetter is a service that gets nodes.
+type NodesGetter interface {
+	// GetNodes returns a list of registered servers.
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
 	// Semaphores is responsible for semaphore handling
 	types.Semaphores
 
-	// UpsertLocalClusterName upserts local domain
-	UpsertLocalClusterName(name string) error
-
-	// GetLocalClusterName upserts local domain
-	GetLocalClusterName() (string, error)
-
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
-	// GetNodes returns a list of registered servers.
-	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
-
-	// ListNodes returns a paginated list of registered servers.
-	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+	// NodesGetter gets nodes
+	NodesGetter
 
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
@@ -59,9 +56,6 @@ type Presence interface {
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
-
-	// UpsertNodes bulk inserts nodes.
-	UpsertNodes(namespace string, servers []types.Server) error
 
 	// DELETE IN: 5.1.0
 	//
@@ -103,7 +97,7 @@ type Presence interface {
 	GetReverseTunnel(name string, opts ...MarshalOption) (types.ReverseTunnel, error)
 
 	// GetReverseTunnels returns a list of registered servers
-	GetReverseTunnels(opts ...MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context, opts ...MarshalOption) ([]types.ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(domainName string) error

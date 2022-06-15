@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -126,7 +125,7 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 				continue
 			}
 
-			ctx = context.WithValue(ctx, dbcommon.ContextMySQLServerVersion, string(mysqlVersionBytes))
+			ctx = context.WithValue(ctx, dbutils.ContextMySQLServerVersion, string(mysqlVersionBytes))
 			break
 		}
 

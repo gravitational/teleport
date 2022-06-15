@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/stretchr/testify/require"
@@ -489,7 +489,7 @@ func TestMatchMySQLConn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn := ExtractMySQLEngineVersion(func(ctx context.Context, conn net.Conn) error {
-				version := ctx.Value(dbcommon.ContextMySQLServerVersion)
+				version := ctx.Value(dbutils.ContextMySQLServerVersion)
 				require.Equal(t, tt.version, version)
 
 				return nil

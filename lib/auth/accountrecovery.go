@@ -416,10 +416,11 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
-		_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFAResponse(), &newMFADeviceFields{
+		_, err = s.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 			username:      approvedToken.GetUser(),
 			newDeviceName: req.GetNewDeviceName(),
 			tokenID:       approvedToken.GetName(),
+			deviceResp:    req.GetNewMFAResponse(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

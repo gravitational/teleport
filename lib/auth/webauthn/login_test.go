@@ -74,7 +74,11 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 	require.NoError(t, err)
 	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
-	_, err = webRegistration.Finish(ctx, webUser, "webauthn1" /* deviceName */, ccr)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             webUser,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -240,7 +244,11 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	require.NoError(t, err)
 	ccr, err := key.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
-	_, err = webRegistration.Finish(ctx, user, "webauthn1" /* deviceName */, ccr)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
 	require.NoError(t, err)
 
 	webLogin := wanlib.LoginFlow{
@@ -362,7 +370,12 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 	require.NoError(t, err)
 	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
-	_, err = webRegistration.Finish(ctx, user, "webauthn1" /* deviceName */, ccr)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+		Passwordless:     true,
+	})
 	require.NoError(t, err)
 
 	webLogin := &wanlib.PasswordlessFlow{

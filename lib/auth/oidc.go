@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -42,81 +43,117 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
-	client, err := a.getOIDCClient(conn)
-	if err == nil {
-		return client, nil
+// getOIDCConnectorAndClient returns the associated oidc connector
+// and client for the given oidc auth request.
+func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request types.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
+	// stateless test flow
+	if request.SSOTestFlow {
+		if request.ConnectorSpec == nil {
+			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+		}
+
+		if request.ConnectorID == "" {
+			return nil, nil, trace.BadParameter("ConnectorID cannot be empty")
+		}
+
+		connector, err := types.NewOIDCConnector(request.ConnectorID, *request.ConnectorSpec)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// we don't want to cache the client. construct it directly.
+		client, err := newOIDCClient(ctx, connector, request.ProxyAddress)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if err := client.waitFirstSync(defaults.WebHeadersTimeout); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// close this request-scoped oidc client after 10 minutes
+		go func() {
+			ticker := a.GetClock().NewTicker(defaults.OIDCAuthRequestTTL)
+			defer ticker.Stop()
+			select {
+			case <-ticker.Chan():
+				client.syncCancel()
+			case <-client.syncCtx.Done():
+			}
+		}()
+
+		return connector, client.client, nil
 	}
-	if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+
+	// regular execution flow
+	connector, err := a.Identity.GetOIDCConnector(ctx, request.ConnectorID, true)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
-	return a.createOIDCClient(conn)
+
+	client, err := a.getCachedOIDCClient(ctx, connector, request.ProxyAddress)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Wait for the client to successfully sync after getting it from the cache.
+	// We do this after caching the client to prevent locking the server during
+	// the initial sync period.
+	if err := client.waitFirstSync(defaults.WebHeadersTimeout); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return connector, client.client, nil
 }
 
-func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
+// getCachedOIDCClient gets a cached oidc client for
+// the given OIDC connector and redirectURL preference.
+func (a *Server) getCachedOIDCClient(ctx context.Context, conn types.OIDCConnector, proxyAddr string) (*oidcClient, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	clientPack, ok := a.oidcClients[conn.GetName()]
-	if !ok {
-		return nil, trace.NotFound("connector %v is not found", conn.GetName())
+	// Each connector and proxy combination has a distinct client,
+	// so we use a composite key to capture all combinations.
+	clientMapKey := conn.GetName() + "_" + proxyAddr
+
+	cachedClient, ok := a.oidcClients[clientMapKey]
+	if ok {
+		if !cachedClient.needsRefresh(conn) && cachedClient.syncCtx.Err() == nil {
+			return cachedClient, nil
+		}
+		// Cached client needs to be refreshed or is no longer syncing.
+		cachedClient.syncCancel()
+		delete(a.oidcClients, clientMapKey)
 	}
 
-	config := oidcConfig(conn)
-	if ok && oidcConfigsEqual(clientPack.config, config) {
-		return clientPack.client, nil
+	// Create a new oidc client and add it to the cache.
+	client, err := newOIDCClient(ctx, conn, proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	clientPack.cancel()
-	delete(a.oidcClients, conn.GetName())
-	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
-
+	a.oidcClients[clientMapKey] = client
+	return client, nil
 }
 
-func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
-	config := oidcConfig(conn)
+func newOIDCClient(ctx context.Context, conn types.OIDCConnector, proxyAddr string) (*oidcClient, error) {
+	redirectURL, err := services.GetRedirectURL(conn, proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config := oidcConfig(conn, redirectURL)
 	client, err := oidc.NewClient(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// SyncProviderConfig doesn't take a context for cancellation, instead it
-	// returns a channel that has to be closed to stop the sync. To ensure that
-	// the sync is eventually stopped we create a child context of the server context, which
-	// is cancelled either on deletion of the connector or shutdown of the server.
-	// This will cause syncCtx.Done() to unblock, at which point we can close the stop channel.
-	firstSync := make(chan struct{})
-	syncCtx, syncCancel := context.WithCancel(a.closeCtx)
-	go func() {
-		stop := client.SyncProviderConfig(conn.GetIssuerURL())
-		close(firstSync)
-		<-syncCtx.Done()
-		close(stop)
-	}()
-
-	select {
-	case <-firstSync:
-	case <-time.After(defaults.WebHeadersTimeout):
-		syncCancel()
-		return nil, trace.ConnectionProblem(nil,
-			"timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
-			conn.GetName(), conn.GetIssuerURL())
-	case <-a.closeCtx.Done():
-		syncCancel()
-		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
-	}
-
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config, cancel: syncCancel}
-
-	return client, nil
+	oidcClient := &oidcClient{client: client, connector: conn, firstSync: make(chan struct{})}
+	oidcClient.startSync(ctx)
+	return oidcClient, nil
 }
 
-func oidcConfig(conn types.OIDCConnector) oidc.ClientConfig {
+func oidcConfig(conn types.OIDCConnector, redirectURL string) oidc.ClientConfig {
 	return oidc.ClientConfig{
-		RedirectURL: conn.GetRedirectURL(),
+		RedirectURL: redirectURL,
 		Credentials: oidc.ClientCredentials{
 			ID:     conn.GetClientID(),
 			Secret: conn.GetClientSecret(),
@@ -124,6 +161,57 @@ func oidcConfig(conn types.OIDCConnector) oidc.ClientConfig {
 		// open id notifies provider that we are using OIDC scopes
 		Scope: apiutils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
+}
+
+// needsRefresh returns whether the client's connector and the
+// given connector have the same values for fields relevant to
+// generating and syncing an oidc.Client.
+func (c *oidcClient) needsRefresh(conn types.OIDCConnector) bool {
+	return !cmp.Equal(conn.GetRedirectURLs(), c.connector.GetRedirectURLs()) ||
+		conn.GetClientID() != c.connector.GetClientID() ||
+		conn.GetClientSecret() != c.connector.GetClientSecret() ||
+		!cmp.Equal(conn.GetScope(), c.connector.GetScope()) ||
+		conn.GetIssuerURL() != c.connector.GetIssuerURL()
+}
+
+// startSync starts a goroutine to sync the client with its provider
+// config until the given ctx is closed or the sync is cancelled.
+func (c *oidcClient) startSync(ctx context.Context) {
+	// SyncProviderConfig doesn't take a context for cancellation, instead it
+	// returns a channel that has to be closed to stop the sync. To ensure that the
+	// sync is eventually stopped, we "wrap" the stop channel with a cancel context.
+	c.syncCtx, c.syncCancel = context.WithCancel(ctx)
+	go func() {
+		stop := c.client.SyncProviderConfig(c.connector.GetIssuerURL())
+		close(c.firstSync)
+		<-c.syncCtx.Done()
+		close(stop)
+	}()
+}
+
+// waitFirstSync waits for the client to start syncing successfully, or
+// returns an error if syncing fails or fails to succeed within 10 seconds.
+// This prevents waiting on clients with faulty provider configurations.
+func (c *oidcClient) waitFirstSync(timeout time.Duration) error {
+	timeoutTimer := time.NewTimer(timeout)
+
+	select {
+	case <-c.firstSync:
+	case <-c.syncCtx.Done():
+	case <-timeoutTimer.C:
+		// cancel sync so that it gets removed from the cache
+		c.syncCancel()
+		return trace.ConnectionProblem(nil, "timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
+			c.connector.GetName(), c.connector.GetIssuerURL())
+	}
+
+	// stop and flush timer
+	if !timeoutTimer.Stop() {
+		<-timeoutTimer.C
+	}
+
+	// return the syncing error if there is one
+	return trace.Wrap(c.syncCtx.Err())
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
@@ -167,17 +255,16 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 	return nil
 }
 
-func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	ctx := context.TODO()
-	connector, err := a.Identity.GetOIDCConnector(ctx, req.ConnectorID, true)
+func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	connector, client, err := a.getOIDCConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oidcClient, err := a.getOrCreateOIDCClient(connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	oauthClient, err := oidcClient.OAuthClient()
+	oauthClient, err := client.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -208,7 +295,7 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 
 	log.Debugf("OIDC redirect URL: %v.", req.RedirectURL)
 
-	err = a.Identity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
+	err = a.Identity.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -218,7 +305,7 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
-func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -226,9 +313,16 @@ func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 		Method: events.LoginMethodOIDC,
 	}
 
-	re, err := a.validateOIDCAuthCallback(q)
-	if re != nil && re.claims != nil {
-		attributes, err := apievents.EncodeMap(re.claims)
+	diagCtx := a.newSSODiagContext(types.KindOIDC)
+
+	auth, err := a.validateOIDCAuthCallback(ctx, diagCtx, q)
+	diagCtx.info.Error = trace.UserMessage(err)
+
+	diagCtx.writeToBackend(ctx)
+
+	claims := diagCtx.info.OIDCClaims
+	if claims != nil {
+		attributes, err := apievents.EncodeMap(claims)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
 			log.WithError(err).Debug("Failed to encode identity attributes.")
@@ -239,6 +333,9 @@ func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
+		if diagCtx.info.TestFlow {
+			event.Code = events.UserSSOTestFlowLoginFailureCode
+		}
 		event.Status.Success = false
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
@@ -249,106 +346,163 @@ func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 
 		return nil, trace.Wrap(err)
 	}
+
 	event.Code = events.UserSSOLoginCode
-	event.User = re.auth.Username
+	if diagCtx.info.TestFlow {
+		event.Code = events.UserSSOTestFlowLoginCode
+	}
+	event.User = auth.Username
 	event.Status.Success = true
 
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit OIDC login event.")
 	}
 
-	return &re.auth, nil
+	return auth, nil
 }
 
-type oidcAuthResponse struct {
-	auth   OIDCAuthResponse
-	claims jose.Claims
+func checkEmailVerifiedClaim(claims jose.Claims) error {
+	claimName := "email_verified"
+	unverifiedErr := trace.AccessDenied("email not verified by OIDC provider")
+
+	emailVerified, hasEmailVerifiedClaim, _ := claims.StringClaim(claimName)
+	if hasEmailVerifiedClaim && emailVerified == "false" {
+		return unverifiedErr
+	}
+
+	data, ok := claims[claimName]
+	if !ok {
+		return nil
+	}
+
+	emailVerifiedBool, ok := data.(bool)
+	if !ok {
+		return trace.BadParameter("unable to parse oidc claim: %q, must be a string or bool", claimName)
+	}
+
+	if !emailVerifiedBool {
+		return unverifiedErr
+	}
+
+	return nil
 }
 
-func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
-	ctx := context.TODO()
-	if error := q.Get("error"); error != "" {
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
+func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*OIDCAuthResponse, error) {
+	if errParam := q.Get("error"); errParam != "" {
+		// try to find request so the error gets logged against it.
+		state := q.Get("state")
+		if state != "" {
+			diagCtx.requestID = state
+			req, err := a.Identity.GetOIDCAuthRequest(ctx, state)
+			if err == nil {
+				diagCtx.info.TestFlow = req.SSOTestFlow
+			}
+		}
+
+		// optional parameter: error_description
+		errDesc := q.Get("error_description")
+		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q).AddUserMessage("OIDC provider returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")
 	if code == "" {
 		return nil, trace.OAuth2(
-			oauth2.ErrorInvalidRequest, "code query param must be set", q)
+			oauth2.ErrorInvalidRequest, "code query param must be set", q).AddUserMessage("Invalid parameters received from OIDC provider.")
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
 		return nil, trace.OAuth2(
-			oauth2.ErrorInvalidRequest, "missing state query param", q)
+			oauth2.ErrorInvalidRequest, "missing state query param", q).AddUserMessage("Invalid parameters received from OIDC provider.")
 	}
+	diagCtx.requestID = stateToken
 
-	clusterName, err := a.GetClusterName()
+	req, err := a.Identity.GetOIDCAuthRequest(ctx, stateToken)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
+	diagCtx.info.TestFlow = req.SSOTestFlow
 
-	req, err := a.Identity.GetOIDCAuthRequest(stateToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
+	ctxC, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	connector, err := a.Identity.GetOIDCConnector(ctx, req.ConnectorID, true)
+	connector, client, err := a.getOIDCConnectorAndClient(ctxC, *req)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	oidcClient, err := a.getOrCreateOIDCClient(connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to get OIDC connector and client.")
 	}
 
 	// extract claims from both the id token and the userinfo endpoint and merge them
-	claims, err := a.getClaims(oidcClient, connector, code)
+	claims, err := a.getClaims(client, connector, code)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := &oidcAuthResponse{
-		claims: claims,
-	}
+		// different error message for Google Workspace as likely cause is different.
+		if isGoogleWorkspaceConnector(connector) {
+			return nil, trace.Wrap(err, "Failed to extract OIDC claims. Check your Google Workspace plan and enabled APIs. See: https://goteleport.com/docs/enterprise/sso/google-workspace/#ensure-your-google-workspace-plan-is-correct")
+		}
 
-	log.Debugf("OIDC claims: %v.", re.claims)
+		return nil, trace.Wrap(err, "Failed to extract OIDC claims. This may indicate need to set 'provider' flag in connector definition. See: https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds")
+	}
+	diagCtx.info.OIDCClaims = types.OIDCClaims(claims)
+
+	log.Debugf("OIDC claims: %v.", claims)
+	if err := checkEmailVerifiedClaim(claims); err != nil {
+		return nil, trace.Wrap(err, "OIDC provider did not verify email.")
+	}
 
 	// if we are sending acr values, make sure we also validate them
 	acrValue := connector.GetACR()
 	if acrValue != "" {
 		err := a.validateACRValues(acrValue, connector.GetProvider(), claims)
 		if err != nil {
-			return re, trace.Wrap(err)
+			return nil, trace.Wrap(err, "OIDC ACR validation failure.")
 		}
 		log.Debugf("OIDC ACR values %q successfully validated.", acrValue)
 	}
 
 	ident, err := oidc.IdentityFromClaims(claims)
 	if err != nil {
-		return re, trace.OAuth2(
+		return nil, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
+	}
+	diagCtx.info.OIDCIdentity = &types.OIDCIdentity{
+		ID:        ident.ID,
+		Name:      ident.Name,
+		Email:     ident.Email,
+		ExpiresAt: ident.ExpiresAt,
 	}
 	log.Debugf("OIDC user %q expires at: %v.", ident.Email, ident.ExpiresAt)
 
 	if len(connector.GetClaimsToRoles()) == 0 {
-		return re, trace.BadParameter("no claims to roles mapping, check connector documentation")
+		return nil, trace.BadParameter("no claims to roles mapping, check connector documentation").
+			AddUserMessage("Claims-to-roles mapping is empty, SSO user will never have any roles.")
 	}
 	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
+	diagCtx.info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateOIDCUser(connector, claims, ident, req)
+	params, err := a.calculateOIDCUser(diagCtx, connector, claims, ident, req)
 	if err != nil {
-		return re, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
-	user, err := a.createOIDCUser(params)
+
+	diagCtx.info.CreateUserParams = &types.CreateUserParams{
+		ConnectorName: params.connectorName,
+		Username:      params.username,
+		KubeGroups:    params.kubeGroups,
+		KubeUsers:     params.kubeUsers,
+		Roles:         params.roles,
+		Traits:        params.traits,
+		SessionTTL:    types.Duration(params.sessionTTL),
+	}
+
+	user, err := a.createOIDCUser(params, req.SSOTestFlow)
 	if err != nil {
-		return re, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	re.auth = OIDCAuthResponse{
+	auth := &OIDCAuthResponse{
 		Req: *req,
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.connectorName,
@@ -357,8 +511,14 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 		Username: user.GetName(),
 	}
 
+	// In test flow skip signing and creating web sessions.
+	if req.SSOTestFlow {
+		diagCtx.info.Success = true
+		return auth, nil
+	}
+
 	if !req.CheckUser {
-		return re, nil
+		return auth, nil
 	}
 
 	// If the request is coming from a browser, create a web session.
@@ -371,20 +531,24 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to create web session.")
 		}
-		re.auth.Session = session
+		auth.Session = session
 	}
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
 		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster, req.KubernetesCluster)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
 
-		re.auth.Cert = sshCert
-		re.auth.TLSCert = tlsCert
+		clusterName, err := a.GetClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to obtain cluster name.")
+		}
+		auth.Cert = sshCert
+		auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
@@ -392,12 +556,12 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "Failed to obtain cluster's host CA.")
 		}
-		re.auth.HostSigners = append(re.auth.HostSigners, authority)
+		auth.HostSigners = append(auth.HostSigners, authority)
 	}
 
-	return re, nil
+	return auth, nil
 }
 
 // OIDCAuthResponse is returned when auth server validated callback parameters
@@ -414,13 +578,13 @@ type OIDCAuthResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req services.OIDCAuthRequest `json:"req"`
+	Req types.OIDCAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
 }
 
-func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*createUserParams, error) {
 	var err error
 
 	p := createUserParams{
@@ -430,13 +594,25 @@ func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Cl
 
 	p.traits = services.OIDCClaimsToTraits(claims)
 
+	diagCtx.info.OIDCTraitsFromClaims = p.traits
+	diagCtx.info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
+
 	var warnings []string
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		if len(warnings) != 0 {
-			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
+			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
+			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+				Message:  "No roles mapped for the user",
+				Warnings: warnings,
+			}
+		} else {
+			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
+			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+				Message: "No roles mapped for the user. The mappings may contain typos.",
+			}
 		}
-		return nil, trace.AccessDenied("unable to map claims to role for connector: %v", connector.GetName())
+		return nil, trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
@@ -445,15 +621,15 @@ func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Cl
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL.Duration())
 
 	return &p, nil
 }
 
-func (a *Server) createOIDCUser(p *createUserParams) (types.User, error) {
+func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
-	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
+	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v. Dry run: %v.", p.connectorName, p.username, p.roles, dryRun)
 	user := &types.UserV2{
 		Kind:    types.KindUser,
 		Version: types.V2,
@@ -481,6 +657,10 @@ func (a *Server) createOIDCUser(p *createUserParams) (types.User, error) {
 				},
 			},
 		},
+	}
+
+	if dryRun {
+		return user, nil
 	}
 
 	// Get the user to check if it already exists or not.
@@ -628,8 +808,12 @@ func mergeClaims(a jose.Claims, b jose.Claims) (jose.Claims, error) {
 
 // getClaims gets claims from ID token and UserInfo and returns UserInfo claims merged into ID token claims.
 func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
+	return a.getClaimsFun(a.closeCtx, oidcClient, connector, code)
+}
 
-	oac, err := a.getOAuthClient(oidcClient, connector)
+// getClaims implements Server.getClaims, but allows that code path to be overridden for testing.
+func getClaims(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
+	oac, err := getOAuthClient(oidcClient, connector)
 
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -694,7 +878,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	}
 
 	if isGoogleWorkspaceConnector(connector) {
-		claims, err = addGoogleWorkspaceClaims(a.closeCtx, connector, claims)
+		claims, err = addGoogleWorkspaceClaims(closeCtx, connector, claims)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -704,7 +888,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 }
 
 // getOAuthClient returns a Oauth2 client from the oidc.Client.  If the connector is set as a Ping provider sets the Client Secret Post auth method
-func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
+func getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
 	oac, err := oidcClient.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

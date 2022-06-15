@@ -408,7 +408,6 @@ const (
 	// DatabaseSessionQueryFailedEvent is emitted when database client's request
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
-
 	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
 	// creates a prepared statement using extended query protocol.
 	DatabaseSessionPostgresParseEvent = "db.session.postgres.statements.parse"
@@ -471,6 +470,13 @@ const (
 	// DatabaseSessionMySQLRefreshEvent is emitted when a MySQL client sends
 	// refresh commands.
 	DatabaseSessionMySQLRefreshEvent = "db.session.mysql.refresh"
+
+	// DatabaseSessionSQLServerRPCRequestEvent is emitted when MSServer client sends
+	// RPC request command.
+	DatabaseSessionSQLServerRPCRequestEvent = "db.session.sqlserver.rpc_request"
+
+	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
+	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
@@ -614,11 +620,14 @@ type StreamUpload struct {
 	ID string
 	// SessionID is a session ID of the upload
 	SessionID session.ID
+	// Initiated contains the timestamp of when the upload
+	// was initiated, not always initialized
+	Initiated time.Time
 }
 
 // String returns user friendly representation of the upload
 func (u StreamUpload) String() string {
-	return fmt.Sprintf("Upload(session=%v, id=%v)", u.SessionID, u.ID)
+	return fmt.Sprintf("Upload(session=%v, id=%v, initiated=%v)", u.SessionID, u.ID, u.Initiated)
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -638,6 +647,9 @@ type MultipartUploader interface {
 	CreateUpload(ctx context.Context, sessionID session.ID) (*StreamUpload, error)
 	// CompleteUpload completes the upload
 	CompleteUpload(ctx context.Context, upload StreamUpload, parts []StreamPart) error
+	// ReserveUploadPart reserves an upload part. Reserve is used to identify
+	// upload errors beforehand.
+	ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error
 	// UploadPart uploads part and returns the part
 	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
@@ -684,21 +696,8 @@ type IAuditLog interface {
 	// Closer releases connection and resources associated with log if any
 	io.Closer
 
-	// EmitAuditEventLegacy emits audit in legacy format
-	// DELETE IN: 5.0.0
-	EmitAuditEventLegacy(Event, EventFields) error
-
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, apievents.AuditEvent) error
-
-	// DELETE IN: 2.7.0
-	// This method is no longer necessary as nodes and proxies >= 2.7.0
-	// use UploadSessionRecording method.
-	// PostSessionSlice sends chunks of recorded session to the event log
-	PostSessionSlice(SessionSlice) error
-
-	// UploadSessionRecording uploads session recording to the audit server
-	UploadSessionRecording(r SessionRecording) error
 
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
@@ -735,10 +734,6 @@ type IAuditLog interface {
 	//
 	// This function may never return more than 1 MiB of event data.
 	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error)
-
-	// WaitForDelivery waits for resources to be released and outstanding requests to
-	// complete after calling Close method
-	WaitForDelivery(context.Context) error
 
 	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.

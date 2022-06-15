@@ -24,7 +24,6 @@ linters:
     - revive
     - staticcheck
     - structcheck
-    - typecheck
     - unused
     - unconvert
     - varcheck
@@ -35,6 +34,8 @@ linters-settings:
     include-go-root: true # check against stdlib
     packages-with-error-message:
     - io/ioutil: 'use "io" or "os" packages instead'
+    - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
+    - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
 
 output:
   uniq-by-line: false
@@ -42,3 +43,4 @@ output:
 run:
   skip-dirs-use-default: false
   timeout: 5m
+  go: '1.18'

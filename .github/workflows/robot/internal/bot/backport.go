@@ -67,7 +67,6 @@ func (b *Bot) Backport(ctx context.Context) error {
 	}
 
 	var rows []row
-	var failed bool
 
 	// Loop over all requested backport branches and create backport branch and
 	// GitHub Pull Request.
@@ -85,27 +84,6 @@ func (b *Bot) Backport(ctx context.Context) error {
 		)
 		if err != nil {
 			log.Printf("Failed to create backport branch: %v.", err)
-			failed = true
-			rows = append(rows, row{
-				Branch: base,
-				Failed: true,
-				Link:   u,
-			})
-			continue
-		}
-
-		// Create Pull Request for backport.
-		number, err := b.c.GitHub.CreatePullRequest(ctx,
-			b.c.Environment.Organization,
-			b.c.Environment.Repository,
-			fmt.Sprintf("[%v] %v", strings.Trim(base, "branch/"), pull.UnsafeTitle),
-			head,
-			base,
-			fmt.Sprintf("Backport #%v to %v", b.c.Environment.Number, base),
-			false)
-		if err != nil {
-			log.Printf("Failed to create backport Pull Request: %v", err)
-			failed = true
 			rows = append(rows, row{
 				Branch: base,
 				Failed: true,
@@ -120,9 +98,21 @@ func (b *Bot) Backport(ctx context.Context) error {
 			Link: url.URL{
 				Scheme: "https",
 				Host:   "github.com",
-				Path:   path.Join(b.c.Environment.Organization, b.c.Environment.Repository, "pull", strconv.Itoa(number)),
+				// Both base and head are safe to put into the URL: base has
+				// had the "branchPattern" regexp run against it and head is
+				// formed from base so an attacker can not control the path.
+				Path: path.Join(b.c.Environment.Organization, b.c.Environment.Repository, "compare", fmt.Sprintf("%v...%v", base, head)),
+				RawQuery: url.Values{
+					"expand": []string{"1"},
+					"title":  []string{fmt.Sprintf("[%v] %v", strings.Trim(base, "branch/"), pull.UnsafeTitle)},
+					"body":   []string{fmt.Sprintf("Backport #%v to %v", b.c.Environment.Number, base)},
+				}.Encode(),
 			},
 		})
+	}
+
+	for _, r := range rows {
+		fmt.Printf("--> %v\n", r.Link.String())
 	}
 
 	// Leave a comment on the Pull Request with a table that outlines the
@@ -133,7 +123,6 @@ func (b *Bot) Backport(ctx context.Context) error {
 		b.c.Environment.Number,
 		data{
 			Author: b.c.Environment.Author,
-			Failed: failed,
 			Rows:   rows,
 		})
 	return trace.Wrap(err)
@@ -261,9 +250,6 @@ type data struct {
 	// notification.
 	Author string
 
-	// Failed is used to indicate if any backports failed.
-	Failed bool
-
 	// Rows represent backports.
 	Rows []row
 }
@@ -283,14 +269,12 @@ type row struct {
 // table is a template that is written to the origin GitHub Pull Request with
 // the outcome of the backports.
 const table = `
-{{if .Failed}}
-@{{.Author}} Some backports failed, see table below.
-{{end}}
+@{{.Author}} See the table below for backport results.
 
 | Branch | Result |
 |--------|--------|
 {{- range .Rows}}
-| {{.Branch}} | {{if .Failed}}[Failed]({{.Link}}){{else}}{{.Link}}{{end}} |
+| {{.Branch}} | {{if .Failed}}[Failed]({{.Link}}){{else}}[Create PR]({{.Link}}){{end}} |
 {{- end}}
 `
 

@@ -210,6 +210,8 @@ message DatabaseServerSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty", deprecated = true ];
     // Database is the database proxied by this database server.
     DatabaseV3 Database = 12 [ (gogoproto.jsontag) = "database,omitempty" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 13 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
 }
 
 // DatabaseV3List represents a list of databases.
@@ -275,6 +277,8 @@ message DatabaseStatusV3 {
     // MySQL is an additional section with MySQL runtime database information.
     MySQLOptions MySQL = 3
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "mysql,omitempty" ];
+    // ManagedUsers is a list of database users that are managed by Teleport.
+    repeated string ManagedUsers = 4 [ (gogoproto.jsontag) = "managed_users,omitempty" ];
 }
 
 // AWS contains AWS metadata about the database.
@@ -288,6 +292,23 @@ message AWS {
     RDS RDS = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rds,omitempty" ];
     // AccountID is the AWS account ID this database belongs to.
     string AccountID = 4 [ (gogoproto.jsontag) = "account_id,omitempty" ];
+    // ElastiCache contains AWS ElastiCache Redis specific metadata.
+    ElastiCache ElastiCache = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "elasticache,omitempty" ];
+    // SecretStore contains secret store configurations.
+    SecretStore SecretStore = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "secret_store,omitempty" ];
+    // MemoryDB contains AWS MemoryDB specific metadata.
+    MemoryDB MemoryDB = 7
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "memorydb,omitempty" ];
+}
+
+// SecretStore contains secret store configurations.
+message SecretStore {
+    // KeyPrefix specifies the secret key prefix.
+    string KeyPrefix = 1 [ (gogoproto.jsontag) = "key_prefix,omitempty" ];
+    // KMSKeyID specifies the AWS KMS key for encryption.
+    string KMSKeyID = 2 [ (gogoproto.jsontag) = "kms_key_id,omitempty" ];
 }
 
 // Redshift contains AWS Redshift specific database metadata.
@@ -306,6 +327,31 @@ message RDS {
     string ResourceID = 3 [ (gogoproto.jsontag) = "resource_id,omitempty" ];
     // IAMAuth indicates whether database IAM authentication is enabled.
     bool IAMAuth = 4 [ (gogoproto.jsontag) = "iam_auth" ];
+}
+
+// ElastiCache contains AWS ElastiCache Redis specific metadata.
+message ElastiCache {
+    // ReplicationGroupID is the Redis replication group ID.
+    string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id,omitempty" ];
+    // UserGroupIDs is a list of user group IDs.
+    repeated string UserGroupIDs = 2 [ (gogoproto.jsontag) = "user_group_ids,omitempty" ];
+    // TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.
+    bool TransitEncryptionEnabled = 3
+        [ (gogoproto.jsontag) = "transit_encryption_enabled,omitempty" ];
+    // EndpointType is the type of the endpoint.
+    string EndpointType = 4 [ (gogoproto.jsontag) = "endpoint_type,omitempty" ];
+}
+
+// MemoryDB contains AWS MemoryDB specific metadata.
+message MemoryDB {
+    // ClusterName is the name of the MemoryDB cluster.
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
+    // ACLName is the name of the ACL associated with the cluster.
+    string ACLName = 2 [ (gogoproto.jsontag) = "acl_name,omitempty" ];
+    // TLSEnabled indicates whether in-transit encryption (TLS) is enabled.
+    bool TLSEnabled = 3 [ (gogoproto.jsontag) = "tls_enabled,omitempty" ];
+    // EndpointType is the type of the endpoint.
+    string EndpointType = 4 [ (gogoproto.jsontag) = "endpoint_type,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -421,6 +467,10 @@ message ServerSpecV2 {
     // https://github.com/gravitational/teleport/issues/4862
     repeated KubernetesCluster KubernetesClusters = 10
         [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
+    // PeerAddr is the address a proxy server is reachable at by its peer proxies.
+    string PeerAddr = 11 [ (gogoproto.jsontag) = "peer_addr,omitempty" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 12 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -453,6 +503,8 @@ message AppServerSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
     // App is the app proxied by this app server.
     AppV3 App = 5 [ (gogoproto.jsontag) = "app" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 6 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
 }
 
 // AppV3List represents a list of app resources.
@@ -933,6 +985,26 @@ message ClusterNetworkingConfigSpecV2 {
 
     // RoutingStrategy determines the strategy used to route to nodes.
     RoutingStrategy RoutingStrategy = 8 [ (gogoproto.jsontag) = "routing_strategy,omitempty" ];
+
+    // TunnelStrategyV1 determines the tunnel strategy used in the cluster.
+    TunnelStrategyV1 TunnelStrategy = 9 [ (gogoproto.jsontag) = "tunnel_strategy,omitempty" ];
+}
+
+// TunnelStrategyV1 defines possible tunnel strategy types.
+message TunnelStrategyV1 {
+    oneof Strategy {
+        AgentMeshTunnelStrategy AgentMesh = 1 [ (gogoproto.jsontag) = "agent_mesh,omitempty" ];
+        ProxyPeeringTunnelStrategy ProxyPeering = 2
+            [ (gogoproto.jsontag) = "proxy_peering,omitempty" ];
+    }
+}
+
+// AgentMeshTunnelStrategy requires reverse tunnels to dial every proxy.
+message AgentMeshTunnelStrategy {}
+
+// ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
+message ProxyPeeringTunnelStrategy {
+    int64 AgentConnectionCount = 1 [ (gogoproto.jsontag) = "agent_connection_count,omitempty" ];
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.
@@ -1066,7 +1138,8 @@ message U2F {
     string AppID = 1 [ (gogoproto.jsontag) = "app_id,omitempty" ];
 
     // Facets returns the facets for universal second factor.
-    // DELETE IN 11.0, time to sunset U2F (codingllama).
+    // Deprecated: Kept for backwards compatibility reasons, but Facets have no
+    // effect since Teleport v10, when Webauthn replaced the U2F implementation.
     repeated string Facets = 2 [ (gogoproto.jsontag) = "facets,omitempty" ];
 
     // DeviceAttestationCAs contains the trusted attestation CAs for U2F
@@ -1379,6 +1452,14 @@ message AccessRequestSpecV3 {
     // that is not a requirement.
     repeated string SuggestedReviewers = 13
         [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
+
+    // RequestedResourceIDs is a set of resources to which access is being requested.
+    repeated ResourceID RequestedResourceIDs = 14
+        [ (gogoproto.jsontag) = "resource_ids,omitempty", (gogoproto.nullable) = false ];
+
+    // LoginHint is used as a hint for search-based access requests to select
+    // roles based on the login the user is attempting.
+    string LoginHint = 15 [ (gogoproto.jsontag) = "login_hint,omitempty" ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -1413,6 +1494,16 @@ message AccessCapabilitiesRequest {
     // SuggestedReviewers is a flag indicating that we would like to view the list of all
     // reviewers which are suggested by the user's roles.
     bool SuggestedReviewers = 3 [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
+}
+
+// ResourceID is a unique identifier for a teleport resource.
+message ResourceID {
+    // ClusterName is the name of the cluster the resource is in.
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster" ];
+    // Kind is the resource kind.
+    string Kind = 2 [ (gogoproto.jsontag) = "kind" ];
+    // Name is the name of the specific resource.
+    string Name = 3 [ (gogoproto.jsontag) = "name" ];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -1600,6 +1691,30 @@ message RoleOptions {
     // CertExtensions specifies the key/values
     repeated CertExtension CertExtensions = 17
         [ (gogoproto.jsontag) = "cert_extensions,omitempty" ];
+
+    // MaxKubernetesConnections defines the maximum number of concurrent
+    // Kubernetes sessions a user may hold.
+    int64 MaxKubernetesConnections = 18
+        [ (gogoproto.jsontag) = "max_kubernetes_connections,omitempty" ];
+
+    // DesktopDirectorySharing indicates whether directory sharing is allowed between the user's
+    // workstation and the remote desktop. It defaults to false unless explicitly set to
+    // true.
+    BoolValue DesktopDirectorySharing = 19 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop_directory_sharing",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+
+    // CreateHostUser allows users to be automatically created on a host
+    BoolValue CreateHostUser = 20 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "create_host_user",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+
+    // PinSourceIP forces the same client IP for certificate generation and usage
+    bool PinSourceIP = 21 [ (gogoproto.jsontag) = "pin_source_ip", (gogoproto.casttype) = "Bool" ];
 }
 
 message RecordSession {
@@ -1609,6 +1724,20 @@ message RecordSession {
         (gogoproto.nullable) = true,
         (gogoproto.jsontag) = "desktop",
         (gogoproto.customtype) = "BoolOption"
+    ];
+
+    // Default indicates the default value for the services.
+    string Default = 2 [
+        (gogoproto.jsontag) = "default,omitempty",
+        (gogoproto.casttype) =
+            "github.com/gravitational/teleport/api/constants.SessionRecordingMode"
+    ];
+
+    // SSH indicates the session mode used on SSH sessions.
+    string SSH = 3 [
+        (gogoproto.jsontag) = "ssh,omitempty",
+        (gogoproto.casttype) =
+            "github.com/gravitational/teleport/api/constants.SessionRecordingMode"
     ];
 }
 
@@ -1734,6 +1863,11 @@ message RoleConditions {
     // JoinSessions specifies policies to allow users to join other sessions.
     repeated SessionJoinPolicy JoinSessions = 20
         [ (gogoproto.jsontag) = "join_sessions,omitempty" ];
+
+    // HostGroups is a list of groups for created users to be added to
+    repeated string HostGroups = 21 [ (gogoproto.jsontag) = "host_groups,omitempty" ];
+    // HostSudoers is a list of entries to include in a users sudoer file
+    repeated string HostSudoers = 22 [ (gogoproto.jsontag) = "host_sudoers,omitempty" ];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -1833,6 +1967,16 @@ message ClaimMapping {
     // Claim is a claim name.
     string Claim = 1 [ (gogoproto.jsontag) = "claim" ];
     // Value is a claim value to match.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
+    // Roles is a list of static teleport roles to match.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+}
+
+// TraitMapping maps a trait to teleport roles.
+message TraitMapping {
+    // Trait is a trait name.
+    string Trait = 1 [ (gogoproto.jsontag) = "trait" ];
+    // Value is a trait value to match.
     string Value = 2 [ (gogoproto.jsontag) = "value" ];
     // Roles is a list of static teleport roles to match.
     repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
@@ -2502,7 +2646,9 @@ message OIDCConnectorSpecV3 {
     // RedirectURL is a URL that will redirect the client's browser
     // back to the identity provider after successful authentication.
     // This should match the URL on the Provider's side.
-    string RedirectURL = 4 [ (gogoproto.jsontag) = "redirect_url" ];
+    //
+    // DELETE IN 11.0.0 in favor of RedirectURLs
+    string RedirectURL = 4 [ (gogoproto.jsontag) = "-" ];
     // ACR is an Authentication Context Class Reference value. The meaning of the ACR
     // value is context-specific and varies for identity providers.
     string ACR = 5 [ (gogoproto.jsontag) = "acr_values,omitempty" ];
@@ -2525,6 +2671,77 @@ message OIDCConnectorSpecV3 {
     string GoogleServiceAccount = 12 [ (gogoproto.jsontag) = "google_service_account,omitempty" ];
     // GoogleAdminEmail is the email of a google admin to impersonate.
     string GoogleAdminEmail = 13 [ (gogoproto.jsontag) = "google_admin_email,omitempty" ];
+    // RedirectURLs is a list of callback URLs which the identity provider can use
+    // to redirect the client back to the Teleport Proxy to complete authentication.
+    // This list should match the URLs on the provider's side. The URL used for a
+    // given auth request will be chosen to match the requesting Proxy's public
+    // address. If there is no match, the first url in the list will be used.
+    wrappers.StringValues RedirectURLs = 14 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "redirect_url",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Strings"
+    ];
+}
+
+// OIDCAuthRequest is a request to authenticate with OIDC
+// provider, the state about request is managed by auth server
+message OIDCAuthRequest {
+    // ConnectorID is ID of OIDC connector this request uses
+    string ConnectorID = 1 [ (gogoproto.jsontag) = "connector_id" ];
+
+    // Type is opaque string that helps callbacks identify the request type
+    string Type = 2 [ (gogoproto.jsontag) = "type" ];
+
+    // CheckUser tells validator if it should expect and check user
+    bool CheckUser = 3 [ (gogoproto.jsontag) = "check_user" ];
+
+    // StateToken is generated by service and is used to validate
+    // reuqest coming from
+    string StateToken = 4 [ (gogoproto.jsontag) = "state_token" ];
+
+    // CSRFToken is associated with user web session token
+    string CSRFToken = 5 [ (gogoproto.jsontag) = "csrf_token" ];
+
+    // RedirectURL will be used to route the user back to a
+    // Teleport Proxy after the oidc login attempt in the brower.
+    string RedirectURL = 6 [ (gogoproto.jsontag) = "redirect_url" ];
+
+    // PublicKey is an optional public key, users want these
+    // keys to be signed by auth servers user CA in case
+    // of successful auth
+    bytes PublicKey = 7 [ (gogoproto.jsontag) = "public_key" ];
+
+    // CertTTL is the TTL of the certificate user wants to get
+    int64 CertTTL = 8 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+
+    // CreateWebSession indicates if user wants to generate a web
+    // session after successful authentication
+    bool CreateWebSession = 9 [ (gogoproto.jsontag) = "create_web_session" ];
+
+    // ClientRedirectURL is a URL client wants to be redirected
+    // after successful authentication
+    string ClientRedirectURL = 10 [ (gogoproto.jsontag) = "client_redirect_url" ];
+
+    // Compatibility specifies OpenSSH compatibility flags.
+    string Compatibility = 11 [ (gogoproto.jsontag) = "compatibility,omitempty" ];
+
+    // RouteToCluster is the name of Teleport cluster to issue credentials for.
+    string RouteToCluster = 12 [ (gogoproto.jsontag) = "route_to_cluster,omitempty" ];
+
+    // KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
+    string KubernetesCluster = 13 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+
+    // SSOTestFlow indicates if the request is part of the test flow.
+    bool SSOTestFlow = 14 [ (gogoproto.jsontag) = "sso_test_flow" ];
+
+    // ConnectorSpec is embedded connector spec for use in test flow.
+    OIDCConnectorSpecV3 ConnectorSpec = 15 [ (gogoproto.jsontag) = "connector_spec,omitempty" ];
+
+    // ProxyAddress is an optional address which can be used to
+    // find a redirect url from the OIDC connector which matches
+    // the address. If there is no match, the default redirect
+    // url will be used.
+    string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempt" ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -2583,6 +2800,59 @@ message SAMLConnectorSpecV2 {
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "assertion_key_pair,omitempty" ];
 }
 
+// SAMLAuthRequest is a request to authenticate with SAML
+// provider, the state about request is managed by auth server.
+message SAMLAuthRequest {
+    // ID is a unique request ID.
+    string ID = 1 [ (gogoproto.jsontag) = "id" ];
+
+    // ConnectorID is ID of OIDC connector this request uses.
+    string ConnectorID = 2 [ (gogoproto.jsontag) = "connector_id" ];
+
+    // Type is opaque string that helps callbacks identify the request type.
+    string Type = 3 [ (gogoproto.jsontag) = "type" ];
+
+    // CheckUser tells validator if it should expect and check user.
+    bool CheckUser = 4 [ (gogoproto.jsontag) = "check_user" ];
+
+    // RedirectURL will be used by browser.
+    string RedirectURL = 5 [ (gogoproto.jsontag) = "redirect_url" ];
+
+    // PublicKey is an optional public key, users want these
+    // keys to be signed by auth servers user CA in case
+    // of successful auth.
+    bytes PublicKey = 6 [ (gogoproto.jsontag) = "public_key" ];
+
+    // CertTTL is the TTL of the certificate user wants to get.
+    int64 CertTTL = 7 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+
+    // CSRFToken is associated with user web session token.
+    string CSRFToken = 8 [ (gogoproto.jsontag) = "csrf_token" ];
+
+    // CreateWebSession indicates if user wants to generate a web
+    // session after successful authentication.
+    bool CreateWebSession = 9 [ (gogoproto.jsontag) = "create_web_session" ];
+
+    // ClientRedirectURL is a URL client wants to be redirected
+    // after successful authentication.
+    string ClientRedirectURL = 10 [ (gogoproto.jsontag) = "client_redirect_url" ];
+
+    // Compatibility specifies OpenSSH compatibility flags.
+    string Compatibility = 11 [ (gogoproto.jsontag) = "compatibility,omitempty" ];
+
+    // RouteToCluster is the name of Teleport cluster to issue credentials for.
+    string RouteToCluster = 12 [ (gogoproto.jsontag) = "route_to_cluster,omitempty" ];
+
+    // KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
+    string KubernetesCluster = 13 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+
+    // SSOTestFlow indicates if the request is part of the test flow.
+    bool SSOTestFlow = 14 [ (gogoproto.jsontag) = "sso_test_flow" ];
+
+    // ConnectorSpec is embedded connector spec for use in test flow.
+    SAMLConnectorSpecV2 ConnectorSpec = 15 [ (gogoproto.jsontag) = "connector_spec,omitempty" ];
+}
+
 // AttributeMapping maps a SAML attribute statement to teleport roles.
 message AttributeMapping {
     // Name is an attribute statement name.
@@ -2631,13 +2901,222 @@ message GithubConnectorSpecV3 {
     // RedirectURL is the authorization callback URL.
     string RedirectURL = 3 [ (gogoproto.jsontag) = "redirect_url" ];
     // TeamsToLogins maps Github team memberships onto allowed logins/roles.
+    //
+    // DELETE IN 11.0.0
+    // Deprecated: use GithubTeamsToRoles instead.
     repeated TeamMapping TeamsToLogins = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_logins" ];
     // Display is the connector display name.
     string Display = 5 [ (gogoproto.jsontag) = "display" ];
+    // TeamsToRoles maps Github team memberships onto allowed roles.
+    repeated TeamRolesMapping TeamsToRoles = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "teams_to_roles" ];
+}
+
+// GithubAuthRequest is the request to start Github OAuth2 flow.
+message GithubAuthRequest {
+    // ConnectorID is the name of the connector to use.
+    string ConnectorID = 1 [ (gogoproto.jsontag) = "connector_id" ];
+    // Type is opaque string that helps callbacks identify the request type.
+    string Type = 2 [ (gogoproto.jsontag) = "type" ];
+    // StateToken is used to validate the request.
+    string StateToken = 3 [ (gogoproto.jsontag) = "state_token" ];
+    // CSRFToken is used to protect against CSRF attacks.
+    string CSRFToken = 4 [ (gogoproto.jsontag) = "csrf_token" ];
+    // PublicKey is an optional public key to sign in case of successful auth.
+    bytes PublicKey = 5 [ (gogoproto.jsontag) = "public_key" ];
+    // CertTTL is TTL of the cert that's generated in case of successful auth.
+    int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    // CreateWebSession indicates that a user wants to generate a web session
+    // after successful authentication.
+    bool CreateWebSession = 7 [ (gogoproto.jsontag) = "create_web_session" ];
+    // RedirectURL will be used by browser.
+    string RedirectURL = 8 [ (gogoproto.jsontag) = "redirect_url" ];
+    // ClientRedirectURL is the URL where client will be redirected after
+    // successful auth.
+    string ClientRedirectURL = 9 [ (gogoproto.jsontag) = "client_redirect_url" ];
+    // Compatibility specifies OpenSSH compatibility flags.
+    string Compatibility = 10 [ (gogoproto.jsontag) = "compatibility,omitempty" ];
+    // Expires is a global expiry time header can be set on any resource in the system.
+    google.protobuf.Timestamp Expires = 11 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "expires,omitempty"
+    ];
+    // RouteToCluster is the name of Teleport cluster to issue credentials for.
+    string RouteToCluster = 12 [ (gogoproto.jsontag) = "route_to_cluster,omitempty" ];
+    // KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
+    string KubernetesCluster = 13 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+    // SSOTestFlow indicates if the request is part of the test flow.
+    bool SSOTestFlow = 14 [ (gogoproto.jsontag) = "sso_test_flow" ];
+    // ConnectorSpec is embedded connector spec for use in test flow.
+    GithubConnectorSpecV3 ConnectorSpec = 15 [ (gogoproto.jsontag) = "connector_spec,omitempty" ];
+}
+
+// SSOWarnings conveys a user-facing main message along with auxiliary warnings.
+message SSOWarnings {
+    // Message is main user-facing message to be shown.
+    string Message = 1 [ (gogoproto.jsontag) = "message,omitempty" ];
+    // Warnings is a set of distinct warnings to be reported.
+    repeated string Warnings = 2 [ (gogoproto.jsontag) = "warnings,omitempty" ];
+}
+
+// CreateUserParams represents the user creation parameters as called during SSO login flow.
+message CreateUserParams {
+    // ConnectorName is the name of the connector used for SSO login flow.
+    string ConnectorName = 1 [ (gogoproto.jsontag) = "connector_name,omitempty" ];
+    // Username is the name of the user to be created.
+    string Username = 2 [ (gogoproto.jsontag) = "username,omitempty" ];
+    // Logins is a list of available unix logins.
+    repeated string Logins = 3 [ (gogoproto.jsontag) = "logins,omitempty" ];
+    // KubeGroups is a list of assigned kube groups.
+    repeated string KubeGroups = 4 [ (gogoproto.jsontag) = "kube_groups,omitempty" ];
+    // KubeUsers is a list of available kube users.
+    repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kube_users,omitempty" ];
+    // Roles is a list of assigned roles.
+    repeated string Roles = 6 [ (gogoproto.jsontag) = "roles,omitempty" ];
+
+    // Traits is the set of traits the user is assigned.
+    wrappers.LabelValues Traits = 7 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "traits,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // SessionTTL determines the TTL.
+    int64 SessionTTL = 8
+        [ (gogoproto.jsontag) = "session_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
+}
+
+// SSODiagnosticInfo is a single SSO diagnostic info entry.
+message SSODiagnosticInfo {
+    // TestFlow indicates the SSO flow was a test one.
+    bool TestFlow = 1 [ (gogoproto.jsontag) = "test_flow" ];
+
+    // Error stores user-friendly error message.
+    string Error = 2 [ (gogoproto.jsontag) = "error" ];
+
+    // Success if present, marks the flow as finished with success.
+    bool Success = 3 [ (gogoproto.jsontag) = "success" ];
+
+    // CreateUserParams represents the user creation parameters as called during SSO login flow.
+    CreateUserParams CreateUserParams = 4 [ (gogoproto.jsontag) = "create_user_params,omitempty" ];
+
+    // SAMLAttributesToRoles represents mapping from attributes to roles, as used during SAML SSO
+    // login flow.
+    repeated AttributeMapping SAMLAttributesToRoles = 10 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_attributes_to_roles,omitempty"
+    ];
+
+    // SAMLAttributesToRolesWarnings contains warnings produced during the process of mapping the
+    // SAML attributes to roles.
+    SSOWarnings SAMLAttributesToRolesWarnings = 11
+        [ (gogoproto.jsontag) = "saml_attributes_to_roles_warnings,omitempty" ];
+
+    // SAMLAttributeStatements represents SAML attribute statements.
+    wrappers.LabelValues SAMLAttributeStatements = 12 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_attribute_statements,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // SAMLAssertionInfo represents raw SAML assertion info as returned by IdP during SAML flow.
+    wrappers.CustomType SAMLAssertionInfo = 13 [
+        (gogoproto.jsontag) = "saml_assertion_info,omitempty",
+        (gogoproto.customtype) = "AssertionInfo"
+    ];
+
+    // SAMLTraitsFromAssertions represents traits translated from SAML assertions.
+    wrappers.LabelValues SAMLTraitsFromAssertions = 14 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_traits_from_assertions,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // SAMLConnectorTraitMapping represents connector-specific trait mapping.
+    repeated TraitMapping SAMLConnectorTraitMapping = 15 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "saml_connector_trait_mapping,omitempty"
+    ];
+
+    // OIDCClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
+    repeated ClaimMapping OIDCClaimsToRoles = 20
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "oidc_claims_to_roles,omitempty" ];
+
+    // OIDCClaimsToRolesWarnings contains warnings produced during the process of mapping the
+    // OIDC claims to roles.
+    SSOWarnings OIDCClaimsToRolesWarnings = 21
+        [ (gogoproto.jsontag) = "oidc_claims_to_roles_warnings,omitempty" ];
+
+    // OIDCClaims represents OIDC claims.
+    wrappers.CustomType OIDCClaims = 22 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "oidc_claims,omitempty",
+        (gogoproto.customtype) = "OIDCClaims"
+    ];
+
+    // OIDCIdentity represents mapped OIDC Identity.
+    wrappers.CustomType OIDCIdentity = 23 [
+        (gogoproto.jsontag) = "oidc_identity,omitempty",
+        (gogoproto.customtype) = "OIDCIdentity"
+    ];
+
+    // OIDCTraitsFromClaims represents traits translated from OIDC claims.
+    wrappers.LabelValues OIDCTraitsFromClaims = 24 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "oidc_traits_from_claims,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // OIDCConnectorTraitMapping represents connector-specific trait mapping.
+    repeated TraitMapping OIDCConnectorTraitMapping = 25 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "oidc_connector_trait_mapping,omitempty"
+    ];
+
+    // GithubClaims represents Github user information obtained during OAuth2 flow.
+    GithubClaims GithubClaims = 30 [ (gogoproto.jsontag) = "github_claims,omitempty" ];
+
+    // GithubTeamsToLogins is TeamsToLogins mapping from Github connector used in the SSO flow.
+    repeated TeamMapping GithubTeamsToLogins = 31
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "github_teams_to_logins,omitempty" ];
+
+    // GithubTeamsToRoles is TeamRolesMapping mapping from Github connector used in the SSO flow.
+    repeated TeamRolesMapping GithubTeamsToRoles = 32
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "github_teams_to_roles,omitempty" ];
+
+    // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
+    GithubTokenInfo GithubTokenInfo = 33 [ (gogoproto.jsontag) = "github_token_info,omitempty" ];
+}
+
+// GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
+// The token itself is secret and therefore not included.
+message GithubTokenInfo {
+    string TokenType = 1 [ (gogoproto.jsontag) = "token_type" ];
+    int64 Expires = 2 [ (gogoproto.jsontag) = "expires" ];
+    string Scope = 3 [ (gogoproto.jsontag) = "scope" ];
+}
+
+// GithubClaims represents Github user information obtained during OAuth2 flow
+message GithubClaims {
+    // Username is the user's username
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+
+    // OrganizationToTeams is the user's organization and team membership
+    wrappers.LabelValues OrganizationToTeams = 2 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "organization_to_teams",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+
+    // Teams is the users team membership
+    repeated string Teams = 3 [ (gogoproto.jsontag) = "teams" ];
 }
 
 // TeamMapping represents a single team membership mapping.
+//
+// DELETE IN 11.0.0
 message TeamMapping {
     // Organization is a Github organization a user belongs to.
     string Organization = 1 [ (gogoproto.jsontag) = "organization" ];
@@ -2649,6 +3128,16 @@ message TeamMapping {
     repeated string KubeGroups = 4 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
     // KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
     repeated string KubeUsers = 5 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
+}
+
+// TeamRolesMapping represents a single team membership mapping.
+message TeamRolesMapping {
+    // Organization is a Github organization a user belongs to.
+    string Organization = 1 [ (gogoproto.jsontag) = "organization" ];
+    // Team is a team within the organization a user belongs to.
+    string Team = 2 [ (gogoproto.jsontag) = "team" ];
+    // Roles is a list of allowed logins for this org/team.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
 }
 
 // TrustedClusterV2 represents a Trusted Cluster.
@@ -2806,6 +3295,8 @@ message WindowsDesktopServiceSpecV3 {
     string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
     // Hostname is the desktop service hostname.
     string Hostname = 3 [ (gogoproto.jsontag) = "hostname" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 4 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
 }
 
 // WindowsDesktopFilter are filters to apply when searching for windows desktops.
@@ -2983,6 +3474,18 @@ message SessionTrackerSpecV1 {
     // creation.
     repeated SessionTrackerPolicySet HostPolicies = 16
         [ (gogoproto.jsontag) = "host_roles,omitempty" ];
+
+    // DatabaseName is the database server this session belongs to.
+    string DatabaseName = 17 [ (gogoproto.jsontag) = "database_name,omitempty" ];
+
+    // AppName is the app server this session belongs to.
+    string AppName = 18 [ (gogoproto.jsontag) = "app_name,omitempty" ];
+
+    // AppSessionID is the unique ID of the app access certificate used to start this app session.
+    string AppSessionID = 19 [ (gogoproto.jsontag) = "app_session_id,omitempty" ];
+
+    // DesktopName is the windows desktop server this session belongs to.
+    string DesktopName = 20 [ (gogoproto.jsontag) = "desktop_name,omitempty" ];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

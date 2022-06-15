@@ -124,6 +124,52 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		require.True(t, trace.IsNotFound(err))
 	})
 
+	t.Run("deleting user with common prefix", func(t *testing.T) {
+		username1 := "test"
+		username2 := "test1"
+
+		// Create a user.
+		userResource1 := &types.UserV2{}
+		userResource1.SetName(username1)
+		err := identity.CreateUser(userResource1)
+		require.NoError(t, err)
+
+		// Create another user whose username which is prefixed with
+		// the previous username.
+		userResource2 := &types.UserV2{}
+		userResource2.SetName(username2)
+		err = identity.CreateUser(userResource2)
+		require.NoError(t, err)
+
+		// Test codes exist for the first user.
+		rc1, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username1)
+		require.NoError(t, err)
+		err = identity.UpsertRecoveryCodes(ctx, username1, rc1)
+		require.NoError(t, err)
+		codes, err := identity.GetRecoveryCodes(ctx, username1, true /* withSecrets */)
+		require.NoError(t, err)
+		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
+
+		// Test codes exist for the second user.
+		rc2, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username2)
+		require.NoError(t, err)
+		err = identity.UpsertRecoveryCodes(ctx, username2, rc2)
+		require.NoError(t, err)
+		codes, err = identity.GetRecoveryCodes(ctx, username2, true /* withSecrets */)
+		require.NoError(t, err)
+		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
+
+		// Test deletion of recovery code along with the first user.
+		err = identity.DeleteUser(ctx, username1)
+		require.NoError(t, err)
+		_, err = identity.GetRecoveryCodes(ctx, username1, true /* withSecrets */)
+		require.True(t, trace.IsNotFound(err))
+
+		// Test recovery code and user of the second user still exist.
+		_, err = identity.GetRecoveryCodes(ctx, username2, true /* withSecrets */)
+		require.NoError(t, err)
+	})
+
 	t.Run("deleting user ending with 'z'", func(t *testing.T) {
 		// enable the sanitizer, and use a key ending with z,
 		// which will produce an invalid backend key when we
@@ -761,4 +807,42 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	fakeClock.Advance(period)
 	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
 	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
+}
+
+func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	nilInfo, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "BAD_ID")
+	require.Nil(t, nilInfo)
+	require.Error(t, err)
+
+	info := types.SSODiagnosticInfo{
+		TestFlow: true,
+		Error:    "foo bar baz",
+		Success:  false,
+		CreateUserParams: &types.CreateUserParams{
+			ConnectorName: "bar",
+			Username:      "baz",
+		},
+		SAMLAttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "foo",
+				Value: "bar",
+				Roles: []string{"baz"},
+			},
+		},
+		SAMLAttributesToRolesWarnings: nil,
+		SAMLAttributeStatements:       nil,
+		SAMLAssertionInfo:             nil,
+		SAMLTraitsFromAssertions:      nil,
+		SAMLConnectorTraitMapping:     nil,
+	}
+
+	err = identity.CreateSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID", info)
+	require.NoError(t, err)
+
+	infoGet, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID")
+	require.NoError(t, err)
+	require.Equal(t, &info, infoGet)
 }

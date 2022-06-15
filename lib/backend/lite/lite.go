@@ -21,6 +21,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -56,7 +57,10 @@ const (
 const (
 	// defaultDirMode is the mode of the newly created directories that are part
 	// of the Path
-	defaultDirMode os.FileMode = 0770
+	defaultDirMode os.FileMode = 0700
+
+	// dbMode is the mode set on sqlite database files
+	dbMode os.FileMode = 0600
 
 	// defaultDBFile is the file name of the sqlite db in the directory
 	// specified by Path
@@ -197,15 +201,32 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 	connectionURI := cfg.ConnectionURI()
+	path := filepath.Join(cfg.Path, defaultDBFile)
 	// Ensure that the path to the root directory exists.
-	err := os.MkdirAll(cfg.Path, defaultDirMode)
+	err := os.MkdirAll(cfg.Path, os.ModeDir|defaultDirMode)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
+
+	setPermissions := false
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		setPermissions = true
+	}
+
 	db, err := sql.Open("sqlite3", cfg.ConnectionURI())
 	if err != nil {
 		return nil, trace.Wrap(err, "error opening URI: %v", connectionURI)
 	}
+
+	if setPermissions {
+		// Ensure the database has restrictive access permissions.
+		db.PingContext(ctx)
+		err = os.Chmod(path, dbMode)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
+
 	// serialize access to sqlite, as we're using immediate transactions anyway,
 	// and in-memory go locks are faster than sqlite locks
 	db.SetMaxOpenConns(1)
